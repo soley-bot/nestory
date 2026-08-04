@@ -1,10 +1,23 @@
-import { readFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createReadOnlyRequestPolicy,
   validateLocalBaseUrl,
 } from "./smoke-ui-redesign-policy.mjs";
 import * as smokePolicy from "./smoke-ui-redesign-policy.mjs";
+
+const artifactPolicy = await import("./smoke-ui-redesign-artifacts.mjs").catch(
+  () => ({}),
+);
 
 const routeManifest = JSON.parse(
   await readFile(
@@ -199,16 +212,18 @@ describe("browser acceptance matrix policy", () => {
 
   it("resolves the five 200%-equivalent keyboard routes from exact manifest paths", () => {
     expect(smokePolicy.resolveKeyboardZoomRoutes(routeManifest)).toEqual([
-      { expectedAccess: "accessible", label: "Overview", manifestRoute: "/overview", path: "/overview" },
-      { expectedAccess: "accessible", label: "Leases", manifestRoute: "/leases", path: "/leases?query=Dara" },
-      { expectedAccess: "accessible", label: "Maintenance", manifestRoute: "/maintenance", path: "/maintenance?view=list&query=Kitchen" },
+      { expectedAccess: "accessible", label: "Overview", manifestRoute: "/overview", operationalSurfaceKey: "overview-operating-work", operationalSurfaceSelector: "[data-slot=\"overview-operating-scroll\"]", path: "/overview" },
+      { expectedAccess: "accessible", label: "Leases", manifestRoute: "/leases", operationalSurfaceKey: "leases-register", operationalSurfaceSelector: "[data-slot=\"workspace-main-surface\"]", path: "/leases?query=Dara" },
+      { expectedAccess: "accessible", label: "Maintenance", manifestRoute: "/maintenance", operationalSurfaceKey: "maintenance-workspace", operationalSurfaceSelector: "[data-slot=\"workspace-main-surface\"]", path: "/maintenance?view=list&query=Kitchen" },
       {
         expectedAccess: "accessible",
         label: "Property detail",
         manifestRoute: "/properties/[propertyId]",
+        operationalSurfaceKey: "property-record-panel",
+        operationalSurfaceSelector: "[role=\"tabpanel\"]",
         path: "/properties/10000000-0000-0000-0000-000000000001",
       },
-      { expectedAccess: "accessible", label: "Settings", manifestRoute: "/settings", path: "/settings" },
+      { expectedAccess: "accessible", label: "Settings", manifestRoute: "/settings", operationalSurfaceKey: "settings-workspace", operationalSurfaceSelector: "[data-testid=\"settings-workspace\"]", path: "/settings" },
     ]);
     expect(smokePolicy.KEYBOARD_ZOOM_VIEWPORT).toEqual({
       height: 450,
@@ -258,6 +273,7 @@ describe("200%-equivalent keyboard audit policy", () => {
       "zoom-equivalent-200 /overview: horizontal overflow check failed",
       "zoom-equivalent-200 /overview: no keyboard focus targets reached",
       "zoom-equivalent-200 /overview: no keyboard focus regions reached",
+      "zoom-equivalent-200 /overview: no forward-reached route operational-surface target",
       "zoom-equivalent-200 /overview: no reached main work-surface target",
       "zoom-equivalent-200 /overview: 1 keyboard target(s) unreachable",
       "zoom-equivalent-200 /overview: 1 off-viewport focus target(s)",
@@ -297,6 +313,24 @@ describe("200%-equivalent keyboard audit policy", () => {
       "zoom-equivalent-200 /overview: 1 reverse keyboard target(s) unreachable",
     ]);
   });
+
+  it("rejects header-only focus even when it is under the generic app shell", () => {
+    const result = passingKeyboardAudit();
+    result.keyboardTraversal.eligibleTargets[0].operationalSurfaceKey = null;
+    result.keyboardTraversal.reachedTargets[0].operationalSurfaceKey = null;
+    result.keyboardTraversal.reverseReachedTargets[0].operationalSurfaceKey = null;
+    result.keyboardTraversal.operationalSurface.eligibleTargetKeys = [];
+
+    expect(smokePolicy.getKeyboardZoomAuditFailures(result).join("\n")).toContain(
+      "no eligible route operational-surface target",
+    );
+    expect(smokePolicy.getKeyboardZoomAuditFailures(result).join("\n")).toContain(
+      "no forward-reached route operational-surface target",
+    );
+    expect(smokePolicy.getKeyboardZoomAuditFailures(result).join("\n")).toContain(
+      "no reverse-reached route operational-surface target",
+    );
+  });
 });
 
 describe("tracked evidence summary validation", () => {
@@ -325,6 +359,9 @@ describe("tracked evidence summary validation", () => {
     ["wrong keyboard route contracts", (summary) => { summary.keyboardZoomAudits[0].route = "/overview?wrong=true"; }, "keyboard audit Overview does not match its manifest contract"],
     ["missing reverse work-surface proof", (summary) => { summary.keyboardZoomAudits[0].keyboardTraversal.reverseReachedTargets = []; }, "no reverse-reached main work-surface target"],
     ["missing forward wrap proof", (summary) => { summary.keyboardZoomAudits[0].keyboardTraversal.forwardTraversal.reached = false; }, "forward keyboard traversal failed"],
+    ["missing producer metadata", (summary) => { delete summary.producer; }, "producer metadata is invalid"],
+    ["missing run metadata", (summary) => { delete summary.completedAt; }, "startedAt and completedAt must be valid"],
+    ["wrong operational selector contract", (summary) => { summary.keyboardZoomAudits[0].operationalSurfaceContract.selector = "main"; }, "keyboard audit Overview does not match its manifest contract"],
   ])("rejects %s", (_label, mutate, expected) => {
     const summary = createValidSummary();
     mutate(summary);
@@ -374,6 +411,86 @@ describe("exact screenshot evidence policy", () => {
   });
 });
 
+describe("filesystem-backed evidence artifacts", () => {
+  it("accepts real in-run PNG files and rejects forged artifact claims", async () => {
+    const fixture = await createArtifactFixture();
+
+    try {
+      expect(await validateArtifacts(fixture.summary, fixture.workspaceRoot)).toEqual(
+        [],
+      );
+
+      const first = fixture.summary.results[0];
+      const second = fixture.summary.results[1];
+      const originalFirstPath = first.screenshot.path;
+      const originalSecondPath = second.screenshot.path;
+
+      first.screenshot.path = "Z:/definitely-missing/overview-1440x900.png";
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "escapes the evidence run directory",
+      );
+      first.screenshot.path = "artifacts/ui-redesign/test-run/../escape-1440x900.png";
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "contains parent traversal",
+      );
+      first.screenshot.path = `artifacts/ui-redesign/test-run/sub/../${basename(originalFirstPath)}`;
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "contains parent traversal",
+      );
+      first.screenshot.path = originalFirstPath;
+
+      fixture.summary.runDirectory =
+        "artifacts/ui-redesign/temporary/../test-run";
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "runDirectory contains parent traversal",
+      );
+      fixture.summary.runDirectory = "artifacts/ui-redesign/test-run";
+
+      second.screenshot.path = originalFirstPath;
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "duplicate screenshot artifact path",
+      );
+      second.screenshot.path = originalSecondPath;
+
+      const aliasResult = fixture.summary.results[4];
+      const originalAliasPath = aliasResult.screenshot.path;
+      const runDirectory = join(
+        fixture.workspaceRoot,
+        fixture.summary.runDirectory,
+      );
+      await symlink(runDirectory, join(runDirectory, "alias"), "junction");
+      aliasResult.screenshot.path = `artifacts/ui-redesign/test-run/alias/${basename(originalFirstPath)}`;
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "duplicate canonical screenshot artifact path",
+      );
+      aliasResult.screenshot.path = originalAliasPath;
+
+      first.screenshot.path = "artifacts/ui-redesign/test-run/missing-dimensions.png";
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "filename must include 1440x900",
+      );
+      first.screenshot.path = originalFirstPath;
+
+      await writeFile(join(fixture.workspaceRoot, originalFirstPath), Buffer.from("not a png"));
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "is not a readable PNG with a valid IHDR",
+      );
+
+      await writeFile(join(fixture.workspaceRoot, originalFirstPath), createPngHeader(1, 1));
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "PNG dimensions 1x1 do not match viewport 1440x900",
+      );
+
+      first.screenshot.path = "artifacts/ui-redesign/test-run/nonexistent-1440x900.png";
+      expect((await validateArtifacts(fixture.summary, fixture.workspaceRoot)).join("\n")).toContain(
+        "could not be read",
+      );
+    } finally {
+      await rm(fixture.workspaceRoot, { force: true, recursive: true });
+    }
+  });
+});
+
 function createPolicy() {
   return createReadOnlyRequestPolicy({ baseUrl: "http://localhost:3000" });
 }
@@ -415,13 +532,18 @@ function passingRouteResult(viewport) {
 }
 
 function passingKeyboardAudit() {
+  const operationalSurfaceContract = {
+    key: "overview-operating-work",
+    selector: '[data-slot="overview-operating-scroll"]',
+  };
+
   return {
     accessResult: "accessible",
     expectedAccess: "accessible",
     h1: { count: 1, error: null, texts: ["Overview"] },
     horizontalOverflow: { error: null, hasOverflow: false },
     keyboardTraversal: {
-      eligibleTargets: [{ inWorkSurface: true, key: "a:nth-of-type(1)", region: "Primary" }],
+      eligibleTargets: [{ inWorkSurface: true, key: "a:nth-of-type(1)", operationalSurfaceKey: operationalSurfaceContract.key, operationalSurfaceSelector: operationalSurfaceContract.selector, region: "Primary" }],
       error: null,
       forwardUnreachableTargets: [],
       forwardTraversal: {
@@ -430,10 +552,16 @@ function passingKeyboardAudit() {
         target: { key: "a:nth-of-type(1)", region: "Primary" },
       },
       offViewportFocus: [],
+      operationalSurface: {
+        eligibleTargetKeys: ["a:nth-of-type(1)"],
+        exists: true,
+        key: operationalSurfaceContract.key,
+        selector: operationalSurfaceContract.selector,
+      },
       reachedRegions: ["Primary"],
-      reachedTargets: [{ inWorkSurface: true, key: "a:nth-of-type(1)", region: "Primary" }],
+      reachedTargets: [{ inWorkSurface: true, key: "a:nth-of-type(1)", operationalSurfaceKey: operationalSurfaceContract.key, operationalSurfaceSelector: operationalSurfaceContract.selector, region: "Primary" }],
       requiredWorkSurfaceTargetKeys: ["a:nth-of-type(1)"],
-      reverseReachedTargets: [{ inWorkSurface: true, key: "a:nth-of-type(1)", region: "Primary" }],
+      reverseReachedTargets: [{ inWorkSurface: true, key: "a:nth-of-type(1)", operationalSurfaceKey: operationalSurfaceContract.key, operationalSurfaceSelector: operationalSurfaceContract.selector, region: "Primary" }],
       reverseTraversal: {
         attempted: true,
         reached: true,
@@ -445,6 +573,7 @@ function passingKeyboardAudit() {
     label: "Overview",
     manifestRoute: "/overview",
     navigationError: null,
+    operationalSurfaceContract,
     route: "/overview",
     screenshot: {
       error: null,
@@ -488,24 +617,53 @@ function createValidSummary() {
   );
   const keyboardZoomAudits = smokePolicy
     .resolveKeyboardZoomRoutes(routeManifest)
-    .map((route) => ({
-      ...passingKeyboardAudit(),
-      expectedAccess: route.expectedAccess,
-      accessResult: route.expectedAccess,
-      label: route.label,
-      manifestRoute: route.manifestRoute,
-      route: route.path,
-    }));
+    .map((route) => {
+      const audit = passingKeyboardAudit();
+      const contract = {
+        key: route.operationalSurfaceKey,
+        selector: route.operationalSurfaceSelector,
+      };
+      audit.operationalSurfaceContract = contract;
+      audit.keyboardTraversal.operationalSurface = {
+        eligibleTargetKeys: ["a:nth-of-type(1)"],
+        exists: true,
+        ...contract,
+      };
+      for (const target of [
+        ...audit.keyboardTraversal.eligibleTargets,
+        ...audit.keyboardTraversal.reachedTargets,
+        ...audit.keyboardTraversal.reverseReachedTargets,
+      ]) {
+        target.operationalSurfaceKey = contract.key;
+        target.operationalSurfaceSelector = contract.selector;
+      }
+
+      return {
+        ...audit,
+        accessResult: route.expectedAccess,
+        expectedAccess: route.expectedAccess,
+        label: route.label,
+        manifestRoute: route.manifestRoute,
+        route: route.path,
+      };
+    });
 
   return {
     axeEnabled: true,
     blockedMutationRequests: [],
     keyboardZoomAudits,
     maintenanceBoardResults,
+    completedAt: "2026-08-04T10:10:01.000Z",
+    producer: {
+      name: "smoke-ui-redesign",
+      version: 1,
+    },
     results,
     roleAudits,
+    runDirectory: "artifacts/ui-redesign/test-run",
     runMode: "axe",
     schemaVersion: 1,
+    startedAt: "2026-08-04T10:10:00.000Z",
     viewports: smokePolicy.MAIN_CAPTURE_VIEWPORTS.map((viewport) => ({
       ...viewport,
     })),
@@ -518,4 +676,46 @@ function validateSummary(summary) {
       "validator missing",
     ]
   );
+}
+
+async function createArtifactFixture() {
+  const workspaceRoot = await mkdtemp(join(tmpdir(), "nestory-ui-evidence-"));
+  const summary = createValidSummary();
+  const results = [
+    ...summary.results,
+    ...summary.maintenanceBoardResults,
+    ...summary.keyboardZoomAudits,
+  ];
+
+  for (const [index, result] of results.entries()) {
+    const relativePath = `artifacts/ui-redesign/test-run/${index}-${result.viewportWidth}x${result.viewportHeight}.png`;
+    const absolutePath = join(workspaceRoot, relativePath);
+    result.screenshot.path = relativePath;
+    await mkdir(dirname(absolutePath), { recursive: true });
+    await writeFile(
+      absolutePath,
+      createPngHeader(result.viewportWidth, result.viewportHeight),
+    );
+  }
+
+  return { summary, workspaceRoot };
+}
+
+function createPngHeader(width, height) {
+  const png = Buffer.alloc(24);
+  Buffer.from("89504e470d0a1a0a", "hex").copy(png, 0);
+  png.write("IHDR", 12, "ascii");
+  png.writeUInt32BE(width, 16);
+  png.writeUInt32BE(height, 20);
+  return png;
+}
+
+async function validateArtifacts(summary, workspaceRoot) {
+  if (typeof artifactPolicy.validateEvidenceArtifacts !== "function") {
+    return ["artifact validator missing"];
+  }
+
+  return artifactPolicy.validateEvidenceArtifacts(summary, routeManifest, {
+    workspaceRoot,
+  });
 }

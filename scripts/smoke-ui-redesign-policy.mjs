@@ -39,11 +39,36 @@ export const FINAL_ACCEPTANCE_ROUTES = Object.freeze([
 ]);
 
 const keyboardZoomRouteDefinitions = Object.freeze([
-  { label: "Overview", manifestRoute: "/overview" },
-  { label: "Leases", manifestRoute: "/leases" },
-  { label: "Maintenance", manifestRoute: "/maintenance" },
-  { label: "Property detail", manifestRoute: "/properties/[propertyId]" },
-  { label: "Settings", manifestRoute: "/settings" },
+  {
+    label: "Overview",
+    manifestRoute: "/overview",
+    operationalSurfaceKey: "overview-operating-work",
+    operationalSurfaceSelector: '[data-slot="overview-operating-scroll"]',
+  },
+  {
+    label: "Leases",
+    manifestRoute: "/leases",
+    operationalSurfaceKey: "leases-register",
+    operationalSurfaceSelector: '[data-slot="workspace-main-surface"]',
+  },
+  {
+    label: "Maintenance",
+    manifestRoute: "/maintenance",
+    operationalSurfaceKey: "maintenance-workspace",
+    operationalSurfaceSelector: '[data-slot="workspace-main-surface"]',
+  },
+  {
+    label: "Property detail",
+    manifestRoute: "/properties/[propertyId]",
+    operationalSurfaceKey: "property-record-panel",
+    operationalSurfaceSelector: '[role="tabpanel"]',
+  },
+  {
+    label: "Settings",
+    manifestRoute: "/settings",
+    operationalSurfaceKey: "settings-workspace",
+    operationalSurfaceSelector: '[data-testid="settings-workspace"]',
+  },
 ]);
 
 export function validateLocalBaseUrl(value) {
@@ -169,6 +194,8 @@ export function resolveKeyboardZoomRoutes(manifest) {
       expectedAccess: entry.smoke.expectedAccess.admin,
       label: definition.label,
       manifestRoute: definition.manifestRoute,
+      operationalSurfaceKey: definition.operationalSurfaceKey,
+      operationalSurfaceSelector: definition.operationalSurfaceSelector,
       path: entry.smoke.path,
     };
   });
@@ -232,6 +259,27 @@ export function validateEvidenceSummary(summary, manifest) {
   }
   if (summary.runMode !== "axe") {
     failures.push("runMode must be axe for tracked evidence");
+  }
+  if (
+    summary.producer?.name !== "smoke-ui-redesign" ||
+    summary.producer?.version !== UI_EVIDENCE_SCHEMA_VERSION
+  ) {
+    failures.push("producer metadata is invalid");
+  }
+  if (
+    typeof summary.runDirectory !== "string" ||
+    summary.runDirectory.trim() === ""
+  ) {
+    failures.push("runDirectory must be a non-empty string");
+  }
+  const startedAt = Date.parse(summary.startedAt);
+  const completedAt = Date.parse(summary.completedAt);
+  if (
+    !Number.isFinite(startedAt) ||
+    !Number.isFinite(completedAt) ||
+    completedAt < startedAt
+  ) {
+    failures.push("startedAt and completedAt must be valid and ordered");
   }
   if (arrays.blockedMutationRequests.length > 0) {
     failures.push("blocked mutation requests must be empty");
@@ -379,6 +427,41 @@ export function getKeyboardZoomAuditFailures(result) {
   }
   if (!traversal?.reachedRegions?.length) {
     failures.push(`${prefix}: no keyboard focus regions reached`);
+  }
+  const operationalContract = result.operationalSurfaceContract;
+  const operationalSurface = traversal?.operationalSurface;
+  if (
+    operationalSurface?.exists !== true ||
+    operationalSurface.key !== operationalContract?.key ||
+    operationalSurface.selector !== operationalContract?.selector
+  ) {
+    failures.push(`${prefix}: route operational surface missing`);
+  }
+  if (
+    !operationalSurface?.eligibleTargetKeys?.length ||
+    !traversal?.eligibleTargets?.some(
+      (target) => target.operationalSurfaceKey === operationalContract?.key,
+    )
+  ) {
+    failures.push(`${prefix}: no eligible route operational-surface target`);
+  }
+  if (
+    !traversal?.reachedTargets?.some(
+      (target) => target.operationalSurfaceKey === operationalContract?.key,
+    )
+  ) {
+    failures.push(
+      `${prefix}: no forward-reached route operational-surface target`,
+    );
+  }
+  if (
+    !traversal?.reverseReachedTargets?.some(
+      (target) => target.operationalSurfaceKey === operationalContract?.key,
+    )
+  ) {
+    failures.push(
+      `${prefix}: no reverse-reached route operational-surface target`,
+    );
   }
   if (
     !traversal?.requiredWorkSurfaceTargetKeys?.length ||
@@ -700,6 +783,10 @@ function validateKeyboardAudits(audits, manifest, failures) {
         audit.label !== contract.label ||
         audit.route !== contract.path ||
         audit.expectedAccess !== contract.expectedAccess ||
+        audit.operationalSurfaceContract?.key !==
+          contract.operationalSurfaceKey ||
+        audit.operationalSurfaceContract?.selector !==
+          contract.operationalSurfaceSelector ||
         audit.viewport !== KEYBOARD_ZOOM_VIEWPORT.name ||
         audit.viewportWidth !== KEYBOARD_ZOOM_VIEWPORT.width ||
         audit.viewportHeight !== KEYBOARD_ZOOM_VIEWPORT.height

@@ -91,6 +91,16 @@ The static browser harness is now prepared, but remains unrun:
   the four Maintenance board captures, and exactly five clean equivalent
   keyboard audits. Older, partial, duplicate, malformed, baseline-only, or
   failing summaries must be rerun and cannot update tracked evidence.
+- Before any tracked evidence directory or file is written, an asynchronous
+  artifact gate requires producer/timestamp/run metadata, confines the run and
+  every canonical screenshot path to that run under `artifacts/ui-redesign`,
+  reads every claimed PNG, and checks filename and IHDR dimensions against its
+  viewport. Absolute paths, traversal, missing/unreadable files, duplicate or
+  aliased artifacts, invalid IHDR data, and dimension mismatches are rejected.
+- Equivalent keyboard proof is bound to existing route-owned operational
+  surfaces for Overview, Leases, Maintenance, Property detail, and Settings.
+  Header/navigation-only focus cannot satisfy either forward or reverse
+  traversal, and each required selector must exist with an eligible target.
 
 No line above is runtime browser evidence. The exact captures and equivalent
 keyboard audit remain open until the browser commands run. Actual 200% browser

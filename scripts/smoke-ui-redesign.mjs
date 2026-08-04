@@ -2,8 +2,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright";
+import { assertEvidenceArtifacts } from "./smoke-ui-redesign-artifacts.mjs";
 import {
-  assertEvidenceSummary,
   buildArtifactRunName,
   collectSmokeFailures,
   createReadOnlyRequestPolicy,
@@ -205,6 +205,10 @@ try {
     completedAt: new Date().toISOString(),
     keyboardZoomAudits,
     maintenanceBoardResults,
+    producer: {
+      name: "smoke-ui-redesign",
+      version: UI_EVIDENCE_SCHEMA_VERSION,
+    },
     results,
     roleAudits,
     runMode,
@@ -538,13 +542,24 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
           hasOverflow: null,
         }),
       );
-      const keyboardTraversal = await traverseKeyboardTargets(page).catch(
-        (error) => ({
+      const operationalSurfaceContract = {
+        key: route.operationalSurfaceKey,
+        selector: route.operationalSurfaceSelector,
+      };
+      const keyboardTraversal = await traverseKeyboardTargets(
+        page,
+        operationalSurfaceContract,
+      ).catch((error) => ({
           eligibleTargets: [],
           error: error instanceof Error ? error.message : String(error),
           forwardUnreachableTargets: [],
           forwardTraversal: { attempted: false, reached: false, target: null },
           offViewportFocus: [],
+          operationalSurface: {
+            eligibleTargetKeys: [],
+            exists: false,
+            ...operationalSurfaceContract,
+          },
           reachedRegions: [],
           reachedTargets: [],
           requiredWorkSurfaceTargetKeys: [],
@@ -552,8 +567,7 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
           reverseTraversal: { attempted: false, reached: false, target: null },
           reverseUnreachableTargets: [],
           unreachableTargets: [],
-        }),
-      );
+        }));
       const screenshot = await saveViewportScreenshot({
         page,
         screenshotPath,
@@ -575,6 +589,7 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
         label: route.label,
         manifestRoute: route.manifestRoute,
         navigationError,
+        operationalSurfaceContract,
         responseStatus,
         route: route.path,
         screenshot,
@@ -600,8 +615,13 @@ async function measureH1(page) {
   return { count: texts.length, error: null, texts };
 }
 
-async function traverseKeyboardTargets(page) {
-  const eligibleTargets = await inspectKeyboardTargets(page, true);
+async function traverseKeyboardTargets(page, operationalSurfaceContract) {
+  const inventory = await inspectKeyboardTargets(
+    page,
+    true,
+    operationalSurfaceContract,
+  );
+  const eligibleTargets = inventory.targets;
   const offViewportFocus = new Map();
   const eligibleKeys = new Set(eligibleTargets.map((target) => target.key));
   const requiredWorkSurfaceTargetKeys = eligibleTargets
@@ -611,12 +631,14 @@ async function traverseKeyboardTargets(page) {
     eligibleKeys,
     key: "Tab",
     offViewportFocus,
+    operationalSurfaceContract,
     page,
   });
   const reverse = await traverseKeyboardDirection({
     eligibleKeys,
     key: "Shift+Tab",
     offViewportFocus,
+    operationalSurfaceContract,
     page,
   });
   const forwardUnreachableTargets = eligibleTargets.filter(
@@ -637,6 +659,7 @@ async function traverseKeyboardTargets(page) {
       target: forward.lastTarget,
     },
     offViewportFocus: [...offViewportFocus.values()],
+    operationalSurface: inventory.operationalSurface,
     reachedRegions: [
       ...new Set(reached.map((target) => target.region).filter(Boolean)),
     ],
@@ -658,6 +681,7 @@ async function traverseKeyboardDirection({
   eligibleKeys,
   key,
   offViewportFocus,
+  operationalSurfaceContract,
   page,
 }) {
   await resetKeyboardFocus(page);
@@ -670,7 +694,11 @@ async function traverseKeyboardDirection({
 
   for (let index = 0; index < maximumPresses; index += 1) {
     await page.keyboard.press(key);
-    const target = await inspectKeyboardTargets(page, false);
+    const target = await inspectKeyboardTargets(
+      page,
+      false,
+      operationalSurfaceContract,
+    );
 
     if (!target?.key || !eligibleKeys.has(target.key)) {
       continue;
@@ -713,8 +741,12 @@ function recordFocusedTarget({ offViewportFocus, reachedTargets, target }) {
   }
 }
 
-async function inspectKeyboardTargets(page, includeInventory) {
-  return page.evaluate((shouldReturnInventory) => {
+async function inspectKeyboardTargets(
+  page,
+  includeInventory,
+  operationalSurfaceContract,
+) {
+  return page.evaluate(({ contract, shouldReturnInventory }) => {
     const selector = [
       "a[href]",
       "button",
@@ -764,6 +796,8 @@ async function inspectKeyboardTargets(page, includeInventory) {
       );
     }
 
+    const operationalSurface = document.querySelector(contract.selector);
+
     function targetSnapshot(element) {
       if (!(element instanceof HTMLElement)) {
         return null;
@@ -807,6 +841,12 @@ async function inspectKeyboardTargets(page, includeInventory) {
         inWorkSurface: Boolean(
           element.closest('[data-slot="app-shell-content"], main'),
         ),
+        operationalSurfaceKey: operationalSurface?.contains(element)
+          ? contract.key
+          : null,
+        operationalSurfaceSelector: operationalSurface?.contains(element)
+          ? contract.selector
+          : null,
         region: regionName(element),
         tagName: element.tagName,
       };
@@ -816,7 +856,7 @@ async function inspectKeyboardTargets(page, includeInventory) {
       return targetSnapshot(document.activeElement);
     }
 
-    return [...document.querySelectorAll(selector)]
+    const targets = [...document.querySelectorAll(selector)]
       .filter((element) => {
         if (!(element instanceof HTMLElement)) {
           return false;
@@ -837,7 +877,19 @@ async function inspectKeyboardTargets(page, includeInventory) {
       })
       .map(targetSnapshot)
       .filter(Boolean);
-  }, includeInventory);
+
+    return {
+      operationalSurface: {
+        eligibleTargetKeys: targets
+          .filter((target) => target.operationalSurfaceKey === contract.key)
+          .map((target) => target.key),
+        exists: Boolean(operationalSurface),
+        key: contract.key,
+        selector: contract.selector,
+      },
+      targets,
+    };
+  }, { contract: operationalSurfaceContract, shouldReturnInventory: includeInventory });
 }
 
 function isExpectedDevServerConsoleError(message) {
@@ -1175,7 +1227,7 @@ function renderEvidenceDocument(summary) {
 }
 
 async function writeEvidenceDocument(summary) {
-  assertEvidenceSummary(summary, manifest);
+  await assertEvidenceArtifacts(summary, manifest);
   const evidenceDirectory = resolve("docs", "verification");
   await mkdir(evidenceDirectory, { recursive: true });
   await writeFile(
