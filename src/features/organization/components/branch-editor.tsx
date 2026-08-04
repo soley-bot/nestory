@@ -2,15 +2,23 @@
 
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
+  useState,
 } from "react";
 import { Building2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar } from "@/components/ui/draft-action-bar";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
+import {
+  SideDrawer,
+  useDrawerDraftGuard,
+} from "@/components/ui/side-drawer";
 import { createBranchAction } from "@/features/organization/actions";
 import type { OrganizationBranch } from "@/features/organization/data";
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
@@ -52,6 +60,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
     controllerRef,
   ) {
   const formRef = useRef<HTMLFormElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const draft = useSettingsDraft({
     action: createBranchAction,
     errorMessage: "Branch not saved",
@@ -73,6 +82,9 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
     draft.status === "error" && draft.resultMessage
       ? `Branch not saved: ${draft.resultMessage}`
       : undefined;
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+  }, []);
 
   useImperativeHandle(
     controllerRef,
@@ -92,7 +104,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
   return (
     <>
       <section
-        className="min-w-0 overflow-hidden rounded-md border border-border bg-surface"
+        className="min-w-0 overflow-hidden"
         data-testid="settings-editor"
       >
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -105,6 +117,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
               {branches.length} {branches.length === 1 ? "branch" : "branches"}
             </p>
           </div>
+          <Button onClick={() => setDrawerOpen(true)}>Add branch</Button>
         </div>
 
         {branches.length > 0 ? (
@@ -129,8 +142,47 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           </div>
         ) : null}
 
+      </section>
+
+      <SideDrawer
+        description={`Add one branch to ${organizationName}.`}
+        footer={
+          <DraftActionBar
+            describedBy="branch-impact"
+            disabledReason={permissionReason}
+            focusOnError={focusServerError && Boolean(serverError)}
+            onDiscard={draft.discard}
+            onSave={() => formRef.current?.requestSubmit()}
+            saveLabel="Save"
+            status={draft.status}
+            statusMessage={serverError ?? draft.statusMessage}
+          />
+        }
+        onClose={closeDrawer}
+        open={drawerOpen}
+        summary={
+          <ConsequencePanel
+            id="branch-impact"
+            rows={[
+              { label: "Scope", value: organizationName },
+              { label: "Branch", value: branchLabel },
+              { label: "Affected records", value: "New branch only" },
+              { label: "Draft", value: draftStatusLabel(draft.status) },
+            ]}
+            summary="Saving adds one branch record. Existing branches remain unchanged."
+            title="Branch impact"
+            variant="inline"
+          />
+        }
+        title="Add branch"
+      >
+        <BranchDrawerDraftGuard
+          onClose={closeDrawer}
+          onDiscard={draft.discard}
+          status={draft.status}
+        />
         <form
-          className="min-w-0 px-4 py-4"
+          className="min-w-0 px-5 py-5"
           onSubmit={(event) => {
             event.preventDefault();
             void draft.submit((field) => {
@@ -142,7 +194,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           }}
           ref={formRef}
         >
-          <FormSection title="Add branch">
+          <FormSection title="Branch details">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
                 disabled={!canManageStructure || draft.status === "saving"}
@@ -176,41 +228,33 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
             ) : null}
           </FormSection>
         </form>
-
-        <div className="sticky bottom-0 z-10">
-          <DraftActionBar
-            describedBy="branch-impact"
-            disabledReason={permissionReason}
-            focusOnError={focusServerError && Boolean(serverError)}
-            onDiscard={draft.discard}
-            onSave={() => formRef.current?.requestSubmit()}
-            saveLabel="Save"
-            status={draft.status}
-            statusMessage={serverError ?? draft.statusMessage}
-          />
-        </div>
-      </section>
-
-      <aside
-        className="min-w-0 lg:col-start-2 xl:col-start-3 xl:row-start-1"
-        data-testid="settings-summary"
-      >
-        <ConsequencePanel
-          id="branch-impact"
-          rows={[
-            { label: "Scope", value: organizationName },
-            { label: "Branch", value: branchLabel },
-            { label: "Affected records", value: "New branch only" },
-            { label: "Draft", value: draftStatusLabel(draft.status) },
-          ]}
-          summary="Saving adds one branch record. Existing branches remain unchanged."
-          title="Branch impact"
-        />
-      </aside>
+      </SideDrawer>
     </>
   );
   },
 );
+
+function BranchDrawerDraftGuard({
+  onClose,
+  onDiscard,
+  status,
+}: {
+  onClose: () => void;
+  onDiscard: () => void;
+  status: DraftStatus;
+}) {
+  const discardAndClose = useCallback(() => {
+    onDiscard();
+    onClose();
+  }, [onClose, onDiscard]);
+  const guard = useMemo(
+    () => ({ onDiscard: discardAndClose, status }),
+    [discardAndClose, status],
+  );
+  useDrawerDraftGuard(guard);
+
+  return null;
+}
 
 function Field({
   disabled,

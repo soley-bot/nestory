@@ -136,7 +136,7 @@ describe("SettingsWorkspace navigation and layout", () => {
   });
 
   it("declares three wide zones, a two-zone compact layout, and mobile-safe rail", () => {
-    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+    render(<SettingsWorkspace {...defaultProps} section="organization" />);
 
     const workspace = screen.getByTestId("settings-workspace");
     const rail = screen.getByRole("navigation", {
@@ -190,6 +190,9 @@ describe("SettingsWorkspace navigation and layout", () => {
       const user = userEvent.setup();
       render(<SettingsWorkspace {...defaultProps} section={section} />);
 
+      if (section === "branches") {
+        await openBranchDrawer(user);
+      }
       const name = screen.getByRole("textbox", { name: "Name" });
       const destination = screen.getByRole("link", { name: destinationLabel });
       await user.type(name, "Pending draft");
@@ -233,6 +236,9 @@ describe("SettingsWorkspace navigation and layout", () => {
       const user = userEvent.setup();
       render(<SettingsWorkspace {...defaultProps} section={section} />);
 
+      if (section === "branches") {
+        await openBranchDrawer(user);
+      }
       const name = screen.getByRole("textbox", { name: "Name" });
       const destination = screen.getByRole("link", { name: "Configuration" });
       await user.type(name, "Pending draft");
@@ -280,17 +286,17 @@ describe("SettingsWorkspace navigation and layout", () => {
 
   it("contains forward and reverse focus, blocks the background, and restores the trigger on Escape", async () => {
     const user = userEvent.setup();
-    renderSettingsScreen("branches");
+    renderSettingsScreen("teams");
 
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Pending");
-    const destination = screen.getByRole("link", { name: "Teams" });
+    const destination = screen.getByRole("link", { name: "Branches" });
     const backgroundLink = screen.getByRole("link", { name: "Organization" });
     await user.click(destination);
 
-    const dialog = screen.getByRole("dialog", { name: "Open Teams?" });
+    const dialog = screen.getByRole("dialog", { name: "Open Branches?" });
     const keepEditing = within(dialog).getByRole("button", { name: "Keep editing" });
     const discard = within(dialog).getByRole("button", {
-      name: "Discard and open Teams",
+      name: "Discard and open Branches",
     });
     const background = screen.getByTestId("settings-navigation-background");
 
@@ -306,11 +312,11 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(document.activeElement).toBe(discard);
 
     fireEvent.click(backgroundLink);
-    expect(screen.getByRole("dialog", { name: "Open Teams?" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "Open Branches?" })).not.toBeNull();
     expect(navigation.push).not.toHaveBeenCalled();
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Open Branches?" })).toBeNull();
     expect(document.activeElement).toBe(destination);
     expect(background.hasAttribute("inert")).toBe(false);
     expect(background.hasAttribute("aria-hidden")).toBe(false);
@@ -320,6 +326,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     const user = userEvent.setup();
     renderSettingsScreen("branches");
 
+    await openBranchDrawer(user);
     const name = screen.getByRole("textbox", { name: "Name" });
     const destination = screen.getByRole("link", { name: "Workspace Access" });
     await user.type(name, "Pending branch");
@@ -352,7 +359,9 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     await user.click(screen.getByRole("link", { name: "Workspace Access" }));
 
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Open Workspace Access?" }),
+    ).toBeNull();
     expect(navigation.push).not.toHaveBeenCalled();
   });
 
@@ -362,6 +371,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     createBranchAction.mockReturnValueOnce(pending.promise);
     renderSettingsScreen("branches");
 
+    await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -380,7 +390,9 @@ describe("SettingsWorkspace navigation and layout", () => {
       expect(navigation.push).toHaveBeenCalledOnce();
     });
     expect(navigation.push).toHaveBeenCalledWith("/users-roles");
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Open Workspace Access?" }),
+    ).toBeNull();
     expect(screen.queryByText(/save is still in progress/i)).toBeNull();
   });
 
@@ -390,6 +402,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     createBranchAction.mockReturnValueOnce(pending.promise);
     renderSettingsScreen("branches");
 
+    await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -402,7 +415,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     const alert = await screen.findByRole("alert");
     await waitFor(() => {
-      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.queryByRole("dialog", { name: "Open Teams?" })).toBeNull();
       expect(document.activeElement).toBe(alert);
     });
     expect(screen.getAllByRole("alert")).toHaveLength(1);
@@ -421,6 +434,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     });
     renderSettingsScreen("branches");
 
+    await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -433,21 +447,90 @@ describe("SettingsWorkspace navigation and layout", () => {
       screen.getByRole("dialog", { name: "Open Workspace Access?" }),
     ).not.toBeNull();
 
-    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
 
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Open Workspace Access?" }),
+    ).toBeNull();
     expect(document.activeElement).toBe(destination);
     expect(navigation.push).not.toHaveBeenCalled();
   });
 });
 
 describe("SettingsWorkspace drafts", () => {
+  it("keeps the branch list unframed and opens branch creation in one drawer", async () => {
+    const user = userEvent.setup();
+    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+    const editor = screen.getByTestId("settings-editor");
+    expect(editor.className).not.toContain("rounded-md");
+    expect(editor.className).not.toContain("border border-border");
+    expect(within(editor).getByText("Bangkok")).not.toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+
+    const trigger = screen.getByRole("button", { name: "Add branch" });
+    await user.click(trigger);
+
+    const drawer = screen.getByRole("dialog", { name: "Add branch" });
+    expect(within(drawer).getByRole("textbox", { name: "Name" })).not.toBeNull();
+    expect(within(drawer).getByRole("textbox", { name: "Code" })).not.toBeNull();
+    expect(within(drawer).getByRole("textbox", { name: "Address" })).not.toBeNull();
+    expect(within(drawer).getAllByTestId("draft-action-bar")).toHaveLength(1);
+    expect(
+      within(drawer).getByRole("region", { name: "Branch impact" }).dataset
+        .variant,
+    ).toBe("inline");
+  });
+
+  it.each(["close button", "Escape", "backdrop"] as const)(
+    "guards a dirty branch drawer on %s, then resets, closes, and restores its trigger",
+    async (dismissal) => {
+      const user = userEvent.setup();
+      render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+      const trigger = screen.getByRole("button", { name: "Add branch" });
+      await user.click(trigger);
+      const drawer = screen.getByRole("dialog", { name: "Add branch" });
+      await user.type(
+        within(drawer).getByRole("textbox", { name: "Name" }),
+        "Pending branch",
+      );
+
+      if (dismissal === "close button") {
+        await user.click(within(drawer).getByRole("button", { name: "Close drawer" }));
+      } else if (dismissal === "Escape") {
+        await user.keyboard("{Escape}");
+      } else {
+        const backdrop = drawer.querySelector<HTMLButtonElement>(
+          "button[aria-hidden='true']",
+        );
+        expect(backdrop).not.toBeNull();
+        await user.click(backdrop!);
+      }
+
+      expect(
+        screen.getByRole("alertdialog", { name: "Unsaved changes" }),
+      ).not.toBeNull();
+      await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+      expect(screen.queryByRole("dialog", { name: "Add branch" })).toBeNull();
+      await waitFor(() => expect(document.activeElement).toBe(trigger));
+
+      await user.click(trigger);
+      expect(
+        (screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement)
+          .value,
+      ).toBe("");
+    },
+  );
+
   it("moves from clean through dirty and saving to saved with a truthful branch consequence", async () => {
     const user = userEvent.setup();
     const pending = deferred<{ message: string; status: "success" }>();
     createBranchAction.mockReturnValueOnce(pending.promise);
     render(<SettingsWorkspace {...defaultProps} section="branches" />);
 
+    await openBranchDrawer(user);
     const name = screen.getByRole("textbox", { name: "Name" });
     const code = screen.getByRole("textbox", { name: "Code" });
     const address = screen.getByRole("textbox", { name: "Address" });
@@ -488,6 +571,7 @@ describe("SettingsWorkspace drafts", () => {
     const user = userEvent.setup();
     render(<SettingsWorkspace {...defaultProps} section="branches" />);
 
+    await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), " hkt ");
 
@@ -502,6 +586,7 @@ describe("SettingsWorkspace drafts", () => {
     const user = userEvent.setup();
     render(<SettingsWorkspace {...defaultProps} section="branches" />);
 
+    await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Address" }), "A");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -578,6 +663,7 @@ describe("SettingsWorkspace drafts", () => {
   it("cancels or confirms discard without leaking the draft into another section", async () => {
     const user = userEvent.setup();
     const view = render(<SettingsWorkspace {...defaultProps} section="branches" />);
+    await openBranchDrawer(user);
     const branchName = screen.getByRole("textbox", { name: "Name" });
     await user.type(branchName, "Phuket");
 
@@ -610,6 +696,7 @@ describe("SettingsWorkspace drafts", () => {
     createBranchAction.mockReturnValueOnce(pending.promise);
     const view = render(<SettingsWorkspace {...defaultProps} section="branches" />);
 
+    await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -639,6 +726,7 @@ describe("SettingsWorkspace drafts", () => {
       </StrictMode>,
     );
 
+    await openBranchDrawer(user);
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -657,6 +745,7 @@ describe("SettingsWorkspace drafts", () => {
       />,
     );
 
+    await openBranchDrawer(user);
     const name = screen.getByRole("textbox", { name: "Name" });
     const save = screen.getByRole("button", { name: "Save" });
     expect(name.hasAttribute("disabled")).toBe(true);
@@ -684,4 +773,9 @@ function renderSettingsScreen(section: "organization" | "branches" | "teams") {
   return render(
     <OrganizationSettingsScreen {...defaultProps} section={section} />,
   );
+}
+
+async function openBranchDrawer(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Add branch" }));
+  return screen.getByRole("dialog", { name: "Add branch" });
 }
