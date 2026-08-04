@@ -86,10 +86,9 @@ export function PeopleScreen({
       : null,
   );
   const [displayMode, setDisplayMode] = useState<PeopleDisplayMode>("table");
-  const isTableMode = displayMode === "table";
   const [feedback, setFeedback] = useState<PeopleFeedback | null>(null);
   const focusedPerson = initialPersonId
-    ? people.find((person) => person.id === initialPersonId) ?? null
+    ? (people.find((person) => person.id === initialPersonId) ?? null)
     : null;
   const focusedPersonId = focusedPerson?.id;
   const reviewContext = getPeopleReviewContext(viewQuery, {
@@ -131,7 +130,9 @@ export function PeopleScreen({
     });
   }, [canCreate, pathname, router, searchParams]);
 
-  const hasFilters = hasActivePeopleFilters(viewQuery, lockedRole);
+  const hasFilters = hasActivePeopleFilters(viewQuery);
+  const activeRole =
+    lockedRole ?? (viewQuery.role === "all" ? undefined : viewQuery.role);
   const peopleList = (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
       {people.length === 0 ? (
@@ -146,13 +147,20 @@ export function PeopleScreen({
                 Clear filters
               </Link>
             ) : canCreate ? (
-              <Button onClick={() => openPeopleAction({ mode: "create" })} variant="primary">
+              <Button
+                onClick={() => openPeopleAction({ mode: "create" })}
+                variant="primary"
+              >
                 <Plus size={15} />
                 {addButtonLabel}
               </Button>
             ) : undefined
           }
-          body={hasFilters ? "No records match the active People filters." : "No people records are available in this workspace."}
+          body={
+            hasFilters
+              ? "No records match the active People filters."
+              : "No people records are available in this workspace."
+          }
           className="h-full"
           icon={UsersRound}
           kind={hasFilters ? "filtered" : "empty"}
@@ -170,7 +178,7 @@ export function PeopleScreen({
               roleContext={lockedRole}
             />
           </div>
-          <PaginationControls attached={isTableMode} pagination={pagination} />
+          <PaginationControls attached={false} pagination={pagination} />
         </>
       )}
     </section>
@@ -179,54 +187,50 @@ export function PeopleScreen({
     <WorkspacePage
       actions={
         <>
-            {canCreate ? (
-              <Button
-                onClick={() => openPeopleAction({ mode: "create" })}
-                variant="primary"
-              >
-                <Plus size={15} />
-                {addButtonLabel}
-              </Button>
-            ) : null}
+          {insights ? <PeopleCommandCenter insights={insights} /> : null}
+          {canCreate ? (
+            <Button
+              onClick={() => openPeopleAction({ mode: "create" })}
+              variant="primary"
+            >
+              <Plus size={15} />
+              {addButtonLabel}
+            </Button>
+          ) : null}
         </>
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref={pathname}
       localNav={
-        localNavigation ?? (
-          <PeopleWorkspaceNavigation activeRole={lockedRole} />
-        )
+        localNavigation ?? <PeopleWorkspaceNavigation activeRole={activeRole} />
       }
-      toolbar={<PeopleFilters
-        displayMode={displayMode}
-        lockedRole={lockedRole}
-        onDisplayModeChange={setDisplayMode}
-        searchPlaceholder={searchPlaceholder}
-        viewQuery={viewQuery}
-      />}
+      toolbar={
+        <PeopleFilters
+          displayMode={displayMode}
+          onDisplayModeChange={setDisplayMode}
+          searchPlaceholder={searchPlaceholder}
+          viewQuery={viewQuery}
+        />
+      }
       title={title}
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
+        {feedback ? (
+          <TransientFeedback
+            action={feedback.action}
+            message={feedback.message}
+            onDismiss={() => setFeedback(null)}
+          />
+        ) : null}
 
-      {feedback ? (
-        <TransientFeedback
-          action={feedback.action}
-          message={feedback.message}
-          onDismiss={() => setFeedback(null)}
-        />
-      ) : null}
+        {reviewContext ? (
+          <PeopleReviewStrip
+            context={reviewContext}
+            count={pagination.totalCount}
+          />
+        ) : null}
 
-      {insights ? (
-        <PeopleCommandCenter insights={insights} />
-      ) : null}
-
-      {reviewContext ? (
-        <PeopleReviewStrip context={reviewContext} count={pagination.totalCount} />
-      ) : null}
-
-        <div className="min-h-0 min-w-0 flex-1">
-          {peopleList}
-        </div>
+        <div className="min-h-0 min-w-0 flex-1">{peopleList}</div>
       </div>
 
       {drawer ? (
@@ -252,7 +256,9 @@ export function PeopleScreen({
             <PersonForm
               key={`${drawer.mode}-${drawer.person?.id ?? "new"}`}
               initialRoles={
-                drawer.mode === "create" && createRole ? [createRole] : undefined
+                drawer.mode === "create" && createRole
+                  ? [createRole]
+                  : undefined
               }
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
@@ -351,7 +357,8 @@ function getPeopleReviewContext(
   if (focusedState.hasFocusedPerson) {
     return {
       countLabel: "in this activity view",
-      description: "Opened from recent activity with archived records included.",
+      description:
+        "Opened from recent activity with archived records included.",
       nextStep: "Focused person ready for review.",
     };
   }
@@ -386,13 +393,9 @@ function getPeopleReviewContext(
   return null;
 }
 
-function hasActivePeopleFilters(
-  viewQuery: PeopleViewQuery,
-  lockedRole?: PersonRoleValue,
-) {
+function hasActivePeopleFilters(viewQuery: PeopleViewQuery) {
   return (
     viewQuery.query.trim().length > 0 ||
-    (viewQuery.role !== "all" && !lockedRole) ||
     viewQuery.status !== "all" ||
     viewQuery.archiveState !== "active" ||
     viewQuery.sort !== "name_asc" ||

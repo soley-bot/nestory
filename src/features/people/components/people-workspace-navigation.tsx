@@ -1,3 +1,4 @@
+import { useSearchParams } from "next/navigation";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import type { PersonRoleValue } from "@/features/people/people.types";
 
@@ -6,37 +7,44 @@ export function PeopleWorkspaceNavigation({
 }: {
   activeRole?: PersonRoleValue;
 }) {
+  const roleFromUrl = useSearchParams().get("role");
+  const selectedRole = activeRole ?? getRoleFromUrl(roleFromUrl);
+
   return (
     <LocalWorkspaceNav
       items={[
-        { active: !activeRole, href: "/people", label: "All" },
+        { active: !selectedRole, href: "/people", label: "All" },
         {
-          active: activeRole === "owner",
+          active: selectedRole === "owner",
           href: "/owners",
           label: "Owners",
         },
         {
-          active: activeRole === "staff",
+          active: selectedRole === "staff",
           href: "/staff",
           label: "Staff",
         },
         {
-          active: activeRole === "tenant",
+          active: selectedRole === "tenant",
           href: "/tenants",
           label: "Tenants",
         },
         {
-          active: activeRole === "vendor",
+          active: selectedRole === "vendor",
           href: "/vendors",
           label: "Vendors",
-        },
-        {
-          active: false,
-          href: "/users-roles",
-          label: "Workspace Access",
         },
       ]}
       label="People views"
     />
   );
+}
+
+function getRoleFromUrl(value: string | null): PersonRoleValue | undefined {
+  return value === "owner" ||
+    value === "staff" ||
+    value === "tenant" ||
+    value === "vendor"
+    ? value
+    : undefined;
 }

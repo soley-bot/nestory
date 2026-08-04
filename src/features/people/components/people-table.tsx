@@ -60,7 +60,10 @@ export function PeopleTable({
       </div>
 
       {displayMode === "table" ? (
-        <div className="hidden h-full min-h-[380px] overflow-hidden rounded-md border border-border bg-surface md:block">
+        <div
+          className="hidden h-full min-h-[380px] overflow-hidden md:block"
+          data-slot="people-table-frame"
+        >
           <div className="h-full overflow-auto">
             <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-[13px]">
               {isRoleScoped ? (
@@ -351,11 +354,17 @@ function NextActionCell({ person }: { person: PeopleSummary }) {
         <Badge className="max-w-full px-2 text-xs" tone={person.statusTone}>
           {person.statusLabel}
         </Badge>
-        <Badge className="max-w-full px-2 text-xs" tone={person.nextAction.tone}>
+        <Badge
+          className="max-w-full px-2 text-xs"
+          tone={person.nextAction.tone}
+        >
           <span className="truncate">{person.nextAction.label}</span>
         </Badge>
       </div>
-      <p className="line-clamp-1 text-xs text-muted" title={person.nextAction.description}>
+      <p
+        className="line-clamp-1 text-xs text-muted"
+        title={person.nextAction.description}
+      >
         {person.nextAction.description}
       </p>
     </div>
@@ -425,7 +434,10 @@ function StatusBadges({
         compact && "justify-center",
       )}
     >
-      <Badge className={compact ? "px-2 text-xs" : undefined} tone={person.statusTone}>
+      <Badge
+        className={compact ? "px-2 text-xs" : undefined}
+        tone={person.statusTone}
+      >
         {person.statusLabel}
       </Badge>
     </div>
@@ -445,10 +457,7 @@ function getLinkedLabel(person: PeopleSummary) {
   return getPeopleLinkedLabel(person) ?? "No linked records";
 }
 
-function getContextValue(
-  person: PeopleSummary,
-  roleContext?: PersonRoleValue,
-) {
+function getContextValue(person: PeopleSummary, roleContext?: PersonRoleValue) {
   return roleContext === "staff"
     ? getPeopleOperatingContext(person)
     : getLinkedLabel(person);

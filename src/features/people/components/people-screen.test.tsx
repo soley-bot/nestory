@@ -1,6 +1,13 @@
 /* @vitest-environment jsdom */
 
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OwnersPage from "@/app/(dashboard)/owners/page";
@@ -37,7 +44,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/features/people/components/people-module-page", () => ({
-  PeopleModulePage: ({ config }: { config: { role?: string; title: string } }) => (
+  PeopleModulePage: ({
+    config,
+  }: {
+    config: { role?: string; title: string };
+  }) => (
     <div data-role={config.role ?? "all"} data-testid="people-module-page">
       {config.title}
     </div>
@@ -129,51 +140,98 @@ describe("People route family redesign contract", () => {
     }
   });
 
-  it("keeps the list workspace clean and reveals directory insight on demand", async () => {
+  it("keeps the directory focused on role lenses and reveals overview from the header", async () => {
     const user = userEvent.setup();
     const { container } = renderPeople();
 
-    expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="workspace-split-view"]')).toBeNull();
-    const summary = screen.getByRole("region", { name: "People summary" });
-    const overviewTrigger = within(summary).getByRole("button", {
+    expect(
+      container.querySelector('[data-slot="workspace-page"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-slot="workspace-split-view"]'),
+    ).toBeNull();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "People" }),
+    ).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "People summary" })).toBeNull();
+    const headerActions = container.querySelector<HTMLElement>(
+      '[data-slot="page-header-actions"]',
+    );
+    expect(headerActions).not.toBeNull();
+    const overviewTrigger = within(headerActions!).getByRole("button", {
       name: "Directory overview: 2 people, all clear",
     });
-    expect(screen.queryByRole("dialog", { name: "People overview" })).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "People overview" }),
+    ).toBeNull();
     await user.click(overviewTrigger);
     const overview = screen.getByRole("dialog", { name: "People overview" });
-    expect(within(overview).queryByRole("link", { name: "Reports" })).toBeNull();
+    expect(
+      within(overview).queryByRole("link", { name: "Reports" }),
+    ).toBeNull();
     expect(within(overview).getByText("Needs attention")).not.toBeNull();
 
     const lenses = screen.getByRole("navigation", { name: "People views" });
-    expect(within(lenses).getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "All",
-      "Owners",
-      "Staff",
-      "Tenants",
-      "Vendors",
-      "Workspace Access",
-    ]);
     expect(
       within(lenses)
-        .getByRole("link", { name: "Workspace Access" })
-        .getAttribute("href"),
-    ).toBe("/users-roles");
-    expect(within(lenses).getByRole("link", { name: "All" }).getAttribute("aria-current")).toBe("page");
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["All", "Owners", "Staff", "Tenants", "Vendors"]);
+    expect(
+      within(lenses).queryByRole("link", { name: "Workspace Access" }),
+    ).toBeNull();
+    expect(
+      within(lenses)
+        .getByRole("link", { name: "All" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    expect(screen.queryByLabelText("Filter by role")).toBeNull();
 
     const table = screen.getByRole("table");
+    const tableFrame = container.querySelector<HTMLElement>(
+      '[data-slot="people-table-frame"]',
+    );
+    expect(tableFrame).not.toBeNull();
+    expect(tableFrame?.className).not.toContain("rounded-md");
+    expect(tableFrame?.className).not.toContain("border");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.every((row) => row.getAttribute("aria-selected") === null)).toBe(true);
     expect(
-      within(rows[0]!).getByRole("link", { name: "Alice Tenant" }).getAttribute("href"),
+      rows.every((row) => row.getAttribute("aria-selected") === null),
+    ).toBe(true);
+    expect(
+      within(rows[0]!)
+        .getByRole("link", { name: "Alice Tenant" })
+        .getAttribute("href"),
     ).toBe("/people/person-1");
     expect(within(rows[0]!).getByText("Tenant")).not.toBeNull();
     expect(within(rows[0]!).getByText("Active")).not.toBeNull();
     expect(within(rows[0]!).getByText("1 active lease")).not.toBeNull();
 
     expect(screen.queryByRole("complementary")).toBeNull();
+  });
+
+  it("selects the matching directory lens for a bookmarked role URL", () => {
+    navigation.searchParams = new URLSearchParams("role=owner&page=2");
+    renderPeople({
+      viewQuery: { ...defaultViewQuery, page: 2, role: "owner" },
+    });
+
+    const lenses = screen.getByRole("navigation", { name: "People views" });
+    expect(
+      within(lenses)
+        .getByRole("link", { name: "Owners" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      within(lenses)
+        .getByRole("link", { name: "All" })
+        .getAttribute("aria-current"),
+    ).toBeNull();
   });
 
   it.each([
@@ -189,33 +247,56 @@ describe("People route family redesign contract", () => {
       renderPeople({ lockedRole });
 
       const lenses = screen.getByRole("navigation", { name: "People views" });
-      expect(within(lenses).getAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page")).toHaveLength(1);
-      expect(within(lenses).getByRole("link", { name: activeLabel }).getAttribute("aria-current")).toBe("page");
+      expect(
+        within(lenses)
+          .getAllByRole("link")
+          .filter((link) => link.getAttribute("aria-current") === "page"),
+      ).toHaveLength(1);
+      expect(
+        within(lenses)
+          .getByRole("link", { name: activeLabel })
+          .getAttribute("aria-current"),
+      ).toBe("page");
     },
   );
 
-  it.each([1024, 390])("uses direct record links instead of preview drawers at %ipx", (width) => {
-    installMatchMedia(width);
-    renderPeople();
-    expect(screen.getAllByRole("link", { name: "Open record" })[0]?.getAttribute("href")).toBe("/people/person-1");
-    expect(screen.queryByText("Preview")).toBeNull();
-    expect(screen.queryByRole("complementary")).toBeNull();
-  });
+  it.each([1024, 390])(
+    "uses direct record links instead of preview drawers at %ipx",
+    (width) => {
+      installMatchMedia(width);
+      renderPeople();
+      expect(
+        screen
+          .getAllByRole("link", { name: "Open record" })[0]
+          ?.getAttribute("href"),
+      ).toBe("/people/person-1");
+      expect(screen.queryByText("Preview")).toBeNull();
+      expect(screen.queryByRole("complementary")).toBeNull();
+    },
+  );
 
   it("distinguishes filtered and true empty states and hides unauthorized creation", () => {
     const filtered = renderPeople({
       people: [],
       viewQuery: { ...defaultViewQuery, query: "missing" },
     });
-    const filteredState = screen.getByText("No matching people").closest("section");
+    const filteredState = screen
+      .getByText("No matching people")
+      .closest("section");
     expect(filteredState?.getAttribute("data-kind")).toBe("filtered");
-    expect(within(filteredState!).getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/people");
+    expect(
+      within(filteredState!)
+        .getByRole("link", { name: "Clear filters" })
+        .getAttribute("href"),
+    ).toBe("/people");
     filtered.unmount();
 
     renderPeople({ canCreate: false, people: [] });
     expect(screen.getByText("No people yet")).not.toBeNull();
     expect(screen.queryByRole("region", { name: "People summary" })).toBeNull();
-    expect(document.querySelector('[data-empty-state-icon="true"]')?.className).toContain("size-14");
+    expect(
+      document.querySelector('[data-empty-state-icon="true"]')?.className,
+    ).toContain("size-14");
     expect(screen.queryByRole("button", { name: "Add person" })).toBeNull();
   });
 
@@ -251,17 +332,23 @@ describe("People route family redesign contract", () => {
         people: [],
       });
 
-      fireEvent.click(screen.getAllByRole("button", { name: `Add ${role}` })[0]!);
-      fireEvent.click(screen.getByRole("button", { name: "Complete person create" }));
+      fireEvent.click(
+        screen.getAllByRole("button", { name: `Add ${role}` })[0]!,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Complete person create" }),
+      );
 
       const feedback = document.querySelector<HTMLElement>(
         '[data-slot="transient-feedback"]',
       )!;
       expect(feedback.getAttribute("data-slot")).toBe("transient-feedback");
       expect(feedback.className).toContain("fixed");
-      expect(within(feedback).getByRole("link", { name: actionLabel }).getAttribute("href")).toBe(
-        href,
-      );
+      expect(
+        within(feedback)
+          .getByRole("link", { name: actionLabel })
+          .getAttribute("href"),
+      ).toBe(href);
 
       act(() => {
         vi.advanceTimersByTime(5_000);
@@ -294,8 +381,12 @@ describe("People route family redesign contract", () => {
       personFormSubmission.role = role;
       renderPeople({ people: [] });
 
-      fireEvent.click(screen.getAllByRole("button", { name: "Add person" })[0]!);
-      fireEvent.click(screen.getByRole("button", { name: "Complete person create" }));
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Add person" })[0]!,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Complete person create" }),
+      );
 
       expect(screen.getByRole("link", { name: actionLabel })).not.toBeNull();
     },
@@ -317,7 +408,9 @@ describe("People route family redesign contract", () => {
 
     const table = screen.getByRole("table");
     expect(within(table).getByText("Operating context")).not.toBeNull();
-    expect(within(table).getByText("Coordinates maintenance dispatch")).not.toBeNull();
+    expect(
+      within(table).getByText("Coordinates maintenance dispatch"),
+    ).not.toBeNull();
     expect(within(table).getByText("No operating context")).not.toBeNull();
     expect(screen.queryByText("Team context")).toBeNull();
 
@@ -392,11 +485,36 @@ describe("People route family redesign contract", () => {
     const table = screen.getByRole("table");
     expect(within(table).getByText("Workspace Access")).not.toBeNull();
     const expectations = [
-      ["No Access Staff", "No access", "Grant workspace access", "/users-roles?personId=staff-none"],
-      ["Pending Staff", "Pending invitation", "Review invitation", "/users-roles?personId=staff-pending&invitationId=invitation-pending"],
-      ["Failed Staff", "Invitation failed", "Review and resend", "/users-roles?personId=staff-failed&invitationId=invitation-failed"],
-      ["Expired Staff", "Invitation expired", "Review invitation", "/users-roles?personId=staff-expired&invitationId=invitation-expired"],
-      ["Active Staff", "Active access", "Manage workspace access", "/users-roles?personId=staff-active&memberId=membership-1"],
+      [
+        "No Access Staff",
+        "No access",
+        "Grant workspace access",
+        "/users-roles?personId=staff-none",
+      ],
+      [
+        "Pending Staff",
+        "Pending invitation",
+        "Review invitation",
+        "/users-roles?personId=staff-pending&invitationId=invitation-pending",
+      ],
+      [
+        "Failed Staff",
+        "Invitation failed",
+        "Review and resend",
+        "/users-roles?personId=staff-failed&invitationId=invitation-failed",
+      ],
+      [
+        "Expired Staff",
+        "Invitation expired",
+        "Review invitation",
+        "/users-roles?personId=staff-expired&invitationId=invitation-expired",
+      ],
+      [
+        "Active Staff",
+        "Active access",
+        "Manage workspace access",
+        "/users-roles?personId=staff-active&memberId=membership-1",
+      ],
     ] as const;
 
     for (const [name, stateLabel, actionLabel, href] of expectations) {
@@ -404,7 +522,9 @@ describe("People route family redesign contract", () => {
       expect(row).not.toBeNull();
       expect(within(row!).getByText(stateLabel)).not.toBeNull();
       expect(
-        within(row!).getByRole("link", { name: `${actionLabel} for ${name}` }).getAttribute("href"),
+        within(row!)
+          .getByRole("link", { name: `${actionLabel} for ${name}` })
+          .getAttribute("href"),
       ).toBe(href);
     }
     expect(within(table).getByText(/Last sent/)).not.toBeNull();
@@ -424,13 +544,19 @@ describe("People route family redesign contract", () => {
       expect(card).toBeDefined();
       expect(within(card!).getByText(stateLabel)).not.toBeNull();
       expect(
-        within(card!).getByRole("link", { name: `${actionLabel} for ${name}` }).getAttribute("href"),
+        within(card!)
+          .getByRole("link", { name: `${actionLabel} for ${name}` })
+          .getAttribute("href"),
       ).toBe(href);
     }
   });
 
   it("does not infer no-access or offer actions for missing, inactive, or archived Staff status", () => {
-    const missing = makePerson("staff-missing", "Missing Status Staff", "staff");
+    const missing = makePerson(
+      "staff-missing",
+      "Missing Status Staff",
+      "staff",
+    );
     const inactive = {
       ...makePerson("staff-inactive", "Inactive Staff", "staff"),
       roles: [{ role: "staff" as const, status: "inactive" as const }],
@@ -440,20 +566,35 @@ describe("People route family redesign contract", () => {
       isArchived: true,
     };
 
-    renderPeople({ lockedRole: "staff", people: [missing, inactive, archived] });
+    renderPeople({
+      lockedRole: "staff",
+      people: [missing, inactive, archived],
+    });
 
     const table = screen.getByRole("table");
-    for (const name of ["Missing Status Staff", "Inactive Staff", "Archived Staff"]) {
+    for (const name of [
+      "Missing Status Staff",
+      "Inactive Staff",
+      "Archived Staff",
+    ]) {
       const row = within(table).getByRole("link", { name }).closest("tr");
-      expect(within(row!).getByText("Workspace access unavailable")).not.toBeNull();
-      expect(within(row!).queryByRole("link", { name: /workspace access/i })).toBeNull();
+      expect(
+        within(row!).getByText("Workspace access unavailable"),
+      ).not.toBeNull();
+      expect(
+        within(row!).queryByRole("link", { name: /workspace access/i }),
+      ).toBeNull();
     }
 
     fireEvent.click(screen.getByRole("button", { name: "Cards" }));
     const missingCard = screen
       .getAllByRole("article")
-      .find((card) => within(card).queryByRole("link", { name: "Missing Status Staff" }));
-    expect(within(missingCard!).getByText("Workspace access unavailable")).not.toBeNull();
+      .find((card) =>
+        within(card).queryByRole("link", { name: "Missing Status Staff" }),
+      );
+    expect(
+      within(missingCard!).getByText("Workspace access unavailable"),
+    ).not.toBeNull();
     expect(
       within(missingCard!).queryByRole("link", { name: /workspace access/i }),
     ).toBeNull();

@@ -5,12 +5,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  LayoutGrid,
-  RotateCcw,
-  SlidersHorizontal,
-  Table2,
-} from "lucide-react";
+import { LayoutGrid, RotateCcw, SlidersHorizontal, Table2 } from "lucide-react";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -22,13 +17,11 @@ import {
 import type {
   PeopleDisplayMode,
   PeopleViewQuery,
-  PersonRoleValue,
 } from "@/features/people/people.types";
 import { cn } from "@/lib/utils";
 
 type PeopleFiltersProps = {
   displayMode: PeopleDisplayMode;
-  lockedRole?: PersonRoleValue;
   onDisplayModeChange: (mode: PeopleDisplayMode) => void;
   searchPlaceholder?: string;
   viewQuery: PeopleViewQuery;
@@ -36,7 +29,6 @@ type PeopleFiltersProps = {
 
 export function PeopleFilters({
   displayMode,
-  lockedRole,
   onDisplayModeChange,
   searchPlaceholder = "Search name, contact, role, lease, or property",
   viewQuery,
@@ -49,9 +41,7 @@ export function PeopleFilters({
     source: viewQuery.query,
     value: viewQuery.query,
   });
-  const hasLockedRole = Boolean(lockedRole);
   const activeFilters = [
-    viewQuery.role !== "all" && !hasLockedRole,
     viewQuery.status !== "all",
     viewQuery.archiveState !== DEFAULT_PEOPLE_ARCHIVE_STATE,
     viewQuery.sort !== DEFAULT_PEOPLE_SORT,
@@ -162,26 +152,6 @@ export function PeopleFilters({
 
                   <div className="space-y-3 p-3">
                     <FilterSection title="Record state">
-                      {hasLockedRole ? null : (
-                        <FilterField label="Role">
-                          <SelectControl
-                            ariaLabel="Filter by role"
-                            className={compactSelectClassName}
-                            onValueChange={(value) =>
-                              replaceParam("role", value, "all")
-                            }
-                            options={[
-                              { label: "All roles", value: "all" },
-                              { label: "Tenants", value: "tenant" },
-                              { label: "Owners", value: "owner" },
-                              { label: "Vendors", value: "vendor" },
-                              { label: "Staff", value: "staff" },
-                            ]}
-                            value={viewQuery.role}
-                          />
-                        </FilterField>
-                      )}
-
                       <FilterField label="Status">
                         <SelectControl
                           ariaLabel="Filter by status"
@@ -193,7 +163,10 @@ export function PeopleFilters({
                             { label: "All statuses", value: "all" },
                             { label: "Active", value: "active" },
                             { label: "Inactive", value: "inactive" },
-                            { label: "Missing contact", value: "missing_contact" },
+                            {
+                              label: "Missing contact",
+                              value: "missing_contact",
+                            },
                             { label: "No role", value: "no_role" },
                           ]}
                           value={viewQuery.status}
@@ -231,7 +204,10 @@ export function PeopleFilters({
                           }
                           options={[
                             { label: "Name", value: "name_asc" },
-                            { label: "Recently updated", value: "updated_desc" },
+                            {
+                              label: "Recently updated",
+                              value: "updated_desc",
+                            },
                           ]}
                           value={viewQuery.sort}
                         />
