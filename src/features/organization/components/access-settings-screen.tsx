@@ -15,9 +15,11 @@ import { MailPlus, UserPlus, UsersRound } from "lucide-react";
 import { SettingsNavigationGuardProvider, useSettingsNavigationGuard } from "@/components/layout/settings-navigation-guard";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar, type DraftStatus } from "@/components/ui/draft-action-bar";
 import { SelectControl } from "@/components/ui/select-control";
+import { SideDrawer, useDrawerDraftGuard } from "@/components/ui/side-drawer";
 import { signOutAction } from "@/features/auth/actions";
 import { PersonSelect } from "@/features/people/components/person-select";
 import {
@@ -42,6 +44,11 @@ import type {
 type AccessDraftController = {
   discard: () => void;
   status: DraftStatus;
+};
+
+type DuplicateAccessTarget = {
+  id: string;
+  kind: "invitation" | "member";
 };
 
 const roleOptions = [
@@ -129,6 +136,51 @@ function AccessWorkspace({
       ),
     [accessByPersonId, staffOptions],
   );
+  const deepLinkInvitePersonId =
+    inviteDefaults?.personId &&
+    (!requestedStaffId || requestedStaffId === inviteDefaults.personId) &&
+    accessByPersonId[inviteDefaults.personId]?.state === "no_access"
+      ? inviteDefaults.personId
+      : undefined;
+  const [inviteDrawerState, setInviteDrawerState] = useState<{
+    deepLinkPersonId?: string;
+    open: boolean;
+  }>(() => ({
+    deepLinkPersonId: deepLinkInvitePersonId,
+    open: Boolean(deepLinkInvitePersonId),
+  }));
+  const duplicateFocusTarget = useRef<DuplicateAccessTarget | undefined>(undefined);
+  if (inviteDrawerState.deepLinkPersonId !== deepLinkInvitePersonId) {
+    setInviteDrawerState({
+      deepLinkPersonId: deepLinkInvitePersonId,
+      open: Boolean(deepLinkInvitePersonId),
+    });
+  }
+  const inviteOpen = inviteDrawerState.open;
+  const setInviteOpen = useCallback((open: boolean) => {
+    setInviteDrawerState((current) => ({ ...current, open }));
+  }, []);
+
+  const closeInviteDrawer = useCallback(() => {
+    setInviteOpen(false);
+  }, [setInviteOpen]);
+
+  const reviewDuplicate = useCallback((target: DuplicateAccessTarget) => {
+    duplicateFocusTarget.current = target;
+    setInviteOpen(false);
+  }, [setInviteOpen]);
+
+  useEffect(() => {
+    if (inviteOpen || !duplicateFocusTarget.current) {
+      return;
+    }
+
+    const target = duplicateFocusTarget.current;
+    duplicateFocusTarget.current = undefined;
+    requestAnimationFrame(() => {
+      document.getElementById(`access-${target.kind}-${target.id}`)?.focus();
+    });
+  }, [inviteOpen]);
 
   const registerDraft = useCallback(
     (id: string, controller: AccessDraftController | null) => {
@@ -166,134 +218,148 @@ function AccessWorkspace({
   }, [draftVersion, guard]);
 
   return (
-    <main className="grid gap-4 px-4 py-4 sm:px-6 xl:grid-cols-[minmax(300px,0.8fr)_minmax(0,1.7fr)]">
-      <section className="self-start rounded-md border border-border bg-surface-raised">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <div>
+    <main
+      className="min-w-0 px-4 py-4 sm:px-6"
+      data-testid="access-surface"
+    >
+      <section className="min-w-0" data-testid="access-needs-group">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3">
+          <div className="flex items-center gap-2">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <UsersRound aria-hidden="true" size={15} />
+              Needs access
+            </h2>
+            <Badge tone="neutral">{staffWithoutAccess.length}</Badge>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              className="text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href="/staff?action=create"
+            >
+              Add Staff
+            </Link>
+            <Button onClick={() => setInviteOpen(true)}>
               <UserPlus aria-hidden="true" size={15} />
               Invite Staff
-            </h2>
-            <p className="mt-1 text-xs text-foreground-muted">Connect one Staff record to one sign-in account.</p>
+            </Button>
           </div>
-          <Link
-            className="text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-            href="/staff?action=create"
-          >
-            Add Staff
-          </Link>
         </div>
+        {staffWithoutAccess.length > 0 ? (
+          <div className="divide-y divide-border">
+            {staffWithoutAccess.map((person) => (
+              <div
+                className="flex min-w-0 items-center justify-between gap-4 px-4 py-3"
+                key={person.id}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{person.label}</p>
+                  <p className="mt-1 truncate text-xs text-foreground-muted">
+                    {person.primaryEmail ?? "No email recorded"}
+                  </p>
+                </div>
+                <Link
+                  aria-label={`Grant workspace access for ${person.label}`}
+                  className="shrink-0 text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  href={`/users-roles?personId=${person.id}`}
+                  prefetch={false}
+                >
+                  Grant access
+                </Link>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="px-4 py-6 text-sm text-foreground-muted">
+            Every active Staff record has an invitation or active access.
+          </div>
+        )}
+      </section>
+
+      <section
+        className="mt-4 min-w-0 border-t border-border pt-4"
+        data-testid="access-pending-group"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <MailPlus aria-hidden="true" size={15} />
+            Pending
+          </h2>
+          <Badge tone="neutral">{invitations.length}</Badge>
+        </div>
+        {invitations.length > 0 ? (
+          <div className="divide-y divide-border">
+            {invitations.map((invitation) => (
+              <PendingInvitationRow
+                branches={branches}
+                focused={invitation.id === focusedInvitationId}
+                invitation={invitation}
+                key={invitation.id}
+                people={people}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="px-4 py-6 text-sm text-foreground-muted">
+            No pending invitations.
+          </div>
+        )}
+      </section>
+
+      <section
+        className="mt-4 min-w-0 border-t border-border pt-4"
+        data-testid="access-active-group"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <UsersRound aria-hidden="true" size={15} />
+            Active
+          </h2>
+          <Badge tone="neutral">
+            {members.length} active {members.length === 1 ? "account" : "accounts"}
+          </Badge>
+        </div>
+        {members.length > 0 ? (
+          <div className="divide-y divide-border">
+            {members.map((member) => (
+              <MemberAccessForm
+                adminCount={adminCount}
+                branches={branches}
+                current={member.userId === currentUserId}
+                focused={member.id === focusedMemberId}
+                key={member.id}
+                member={member}
+                onDraftChange={registerDraft}
+                people={people}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm font-medium">No active access</p>
+            <p className="mt-1 text-sm text-foreground-muted">Accepted invitations appear here.</p>
+          </div>
+        )}
+      </section>
+
+      <SideDrawer
+        description="Connect one Staff record to one sign-in account."
+        onClose={closeInviteDrawer}
+        open={inviteOpen}
+        title="Invite Staff"
+      >
         <InviteUserForm
           branches={branches}
           defaults={inviteDefaults}
           invitations={invitations}
           key={requestedStaffId ?? inviteDefaults?.personId ?? "empty-invite"}
           members={members}
+          onClose={closeInviteDrawer}
           onDraftChange={registerDraft}
+          onPersisted={closeInviteDrawer}
+          onReviewDuplicate={reviewDuplicate}
           people={staffOptions}
         />
-      </section>
-
-      <div className="min-w-0 space-y-4">
-        <section className="rounded-md border border-border bg-surface">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <UsersRound aria-hidden="true" size={15} />
-              Staff without access
-            </h2>
-            <Badge tone="neutral">{staffWithoutAccess.length}</Badge>
-          </div>
-          {staffWithoutAccess.length > 0 ? (
-            <div className="divide-y divide-border">
-              {staffWithoutAccess.map((person) => (
-                <div
-                  className="flex min-w-0 items-center justify-between gap-4 px-4 py-3"
-                  key={person.id}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{person.label}</p>
-                    <p className="mt-1 truncate text-xs text-foreground-muted">
-                      {person.primaryEmail ?? "No email recorded"}
-                    </p>
-                  </div>
-                  <Link
-                    aria-label={`Grant workspace access for ${person.label}`}
-                    className="shrink-0 text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                    href={`/users-roles?personId=${person.id}`}
-                    prefetch={false}
-                  >
-                    Grant access
-                  </Link>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="px-4 py-6 text-sm text-foreground-muted">
-              Every active Staff record has an invitation or active access.
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-md border border-border bg-surface">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <MailPlus aria-hidden="true" size={15} />
-              Pending invitations
-            </h2>
-            <Badge tone="neutral">{invitations.length}</Badge>
-          </div>
-          {invitations.length > 0 ? (
-            <div className="divide-y divide-border">
-              {invitations.map((invitation) => (
-                <PendingInvitationRow
-                  branches={branches}
-                  focused={invitation.id === focusedInvitationId}
-                  invitation={invitation}
-                  key={invitation.id}
-                  people={people}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="px-4 py-6 text-sm text-foreground-muted">
-              No pending invitations.
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-md border border-border bg-surface">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <UsersRound aria-hidden="true" size={15} />
-              Active access
-            </h2>
-            <Badge tone="neutral">
-              {members.length} active {members.length === 1 ? "account" : "accounts"}
-            </Badge>
-          </div>
-          {members.length > 0 ? (
-            <div className="divide-y divide-border">
-              {members.map((member) => (
-                <MemberAccessForm
-                  adminCount={adminCount}
-                  branches={branches}
-                  current={member.userId === currentUserId}
-                  focused={member.id === focusedMemberId}
-                  key={member.id}
-                  member={member}
-                  onDraftChange={registerDraft}
-                  people={people}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="px-4 py-8 text-center">
-              <p className="text-sm font-medium">No active access</p>
-              <p className="mt-1 text-sm text-foreground-muted">Accepted invitations appear here.</p>
-            </div>
-          )}
-        </section>
-      </div>
+      </SideDrawer>
     </main>
   );
 }
@@ -303,14 +369,20 @@ function InviteUserForm({
   defaults,
   invitations,
   members,
+  onClose,
   onDraftChange,
+  onPersisted,
+  onReviewDuplicate,
   people,
 }: {
   branches: OrganizationBranch[];
   defaults?: { email?: string; personId?: string; staffEmail?: string };
   invitations: OrganizationInvitation[];
   members: OrganizationMembership[];
+  onClose: () => void;
   onDraftChange: (id: string, controller: AccessDraftController | null) => void;
+  onPersisted: () => void;
+  onReviewDuplicate: (target: DuplicateAccessTarget) => void;
   people: OrganizationStaffOption[];
 }) {
   const guard = useSettingsNavigationGuard();
@@ -336,6 +408,11 @@ function InviteUserForm({
     baselineValues: clean,
     initialStatus: initial.email || initial.personId ? "dirty" : "clean",
     initialValues: initial,
+    onResult: (result) => {
+      if (invitationWasPersisted(result)) {
+        onPersisted();
+      }
+    },
     validate: (values) => {
       if (!values.personId) {
         return { field: "personId" as const, message: "Choose a Staff member." };
@@ -389,99 +466,114 @@ function InviteUserForm({
     });
   }
 
-  function focusDuplicate() {
+  function reviewDuplicateTarget() {
     if (!duplicateTarget) return;
-    document.getElementById(`access-${duplicateTarget.kind}-${duplicateTarget.id}`)?.focus();
+    onReviewDuplicate(duplicateTarget);
   }
 
   return (
-    <form data-testid="add-access-form" onSubmit={submit}>
-      <div className="grid gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-        <div className="grid gap-1.5 text-[13px] font-medium" ref={staffControlRef}>
-          <span id={staffLabelId}>Staff member</span>
-          <PersonSelect
-            aria-describedby={staffHelpId}
-            aria-labelledby={staffLabelId}
-            aria-required="true"
-            disabled={draft.status === "saving"}
-            name="personId"
-            onValueChange={(value) => {
-              draft.setField("personId", value);
-              const primaryEmail = people.find((person) => person.id === value)?.primaryEmail;
-              draft.setField("email", primaryEmail ?? "");
-            }}
-            options={people}
-            placeholder="Choose Staff"
-            roles={["staff"]}
-            value={draft.values.personId}
-          />
-          <span className="text-xs font-normal text-foreground-muted" id={staffHelpId}>
-            The employee or contractor this login belongs to.
-          </span>
-        </div>
-        <div className="grid gap-1.5 text-[13px] font-medium">
-          <span id={emailLabelId}>Invitation email</span>
-          <input
-            aria-describedby={emailHelpId}
-            aria-labelledby={emailLabelId}
-            className="h-8 w-full rounded-md border border-border bg-surface px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
-            id={emailId}
-            disabled={draft.status === "saving"}
-            onChange={(event) => draft.setField("email", event.target.value)}
-            placeholder="user@example.com"
-            ref={emailRef}
-            type="email"
-            value={draft.values.email}
-          />
-          <span className="text-xs font-normal text-foreground-muted" id={emailHelpId}>
-            The address used to sign in and receive the invitation.
-          </span>
-        </div>
-        <AccessSelect
-          disabled={draft.status === "saving"}
-          description="What this person may administer in Nestory."
-          label="Access level"
-          onValueChange={(value) => {
-            draft.setField("role", value);
-            if (value === "admin") draft.setField("branchId", "");
-          }}
-          options={roleOptions}
-          value={draft.values.role}
-        />
-        <AccessSelect
-          disabled={draft.status === "saving" || draft.values.role === "admin"}
-          description="Which branch or property context this person may access."
-          label="Access scope"
-          onValueChange={(value) => draft.setField("branchId", value)}
-          options={branchOptions(branches)}
-          value={draft.values.branchId}
-        />
-        <p className="text-xs leading-5 text-foreground-muted sm:col-span-2 xl:col-span-1 2xl:col-span-2">
-          Workspace access controls sign-in permissions. It does not change the person&apos;s operational Staff role.
-        </p>
-        {emailMismatch ? (
-          <p className="text-xs leading-5 text-warning sm:col-span-2 xl:col-span-1 2xl:col-span-2">
-            This sign-in email differs from {selectedPerson?.label ?? "the selected Staff member"}&apos;s Staff email. The Staff record will not be changed.
-          </p>
-        ) : null}
-        {duplicateMessage ? (
-          <div className="flex justify-end rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm sm:col-span-2 xl:col-span-1 2xl:col-span-2">
-            <button className="font-medium underline-offset-4 hover:underline" onClick={focusDuplicate} type="button">
-              {duplicateTarget?.kind === "invitation" ? "Review invitation" : "Review access"}
-            </button>
+    <>
+      <InviteDrawerDraftGuard
+        onClose={onClose}
+        onDiscard={draft.discard}
+        status={draft.status}
+      />
+      <form
+        className="flex min-h-full min-w-0 flex-col"
+        data-testid="add-access-form"
+        onSubmit={submit}
+      >
+        <div className="grid gap-4 px-5 py-5 sm:grid-cols-2">
+          <div className="grid gap-1.5 text-[13px] font-medium" ref={staffControlRef}>
+            <span id={staffLabelId}>Staff member</span>
+            <PersonSelect
+              aria-describedby={staffHelpId}
+              aria-labelledby={staffLabelId}
+              aria-required="true"
+              disabled={draft.status === "saving"}
+              name="personId"
+              onValueChange={(value) => {
+                draft.setField("personId", value);
+                const primaryEmail = people.find((person) => person.id === value)?.primaryEmail;
+                draft.setField("email", primaryEmail ?? "");
+              }}
+              options={people}
+              placeholder="Choose Staff"
+              roles={["staff"]}
+              value={draft.values.personId}
+            />
+            <span className="text-xs font-normal text-foreground-muted" id={staffHelpId}>
+              The employee or contractor this login belongs to.
+            </span>
           </div>
-        ) : null}
-      </div>
-      <div className="flex flex-col">
-        <div>
+          <div className="grid gap-1.5 text-[13px] font-medium">
+            <span id={emailLabelId}>Invitation email</span>
+            <input
+              aria-describedby={emailHelpId}
+              aria-labelledby={emailLabelId}
+              className="h-8 w-full rounded-md border border-border bg-surface px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+              id={emailId}
+              disabled={draft.status === "saving"}
+              onChange={(event) => draft.setField("email", event.target.value)}
+              placeholder="user@example.com"
+              ref={emailRef}
+              type="email"
+              value={draft.values.email}
+            />
+            <span className="text-xs font-normal text-foreground-muted" id={emailHelpId}>
+              The address used to sign in and receive the invitation.
+            </span>
+          </div>
+          <AccessSelect
+            disabled={draft.status === "saving"}
+            description="What this person may administer in Nestory."
+            label="Access level"
+            onValueChange={(value) => {
+              draft.setField("role", value);
+              if (value === "admin") draft.setField("branchId", "");
+            }}
+            options={roleOptions}
+            value={draft.values.role}
+          />
+          <AccessSelect
+            disabled={draft.status === "saving" || draft.values.role === "admin"}
+            description="Which branch or property context this person may access."
+            label="Access scope"
+            onValueChange={(value) => draft.setField("branchId", value)}
+            options={branchOptions(branches)}
+            value={draft.values.branchId}
+          />
+          <p className="text-xs leading-5 text-foreground-muted sm:col-span-2">
+            Workspace access controls sign-in permissions. It does not change the person&apos;s operational Staff role.
+          </p>
+          {emailMismatch ? (
+            <p className="text-xs leading-5 text-warning sm:col-span-2">
+              This sign-in email differs from {selectedPerson?.label ?? "the selected Staff member"}&apos;s Staff email. The Staff record will not be changed.
+            </p>
+          ) : null}
+          {duplicateMessage ? (
+            <div className="flex justify-end rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm sm:col-span-2">
+              <button
+                className="font-medium underline-offset-4 hover:underline"
+                onClick={reviewDuplicateTarget}
+                type="button"
+              >
+                {duplicateTarget?.kind === "invitation" ? "Review invitation" : "Review access"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-auto w-full border-t border-border px-5 py-4">
           <ConsequencePanel
-            className="mx-4 mb-4"
+            id="invite-access-effect"
             rows={accessRows(draft.values, branches, people)}
             title="Access effect"
+            variant="inline"
           />
         </div>
-        <div>
+        <div className="sticky bottom-0 z-10 w-full">
           <DraftActionBar
+            describedBy="invite-access-effect"
             disabledReason={duplicateMessage}
             focusOnError={
               draft.errorKind === "server" && !guard?.suppressErrorFocus
@@ -498,9 +590,31 @@ function InviteUserForm({
             statusMessage={draft.message}
           />
         </div>
-      </div>
-    </form>
+      </form>
+    </>
   );
+}
+
+function InviteDrawerDraftGuard({
+  onClose,
+  onDiscard,
+  status,
+}: {
+  onClose: () => void;
+  onDiscard: () => void;
+  status: DraftStatus;
+}) {
+  const discardAndClose = useCallback(() => {
+    onDiscard();
+    onClose();
+  }, [onClose, onDiscard]);
+  const guard = useMemo(
+    () => ({ onDiscard: discardAndClose, status }),
+    [discardAndClose, status],
+  );
+  useDrawerDraftGuard(guard);
+
+  return null;
 }
 
 function PendingInvitationRow({
@@ -1016,12 +1130,14 @@ function useAccessDraft<TValues extends Record<string, string>>({
   baselineValues,
   initialStatus = "clean",
   initialValues,
+  onResult,
   validate,
 }: {
   action: (state: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>;
   baselineValues?: TValues;
   initialStatus?: DraftStatus;
   initialValues: TValues;
+  onResult?: (result: OrganizationActionState) => void;
   validate?: (values: TValues) => { field: keyof TValues; message: string } | undefined;
 }) {
   const baseline = useRef({ ...(baselineValues ?? initialValues) });
@@ -1118,6 +1234,7 @@ function useAccessDraft<TValues extends Record<string, string>>({
         setErrorKind("server");
         setStatus("error");
       }
+      onResult?.(result);
     } catch {
       if (!alive.current || submission.current !== currentSubmission) {
         return;
@@ -1130,9 +1247,16 @@ function useAccessDraft<TValues extends Record<string, string>>({
         submitting.current = false;
       }
     }
-  }, [action, validate, values]);
+  }, [action, onResult, validate, values]);
 
   return { discard, errorKind, message, setField, status, submit, values };
+}
+
+function invitationWasPersisted(result: OrganizationActionState) {
+  return (
+    result.status === "success" ||
+    result.message.startsWith("Invitation saved, but email delivery failed")
+  );
 }
 
 function accessRows(

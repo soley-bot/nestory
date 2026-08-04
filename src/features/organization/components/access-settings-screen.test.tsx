@@ -118,31 +118,131 @@ afterEach(() => {
   delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
 });
 
+function getInviteForm() {
+  const existing = screen.queryByTestId("add-access-form");
+  if (existing) {
+    return existing;
+  }
+
+  fireEvent.click(screen.getByRole("button", { name: "Invite Staff" }));
+  return within(screen.getByRole("dialog", { name: "Invite Staff" })).getByTestId(
+    "add-access-form",
+  );
+}
+
 describe("AccessSettingsScreen", () => {
-  it("replaces role tutorials with a compact access workspace", () => {
+  it("renders one unframed access surface grouped by Needs access, Pending, and Active", () => {
     render(
       <AccessSettingsScreen
         branches={[branch]}
         members={[admin]}
-        people={[person]}
+        people={[person, adminPerson]}
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Invite Staff" })).toBeTruthy();
+    const surface = screen.getByTestId("access-surface");
+    expect(surface.className).not.toContain("xl:grid-cols");
+    expect(
+      within(surface)
+        .getAllByRole("heading", { level: 2 })
+        .map((heading) => heading.textContent),
+    ).toEqual(["Needs access", "Pending", "Active"]);
+    for (const group of ["needs", "pending", "active"]) {
+      const section = screen.getByTestId(`access-${group}-group`);
+      expect(section.className).not.toContain("rounded-md");
+      expect(section.className).not.toContain("border border-border");
+      expect(section.className).not.toContain("bg-surface");
+    }
+    expect(screen.queryByTestId("add-access-form")).toBeNull();
+    expect(screen.getByRole("button", { name: "Invite Staff" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Add Staff" }).getAttribute("href")).toBe(
       "/staff?action=create",
     );
-    expect(screen.getByRole("heading", { name: "Staff without access" })).toBeTruthy();
     expect(
       screen
         .getByRole("link", { name: "Grant workspace access for Mina Chen" })
         .getAttribute("href"),
     ).toBe(`/users-roles?personId=${person.id}`);
-    expect(screen.getByRole("heading", { name: "Pending invitations" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Active access" })).toBeTruthy();
     expect(screen.getByText("1 active account")).toBeTruthy();
     expect(screen.queryByText(/Full workspace access, settings/i)).toBeNull();
   });
+
+  it("opens Invite Staff in the shared drawer with one full-width action surface", () => {
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person, adminPerson]}
+      />,
+    );
+
+    const form = getInviteForm();
+    const drawer = screen.getByRole("dialog", { name: "Invite Staff" });
+    const actionBar = within(form).getByTestId("draft-action-bar");
+
+    expect(drawer.querySelector("[data-slot='drawer-content']")?.contains(form)).toBe(true);
+    expect(drawer.querySelector("[data-slot='drawer-footer']")).toBeNull();
+    expect(actionBar.parentElement?.className).toContain("w-full");
+  });
+
+  it("auto-opens Invite Staff for a no-access person deep link", () => {
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        inviteDefaults={{
+          email: person.primaryEmail,
+          personId: person.id,
+          staffEmail: person.primaryEmail,
+        }}
+        members={[admin]}
+        people={[person, adminPerson]}
+        requestedStaffId={person.id}
+      />,
+    );
+
+    const drawer = screen.getByRole("dialog", { name: "Invite Staff" });
+    expect((within(drawer).getByLabelText("Invitation email") as HTMLInputElement).value).toBe(
+      person.primaryEmail,
+    );
+  });
+
+  it.each(["close button", "Escape", "backdrop"])(
+    "guards a dirty invite drawer on %s and restores the Invite Staff trigger",
+    async (dismissal) => {
+      const user = userEvent.setup();
+      render(
+        <AccessSettingsScreen
+          branches={[branch]}
+          members={[admin]}
+          people={[person, adminPerson]}
+        />,
+      );
+
+      const trigger = screen.getByRole("button", { name: "Invite Staff" });
+      await user.click(trigger);
+      const drawer = screen.getByRole("dialog", { name: "Invite Staff" });
+      fireEvent.change(within(drawer).getByLabelText("Invitation email"), {
+        target: { value: "new@example.com" },
+      });
+
+      if (dismissal === "close button") {
+        await user.click(within(drawer).getByRole("button", { name: "Close drawer" }));
+      } else if (dismissal === "Escape") {
+        fireEvent.keyDown(document, { key: "Escape" });
+      } else {
+        const backdrop = drawer.querySelector<HTMLButtonElement>("button[aria-hidden='true']");
+        expect(backdrop).not.toBeNull();
+        fireEvent.click(backdrop!);
+      }
+
+      const confirmation = screen.getByRole("alertdialog", { name: "Unsaved changes" });
+      await user.click(within(confirmation).getByRole("button", { name: "Discard changes" }));
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog", { name: "Invite Staff" })).toBeNull();
+      });
+      expect(document.activeElement).toBe(trigger);
+    },
+  );
 
   it("shows effective scope and staff linkage beside each member", () => {
     render(
@@ -161,6 +261,21 @@ describe("AccessSettingsScreen", () => {
     ).toContain("All branches");
     expect(within(member).getAllByText("Admin Staff").length).toBeGreaterThan(0);
     expect(within(member).getByText("Full workspace access")).toBeTruthy();
+  });
+
+  it("preserves a focused active-member deep link without opening Invite Staff", async () => {
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        focusedMemberId={admin.id}
+        members={[admin]}
+        people={[person, adminPerson]}
+      />,
+    );
+
+    const member = screen.getByTestId(`access-member-${admin.id}`);
+    await waitFor(() => expect(document.activeElement).toBe(member));
+    expect(screen.queryByRole("dialog", { name: "Invite Staff" })).toBeNull();
   });
 
   it("keeps pending invitations separate with resend and revoke actions", async () => {
@@ -255,7 +370,7 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     expect(within(addForm).getByRole("combobox", { name: "Staff member" })).toBeTruthy();
     expect(within(addForm).getByLabelText("Invitation email")).toBeTruthy();
     expect(within(addForm).getAllByText("Access level").length).toBeGreaterThan(0);
@@ -292,7 +407,7 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     expect((within(addForm).getByLabelText("Invitation email") as HTMLInputElement).value).toBe("mina@example.com");
     expect(
       (within(addForm).getByRole("button", { name: "Send invitation" }) as HTMLButtonElement).disabled,
@@ -315,7 +430,7 @@ describe("AccessSettingsScreen", () => {
         requestedStaffId={person.id}
       />,
     );
-    let addForm = screen.getByTestId("add-access-form");
+    let addForm = getInviteForm();
     fireEvent.change(within(addForm).getByLabelText("Invitation email"), {
       target: { value: "edited@example.com" },
     });
@@ -334,7 +449,7 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    addForm = screen.getByTestId("add-access-form");
+    addForm = getInviteForm();
     expect((within(addForm).getByLabelText("Invitation email") as HTMLInputElement).value).toBe(
       "nadia@example.com",
     );
@@ -361,48 +476,39 @@ describe("AccessSettingsScreen", () => {
     );
 
     expect(
-      within(screen.getByTestId("add-access-form")).getByText("Invitation could not be sent."),
+      within(getInviteForm()).getByText("Invitation could not be sent."),
     ).toBeTruthy();
   });
 
-  it("preserves same-Staff draft feedback when revalidation materializes its invitation", async () => {
-    const view = render(
-      <AccessSettingsScreen
-        branches={[branch]}
-        inviteDefaults={{ email: person.primaryEmail, personId: person.id, staffEmail: person.primaryEmail }}
-        members={[admin]}
-        people={[person]}
-        requestedStaffId={person.id}
-      />,
-    );
-    let addForm = screen.getByTestId("add-access-form");
+  it("closes a persisted invitation whose email delivery failed and reopens clean", async () => {
+    const user = userEvent.setup();
     addAccess.mockResolvedValueOnce({
       status: "error",
-      message: "Invitation created, but delivery failed.",
+      message: "Invitation saved, but email delivery failed. Retry from Pending invitations.",
     });
-    fireEvent.click(within(addForm).getByRole("button", { name: "Send invitation" }));
-    await waitFor(() => {
-      expect(within(addForm).getByText("Invitation created, but delivery failed.")).toBeTruthy();
-    });
-
-    view.rerender(
+    render(
       <AccessSettingsScreen
         branches={[branch]}
-        invitations={[{ ...pendingInvitation, status: "send_failed" }]}
         members={[admin]}
-        people={[person]}
-        requestedStaffId={person.id}
+        people={[person, adminPerson]}
       />,
     );
 
-    addForm = screen.getByTestId("add-access-form");
-    expect((within(addForm).getByLabelText("Invitation email") as HTMLInputElement).value).toBe(
-      person.primaryEmail,
-    );
-    expect(within(addForm).getByText("Invitation created, but delivery failed.")).toBeTruthy();
+    let addForm = getInviteForm();
+    await user.click(within(addForm).getByRole("combobox", { name: "Staff member" }));
+    await user.click(screen.getByRole("option", { name: /Mina Chen/ }));
+    await user.click(within(addForm).getByRole("button", { name: "Send invitation" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Invite Staff" })).toBeNull();
+    });
+    expect(addAccess).toHaveBeenCalledOnce();
+
+    addForm = getInviteForm();
+    expect((within(addForm).getByLabelText("Invitation email") as HTMLInputElement).value).toBe("");
     expect(
-      within(addForm).getByText("This Staff member already has an invitation with failed delivery."),
-    ).toBeTruthy();
+      (within(addForm).getByRole("button", { name: "Send invitation" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it("discards a trusted invite handoff back to an empty access draft", async () => {
@@ -416,7 +522,7 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     await user.click(within(addForm).getByRole("button", { name: "Discard" }));
     await user.click(within(addForm).getByRole("button", { name: "Discard changes" }));
 
@@ -435,7 +541,7 @@ describe("AccessSettingsScreen", () => {
         people={[person, adminPerson]}
       />,
     );
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
 
     fireEvent.change(within(addForm).getByLabelText("Invitation email"), {
       target: { value: "signin@example.com" },
@@ -465,7 +571,7 @@ describe("AccessSettingsScreen", () => {
         people={[person, noEmailStaff]}
       />,
     );
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     await user.click(within(addForm).getByRole("combobox", { name: "Staff member" }));
     await user.click(screen.getByRole("option", { name: /No Email Staff/ }));
 
@@ -481,7 +587,7 @@ describe("AccessSettingsScreen", () => {
         people={[person]}
       />,
     );
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     fireEvent.click(within(addForm).getByRole("combobox", { name: "Access scope" }));
     fireEvent.click(screen.getByRole("option", { name: "BKK - Bangkok" }));
     fireEvent.click(within(addForm).getByRole("combobox", { name: "Access level" }));
@@ -499,7 +605,7 @@ describe("AccessSettingsScreen", () => {
     });
   });
 
-  it("blocks a duplicate grant and focuses the server-loaded invitation", async () => {
+  it("closes the invite drawer before focusing the matching duplicate invitation", async () => {
     const user = userEvent.setup();
     render(
       <AccessSettingsScreen
@@ -510,15 +616,43 @@ describe("AccessSettingsScreen", () => {
         people={[person]}
       />,
     );
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     await user.click(within(addForm).getByRole("combobox", { name: "Staff member" }));
     await user.click(screen.getByRole("option", { name: /Mina Chen/ }));
 
     expect(within(addForm).getByText("This Staff member already has a pending invitation.")).toBeTruthy();
     await user.click(within(addForm).getByRole("button", { name: "Review invitation" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Invite Staff" })).toBeNull();
+    });
     await waitFor(() => expect(document.activeElement).toBe(
       screen.getByTestId(`access-invitation-${pendingInvitation.id}`),
     ));
+    expect(addAccess).not.toHaveBeenCalled();
+  });
+
+  it("closes the invite drawer before focusing matching active access", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person, adminPerson]}
+      />,
+    );
+
+    const addForm = getInviteForm();
+    await user.click(within(addForm).getByRole("combobox", { name: "Staff member" }));
+    await user.click(screen.getByRole("option", { name: /Admin Staff/ }));
+    expect(within(addForm).getByText("This Staff member already has workspace access.")).toBeTruthy();
+
+    await user.click(within(addForm).getByRole("button", { name: "Review access" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Invite Staff" })).toBeNull();
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByTestId(`access-member-${admin.id}`));
+    });
     expect(addAccess).not.toHaveBeenCalled();
   });
 
@@ -567,7 +701,7 @@ describe("AccessSettingsScreen", () => {
         ]}
       />,
     );
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     await user.click(within(addForm).getByRole("combobox", { name: "Staff member" }));
 
     expect(screen.getAllByRole("option", { name: /Mina Chen/ })).toHaveLength(1);
@@ -604,7 +738,7 @@ describe("AccessSettingsScreen", () => {
     expect(within(member).getByText("Archived Staff")).toBeTruthy();
     expect(within(member).getByRole("button", { name: "Clear linked Staff record" })).toBeTruthy();
 
-    await user.click(within(screen.getByTestId("add-access-form")).getByRole("combobox", { name: "Staff member" }));
+    await user.click(within(getInviteForm()).getByRole("combobox", { name: "Staff member" }));
     expect(screen.queryByRole("option", { name: /Historical Staff/ })).toBeNull();
   });
 
@@ -686,7 +820,7 @@ describe("AccessSettingsScreen", () => {
         people={[person]}
       />,
     );
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     const email = within(addForm).getByLabelText("Invitation email") as HTMLInputElement;
     fireEvent.change(email, { target: { value: "not-an-email" } });
     fireEvent.click(within(addForm).getByRole("button", { name: "Send invitation" }));
@@ -712,7 +846,7 @@ describe("AccessSettingsScreen", () => {
         people={[person]}
       />,
     );
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     fireEvent.change(within(addForm).getByLabelText("Invitation email"), {
       target: { value: "new@example.com" },
     });
@@ -729,7 +863,33 @@ describe("AccessSettingsScreen", () => {
     expect(within(addForm).getAllByText("Mina Chen").length).toBeGreaterThan(0);
   });
 
-  it("freezes access fields while their submitted snapshot is saving", async () => {
+  it("keeps an invitation finalization error actionable in the drawer", async () => {
+    addAccess.mockResolvedValueOnce({
+      status: "error",
+      message: "Invitation state could not be finalized.",
+    });
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        inviteDefaults={{ email: person.primaryEmail, personId: person.id, staffEmail: person.primaryEmail }}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+
+    const addForm = getInviteForm();
+    fireEvent.click(within(addForm).getByRole("button", { name: "Send invitation" }));
+
+    const alert = await within(addForm).findByRole("alert");
+    expect(alert.textContent).toContain("Invitation state could not be finalized.");
+    expect(screen.getByRole("dialog", { name: "Invite Staff" })).toBeTruthy();
+    expect(
+      (within(addForm).getByRole("button", { name: "Send invitation" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
+  it("freezes access fields while saving and closes after full success", async () => {
+    const user = userEvent.setup();
     let resolveAction: (value: { status: "success"; message: string }) => void = () => undefined;
     addAccess.mockImplementation(
       () => new Promise((resolve) => {
@@ -739,14 +899,18 @@ describe("AccessSettingsScreen", () => {
     render(
       <AccessSettingsScreen
         branches={[branch]}
-        inviteDefaults={{ email: "", personId: person.id, staffEmail: person.primaryEmail }}
         members={[admin]}
-        people={[person]}
+        people={[person, adminPerson]}
       />,
     );
-    const addForm = screen.getByTestId("add-access-form");
+    const trigger = screen.getByRole("button", { name: "Invite Staff" });
+    await user.click(trigger);
+    const addForm = within(screen.getByRole("dialog", { name: "Invite Staff" })).getByTestId(
+      "add-access-form",
+    );
+    await user.click(within(addForm).getByRole("combobox", { name: "Staff member" }));
+    await user.click(screen.getByRole("option", { name: /Mina Chen/ }));
     const email = within(addForm).getByLabelText("Invitation email") as HTMLInputElement;
-    fireEvent.change(email, { target: { value: "new@example.com" } });
     fireEvent.click(within(addForm).getByRole("button", { name: "Send invitation" }));
 
     expect(email.disabled).toBe(true);
@@ -755,7 +919,10 @@ describe("AccessSettingsScreen", () => {
     ).toBe(true);
 
     resolveAction({ status: "success", message: "User access added." });
-    expect(await within(addForm).findByText("User access added.")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Invite Staff" })).toBeNull();
+    });
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("turns a pending navigation into a dirty decision when another draft remains", async () => {
@@ -784,17 +951,21 @@ describe("AccessSettingsScreen", () => {
     const member = screen.getByTestId(`access-member-${admin.id}`);
     await user.click(within(member).getByRole("combobox", { name: "Access level" }));
     await user.click(screen.getByRole("option", { name: "Manager" }));
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     fireEvent.change(within(addForm).getByLabelText("Invitation email"), {
       target: { value: "new@example.com" },
     });
     fireEvent.click(within(addForm).getByRole("button", { name: "Send invitation" }));
     await user.click(screen.getByRole("link", { name: "Workspace" }));
-    expect(screen.getByRole("dialog").textContent).toContain("save is still in progress");
+    expect(screen.getByRole("dialog", { name: "Open Workspace?" }).textContent).toContain(
+      "save is still in progress",
+    );
 
     resolveAction({ status: "success", message: "User access added." });
     await waitFor(() => {
-      expect(screen.getByRole("dialog").textContent).toContain("unsaved changes");
+      expect(screen.getByRole("dialog", { name: "Open Workspace?" }).textContent).toContain(
+        "unsaved changes",
+      );
     });
     expect(screen.getByRole("button", { name: "Discard and open Workspace" })).toBeTruthy();
   });
@@ -816,16 +987,20 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    const addForm = screen.getByTestId("add-access-form");
+    const addForm = getInviteForm();
     fireEvent.change(within(addForm).getByLabelText("Invitation email"), {
       target: { value: "new@example.com" },
     });
     fireEvent.click(within(addForm).getByRole("button", { name: "Send invitation" }));
     await user.click(screen.getByRole("link", { name: "Workspace" }));
-    expect(screen.getByRole("dialog").textContent).toContain("save is still in progress");
+    expect(screen.getByRole("dialog", { name: "Open Workspace?" }).textContent).toContain(
+      "save is still in progress",
+    );
 
     resolveAction({ status: "error", message: "Access could not be added." });
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Open Workspace?" })).toBeNull();
+    });
     const alert = within(addForm).getByRole("alert");
     await waitFor(() => expect(document.activeElement).toBe(alert));
     expect(alert.textContent).toContain("Access could not be added.");
@@ -840,16 +1015,21 @@ describe("AccessSettingsScreen", () => {
         people={[person]}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Invitation email"), {
+    const addForm = getInviteForm();
+    fireEvent.change(within(addForm).getByLabelText("Invitation email"), {
       target: { value: "new@example.com" },
     });
     const workspace = screen.getByRole("link", { name: "Workspace" });
     await user.click(workspace);
 
-    expect(screen.getByRole("dialog").textContent).toContain("unsaved changes");
+    expect(screen.getByRole("dialog", { name: "Open Workspace?" }).textContent).toContain(
+      "unsaved changes",
+    );
     await user.click(screen.getByRole("button", { name: "Keep editing" }));
     await waitFor(() => expect(document.activeElement).toBe(workspace));
-    expect((screen.getByLabelText("Invitation email") as HTMLInputElement).value).toBe("new@example.com");
+    expect((within(addForm).getByLabelText("Invitation email") as HTMLInputElement).value).toBe(
+      "new@example.com",
+    );
   });
 
   it("blocks a last-admin demotion beside the changed role control", async () => {
