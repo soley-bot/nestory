@@ -22,6 +22,7 @@ import type {
   MaintenanceCase,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
+import { getBusinessMonthValue } from "@/lib/dates/business-date";
 
 const navigation = vi.hoisted(() => ({
   pathname: "/maintenance",
@@ -345,6 +346,47 @@ describe("maintenance workspace redesign contract", () => {
     expect(screen.queryByRole("group", { name: "Work order display" })).toBeNull();
   });
 
+  it.each([
+    [
+      "property scope",
+      { propertyId: "property-1", unitId: "all" },
+    ],
+    [
+      "unit scope",
+      { propertyId: "property-1", unitId: "unit-1" },
+    ],
+    [
+      "historical month",
+      { month: "2000-01" },
+    ],
+  ])("counts %s as one active advanced filter", (_label, query) => {
+    renderMaintenance({
+      viewQuery: {
+        ...defaultViewQuery,
+        month: getBusinessMonthValue(),
+        ...query,
+      },
+    });
+
+    expect(screen.getByRole("button", { name: "Filters 1" })).not.toBeNull();
+  });
+
+  it("does not count the List or Board display choice as an advanced filter", () => {
+    renderMaintenance({
+      showCaseViewTabs: true,
+      surfaceVariant: "board",
+      viewQuery: {
+        ...defaultViewQuery,
+        month: getBusinessMonthValue(),
+        review: "work_orders",
+        view: "board",
+      },
+    });
+
+    expect(screen.getByRole("button", { name: "Filters" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Filters \(/ })).toBeNull();
+  });
+
   it("renders the scope summary inline and removes the desktop list-table frame", () => {
     const { container } = renderMaintenance();
     const scopeSummary = container.querySelector(
@@ -355,6 +397,17 @@ describe("maintenance workspace redesign contract", () => {
     expect(scopeSummary?.getAttribute("data-variant")).toBe("inline");
     expect(tableSurface?.className).toContain("md:border-0");
     expect(tableSurface?.className).toContain("md:rounded-none");
+    const pagination = screen
+      .getByText(
+        (_content, element) =>
+          element?.tagName === "P" && element.textContent?.includes("Showing") === true,
+      )
+      .closest("div");
+    expect(pagination?.classList.contains("border-t")).toBe(true);
+    expect(pagination?.classList.contains("border")).toBe(false);
+    expect(pagination?.classList.contains("border-t-0")).toBe(false);
+    expect(pagination?.classList.contains("rounded-b-md")).toBe(false);
+    expect(pagination?.classList.contains("-mt-px")).toBe(false);
   });
 
   it("marks one selected maintenance row and supports Enter and Space", () => {

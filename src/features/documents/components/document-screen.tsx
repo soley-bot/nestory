@@ -219,7 +219,7 @@ export function DocumentScreen({
               }
             />
           </div>
-          <PaginationControls attached pagination={pagination} />
+          <PaginationControls pagination={pagination} />
         </>
       )}
     </section>

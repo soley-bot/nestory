@@ -47,14 +47,23 @@ describe("PropertyDetailScreen task-first detail contract", () => {
   it("mounts only the selected panel and preserves unit record links", () => {
     renderPropertyDetail();
 
-    expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeTruthy();
+    const overviewPanel = screen.getByRole("tabpanel", { name: "Overview" });
+    expect(overviewPanel).toBeTruthy();
     expect(screen.queryByRole("tabpanel", { name: "Units" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Unit 04-01" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("aria-controls")).toBe(
+      overviewPanel.id,
+    );
+    expect(screen.getByRole("tab", { name: "Units" }).getAttribute("aria-controls")).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: "Units" }));
 
     const unitsPanel = screen.getByRole("tabpanel", { name: "Units" });
     expect(screen.queryByRole("tabpanel", { name: "Overview" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Units" }).getAttribute("aria-controls")).toBe(
+      unitsPanel.id,
+    );
+    expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("aria-controls")).toBeNull();
     expect(
       within(unitsPanel)
         .getAllByRole("link", { name: "Unit 04-01" })

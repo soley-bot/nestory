@@ -404,7 +404,9 @@ function PropertyRecordNav({
       <div className="flex min-w-max items-center gap-1" role="tablist">
         {propertyRecordSections.map((item) => (
           <button
-            aria-controls={`property-panel-${item.id}`}
+            aria-controls={
+              activeSection === item.id ? `property-panel-${item.id}` : undefined
+            }
             aria-selected={activeSection === item.id}
             className={cn(
               "inline-flex h-9 items-center border-b-2 border-transparent px-2.5 text-[13px] font-medium text-muted transition-colors hover:text-foreground",

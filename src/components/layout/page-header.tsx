@@ -47,20 +47,20 @@ export function PageHeader({
             </div>
           ) : null}
         </div>
-        {navigation ? (
-          <div
-            className="order-last min-w-0 basis-full lg:order-none lg:flex-1 lg:basis-auto"
-            data-slot="page-header-navigation"
-          >
-            {navigation}
-          </div>
-        ) : null}
         {actions ? (
           <div
-            className="ml-auto flex shrink-0 flex-wrap items-center gap-2"
+            className="order-1 ml-auto flex shrink-0 flex-wrap items-center gap-2 lg:order-2"
             data-slot="page-header-actions"
           >
             {actions}
+          </div>
+        ) : null}
+        {navigation ? (
+          <div
+            className="order-2 min-w-0 basis-full lg:order-1 lg:flex-1 lg:basis-auto"
+            data-slot="page-header-navigation"
+          >
+            {navigation}
           </div>
         ) : null}
       </div>

@@ -42,6 +42,17 @@ describe("LedgerScreen finance workspace contract", () => {
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    const pagination = screen
+      .getByText(
+        (_content, element) =>
+          element?.tagName === "P" && element.textContent?.includes("Showing") === true,
+      )
+      .closest("div");
+    expect(pagination?.classList.contains("border-t")).toBe(true);
+    expect(pagination?.classList.contains("border")).toBe(false);
+    expect(pagination?.classList.contains("border-t-0")).toBe(false);
+    expect(pagination?.classList.contains("rounded-b-md")).toBe(false);
+    expect(pagination?.classList.contains("-mt-px")).toBe(false);
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(within(rows[0]!).getByRole("link", { name: "Home" }).getAttribute("href")).toBe(

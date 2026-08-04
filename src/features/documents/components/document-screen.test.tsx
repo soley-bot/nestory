@@ -55,6 +55,17 @@ describe("DocumentScreen workspace contract", () => {
     expect(surface?.classList.contains("border")).toBe(false);
     expect(surface?.classList.contains("overflow-hidden")).toBe(true);
     expect(scrollOwner?.classList.contains("overflow-auto")).toBe(true);
+    const pagination = screen
+      .getByText(
+        (_content, element) =>
+          element?.tagName === "P" && element.textContent?.includes("Showing") === true,
+      )
+      .closest("div");
+    expect(pagination?.classList.contains("border-t")).toBe(true);
+    expect(pagination?.classList.contains("border")).toBe(false);
+    expect(pagination?.classList.contains("border-t-0")).toBe(false);
+    expect(pagination?.classList.contains("rounded-b-md")).toBe(false);
+    expect(pagination?.classList.contains("-mt-px")).toBe(false);
     expect(table.querySelector("thead")?.classList.contains("sticky")).toBe(true);
     expect(firstRow.classList.contains("border-t")).toBe(true);
     expect(firstRow.getAttribute("tabindex")).toBe("0");

@@ -109,10 +109,14 @@ parity, physical-device behavior, and email delivery were not verified.
 
 ## Inline-first and interaction contract mapping
 
-The user's binding rule is preserved: related title, context, navigation,
-actions, controls, summaries, and row facts stay on one readable line when
-width permits; stacking is reserved for semantic hierarchy or accessible
-responsive reflow.
+The binding-rule evidence in this section is limited to source inspection,
+automated regression coverage, and the existing fixed 1280 x 720 administrator
+fixture described above. Within that boundary, related title, context,
+navigation, actions, controls, summaries, and row facts stay on one readable
+line when width permits; stacking is reserved for semantic hierarchy or
+accessible responsive reflow. This is not a browser-acceptance claim for the
+still-open 1440 x 900, 1280 x 800, Maintenance board saved capture, Playwright
+smokes, or 200% zoom keyboard checks.
 
 - Shared `PageHeader` places title, context, local navigation, and actions in
   one flex-wrapping primary composition and uses `lg:flex-nowrap` when laptop

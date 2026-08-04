@@ -215,7 +215,7 @@ export function LedgerScreen({
               selectedEntryId={compactInspectorOpen ? selectedEntry?.id ?? "" : ""}
             />
           </div>
-          <PaginationControls attached pagination={pagination} />
+          <PaginationControls pagination={pagination} />
         </>
       )}
     </section>

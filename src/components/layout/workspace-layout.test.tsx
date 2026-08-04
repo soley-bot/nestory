@@ -144,6 +144,48 @@ describe("shared workspace anatomy", () => {
     expect(navigation).not.toBeNull();
   });
 
+  it("keeps keyboard order on the primary action before local navigation and workspace controls", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <PageHeader
+          actions={<button type="button">Add lease</button>}
+          navigation={
+            <nav aria-label="Lease sections">
+              <a href="/leases?status=active">Active leases</a>
+            </nav>
+          }
+          title="Leases"
+        />
+        <button type="button">Filter leases</button>
+        <main aria-label="Lease register" tabIndex={0}>
+          Lease register
+        </main>
+      </>,
+    );
+
+    const heading = screen.getByRole("heading", { level: 1, name: "Leases" });
+    const action = screen.getByRole("button", { name: "Add lease" });
+    expect(
+      heading.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    await user.tab();
+    expect(document.activeElement).toBe(action);
+    await user.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole("link", { name: "Active leases" }),
+    );
+    await user.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Filter leases" }),
+    );
+    await user.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole("main", { name: "Lease register" }),
+    );
+  });
+
   it("moves detail breadcrumbs into the global workspace bar", () => {
     const pageTools = document.createElement("div");
     pageTools.id = "workspace-page-tools";

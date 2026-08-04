@@ -105,6 +105,17 @@ describe("LeaseScreen redesign contract", () => {
     expect(tableFrame!.className).not.toContain("rounded");
     expect(tableFrame!.className).not.toContain("border");
     expect(tableFrame!.className).not.toMatch(/(?:^|\s)p[xytrbl]?-/);
+    const pagination = screen
+      .getByText(
+        (_content, element) =>
+          element?.tagName === "P" && element.textContent?.includes("Showing") === true,
+      )
+      .closest("div");
+    expect(pagination?.classList.contains("border-t")).toBe(true);
+    expect(pagination?.classList.contains("border")).toBe(false);
+    expect(pagination?.classList.contains("border-t-0")).toBe(false);
+    expect(pagination?.classList.contains("rounded-b-md")).toBe(false);
+    expect(pagination?.classList.contains("-mt-px")).toBe(false);
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");

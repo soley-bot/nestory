@@ -232,7 +232,7 @@ export function LeaseScreen({
               selectedLeaseId={compactInspectorOpen ? selectedLease?.id ?? "" : ""}
             />
           </div>
-          <PaginationControls attached pagination={pagination} />
+          <PaginationControls pagination={pagination} />
         </>
       )}
     </section>

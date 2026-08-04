@@ -105,6 +105,7 @@ import type {
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
 import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
+import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { cn } from "@/lib/utils";
 
 const initialState: MaintenanceActionState = {};
@@ -493,7 +494,7 @@ export function MaintenanceScreen({
               selectedTaskId={compactInspectorOpen ? selectedCase?.id ?? "" : ""}
             />
           </div>
-          <PaginationControls attached pagination={pagination} />
+          <PaginationControls pagination={pagination} />
         </>
       ) : (
         <div className="min-h-0 min-w-0 flex-1 overflow-auto p-3">
@@ -2304,6 +2305,14 @@ function getAdvancedFilterCount(
 ) {
   let count = 0;
 
+  if (viewQuery.unitId !== "all" || viewQuery.propertyId !== "all") {
+    count += 1;
+  }
+
+  if (viewQuery.month !== getBusinessMonthValue()) {
+    count += 1;
+  }
+
   if (viewQuery.priority !== "all") {
     count += 1;
   }
@@ -2314,6 +2323,7 @@ function getAdvancedFilterCount(
 
   if (
     viewQuery.review !== baseReview &&
+    !(viewQuery.view === "board" && viewQuery.review === "work_orders") &&
     [
       "reminders",
       "scheduled",
