@@ -492,7 +492,9 @@ function PersonRecordNav({
       <div className="flex min-w-max items-center gap-1.5" role="tablist">
         {personRecordSections.map((section) => (
           <button
-            aria-controls={`person-${section.id}`}
+            aria-controls={
+              activeSection === section.id ? `person-${section.id}` : undefined
+            }
             aria-selected={activeSection === section.id}
             className={cn(
               "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-muted hover:text-foreground",

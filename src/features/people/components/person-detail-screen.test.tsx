@@ -51,11 +51,31 @@ describe("PersonDetailScreen", () => {
     expect(navigation.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
     expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
     expect(screen.getByRole("tabpanel").id).toBe("person-overview");
+    expect(
+      within(navigation)
+        .getByRole("tab", { name: "Overview" })
+        .getAttribute("aria-controls"),
+    ).toBe("person-overview");
+    expect(
+      within(navigation)
+        .getByRole("tab", { name: "Links" })
+        .getAttribute("aria-controls"),
+    ).toBeNull();
 
     fireEvent.click(within(navigation).getByRole("tab", { name: "Links" }));
 
     expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
     expect(screen.getByRole("tabpanel").id).toBe("person-links");
+    expect(
+      within(navigation)
+        .getByRole("tab", { name: "Overview" })
+        .getAttribute("aria-controls"),
+    ).toBeNull();
+    expect(
+      within(navigation)
+        .getByRole("tab", { name: "Links" })
+        .getAttribute("aria-controls"),
+    ).toBe("person-links");
   });
 
   it("flattens linked-record groups and rows while keeping their destinations", () => {
