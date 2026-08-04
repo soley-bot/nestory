@@ -76,7 +76,6 @@ export function PropertyScreen({
     initialPropertyId ?? properties[0]?.id ?? "",
   );
   const [quickViewOpen, setQuickViewOpen] = useState(Boolean(initialPropertyId));
-  const isTableMode = displayMode === "table";
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const selectedProperty =
     properties.find((property) => property.id === selectedPropertyId) ??
@@ -220,7 +219,7 @@ export function PropertyScreen({
               sort={viewQuery.sort}
             />
           </div>
-          <PaginationControls attached={isTableMode} pagination={pagination} />
+          <PaginationControls pagination={pagination} />
         </>
       )}
     </section>
