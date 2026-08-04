@@ -16,6 +16,42 @@ function hasRoundedBorderShell(element: Element) {
 
 describe("ModuleLoading task-first layout", () => {
   it.each(["dashboard", "list", "report"] as const)(
+    "lets AppShell own the %s height while keeping its header inline",
+    (kind) => {
+      const { container } = render(
+        <ModuleLoading kind={kind} title="Property records" />,
+      );
+      const state = container.querySelector(`[data-loading-kind="${kind}"]`)!;
+      const titleActions = state.querySelector(
+        '[data-slot="loading-title-actions"]',
+      )!;
+      const titleContext = titleActions.querySelector(
+        '[data-slot="loading-title-context"]',
+      )!;
+      const workspace = state.querySelector('[data-slot="loading-workspace"]')!;
+      const workSurface = workspace.querySelector(
+        '[data-slot="loading-work-surface"]',
+      )!;
+
+      expect(state.classList.contains("min-h-screen")).toBe(false);
+      expect(state.classList.contains("h-full")).toBe(true);
+      expect(state.classList.contains("min-h-0")).toBe(true);
+      expect(state.classList.contains("flex")).toBe(true);
+      expect(state.classList.contains("flex-col")).toBe(true);
+      expect(state.classList.contains("overflow-hidden")).toBe(true);
+      expect(titleActions.querySelector(".space-y-3")).toBeNull();
+      expect(titleContext.classList.contains("flex-col")).toBe(true);
+      expect(titleContext.classList.contains("sm:flex-row")).toBe(true);
+      expect(workspace.classList.contains("min-h-0")).toBe(true);
+      expect(workspace.classList.contains("flex-1")).toBe(true);
+      expect(workspace.classList.contains("flex-col")).toBe(true);
+      expect(workSurface.classList.contains("flex-1")).toBe(true);
+      expect(workSurface.className).not.toMatch(/(?:^|\s)h-(?:80|\[28rem\])(?:\s|$)/);
+      expect(workSurface.className).toMatch(/(?:^|\s)min-h-/);
+    },
+  );
+
+  it.each(["dashboard", "list", "report"] as const)(
     "keeps the %s variant announced while flattening its live workspace",
     (kind) => {
       const { container } = render(
