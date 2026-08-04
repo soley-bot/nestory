@@ -201,7 +201,7 @@ export function TimelineScreen({
               selectedEventId={compactInspectorOpen ? selectedEvent?.id ?? "" : ""}
             />
           </div>
-          <PaginationControls attached pagination={pagination} />
+          <PaginationControls pagination={pagination} />
         </>
       )}
     </section>
@@ -234,15 +234,7 @@ export function TimelineScreen({
           </Button>
         </>
       }
-      context={
-        <>
-          <span>{getTimelineScopeLabel(scope)}</span>
-          <span className="mx-2 text-foreground-subtle">/</span>
-          <span>
-            {pagination.totalCount} {pagination.totalCount === 1 ? "event" : "events"}
-          </span>
-        </>
-      }
+      context={<span>{getTimelineScopeLabel(scope)}</span>}
       contextHref={pathname}
       title={title}
       toolbar={

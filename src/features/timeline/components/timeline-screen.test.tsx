@@ -103,6 +103,38 @@ describe("TimelineScreen workspace contract", () => {
     ).not.toMatch(/(?:^|\s)(?:border|rounded-md)(?:\s|$)/);
   });
 
+  it("keeps the Records title and breadcrumb while exposing the total only in pagination", () => {
+    renderTimeline(events, {}, { title: "Records" });
+
+    expect(screen.getByRole("heading", { level: 1, name: "Records" })).not.toBeNull();
+    expect(
+      within(screen.getByRole("navigation", { name: "Breadcrumb" }))
+        .getByRole("link", { name: "Records" })
+        .getAttribute("href"),
+    ).toBe("/timeline");
+    expect(screen.queryAllByText("2 events")).toHaveLength(0);
+    expect(
+      screen.getAllByText(
+        (_, element) =>
+          element?.tagName === "P" && element.textContent === "Showing 1-2 of 2",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps pagination flat beneath the unframed record table", () => {
+    renderTimeline();
+
+    const pagination = screen.getByText(
+      (_, element) =>
+        element?.tagName === "P" && element.textContent === "Showing 1-2 of 2",
+    ).parentElement!;
+
+    expect(pagination.className).toContain("border-t");
+    expect(pagination.className).not.toMatch(
+      /(?:^|\s)(?:border|rounded(?:-\S+)?)(?:\s|$)/,
+    );
+  });
+
   it("keeps event context dense, directly linked, attached, and available in a quick view", () => {
     renderTimeline();
     const table = screen.getByRole("table");
