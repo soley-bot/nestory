@@ -36,6 +36,11 @@ describe("RentPolicyScreen", () => {
       screen.getByRole("button", { name: "Create unresolved draft" }),
     ).not.toBeNull();
     expect(screen.getByText(/does not invent a due day/i)).not.toBeNull();
+    expect(
+      screen.getByLabelText("Rent policy version history").getAttribute(
+        "tabindex",
+      ),
+    ).toBe("0");
   });
 
   it("renders approved policy history and offers a later draft", () => {

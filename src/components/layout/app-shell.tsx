@@ -277,6 +277,12 @@ export function AppShell({
                     )}
                     href={destination.href}
                     key={destination.id}
+                    onFocus={(event) =>
+                      event.currentTarget.scrollIntoView({
+                        block: "nearest",
+                        inline: "nearest",
+                      })
+                    }
                     prefetch={false}
                   >
                     <Icon size={15} />

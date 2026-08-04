@@ -19,9 +19,11 @@ type LocalWorkspaceNavProps = {
 export function LocalWorkspaceNav({ items, label }: LocalWorkspaceNavProps) {
   const activeIndex = items.findIndex((item) => item.active);
   const activeItemRef = useRef<HTMLAnchorElement | null>(null);
+  const navigationRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const activeItem = activeItemRef.current;
+    const navigation = navigationRef.current;
 
     if (typeof activeItem?.scrollIntoView === "function") {
       activeItem.scrollIntoView({
@@ -29,12 +31,35 @@ export function LocalWorkspaceNav({ items, label }: LocalWorkspaceNavProps) {
         inline: "nearest",
       });
     }
+
+    if (!activeItem || !navigation) return;
+
+    const keepFullyVisible = () => {
+      const activeBounds = activeItem.getBoundingClientRect();
+      const navigationBounds = navigation.getBoundingClientRect();
+
+      if (activeBounds.right > navigationBounds.right) {
+        navigation.scrollLeft += Math.ceil(
+          activeBounds.right - navigationBounds.right,
+        );
+      } else if (activeBounds.left < navigationBounds.left) {
+        navigation.scrollLeft -= Math.ceil(
+          navigationBounds.left - activeBounds.left,
+        );
+      }
+    };
+
+    keepFullyVisible();
+    const frame = requestAnimationFrame(keepFullyVisible);
+
+    return () => cancelAnimationFrame(frame);
   }, [activeIndex]);
 
   return (
     <nav
       aria-label={label}
       className="min-w-0 overflow-x-auto px-4 py-1.5 sm:px-6"
+      ref={navigationRef}
     >
       <div className="flex min-w-max items-center gap-1">
         {items.map((item, index) => {
@@ -44,7 +69,7 @@ export function LocalWorkspaceNav({ items, label }: LocalWorkspaceNavProps) {
             <Link
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex h-8 shrink-0 items-center gap-2 rounded-md px-2.5 text-sm font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
+                "inline-flex h-8 shrink-0 scroll-mx-1 items-center gap-2 rounded-md px-2.5 text-sm font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
                 isActive && "bg-accent-soft text-foreground",
               )}
               href={item.href}

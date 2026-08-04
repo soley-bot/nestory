@@ -94,6 +94,9 @@ describe("platform accessibility contract", () => {
     expect(links.filter((link) => link.getAttribute("aria-current") === "page"))
       .toHaveLength(1);
     expect(links.every((link) => !link.hasAttribute("tabindex"))).toBe(true);
+    expect(links.every((link) => link.className.includes("scroll-mx-1"))).toBe(
+      true,
+    );
   });
 
   it("names drawers, traps focus, and returns focus to the opener", () => {
@@ -136,7 +139,11 @@ describe("platform accessibility contract", () => {
 
   it("keeps the file input outside its keyboard-operable drop action", () => {
     const { container } = render(
-      <FileDropzoneField accept={CSV_FILE_ACCEPT} name="importFile" />,
+      <FileDropzoneField
+        aria-label="Select CSV file to import"
+        accept={CSV_FILE_ACCEPT}
+        name="importFile"
+      />,
     );
     const dropAction = screen.getByRole("button", {
       name: /Drop file here or browse/i,
@@ -144,7 +151,26 @@ describe("platform accessibility contract", () => {
     const fileInput = container.querySelector("input[type='file']");
 
     expect(fileInput).not.toBeNull();
+    expect(fileInput?.getAttribute("aria-label")).toBe(
+      "Select CSV file to import",
+    );
     expect(dropAction.contains(fileInput)).toBe(false);
+  });
+
+  it("gives the photo-page logo a deterministic high-contrast backing", () => {
+    render(
+      <AuthPageShell
+        description="Continue to your workspace."
+        title="Sign in"
+        visualSrc="/marketing/login-property-building-blue-hour.png"
+      >
+        <LoginForm />
+      </AuthPageShell>,
+    );
+
+    expect(screen.getByRole("link", { name: "Nestory home" }).className).toContain(
+      "bg-[#0b1218]",
+    );
   });
 });
 

@@ -472,6 +472,7 @@ async function saveViewportScreenshot({ page, screenshotPath }) {
   try {
     const png = await page.screenshot({
       animations: "disabled",
+      caret: "initial",
       fullPage: false,
     });
     const dimensions = readPngDimensions(png);
@@ -804,6 +805,18 @@ async function inspectKeyboardTargets(
       }
 
       const bounds = element.getBoundingClientRect();
+      const visibleWidth = Math.max(
+        0,
+        Math.min(bounds.right, window.innerWidth) - Math.max(bounds.left, 0),
+      );
+      const visibleHeight = Math.max(
+        0,
+        Math.min(bounds.bottom, window.innerHeight) - Math.max(bounds.top, 0),
+      );
+      const visibleRatio =
+        bounds.width > 0 && bounds.height > 0
+          ? (visibleWidth * visibleHeight) / (bounds.width * bounds.height)
+          : 0;
       const labelledBy = element.getAttribute("aria-labelledby");
       const labelledText = labelledBy
         ? labelledBy
@@ -833,11 +846,7 @@ async function inspectKeyboardTargets(
         )
           .trim()
           .slice(0, 120),
-        offViewport:
-          bounds.left < -0.5 ||
-          bounds.top < -0.5 ||
-          bounds.right > window.innerWidth + 0.5 ||
-          bounds.bottom > window.innerHeight + 0.5,
+        offViewport: visibleRatio < 0.5,
         inWorkSurface: Boolean(
           element.closest('[data-slot="app-shell-content"], main'),
         ),
@@ -849,6 +858,7 @@ async function inspectKeyboardTargets(
           : null,
         region: regionName(element),
         tagName: element.tagName,
+        visibleRatio: Math.round(visibleRatio * 1000) / 1000,
       };
     }
 
@@ -1110,7 +1120,11 @@ async function followExpectedRedirect({
             waitUntil: "domcontentloaded",
           });
         } catch (error) {
-          if (!String(error).includes("net::ERR_ABORTED")) {
+          const message = String(error);
+          if (
+            !message.includes("net::ERR_ABORTED") &&
+            !message.includes("is interrupted by another navigation to")
+          ) {
             throw error;
           }
 

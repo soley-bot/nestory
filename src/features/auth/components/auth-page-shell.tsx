@@ -63,7 +63,9 @@ export function AuthPageShell({
             aria-label="Nestory home"
             className={cn(
               "leading-none",
-              visualSrc ? "text-[var(--auth-page-fg)]" : "text-foreground",
+              visualSrc
+                ? "rounded-sm bg-[#0b1218] px-2 py-1.5 text-[var(--auth-page-fg)]"
+                : "text-foreground",
             )}
             href="/"
           >

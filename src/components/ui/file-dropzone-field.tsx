@@ -23,6 +23,7 @@ export const CSV_FILE_ACCEPT: Accept = {
 };
 
 type FileDropzoneFieldProps = {
+  "aria-label"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean | "false" | "true";
   "aria-labelledby"?: string;
@@ -39,6 +40,7 @@ type FileDropzoneFieldProps = {
 
 export function FileDropzoneField(props: FileDropzoneFieldProps) {
   const {
+  "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
   "aria-labelledby": ariaLabelledBy,
@@ -91,8 +93,10 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
     <div>
       <input
         {...getInputProps({ name })}
+        aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
         aria-invalid={ariaInvalid}
+        aria-labelledby={ariaLabelledBy}
         aria-required={ariaRequired ?? required}
         required={required}
       />

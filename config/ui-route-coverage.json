@@ -1827,12 +1827,12 @@
     "smoke": {
       "path": "/reports",
       "expectedAccess": {
-        "admin": "accessible",
+        "admin": "redirected",
         "manager": "permission-blocked",
         "member": "permission-blocked",
         "anonymous": "login-required"
       },
-      "queryContract": "not-applicable",
+      "queryContract": "redirect-normalized",
       "workflowEvidence": [
         "src/app/(dashboard)/reports/page.tsx",
         "src/components/layout/module-loading.tsx",

@@ -264,6 +264,7 @@ export function ImportPreviewScreen({
 
           <div className="p-4">
             <FileDropzoneField
+              aria-label="Select CSV file to import"
               accept={CSV_FILE_ACCEPT}
               description="CSV only. Nestory matches recognizable columns automatically."
               displayFileName={parsedFile?.fileName}

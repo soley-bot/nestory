@@ -60,7 +60,11 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
 
       <section className="rounded-md border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold">Version history</h2>
-        <div className="mt-3 overflow-x-auto">
+        <div
+          aria-label="Rent policy version history"
+          className="mt-3 overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+          tabIndex={0}
+        >
           <table className="w-full min-w-[620px] text-left text-sm">
             <thead className="border-b border-border text-xs uppercase text-muted">
               <tr>

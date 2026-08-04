@@ -477,4 +477,28 @@ describe("AppShell viewport contract", () => {
     );
     expect(contentViewport?.className).toContain("print:overflow-visible");
   });
+
+  it("reveals a mobile navigation destination when keyboard focus reaches it", () => {
+    render(
+      <AppShell role="admin">
+        <div>Workspace</div>
+      </AppShell>,
+    );
+
+    const mobileNavigation = screen.getByRole("navigation", {
+      name: "Global mobile navigation",
+    });
+    const reports = within(mobileNavigation).getByRole("link", {
+      name: "Reports",
+    });
+    const scrollIntoView = vi.fn();
+    reports.scrollIntoView = scrollIntoView;
+
+    fireEvent.focus(reports);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "nearest",
+      inline: "nearest",
+    });
+  });
 });
