@@ -46,6 +46,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckboxControl } from "@/components/ui/checkbox-control";
+import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPopover } from "@/components/ui/filter-popover";
 import { Input } from "@/components/ui/input";
@@ -482,7 +483,7 @@ export function MaintenanceScreen({
         />
       ) : normalizedSurfaceVariant === "table" ? (
         <>
-          <div className="min-h-0 min-w-0 flex-1 p-3">
+          <div className="min-h-0 min-w-0 flex-1 p-3 md:p-0">
             <MaintenanceTable
               cases={visibleCases}
               emptyLabel={emptyLabel}
@@ -505,6 +506,7 @@ export function MaintenanceScreen({
             onStatusChange={capabilities.canManageCaseState ? moveMaintenanceStatus : undefined}
             onSelect={previewCase}
             pagination={pagination}
+            parentOwnsViewSelection={showCaseViewTabs}
             selectedTaskId={compactInspectorOpen ? selectedCase?.id ?? "" : ""}
             statusChangePending={statusChangePending}
             variant={normalizedSurfaceVariant}
@@ -727,28 +729,37 @@ function MaintenanceCasesCommandBar({
   return (
     <div className="relative w-full min-w-0">
       <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
-        <div className="flex shrink-0 flex-wrap gap-1.5">
-          {getMaintenanceSavedViewTabs(pathname, searchParams, viewQuery, summary).map(
-            (tab) => (
+        <nav
+          aria-label="Maintenance queues"
+          className="min-w-0 shrink-0 overflow-x-auto"
+        >
+          <div className="flex min-w-max items-center gap-1">
+            {getMaintenanceSavedViewTabs(
+              pathname,
+              searchParams,
+              viewQuery,
+              summary,
+            ).map((tab) => (
               <Link
                 className={cn(
-                  "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
+                  "inline-flex h-8 shrink-0 items-center border-b-2 px-2 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
                   tab.active
-                    ? "border-accent bg-accent-soft text-foreground"
-                    : "border-border bg-surface text-muted hover:bg-surface-muted hover:text-foreground",
+                    ? "border-accent text-foreground"
+                    : "border-transparent text-muted hover:border-border hover:text-foreground",
                 )}
                 aria-current={tab.active ? "page" : undefined}
+                data-maintenance-queue-tab="true"
                 href={tab.href}
                 key={tab.review}
                 prefetch={false}
               >
                 {tab.label}
               </Link>
-            ),
-          )}
-        </div>
+            ))}
+          </div>
+        </nav>
 
-        <div className="grid min-w-0 flex-1 gap-2 lg:grid-cols-[minmax(260px,1fr)_auto]">
+        <div className="flex min-w-0 flex-1 gap-2 sm:min-w-[320px]">
           <SearchCombo
             ariaLabel={`Search ${listLabel}`}
             onQueryChange={(value) =>
@@ -811,14 +822,14 @@ function MaintenanceCasesCommandBar({
           </FilterPopover>
         </div>
 
-        <div className="inline-flex h-8 shrink-0 overflow-hidden rounded-md border border-border bg-surface">
+        <div className="inline-flex h-8 shrink-0 items-center gap-1">
           {getMaintenanceCasesViewTabs(pathname, searchParams, viewQuery).map((tab) => (
             <Link
               className={cn(
-                "inline-flex size-8 items-center justify-center border-r border-border text-muted outline-none transition-colors last:border-r-0 hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring",
+                "inline-flex size-8 items-center justify-center rounded-md text-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
                 tab.active
                   ? "bg-accent-soft text-foreground"
-                  : "bg-surface",
+                  : "bg-transparent",
               )}
               aria-current={tab.active ? "page" : undefined}
               aria-label={tab.label}
@@ -1034,23 +1045,34 @@ function MaintenanceScopeSummary({
   const facts = getMaintenanceScopeFacts(summary, viewQuery.review);
 
   return (
-    <section className="rounded-md border border-border bg-surface px-3 py-2">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0] text-muted">
-            {flowLabel}
-          </p>
-          <h2 className="mt-0.5 truncate text-sm font-semibold">{scopeLabel}</h2>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {facts.map((fact) => (
-            <Badge key={fact.label} tone={fact.tone}>
-              {fact.label} {fact.value}
-            </Badge>
-          ))}
-        </div>
-      </div>
-    </section>
+    <div data-maintenance-scope-summary="true">
+      <ConsequencePanel
+        className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between [&>div]:mt-0 [&>h3]:min-w-0"
+        summary={
+          <div className="flex flex-wrap items-center divide-x divide-border">
+            {facts.map((fact) => (
+              <span className="px-2 first:pl-0 last:pr-0" key={fact.label}>
+                <Badge tone={fact.tone}>
+                  {fact.label} {fact.value}
+                </Badge>
+              </span>
+            ))}
+          </div>
+        }
+        title={
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="shrink-0 text-xs font-medium uppercase text-muted">
+              {flowLabel}
+            </span>
+            <span aria-hidden="true" className="text-border">
+              /
+            </span>
+            <span className="truncate text-sm">{scopeLabel}</span>
+          </span>
+        }
+        variant="inline"
+      />
+    </div>
   );
 }
 
@@ -1072,7 +1094,7 @@ function MaintenanceTable({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-md border border-border bg-surface",
+        "overflow-hidden rounded-md border border-border bg-surface md:rounded-none md:border-0",
         fillHeight && "flex h-[calc(100%-41px)] min-h-0 flex-col",
       )}
       data-maintenance-surface="table"

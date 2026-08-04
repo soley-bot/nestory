@@ -53,6 +53,7 @@ type MaintenanceWorkflowSurfaceProps = {
   ) => void;
   onSelect: (taskId: string) => void;
   pagination: MaintenancePagination;
+  parentOwnsViewSelection?: boolean;
   selectedTaskId: string;
   statusChangePending?: boolean;
   variant: Exclude<MaintenanceSurfaceVariant, "table">;
@@ -68,6 +69,7 @@ export function MaintenanceWorkflowSurface({
   onStatusChange,
   onSelect,
   pagination,
+  parentOwnsViewSelection = false,
   selectedTaskId,
   statusChangePending = false,
   variant,
@@ -92,6 +94,7 @@ export function MaintenanceWorkflowSurface({
           emptyLabel={emptyLabel}
           onStatusChange={onStatusChange}
           onSelect={onSelect}
+          parentOwnsViewSelection={parentOwnsViewSelection}
           selectedTaskId={selectedTaskId}
           statusChangePending={statusChangePending}
           waitingForReviewLabel={waitingForReviewLabel}

@@ -31,6 +31,7 @@ export type BoardSurfaceProps = {
     status: MaintenanceStatus,
   ) => void;
   onSelect: (taskId: string) => void;
+  parentOwnsViewSelection?: boolean;
   selectedTaskId: string;
   statusChangePending?: boolean;
   waitingForReviewLabel?: boolean;
@@ -56,6 +57,7 @@ export function BoardSurface({
   emptyLabel,
   onStatusChange,
   onSelect,
+  parentOwnsViewSelection = false,
   selectedTaskId,
   statusChangePending = false,
   waitingForReviewLabel = false,
@@ -150,6 +152,10 @@ export function BoardSurface({
       </div>
     </DndContext>
   );
+
+  if (parentOwnsViewSelection) {
+    return board;
+  }
 
   return (
     <div className="space-y-2">

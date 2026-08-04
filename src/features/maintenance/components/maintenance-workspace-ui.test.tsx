@@ -287,6 +287,76 @@ describe("maintenance workspace redesign contract", () => {
     expect(screen.queryByRole("group", { name: "Work order display" })).toBeNull();
   });
 
+  it("keeps saved queues as lightweight task navigation with their existing URLs and labels", () => {
+    const { container } = renderMaintenance({ showCaseViewTabs: true });
+    const queueNavigation = screen.getByRole("navigation", {
+      name: "Maintenance queues",
+    });
+    const expectedLinks = [
+      ["Inbox 1", "/maintenance?view=list"],
+      ["Review 0", "/maintenance?view=list&review=review_completion"],
+      ["Overdue 0", "/maintenance?view=list&review=overdue"],
+      ["Upcoming 1", "/maintenance?view=list&review=upcoming"],
+      ["Completed 0", "/maintenance?view=list&review=completed"],
+      ["All 1", "/maintenance?view=list&review=all"],
+    ] as const;
+
+    for (const [label, href] of expectedLinks) {
+      const link = within(queueNavigation).getByRole("link", { name: label });
+
+      expect(link.getAttribute("href")).toBe(href);
+      expect(link.className).not.toContain("rounded-md");
+    }
+    expect(container.querySelectorAll('[data-maintenance-queue-tab="true"]')).toHaveLength(
+      expectedLinks.length,
+    );
+  });
+
+  it("keeps search, filters, and the canonical view control in one workspace controls region", () => {
+    navigation.searchParams = new URLSearchParams("view=board&review=work_orders");
+    const { container } = renderMaintenance({
+      showCaseViewTabs: true,
+      surfaceVariant: "board",
+      viewQuery: { ...defaultViewQuery, review: "work_orders", view: "board" },
+    });
+    const workspaceControls = container.querySelector(
+      '[data-slot="workspace-controls"]',
+    );
+
+    expect(workspaceControls).not.toBeNull();
+    expect(
+      within(workspaceControls as HTMLElement).getByRole("textbox", {
+        name: "Search cases",
+      }),
+    ).not.toBeNull();
+    expect(
+      within(workspaceControls as HTMLElement).getByRole("button", {
+        name: /Filters/,
+      }),
+    ).not.toBeNull();
+    expect(
+      within(workspaceControls as HTMLElement).getAllByRole("link", { name: "List" }),
+    ).toHaveLength(1);
+    expect(
+      within(workspaceControls as HTMLElement).getAllByRole("link", { name: "Board" }),
+    ).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "List" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "Board" })).toHaveLength(1);
+    expect(screen.queryByRole("group", { name: "Work order display" })).toBeNull();
+  });
+
+  it("renders the scope summary inline and removes the desktop list-table frame", () => {
+    const { container } = renderMaintenance();
+    const scopeSummary = container.querySelector(
+      '[data-maintenance-scope-summary="true"] [data-variant]',
+    );
+    const tableSurface = container.querySelector('[data-maintenance-surface="table"]');
+
+    expect(scopeSummary?.getAttribute("data-variant")).toBe("inline");
+    expect(tableSurface?.className).toContain("md:border-0");
+    expect(tableSurface?.className).toContain("md:rounded-none");
+  });
+
   it("marks one selected maintenance row and supports Enter and Space", () => {
     renderMaintenance({ cases: [makeCase(), makeCase("task-2", "Replace fan")] });
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
@@ -444,7 +514,7 @@ describe("maintenance board accessible alternative", () => {
     expect(screen.queryByRole("button", { name: "Board" })).toBeNull();
   });
 
-  it("offers a keyboard-operable list with complete operating context", async () => {
+  it("keeps an accessible List alternative when no parent view switch is supplied", async () => {
     const user = userEvent.setup();
     render(
       <BoardSurface
