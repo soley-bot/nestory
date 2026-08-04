@@ -7,100 +7,148 @@ Verified on 2026-08-04 in the isolated worktree
 
 - Branch: `codex/task-first-workspace-redesign`
 - Baseline: `2bc6cd677ad50110ed2d4df797dfe87f28d403ef`
-- Verified implementation SHA before this verification-only documentation
-  change: `eb236892900520a1bd9b5bf02a70674d93710f6f`
+- Exact candidate HEAD verified before this documentation-only evidence refresh:
+  `224f451bf01ff609f7fa028883951a9079bb547b`
+- External implementation plan inspected read-only:
+  `D:\nestory\docs\superpowers\plans\2026-08-04-task-first-workspace-redesign.md`
+- External plan SHA-256:
+  `96A42E225A829E5038319F0E64157B814EC2F74F47E25667E62C58A51C4C3EF1`
+- Visual gate and direction: user-approved on 2026-08-04, including the
+  flatter outer workspace structure and the inline, non-stacked intent for
+  related header and control content when width permits.
+- The external root plan and every other file in `D:\nestory` were left
+  unmodified, unstaged, unmoved, and uncopied by this Task 18 refresh.
 - Remote state: not pushed; no deployment was requested or performed.
 
 The redesign changes authenticated composition and presentation only. It does
 not change a schema, migration, RPC, server action authority boundary, route
-URL, or URL parameter contract. Finance terminology, report-period logic,
-transaction state, balances, and accounting authority remain unchanged.
+URL, URL parameter contract, or permission contract. Finance terminology,
+report-period logic, transaction state, balances, collection labels, and
+accounting authority remain unchanged.
 
-## Code and production-build gates
+## Fresh code and production-build gate
+
+The following commands were run against the exact candidate HEAD above, one at
+a time. Time-limited attempts are recorded as attempts, not test failures or
+passes.
 
 | Command | Exit | Evidence |
 | --- | ---: | --- |
 | `npm run lint` | 0 | Repository ESLint completed without findings. |
-| `npx tsc --noEmit` | 0 | Integrated TypeScript gate passed at the verified implementation SHA. |
-| `npm run test:all` | 0 | 176 application test files, 1,310 tests, and 18 demo-tool tests passed at the verified implementation SHA. |
-| `npm run build` | 1 | First isolated-worktree attempt compiled and typechecked, then `/no-access` prerender failed because the ignored root `.env.local` was not present in the worktree. |
-| Root `.env.local` loaded into the process, then `npm run build` | 0 | Final Next.js production compilation, TypeScript, page-data collection, and all 18 static pages completed. No environment file was copied or committed. The existing multiple-lockfile root-inference warning remains. |
+| `npx tsc --noEmit` | 0 | Integrated TypeScript gate completed without findings. |
+| `npm run test:all` (60-second process ceiling) | 124 | The wrapper terminated the process before Vitest returned a verdict. |
+| `npm run test:all` (180-second process ceiling) | 124 | The wrapper again terminated the process before Vitest returned a verdict. |
+| `npm run test:all` (completed rerun) | 0 | 176/176 application test files and 1,310/1,310 tests passed; 18/18 demo-tool tests passed. The existing jsdom navigation notices remained non-failing output. |
+| First read-only root-environment build launcher | 1 | The direct `npm.cmd` launcher exited before invoking Next and emitted no build output. This is not a build verdict. |
+| Root environment loaded read-only with `@next/env`, then `npm run build` | 0 | Next production compilation, TypeScript, page-data collection, and all 18 static pages completed. No environment file was copied. The existing multiple-lockfile root-inference warning remains. |
 | `npm run test:ui-coverage` | 0 | 54/54 page routes covered. |
 | `npm run test:ui-copy` | 0 | Zero prohibited narration occurrences. |
-| Task 17 eight-file compatibility suite | 0 | 8/8 files and 63/63 tests passed. |
-| Settings, Access, Account integrated suite | 0 | 5/5 files and 89/89 tests passed. |
-| Final Access focused suite | 0 | 36/36 tests passed after the inline Access-effect correction. |
+| `Get-FileHash -Algorithm SHA256` on the external plan | 0 | Returned the exact SHA-256 recorded in Provenance. |
+| Required residual-pattern `rg` scan | 0 | 410 matching lines across 93 files were reviewed; an exit of 0 means matches were found, not that they were failures. |
+| `git diff --check` | 0 | No whitespace errors; Git emitted only the expected LF-to-CRLF working-copy warning on this Markdown file. |
+| `git status --short` | 0 | Before staging, only this verification document was modified. |
+| `git diff --stat origin/main...HEAD` | 0 | The branch diff contained 76 files, 4,389 insertions, and 1,943 deletions before this documentation refresh. |
 
-The exact automated commands `npm run test:ui-redesign`,
-`npm run test:ui-a11y`, `npm run test:properties-flow`, and
-`npm run test:maintenance-mobile` were not run because they start a separate
-Playwright browser. The governing browser workflow permits only the user's
-selected in-app browser unless the user explicitly authorizes Playwright CLI.
-The selected-browser checks below cover the redesigned routes without changing
-that browser choice.
+The route and copy contracts did not change, so
+`scripts/verify-ui-route-coverage.mjs` and `scripts/verify-ui-copy.mjs` require
+no adjustment.
 
-## Selected-browser evidence
+## Browser-smoke boundary
 
-Browser: the user's authenticated in-app browser, fixed at 1280 x 720 CSS
-pixels. Role exercised: administrator. Local organization fixture exercised:
-Sokha Property Services. Each recorded route had one visible H1 and no
-page-level horizontal overflow.
+The commands below were not run in this session and therefore have no exit
+code or pass claim:
 
-- Pilot Leases states:
-  `D:\nestory\output\playwright\task-first-wave-b`
-- Overview, People, Records, Properties, Units, Property detail, and Person
-  detail:
-  `D:\nestory\output\playwright\task-first-wave-c`
-- Settings organization/configuration/branches/teams, Branch and Team drawers,
-  Account, Workspace Access, and Invite Staff drawer:
-  `D:\nestory\output\playwright\task-first-wave-d`
-- Finance Operations, Ledger, Petty Cash, Reports, Documents, and Property
-  Setup:
-  `D:\nestory\output\playwright\task-first-wave-e`
+- `npm run test:ui-redesign`
+- `npm run test:ui-a11y`
+- `npm run test:properties-flow`
+- `npm run test:maintenance-mobile`
 
-Final 1280 x 720 captures in the Wave E folder cover Finance, Reports, Ledger,
-Petty Cash, Documents, Maintenance list, and Leases. Each route had one visible
-H1 and no page-level horizontal overflow. Finance's min-width tables retain a
-working horizontal scroll owner. Reports keeps its title and row count inline
-until wrapping is necessary, and row separators span every visible column.
+They start a separate Playwright browser. The governing workflow permits the
+user's selected in-app browser unless the user explicitly authorizes switching
+to Playwright CLI. A controller with that selected browser must complete any
+remaining browser-only evidence.
 
-The exact 1440 x 900, 1280 x 800, and 200% browser-zoom checks remain
-unverified because the selected in-app browser cannot resize or set browser
-zoom. Switching to Playwright CLI requires explicit user permission. This is a
-verification boundary, not a claim that those states failed.
+## Selected-browser evidence actually available
 
-## Interaction and accessibility coverage
+Browser: the user's authenticated in-app browser at its fixed 1280 x 720 CSS
+viewport. Role exercised: administrator. Local organization fixture exercised:
+Sokha Property Services. Existing checkpoint evidence records one visible H1
+and no page-level horizontal overflow on the exercised routes.
 
-- The title, context, local navigation, and actions remain inline when desktop
-  width permits; responsive stacking is reserved for narrower layouts or true
-  semantic hierarchy.
-- Search stays visible where it is the primary retrieval control; advanced
-  filters remain disclosed.
+| Required surface | Existing supporting screenshot |
+| --- | --- |
+| Overview (`/overview`) | `D:\nestory\output\playwright\task-first-wave-c\overview-1280x720.jpg` |
+| Properties (`/properties`) | `D:\nestory\output\playwright\task-first-wave-c\properties-1280x720.jpg` |
+| Units (`/units`) | `D:\nestory\output\playwright\task-first-wave-c\units-1280x720.jpg` |
+| People (`/people`) | `D:\nestory\output\playwright\task-first-wave-c\people-1280x720.jpg` |
+| Leases (`/leases`) | `D:\nestory\output\playwright\task-first-wave-e\leases-final-1280x720.jpg` |
+| Maintenance list (`/maintenance`) | `D:\nestory\output\playwright\task-first-wave-e\maintenance-list-final-1280x720.jpg` |
+| Maintenance board | Not captured. |
+| Records (`/timeline`) | `D:\nestory\output\playwright\task-first-wave-c\records-1280x720.jpg` |
+| Settings (`/settings`) | `D:\nestory\output\playwright\task-first-wave-d\settings-task13-organization-1280x720.jpg` |
+| Workspace Access (`/users-roles`) | `D:\nestory\output\playwright\task-first-wave-d\access-task16-final-1280x720.jpg` |
+| Account (`/account`) | `D:\nestory\output\playwright\task-first-wave-d\account-task16-1280x720.jpg` |
+| Finance Operations (`/rent-income`) | `D:\nestory\output\playwright\task-first-wave-e\finance-final-1280x720.jpg` |
+| Ledger (`/ledger`) | `D:\nestory\output\playwright\task-first-wave-e\ledger-final-1280x720.jpg` |
+| Reports (`/reports`) | `D:\nestory\output\playwright\task-first-wave-e\reports-final-1280x720.jpg` |
+
+Additional fixed-viewport evidence exists for Leases filter and quick-view
+states, property and person detail, Settings sections, Branch and Team drawers,
+Invite Staff, Petty Cash, Documents, and Property Setup under
+`D:\nestory\output\playwright\task-first-wave-b` through
+`D:\nestory\output\playwright\task-first-wave-e`.
+
+The required 1440 x 900 and 1280 x 800 captures do not exist. The required 200%
+zoom keyboard-only checks for Overview, Leases, Maintenance, Property detail,
+and Settings were not exercised. The selected in-app browser cannot set those
+viewport sizes or browser zoom. These are open evidence gaps, not pass claims.
+
+No manager, member, anonymous, or hosted role was exercised for this visual
+checkpoint. Hosted authentication, hosted database behavior, production deploy
+parity, physical-device behavior, and email delivery were not verified.
+
+## Inline-first and interaction contract mapping
+
+The user's binding rule is preserved: related title, context, navigation,
+actions, controls, summaries, and row facts stay on one readable line when
+width permits; stacking is reserved for semantic hierarchy or accessible
+responsive reflow.
+
+- Shared `PageHeader` places title, context, local navigation, and actions in
+  one flex-wrapping primary composition and uses `lg:flex-nowrap` when laptop
+  width permits. Navigation uses full-width responsive reflow below `lg`, then
+  returns to the same primary row at `lg`.
+- Shared `WorkspacePage` exposes at most one `workspace-controls` region.
+  Local navigation and the single labelled toolbar share one row at `lg` and
+  stack only below that breakpoint.
+- Primary search remains visible on retrieval-heavy workspaces; advanced
+  URL-backed filters stay disclosed.
 - Migrated desktop work surfaces are unframed. Functional controls, semantic
   warnings, confirmation states, drawers, and discrete record objects retain
   containment where it communicates behavior.
-- Shared dashboard/list/report loading states are also unframed. AppShell owns
-  authenticated loader height, while the standalone auth-completion loader
-  explicitly owns the dynamic viewport height. Header context and actions stay
-  inline from the small breakpoint upward and reflow only on narrow screens.
 - Settings has one header navigation and a two-zone Workspace layout: one
   uncontained rail and one labelled content region.
-- Workspace Access groups Needs access, Pending, and Active in one flat surface.
-  Invite Staff uses the shared focus-managed drawer with one full-width action
-  area. Tests cover dirty close through X/Escape/backdrop, focus restoration,
-  client deep links, duplicate handoff, validation focus, save errors,
-  persisted invitation delivery failure, permissions, and last-admin safety.
-- Property Setup retains its five-step wizard and now has one page H1 plus a
-  step H2.
+- Workspace Access uses one flat surface. Invite Staff uses the shared
+  focus-managed drawer with one full-width action area. Existing regression
+  coverage includes dirty dismissal, Escape, focus restoration, client deep
+  links, validation focus, save errors, duplicate handoff, delivery failure,
+  permissions, and last-administrator safety.
 
-The final residual source audit found zero rejected fixed 300 px workspace
-grids, zero forbidden stacked/full-screen patterns in the shared loader, and no
-production `Lease summary` or `Timeline records` wrapper. The remaining text
-matches for those two labels are negative regression assertions only.
+## Residual-pattern review
 
-## Verification boundary
+The required scan returned 410 matching lines across 93 files. Each category
+was reviewed rather than deleted mechanically:
 
-This is a local authenticated implementation verification. It does not certify
-hosted authentication, a hosted database, production deployment parity,
-manager/member fixtures, physical-device behavior, exact 200% zoom, or email
-delivery. No production state was changed.
+- `grid-cols-[...300px...]`: zero hits.
+- `Lease summary`: two negative regression assertions; no production wrapper.
+- `Timeline records`: one negative regression assertion; no production wrapper.
+- `Workspace Access`: intentional navigation, search, staff-access copy, and
+  regression-test references.
+- Rounded-border hits: 368 lines across 82 files. The matches are controls,
+  popovers/dialogs, alerts and consequences, drawers/forms, empty/loading
+  states, discrete photos/records, detail inspectors, workflow groups, and
+  public marketing previews. No hit justified a Task 18 coverage-script or
+  documentation-contract change, and none was blindly removed.
+
+This is local authenticated implementation evidence only. It does not certify
+the unrun browser-smoke commands or the missing exact viewport and zoom states.
