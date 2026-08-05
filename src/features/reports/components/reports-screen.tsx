@@ -2,7 +2,21 @@ import Link from "next/link";
 import { AlertTriangle, ChevronDown, Download } from "lucide-react";
 
 import { WorkspacePage } from "@/components/layout/workspace-page";
-import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ReportsFilters } from "@/features/reports/components/reports-filters";
 import {
   buildReportBuilderHref,
@@ -37,148 +51,148 @@ export function ReportBuilderScreen({
 
   return (
     <WorkspacePage
-      actions={validation ? undefined : <ExportMenu viewQuery={viewQuery} />}
       context={`${trustedReport.scopeLabel} · ${trustedReport.periodLabel}`}
       contextHref={`/reports/${viewQuery.report}`}
-      localNav={<FinanceWorkspaceNavigation activeRoute="/reports" />}
+      localNav={<ReportTabs viewQuery={viewQuery} />}
       title={selectedReport.title}
     >
       <div className="flex h-full min-h-0 flex-col bg-background">
-        <ReportTabs viewQuery={viewQuery} />
-
         <ReportsFilters
           action={`/reports/${viewQuery.report}`}
+          actions={
+            validation ? undefined : <ExportMenu viewQuery={viewQuery} />
+          }
           propertyOptions={propertyOptions}
           unitOptions={unitOptions}
           viewQuery={viewQuery}
         />
 
-        <main className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6">
-        {validation ? (
-          <div
-            className={cn(
-              "flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm",
-              trustedReport.scopeValidation
-                ? "border-danger/30 bg-danger/5 text-danger"
-                : "border-warning/30 bg-warning-soft/35 text-foreground",
-            )}
-            role={trustedReport.scopeValidation ? "alert" : "status"}
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6">
+          {validation ? (
+            <div
+              className={cn(
+                "flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm",
+                trustedReport.scopeValidation
+                  ? "border-danger/30 bg-danger/5 text-danger"
+                  : "border-warning/30 bg-warning-soft/35 text-foreground",
+              )}
+              role={trustedReport.scopeValidation ? "alert" : "status"}
+            >
+              <AlertTriangle className="mt-0.5 shrink-0" size={16} />
+              <div>
+                <p className="font-semibold">
+                  {trustedReport.scopeValidation
+                    ? "Report unavailable"
+                    : "Export unavailable"}
+                </p>
+                <p className="mt-0.5 text-foreground-muted">
+                  {validation.message}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {visibleSummary.length > 0 && !trustedReport.scopeValidation ? (
+            <section
+              aria-label="Report totals"
+              className="overflow-hidden rounded-md border border-border bg-card"
+              role="region"
+            >
+              <dl className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+                {visibleSummary.map((metric) => (
+                  <div className="min-w-0 px-3 py-2.5" key={metric.label}>
+                    <dt className="truncate text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                      {metric.label}
+                    </dt>
+                    <dd className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">
+                      {metric.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ) : null}
+
+          <section
+            className="overflow-hidden rounded-md border border-border bg-card"
+            data-slot="report-table-frame"
           >
-            <AlertTriangle className="mt-0.5 shrink-0" size={16} />
-            <div>
-              <p className="font-semibold">
-                {trustedReport.scopeValidation
-                  ? "Report unavailable"
-                  : "Export unavailable"}
-              </p>
-              <p className="mt-0.5 text-foreground-muted">
-                {validation.message}
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-border px-3 py-2.5">
+              <h2 className="min-w-0 text-sm font-semibold text-foreground">
+                {trustedReport.title}
+              </h2>
+              <p className="whitespace-nowrap text-xs text-muted-foreground">
+                {reportRowCount} {reportRowCount === 1 ? "row" : "rows"}
+                {reportRowCount > trustedReport.rows.length
+                  ? ` · showing ${trustedReport.rows.length}`
+                  : ""}
               </p>
             </div>
-          </div>
-        ) : null}
 
-        {visibleSummary.length > 0 && !trustedReport.scopeValidation ? (
-          <section
-            aria-label="Report totals"
-            className="overflow-hidden border-y border-border bg-surface"
-            role="region"
-          >
-            <dl className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
-              {visibleSummary.map((metric) => (
-                <div className="min-w-0 px-3 py-2.5" key={metric.label}>
-                  <dt className="truncate text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-                    {metric.label}
-                  </dt>
-                  <dd className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">
-                    {metric.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ) : null}
-
-        <section
-          className="overflow-hidden bg-surface"
-          data-slot="report-table-frame"
-        >
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-border px-3 py-2.5">
-            <h2 className="min-w-0 text-sm font-semibold text-foreground">
-              {trustedReport.title}
-            </h2>
-            <p className="whitespace-nowrap text-xs text-muted-foreground">
-              {reportRowCount} {reportRowCount === 1 ? "row" : "rows"}
-              {reportRowCount > trustedReport.rows.length
-                ? ` · showing ${trustedReport.rows.length}`
-                : ""}
-            </p>
-          </div>
-
-          <div
-            aria-label={`${trustedReport.title} table`}
-            className="max-w-full overflow-auto"
-            role="region"
-            tabIndex={0}
-          >
-            <table
-              aria-label={trustedReport.title}
-              className="w-full min-w-[680px] border-collapse text-left text-[13px]"
+            <div
+              aria-label={`${trustedReport.title} table`}
+              className="max-w-full overflow-auto"
+              role="region"
+              tabIndex={0}
             >
-              <thead className="bg-surface-muted text-[11px] uppercase tracking-[0.02em] text-muted-foreground">
-                <tr>
-                  {trustedReport.columns.map((column) => (
-                    <th
-                      className={cn(
-                        "border-b border-border px-3 py-2 font-semibold",
-                        column.align === "right" && "text-right",
-                      )}
-                      key={column.key}
-                    >
-                      {column.label}
-                    </th>
-                  ))}
-                  {showRecords ? (
-                    <th className="border-b border-border px-3 py-2 font-semibold">
-                      Records
-                    </th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {trustedReport.rows.length === 0 ? (
-                  <tr>
-                    <td
-                      className="px-4 py-10 text-center"
-                      colSpan={Math.max(
-                        1,
-                        trustedReport.columns.length + (showRecords ? 1 : 0),
-                      )}
-                    >
-                      <p className="font-medium text-foreground">
-                        {trustedReport.emptyTitle}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {trustedReport.emptyDescription}
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  trustedReport.rows.map((row, index) => (
-                    <ReportRow
-                      columns={trustedReport.columns}
-                      isLast={index === trustedReport.rows.length - 1}
-                      key={row.id}
-                      row={row}
-                      showRecords={showRecords}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        </main>
+              <Table
+                aria-label={trustedReport.title}
+                className="min-w-[680px] text-[13px]"
+              >
+                <TableHeader className="bg-muted/50 text-[11px] uppercase tracking-[0.02em] text-muted-foreground">
+                  <TableRow>
+                    {trustedReport.columns.map((column) => (
+                      <TableHead
+                        className={cn(
+                          "h-9 px-3 font-semibold text-muted-foreground",
+                          column.align === "right" && "text-right",
+                        )}
+                        key={column.key}
+                      >
+                        {column.label}
+                      </TableHead>
+                    ))}
+                    {showRecords ? (
+                      <TableHead className="h-9 px-3 font-semibold text-muted-foreground">
+                        Records
+                      </TableHead>
+                    ) : null}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {trustedReport.rows.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        className="px-4 py-10 text-center"
+                        colSpan={Math.max(
+                          1,
+                          trustedReport.columns.length + (showRecords ? 1 : 0),
+                        )}
+                      >
+                        <p className="font-medium text-foreground">
+                          {trustedReport.emptyTitle}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {trustedReport.emptyDescription}
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    trustedReport.rows.map((row, index) => (
+                      <ReportRow
+                        columns={trustedReport.columns}
+                        isLast={index === trustedReport.rows.length - 1}
+                        key={row.id}
+                        row={row}
+                        showRecords={showRecords}
+                      />
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </section>
+        </div>
       </div>
     </WorkspacePage>
   );
@@ -186,10 +200,7 @@ export function ReportBuilderScreen({
 
 function ReportTabs({ viewQuery }: { viewQuery: ReportsViewQuery }) {
   return (
-    <nav
-      aria-label="Reports"
-      className="overflow-x-auto border-b border-border bg-surface px-4 py-1.5 sm:px-6"
-    >
+    <nav aria-label="Reports" className="overflow-x-auto px-4 py-1.5 sm:px-6">
       <div className="flex min-w-max items-center gap-1">
         {reportCatalog.map((report) => (
           <Link
@@ -197,8 +208,8 @@ function ReportTabs({ viewQuery }: { viewQuery: ReportsViewQuery }) {
             className={cn(
               "inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
               viewQuery.report === report.kind
-                ? "bg-accent-soft text-foreground"
-                : "text-foreground-muted",
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground",
             )}
             href={reportTabHref(report.kind, viewQuery)}
             key={report.kind}
@@ -213,30 +224,23 @@ function ReportTabs({ viewQuery }: { viewQuery: ReportsViewQuery }) {
 
 function ExportMenu({ viewQuery }: { viewQuery: ReportsViewQuery }) {
   return (
-    <details className="group relative">
-      <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring [&::-webkit-details-marker]:hidden">
-        <Download size={14} />
-        Export
-        <ChevronDown
-          className="transition-transform group-open:rotate-180"
-          size={14}
-        />
-      </summary>
-      <div className="absolute right-0 z-30 mt-1 w-40 overflow-hidden rounded-md border border-border bg-surface p-1 shadow-lg">
-        <a
-          className="block rounded px-2.5 py-2 text-sm font-medium text-foreground hover:bg-surface-muted"
-          href={buildExportHref("/api/reports/pdf", viewQuery)}
-        >
-          PDF
-        </a>
-        <a
-          className="block rounded px-2.5 py-2 text-sm font-medium text-foreground hover:bg-surface-muted"
-          href={buildExportHref("/api/reports/excel", viewQuery)}
-        >
-          Excel
-        </a>
-      </div>
-    </details>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Download />
+          Export
+          <ChevronDown />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuItem asChild>
+          <a href={buildExportHref("/api/reports/pdf", viewQuery)}>PDF</a>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href={buildExportHref("/api/reports/excel", viewQuery)}>Excel</a>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -257,7 +261,7 @@ function ReportRow({
   );
 
   return (
-    <tr
+    <TableRow
       className={cn(
         "align-top hover:bg-surface-muted/60",
         !isLast && "border-b border-border",
@@ -267,7 +271,7 @@ function ReportRow({
       {columns.map((column, index) => {
         const value = row.cells[column.key] || "—";
         return (
-          <td
+          <TableCell
             className={cn(
               "px-3 py-2.5 leading-5 text-foreground-muted",
               column.align === "right" &&
@@ -285,11 +289,11 @@ function ReportRow({
             ) : (
               value
             )}
-          </td>
+          </TableCell>
         );
       })}
       {showRecords ? (
-        <td className="px-3 py-2.5 leading-5 text-foreground-muted">
+        <TableCell className="px-3 py-2.5 leading-5 text-foreground-muted">
           {row.sourceLinks.length === 0 && hiddenSourceCount === 0 ? (
             "—"
           ) : (
@@ -320,9 +324,9 @@ function ReportRow({
               ) : null}
             </div>
           )}
-        </td>
+        </TableCell>
       ) : null}
-    </tr>
+    </TableRow>
   );
 }
 

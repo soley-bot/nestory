@@ -20,6 +20,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       canManageStructure={context.role === "admin"}
       header={
         <PageHeader
+          className="px-3 py-3 sm:px-4 lg:px-5 lg:py-3"
           navigation={<SettingsTabs activeHref="/settings" />}
           title="Settings"
         />

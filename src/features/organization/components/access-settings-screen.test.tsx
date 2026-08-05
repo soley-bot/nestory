@@ -159,8 +159,15 @@ function getInviteForm() {
   ).getByTestId("add-access-form");
 }
 
+function getExpandedMember(id: string) {
+  const member = screen.getByTestId(`access-member-${id}`);
+  const manage = within(member).queryByRole("button", { name: "Manage" });
+  if (manage) fireEvent.click(manage);
+  return member;
+}
+
 describe("AccessSettingsScreen", () => {
-  it("renders one unframed access surface grouped by Needs access, Pending, and Active", () => {
+  it("renders one access surface with Shadcn-style groups for Needs access, Pending, and Active", () => {
     render(
       <AccessSettingsScreen
         branches={[branch]}
@@ -178,9 +185,9 @@ describe("AccessSettingsScreen", () => {
     ).toEqual(["Needs access", "Pending", "Active"]);
     for (const group of ["needs", "pending", "active"]) {
       const section = screen.getByTestId(`access-${group}-group`);
-      expect(section.className).not.toContain("rounded-md");
-      expect(section.className).not.toContain("border border-border");
-      expect(section.className).not.toContain("bg-surface");
+      expect(section.className).toContain("rounded-xl");
+      expect(section.className).toContain("bg-card");
+      expect(section.className).toContain("ring-1");
     }
     expect(screen.queryByTestId("add-access-form")).toBeNull();
     expect(screen.getByRole("button", { name: "Invite Staff" })).toBeTruthy();
@@ -194,11 +201,10 @@ describe("AccessSettingsScreen", () => {
     ).toBe(`/users-roles?personId=${person.id}`);
     expect(screen.getByText("1 active account")).toBeTruthy();
     expect(screen.queryByText(/Full workspace access, settings/i)).toBeNull();
-    const accessEffect = within(surface).getByRole("region", {
-      name: "Access effect",
-    });
-    expect(accessEffect.className).not.toContain("rounded-md");
-    expect(accessEffect.className).not.toContain("bg-surface-raised");
+    expect(within(surface).getByRole("button", { name: "Manage" })).toBeTruthy();
+    expect(
+      within(surface).queryByRole("region", { name: "Access effect" }),
+    ).toBeNull();
   });
 
   it("opens Invite Staff in the shared drawer with one full-width action surface", () => {
@@ -301,9 +307,9 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    const member = screen.getByTestId(`access-member-${admin.id}`);
-    expect(within(member).getByText("Active access")).toBeTruthy();
-    expect(within(member).getByText("Organization-wide")).toBeTruthy();
+    const member = getExpandedMember(admin.id);
+    expect(within(member).getAllByText("Admin").length).toBeGreaterThan(0);
+    expect(within(member).getAllByText("All branches").length).toBeGreaterThan(0);
     expect(
       within(member).getByRole("combobox", { name: "Access scope" })
         .textContent,
@@ -311,7 +317,7 @@ describe("AccessSettingsScreen", () => {
     expect(within(member).getAllByText("Admin Staff").length).toBeGreaterThan(
       0,
     );
-    expect(within(member).getByText("Full workspace access")).toBeTruthy();
+    expect(within(member).getAllByText("Admin Staff").length).toBeGreaterThan(0);
   });
 
   it("preserves a focused active-member deep link without opening Invite Staff", async () => {
@@ -324,7 +330,7 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    const member = screen.getByTestId(`access-member-${admin.id}`);
+    const member = getExpandedMember(admin.id);
     await waitFor(() => expect(document.activeElement).toBe(member));
     expect(screen.queryByRole("dialog", { name: "Invite Staff" })).toBeNull();
   });
@@ -418,7 +424,7 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    const member = screen.getByTestId(`access-member-${admin.id}`);
+    const member = getExpandedMember(admin.id);
     expect(
       (
         within(member).getByRole("button", {
@@ -429,7 +435,7 @@ describe("AccessSettingsScreen", () => {
     expect(within(member).getByText("Last administrator")).toBeTruthy();
     expect(
       within(member).getByText(
-        /another administrator is required before this role can be reduced/i,
+        /add another administrator before reducing this role/i,
       ),
     ).toBeTruthy();
   });
@@ -959,11 +965,11 @@ describe("AccessSettingsScreen", () => {
         people={[person, adminPerson, historicalStaff]}
       />,
     );
-    const member = screen.getByTestId(`access-member-${historicalMember.id}`);
+    const member = getExpandedMember(historicalMember.id);
     expect(
       within(member).getAllByText("Historical Staff").length,
     ).toBeGreaterThan(0);
-    expect(within(member).getByText("Archived Staff")).toBeTruthy();
+    expect(within(member).getByText("Archived")).toBeTruthy();
     expect(
       within(member).getByRole("button", { name: "Clear linked Staff record" }),
     ).toBeTruthy();
@@ -993,11 +999,11 @@ describe("AccessSettingsScreen", () => {
         people={[person]}
       />,
     );
-    const member = screen.getByTestId(`access-member-${legacyMember.id}`);
+    const member = getExpandedMember(legacyMember.id);
     expect(
-      within(member).getAllByText("Not linked to a Staff record").length,
+      within(member).getAllByText("Not linked").length,
     ).toBeGreaterThan(0);
-    expect(within(member).getByText("Legacy unlinked access")).toBeTruthy();
+    expect(within(member).getByText("Unlinked")).toBeTruthy();
     await user.click(
       within(member).getByRole("combobox", { name: "Linked staff record" }),
     );
@@ -1030,7 +1036,7 @@ describe("AccessSettingsScreen", () => {
         people={[person, adminPerson]}
       />,
     );
-    const member = screen.getByTestId(`access-member-${admin.id}`);
+    const member = getExpandedMember(admin.id);
     await user.click(
       within(member).getByRole("button", { name: "Clear linked Staff record" }),
     );
@@ -1257,7 +1263,7 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    const member = screen.getByTestId(`access-member-${admin.id}`);
+    const member = getExpandedMember(admin.id);
     fireEvent.click(
       within(member).getByRole("combobox", {
         hidden: true,
@@ -1388,7 +1394,7 @@ describe("AccessSettingsScreen", () => {
         people={[person]}
       />,
     );
-    const member = screen.getByTestId(`access-member-${admin.id}`);
+    const member = getExpandedMember(admin.id);
     await user.click(
       within(member).getByRole("combobox", { name: "Access level" }),
     );
@@ -1426,7 +1432,7 @@ describe("AccessSettingsScreen", () => {
         />
       </StrictMode>,
     );
-    const member = screen.getByTestId(`access-member-${admin.id}`);
+    const member = getExpandedMember(admin.id);
     await user.click(
       within(member).getByRole("combobox", { name: "Access level" }),
     );
@@ -1463,7 +1469,7 @@ describe("AccessSettingsScreen", () => {
       />,
     );
 
-    const member = screen.getByTestId(`access-member-${admin.id}`);
+    const member = getExpandedMember(admin.id);
     await user.click(
       within(member).getByRole("button", { name: "Remove access" }),
     );

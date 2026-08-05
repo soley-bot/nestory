@@ -157,7 +157,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     },
   );
 
-  it("uses an uncontained rail, two desktop zones, and a narrow horizontal fallback", () => {
+  it("uses a compact settings rail, two desktop zones, and a horizontal fallback", () => {
     render(<SettingsWorkspace {...defaultProps} section="organization" />);
 
     const workspace = screen.getByTestId("settings-workspace");
@@ -169,9 +169,9 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(workspace.className).not.toContain("xl:grid-cols");
     expect(workspace.className).toContain("min-w-0");
     expect(rail.className).toContain("overflow-x-auto");
-    expect(rail.className).toContain("lg:border-r");
-    expect(rail.className).not.toContain("rounded-md");
-    expect(rail.className).not.toContain("bg-surface");
+    expect(rail.className).not.toContain("lg:border-r");
+    expect(rail.className).toContain("rounded-lg");
+    expect(rail.className).toContain("bg-muted");
     expect(rail.className).not.toContain("border border-border");
     expect(screen.getByTestId("settings-current-content").className).toContain(
       "min-w-0",
@@ -179,11 +179,11 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(screen.queryByTestId("settings-summary")).toBeNull();
   });
 
-  it("shows only supported organization identity without a fake edit control", () => {
+  it("shows supported organization identity in a Shadcn card without a fake edit control", () => {
     render(<SettingsWorkspace {...defaultProps} section="organization" />);
 
     expect(
-      screen.getByRole("heading", { name: "Organization identity" }),
+      screen.getByRole("heading", { name: "Organization" }),
     ).not.toBeNull();
     expect(screen.getAllByText("Nestory Test")).toHaveLength(1);
     expect(screen.getByText("nestory-test")).not.toBeNull();
@@ -199,18 +199,17 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     expect(screen.getByTestId("configuration-registry-catalog")).not.toBeNull();
     expect(
-      screen.getByRole("heading", { name: "Configuration registry" }),
+      screen.getByRole("heading", { name: "Configuration" }),
     ).not.toBeNull();
-    expect(screen.getByText("Catalog only")).not.toBeNull();
-    expect(screen.getByText("Registered rules")).not.toBeNull();
-    expect(screen.getByText("Audited")).not.toBeNull();
-    expect(screen.getByText("Restricted after launch")).not.toBeNull();
-    expect(screen.getByText("Current mode")).not.toBeNull();
+    expect(screen.getByText("Read-only")).not.toBeNull();
+    expect(screen.queryByText("Prospective only")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Workspace, 2 settings" }),
+    );
     expect(screen.getAllByText("Existing records").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Default").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Owner").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Change pattern").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("After go-live").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("After launch").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Prospective only").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("configuration-registry-summary")).toBeNull();
     expect(

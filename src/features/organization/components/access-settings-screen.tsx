@@ -11,13 +11,20 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { MailPlus, UserPlus, UsersRound } from "lucide-react";
-import { SettingsNavigationGuardProvider, useSettingsNavigationGuard } from "@/components/layout/settings-navigation-guard";
+import { ChevronDown, MailPlus, UserPlus, UsersRound } from "lucide-react";
+import {
+  SettingsNavigationGuardProvider,
+  useSettingsNavigationGuard,
+} from "@/components/layout/settings-navigation-guard";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardHeader } from "@/components/ui/card";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
-import { DraftActionBar, type DraftStatus } from "@/components/ui/draft-action-bar";
+import {
+  DraftActionBar,
+  type DraftStatus,
+} from "@/components/ui/draft-action-bar";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer, useDrawerDraftGuard } from "@/components/ui/side-drawer";
 import { signOutAction } from "@/features/auth/actions";
@@ -149,7 +156,9 @@ function AccessWorkspace({
     deepLinkPersonId: deepLinkInvitePersonId,
     open: Boolean(deepLinkInvitePersonId),
   }));
-  const duplicateFocusTarget = useRef<DuplicateAccessTarget | undefined>(undefined);
+  const duplicateFocusTarget = useRef<DuplicateAccessTarget | undefined>(
+    undefined,
+  );
   if (inviteDrawerState.deepLinkPersonId !== deepLinkInvitePersonId) {
     setInviteDrawerState({
       deepLinkPersonId: deepLinkInvitePersonId,
@@ -165,10 +174,13 @@ function AccessWorkspace({
     setInviteOpen(false);
   }, [setInviteOpen]);
 
-  const reviewDuplicate = useCallback((target: DuplicateAccessTarget) => {
-    duplicateFocusTarget.current = target;
-    setInviteOpen(false);
-  }, [setInviteOpen]);
+  const reviewDuplicate = useCallback(
+    (target: DuplicateAccessTarget) => {
+      duplicateFocusTarget.current = target;
+      setInviteOpen(false);
+    },
+    [setInviteOpen],
+  );
 
   useEffect(() => {
     if (inviteOpen || !duplicateFocusTarget.current) {
@@ -204,7 +216,10 @@ function AccessWorkspace({
   }, [discardAll, guard]);
 
   useEffect(() => {
-    const statuses = Array.from(controllers.current.values(), (draft) => draft.status);
+    const statuses = Array.from(
+      controllers.current.values(),
+      (draft) => draft.status,
+    );
     const aggregate = statuses.includes("saving")
       ? "saving"
       : statuses.includes("error")
@@ -218,12 +233,15 @@ function AccessWorkspace({
   }, [draftVersion, guard]);
 
   return (
-    <main
-      className="min-w-0 px-4 py-4 sm:px-6"
+    <div
+      className="mx-auto grid w-full max-w-6xl min-w-0 gap-2.5 px-3 py-3 sm:px-4"
       data-testid="access-surface"
     >
-      <section className="min-w-0" data-testid="access-needs-group">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3">
+      <Card
+        className="min-w-0 gap-0 py-0"
+        data-testid="access-needs-group"
+      >
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2.5">
           <div className="flex items-center gap-2">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <UsersRound aria-hidden="true" size={15} />
@@ -243,16 +261,18 @@ function AccessWorkspace({
               Invite Staff
             </Button>
           </div>
-        </div>
+        </CardHeader>
         {staffWithoutAccess.length > 0 ? (
           <div className="divide-y divide-border">
             {staffWithoutAccess.map((person) => (
               <div
-                className="flex min-w-0 items-center justify-between gap-4 px-4 py-3"
+                className="flex min-w-0 items-center justify-between gap-3 px-3 py-2.5"
                 key={person.id}
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{person.label}</p>
+                  <p className="truncate text-sm font-semibold">
+                    {person.label}
+                  </p>
                   <p className="mt-1 truncate text-xs text-foreground-muted">
                     {person.primaryEmail ?? "No email recorded"}
                   </p>
@@ -269,23 +289,23 @@ function AccessWorkspace({
             ))}
           </div>
         ) : (
-          <div className="px-4 py-6 text-sm text-foreground-muted">
-            Every active Staff record has an invitation or active access.
+          <div className="px-3 py-4 text-sm text-foreground-muted">
+            All active Staff have access.
           </div>
         )}
-      </section>
+      </Card>
 
-      <section
-        className="mt-4 min-w-0 border-t border-border pt-4"
+      <Card
+        className="min-w-0 gap-0 py-0"
         data-testid="access-pending-group"
       >
-        <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border px-3 py-2.5">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <MailPlus aria-hidden="true" size={15} />
             Pending
           </h2>
           <Badge tone="neutral">{invitations.length}</Badge>
-        </div>
+        </CardHeader>
         {invitations.length > 0 ? (
           <div className="divide-y divide-border">
             {invitations.map((invitation) => (
@@ -299,25 +319,26 @@ function AccessWorkspace({
             ))}
           </div>
         ) : (
-          <div className="px-4 py-6 text-sm text-foreground-muted">
+          <div className="px-3 py-4 text-sm text-foreground-muted">
             No pending invitations.
           </div>
         )}
-      </section>
+      </Card>
 
-      <section
-        className="mt-4 min-w-0 border-t border-border pt-4"
+      <Card
+        className="min-w-0 gap-0 py-0"
         data-testid="access-active-group"
       >
-        <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border px-3 py-2.5">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <UsersRound aria-hidden="true" size={15} />
             Active
           </h2>
           <Badge tone="neutral">
-            {members.length} active {members.length === 1 ? "account" : "accounts"}
+            {members.length} active{" "}
+            {members.length === 1 ? "account" : "accounts"}
           </Badge>
-        </div>
+        </CardHeader>
         {members.length > 0 ? (
           <div className="divide-y divide-border">
             {members.map((member) => (
@@ -336,13 +357,11 @@ function AccessWorkspace({
         ) : (
           <div className="px-4 py-8 text-center">
             <p className="text-sm font-medium">No active access</p>
-            <p className="mt-1 text-sm text-foreground-muted">Accepted invitations appear here.</p>
           </div>
         )}
-      </section>
+      </Card>
 
       <SideDrawer
-        description="Connect one Staff record to one sign-in account."
         onClose={closeInviteDrawer}
         open={inviteOpen}
         title="Invite Staff"
@@ -360,7 +379,7 @@ function AccessWorkspace({
           people={staffOptions}
         />
       </SideDrawer>
-    </main>
+    </div>
   );
 }
 
@@ -415,7 +434,10 @@ function InviteUserForm({
     },
     validate: (values) => {
       if (!values.personId) {
-        return { field: "personId" as const, message: "Choose a Staff member." };
+        return {
+          field: "personId" as const,
+          message: "Choose a Staff member.",
+        };
       }
       return /^\S+@\S+\.\S+$/.test(values.email.trim())
         ? undefined
@@ -424,7 +446,9 @@ function InviteUserForm({
   });
   const emailRef = useRef<HTMLInputElement>(null);
   const staffControlRef = useRef<HTMLDivElement>(null);
-  const selectedPerson = people.find((person) => person.id === draft.values.personId);
+  const selectedPerson = people.find(
+    (person) => person.id === draft.values.personId,
+  );
   const selectedAccess = draft.values.personId
     ? buildAccessByPersonId(
         [draft.values.personId],
@@ -434,24 +458,29 @@ function InviteUserForm({
         branches,
       )[draft.values.personId]
     : undefined;
-  const duplicateTarget = selectedAccess?.state === "active_workspace_access"
-    ? { id: selectedAccess.membershipId, kind: "member" as const }
-    : selectedAccess && "invitationId" in selectedAccess
-      ? { id: selectedAccess.invitationId, kind: "invitation" as const }
-      : undefined;
-  const duplicateMessage = selectedAccess?.state === "active_workspace_access"
-    ? "This Staff member already has workspace access."
-    : selectedAccess?.state === "delivery_failed"
-      ? "This Staff member already has an invitation with failed delivery."
-      : selectedAccess?.state === "expired"
-        ? "This Staff member already has an expired invitation."
-        : selectedAccess?.state === "invitation_pending"
-          ? "This Staff member already has a pending invitation."
-          : undefined;
-  const selectedStaffEmail = selectedPerson?.primaryEmail ?? defaults?.staffEmail;
-  const emailMismatch = selectedPerson && selectedStaffEmail && draft.values.email.trim()
-    ? selectedStaffEmail.toLocaleLowerCase() !== draft.values.email.trim().toLocaleLowerCase()
-    : false;
+  const duplicateTarget =
+    selectedAccess?.state === "active_workspace_access"
+      ? { id: selectedAccess.membershipId, kind: "member" as const }
+      : selectedAccess && "invitationId" in selectedAccess
+        ? { id: selectedAccess.invitationId, kind: "invitation" as const }
+        : undefined;
+  const duplicateMessage =
+    selectedAccess?.state === "active_workspace_access"
+      ? "This Staff member already has workspace access."
+      : selectedAccess?.state === "delivery_failed"
+        ? "This Staff member already has an invitation with failed delivery."
+        : selectedAccess?.state === "expired"
+          ? "This Staff member already has an expired invitation."
+          : selectedAccess?.state === "invitation_pending"
+            ? "This Staff member already has a pending invitation."
+            : undefined;
+  const selectedStaffEmail =
+    selectedPerson?.primaryEmail ?? defaults?.staffEmail;
+  const emailMismatch =
+    selectedPerson && selectedStaffEmail && draft.values.email.trim()
+      ? selectedStaffEmail.toLocaleLowerCase() !==
+        draft.values.email.trim().toLocaleLowerCase()
+      : false;
 
   useRegisterAccessDraft("add", draft.status, draft.discard, onDraftChange);
 
@@ -461,7 +490,9 @@ function InviteUserForm({
       if (field === "email") {
         emailRef.current?.focus();
       } else if (field === "personId") {
-        staffControlRef.current?.querySelector<HTMLElement>("[role='combobox']")?.focus();
+        staffControlRef.current
+          ?.querySelector<HTMLElement>("[role='combobox']")
+          ?.focus();
       }
     });
   }
@@ -484,7 +515,10 @@ function InviteUserForm({
         onSubmit={submit}
       >
         <div className="grid gap-4 px-5 py-5 sm:grid-cols-2">
-          <div className="grid gap-1.5 text-[13px] font-medium" ref={staffControlRef}>
+          <div
+            className="grid gap-1.5 text-[13px] font-medium"
+            ref={staffControlRef}
+          >
             <span id={staffLabelId}>Staff member</span>
             <PersonSelect
               aria-describedby={staffHelpId}
@@ -494,7 +528,9 @@ function InviteUserForm({
               name="personId"
               onValueChange={(value) => {
                 draft.setField("personId", value);
-                const primaryEmail = people.find((person) => person.id === value)?.primaryEmail;
+                const primaryEmail = people.find(
+                  (person) => person.id === value,
+                )?.primaryEmail;
                 draft.setField("email", primaryEmail ?? "");
               }}
               options={people}
@@ -502,7 +538,10 @@ function InviteUserForm({
               roles={["staff"]}
               value={draft.values.personId}
             />
-            <span className="text-xs font-normal text-foreground-muted" id={staffHelpId}>
+            <span
+              className="text-xs font-normal text-foreground-muted"
+              id={staffHelpId}
+            >
               The employee or contractor this login belongs to.
             </span>
           </div>
@@ -520,7 +559,10 @@ function InviteUserForm({
               type="email"
               value={draft.values.email}
             />
-            <span className="text-xs font-normal text-foreground-muted" id={emailHelpId}>
+            <span
+              className="text-xs font-normal text-foreground-muted"
+              id={emailHelpId}
+            >
               The address used to sign in and receive the invitation.
             </span>
           </div>
@@ -536,7 +578,9 @@ function InviteUserForm({
             value={draft.values.role}
           />
           <AccessSelect
-            disabled={draft.status === "saving" || draft.values.role === "admin"}
+            disabled={
+              draft.status === "saving" || draft.values.role === "admin"
+            }
             description="Which branch or property context this person may access."
             label="Access scope"
             onValueChange={(value) => draft.setField("branchId", value)}
@@ -544,11 +588,14 @@ function InviteUserForm({
             value={draft.values.branchId}
           />
           <p className="text-xs leading-5 text-foreground-muted sm:col-span-2">
-            Workspace access controls sign-in permissions. It does not change the person&apos;s operational Staff role.
+            Workspace access controls sign-in permissions. It does not change
+            the person&apos;s operational Staff role.
           </p>
           {emailMismatch ? (
             <p className="text-xs leading-5 text-warning sm:col-span-2">
-              This sign-in email differs from {selectedPerson?.label ?? "the selected Staff member"}&apos;s Staff email. The Staff record will not be changed.
+              This sign-in email differs from{" "}
+              {selectedPerson?.label ?? "the selected Staff member"}&apos;s
+              Staff email. The Staff record will not be changed.
             </p>
           ) : null}
           {duplicateMessage ? (
@@ -558,7 +605,9 @@ function InviteUserForm({
                 onClick={reviewDuplicateTarget}
                 type="button"
               >
-                {duplicateTarget?.kind === "invitation" ? "Review invitation" : "Review access"}
+                {duplicateTarget?.kind === "invitation"
+                  ? "Review invitation"
+                  : "Review access"}
               </button>
             </div>
           ) : null}
@@ -579,12 +628,16 @@ function InviteUserForm({
               draft.errorKind === "server" && !guard?.suppressErrorFocus
             }
             onDiscard={draft.discard}
-            onSave={() => void draft.submit((field) => {
-              if (field === "email") emailRef.current?.focus();
-              if (field === "personId") {
-                staffControlRef.current?.querySelector<HTMLElement>("[role='combobox']")?.focus();
-              }
-            })}
+            onSave={() =>
+              void draft.submit((field) => {
+                if (field === "email") emailRef.current?.focus();
+                if (field === "personId") {
+                  staffControlRef.current
+                    ?.querySelector<HTMLElement>("[role='combobox']")
+                    ?.focus();
+                }
+              })
+            }
             saveLabel="Send invitation"
             status={draft.status}
             statusMessage={draft.message}
@@ -638,7 +691,10 @@ function PendingInvitationRow({
   const [status, setStatus] = useState<"error" | "saving" | "success">();
 
   const runAction = async (
-    action: (state: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>,
+    action: (
+      state: OrganizationActionState,
+      formData: FormData,
+    ) => Promise<OrganizationActionState>,
   ) => {
     if (submitting.current) {
       return;
@@ -660,13 +716,16 @@ function PendingInvitationRow({
     }
   };
 
-  const statusLabel = invitation.status === "send_failed"
-    ? "Invitation failed"
-    : invitation.status === "expired"
-      ? "Invitation expired"
-      : "Pending invitation";
+  const statusLabel =
+    invitation.status === "send_failed"
+      ? "Invitation failed"
+      : invitation.status === "expired"
+        ? "Invitation expired"
+        : "Pending invitation";
   const statusTone = invitation.status === "pending" ? "accent" : "warning";
-  const linkedPerson = people.find((person) => person.id === invitation.personId);
+  const linkedPerson = people.find(
+    (person) => person.id === invitation.personId,
+  );
 
   useEffect(() => {
     if (focused) rowRef.current?.focus();
@@ -690,7 +749,7 @@ function PendingInvitationRow({
 
   return (
     <article
-      className="grid min-w-0 gap-4 px-4 py-4 xl:grid-cols-[minmax(180px,0.75fr)_minmax(0,1.5fr)_auto] xl:items-center"
+      className="grid min-w-0 gap-3 px-3 py-3 xl:grid-cols-[minmax(180px,0.75fr)_minmax(0,1.5fr)_auto] xl:items-center"
       data-testid={`access-invitation-${invitation.id}`}
       id={`access-invitation-${invitation.id}`}
       ref={rowRef}
@@ -700,7 +759,9 @@ function PendingInvitationRow({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <p className="truncate text-sm font-semibold">{invitation.email}</p>
           <Badge tone={statusTone}>{statusLabel}</Badge>
-          {linkedPerson?.archived ? <Badge tone="warning">Archived Staff</Badge> : null}
+          {linkedPerson?.archived ? (
+            <Badge tone="warning">Archived Staff</Badge>
+          ) : null}
         </div>
         <p className="mt-1 text-xs text-foreground-muted">
           {invitation.lastSentAt
@@ -722,11 +783,15 @@ function PendingInvitationRow({
         </div>
         <div>
           <dt className="text-xs text-foreground-muted">Access scope</dt>
-          <dd className="mt-1 font-medium">{branchLabel(invitation.branchId ?? "", branches)}</dd>
+          <dd className="mt-1 font-medium">
+            {branchLabel(invitation.branchId ?? "", branches)}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-foreground-muted">Linked staff record</dt>
-          <dd className="mt-1 font-medium">{personLabel(invitation.personId, people)}</dd>
+          <dd className="mt-1 font-medium">
+            {personLabel(invitation.personId, people)}
+          </dd>
         </div>
       </dl>
       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
@@ -749,15 +814,27 @@ function PendingInvitationRow({
         </button>
         <p
           aria-live="polite"
-          className={status === "error" ? "w-full text-xs text-danger" : "w-full text-xs text-foreground-muted"}
+          className={
+            status === "error"
+              ? "w-full text-xs text-danger"
+              : "w-full text-xs text-foreground-muted"
+          }
           role={status === "error" ? "alert" : undefined}
         >
           {message ?? `Expires ${formatAccessDate(invitation.expiresAt)}`}
         </p>
         {confirmingRevoke ? (
-          <div aria-labelledby={revokeTitleId} className="w-full rounded-md border border-danger/30 bg-danger-soft p-3 text-sm" role="alertdialog">
-            <p className="font-medium" id={revokeTitleId}>Revoke this invitation?</p>
-            <p className="mt-1 text-foreground-muted">The invitation link will stop working immediately.</p>
+          <div
+            aria-labelledby={revokeTitleId}
+            className="w-full rounded-md border border-danger/30 bg-danger-soft p-3 text-sm"
+            role="alertdialog"
+          >
+            <p className="font-medium" id={revokeTitleId}>
+              Revoke this invitation?
+            </p>
+            <p className="mt-1 text-foreground-muted">
+              The invitation link will stop working immediately.
+            </p>
             <div className="mt-3 flex justify-end gap-2">
               <button
                 className="h-8 rounded-md px-3 font-medium"
@@ -806,6 +883,7 @@ function MemberAccessForm({
   people: OrganizationStaffOption[];
 }) {
   const guard = useSettingsNavigationGuard();
+  const memberRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const removeCancelRef = useRef<HTMLButtonElement>(null);
   const removeTriggerRef = useRef<HTMLButtonElement>(null);
@@ -815,30 +893,38 @@ function MemberAccessForm({
   const removeTitleId = useId();
   const staffChangeTitleId = useId();
   const [confirmingRemove, setConfirmingRemove] = useState(false);
-  const [confirmingStaffChange, setConfirmingStaffChange] = useState<"replace" | "unlink">();
+  const [expanded, setExpanded] = useState(focused);
+  const [confirmingStaffChange, setConfirmingStaffChange] = useState<
+    "replace" | "unlink"
+  >();
   const [removeMessage, setRemoveMessage] = useState<string>();
-  const [removeStatus, setRemoveStatus] = useState<"error" | "saving" | "success">();
+  const [removeStatus, setRemoveStatus] = useState<
+    "error" | "saving" | "success"
+  >();
   const draft = useAccessDraft({
     action: updateMemberAccessAction,
     initialValues: {
-      branchId: member.role === "admin" ? "" : member.branchId ?? "",
+      branchId: member.role === "admin" ? "" : (member.branchId ?? ""),
       memberId: member.id,
       personId: member.personId ?? "",
       role: member.role,
     },
   });
   const lastAdministrator = member.role === "admin" && adminCount === 1;
-  const blocksLastAdminDemotion = lastAdministrator && draft.values.role !== "admin";
+  const blocksLastAdminDemotion =
+    lastAdministrator && draft.values.role !== "admin";
   const accountLabel = member.email ?? personLabel(member.personId, people);
   const linkedPerson = people.find((person) => person.id === member.personId);
   const selectablePeople = activeStaffOptions(people);
-  const linkingLegacyMember = !member.personId && Boolean(draft.values.personId);
+  const linkingLegacyMember =
+    !member.personId && Boolean(draft.values.personId);
 
   const saveAccess = () => {
     if (member.personId && draft.values.personId !== member.personId) {
-      staffChangeTriggerRef.current = document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+      staffChangeTriggerRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
       setConfirmingStaffChange(draft.values.personId ? "replace" : "unlink");
       return;
     }
@@ -875,7 +961,12 @@ function MemberAccessForm({
   useRegisterAccessDraft(member.id, draft.status, draft.discard, onDraftChange);
 
   useEffect(() => {
-    if (focused) formRef.current?.focus();
+    if (focused) {
+      requestAnimationFrame(() => {
+        setExpanded(true);
+        memberRef.current?.focus();
+      });
+    }
   }, [focused]);
 
   useEffect(() => {
@@ -899,112 +990,150 @@ function MemberAccessForm({
   }, [current, removeStatus]);
 
   return (
-    <form
-      className="grid min-w-0 gap-4 px-4 py-4 xl:grid-cols-[minmax(180px,0.65fr)_minmax(0,1.8fr)]"
+    <div
       data-testid={`access-member-${member.id}`}
       id={`access-member-${member.id}`}
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!blocksLastAdminDemotion) {
-          saveAccess();
-        }
-      }}
-      ref={formRef}
+      ref={memberRef}
       tabIndex={-1}
     >
-      <div className="min-w-0">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold">{accountLabel}</p>
-          {current ? <Badge tone="accent">You</Badge> : null}
-          <Badge tone="success">Active access</Badge>
-          {!member.personId ? (
-            <Badge tone="warning">Legacy unlinked access</Badge>
-          ) : null}
-          {linkedPerson?.archived ? <Badge tone="warning">Archived Staff</Badge> : null}
-        </div>
-        <p className="mt-1 truncate text-xs text-foreground-muted" title={member.email ?? undefined}>
-          {member.email ?? "Email unavailable"}
-        </p>
-        {!member.personId ? (
-          <p className="mt-2 text-sm font-medium text-warning">Not linked to a Staff record</p>
-        ) : null}
-        {lastAdministrator ? (
-          <div className="mt-3 rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm">
-            <p className="font-medium text-warning">Last administrator</p>
-            <p className="mt-1 text-foreground-muted">
-              Another administrator is required before this role can be reduced.
-            </p>
+      <div className="grid min-w-0 gap-3 px-3 py-2.5 md:grid-cols-[minmax(180px,1.5fr)_minmax(100px,0.65fr)_minmax(120px,0.8fr)_minmax(160px,1fr)_auto] md:items-center">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-sm font-semibold">{accountLabel}</p>
+            {current ? <Badge tone="accent">You</Badge> : null}
+            {!member.personId ? (
+              <Badge tone="warning">Unlinked</Badge>
+            ) : null}
+            {linkedPerson?.archived ? (
+              <Badge tone="warning">Archived</Badge>
+            ) : null}
           </div>
-        ) : null}
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <AccessSelect
-          disabled={draft.status === "saving"}
-          label="Access level"
-          onValueChange={(value) => {
-            draft.setField("role", value);
-            if (value === "admin") draft.setField("branchId", "");
-          }}
-          options={roleOptions}
-          value={draft.values.role}
-        />
-        <AccessSelect
-          disabled={draft.status === "saving" || draft.values.role === "admin"}
-          label="Access scope"
-          onValueChange={(value) => draft.setField("branchId", value)}
-          options={branchOptions(branches)}
-          value={draft.values.branchId}
-        />
-        <label className="grid min-w-0 gap-1.5 text-[13px] font-medium">
-          <span>Linked staff record</span>
-          <PersonSelect
-            aria-label="Linked staff record"
-            allowClear
-            context="linked Staff record"
-            disabled={draft.status === "saving"}
-            name="personId"
-            onValueChange={(value) => draft.setField("personId", value)}
-            options={selectablePeople}
-            placeholder="Choose Staff"
-            preservedOption={linkedPerson}
-            roles={["staff"]}
-            value={draft.values.personId}
-          />
-        </label>
-      </div>
-
-      <ConsequencePanel
-        className="xl:col-start-2"
-        rows={accessRows(draft.values, branches, people)}
-        title="Access effect"
-        variant="inline"
-      />
-
-      <div className="xl:col-start-2">
-        <DraftActionBar
-          disabledReason={
-            blocksLastAdminDemotion
-              ? "Add another administrator before changing this role."
-              : undefined
-          }
-          focusOnError={
-            draft.errorKind === "server" && !guard?.suppressErrorFocus
-          }
-          onDiscard={draft.discard}
-          onSave={saveAccess}
-          saveLabel={linkingLegacyMember ? "Link staff record" : "Save access"}
-          status={draft.status}
-          statusMessage={draft.message}
-        />
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-          <p
-            aria-live="polite"
-            className={removeStatus === "error" ? "text-sm text-danger" : "text-sm text-foreground-muted"}
-            role={removeStatus === "error" ? "alert" : undefined}
-          >
-            {removeMessage ?? "Removing access immediately signs this account out of the workspace."}
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {member.email ?? "Email unavailable"}
           </p>
+        </div>
+        <CompactFact
+          label="Access level"
+          value={formatWorkspaceAccessRole(member.role)}
+        />
+        <CompactFact
+          label="Access scope"
+          value={
+            member.role === "admin"
+              ? "All branches"
+              : branchLabel(member.branchId ?? "", branches)
+          }
+        />
+        <CompactFact
+          label="Linked Staff"
+          value={linkedPerson?.label ?? "Not linked"}
+          warning={!member.personId}
+        />
+        <Button
+          aria-expanded={expanded}
+          className="justify-self-start md:justify-self-end"
+          disabled={expanded && draft.status === "dirty"}
+          onClick={() => setExpanded((value) => !value)}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          {expanded ? "Close" : "Manage"}
+          <ChevronDown
+            aria-hidden="true"
+            className={expanded ? "rotate-180 transition-transform" : "transition-transform"}
+          />
+        </Button>
+      </div>
+
+      {expanded ? (
+        <form
+          className="border-t border-border bg-muted/20 px-4 py-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!blocksLastAdminDemotion) saveAccess();
+          }}
+          ref={formRef}
+          tabIndex={-1}
+        >
+          {lastAdministrator ? (
+            <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-warning-soft px-3 py-2 text-sm">
+              <span className="font-medium text-warning">Last administrator</span>
+              <span className="text-muted-foreground">
+                Add another administrator before reducing this role.
+              </span>
+            </div>
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <AccessSelect
+              disabled={draft.status === "saving"}
+              label="Access level"
+              onValueChange={(value) => {
+                draft.setField("role", value);
+                if (value === "admin") draft.setField("branchId", "");
+              }}
+              options={roleOptions}
+              value={draft.values.role}
+            />
+            <AccessSelect
+              disabled={draft.status === "saving" || draft.values.role === "admin"}
+              label="Access scope"
+              onValueChange={(value) => draft.setField("branchId", value)}
+              options={branchOptions(branches)}
+              value={draft.values.branchId}
+            />
+            <label className="grid min-w-0 gap-1.5 text-[13px] font-medium">
+              <span>Linked staff record</span>
+              <PersonSelect
+                aria-label="Linked staff record"
+                allowClear
+                context="linked Staff record"
+                disabled={draft.status === "saving"}
+                name="personId"
+                onValueChange={(value) => draft.setField("personId", value)}
+                options={selectablePeople}
+                placeholder="Choose Staff"
+                preservedOption={linkedPerson}
+                roles={["staff"]}
+                value={draft.values.personId}
+              />
+            </label>
+          </div>
+
+          {draft.status !== "clean" ? (
+            <ConsequencePanel
+              className="mt-4"
+              rows={accessRows(draft.values, branches, people)}
+              title="Access effect"
+              variant="inline"
+            />
+          ) : null}
+
+          <div className="mt-4">
+            <DraftActionBar
+              disabledReason={
+                blocksLastAdminDemotion
+                  ? "Add another administrator before changing this role."
+                  : undefined
+              }
+              focusOnError={
+                draft.errorKind === "server" && !guard?.suppressErrorFocus
+              }
+              onDiscard={draft.discard}
+              onSave={saveAccess}
+              saveLabel={linkingLegacyMember ? "Link staff record" : "Save access"}
+              status={draft.status}
+              statusMessage={draft.message}
+            />
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+            <p
+              aria-live="polite"
+              className={removeStatus === "error" ? "text-sm text-danger" : "text-sm text-muted-foreground"}
+              role={removeStatus === "error" ? "alert" : undefined}
+            >
+              {removeMessage}
+            </p>
           <button
             className="h-8 rounded-md border border-danger/30 px-3 text-sm font-medium text-danger transition-colors hover:bg-danger-soft disabled:cursor-not-allowed disabled:opacity-50"
             disabled={lastAdministrator || removeStatus === "saving"}
@@ -1014,11 +1143,17 @@ function MemberAccessForm({
           >
             Remove access
           </button>
-        </div>
+          </div>
         {confirmingStaffChange ? (
-          <div aria-labelledby={staffChangeTitleId} className="mt-3 rounded-md border border-warning/30 bg-warning-soft p-3 text-sm" role="alertdialog">
+          <div
+            aria-labelledby={staffChangeTitleId}
+            className="mt-3 rounded-md border border-warning/30 bg-warning-soft p-3 text-sm"
+            role="alertdialog"
+          >
             <p className="font-medium" id={staffChangeTitleId}>
-              {confirmingStaffChange === "unlink" ? "Unlink this Staff record?" : "Replace the linked Staff record?"}
+              {confirmingStaffChange === "unlink"
+                ? "Unlink this Staff record?"
+                : "Replace the linked Staff record?"}
             </p>
             <p className="mt-1 text-foreground-muted">
               {confirmingStaffChange === "unlink"
@@ -1045,15 +1180,25 @@ function MemberAccessForm({
                 }}
                 type="button"
               >
-                {confirmingStaffChange === "unlink" ? "Confirm unlink" : "Confirm replacement"}
+                {confirmingStaffChange === "unlink"
+                  ? "Confirm unlink"
+                  : "Confirm replacement"}
               </button>
             </div>
           </div>
         ) : null}
         {confirmingRemove ? (
-          <div aria-labelledby={removeTitleId} className="mt-3 rounded-md border border-danger/30 bg-danger-soft p-3 text-sm" role="alertdialog">
-            <p className="font-medium" id={removeTitleId}>Remove workspace access?</p>
-            <p className="mt-1 text-foreground-muted">This account will lose workspace access immediately.</p>
+          <div
+            aria-labelledby={removeTitleId}
+            className="mt-3 rounded-md border border-danger/30 bg-danger-soft p-3 text-sm"
+            role="alertdialog"
+          >
+            <p className="font-medium" id={removeTitleId}>
+              Remove workspace access?
+            </p>
+            <p className="mt-1 text-foreground-muted">
+              This account will lose workspace access immediately.
+            </p>
             <div className="mt-3 flex justify-end gap-2">
               <button
                 className="h-8 rounded-md px-3 font-medium"
@@ -1079,8 +1224,28 @@ function MemberAccessForm({
             </div>
           </div>
         ) : null}
-      </div>
-    </form>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+function CompactFact({
+  label,
+  value,
+  warning = false,
+}: {
+  label: string;
+  value: string;
+  warning?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={warning ? "mt-0.5 truncate text-sm font-medium text-warning" : "mt-0.5 truncate text-sm font-medium"}>
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -1109,7 +1274,11 @@ function AccessSelect({
         options={options}
         value={value}
       />
-      {description ? <span className="text-xs font-normal text-foreground-muted">{description}</span> : null}
+      {description ? (
+        <span className="text-xs font-normal text-foreground-muted">
+          {description}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -1134,12 +1303,17 @@ function useAccessDraft<TValues extends Record<string, string>>({
   onResult,
   validate,
 }: {
-  action: (state: OrganizationActionState, formData: FormData) => Promise<OrganizationActionState>;
+  action: (
+    state: OrganizationActionState,
+    formData: FormData,
+  ) => Promise<OrganizationActionState>;
   baselineValues?: TValues;
   initialStatus?: DraftStatus;
   initialValues: TValues;
   onResult?: (result: OrganizationActionState) => void;
-  validate?: (values: TValues) => { field: keyof TValues; message: string } | undefined;
+  validate?: (
+    values: TValues,
+  ) => { field: keyof TValues; message: string } | undefined;
 }) {
   const baseline = useRef({ ...(baselineValues ?? initialValues) });
   const alive = useRef(true);
@@ -1183,72 +1357,80 @@ function useAccessDraft<TValues extends Record<string, string>>({
     setValues({ ...baseline.current });
   }, []);
 
-  const setField = useCallback(<TKey extends keyof TValues>(key: TKey, value: string) => {
-    if (submitting.current) {
-      return;
-    }
-    setMessage(undefined);
-    setErrorKind(undefined);
-    setValues((current) => {
-      const next = { ...current, [key]: value };
-      const clean = Object.keys(baseline.current).every(
-        (field) => next[field] === baseline.current[field],
-      );
-      setStatus(clean ? "clean" : "dirty");
-      return next;
-    });
-  }, []);
-
-  const submit = useCallback(async (onInvalid?: (field: keyof TValues) => void) => {
-    if (submitting.current) {
-      return;
-    }
-    const validation = validate?.(values);
-    if (validation) {
-      setMessage(validation.message);
-      setErrorKind("validation");
-      setStatus("error");
-      requestAnimationFrame(() => onInvalid?.(validation.field));
-      return;
-    }
-
-    submitting.current = true;
-    const currentSubmission = submission.current + 1;
-    submission.current = currentSubmission;
-    setMessage("Saving access");
-    setErrorKind(undefined);
-    setStatus("saving");
-    const formData = new FormData();
-    const submittedValues = { ...values };
-    Object.entries(submittedValues).forEach(([key, value]) => formData.set(key, value));
-
-    try {
-      const result = await action({}, formData);
-      if (!alive.current || submission.current !== currentSubmission) {
+  const setField = useCallback(
+    <TKey extends keyof TValues>(key: TKey, value: string) => {
+      if (submitting.current) {
         return;
       }
-      setMessage(result.message);
-      if (result.status === "success") {
-        baseline.current = submittedValues;
-        setStatus("saved");
-      } else {
+      setMessage(undefined);
+      setErrorKind(undefined);
+      setValues((current) => {
+        const next = { ...current, [key]: value };
+        const clean = Object.keys(baseline.current).every(
+          (field) => next[field] === baseline.current[field],
+        );
+        setStatus(clean ? "clean" : "dirty");
+        return next;
+      });
+    },
+    [],
+  );
+
+  const submit = useCallback(
+    async (onInvalid?: (field: keyof TValues) => void) => {
+      if (submitting.current) {
+        return;
+      }
+      const validation = validate?.(values);
+      if (validation) {
+        setMessage(validation.message);
+        setErrorKind("validation");
+        setStatus("error");
+        requestAnimationFrame(() => onInvalid?.(validation.field));
+        return;
+      }
+
+      submitting.current = true;
+      const currentSubmission = submission.current + 1;
+      submission.current = currentSubmission;
+      setMessage("Saving access");
+      setErrorKind(undefined);
+      setStatus("saving");
+      const formData = new FormData();
+      const submittedValues = { ...values };
+      Object.entries(submittedValues).forEach(([key, value]) =>
+        formData.set(key, value),
+      );
+
+      try {
+        const result = await action({}, formData);
+        if (!alive.current || submission.current !== currentSubmission) {
+          return;
+        }
+        setMessage(result.message);
+        if (result.status === "success") {
+          baseline.current = submittedValues;
+          setStatus("saved");
+        } else {
+          setErrorKind("server");
+          setStatus("error");
+        }
+        onResult?.(result);
+      } catch {
+        if (!alive.current || submission.current !== currentSubmission) {
+          return;
+        }
+        setMessage("Access could not be saved.");
         setErrorKind("server");
         setStatus("error");
+      } finally {
+        if (submission.current === currentSubmission) {
+          submitting.current = false;
+        }
       }
-      onResult?.(result);
-    } catch {
-      if (!alive.current || submission.current !== currentSubmission) {
-        return;
-      }
-      setMessage("Access could not be saved.");
-      setErrorKind("server");
-      setStatus("error");
-    } finally {
-      if (submission.current === currentSubmission) {
-        submitting.current = false;
-      }
-    }
-  }, [action, onResult, validate, values]);
+    },
+    [action, onResult, validate, values],
+  );
 
   return { discard, errorKind, message, setField, status, submit, values };
 }
@@ -1256,7 +1438,9 @@ function useAccessDraft<TValues extends Record<string, string>>({
 function invitationWasPersisted(result: OrganizationActionState) {
   return (
     result.status === "success" ||
-    result.message?.startsWith("Invitation saved, but email delivery failed") === true
+    result.message?.startsWith(
+      "Invitation saved, but email delivery failed",
+    ) === true
   );
 }
 
@@ -1269,26 +1453,46 @@ function accessRows(
     { label: "Access level", value: formatWorkspaceAccessRole(values.role) },
     {
       label: "Access scope",
-      value: values.role === "admin" ? "Organization-wide" : branchLabel(values.branchId, branches),
+      value:
+        values.role === "admin"
+          ? "Organization-wide"
+          : branchLabel(values.branchId, branches),
     },
-    { label: "Linked staff record", value: personLabel(values.personId, people) },
-    { label: "Effect", value: roleEffect(values.role, values.branchId, branches) },
+    {
+      label: "Linked staff record",
+      value: personLabel(values.personId, people),
+    },
+    {
+      label: "Effect",
+      value: roleEffect(values.role, values.branchId, branches),
+    },
   ];
 }
 
 function branchOptions(branches: OrganizationBranch[]) {
   return [
     { label: "All branches", value: "" },
-    ...branches.map((branch) => ({ label: `${branch.code} - ${branch.name}`, value: branch.id })),
+    ...branches.map((branch) => ({
+      label: `${branch.code} - ${branch.name}`,
+      value: branch.id,
+    })),
   ];
 }
 
 function branchLabel(branchId: string, branches: OrganizationBranch[]) {
-  return branches.find((branch) => branch.id === branchId)?.name ?? "All branches";
+  return (
+    branches.find((branch) => branch.id === branchId)?.name ?? "All branches"
+  );
 }
 
-function personLabel(personId: string | null, people: OrganizationStaffOption[]) {
-  return people.find((person) => person.id === personId)?.label ?? "Not linked to a Staff record";
+function personLabel(
+  personId: string | null,
+  people: OrganizationStaffOption[],
+) {
+  return (
+    people.find((person) => person.id === personId)?.label ??
+    "Not linked to a Staff record"
+  );
 }
 
 function formatAccessDate(value: string) {
@@ -1298,7 +1502,11 @@ function formatAccessDate(value: string) {
   }).format(new Date(value));
 }
 
-function roleEffect(role: string, branchId: string, branches: OrganizationBranch[]) {
+function roleEffect(
+  role: string,
+  branchId: string,
+  branches: OrganizationBranch[],
+) {
   if (role === "admin") {
     return "Full workspace access";
   }
@@ -1311,7 +1519,13 @@ function roleEffect(role: string, branchId: string, branches: OrganizationBranch
 function activeStaffOptions(people: OrganizationStaffOption[]) {
   const byId = new Map<string, OrganizationStaffOption>();
   for (const person of people) {
-    if (!person.activeStaff || person.archived || !person.roles.includes("staff") || byId.has(person.id)) continue;
+    if (
+      !person.activeStaff ||
+      person.archived ||
+      !person.roles.includes("staff") ||
+      byId.has(person.id)
+    )
+      continue;
     byId.set(person.id, person);
   }
   return [...byId.values()];

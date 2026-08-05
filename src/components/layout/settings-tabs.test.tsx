@@ -29,7 +29,7 @@ describe("SettingsTabs", () => {
       expect(current[0]?.getAttribute("href")).toBe(activeHref);
       expect(
         links.every((link) =>
-          link.className.includes("focus-visible:ring-focus-ring"),
+          link.className.includes("focus-visible:ring-ring/50"),
         ),
       ).toBe(true);
     },

@@ -15,7 +15,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
   CalendarClock,
+  Check,
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
   Columns3,
   FileText,
@@ -46,6 +48,12 @@ import { Button } from "@/components/ui/button";
 import { CheckboxControl } from "@/components/ui/checkbox-control";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { FilterPopover } from "@/components/ui/filter-popover";
 import { Input } from "@/components/ui/input";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
@@ -573,15 +581,7 @@ export function MaintenanceScreen({
         />
       }
       toolbar={
-        showCaseViewTabs ? (
-          <MaintenanceCasesCommandBar
-            listLabel={listLabel}
-            properties={propertyOptions}
-            summary={summary}
-            units={unitOptions}
-            viewQuery={normalizedViewQuery}
-          />
-        ) : showFilters ? (
+        !showCaseViewTabs && showFilters ? (
           <MaintenanceFilters
             baseReview={baseReview}
             listLabel={listLabel}
@@ -595,6 +595,16 @@ export function MaintenanceScreen({
       title={title}
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
+        {showCaseViewTabs ? (
+          <MaintenanceCasesCommandBar
+            listLabel={listLabel}
+            properties={propertyOptions}
+            summary={summary}
+            units={unitOptions}
+            viewQuery={normalizedViewQuery}
+          />
+        ) : null}
+
         {statusMessage ? (
           <div className="shrink-0 px-4 py-2 sm:px-6">
             <p
@@ -703,6 +713,13 @@ function MaintenanceCasesCommandBar({
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
   const scopeOptions = getScopeOptions(properties, units, listLabel);
+  const caseViews = getMaintenanceCasesViewTabs(
+    pathname,
+    searchParams,
+    viewQuery,
+  );
+  const currentCaseView =
+    caseViews.find((view) => view.active) ?? caseViews[0]!;
 
   const replaceParam = (name: string, value: string, defaultValue = "") => {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -762,13 +779,13 @@ function MaintenanceCasesCommandBar({
   }
 
   return (
-    <div className="relative w-full min-w-0">
-      <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
+    <section className="relative shrink-0 border-b border-border/70 bg-background px-4 py-2 sm:px-6">
+      <div className="flex flex-wrap items-center gap-2">
         <nav
           aria-label="Maintenance queues"
-          className="min-w-0 shrink-0 overflow-x-auto"
+          className="inline-flex min-w-0 shrink-0 items-center rounded-lg bg-muted p-[3px] text-muted-foreground"
         >
-          <div className="flex min-w-max items-center gap-1">
+          <div className="flex flex-wrap items-center">
             {getMaintenanceSavedViewTabs(
               pathname,
               searchParams,
@@ -777,10 +794,10 @@ function MaintenanceCasesCommandBar({
             ).map((tab) => (
               <Link
                 className={cn(
-                  "inline-flex h-8 shrink-0 items-center border-b-2 px-2 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
+                  "inline-flex h-[26px] shrink-0 items-center rounded-md border border-transparent px-1.5 text-xs font-medium outline-none transition-all hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50",
                   tab.active
-                    ? "border-accent text-foreground"
-                    : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
+                    ? "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30"
+                    : "text-muted-foreground",
                 )}
                 aria-current={tab.active ? "page" : undefined}
                 data-maintenance-queue-tab="true"
@@ -794,9 +811,10 @@ function MaintenanceCasesCommandBar({
           </div>
         </nav>
 
-        <div className="flex min-w-0 flex-1 gap-2 sm:min-w-[320px]">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           <SearchCombo
             ariaLabel={`Search ${listLabel}`}
+            className="w-full sm:w-[240px] sm:flex-none"
             onQueryChange={(value) =>
               setQueryState({
                 source: viewQuery.query,
@@ -859,33 +877,31 @@ function MaintenanceCasesCommandBar({
               </div>
             </div>
           </FilterPopover>
-        </div>
-
-        <div className="inline-flex h-8 shrink-0 items-center gap-1">
-          {getMaintenanceCasesViewTabs(pathname, searchParams, viewQuery).map(
-            (tab) => (
-              <Link
-                className={cn(
-                  "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
-                  tab.active
-                    ? "bg-accent-soft text-foreground"
-                    : "bg-transparent",
-                )}
-                aria-current={tab.active ? "page" : undefined}
-                aria-label={tab.label}
-                href={tab.href}
-                key={tab.id}
-                prefetch={false}
-                title={tab.label}
-              >
-                <tab.icon size={14} />
-                <span className="sr-only">{tab.label}</span>
-              </Link>
-            ),
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <currentCaseView.icon size={14} />
+                {currentCaseView.label}
+                <ChevronDown size={13} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              {caseViews.map((tab) => (
+                <DropdownMenuItem asChild key={tab.id}>
+                  <Link href={tab.href} prefetch={false}>
+                    <tab.icon size={14} />
+                    {tab.label}
+                    {tab.active ? (
+                      <Check className="ml-auto" size={14} />
+                    ) : null}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 

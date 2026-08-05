@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import * as Popover from "@radix-ui/react-popover";
 import { ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 const financeDestinations = [
@@ -13,8 +19,7 @@ const financeDestinations = [
   },
   { href: "/rent-income", label: "Rent", route: "/rent-income" },
   { href: "/bills-expenses", label: "Expenses", route: "/bills-expenses" },
-  { href: "/balances", label: "Balances", route: "/balances" },
-  { href: "/reports/owner-activity", label: "Reports", route: "/reports" },
+  { href: "/balances", label: "Owner Balance", route: "/balances" },
   { href: "/leases", label: "Leases", route: "/leases" },
 ] as const;
 
@@ -25,7 +30,8 @@ const moreDestinations = [
 
 export type FinanceWorkspaceRoute =
   | (typeof financeDestinations)[number]["route"]
-  | (typeof moreDestinations)[number]["route"];
+  | (typeof moreDestinations)[number]["route"]
+  | "/reports";
 
 export function FinanceWorkspaceNavigation({
   activeRoute,
@@ -54,34 +60,26 @@ export function FinanceWorkspaceNavigation({
             {destination.label}
           </Link>
         ))}
-        <Popover.Root>
-          <Popover.Trigger asChild>
-            <button
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
               aria-current={moreActive ? "page" : undefined}
               className={navClass(moreActive)}
+              size="sm"
               type="button"
+              variant="ghost"
             >
               More <ChevronDown size={13} />
-            </button>
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Content
-              align="start"
-              className="z-50 mt-1 w-40 rounded-md border border-border bg-surface p-1 shadow-lg"
-              sideOffset={2}
-            >
-              {moreDestinations.map((destination) => (
-                <Link
-                  className="block rounded px-2.5 py-2 text-sm hover:bg-surface-muted"
-                  href={destination.href}
-                  key={destination.route}
-                >
-                  {destination.label}
-                </Link>
-              ))}
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-40">
+            {moreDestinations.map((destination) => (
+              <DropdownMenuItem asChild key={destination.route}>
+                <Link href={destination.href}>{destination.label}</Link>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </nav>
   );

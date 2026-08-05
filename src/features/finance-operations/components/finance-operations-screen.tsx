@@ -21,6 +21,7 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox as CheckboxPrimitive } from "@/components/ui/checkbox";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,8 @@ import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { Table, TableCell, TableHead } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   confirmOwnerCollectionAction,
@@ -385,7 +388,7 @@ function FinanceWorkView({
           />
         ) : (
           <TableFrame>
-            <table className="w-full min-w-[860px] text-sm">
+            <Table className="min-w-[860px]">
               <thead>
                 <tr>
                   <Th>Work</Th>
@@ -503,7 +506,7 @@ function FinanceWorkView({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </TableFrame>
         )}
       </Card>
@@ -548,7 +551,7 @@ function RentView({
           />
         ) : (
           <TableFrame>
-            <table className="w-full min-w-[980px] text-sm">
+            <Table className="min-w-[980px]">
               <thead>
                 <tr>
                   <Th>Invoice</Th>
@@ -618,7 +621,7 @@ function RentView({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </TableFrame>
         )}
       </Card>
@@ -640,7 +643,7 @@ function ExpensesView({
     />
   ) : (
     <TableFrame>
-      <table className="w-full min-w-[980px] text-sm">
+      <Table className="min-w-[980px]">
         <thead>
           <tr>
             <Th>Date</Th>
@@ -702,7 +705,7 @@ function ExpensesView({
             </tr>
           ))}
         </tbody>
-      </table>
+      </Table>
     </TableFrame>
   );
 }
@@ -740,18 +743,25 @@ function BalancesView({
   }, [invoices]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
-      <div className="flex shrink-0 gap-1 border-b border-border px-4 py-2 sm:px-6">
-        <TabButton active={tab === "owners"} onClick={() => setTab("owners")}>
+    <Tabs
+      className="h-full min-h-0 gap-0 bg-background"
+      onValueChange={(value) => setTab(value as "owners" | "tenants")}
+      value={tab}
+    >
+      <TabsList
+        className="h-11 w-full shrink-0 justify-start rounded-none border-b px-4 sm:px-6"
+        variant="line"
+      >
+        <TabsTrigger className="flex-none px-3" value="owners">
           Owners
-        </TabButton>
-        <TabButton active={tab === "tenants"} onClick={() => setTab("tenants")}>
+        </TabsTrigger>
+        <TabsTrigger className="flex-none px-3" value="tenants">
           Tenants &amp; companies
-        </TabButton>
-      </div>
-      {tab === "owners" ? (
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent className="min-h-0 overflow-auto" value="owners">
         <TableFrame>
-          <table className="w-full min-w-[1040px] text-sm">
+          <Table className="min-w-[1040px]">
             <thead>
               <tr>
                 <Th>Property</Th>
@@ -825,11 +835,12 @@ function BalancesView({
                 );
               })}
             </tbody>
-          </table>
+          </Table>
         </TableFrame>
-      ) : (
+      </TabsContent>
+      <TabsContent className="min-h-0 overflow-auto" value="tenants">
         <TableFrame>
-          <table className="w-full min-w-[720px] text-sm">
+          <Table className="min-w-[720px]">
             <thead>
               <tr>
                 <Th>Customer</Th>
@@ -860,10 +871,10 @@ function BalancesView({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </TableFrame>
-      )}
-    </div>
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -914,7 +925,7 @@ function PropertyAccountView({
         />
       ) : (
         <TableFrame>
-          <table className="w-full min-w-[820px] text-sm">
+          <Table className="min-w-[820px]">
             <thead>
               <tr>
                 <Th>Date</Th>
@@ -948,7 +959,7 @@ function PropertyAccountView({
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </TableFrame>
       )}
     </div>
@@ -1268,11 +1279,12 @@ function PaymentChooser({
         </p>
       ) : (
         invoices.map((invoice) => (
-          <button
-            className="flex w-full items-center justify-between gap-4 rounded-md px-3 py-3 text-left hover:bg-surface-muted"
+          <Button
+            className="h-auto w-full justify-between gap-4 px-3 py-3 text-left"
             key={invoice.id}
             onClick={() => onChoose(invoice)}
             type="button"
+            variant="ghost"
           >
             <span>
               <span className="block text-sm font-medium">
@@ -1286,7 +1298,7 @@ function PaymentChooser({
               <Money amount={invoice.balanceDue} />
               <ChevronRight className="text-muted-foreground" size={15} />
             </span>
-          </button>
+          </Button>
         ))
       )}
     </div>
@@ -1548,32 +1560,34 @@ function ExpenseForm({
       <fieldset className="space-y-2 border-t border-border pt-4">
         <legend className="text-sm font-semibold">Charge this to</legend>
         <div className="grid gap-2 sm:grid-cols-2">
-          <button
+          <Button
             aria-pressed={effectiveResponsibility === "owner"}
             className={cn(
-              "rounded-md border px-3 py-3 text-left text-sm font-medium transition-colors",
+              "h-auto justify-start px-3 py-3 text-left",
               effectiveResponsibility === "owner"
-                ? "border-accent bg-accent-soft text-foreground"
-                : "border-border bg-surface text-foreground-muted hover:bg-surface-muted",
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground",
             )}
             onClick={() => setResponsibility("owner")}
             type="button"
+            variant="outline"
           >
             Property owner
-          </button>
-          <button
+          </Button>
+          <Button
             aria-pressed={effectiveResponsibility === "tenant"}
             className={cn(
-              "rounded-md border px-3 py-3 text-left text-sm font-medium transition-colors",
+              "h-auto justify-start px-3 py-3 text-left",
               effectiveResponsibility === "tenant"
-                ? "border-accent bg-accent-soft text-foreground"
-                : "border-border bg-surface text-foreground-muted hover:bg-surface-muted",
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground",
             )}
             onClick={() => setResponsibility("tenant")}
             type="button"
+            variant="outline"
           >
             Tenant or company
-          </button>
+          </Button>
         </div>
       </fieldset>
 
@@ -1839,14 +1853,14 @@ function Th({
   children: ReactNode;
 }) {
   return (
-    <th
+    <TableHead
       className={cn(
         "border-b border-border bg-surface-muted/65 px-3 py-2 text-xs font-semibold text-muted-foreground",
         align === "right" ? "text-right" : "text-left",
       )}
     >
       {children}
-    </th>
+    </TableHead>
   );
 }
 function Td({
@@ -1859,7 +1873,7 @@ function Td({
   className?: string;
 }) {
   return (
-    <td
+    <TableCell
       className={cn(
         "px-3 py-2.5 align-middle",
         align === "right" ? "text-right" : "text-left",
@@ -1867,7 +1881,7 @@ function Td({
       )}
     >
       {children}
-    </td>
+    </TableCell>
   );
 }
 function Money({ amount }: { amount: number }) {
@@ -1898,25 +1912,6 @@ function StatusBadge({ status }: { status: string }) {
     </Badge>
   );
 }
-function TabButton({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  children: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      className={cn(active && "bg-accent-soft")}
-      onClick={onClick}
-      variant="ghost"
-    >
-      {children}
-    </Button>
-  );
-}
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
     <label className="block space-y-1.5 text-sm">
@@ -1936,11 +1931,9 @@ function Checkbox({
 }) {
   return (
     <label className="flex items-center gap-2 text-sm">
-      <input
+      <CheckboxPrimitive
         checked={checked}
-        className="size-4 rounded border-control-border"
-        onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
+        onCheckedChange={(value) => onChange(value === true)}
       />
       {label}
     </label>

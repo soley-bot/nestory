@@ -2,12 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useRef, type MouseEvent } from "react";
-import { Building2, Landmark, SlidersHorizontal, UsersRound } from "lucide-react";
+import {
+  Building2,
+  Landmark,
+  SlidersHorizontal,
+  UsersRound,
+} from "lucide-react";
 import {
   SettingsNavigationGuardProvider,
   useSettingsNavigationGuard,
 } from "@/components/layout/settings-navigation-guard";
 import { ConfigurationRegistryCatalog } from "@/features/configuration/components/configuration-registry-catalog";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   BranchEditor,
   type SettingsEditorHandle,
@@ -21,10 +32,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 export type SettingsSection =
-  | "organization"
-  | "configuration"
-  | "branches"
-  | "teams";
+  "organization" | "configuration" | "branches" | "teams";
 
 const sections = [
   { icon: Landmark, label: "Organization", value: "organization" },
@@ -96,13 +104,13 @@ function SettingsWorkspaceContent({
   }
 
   return (
-    <main
-      className="grid min-w-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start"
+    <div
+      className="mx-auto grid w-full max-w-6xl min-w-0 gap-3 px-3 py-3 sm:px-4 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start"
       data-testid="settings-workspace"
     >
       <nav
         aria-label="Organization settings sections"
-        className="flex min-w-0 gap-1 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:border-r lg:border-border lg:pb-0 lg:pr-4"
+        className="flex min-w-0 gap-0.5 overflow-x-auto rounded-lg bg-muted p-0.5 lg:flex-col lg:overflow-visible"
       >
         {sections.map((item) => {
           const current = item.value === section;
@@ -111,8 +119,9 @@ function SettingsWorkspaceContent({
             <Link
               aria-current={current ? "page" : undefined}
               className={cn(
-                "flex h-10 shrink-0 items-center gap-2 rounded-md px-3 text-[13px] font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring lg:w-full",
-                current && "bg-accent-soft text-foreground",
+                "flex h-8 shrink-0 items-center gap-2 rounded-md border border-transparent px-2.5 text-xs font-medium text-muted-foreground outline-none transition-all hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 lg:w-full",
+                current &&
+                  "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30",
               )}
               href={`/settings?section=${item.value}`}
               key={item.value}
@@ -163,7 +172,7 @@ function SettingsWorkspaceContent({
           />
         )}
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -179,26 +188,27 @@ function OrganizationIdentity({
   teams: OrganizationTeam[];
 }) {
   return (
-    <section className="min-w-0" data-testid="settings-editor">
-      <h2 className="text-sm font-semibold text-foreground">
-        Organization identity
-      </h2>
-      <p className="mt-1 text-sm text-foreground-muted">
-        Organization identity is read-only here.
-      </p>
-      <dl className="mt-4 divide-y divide-border border-y border-border text-sm">
-        <Fact label="Workspace" value={organizationName} />
-        <Fact label="Subdomain" value={organizationSlug ?? "Not set"} />
-        <Fact label="Branches" value={String(branches.length)} />
-        <Fact label="Teams" value={String(teams.length)} />
-      </dl>
-    </section>
+    <Card data-testid="settings-editor" size="sm">
+      <CardHeader className="border-b">
+        <CardTitle>
+          <h2>Organization</h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <dl className="divide-y divide-border text-sm">
+          <Fact label="Workspace" value={organizationName} />
+          <Fact label="Subdomain" value={organizationSlug ?? "Not set"} />
+          <Fact label="Branches" value={String(branches.length)} />
+          <Fact label="Teams" value={String(teams.length)} />
+        </dl>
+      </CardContent>
+    </Card>
   );
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4 py-3">
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-3 py-2.5">
       <dt className="text-foreground-muted">{label}</dt>
       <dd className="min-w-0 break-words text-right font-medium text-foreground">
         {value}

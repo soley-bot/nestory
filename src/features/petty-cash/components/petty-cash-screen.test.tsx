@@ -1,6 +1,12 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PettyCashScreen } from "@/features/petty-cash/components/petty-cash-screen";
@@ -32,40 +38,52 @@ describe("PettyCashScreen finance workspace contract", () => {
   it("keeps register totals, cash states, links, currency columns, and deliberate quick views", () => {
     const { container } = renderPettyCash();
 
-    expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
-    const summaryRegion = screen.getByRole("region", { name: "Petty cash summary" });
-    expect(summaryRegion.className).toContain("overflow-x-auto");
-    expect(summaryRegion.getAttribute("tabindex")).toBe("0");
-    expect(summaryRegion.textContent).toContain(
-      "USD 500.00",
-    );
-    expect(summaryRegion.textContent).toContain(
-      "USD 410.00",
-    );
+    expect(
+      container.querySelector('[data-slot="workspace-page"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-slot="workspace-split-view"]'),
+    ).not.toBeNull();
+    const summaryRegion = screen.getByRole("region", {
+      name: "Petty cash summary",
+    });
+    expect(summaryRegion.className).not.toContain("overflow-x-auto");
+    expect(summaryRegion.getAttribute("tabindex")).toBeNull();
+    expect(summaryRegion.textContent).toContain("USD 500.00");
+    expect(summaryRegion.textContent).toContain("USD 410.00");
 
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
-    const registerSurface = table.closest('[data-petty-cash-surface="register"]')!;
+    const registerSurface = table.closest(
+      '[data-petty-cash-surface="register"]',
+    )!;
     expect(registerSurface.className).toContain("overflow-hidden");
     expect(registerSurface.className).not.toMatch(
       /rounded-(?:md|lg)|border(?:\s|$)|bg-surface/,
     );
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
-    expect(within(rows[0]!).getByRole("link", { name: "HOME" }).getAttribute("href")).toBe(
-      "/properties/property-1",
-    );
-    expect(within(rows[0]!).getByRole("button", { name: "Preview Cleaning" })).not.toBeNull();
+    expect(
+      rows.filter((row) => row.getAttribute("aria-selected") === "true"),
+    ).toHaveLength(0);
+    expect(
+      within(rows[0]!).getByRole("link", { name: "HOME" }).getAttribute("href"),
+    ).toBe("/properties/property-1");
+    expect(
+      within(rows[0]!).getByRole("button", { name: "Preview Cleaning" }),
+    ).not.toBeNull();
     expect(within(rows[0]!).getByText("Cleared")).not.toBeNull();
     expect(within(rows[1]!).getByText("Posted")).not.toBeNull();
-    expect(container.querySelectorAll("[data-money-cell='true']").length).toBeGreaterThan(0);
+    expect(
+      container.querySelectorAll("[data-money-cell='true']").length,
+    ).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Preview Cleaning" }));
     const quickView = screen.getByRole("dialog", {
       name: "Cleaning cash quick view",
     });
-    const quickViewBody = quickView.querySelector('[data-slot="cash-quick-view-body"]')!;
+    const quickViewBody = quickView.querySelector(
+      '[data-slot="cash-quick-view-body"]',
+    )!;
     expect(quickViewBody.className).not.toMatch(
       /rounded-(?:md|lg)|border(?:\s|$)|bg-surface/,
     );
@@ -110,20 +128,27 @@ describe("PettyCashScreen finance workspace contract", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
-      expect(screen.getByRole("dialog", { name: "Cleaning cash quick view" })).not.toBeNull();
+      expect(
+        screen.getByRole("dialog", { name: "Cleaning cash quick view" }),
+      ).not.toBeNull();
       await user.click(screen.getByRole("button", { name: "Post to ledger" }));
 
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
-      expect(screen.getByRole("dialog", { name: "Post to ledger" })).not.toBeNull();
-      const consequence = screen.getByRole("region", { name: "Posting consequence" });
+      expect(
+        screen.getByRole("dialog", { name: "Post to ledger" }),
+      ).not.toBeNull();
+      const consequence = screen.getByRole("region", {
+        name: "Posting consequence",
+      });
       expect(consequence.textContent).toContain("USD 90.00");
       expect(consequence.textContent).toContain("one ledger expense");
       expect(consequence.textContent).toContain(
         "ResultLedger expense and linked timeline event",
       );
-      expect((document.querySelector('input[name="entryId"]') as HTMLInputElement).value).toBe(
-        "cash-1",
-      );
+      expect(
+        (document.querySelector('input[name="entryId"]') as HTMLInputElement)
+          .value,
+      ).toBe("cash-1");
 
       await user.click(screen.getByRole("button", { name: "Close drawer" }));
       expect(document.activeElement).toBe(preview);
@@ -135,31 +160,49 @@ describe("PettyCashScreen finance workspace contract", () => {
     renderPettyCash();
     await user.click(screen.getByRole("button", { name: "Open next month" }));
 
-    const consequence = screen.getByRole("region", { name: "Reconciliation consequence" });
+    const consequence = screen.getByRole("region", {
+      name: "Reconciliation consequence",
+    });
     expect(consequence.textContent).toContain("USD 410.00");
-    expect((document.querySelector('input[name="accountId"]') as HTMLInputElement).value).toBe(
-      "account-1",
-    );
-    expect((document.querySelector('input[name="periodId"]') as HTMLInputElement).value).toBe(
-      "period-1",
-    );
+    expect(
+      (document.querySelector('input[name="accountId"]') as HTMLInputElement)
+        .value,
+    ).toBe("account-1");
+    expect(
+      (document.querySelector('input[name="periodId"]') as HTMLInputElement)
+        .value,
+    ).toBe("period-1");
   });
 
   it("shows a true-empty action only when petty cash is available", () => {
-    const available = renderPettyCash({ accounts: [], entries: [], period: null, selectedAccount: undefined });
-    const emptyState = screen.getByText("No petty cash account yet").closest("section")!;
+    const available = renderPettyCash({
+      accounts: [],
+      entries: [],
+      period: null,
+      selectedAccount: undefined,
+    });
+    const emptyState = screen
+      .getByText("No petty cash account yet")
+      .closest("section")!;
     expect(emptyState.getAttribute("data-kind")).toBe("empty");
-    expect(within(emptyState).getByRole("button", { name: "Add account" })).not.toBeNull();
+    expect(
+      within(emptyState).getByRole("button", { name: "Add account" }),
+    ).not.toBeNull();
     available.unmount();
 
     renderPettyCash({
       accounts: [],
       entries: [],
       period: null,
-      schemaStatus: { isReady: false, message: "Petty cash tables are unavailable." },
+      schemaStatus: {
+        isReady: false,
+        message: "Petty cash tables are unavailable.",
+      },
       selectedAccount: undefined,
     });
-    const blockedState = screen.getByText("Petty cash unavailable").closest("section")!;
+    const blockedState = screen
+      .getByText("Petty cash unavailable")
+      .closest("section")!;
     expect(blockedState.getAttribute("data-kind")).toBe("permission");
     expect(screen.queryByRole("button", { name: "Add account" })).toBeNull();
   });
@@ -200,20 +243,24 @@ describe("PettyCashScreen finance workspace contract", () => {
       screen.getByRole("dialog", { name: "Edit petty cash row" }),
     ).not.toBeNull();
     expect(
-      (document.querySelector('input[name="entryId"]') as HTMLInputElement).value,
+      (document.querySelector('input[name="entryId"]') as HTMLInputElement)
+        .value,
     ).toBe("cash-1");
     expect(
-      (document.querySelector('input[name="category"]') as HTMLInputElement).value,
+      (document.querySelector('input[name="category"]') as HTMLInputElement)
+        .value,
     ).toBe("Cleaning");
 
     await user.click(screen.getByRole("button", { name: "Close drawer" }));
     await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
     await user.click(screen.getByRole("button", { name: "Void" }));
-    expect(screen.getByRole("region", { name: "Void consequence" }).textContent).toContain(
-      "Zero after voiding",
-    );
     expect(
-      screen.getByRole("textbox", { name: "Void reason" }).getAttribute("required"),
+      screen.getByRole("region", { name: "Void consequence" }).textContent,
+    ).toContain("Zero after voiding");
+    expect(
+      screen
+        .getByRole("textbox", { name: "Void reason" })
+        .getAttribute("required"),
     ).not.toBeNull();
   });
 
@@ -228,7 +275,9 @@ describe("PettyCashScreen finance workspace contract", () => {
       selectedAccount: inactiveAccount,
     });
 
-    expect(screen.queryByRole("button", { name: "Open next month" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Open next month" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "Add cash row" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
@@ -269,7 +318,9 @@ describe("PettyCashScreen finance workspace contract", () => {
         within(inspector).queryByRole("button", { name: action }),
       ).toBeNull();
     }
-    expect(within(inspector).getByRole("link", { name: "HOME" })).not.toBeNull();
+    expect(
+      within(inspector).getByRole("link", { name: "HOME" }),
+    ).not.toBeNull();
     expect(
       screen.getByRole("link", { name: "Clear focused record" }),
     ).not.toBeNull();
@@ -310,8 +361,11 @@ describe("PettyCashScreen finance workspace contract", () => {
       ).value,
     ).toBe("vendor-1");
     expect(
-      (document.querySelector('input[name="counterpartyMode"]') as HTMLInputElement)
-        .value,
+      (
+        document.querySelector(
+          'input[name="counterpartyMode"]',
+        ) as HTMLInputElement
+      ).value,
     ).toBe("linked");
 
     await user.click(counterparty);
@@ -354,7 +408,10 @@ const summary: PettyCashSummary = {
 
 const entries: PettyCashEntry[] = [
   makeEntry("cash-1", "Cleaning", "cleared", 90, 410),
-  { ...makeEntry("cash-2", "Supplies", "posted", 20, 390), ledgerEntryId: "ledger-2" },
+  {
+    ...makeEntry("cash-2", "Supplies", "posted", 20, 390),
+    ledgerEntryId: "ledger-2",
+  },
 ];
 
 function renderPettyCash({

@@ -25,7 +25,11 @@ type LedgerFiltersProps = {
   viewQuery: LedgerViewQuery;
 };
 
-export function LedgerFilters({ properties, units, viewQuery }: LedgerFiltersProps) {
+export function LedgerFilters({
+  properties,
+  units,
+  viewQuery,
+}: LedgerFiltersProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -45,6 +49,7 @@ export function LedgerFilters({ properties, units, viewQuery }: LedgerFiltersPro
     viewQuery.minAmount !== null ||
     viewQuery.sort !== DEFAULT_LEDGER_SORT ||
     viewQuery.pageSize !== DEFAULT_LEDGER_PAGE_SIZE;
+  const hasActiveFilters = hasAdvancedFilters || viewQuery.query.trim() !== "";
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
@@ -54,7 +59,8 @@ export function LedgerFilters({ properties, units, viewQuery }: LedgerFiltersPro
       ? units
       : units.filter(
           (unit) =>
-            unit.propertyId === viewQuery.propertyId || unit.id === viewQuery.unitId,
+            unit.propertyId === viewQuery.propertyId ||
+            unit.id === viewQuery.unitId,
         );
 
   function replaceParam(
@@ -93,9 +99,10 @@ export function LedgerFilters({ properties, units, viewQuery }: LedgerFiltersPro
   return (
     <div className="w-full">
       <div className="space-y-2.5">
-        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center">
+        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center xl:justify-end">
           <SearchCombo
             ariaLabel="Search ledger entries"
+            className="w-full xl:w-[320px] xl:flex-none"
             disabled={isPending}
             onQueryChange={(value) =>
               setQueryState({
@@ -120,15 +127,17 @@ export function LedgerFilters({ properties, units, viewQuery }: LedgerFiltersPro
               <SlidersHorizontal size={14} />
               Filters
             </Button>
-            <Link
-              aria-label="Reset ledger filters"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
-              href={pathname}
-              scroll={false}
-              title="Reset filters"
-            >
-              <RotateCcw size={14} />
-            </Link>
+            {hasActiveFilters ? (
+              <Link
+                aria-label="Reset ledger filters"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+                href={pathname}
+                scroll={false}
+                title="Reset filters"
+              >
+                <RotateCcw size={14} />
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -213,7 +222,11 @@ export function LedgerFilters({ properties, units, viewQuery }: LedgerFiltersPro
               ariaLabel="Rows per page"
               className={compactSelectClassName}
               onValueChange={(value) =>
-                replaceParam("pageSize", value, String(DEFAULT_LEDGER_PAGE_SIZE))
+                replaceParam(
+                  "pageSize",
+                  value,
+                  String(DEFAULT_LEDGER_PAGE_SIZE),
+                )
               }
               options={LEDGER_PAGE_SIZE_OPTIONS.map((pageSize) => ({
                 label: String(pageSize),

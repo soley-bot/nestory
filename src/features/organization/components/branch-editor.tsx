@@ -11,6 +11,13 @@ import {
 } from "react";
 import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar } from "@/components/ui/draft-action-bar";
 import { FormSection } from "@/components/ui/form-section";
@@ -103,28 +110,22 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
 
   return (
     <>
-      <section
-        className="min-w-0 overflow-hidden"
-        data-testid="settings-editor"
-      >
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <Building2 aria-hidden="true" size={15} />
-              Branches
-            </h2>
-            <p className="mt-0.5 text-sm text-foreground-muted">
-              {branches.length} {branches.length === 1 ? "branch" : "branches"}
-            </p>
-          </div>
-          <Button onClick={() => setDrawerOpen(true)}>Add branch</Button>
-        </div>
+      <Card className="min-w-0" data-testid="settings-editor" size="sm">
+        <CardHeader className="border-b">
+          <CardTitle className="flex items-center gap-2">
+            <Building2 aria-hidden="true" size={15} />
+            <h2>Branches</h2>
+          </CardTitle>
+          <CardAction>
+            <Button onClick={() => setDrawerOpen(true)}>Add branch</Button>
+          </CardAction>
+        </CardHeader>
 
         {branches.length > 0 ? (
-          <div className="divide-y divide-border border-b border-border">
+          <CardContent className="divide-y divide-border">
             {branches.map((branch) => (
               <div
-                className="grid min-w-0 gap-1 px-4 py-2.5 text-sm sm:grid-cols-[80px_minmax(0,1fr)_90px] sm:items-center"
+                className="grid min-w-0 gap-1 py-3 first:pt-0 last:pb-0 text-sm sm:grid-cols-[80px_minmax(0,1fr)_90px] sm:items-center"
                 key={branch.id}
               >
                 <span className="font-medium">{branch.code}</span>
@@ -139,13 +140,15 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
                 </span>
               </div>
             ))}
-          </div>
-        ) : null}
-
-      </section>
+          </CardContent>
+        ) : (
+          <CardContent className="py-6 text-center text-sm text-muted-foreground">
+            No branches yet.
+          </CardContent>
+        )}
+      </Card>
 
       <SideDrawer
-        description={`Add one branch to ${organizationName}.`}
         onClose={closeDrawer}
         open={drawerOpen}
         title="Add branch"

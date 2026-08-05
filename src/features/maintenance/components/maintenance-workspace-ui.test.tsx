@@ -305,12 +305,8 @@ describe("maintenance workspace redesign contract", () => {
     });
 
     expect(screen.getByRole("table")).not.toBeNull();
-    expect(
-      screen.getByRole("link", { name: "List" }).getAttribute("aria-current"),
-    ).toBe("page");
-    expect(
-      screen.getByRole("link", { name: "Board" }).getAttribute("aria-current"),
-    ).toBeNull();
+    expect(screen.getByRole("button", { name: "List" })).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Board" })).toBeNull();
     expect(
       screen.queryByRole("group", { name: "Work order display" }),
     ).toBeNull();
@@ -334,14 +330,15 @@ describe("maintenance workspace redesign contract", () => {
       const link = within(queueNavigation).getByRole("link", { name: label });
 
       expect(link.getAttribute("href")).toBe(href);
-      expect(link.className).not.toContain("rounded-md");
+      expect(link.className).toContain("rounded-md");
     }
     expect(
       container.querySelectorAll('[data-maintenance-queue-tab="true"]'),
     ).toHaveLength(expectedLinks.length);
   });
 
-  it("keeps search, filters, and the canonical view control in one workspace controls region", () => {
+  it("keeps queues separate while grouping search, filters, and view controls in one command bar", async () => {
+    const user = userEvent.setup();
     navigation.searchParams = new URLSearchParams(
       "view=board&review=work_orders",
     );
@@ -353,30 +350,31 @@ describe("maintenance workspace redesign contract", () => {
     const workspaceControls = container.querySelector(
       '[data-slot="workspace-controls"]',
     );
+    const commandBar = screen
+      .getByRole("navigation", {
+        name: "Maintenance queues",
+      })
+      .closest("section");
 
     expect(workspaceControls).not.toBeNull();
+    expect(commandBar).not.toBeNull();
     expect(
-      within(workspaceControls as HTMLElement).getByRole("textbox", {
+      within(commandBar as HTMLElement).getByRole("textbox", {
         name: "Search cases",
       }),
     ).not.toBeNull();
     expect(
-      within(workspaceControls as HTMLElement).getByRole("button", {
+      within(commandBar as HTMLElement).getByRole("button", {
         name: /Filters/,
       }),
     ).not.toBeNull();
-    expect(
-      within(workspaceControls as HTMLElement).getAllByRole("link", {
-        name: "List",
-      }),
-    ).toHaveLength(1);
-    expect(
-      within(workspaceControls as HTMLElement).getAllByRole("link", {
-        name: "Board",
-      }),
-    ).toHaveLength(1);
-    expect(screen.getAllByRole("link", { name: "List" })).toHaveLength(1);
-    expect(screen.getAllByRole("link", { name: "Board" })).toHaveLength(1);
+    const viewMenu = within(commandBar as HTMLElement).getByRole("button", {
+      name: "Board",
+    });
+    await user.click(viewMenu);
+    expect(screen.getByRole("menuitem", { name: "List" })).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: /Board/ })).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Calendar" })).not.toBeNull();
     expect(
       screen.queryByRole("group", { name: "Work order display" }),
     ).toBeNull();

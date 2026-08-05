@@ -1,10 +1,19 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LedgerScreen } from "@/features/ledger/components/ledger-screen";
-import type { LedgerEntry, LedgerViewQuery } from "@/features/ledger/ledger.types";
+import type {
+  LedgerEntry,
+  LedgerViewQuery,
+} from "@/features/ledger/ledger.types";
 
 const navigation = vi.hoisted(() => ({
   pathname: "/ledger",
@@ -34,18 +43,27 @@ describe("LedgerScreen finance workspace contract", () => {
     const user = userEvent.setup();
     const { container } = renderLedger();
 
-    expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
-    expect(screen.getByText("Month close").closest("section")?.className).toContain(
-      "overflow-x-auto",
-    );
+    expect(
+      container.querySelector('[data-slot="workspace-page"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-slot="workspace-split-view"]'),
+    ).not.toBeNull();
+    const closeStrip = screen.getByText("July 2026").closest("section");
+    expect(closeStrip?.className).not.toContain("overflow-x-auto");
+    expect(within(closeStrip!).queryByText("Clear")).toBeNull();
+    expect(
+      within(closeStrip!).getByText("All close checks clear"),
+    ).not.toBeNull();
+    expect(within(closeStrip!).getByText("Visible net")).not.toBeNull();
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
     const pagination = screen
       .getByText(
         (_content, element) =>
-          element?.tagName === "P" && element.textContent?.includes("Showing") === true,
+          element?.tagName === "P" &&
+          element.textContent?.includes("Showing") === true,
       )
       .closest("div");
     expect(pagination?.classList.contains("border-t")).toBe(true);
@@ -54,18 +72,30 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(pagination?.classList.contains("rounded-b-md")).toBe(false);
     expect(pagination?.classList.contains("-mt-px")).toBe(false);
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
-    expect(within(rows[0]!).getByRole("link", { name: "Home" }).getAttribute("href")).toBe(
-      "/properties/property-1",
-    );
-    expect(within(rows[0]!).getByRole("button", { name: "Preview Rent" })).not.toBeNull();
-    expect(container.querySelectorAll("[data-money-cell='true']").length).toBeGreaterThan(0);
+    expect(
+      rows.filter((row) => row.getAttribute("aria-selected") === "true"),
+    ).toHaveLength(0);
+    expect(
+      within(rows[0]!).getByRole("link", { name: "Home" }).getAttribute("href"),
+    ).toBe("/properties/property-1");
+    expect(
+      within(rows[0]!).getByRole("button", { name: "Preview Rent" }),
+    ).not.toBeNull();
+    expect(
+      container.querySelectorAll("[data-money-cell='true']").length,
+    ).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "Preview Rent" }));
-    expect(screen.getByRole("dialog", { name: "Rent ledger quick view" })).not.toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "Rent ledger quick view" }),
+    ).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Close quick view" }));
     await user.click(screen.getByRole("button", { name: "Filters" }));
-    expect(screen.getByRole("combobox", { name: "Filter by property" })).not.toBeNull();
-    expect(screen.getByRole("combobox", { name: "Filter by direction" })).not.toBeNull();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by property" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by direction" }),
+    ).not.toBeNull();
     expect(screen.queryByText(/select a row/i)).toBeNull();
   });
 
@@ -102,16 +132,25 @@ describe("LedgerScreen finance workspace contract", () => {
 
       expect(screen.queryByRole("dialog")).toBeNull();
       await user.click(preview);
-      expect(screen.getByRole("dialog", { name: "Rent ledger quick view" })).not.toBeNull();
-      await user.click(screen.getByRole("button", { name: "Archive ledger entry" }));
+      expect(
+        screen.getByRole("dialog", { name: "Rent ledger quick view" }),
+      ).not.toBeNull();
+      await user.click(
+        screen.getByRole("button", { name: "Archive ledger entry" }),
+      );
 
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
-      expect(screen.getByRole("dialog", { name: "Archive ledger entry" })).not.toBeNull();
-      const consequence = screen.getByRole("region", { name: "Archive consequence" });
+      expect(
+        screen.getByRole("dialog", { name: "Archive ledger entry" }),
+      ).not.toBeNull();
+      const consequence = screen.getByRole("region", {
+        name: "Archive consequence",
+      });
       expect(consequence.textContent).toContain("active totals");
-      expect((document.querySelector('input[name="entryId"]') as HTMLInputElement).value).toBe(
-        "ledger-1",
-      );
+      expect(
+        (document.querySelector('input[name="entryId"]') as HTMLInputElement)
+          .value,
+      ).toBe("ledger-1");
 
       await user.click(screen.getByRole("button", { name: "Close drawer" }));
       expect(document.activeElement).toBe(preview);
@@ -123,27 +162,37 @@ describe("LedgerScreen finance workspace contract", () => {
     renderLedger();
     await user.click(screen.getByRole("button", { name: "Period lock" }));
 
-    const consequence = screen.getByRole("region", { name: "Period lock consequence" });
+    const consequence = screen.getByRole("region", {
+      name: "Period lock consequence",
+    });
     expect(consequence.textContent).toContain("historical financial records");
     expect(document.querySelector('[name="periodStart"]')).not.toBeNull();
-    expect((document.querySelector('[name="lockState"]') as HTMLSelectElement).value).toBe(
-      "locked",
-    );
+    expect(
+      (document.querySelector('[name="lockState"]') as HTMLSelectElement).value,
+    ).toBe("locked");
   });
 
   it("distinguishes filtered-empty from a true-empty ledger", () => {
     const filtered = renderLedger([], { query: "missing" });
-    const filteredState = screen.getByText("No matching ledger entries").closest("section")!;
+    const filteredState = screen
+      .getByText("No matching ledger entries")
+      .closest("section")!;
     expect(filteredState.getAttribute("data-kind")).toBe("filtered");
     expect(
-      within(filteredState).getByRole("link", { name: "Clear filters" }).getAttribute("href"),
+      within(filteredState)
+        .getByRole("link", { name: "Clear filters" })
+        .getAttribute("href"),
     ).toBe("/ledger");
     filtered.unmount();
 
     renderLedger([]);
-    const emptyState = screen.getByText("No ledger entries yet").closest("section")!;
+    const emptyState = screen
+      .getByText("No ledger entries yet")
+      .closest("section")!;
     expect(emptyState.getAttribute("data-kind")).toBe("empty");
-    expect(within(emptyState).getByRole("button", { name: "Add entry" })).not.toBeNull();
+    expect(
+      within(emptyState).getByRole("button", { name: "Add entry" }),
+    ).not.toBeNull();
   });
 });
 

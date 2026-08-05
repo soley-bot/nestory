@@ -13,6 +13,7 @@ import type {
 
 type ReportsFiltersProps = {
   action: string;
+  actions?: ReactNode;
   propertyOptions: ReportPropertyOption[];
   unitOptions: ReportUnitOption[];
   viewQuery: ReportsViewQuery;
@@ -20,6 +21,7 @@ type ReportsFiltersProps = {
 
 export function ReportsFilters({
   action,
+  actions,
   propertyOptions,
   unitOptions,
   viewQuery,
@@ -35,77 +37,79 @@ export function ReportsFilters({
   return (
     <section
       aria-label="Report filters"
-      className="border-b border-border bg-surface px-4 py-3 sm:px-6"
+      className="border-b border-border/70 bg-background px-4 py-2 sm:px-6"
       role="region"
     >
-      <form
-        action={action}
-        className="grid items-end gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(180px,1fr)_180px_minmax(180px,1fr)_auto_auto]"
-        method="get"
-      >
-        <ScopeField label="Property">
-          <SelectControl
-            ariaLabel="Filter report by property"
-            className="h-9 px-2.5 text-[13px]"
-            defaultValue={viewQuery.propertyId}
-            name="propertyId"
-            options={[
-              { label: "All properties", value: "all" },
-              ...propertyOptions.map((property) => ({
-                label: property.label,
-                value: property.id,
-              })),
-            ]}
-          />
-        </ScopeField>
-
-        <ScopeField label="Month">
-          <MonthPickerField
-            ariaLabel="Report month"
-            className="h-9 px-2.5 text-[13px]"
-            defaultValue={viewQuery.month}
-            name="month"
-          />
-        </ScopeField>
-
-        {showUnit ? (
-          <ScopeField label="Unit">
+      <div className="flex flex-wrap items-end gap-2">
+        <form
+          action={action}
+          className="flex min-w-0 flex-1 flex-wrap items-end gap-2"
+          method="get"
+        >
+          <ScopeField label="Property">
             <SelectControl
-              ariaLabel="Filter report by unit"
-              className="h-9 px-2.5 text-[13px]"
-              defaultValue={viewQuery.unitId}
-              name="unitId"
+              ariaLabel="Filter report by property"
+              className="h-8 w-[220px] px-2.5 text-[13px]"
+              defaultValue={viewQuery.propertyId}
+              name="propertyId"
               options={[
-                { label: "All units", value: "all" },
-                ...visibleUnits.map((unit) => ({
-                  label: unit.label,
-                  value: unit.id,
+                { label: "All properties", value: "all" },
+                ...propertyOptions.map((property) => ({
+                  label: property.label,
+                  value: property.id,
                 })),
               ]}
             />
           </ScopeField>
-        ) : (
-          <div className="hidden lg:block" />
-        )}
 
-        <Button
-          aria-label="Apply filters"
-          className="h-9 gap-1.5 px-3 text-[13px]"
-          type="submit"
-        >
-          <SlidersHorizontal size={14} />
-          Apply
-        </Button>
+          <ScopeField label="Month">
+            <MonthPickerField
+              ariaLabel="Report month"
+              className="h-8 w-[160px] px-2.5 text-[13px]"
+              defaultValue={viewQuery.month}
+              name="month"
+            />
+          </ScopeField>
 
-        <Link
-          aria-label="Reset report filters"
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
-          href={`/reports/${viewQuery.report}`}
-        >
-          <RotateCcw size={14} />
-          Reset
-        </Link>
-      </form>
+          {showUnit ? (
+            <ScopeField label="Unit">
+              <SelectControl
+                ariaLabel="Filter report by unit"
+                className="h-8 w-[220px] px-2.5 text-[13px]"
+                defaultValue={viewQuery.unitId}
+                name="unitId"
+                options={[
+                  { label: "All units", value: "all" },
+                  ...visibleUnits.map((unit) => ({
+                    label: unit.label,
+                    value: unit.id,
+                  })),
+                ]}
+              />
+            </ScopeField>
+          ) : null}
+
+          <Button
+            aria-label="Apply filters"
+            className="h-8 gap-1.5 px-3 text-[13px]"
+            type="submit"
+          >
+            <SlidersHorizontal size={14} />
+            Apply
+          </Button>
+
+          <Button asChild className="h-8" variant="outline">
+            <Link
+              aria-label="Reset report filters"
+              href={`/reports/${viewQuery.report}`}
+            >
+              <RotateCcw size={14} />
+              Reset
+            </Link>
+          </Button>
+        </form>
+        {actions ? <div className="ml-auto shrink-0">{actions}</div> : null}
+      </div>
     </section>
   );
 }
@@ -119,7 +123,7 @@ function ScopeField({
 }) {
   return (
     <label className="min-w-0">
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.06em] text-foreground-muted">
+      <span className="mb-1 block text-xs font-medium text-muted-foreground">
         {label}
       </span>
       {children}

@@ -1,7 +1,8 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ReportBuilderScreen } from "@/features/reports/components/reports-screen";
 import { prepareTrustedReportForScreen } from "@/features/reports/data/reports";
@@ -12,6 +13,16 @@ import type {
 } from "@/features/reports/reports.types";
 
 afterEach(cleanup);
+
+beforeAll(() => {
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+});
+
+class ResizeObserverStub {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
 
 describe("minimal Reports workspace", () => {
   it("keeps only the two useful reports in the primary flow", () => {
@@ -44,20 +55,16 @@ describe("minimal Reports workspace", () => {
     ).toBeTruthy();
   });
 
-  it("offers PDF and Excel through one Export disclosure", () => {
+  it("offers PDF and Excel through one Export menu", async () => {
+    const user = userEvent.setup();
     renderReport();
 
-    const exportMenu = screen.getByText("Export").closest("details");
-    expect(exportMenu).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Export" }));
     expect(
-      within(exportMenu!)
-        .getByRole("link", { name: "PDF" })
-        .getAttribute("href"),
+      screen.getByRole("menuitem", { name: "PDF" }).getAttribute("href"),
     ).toBe("/api/reports/pdf?report=unit-profit-loss&month=2026-07");
     expect(
-      within(exportMenu!)
-        .getByRole("link", { name: "Excel" })
-        .getAttribute("href"),
+      screen.getByRole("menuitem", { name: "Excel" }).getAttribute("href"),
     ).toBe("/api/reports/excel?report=unit-profit-loss&month=2026-07");
     expect(screen.queryByText("Export CSV")).toBeNull();
     expect(screen.queryByText("Print / PDF")).toBeNull();
@@ -69,10 +76,8 @@ describe("minimal Reports workspace", () => {
     const totals = screen.getByRole("region", { name: "Report totals" });
     expect(within(totals).getByText("USD 500.00")).toBeTruthy();
     expect(within(totals).getByText("USD 380.00")).toBeTruthy();
-    expect(totals.className).toContain("border-y");
-    expect(totals.className).not.toMatch(
-      /(?:^|\s)(?:rounded-md|rounded-lg|border)(?:\s|$)/,
-    );
+    expect(totals.className).toContain("rounded-md");
+    expect(totals.className).toMatch(/(?:^|\s)border(?:\s|$)/);
 
     const table = screen.getByRole("table", {
       name: "Monthly Unit Profit & Loss",
@@ -81,10 +86,11 @@ describe("minimal Reports workspace", () => {
       '[data-slot="report-table-frame"]',
     );
     expect(tableFrame).not.toBeNull();
-    expect(tableFrame?.className).not.toMatch(
-      /(?:^|\s)(?:rounded-md|rounded-lg|border)(?:\s|$)/,
+    expect(tableFrame?.className).toContain("rounded-md");
+    expect(tableFrame?.className).toMatch(/(?:^|\s)border(?:\s|$)/);
+    expect(tableFrame?.querySelector("thead > tr")?.className).toContain(
+      "border-b",
     );
-    expect(tableFrame?.querySelector("th")?.className).toContain("border-b");
     expect(within(table).getByText("P1 - Property One")).toBeTruthy();
     expect(within(table).getByText("Unit A1")).toBeTruthy();
     expect(
@@ -145,7 +151,9 @@ describe("minimal Reports workspace", () => {
 
     expect(bodyRows).toHaveLength(2);
     expect(bodyRows[0]?.className).toContain("border-b");
-    expect(bodyRows[1]?.className).not.toContain("border-b");
+    expect(bodyRows[1]?.parentElement?.className).toContain(
+      "[&_tr:last-child]:border-0",
+    );
     for (const cell of bodyRows[0]!.querySelectorAll("td")) {
       expect(cell.className).not.toContain("border-b");
     }
@@ -171,7 +179,6 @@ describe("minimal Reports workspace", () => {
       ),
     ).toBeTruthy();
   });
-
 });
 
 function renderReport({

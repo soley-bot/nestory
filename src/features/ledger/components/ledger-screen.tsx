@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Archive, Lock, Plus, RotateCcw, Upload } from "lucide-react";
@@ -21,9 +27,7 @@ import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
 import { WorkspacePage } from "@/components/layout/workspace-page";
-import {
-  WorkspaceSplitView,
-} from "@/components/layout/workspace-split-view";
+import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
@@ -113,7 +117,7 @@ export function LedgerScreen({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const focusedEntry = initialEntryId
-    ? entries.find((entry) => entry.id === initialEntryId) ?? null
+    ? (entries.find((entry) => entry.id === initialEntryId) ?? null)
     : null;
   const focusedEntryId = focusedEntry?.id;
   const selectedEntry = getSelectedRecord({
@@ -204,7 +208,9 @@ export function LedgerScreen({
           }
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}
-          title={hasFilters ? "No matching ledger entries" : "No ledger entries yet"}
+          title={
+            hasFilters ? "No matching ledger entries" : "No ledger entries yet"
+          }
         />
       ) : (
         <>
@@ -212,7 +218,9 @@ export function LedgerScreen({
             <LedgerTable
               entries={entries}
               onSelectEntry={previewEntry}
-              selectedEntryId={compactInspectorOpen ? selectedEntry?.id ?? "" : ""}
+              selectedEntryId={
+                compactInspectorOpen ? (selectedEntry?.id ?? "") : ""
+              }
             />
           </div>
           <PaginationControls pagination={pagination} />
@@ -234,130 +242,127 @@ export function LedgerScreen({
     <WorkspacePage
       actions={
         <>
-            <RecentChangesPopover
-              changes={recentChanges}
-              onSelectChange={(change) => {
-                openLedgerAction({ change, mode: "activity" });
-              }}
-            />
-            <Button
-              onClick={() => openLedgerAction({ mode: "period-lock" })}
-            >
-              <Lock size={15} />
-              Period lock
-            </Button>
-            <Button
-              onClick={() =>
-                openCreate()
-              }
-              variant="primary"
-            >
-              <Plus size={15} />
-              Add entry
-            </Button>
+          <RecentChangesPopover
+            changes={recentChanges}
+            onSelectChange={(change) => {
+              openLedgerAction({ change, mode: "activity" });
+            }}
+          />
+          <Button onClick={() => openLedgerAction({ mode: "period-lock" })}>
+            <Lock size={15} />
+            Period lock
+          </Button>
+          <Button onClick={() => openCreate()} variant="primary">
+            <Plus size={15} />
+            Add entry
+          </Button>
         </>
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/ledger"
       localNav={<FinanceWorkspaceNavigation activeRoute="/ledger" />}
       title="Financial Ledger"
-      toolbar={
-        <LedgerFilters
-          properties={propertyOptions}
-          units={unitOptions}
-          viewQuery={viewQuery}
-        />
-      }
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
+        {statusMessage ? (
+          <div className="px-4 pt-5 sm:px-6 lg:px-6">
+            <p
+              className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+              role="status"
+            >
+              {statusMessage}
+            </p>
+          </div>
+        ) : null}
 
-      {statusMessage ? (
-        <div className="px-4 pt-5 sm:px-6 lg:px-6">
-          <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
-            role="status"
-          >
-            {statusMessage}
-          </p>
-        </div>
-      ) : null}
-
-      <LedgerCloseStrip closeSummary={closeSummary} entries={entries} />
-
-      {reviewContext ? (
-        <LedgerReviewStrip
-          context={reviewContext}
-          count={pagination.totalCount}
-          propertyLabel={reviewPropertyLabel}
-        />
-      ) : null}
-
-      <div className="min-h-0 min-w-0 flex-1">
-        {ledgerInspector && selectedEntry ? (
-          <WorkspaceSplitView
-            inspector={ledgerInspector}
-            inspectorLabel={`${selectedEntry.category} ledger quick view`}
-            inspectorOpen={compactInspectorOpen}
-            list={ledgerList}
-            onInspectorOpenChange={setCompactInspectorOpen}
-          />
-        ) : (
-          <WorkspaceSplitView list={ledgerList} />
-        )}
-      </div>
-
-      {drawerState ? (
-        <SideDrawer
-          description={getLedgerDrawerDescription(drawerState)}
-          onClose={() => setDrawerState(null)}
-          open
-          title={getLedgerDrawerTitle(drawerState)}
-        >
-          {drawerState.mode === "archive" ? (
-            <ArchivePanel
-              entry={drawerState.entry}
-              onClose={() => setDrawerState(null)}
-              onEdit={() =>
-                setDrawerState({ entry: drawerState.entry, mode: "edit" })
-              }
-              onSuccess={setStatusMessage}
-            />
-          ) : drawerState.mode === "restore" ? (
-            <RestorePanel
-              entry={drawerState.entry}
-              onClose={() => setDrawerState(null)}
-              onSuccess={setStatusMessage}
-            />
-          ) : drawerState.mode === "receipt" ? (
-            <ReceiptPanel
-              entry={drawerState.entry}
-              onClose={() => setDrawerState(null)}
-              onSuccess={setStatusMessage}
-            />
-          ) : drawerState.mode === "period-lock" ? (
-            <PeriodLockPanel
-              onClose={() => setDrawerState(null)}
-              onSuccess={setStatusMessage}
-              periodLocks={periodLocks}
-            />
-          ) : drawerState.mode === "activity" ? (
-            <ActivityDetailPanel change={drawerState.change} />
-          ) : (
-            <LedgerEntryForm
-              entry={drawerState.entry}
-              initialValues={
-                drawerState.mode === "add" ? drawerState.initialValues : undefined
-              }
-              key={`${drawerState.mode}-${drawerState.entry?.id ?? "new"}`}
-              mode={drawerState.mode}
-              onClose={() => setDrawerState(null)}
-              onSuccess={setStatusMessage}
+        <LedgerCloseStrip
+          closeSummary={closeSummary}
+          entries={entries}
+          filters={
+            <LedgerFilters
               properties={propertyOptions}
               units={unitOptions}
+              viewQuery={viewQuery}
             />
+          }
+        />
+
+        {reviewContext ? (
+          <LedgerReviewStrip
+            context={reviewContext}
+            count={pagination.totalCount}
+            propertyLabel={reviewPropertyLabel}
+          />
+        ) : null}
+
+        <div className="min-h-0 min-w-0 flex-1">
+          {ledgerInspector && selectedEntry ? (
+            <WorkspaceSplitView
+              inspector={ledgerInspector}
+              inspectorLabel={`${selectedEntry.category} ledger quick view`}
+              inspectorOpen={compactInspectorOpen}
+              list={ledgerList}
+              onInspectorOpenChange={setCompactInspectorOpen}
+            />
+          ) : (
+            <WorkspaceSplitView list={ledgerList} />
           )}
-        </SideDrawer>
-      ) : null}
+        </div>
+
+        {drawerState ? (
+          <SideDrawer
+            description={getLedgerDrawerDescription(drawerState)}
+            onClose={() => setDrawerState(null)}
+            open
+            title={getLedgerDrawerTitle(drawerState)}
+          >
+            {drawerState.mode === "archive" ? (
+              <ArchivePanel
+                entry={drawerState.entry}
+                onClose={() => setDrawerState(null)}
+                onEdit={() =>
+                  setDrawerState({ entry: drawerState.entry, mode: "edit" })
+                }
+                onSuccess={setStatusMessage}
+              />
+            ) : drawerState.mode === "restore" ? (
+              <RestorePanel
+                entry={drawerState.entry}
+                onClose={() => setDrawerState(null)}
+                onSuccess={setStatusMessage}
+              />
+            ) : drawerState.mode === "receipt" ? (
+              <ReceiptPanel
+                entry={drawerState.entry}
+                onClose={() => setDrawerState(null)}
+                onSuccess={setStatusMessage}
+              />
+            ) : drawerState.mode === "period-lock" ? (
+              <PeriodLockPanel
+                onClose={() => setDrawerState(null)}
+                onSuccess={setStatusMessage}
+                periodLocks={periodLocks}
+              />
+            ) : drawerState.mode === "activity" ? (
+              <ActivityDetailPanel change={drawerState.change} />
+            ) : (
+              <LedgerEntryForm
+                entry={drawerState.entry}
+                initialValues={
+                  drawerState.mode === "add"
+                    ? drawerState.initialValues
+                    : undefined
+                }
+                key={`${drawerState.mode}-${drawerState.entry?.id ?? "new"}`}
+                mode={drawerState.mode}
+                onClose={() => setDrawerState(null)}
+                onSuccess={setStatusMessage}
+                properties={propertyOptions}
+                units={unitOptions}
+              />
+            )}
+          </SideDrawer>
+        ) : null}
       </div>
     </WorkspacePage>
   );
@@ -448,7 +453,9 @@ function LedgerReviewStrip({
         </p>
         <p className="text-foreground-muted">{context.nextStep}</p>
       </div>
-      <p className="mt-1 text-xs text-foreground-subtle">{context.description}</p>
+      <p className="mt-1 text-xs text-foreground-subtle">
+        {context.description}
+      </p>
     </div>
   );
 }
@@ -460,8 +467,10 @@ export function getLedgerReviewContext(
   if (focusedState.hasFocusedEntry) {
     return {
       countLabel: "in this activity view",
-      description: "Opened from recent activity with archived records included.",
-      nextStep: "The focused entry is available for table and inspector review.",
+      description:
+        "Opened from recent activity with archived records included.",
+      nextStep:
+        "The focused entry is available for table and inspector review.",
     };
   }
 
@@ -478,11 +487,15 @@ export function getLedgerReviewContext(
     return {
       countLabel: "in the current month",
       description: "Dashboard ledger net opens this month-to-date view.",
-      nextStep: "Select an entry to inspect, edit, attach a receipt, or lock the period.",
+      nextStep:
+        "Select an entry to inspect, edit, attach a receipt, or lock the period.",
     };
   }
 
-  if (viewQuery.period === "last_30_days" && viewQuery.direction === "expense") {
+  if (
+    viewQuery.period === "last_30_days" &&
+    viewQuery.direction === "expense"
+  ) {
     const threshold = viewQuery.minAmount
       ? ` at ${formatLedgerAmountThreshold(viewQuery.minAmount)} or more`
       : "";
@@ -490,15 +503,18 @@ export function getLedgerReviewContext(
     return {
       countLabel: `from recent expenses${threshold}`,
       description: `Dashboard expense review shows expenses from the last 30 days${threshold}.`,
-      nextStep: "Check the largest entries first, then attach receipts or correct records.",
+      nextStep:
+        "Check the largest entries first, then attach receipts or correct records.",
     };
   }
 
   if (viewQuery.period === "last_30_days") {
     return {
       countLabel: "from the last 30 days",
-      description: "Showing the rolling 30-day ledger window from Dashboard context.",
-      nextStep: "Select an entry to inspect the record and related timeline context.",
+      description:
+        "Showing the rolling 30-day ledger window from Dashboard context.",
+      nextStep:
+        "Select an entry to inspect the record and related timeline context.",
     };
   }
 
@@ -539,9 +555,11 @@ function formatLedgerDateRange(dateFrom: string, dateTo: string) {
 function LedgerCloseStrip({
   closeSummary,
   entries,
+  filters,
 }: {
   closeSummary: LedgerCloseSummary;
   entries: LedgerEntry[];
+  filters: ReactNode;
 }) {
   const income = entries
     .filter((entry) => entry.direction === "income")
@@ -550,112 +568,47 @@ function LedgerCloseStrip({
     .filter((entry) => entry.direction === "expense")
     .reduce((total, entry) => total + entry.amount, 0);
   const net = income - expense;
-  const sourceSummary = summarizeLedgerSources(entries);
+  const openCheckCount =
+    Number(closeSummary.incomeReadyToPost) +
+    Number(closeSummary.billsReadyToPost) +
+    Number(closeSummary.pettyCashReadyToPost) +
+    Number(closeSummary.accountingUnlinkedCount);
 
   return (
-    <section className="overflow-x-auto border-b border-border bg-surface px-4 py-3 sm:px-6">
-      <div className="grid min-w-[980px] grid-cols-[260px_minmax(420px,1fr)_260px] items-stretch gap-3 xl:min-w-0 xl:grid-cols-[minmax(260px,1.15fr)_minmax(0,2.4fr)_minmax(260px,1fr)]">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-            Month close
+    <section className="flex flex-col gap-2 border-b border-border/70 bg-background px-4 py-2 sm:px-6 lg:flex-row lg:items-start">
+      <div className="flex min-h-8 shrink-0 items-center gap-3 rounded-md border border-border/70 bg-card px-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="whitespace-nowrap text-sm font-semibold">
+            {closeSummary.monthLabel}
           </p>
-          <div className="mt-1 flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold">{closeSummary.monthLabel}</p>
-            <Badge tone={hasOpenCloseQueue(closeSummary) ? "warning" : "success"}>
-              {hasOpenCloseQueue(closeSummary) ? "Open queues" : "Ready"}
-            </Badge>
-          </div>
-          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-            Clear operational queues and repair any missing accounting journals
-            before relying on owner or finance reports.
+          <Badge tone={hasOpenCloseQueue(closeSummary) ? "warning" : "success"}>
+            {hasOpenCloseQueue(closeSummary) ? "Needs review" : "Ready"}
+          </Badge>
+        </div>
+        <p className="hidden whitespace-nowrap text-xs text-muted-foreground xl:block">
+          {openCheckCount > 0
+            ? `${openCheckCount} close ${openCheckCount === 1 ? "item needs" : "items need"} review`
+            : "All close checks clear"}
+        </p>
+        <div className="flex items-baseline gap-2 border-l border-border/70 pl-3">
+          <p className="text-xs text-muted-foreground">Visible net</p>
+          <p
+            className={`text-sm font-semibold tabular-nums ${
+              net < 0 ? "text-danger" : "text-success"
+            }`}
+          >
+            {formatMoneyDisplay(net).primary}
           </p>
-        </div>
-        <div className="grid grid-cols-4 overflow-hidden rounded-md border border-border bg-surface-muted/25">
-          <CloseLink
-            count={closeSummary.incomeReadyToPost}
-            href={closeSummary.incomeReadyHref}
-            label="Received income"
-          />
-          <CloseLink
-            count={closeSummary.billsReadyToPost}
-            href={closeSummary.billsReadyHref}
-            label="Approved bills"
-          />
-          <CloseLink
-            count={closeSummary.pettyCashReadyToPost}
-            href={closeSummary.pettyCashReadyHref}
-            label="Cleared petty cash"
-          />
-          <CloseLink
-            count={closeSummary.accountingUnlinkedCount}
-            href={closeSummary.accountingUnlinkedHref}
-            label="Missing journals"
-          />
-        </div>
-        <div className="grid grid-cols-2 overflow-hidden rounded-md border border-border bg-surface-muted/25">
-          <CloseMetric label="Visible income" value={formatMoneyDisplay(income).primary} />
-          <CloseMetric
-            label="Visible expense"
-            value={formatMoneyDisplay(expense).primary}
-          />
-          <CloseMetric
-            label="Visible net"
-            tone={net < 0 ? "danger" : "success"}
-            value={formatMoneyDisplay(net).primary}
-          />
-          <CloseMetric label="Sources" value={sourceSummary} />
         </div>
       </div>
+      <div
+        aria-label="Ledger tools"
+        className="ml-auto flex w-full min-w-0 justify-end lg:w-auto lg:max-w-[430px] lg:flex-1"
+        role="toolbar"
+      >
+        {filters}
+      </div>
     </section>
-  );
-}
-
-function CloseLink({
-  count,
-  href,
-  label,
-}: {
-  count: string;
-  href: string;
-  label: string;
-}) {
-  return (
-    <Link
-      className="min-w-0 border-b border-border px-3 py-2 transition-colors last:border-b-0 hover:bg-surface-muted sm:border-b-0 sm:border-r sm:last:border-r-0"
-      href={href}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-base font-semibold">{count}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        {Number(count) > 0 ? "Open queue" : "Clear"}
-      </p>
-    </Link>
-  );
-}
-
-function CloseMetric({
-  label,
-  tone = "neutral",
-  value,
-}: {
-  label: string;
-  tone?: "danger" | "neutral" | "success";
-  value: string;
-}) {
-  const valueClass =
-    tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "";
-
-  return (
-    <div className="min-w-0 px-3 py-2">
-      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        {label}
-      </p>
-      <p className={`mt-1 truncate text-[13px] font-semibold tabular-nums ${valueClass}`}>
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -667,20 +620,6 @@ function hasOpenCloseQueue(closeSummary: LedgerCloseSummary) {
       Number(closeSummary.accountingUnlinkedCount) >
     0
   );
-}
-
-function summarizeLedgerSources(entries: LedgerEntry[]) {
-  const counts = new Map<string, number>();
-
-  for (const entry of entries) {
-    counts.set(entry.sourceLabel, (counts.get(entry.sourceLabel) ?? 0) + 1);
-  }
-
-  const [topSource, topCount] =
-    Array.from(counts.entries()).sort((first, second) => second[1] - first[1])[0] ??
-    [];
-
-  return topSource ? `${topSource} ${topCount} rows` : "No rows";
 }
 
 function formatLedgerAmountThreshold(value: number) {
@@ -719,7 +658,9 @@ export function getLedgerCreateInitialValues(
       ? viewQuery.propertyId
       : "");
   const unitId =
-    requestedUnit && requestedUnit.propertyId === propertyId ? requestedUnit.id : "";
+    requestedUnit && requestedUnit.propertyId === propertyId
+      ? requestedUnit.id
+      : "";
 
   if (!direction && !propertyId && !unitId) {
     return undefined;
@@ -767,7 +708,12 @@ function ArchivePanel({
           className="border-danger/30 bg-danger-soft"
           rows={[
             { label: "Entry", value: entry.category },
-            { label: "Scope", value: entry.unitNumber ? `${entry.propertyCode} / Unit ${entry.unitNumber}` : `${entry.propertyCode} / Property` },
+            {
+              label: "Scope",
+              value: entry.unitNumber
+                ? `${entry.propertyCode} / Unit ${entry.unitNumber}`
+                : `${entry.propertyCode} / Property`,
+            },
           ]}
           summary="Removes this entry from active totals and archives its linked timeline event when present."
           title="Archive consequence"
@@ -830,7 +776,12 @@ function RestorePanel({
         <ConsequencePanel
           rows={[
             { label: "Entry", value: entry.category },
-            { label: "Scope", value: entry.unitNumber ? `${entry.propertyCode} / Unit ${entry.unitNumber}` : `${entry.propertyCode} / Property` },
+            {
+              label: "Scope",
+              value: entry.unitNumber
+                ? `${entry.propertyCode} / Unit ${entry.unitNumber}`
+                : `${entry.propertyCode} / Property`,
+            },
           ]}
           summary="Adds this entry back into ledger totals and restores its linked timeline event when present."
           title="Restore consequence"
@@ -887,10 +838,7 @@ function ReceiptPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form
-      action={action}
-      className="flex h-full flex-col"
-    >
+    <form action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
         <div className="rounded-md border border-border bg-surface-muted px-3 py-3">

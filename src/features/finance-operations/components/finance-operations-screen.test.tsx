@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { FinanceOperationsScreen } from "./finance-operations-screen";
 import type { FinanceOperationsData } from "../finance-operations.types";
 
 beforeAll(() => {
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   if (!globalThis.crypto?.randomUUID) {
     vi.stubGlobal("crypto", {
       randomUUID: () => "11111111-1111-4111-8111-111111111111",
@@ -14,6 +22,12 @@ beforeAll(() => {
 });
 
 afterEach(cleanup);
+
+class ResizeObserverStub {
+  disconnect() {}
+  observe() {}
+  unobserve() {}
+}
 
 describe("FinanceOperationsScreen", () => {
   it("starts from a compact finance work queue and opens the four-step lease setup", () => {
@@ -71,7 +85,9 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByRole("dialog", { name: "Add expense" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
     expect(screen.getByText("Charge this to")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Property owner" })).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Property owner" }),
+    ).not.toBeNull();
     expect(
       screen.getByRole("button", { name: "Tenant or company" }),
     ).not.toBeNull();
@@ -108,10 +124,16 @@ describe("FinanceOperationsScreen", () => {
       within(headerActions!).getByRole("button", { name: "Record payment" }),
     );
     const chooser = screen.getByRole("dialog", { name: "Record payment" });
-    fireEvent.click(within(chooser).getByText("Sokha Trading Co.").closest("button")!);
+    fireEvent.click(
+      within(chooser).getByText("Sokha Trading Co.").closest("button")!,
+    );
 
-    expect(screen.getByRole("dialog", { name: "Record payment" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Choose another" })).not.toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "Record payment" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Choose another" }),
+    ).not.toBeNull();
   });
 
   it("shows direct-owner collection without pretending IPS received cash", () => {
@@ -147,7 +169,8 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
-  it("keeps owner cash, owner debt, and withdrawal availability separate", () => {
+  it("keeps owner cash, owner debt, and withdrawal availability separate", async () => {
+    const user = userEvent.setup();
     const input = data();
     const partialInvoice = tenantInvoice();
     partialInvoice.balanceDue = 540;
@@ -179,9 +202,7 @@ describe("FinanceOperationsScreen", () => {
         .getByRole("link", { name: "HOME — Riverside Home" })
         .getAttribute("href"),
     ).toBe("/properties/property-1/account");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Tenants & companies" }),
-    );
+    await user.click(screen.getByRole("tab", { name: "Tenants & companies" }));
     expect(screen.getByText("Partly paid")).not.toBeNull();
   });
 
@@ -204,7 +225,8 @@ describe("FinanceOperationsScreen", () => {
     );
     expect(within(tableFrame!).getByRole("table")).not.toBeNull();
     expect(
-      within(tableFrame!).getByRole("row", { name: /Riverside Home/ }).className,
+      within(tableFrame!).getByRole("row", { name: /Riverside Home/ })
+        .className,
     ).toContain("border-b");
   });
 
@@ -225,7 +247,10 @@ describe("FinanceOperationsScreen", () => {
     const table = within(tableFrame!).getByRole("table");
     expect(tableFrame?.className).toContain("overflow-auto");
     expect(tableFrame?.className).not.toContain("overflow-hidden");
-    expect(table.parentElement).toBe(tableFrame);
+    expect(table.parentElement?.getAttribute("data-slot")).toBe(
+      "table-container",
+    );
+    expect(table.parentElement?.parentElement).toBe(tableFrame);
   });
 });
 
