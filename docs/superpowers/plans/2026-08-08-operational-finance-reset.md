@@ -27,12 +27,11 @@
 
 **Files:**
 - Create: `supabase/tests/operational_finance_reset_test.sql`
-- Create: `src/lib/ui/legacy-surface-retirement.test.ts`
 - Modify: `docs/superpowers/specs/2026-08-08-operational-finance-reset-design.md`
 
 **Interfaces:**
 - Consumes: current final schema at commit `d1fa8f8` and the approved reset design.
-- Produces: one pgTAP inventory of required final objects and one source/route inventory that later tasks must satisfy.
+- Produces: one pgTAP inventory of required final objects that later tasks must satisfy.
 
 - [ ] **Step 1: Mark the approved specification**
 
@@ -85,44 +84,10 @@ npx supabase test db --local supabase/tests/operational_finance_reset_test.sql
 
 Expected: FAIL because `financial_month_locks` and the canonical cash-event RPC do not exist and accounting/compatibility objects still exist.
 
-- [ ] **Step 4: Write the failing source-surface test**
-
-The test recursively reads `src` and `config/ui-route-coverage.json`, then asserts that runtime files do not contain these retired contracts:
-
-```ts
-const retiredRuntimeMarkers = [
-  "requireAdminContext",
-  "accountingJournalEntryId",
-  "legacy_unclassified",
-  "buildLegacyRedirect",
-  'format: "csv"',
-];
-
-const retiredRouteSegments = [
-  "/maintenance-dashboard",
-  "/property-dashboard",
-  "/schedule",
-  "/team",
-  "/people-reports",
-];
-```
-
-Exclude the retirement test itself and design/plan documents from the scanned runtime set.
-
-- [ ] **Step 5: Run the source-surface test and capture the expected failure**
-
-Run:
+- [ ] **Step 4: Commit the red contract**
 
 ```powershell
-npx vitest run src/lib/ui/legacy-surface-retirement.test.ts
-```
-
-Expected: FAIL listing current aliases, accounting fields, and route entries.
-
-- [ ] **Step 6: Commit the red contracts**
-
-```powershell
-git add -- docs/superpowers/specs/2026-08-08-operational-finance-reset-design.md supabase/tests/operational_finance_reset_test.sql src/lib/ui/legacy-surface-retirement.test.ts
+git add -- docs/superpowers/specs/2026-08-08-operational-finance-reset-design.md supabase/tests/operational_finance_reset_test.sql
 git commit -m "test: define operational finance retirement contracts"
 ```
 
@@ -452,14 +417,17 @@ git commit -m "refactor: remove domain compatibility paths"
 - Consumes: canonical workspace routes, five explicit capability contexts, PDF/Excel report actions, and current design tokens.
 - Produces: no redirect helper, deprecated auth alias, legacy filter normalization, CSV endpoint, or compatibility CSS variable block.
 
-- [ ] **Step 1: Expand the failing source-surface test**
+- [ ] **Step 1: Write failing route and behavior contracts**
 
-Add assertions for deleted route directories, the CSV route, `financeView`, the `Compatibility aliases` CSS comment, and every compatibility CSS variable name declared in `globals.css`.
+Update `src/lib/ui/route-coverage.test.ts`, navigation tests, report-route tests,
+and Overview filter tests to require only canonical destinations, no CSV export,
+and no deprecated query-parameter behavior. Each expectation must exercise the
+real manifest, link output, route response, or parsed filter result.
 
-- [ ] **Step 2: Run the source test and capture all current failures**
+- [ ] **Step 2: Run the route and behavior tests and capture the expected failures**
 
 ```powershell
-npx vitest run src/lib/ui/legacy-surface-retirement.test.ts
+npx vitest run src/lib/ui/route-coverage.test.ts src/app/api/reports/report-routes.test.ts src/features/overview/overview.filters.test.ts src/components/layout
 ```
 
 - [ ] **Step 3: Replace auth and route aliases**
@@ -495,7 +463,7 @@ Run a repository-wide exact-token replacement, inspect the diff for accidental p
 ```powershell
 npm run test:ui-coverage
 npm run test:ui-copy
-npx vitest run src/lib/ui/legacy-surface-retirement.test.ts src/lib/ui/route-coverage.test.ts src/app/api/reports/report-routes.test.ts src/features/overview/overview.filters.test.ts src/features/reports src/components/layout
+npx vitest run src/lib/ui/route-coverage.test.ts src/app/api/reports/report-routes.test.ts src/features/overview/overview.filters.test.ts src/features/reports src/components/layout
 ```
 
 - [ ] **Step 7: Commit the application retirement slice**
@@ -692,7 +660,7 @@ git diff --check
 git status --short --branch
 ```
 
-Expected: no runtime/schema matches except deliberate negative test strings in `operational_finance_reset_test.sql` and `legacy-surface-retirement.test.ts`.
+Expected: no runtime/schema matches except deliberate negative test strings in `operational_finance_reset_test.sql`.
 
 - [ ] **Step 6: Review the complete branch diff**
 
@@ -712,4 +680,3 @@ git commit -m "test: verify operational finance reset"
 ```
 
 Skip the commit when verification requires no changes.
-
