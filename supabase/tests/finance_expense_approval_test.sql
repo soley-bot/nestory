@@ -44,7 +44,7 @@ SELECT ok(
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = routine.pronamespace
     WHERE namespace.nspname = 'public'
-      AND routine.proname = 'get_property_cash_events_v1_page'
+      AND routine.proname = 'get_property_cash_events_page'
   ),
   'the public cash projection uses a checked definer boundary'
 );
@@ -56,10 +56,9 @@ SELECT ok(
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = routine.pronamespace
     WHERE namespace.nspname = 'app_private'
-      AND routine.proname =
-        'get_property_cash_events_v1_page_pre_expense_approval'
+      AND routine.proname = 'get_property_cash_events_page'
   ),
-  'the legacy cash baseline reads a role-independent trusted projection'
+  'the private cash union reads a role-independent trusted projection'
 );
 
 SELECT ok(
@@ -67,7 +66,7 @@ SELECT ok(
     has_function_privilege(
       'authenticated',
       to_regprocedure(
-        'app_private.get_property_cash_events_v1_page_pre_expense_approval(uuid,uuid,currency_code,date,date,date,text,uuid,integer)'
+        'app_private.get_property_cash_events_page(uuid,uuid,currency_code,date,date,date,text,uuid,integer)'
       ),
       'EXECUTE'
     ),
@@ -201,8 +200,8 @@ SELECT ok(
 SELECT ok(
   (
     SELECT
-      strpos(definition, 'lock_open_property_reporting_period') > 0
-      AND strpos(definition, 'lock_open_property_reporting_period')
+      strpos(definition, 'lock_open_financial_month') > 0
+      AND strpos(definition, 'lock_open_financial_month')
         < strpos(definition, 'owner_collection_v1')
       AND strpos(definition, 'owner_collection_v1')
         < strpos(definition, 'confirm_owner_collected_rent_lease_derived_unchecked')
@@ -893,7 +892,7 @@ SELECT coalesce(
   '[]'::jsonb
 ) AS events
 FROM expense_approval_state AS state
-CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+CROSS JOIN LATERAL public.get_property_cash_events_page(
   state.organization_id,
   state.property_id,
   'USD',
@@ -915,7 +914,7 @@ SELECT lives_ok(
   $$
     SELECT count(*)
     FROM expense_approval_state AS state
-    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+    CROSS JOIN LATERAL public.get_property_cash_events_page(
       state.organization_id,
       state.property_id,
       'USD',
@@ -937,7 +936,7 @@ SELECT results_eq(
       '[]'::jsonb
     )
     FROM expense_approval_state AS state
-    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+    CROSS JOIN LATERAL public.get_property_cash_events_page(
       state.organization_id,
       state.property_id,
       'USD',
@@ -963,7 +962,7 @@ SELECT lives_ok(
   $$
     SELECT count(*)
     FROM expense_approval_state AS state
-    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+    CROSS JOIN LATERAL public.get_property_cash_events_page(
       state.organization_id,
       state.property_id,
       'USD',
@@ -985,7 +984,7 @@ SELECT results_eq(
       '[]'::jsonb
     )
     FROM expense_approval_state AS state
-    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+    CROSS JOIN LATERAL public.get_property_cash_events_page(
       state.organization_id,
       state.property_id,
       'USD',
@@ -1011,7 +1010,7 @@ SELECT throws_ok(
   $$
     SELECT count(*)
     FROM expense_approval_state AS state
-    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+    CROSS JOIN LATERAL public.get_property_cash_events_page(
       state.organization_id,
       state.property_id,
       'USD',
@@ -1314,20 +1313,14 @@ SELECT results_eq(
       event.owner_cash_effect,
       event.operating_cash_effect,
       event.economic_class,
-      event.statement_section,
       event.category_code,
-      event.classification_status,
       event.is_reversal,
-      event.is_legacy,
-      event.requires_resolution,
-      cardinality(event.resolution_codes),
+      event.resolution_state,
+      event.resolution_reason,
       event.reconciliation_source_id,
-      event.reconciliation_state,
-      event.ledger_entry_id IS NOT NULL,
-      event.journal_entry_id IS NOT NULL,
-      event.projection_status
+      event.ledger_entry_id IS NOT NULL
     FROM expense_approval_state AS state
-    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+    CROSS JOIN LATERAL public.get_property_cash_events_page(
       state.organization_id,
       state.property_id,
       'USD',
@@ -1351,22 +1344,16 @@ SELECT results_eq(
       VALUES
         (
           '2026-08-08'::date,
-          50.00::numeric,
+          -50.00::numeric,
           -50.00::numeric,
           -50.00::numeric,
           'operating_expense'::text,
-          'expenses'::text,
           'expense_maintenance'::text,
-          'contract_current'::text,
           false,
-          false,
-          false,
-          0,
+          'resolved'::text,
+          NULL::text,
           (SELECT source_id FROM expense_approval_state),
-          'linked_exact_identity'::text,
-          true,
-          false,
-          'allocation_level_ledger'::text
+          true
         ),
         (
           '2026-08-10'::date,
@@ -1374,18 +1361,12 @@ SELECT results_eq(
           50.00::numeric,
           50.00::numeric,
           'operating_expense'::text,
-          'expenses'::text,
           'expense_maintenance'::text,
-          'contract_current'::text,
           true,
-          false,
-          false,
-          0,
+          'resolved'::text,
+          NULL::text,
           (SELECT source_id FROM expense_approval_state),
-          'linked_exact_identity'::text,
-          true,
-          false,
-          'allocation_level_ledger'::text
+          true
         )
     ) AS expected(
       event_date,
@@ -1393,18 +1374,12 @@ SELECT results_eq(
       owner_cash_effect,
       operating_cash_effect,
       economic_class,
-      statement_section,
       category_code,
-      classification_status,
       is_reversal,
-      is_legacy,
-      requires_resolution,
-      resolution_code_count,
+      resolution_state,
+      resolution_reason,
       reconciliation_source_id,
-      reconciliation_state,
-      has_ledger,
-      has_journal,
-      projection_status
+      has_ledger
     )
     ORDER BY event_date
   $$,
@@ -1700,15 +1675,13 @@ SELECT results_eq(
       event.owner_cash_effect,
       event.operating_cash_effect,
       event.economic_class,
-      event.statement_section,
       event.category_code,
-      event.requires_resolution,
-      cardinality(event.resolution_codes),
+      event.resolution_state,
+      event.resolution_reason,
       event.reconciliation_source_id,
-      event.ledger_entry_id IS NOT NULL,
-      event.journal_entry_id IS NOT NULL
+      event.ledger_entry_id IS NOT NULL
     FROM expense_approval_state AS state
-    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+    CROSS JOIN LATERAL public.get_property_cash_events_page(
       state.organization_id,
       state.property_id,
       'USD',
@@ -1725,16 +1698,14 @@ SELECT results_eq(
   $$,
   $$
     SELECT
-      NULL::numeric,
-      NULL::numeric,
-      'company_expense'::text,
-      'company_expenses'::text,
-      'company_utilities'::text,
-      false,
-      0,
+      0::numeric,
+      0::numeric,
+      'adjustment'::text,
+      'company_cost'::text,
+      'resolved'::text,
+      NULL::text,
       source_id,
-          true,
-          false
+      true
     FROM expense_approval_state
   $$,
   'tenant-responsible cost is resolved company cash context and stays out of property NOI'

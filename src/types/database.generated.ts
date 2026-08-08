@@ -4167,39 +4167,121 @@ export type Database = {
           allocation_order: number
           amount: number
           confirmation_id: string
+          confirmed_date: string | null
           created_at: string
           created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"] | null
           id: string
           income_item_id: string
+          income_type_snapshot: string | null
           invoice_id: string
           invoice_line_id: string
+          lease_id: string | null
+          ledger_entry_id: string | null
           organization_id: string
+          owner_person_id_snapshot: string | null
+          property_id: string | null
+          settlement_contract_version: string | null
+          signed_amount: number | null
+          tenant_person_id_snapshot: string | null
+          unit_id: string | null
         }
         Insert: {
           allocation_order: number
           amount: number
           confirmation_id: string
+          confirmed_date?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"] | null
           id?: string
           income_item_id: string
+          income_type_snapshot?: string | null
           invoice_id: string
           invoice_line_id: string
+          lease_id?: string | null
+          ledger_entry_id?: string | null
           organization_id: string
+          owner_person_id_snapshot?: string | null
+          property_id?: string | null
+          settlement_contract_version?: string | null
+          signed_amount?: number | null
+          tenant_person_id_snapshot?: string | null
+          unit_id?: string | null
         }
         Update: {
           allocation_order?: number
           amount?: number
           confirmation_id?: string
+          confirmed_date?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"] | null
           id?: string
           income_item_id?: string
+          income_type_snapshot?: string | null
           invoice_id?: string
           invoice_line_id?: string
+          lease_id?: string | null
+          ledger_entry_id?: string | null
           organization_id?: string
+          owner_person_id_snapshot?: string | null
+          property_id?: string | null
+          settlement_contract_version?: string | null
+          signed_amount?: number | null
+          tenant_person_id_snapshot?: string | null
+          unit_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "owner_collection_allocations_ledger_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: true
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_collection_allocations_org_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_allocations_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_allocations_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_collection_allocations_org_unit_fkey"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_allocations_owner_fkey"
+            columns: ["organization_id", "owner_person_id_snapshot"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_allocations_tenant_fkey"
+            columns: ["organization_id", "tenant_person_id_snapshot"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "owner_collection_confirmation_allocations_confirmation_fkey"
             columns: ["organization_id", "confirmation_id"]
@@ -7659,34 +7741,32 @@ export type Database = {
           staff_name: string
         }[]
       }
-      get_property_cash_events_v1_page: {
+      get_property_cash_events_page: {
         Args: {
-          p_after_event_date?: string
-          p_after_source_id?: string
-          p_after_source_type?: string
+          p_after_event_date: string
+          p_after_source_id: string
+          p_after_source_type: string
           p_currency: Database["public"]["Enums"]["currency_code"]
           p_organization_id: string
-          p_page_size?: number
+          p_page_size: number
           p_period_end: string
           p_period_start: string
           p_property_id: string
         }
         Returns: {
           amount: number
-          archived_at: string
           category_code: string
-          classification_status: string
           contract_version: string
-          created_at: string
-          created_by: string
           currency: Database["public"]["Enums"]["currency_code"]
+          cursor_event_date: string
+          cursor_source_id: string
+          cursor_source_type: string
           deposit_liability_effect: number
+          description: string
           economic_class: string
           event_date: string
           event_key: string
-          is_legacy: boolean
           is_reversal: boolean
-          journal_entry_id: string
           lease_id: string
           ledger_entry_id: string
           management_fee_effect: number
@@ -7697,24 +7777,20 @@ export type Database = {
           owner_cash_effect: number
           owner_person_id: string
           period_start: string
-          projection_status: string
           property_id: string
           reconciliation_source_id: string
-          reconciliation_state: string
-          requires_resolution: boolean
-          resolution_codes: string[]
+          reference: string
+          resolution_reason: string
+          resolution_state: string
           reversal_source_id: string
           reversal_source_type: string
           source_id: string
           source_parent_id: string
           source_parent_type: string
           source_type: string
-          statement_section: string
           task_id: string
           tenant_person_id: string
           unit_id: string
-          updated_at: string
-          updated_by: string
           vendor_person_id: string
         }[]
       }

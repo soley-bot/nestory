@@ -1244,14 +1244,12 @@ SELECT ok(
   (
     SELECT event.ledger_entry_id =
         (plan05_test_state.second_result->>'ledger_entry_id')::uuid
-      AND event.journal_entry_id IS NULL
       AND event.reconciliation_source_id =
         plan05_test_state.reconciliation_source_id
-      AND event.reconciliation_state = 'linked_exact_identity'
-      AND event.projection_status =
-        'obligation_level_ledger'
+      AND event.resolution_state = 'resolved'
+      AND event.resolution_reason IS NULL
     FROM plan05_test_state
-    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+    CROSS JOIN LATERAL public.get_property_cash_events_page(
       plan05_test_state.organization_id,
       plan05_test_state.property_id,
       'USD',

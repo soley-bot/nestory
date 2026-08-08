@@ -6,13 +6,20 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for these retired writers are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(24);
+SELECT plan(26);
 
 SELECT has_column(
   'public',
   'owner_payments',
   'ledger_entry_id',
   'owner payments own their operational Ledger identity'
+);
+
+SELECT has_column(
+  'public',
+  'owner_collection_confirmation_allocations',
+  'ledger_entry_id',
+  'owner-collected rent allocations own their operational Ledger identity'
 );
 
 SELECT hasnt_function(
@@ -334,6 +341,26 @@ SELECT lives_ok(
     FROM owner_account_state
   $$,
   'owner collection confirmation records income without IPS cash'
+);
+
+SELECT ok(
+  (
+    SELECT bool_and(
+      allocation.ledger_entry_id IS NOT NULL
+      AND ledger.source_type = 'owner_collection_allocation'
+      AND ledger.source_id = allocation.id
+    )
+    FROM owner_account_state AS state
+    JOIN public.owner_collection_confirmations AS confirmation
+      ON confirmation.organization_id = state.organization_id
+     AND confirmation.invoice_id = state.direct_invoice_id
+    JOIN public.owner_collection_confirmation_allocations AS allocation
+      ON allocation.organization_id = confirmation.organization_id
+     AND allocation.confirmation_id = confirmation.id
+    JOIN public.ledger_entries AS ledger
+      ON ledger.id = allocation.ledger_entry_id
+  ),
+  'owner-collected rent creates exact source-linked Ledger events'
 );
 
 SELECT results_eq(

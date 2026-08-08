@@ -658,8 +658,8 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
                   : operatingCashEffectCents,
               category: normalizeCategory(event.categoryCode),
               currency: event.currency,
-              date: event.eventDate ?? context.periodStart,
-              description: normalizeCategory(event.sourceType),
+              date: event.eventDate,
+              description: event.description,
               direction:
                 event.economicClass === "operating_expense"
                   ? "expense"
@@ -1727,27 +1727,25 @@ function propertyCashEventRecordType(
   switch (event.sourceType) {
     case "receipt_allocation":
       return "receipt-allocation";
-    case "receipt_header_residual":
-      return "receipt";
+    case "owner_collection_allocation":
+      return "owner-collection-allocation";
     case "payment_allocation":
       return "payment-allocation";
-    case "payment_header_residual":
-      return "payment";
     case "deposit_event":
       return "deposit-event";
     case "petty_cash_entry":
       return "petty-cash-entry";
-    case "maintenance_task":
-      return "maintenance";
-    case "ledger_entry":
-      return "ledger";
+    case "owner_payment":
+      return "owner-payment";
+    case "property_withdrawal":
+      return "property-withdrawal";
   }
 }
 
 function isUnitProfitLossOperatingEvent(event: PropertyCashEvent) {
   return (
     event.unitId !== null &&
-    event.requiresResolution === false &&
+    event.resolutionState === "resolved" &&
     event.operatingCashEffectCents !== null &&
     (event.economicClass === "operating_income" ||
       event.economicClass === "operating_expense")

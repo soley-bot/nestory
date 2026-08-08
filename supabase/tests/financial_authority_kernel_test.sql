@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- Compatibility fixture rows represent lease-derived automatic rent.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(155);
+SELECT plan(152);
 
 CREATE TEMP TABLE financial_authority_test_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -1127,80 +1127,6 @@ SELECT set_config(
   true
 );
 SET LOCAL ROLE authenticated;
-SELECT is(
-  (
-    SELECT reconciliation_source_id
-    FROM public.get_property_cash_events_v1_page(
-      (SELECT organization_id FROM financial_authority_test_state),
-      (SELECT property_id FROM financial_authority_test_state),
-      'USD',
-      '2026-07-01',
-      '2026-07-31',
-      NULL,
-      NULL,
-      NULL,
-      100
-    )
-    WHERE source_type = 'receipt_allocation'
-      AND source_id = (
-        SELECT receipt_allocation_id
-        FROM financial_authority_test_state
-      )
-  ),
-  (SELECT pooled_source_id FROM financial_authority_test_state),
-  'property cash event exposes the exact linked source'
-);
-SELECT is(
-  (
-    SELECT reconciliation_state
-    FROM public.get_property_cash_events_v1_page(
-      (SELECT organization_id FROM financial_authority_test_state),
-      (SELECT property_id FROM financial_authority_test_state),
-      'USD',
-      '2026-07-01',
-      '2026-07-31',
-      NULL,
-      NULL,
-      NULL,
-      100
-    )
-    WHERE source_type = 'receipt_allocation'
-      AND source_id = (
-        SELECT receipt_allocation_id
-        FROM financial_authority_test_state
-      )
-  ),
-  'linked_exact_identity',
-  'property cash event exposes linked reconciliation state'
-);
-SELECT is(
-  (
-    SELECT
-      resolution_codes IS NOT NULL
-      AND NOT coalesce(
-        'missing_reconciliation_source' = ANY(resolution_codes),
-        false
-      )
-    FROM public.get_property_cash_events_v1_page(
-      (SELECT organization_id FROM financial_authority_test_state),
-      (SELECT property_id FROM financial_authority_test_state),
-      'USD',
-      '2026-07-01',
-      '2026-07-31',
-      NULL,
-      NULL,
-      NULL,
-      100
-    )
-    WHERE source_type = 'receipt_allocation'
-      AND source_id = (
-        SELECT receipt_allocation_id
-        FROM financial_authority_test_state
-      )
-  ),
-  true,
-  'linked property cash event returns non-null codes without the missing-source code'
-);
 SELECT is(
   (
     SELECT contract_version

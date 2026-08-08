@@ -6,6 +6,7 @@ export function resolvePropertyCashEventHref(event: PropertyCashEvent): string {
 
   switch (event.sourceType) {
     case "receipt_allocation":
+    case "owner_collection_allocation":
       return buildHref("/rent-income", {
         archiveState: "all",
         incomeItemId:
@@ -15,12 +16,6 @@ export function resolvePropertyCashEventHref(event: PropertyCashEvent): string {
         month,
         propertyId: event.propertyId,
         unitId: event.unitId,
-      });
-    case "receipt_header_residual":
-      return buildHref("/rent-income", {
-        archiveState: "all",
-        month,
-        propertyId: event.propertyId,
       });
     case "payment_allocation":
       return buildHref("/bills-expenses", {
@@ -34,13 +29,6 @@ export function resolvePropertyCashEventHref(event: PropertyCashEvent): string {
         propertyId: event.propertyId,
         unitId: event.unitId,
       });
-    case "payment_header_residual":
-      return buildHref("/bills-expenses", {
-        archiveState: "all",
-        dateBasis: "paid",
-        month,
-        propertyId: event.propertyId,
-      });
     case "deposit_event":
       return event.leaseId
         ? buildHref("/leases", {
@@ -50,16 +38,9 @@ export function resolvePropertyCashEventHref(event: PropertyCashEvent): string {
         : propertyFallbackHref(event);
     case "petty_cash_entry":
       return buildHref("/petty-cash", { entryId: event.sourceId });
-    case "maintenance_task":
-      return buildHref("/maintenance", {
-        archiveState: "all",
-        taskId: event.taskId ?? event.sourceId,
-      });
-    case "ledger_entry":
-      return buildHref("/ledger", {
-        archiveState: "all",
-        entryId: event.sourceId,
-      });
+    case "owner_payment":
+    case "property_withdrawal":
+      return `/properties/${encodeURIComponent(event.propertyId)}/account`;
   }
 }
 
