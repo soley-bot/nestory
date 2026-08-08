@@ -50,7 +50,6 @@ describe("LedgerTable", () => {
 });
 
 const entry: LedgerEntry = {
-  accountingJournalEntryId: "journal-ledger-1",
   activity: [],
   amount: 1_200,
   category: "Rent",
@@ -78,7 +77,8 @@ const entry: LedgerEntry = {
   propertyName: "Home",
   recordCounts: { activity: 0, documents: 0, timelineEvents: 1 },
   riskIndicators: [],
+  sourceId: "allocation-1",
   sourceLabel: "Rent & Income",
-  sourceType: "finance_income",
+  sourceType: "receipt_allocation",
   transactionDate: "2026-07-10",
 };

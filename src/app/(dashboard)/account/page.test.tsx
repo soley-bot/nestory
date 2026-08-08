@@ -29,7 +29,7 @@ describe("AccountPage", () => {
     requireWorkspaceContext.mockResolvedValue({
       organizationId: "organization-1",
       organizationName: "Nestory Test",
-      role: "member",
+      role: "operations_member",
       userEmail: "member@example.com",
       userId: "user-1",
     });
@@ -42,7 +42,7 @@ describe("AccountPage", () => {
         identity: expect.objectContaining({
           email: "member@example.com",
           organizationName: "Nestory Test",
-          role: "member",
+          role: "operations_member",
         }),
       }),
     );

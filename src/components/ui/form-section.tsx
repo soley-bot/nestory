@@ -30,7 +30,7 @@ export function FormSection({
         </h3>
         {description ? (
           <div
-            className="mt-1 text-sm leading-5 text-foreground-muted"
+            className="mt-1 text-sm leading-5 text-muted-foreground"
             id={descriptionId}
           >
             {description}

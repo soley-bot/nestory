@@ -19,7 +19,7 @@ describe("calculatePettyCashRegister", () => {
     expect(register.closingBalanceAmount).toBe(300);
   });
 
-  it("uses an explicit advance row instead of the matching legacy period advance", () => {
+  it("uses an explicit advance row instead of the matching period fallback", () => {
     const register = calculatePettyCashRegister({
       currency: "USD",
       entries: [

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAssetPhotoAction } from "@/features/photos/actions";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type PropertyFieldErrors = {
@@ -126,7 +126,7 @@ export async function createPropertyAction(
   _state: PropertyActionState,
   formData: FormData,
 ): Promise<PropertyActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = propertyMutationSchema.safeParse(
     readPropertyMutationInput(formData),
   );
@@ -192,7 +192,7 @@ export async function updatePropertyAction(
   _state: PropertyActionState,
   formData: FormData,
 ): Promise<PropertyActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedPropertyId = propertyIdSchema.safeParse(
     readString(formData, "propertyId"),
   );
@@ -267,7 +267,7 @@ export async function archivePropertyAction(
   _state: PropertyActionState,
   formData: FormData,
 ): Promise<PropertyActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedPropertyId = propertyIdSchema.safeParse(
     readString(formData, "propertyId"),
   );
@@ -304,7 +304,7 @@ export async function restorePropertyAction(
   _state: PropertyActionState,
   formData: FormData,
 ): Promise<PropertyActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedPropertyId = propertyIdSchema.safeParse(
     readString(formData, "propertyId"),
   );

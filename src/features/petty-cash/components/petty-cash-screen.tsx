@@ -85,6 +85,7 @@ type DrawerState =
 
 type PettyCashScreenProps = {
   accounts: PettyCashAccount[];
+  canManageFinance?: boolean;
   counterpartyOptions: PersonSelectOption[];
   entries: PettyCashEntry[];
   focusedEntryId?: string;
@@ -100,6 +101,7 @@ type PettyCashScreenProps = {
 
 export function PettyCashScreen({
   accounts,
+  canManageFinance = true,
   counterpartyOptions,
   entries,
   focusedEntryId,
@@ -131,7 +133,9 @@ export function PettyCashScreen({
     (hasFocusedEntry ? null : entries[0]) ??
     null;
   const canAddEntry =
-    selectedAccount?.status === "active" && period?.status === "open";
+    canManageFinance &&
+    selectedAccount?.status === "active" &&
+    period?.status === "open";
 
   const openDrawer = (nextDrawer: DrawerState) => {
     setCompactInspectorOpen(false);
@@ -146,21 +150,25 @@ export function PettyCashScreen({
 
   const registerList =
     selectedAccount && period ? (
-      <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+      <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
         {entries.length === 0 ? (
           <EmptyState
             action={
               canAddEntry ? (
                 <Button
                   onClick={() => openDrawer({ mode: "entry" })}
-                  variant="primary"
+                  variant="default"
                 >
                   <Plus size={15} />
                   Add cash row
                 </Button>
               ) : undefined
             }
-            body="Record the first advance, cash-in movement, or expense."
+            body={
+              canAddEntry
+                ? "Record the first advance, cash-in movement, or expense."
+                : "No petty cash movements are available for this period."
+            }
             className="h-full"
             kind="empty"
             title="No petty cash rows yet"
@@ -188,6 +196,7 @@ export function PettyCashScreen({
     selectedAccount && selectedEntry && period ? (
       <PettyCashInspector
         account={selectedAccount}
+        canManageFinance={canManageFinance}
         entry={selectedEntry}
         onEdit={(entry) => openDrawer({ entry, mode: "edit" })}
         onPost={(entry) => openDrawer({ entry, mode: "post" })}
@@ -199,7 +208,7 @@ export function PettyCashScreen({
   return (
     <WorkspacePage
       actions={
-        !schemaStatus.isReady ? undefined : (
+        !schemaStatus.isReady || !canManageFinance ? undefined : (
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => openDrawer({ mode: "account" })}>
               <Wallet size={15} />
@@ -223,7 +232,7 @@ export function PettyCashScreen({
                 {canAddEntry ? (
                   <Button
                     onClick={() => openDrawer({ mode: "entry" })}
-                    variant="primary"
+                    variant="default"
                   >
                     <Plus size={15} />
                     Add cash row
@@ -240,12 +249,14 @@ export function PettyCashScreen({
           : "Cash register"
       }
       contextHref="/petty-cash"
-      localNav={<FinanceWorkspaceNavigation activeRoute="/petty-cash" />}
+      localNav={(
+        <FinanceWorkspaceNavigation activeRoute="/petty-cash" />
+      )}
       title="Petty Cash"
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
         {statusMessage ? (
-          <div className="border-b border-border bg-surface-muted/35 px-4 py-2 sm:px-6">
+          <div className="border-b border-border bg-muted/35 px-4 py-2 sm:px-6">
             <p className="text-[13px]" role="status">
               {statusMessage}
             </p>
@@ -290,10 +301,10 @@ export function PettyCashScreen({
           ) : (
             <EmptyState
               action={
-                schemaStatus.isReady ? (
+                schemaStatus.isReady && canManageFinance ? (
                   <Button
                     onClick={() => openDrawer({ mode: "account" })}
-                    variant="primary"
+                    variant="default"
                   >
                     <Plus size={15} />
                     Add account
@@ -302,7 +313,9 @@ export function PettyCashScreen({
               }
               body={
                 schemaStatus.isReady
-                  ? "Add the first petty cash account and opening float."
+                  ? canManageFinance
+                    ? "Add the first petty cash account and opening float."
+                    : "No petty cash account is configured for this workspace."
                   : (schemaStatus.message ??
                     "Petty cash is not configured for this workspace.")
               }
@@ -317,7 +330,7 @@ export function PettyCashScreen({
           )}
         </div>
 
-        {drawerState ? (
+        {canManageFinance && drawerState ? (
           <SideDrawer
             description={getDrawerDescription(drawerState)}
             onClose={() => setDrawerState(null)}
@@ -381,7 +394,7 @@ function FocusedRecordContext({
   isAvailable: boolean;
 }) {
   return (
-    <section className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-muted/45 px-4 py-2 sm:px-6">
+    <section className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/45 px-4 py-2 sm:px-6">
       <div>
         <p className="text-sm font-medium">
           {isAvailable
@@ -398,7 +411,7 @@ function FocusedRecordContext({
       </div>
       <Link
         aria-label="Clear focused record"
-        className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium hover:bg-surface-muted"
+        className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium hover:bg-muted"
         href={clearHref}
       >
         Clear focus
@@ -509,7 +522,7 @@ function PettyCashTable({
             <col className="w-[96px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Type</th>
@@ -537,9 +550,9 @@ function PettyCashTable({
             {entries.map((entry) => (
               <tr
                 className={cn(
-                  "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
+                  "cursor-pointer border-t border-border transition-colors hover:bg-muted/70 focus-visible:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
                   selectedEntryId === entry.id &&
-                    "bg-surface-muted shadow-[inset_3px_0_0_var(--accent)]",
+                    "bg-muted shadow-[inset_3px_0_0_var(--accent)]",
                 )}
                 key={entry.id}
                 onClick={() => onSelectEntry(entry.id)}
@@ -671,6 +684,7 @@ function PettyCashTable({
 
 function PettyCashInspector({
   account,
+  canManageFinance,
   entry,
   onEdit,
   onPost,
@@ -678,6 +692,7 @@ function PettyCashInspector({
   period,
 }: {
   account: PettyCashAccount;
+  canManageFinance: boolean;
   entry: PettyCashEntry | null;
   onEdit: (entry: PettyCashEntry) => void;
   onPost: (entry: PettyCashEntry) => void;
@@ -693,6 +708,7 @@ function PettyCashInspector({
   }
 
   const canPost =
+    canManageFinance &&
     !entry.archivedAt &&
     account.status === "active" &&
     entry.entryKind === "expense" &&
@@ -700,6 +716,7 @@ function PettyCashInspector({
     entry.status !== "void" &&
     period.status !== "closed";
   const canCorrect =
+    canManageFinance &&
     !entry.archivedAt &&
     account.status === "active" &&
     (entry.status === "draft" || entry.status === "cleared") &&
@@ -805,7 +822,7 @@ function PettyCashInspector({
         ) : null}
 
         {entry.entryKind === "expense" ? (
-          <div className="rounded-md border border-border bg-surface-muted/60 px-3 py-2.5">
+          <div className="rounded-md border border-border bg-muted/60 px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
               <p className="font-semibold">
                 {entry.receiptReference
@@ -822,7 +839,7 @@ function PettyCashInspector({
             </p>
           </div>
         ) : (
-          <div className="rounded-md border border-border bg-surface-muted/60 px-3 py-2.5">
+          <div className="rounded-md border border-border bg-muted/60 px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
               <p className="font-semibold">Reconciliation movement</p>
               <Badge tone="success">Cash in</Badge>
@@ -862,7 +879,7 @@ function PettyCashInspector({
 
         {entry.ledgerEntryId ? (
           <Link
-            className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm hover:bg-surface-muted"
+            className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground shadow-sm hover:bg-muted"
             href={`/ledger?archiveState=all&entryId=${entry.ledgerEntryId}`}
           >
             <ExternalLink size={14} />
@@ -874,7 +891,7 @@ function PettyCashInspector({
               <Button
                 className="w-full"
                 onClick={() => onPost(entry)}
-                variant="primary"
+                variant="default"
               >
                 <Send size={14} />
                 Post to ledger
@@ -1255,7 +1272,7 @@ function PettyCashEntryForm({
         </Field>
 
         {entryKind === "expense" ? (
-          <section className="rounded-md border border-border bg-surface-muted/45 p-3">
+          <section className="rounded-md border border-border bg-muted/45 p-3">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold">
@@ -1555,7 +1572,7 @@ function OpenNextPeriodPanel({
             step="0.01"
           />
         </Field>
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
           Leave blank to top up toward the account float of{" "}
           {formatMoneyDisplay(account.floatAmount, account.currency).primary}.
         </p>
@@ -1690,7 +1707,7 @@ function FormMessage({ state }: { state: PettyCashActionState }) {
 
   return (
     <p
-      className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+      className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
       role={state.status === "error" ? "alert" : "status"}
     >
       {state.message}
@@ -1717,7 +1734,7 @@ function DrawerFooter({
           className="w-full sm:w-auto"
           disabled={disabled}
           type="submit"
-          variant="primary"
+          variant="default"
         >
           <FileText size={15} />
           {submitLabel}

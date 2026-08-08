@@ -156,7 +156,7 @@ export function RecordQuickViewDialog({
       <section
         aria-label={label}
         aria-modal="true"
-        className="record-quick-view-dialog relative z-10 flex max-h-[min(82dvh,720px)] w-full max-w-[640px] flex-col overflow-hidden rounded-lg border border-border bg-surface-raised shadow-2xl outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="record-quick-view-dialog relative z-10 flex max-h-[min(82dvh,720px)] w-full max-w-[640px] flex-col overflow-hidden rounded-lg border border-border bg-popover shadow-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
         data-slot="record-quick-view-dialog"
         ref={dialogRef}
         role="dialog"
@@ -164,7 +164,7 @@ export function RecordQuickViewDialog({
       >
         <Button
           aria-label="Close quick view"
-          className="absolute right-3 top-3 z-20 h-8 w-8 bg-surface/90 px-0 shadow-sm backdrop-blur-sm"
+          className="absolute right-3 top-3 z-20 h-8 w-8 bg-card/90 px-0 shadow-sm backdrop-blur-sm"
           onClick={() => onCloseRef.current()}
           type="button"
           variant="ghost"
@@ -172,7 +172,7 @@ export function RecordQuickViewDialog({
           <X aria-hidden="true" size={16} />
         </Button>
         <div
-          className="min-h-0 flex-1 overflow-y-auto bg-surface text-sm"
+          className="min-h-0 flex-1 overflow-y-auto bg-card text-sm"
           data-slot="record-quick-view-content"
         >
           {children}

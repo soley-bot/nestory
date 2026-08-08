@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   createSupabaseServerClient: vi.fn(),
   getImportReferenceData: vi.fn(),
   revalidatePath: vi.fn(),
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -18,7 +18,7 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/auth/context", () => ({
-  requireAdminContext: mocks.requireAdminContext,
+  requireSuperAdminContext: mocks.requireSuperAdminContext,
 }));
 
 vi.mock("@/lib/db/server", () => ({
@@ -51,7 +51,7 @@ describe("commitStagedImportRunAction", () => {
       updated_count: 1,
     });
     const rpc = vi.fn();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({
@@ -85,7 +85,7 @@ describe("commitStagedImportRunAction", () => {
       updated_count: 0,
     });
     const rpc = vi.fn();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({
@@ -119,7 +119,7 @@ describe("commitStagedImportRunAction", () => {
       updated_count: 0,
     });
     const rpc = vi.fn();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({
@@ -186,7 +186,7 @@ describe("commitStagedImportRunAction", () => {
       data: null,
       error: { message: "Import run has already been committed" },
     });
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({ from, rpc });
@@ -252,7 +252,7 @@ describe("commitStagedImportRunAction", () => {
       data: null,
       error: { message: "Import run must be staged before commit" },
     });
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({ from, rpc });
@@ -297,7 +297,7 @@ describe("commitStagedImportRunAction", () => {
       throw new Error(`Unexpected table ${table}`);
     });
     const rpc = vi.fn();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({ from, rpc });
@@ -308,7 +308,7 @@ describe("commitStagedImportRunAction", () => {
 
     expect(result).toEqual({
       message:
-        "This legacy or incomplete import cannot be resumed. Re-upload the CSV to create a fresh atomic run.",
+        "This incomplete import cannot be resumed. Re-upload the CSV to create a fresh run.",
       runId: "75aa9d2c-ae7f-40a0-b384-45970cdfa16a",
       runStatus: "staged",
       status: "error",
@@ -316,7 +316,7 @@ describe("commitStagedImportRunAction", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("surfaces the legacy re-upload requirement when Past Imports resumes a complete legacy run", async () => {
+  it("surfaces the re-upload requirement when Past Imports resumes an incomplete run", async () => {
     const selectedRuns = [
       {
         created_count: 0,
@@ -361,9 +361,9 @@ describe("commitStagedImportRunAction", () => {
     });
     const rpc = vi.fn().mockResolvedValue({
       data: null,
-      error: { message: "Legacy staged import must be re-uploaded before commit" },
+      error: { message: "Incomplete staged import must be re-uploaded before commit" },
     });
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({ from, rpc });
@@ -374,7 +374,7 @@ describe("commitStagedImportRunAction", () => {
 
     expect(result).toEqual({
       message:
-        "This legacy staged import cannot be resumed. Re-upload the CSV to create a fresh atomic run.",
+        "This staged import cannot be resumed. Re-upload the CSV to create a fresh run.",
       runId: "75aa9d2c-ae7f-40a0-b384-45970cdfa16a",
       runStatus: "staged",
       status: "error",
@@ -386,7 +386,7 @@ describe("commitStagedImportRunAction", () => {
 describe("stageImportRunAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "11111111-1111-4111-8111-111111111111",
       userId: "22222222-2222-4222-8222-222222222222",
     });

@@ -19,7 +19,7 @@ export function OverviewSummary({
       <dl className="flex flex-wrap items-baseline gap-x-5 gap-y-2 text-sm">
         {items.map((item) => (
           <div className="flex items-baseline gap-1.5 whitespace-nowrap" key={item.label}>
-            <dt className="text-foreground-muted">{item.label}</dt>
+            <dt className="text-muted-foreground">{item.label}</dt>
             <dd className="font-semibold tabular-nums text-foreground">
               {item.href ? (
                 <Link className="underline-offset-2 hover:underline" href={item.href}>

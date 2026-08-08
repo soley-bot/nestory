@@ -571,7 +571,7 @@ export async function getPropertyDetail(
       .eq("property_id", propertyId)
       .order("started_on", { ascending: false, nullsFirst: false }),
     supabase
-      .from("leases")
+      .from("current_leases")
       .select(
         "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, archived_at",
         { count: "exact" },

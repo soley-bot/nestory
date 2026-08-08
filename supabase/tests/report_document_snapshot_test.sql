@@ -67,10 +67,10 @@ SELECT
 FROM report_document_snapshot_test_state;
 
 INSERT INTO public.organization_members (organization_id, user_id, role)
-SELECT organization_id, admin_id, 'admin'
+SELECT organization_id, admin_id, 'super_admin'
 FROM report_document_snapshot_test_state
 UNION ALL
-SELECT organization_id, member_id, 'member'
+SELECT organization_id, member_id, 'finance_member'
 FROM report_document_snapshot_test_state;
 
 INSERT INTO public.properties (

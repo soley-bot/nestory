@@ -34,7 +34,7 @@ export function ConsequencePanel({
       aria-labelledby={titleId}
       className={cn(
         variant === "contained" &&
-          "rounded-md border border-border bg-surface-raised px-4 py-3",
+          "rounded-md border border-border bg-popover px-4 py-3",
         "text-sm",
         className,
       )}
@@ -46,7 +46,7 @@ export function ConsequencePanel({
         {title}
       </h3>
       {summary ? (
-        <div className="mt-1 leading-5 text-foreground-muted">{summary}</div>
+        <div className="mt-1 leading-5 text-muted-foreground">{summary}</div>
       ) : null}
       {rows.length > 0 ? (
         <dl
@@ -57,7 +57,7 @@ export function ConsequencePanel({
         >
           {rows.map((row, index) => (
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-3 py-2" key={index}>
-              <dt className="text-foreground-muted">{row.label}</dt>
+              <dt className="text-muted-foreground">{row.label}</dt>
               <dd className="min-w-0 text-right font-medium text-foreground">
                 {row.value}
               </dd>

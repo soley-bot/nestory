@@ -76,7 +76,7 @@ export function AuthPageShell({
               subtitleClassName={
                 visualSrc
                   ? "text-[var(--auth-page-subtle)]"
-                  : "text-foreground-subtle"
+                  : "text-muted-foreground"
               }
               textClassName={
                 visualSrc ? "text-2xl text-[var(--auth-page-fg)]" : "text-2xl text-foreground"
@@ -90,7 +90,7 @@ export function AuthPageShell({
                 "hidden text-[11px] font-medium uppercase tracking-[0.16em] transition-colors sm:inline-flex",
                 visualSrc
                   ? "text-[var(--auth-page-subtle)] hover:text-[var(--auth-page-fg)]"
-                  : "text-foreground-subtle hover:text-foreground",
+                  : "text-muted-foreground hover:text-foreground",
               )}
               href={switchHref ?? "/"}
             >
@@ -106,7 +106,7 @@ export function AuthPageShell({
           <p
             className={cn(
               "text-[11px] font-semibold uppercase tracking-[0.22em]",
-              visualSrc ? "text-[var(--auth-page-subtle)]" : "text-foreground-subtle",
+              visualSrc ? "text-[var(--auth-page-subtle)]" : "text-muted-foreground",
             )}
           >
             {contextLabel}
@@ -122,7 +122,7 @@ export function AuthPageShell({
           <p
             className={cn(
               "mt-5 max-w-md text-sm font-medium leading-6",
-              visualSrc ? "text-[var(--auth-page-muted)]" : "text-foreground-muted",
+              visualSrc ? "text-[var(--auth-page-muted)]" : "text-muted-foreground",
             )}
           >
             {contextText}
@@ -146,14 +146,14 @@ export function AuthPageShell({
               "auth-shell-card box-border w-full rounded-lg border p-5 sm:p-6",
               visualSrc
                 ? "border-[color:var(--auth-page-card-border)] bg-[var(--auth-page-card-bg)] shadow-[0_20px_70px_rgb(0_0_0/0.16)] backdrop-blur-xl"
-                : "border-border bg-surface shadow-sm",
+                : "border-border bg-card shadow-sm",
             )}
           >
             <div className="mb-6">
               <h1 className="font-display text-2xl font-semibold leading-tight text-foreground">
                 {title}
               </h1>
-              <p className="mt-2 text-sm leading-6 text-foreground-muted">
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {description}
               </p>
             </div>
@@ -161,7 +161,7 @@ export function AuthPageShell({
             {children}
 
             {switchHref && switchLabel && switchText ? (
-              <p className="mt-5 border-t border-border pt-5 text-sm leading-6 text-foreground-muted">
+              <p className="mt-5 border-t border-border pt-5 text-sm leading-6 text-muted-foreground">
                 <span>{switchText} </span>
                 <Link
                   className="font-semibold text-foreground transition-opacity hover:opacity-65"

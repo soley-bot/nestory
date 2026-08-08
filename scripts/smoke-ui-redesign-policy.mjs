@@ -184,14 +184,14 @@ export function resolveKeyboardZoomRoutes(manifest) {
       (candidate) => candidate.route === definition.manifestRoute,
     );
 
-    if (!entry?.smoke?.path || !entry.smoke.expectedAccess?.admin) {
+    if (!entry?.smoke?.path || !entry.smoke.expectedAccess?.super_admin) {
       throw new Error(
         `Keyboard audit route is missing from the manifest: ${definition.manifestRoute}`,
       );
     }
 
     return {
-      expectedAccess: entry.smoke.expectedAccess.admin,
+      expectedAccess: entry.smoke.expectedAccess.super_admin,
       label: definition.label,
       manifestRoute: definition.manifestRoute,
       operationalSurfaceKey: definition.operationalSurfaceKey,
@@ -653,7 +653,8 @@ function validateMainResults(results, manifest, failures) {
       failures.push(`main result ${key} used the wrong smoke path`);
     }
     if (
-      result.expectedAccess !== contract.entry.smoke.expectedAccess.admin ||
+      result.expectedAccess !==
+        contract.entry.smoke.expectedAccess.super_admin ||
       result.viewportWidth !== contract.viewport.width ||
       result.viewportHeight !== contract.viewport.height
     ) {
@@ -674,7 +675,13 @@ function validateMainResults(results, manifest, failures) {
 }
 
 function validateRoleAudits(audits, manifest, failures) {
-  const roles = ["manager", "member", "anonymous"];
+  const roles = [
+    "finance_manager",
+    "finance_member",
+    "operations_manager",
+    "operations_member",
+    "anonymous",
+  ];
   const expected = new Map();
   for (const entry of manifest) {
     for (const role of roles) {
@@ -738,7 +745,7 @@ function validateMaintenanceBoardResults(results, manifest, failures) {
     if (
       result.manifestRoute !== "/maintenance" ||
       result.route !== "/maintenance?view=board" ||
-      result.expectedAccess !== entry.smoke.expectedAccess.admin ||
+      result.expectedAccess !== entry.smoke.expectedAccess.super_admin ||
       result.viewportWidth !== viewport.width ||
       result.viewportHeight !== viewport.height
     ) {

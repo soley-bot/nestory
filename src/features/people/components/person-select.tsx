@@ -193,7 +193,7 @@ export function PersonSelect({
           aria-labelledby={ariaLabelledBy}
           aria-required={ariaRequired}
           className={cn(
-            "h-9 w-full rounded-md border border-control-border bg-surface pl-9 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-accent focus:ring-2 focus:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
+            "h-9 w-full rounded-md border border-input bg-card pl-9 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-accent focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
             allowClear && selectedOption ? "pr-16" : "pr-9",
           )}
           disabled={disabled}
@@ -216,7 +216,7 @@ export function PersonSelect({
         {allowClear && selectedOption ? (
           <button
             aria-label={`Clear ${context ?? "selected person"}`}
-            className="absolute right-8 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="absolute right-8 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => choose("")}
             type="button"
           >
@@ -243,7 +243,7 @@ export function PersonSelect({
               ? `${context} person options`
               : `${roles.join(" or ")} person options`
           }
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-64 overflow-y-auto rounded-md border border-border bg-surface p-1 shadow-lg"
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-64 overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg"
           id={listboxId}
           role="listbox"
         >
@@ -254,8 +254,8 @@ export function PersonSelect({
               <button
                 aria-selected={option.id === selectedValue}
                 className={cn(
-                  "flex min-h-11 w-full min-w-0 items-center gap-3 rounded px-2.5 py-2 text-left outline-none transition-colors hover:bg-surface-muted focus-visible:bg-surface-muted",
-                  option.id === activeOption?.id && "bg-surface-muted",
+                  "flex min-h-11 w-full min-w-0 items-center gap-3 rounded px-2.5 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted",
+                  option.id === activeOption?.id && "bg-muted",
                 )}
                 id={getOptionId(listboxId, option.id)}
                 key={option.id}

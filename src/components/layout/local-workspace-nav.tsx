@@ -70,8 +70,8 @@ export function LocalWorkspaceNav({ className, items, label }: LocalWorkspaceNav
             <Link
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex h-8 shrink-0 scroll-mx-1 items-center gap-2 rounded-md px-2.5 text-sm font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
-                isActive && "bg-accent-soft text-foreground",
+                "inline-flex h-8 shrink-0 scroll-mx-1 items-center gap-2 rounded-md px-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                isActive && "bg-accent text-foreground",
               )}
               href={item.href}
               key={`${item.href}-${item.label}`}

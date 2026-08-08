@@ -3,11 +3,12 @@ import { buildHref } from "@/lib/url/href";
 export const activityEntityTypes = [
   "timeline_event",
   "ledger_entry",
-  "ledger_period",
-  "accounting_journal_entry",
-  "accounting_period",
+  "financial_month",
   "finance_income_item",
   "finance_expense_item",
+  "expense_submission",
+  "tenant_invoice",
+  "owner_payment",
   "petty_cash_entry",
   "petty_cash_account",
   "petty_cash_period",
@@ -23,7 +24,6 @@ export const activityEntityTypes = [
   "organization_branch",
   "organization_invitation",
   "organization_membership",
-  "people_leases_backfill",
 ] as const;
 
 export type ActivityEntityType = (typeof activityEntityTypes)[number];
@@ -60,20 +60,6 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
       buildHref("/timeline", { archiveState: "all", eventId: entityId }),
     mode: "exact",
   },
-  accounting_journal_entry: {
-    actionLabel: "Open Ledger",
-    entityLabel: "Accounting",
-    fallbackRecordLabel: "Accounting journal entry",
-    getHref: () => "/ledger",
-    mode: "module",
-  },
-  accounting_period: {
-    actionLabel: "Open Ledger",
-    entityLabel: "Accounting",
-    fallbackRecordLabel: "Accounting period",
-    getHref: () => "/ledger",
-    mode: "module",
-  },
   ledger_entry: {
     actionLabel: "Open Ledger entry",
     entityLabel: "Ledger",
@@ -82,12 +68,12 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
       buildHref("/ledger", { archiveState: "all", entryId: entityId }),
     mode: "exact",
   },
-  ledger_period: {
-    actionLabel: "Open Ledger period",
-    entityLabel: "Period lock",
-    fallbackRecordLabel: "Period lock",
+  financial_month: {
+    actionLabel: "Open locked month",
+    entityLabel: "Month lock",
+    fallbackRecordLabel: "Month lock",
     getHref: ({ periodStart }) =>
-      periodStart ? getLedgerPeriodHref(periodStart) : "/ledger",
+      periodStart ? getFinancialMonthHref(periodStart) : "/ledger",
     mode: "module",
   },
   finance_income_item: {
@@ -111,6 +97,27 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
         expenseItemId: entityId,
       }),
     mode: "exact",
+  },
+  expense_submission: {
+    actionLabel: "Open expense review queue",
+    entityLabel: "Bills & Expenses",
+    fallbackRecordLabel: "Expense submission",
+    getHref: () => "/bills-expenses",
+    mode: "module",
+  },
+  tenant_invoice: {
+    actionLabel: "Open Rent invoices",
+    entityLabel: "Rent & Income",
+    fallbackRecordLabel: "Tenant invoice",
+    getHref: () => "/rent-income",
+    mode: "module",
+  },
+  owner_payment: {
+    actionLabel: "Open Balances",
+    entityLabel: "Owner payment",
+    fallbackRecordLabel: "Owner payment",
+    getHref: () => "/balances",
+    mode: "module",
   },
   petty_cash_entry: {
     actionLabel: "Open Petty Cash row",
@@ -221,12 +228,6 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
     getHref: ({ entityId }) => buildHref("/users-roles", { memberId: entityId }),
     mode: "module",
   },
-  people_leases_backfill: {
-    actionLabel: "Source unavailable",
-    entityLabel: "People leases backfill",
-    fallbackRecordLabel: "Lease relationship backfill",
-    mode: "unavailable",
-  },
 };
 
 export function resolveActivityEntityTarget(
@@ -269,7 +270,7 @@ export function isActivityEntityType(value: string): value is ActivityEntityType
   return (activityEntityTypes as readonly string[]).includes(value);
 }
 
-function getLedgerPeriodHref(periodStart: string) {
+function getFinancialMonthHref(periodStart: string) {
   const monthStart = periodStart.slice(0, 10);
   const match = monthStart.match(/^(\d{4})-(\d{2})-01$/);
 

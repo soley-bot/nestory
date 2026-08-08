@@ -2,48 +2,66 @@ import { describe, expect, it } from "vitest";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 
 describe("getMaintenanceCapabilities", () => {
-  it("gives admins operational cost capture and official finance posting", () => {
-    expect(getMaintenanceCapabilities("admin")).toEqual({
+  it("gives Super Admin operational cost capture and Finance handoff", () => {
+    expect(getMaintenanceCapabilities("super_admin")).toEqual({
       canArchiveCase: true,
       canAssignCase: true,
       canCreateCase: true,
       canEditCaseStructure: true,
       canExecuteAssignedCase: false,
       canManageCaseState: true,
-      canPostMaintenanceCost: true,
       canRecordActualCost: true,
       canReviewCompletion: true,
+      canSubmitMaintenanceCost: true,
       canUploadMaintenanceEvidence: true,
     });
   });
 
-  it("lets managers record actual cost without posting official finance effects", () => {
-    expect(getMaintenanceCapabilities("manager")).toEqual({
+  it("lets Operations Managers record and submit actual cost", () => {
+    expect(getMaintenanceCapabilities("operations_manager")).toEqual({
       canArchiveCase: false,
       canAssignCase: true,
       canCreateCase: true,
       canEditCaseStructure: true,
       canExecuteAssignedCase: false,
       canManageCaseState: true,
-      canPostMaintenanceCost: false,
       canRecordActualCost: true,
       canReviewCompletion: true,
+      canSubmitMaintenanceCost: true,
       canUploadMaintenanceEvidence: false,
     });
   });
 
   it("limits members to execution of their assigned work", () => {
-    expect(getMaintenanceCapabilities("member")).toEqual({
+    expect(getMaintenanceCapabilities("operations_member")).toEqual({
       canArchiveCase: false,
       canAssignCase: false,
       canCreateCase: false,
       canEditCaseStructure: false,
       canExecuteAssignedCase: true,
       canManageCaseState: false,
-      canPostMaintenanceCost: false,
       canRecordActualCost: false,
       canReviewCompletion: false,
+      canSubmitMaintenanceCost: false,
       canUploadMaintenanceEvidence: false,
     });
   });
+
+  it.each(["finance_manager", "finance_member"] as const)(
+    "does not grant %s an operations capability",
+    (role) => {
+      expect(getMaintenanceCapabilities(role)).toEqual({
+        canArchiveCase: false,
+        canAssignCase: false,
+        canCreateCase: false,
+        canEditCaseStructure: false,
+        canExecuteAssignedCase: false,
+        canManageCaseState: false,
+        canRecordActualCost: false,
+        canReviewCompletion: false,
+        canSubmitMaintenanceCost: false,
+        canUploadMaintenanceEvidence: false,
+      });
+    },
+  );
 });

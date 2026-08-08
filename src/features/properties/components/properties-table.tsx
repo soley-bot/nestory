@@ -40,7 +40,7 @@ export function PropertiesTable({
         data-property-record-list={displayMode}
       >
         {properties.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground sm:col-span-2 2xl:col-span-3">
+          <p className="rounded-md border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground sm:col-span-2 2xl:col-span-3">
             No properties match the current filters.
           </p>
         ) : null}
@@ -196,7 +196,7 @@ function PropertyCard({
     <article
       aria-label={`Preview ${property.name}`}
       className={cn(
-        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-card text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-ring",
         property.isArchived && "text-muted-foreground",
       )}
       onClick={() => onPreviewProperty(property.id)}
@@ -234,7 +234,7 @@ function PropertyCard({
             {property.name}
           </p>
           <p
-            className="mt-0.5 truncate text-xs text-foreground-muted"
+            className="mt-0.5 truncate text-xs text-muted-foreground"
             title={property.type}
           >
             {property.type}
@@ -247,7 +247,7 @@ function PropertyCard({
           </Badge>
         ) : null}
 
-        <p className="mt-1 border-t border-border pt-2 text-xs font-medium text-foreground-muted">
+        <p className="mt-1 border-t border-border pt-2 text-xs font-medium text-muted-foreground">
           Open quick view
         </p>
       </div>
@@ -284,7 +284,7 @@ function SortableHeader({
       <button
         aria-label={sortLabel}
         className={cn(
-          "flex h-7 w-full items-center gap-1 rounded px-1 outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring",
+          "flex h-7 w-full items-center gap-1 rounded px-1 outline-none transition-colors hover:bg-card focus-visible:ring-2 focus-visible:ring-ring",
           align === "center" && "justify-center",
           align === "right" && "justify-end",
         )}
@@ -394,7 +394,7 @@ function PropertyThumbnail({
   size?: "card" | "large" | "small";
 }) {
   const className = cn(
-    "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted-foreground",
+    "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground",
     size === "card"
       ? "h-36 w-full rounded-b-none border-x-0 border-t-0"
       : size === "large"
@@ -416,7 +416,7 @@ function PropertyThumbnail({
     <span className={cn(className, "px-2 text-center")} aria-hidden="true">
       {size === "card" ? (
         <span className="grid gap-1">
-          <span className="text-sm font-semibold text-foreground-muted">
+          <span className="text-sm font-semibold text-muted-foreground">
             {getPropertyInitials(property)}
           </span>
           <span className="text-[10px] font-medium uppercase tracking-wide">

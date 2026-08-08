@@ -44,7 +44,7 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckboxControl } from "@/components/ui/checkbox-control";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -265,13 +265,13 @@ export function MaintenanceScreen({
   );
   const normalizedViewQuery = useMemo(
     () =>
-      actor.role === "member" && viewQuery.view === "board"
+      actor.role === "operations_member" && viewQuery.view === "board"
         ? { ...viewQuery, view: "list" as const }
         : viewQuery,
     [actor.role, viewQuery],
   );
   const normalizedSurfaceVariant =
-    actor.role === "member" && surfaceVariant === "board"
+    actor.role === "operations_member" && surfaceVariant === "board"
       ? "table"
       : surfaceVariant;
   const focusedCase = initialTaskId
@@ -462,7 +462,7 @@ export function MaintenanceScreen({
     />
   ) : null;
   const maintenanceList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
       {showScopeSummary && visibleCases.length > 0 ? (
         <div className="shrink-0 border-b border-border px-3 py-2">
           <MaintenanceScopeSummary
@@ -482,7 +482,7 @@ export function MaintenanceScreen({
           action={
             viewQuery.view === "board" || viewQuery.view === "calendar" ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={buildMaintenanceCasesViewHref(
                   pathname,
                   searchParams,
@@ -494,7 +494,7 @@ export function MaintenanceScreen({
               </Link>
             ) : hasFilters ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={buildClearFiltersHref(pathname, searchParams)}
                 scroll={false}
               >
@@ -552,7 +552,7 @@ export function MaintenanceScreen({
             }
             statusChangePending={statusChangePending}
             variant={normalizedSurfaceVariant}
-            waitingForReviewLabel={actor.role === "member"}
+            waitingForReviewLabel={actor.role === "operations_member"}
           />
         </div>
       )}
@@ -564,7 +564,7 @@ export function MaintenanceScreen({
       actions={
         <>
           {capabilities.canCreateCase ? (
-            <Button onClick={openCreateCase} variant="primary">
+            <Button onClick={openCreateCase} variant="default">
               <Plus size={15} />
               {createButtonLabel}
             </Button>
@@ -660,7 +660,6 @@ export function MaintenanceScreen({
           ) : (
             <MaintenanceForm
               actor={actor}
-              canPostMaintenanceCost={capabilities.canPostMaintenanceCost}
               canRecordActualCost={capabilities.canRecordActualCost}
               initialValues={
                 drawer.mode === "create" ? drawer.initialValues : undefined
@@ -996,8 +995,8 @@ function MaintenanceFilters({
               className={cn(
                 "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors",
                 tab.active
-                  ? "border-accent bg-accent-soft text-foreground"
-                  : "border-border bg-surface text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                  ? "border-accent bg-accent text-foreground"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
               href={tab.href}
               key={tab.id}
@@ -1153,7 +1152,7 @@ function MaintenanceTable({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-md border border-border bg-surface md:rounded-none md:border-0",
+        "overflow-hidden rounded-md border border-border bg-card md:rounded-none md:border-0",
         fillHeight && "flex h-[calc(100%-41px)] min-h-0 flex-col",
       )}
       data-maintenance-surface="table"
@@ -1173,7 +1172,7 @@ function MaintenanceTable({
             <col className="w-[17%]" />
             <col className="w-[23%]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-2.5 py-2.5 font-semibold">
                 {capitalizeLabel(recordLabel)}
@@ -1223,7 +1222,7 @@ function MaintenanceTable({
               >
                 <td className="px-2.5 py-2">
                   <Link
-                    className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                     href={maintenanceCase.hrefs.task}
                     onClick={(event) => event.stopPropagation()}
                     prefetch={false}
@@ -1304,7 +1303,7 @@ export function MaintenanceInspector({
   }
 
   return (
-    <aside className="bg-surface">
+    <aside className="bg-card">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -1364,7 +1363,7 @@ export function MaintenanceInspector({
 
         <LinkGrid maintenanceCase={maintenanceCase} />
 
-        <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+        <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
             <p className="font-semibold">Checklist</p>
             <Badge
@@ -1411,7 +1410,7 @@ export function MaintenanceInspector({
         </div>
 
         {maintenanceCase.description ? (
-          <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
             <p className="font-semibold">Notes</p>
             <p className="mt-1 leading-6 text-muted-foreground">
               {maintenanceCase.description}
@@ -1420,7 +1419,7 @@ export function MaintenanceInspector({
         ) : null}
 
         {maintenanceCase.activity.length > 0 ? (
-          <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+          <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
             <p className="font-semibold">Activity</p>
             <div className="mt-2 divide-y divide-border">
               {maintenanceCase.activity.slice(0, 6).map((change) => (
@@ -1593,7 +1592,6 @@ function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
 export function MaintenanceForm({
   actor,
   branches,
-  canPostMaintenanceCost,
   canRecordActualCost,
   initialValues,
   maintenanceCase,
@@ -1607,7 +1605,6 @@ export function MaintenanceForm({
 }: {
   actor: MaintenanceActor;
   branches: MaintenanceBranchOption[];
-  canPostMaintenanceCost: boolean;
   canRecordActualCost: boolean;
   initialValues?: Partial<MaintenanceCase["formValues"]>;
   maintenanceCase?: MaintenanceCase;
@@ -1637,7 +1634,7 @@ export function MaintenanceForm({
     branchId:
       maintenanceCase?.formValues.branchId ??
       initialValues?.branchId ??
-      (actor.role === "manager" ? actor.branchId : undefined) ??
+      (actor.role === "operations_manager" ? actor.branchId : undefined) ??
       "",
     category:
       maintenanceCase?.formValues.category ??
@@ -1696,7 +1693,7 @@ export function MaintenanceForm({
   const compatibleStaff = staff.filter(
     (person) => (person.branchId ?? "") === branchId,
   );
-  const legacyAssignee =
+  const existingAssignee =
     maintenanceCase?.executionMode === "manager_coordinated" &&
     Boolean(defaults.assigneePersonId) &&
     !compatibleStaff.some((person) => person.id === defaults.assigneePersonId)
@@ -1710,8 +1707,12 @@ export function MaintenanceForm({
     currentVendorLabel: maintenanceCase?.vendorLabel,
     vendors,
   });
+  const costSubmissionStatus = maintenanceCase?.costSubmission?.status;
+  const costFieldsLocked = costSubmissionStatus === "submitted";
+  const costScopeLocked =
+    costSubmissionStatus === "submitted" || costSubmissionStatus === "approved";
   const managerBranch =
-    actor.role === "manager" && actor.branchId
+    actor.role === "operations_manager" && actor.branchId
       ? branches.find((branch) => branch.id === actor.branchId)
       : undefined;
   const branchControlMode = getMaintenanceBranchControlMode(actor);
@@ -1740,9 +1741,13 @@ export function MaintenanceForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+            {costScopeLocked ? (
+              <input name="propertyId" type="hidden" value={propertyId} />
+            ) : null}
             <SelectControl
               ariaLabel="Property"
-              name="propertyId"
+              disabled={costScopeLocked}
+              name={costScopeLocked ? undefined : "propertyId"}
               onValueChange={(value) => {
                 setPropertyId(value);
                 setUnitId("");
@@ -1754,15 +1759,18 @@ export function MaintenanceForm({
                   value: property.id,
                 })),
               ]}
-              required
+              required={!costScopeLocked}
               value={propertyId}
             />
           </Field>
           <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
+            {costScopeLocked ? (
+              <input name="unitId" type="hidden" value={unitId} />
+            ) : null}
             <SelectControl
               ariaLabel="Unit"
-              disabled={!propertyId}
-              name="unitId"
+              disabled={!propertyId || costScopeLocked}
+              name={costScopeLocked ? undefined : "unitId"}
               onValueChange={setUnitId}
               options={[
                 { label: "Property level", value: "" },
@@ -1781,7 +1789,7 @@ export function MaintenanceForm({
             {branchControlMode === "fixed" && actor.branchId ? (
               <>
                 <input name="branchId" type="hidden" value={actor.branchId} />
-                <div className="flex h-8 items-center rounded-md border border-border bg-surface-muted px-2.5 text-[13px]">
+                <div className="flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-[13px]">
                   {managerBranch?.label ??
                     maintenanceCase?.branchLabel ??
                     "Assigned branch"}
@@ -1831,12 +1839,12 @@ export function MaintenanceForm({
               onValueChange={setAssigneePersonId}
               options={[
                 { label: "Unassigned", value: "" },
-                ...(legacyAssignee
+                ...(existingAssignee
                   ? [
                       {
                         disabled: true,
-                        label: legacyAssignee.label,
-                        value: legacyAssignee.id,
+                        label: existingAssignee.label,
+                        value: existingAssignee.id,
                       },
                     ]
                   : []),
@@ -1847,7 +1855,7 @@ export function MaintenanceForm({
               ]}
               value={assigneePersonId}
             />
-            {legacyAssignee ? (
+            {existingAssignee ? (
               <p className="mt-1.5 text-xs text-muted-foreground">
                 This historical assignee has no executable Nestory member
                 identity. The task remains manager-coordinated until reassigned.
@@ -1857,10 +1865,18 @@ export function MaintenanceForm({
         </div>
 
         <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
+          {costScopeLocked ? (
+            <input
+              name="vendorPersonId"
+              type="hidden"
+              value={defaults.vendorPersonId ?? ""}
+            />
+          ) : null}
           <SelectControl
             ariaLabel="Vendor"
             defaultValue={defaults.vendorPersonId ?? ""}
-            name="vendorPersonId"
+            disabled={costScopeLocked}
+            name={costScopeLocked ? undefined : "vendorPersonId"}
             options={vendorSelect.options}
           />
           {vendorSelect.hasHistoricalVendor ? (
@@ -1990,32 +2006,19 @@ export function MaintenanceForm({
                 defaultValue={defaults.actualCostAmount ?? ""}
                 min="0"
                 name="actualCostAmount"
+                readOnly={costFieldsLocked}
                 step="0.01"
               />
             </Field>
           ) : null}
         </div>
 
-        {mode === "edit" && canPostMaintenanceCost ? (
-          <label className="flex items-start gap-2 rounded-md border border-border bg-surface-muted/70 px-3 py-2 text-sm">
-            <CheckboxControl
-              className="mt-1"
-              defaultChecked={Boolean(
-                maintenanceCase?.actualCostAmount &&
-                !maintenanceCase.ledgerEntryId,
-              )}
-              name="linkActualCostToLedger"
-            />
-            <span>
-              <span className="block font-medium">
-                Link actual cost to ledger
-              </span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                Creates or updates the maintenance expense row when actual cost
-                is present.
-              </span>
-            </span>
-          </label>
+        {mode === "edit" && costScopeLocked ? (
+          <p className="rounded-md border border-border bg-muted/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
+            {costFieldsLocked
+              ? "The property, unit, actual cost, and vendor are locked while Finance reviews this submission. Other maintenance details remain editable."
+              : "The property, unit, and vendor are locked to the approved financial history. Update the actual cost only when submitting a new adjustment."}
+          </p>
         ) : null}
 
         <Field label="Description" error={state.fieldErrors?.description?.[0]}>
@@ -2032,7 +2035,7 @@ export function MaintenanceForm({
 
         {state.message ? (
           <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
             role={state.status === "error" ? "alert" : "status"}
           >
             {state.message}
@@ -2048,7 +2051,7 @@ export function MaintenanceForm({
             className="w-full sm:w-auto"
             disabled={pending}
             type="submit"
-            variant="primary"
+            variant="default"
           >
             <Wrench size={15} />
             {pending ? "Saving..." : mode === "create" ? "Create" : "Save"}
@@ -2124,7 +2127,7 @@ function CompactFact({
 function LinkButton({ children, href }: { children: ReactNode; href: string }) {
   return (
     <Link
-      className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+      className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
       href={href}
       prefetch={false}
     >
@@ -2171,7 +2174,7 @@ function ChecklistEditor({ error, value }: { error?: string; value: string }) {
       <div className="flex items-center justify-between gap-2">
         <span>Checklist</span>
         <button
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-medium transition-colors hover:bg-surface-muted"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium transition-colors hover:bg-muted"
           onClick={() =>
             setItems((current) => [...current, newChecklistItem()])
           }
@@ -2181,10 +2184,10 @@ function ChecklistEditor({ error, value }: { error?: string; value: string }) {
           Add item
         </button>
       </div>
-      <div className="mt-2 divide-y divide-border overflow-hidden rounded-md border border-border bg-surface">
+      <div className="mt-2 divide-y divide-border overflow-hidden rounded-md border border-border bg-card">
         {items.map((item, index) => (
           <div className="flex items-center gap-2 px-2.5 py-2" key={item.id}>
-            <CheckboxControl
+            <Checkbox
               aria-label={`Complete checklist item ${index + 1}`}
               checked={item.completed}
               onCheckedChange={(checked) =>
@@ -2204,7 +2207,7 @@ function ChecklistEditor({ error, value }: { error?: string; value: string }) {
             />
             <button
               aria-label="Remove checklist item"
-              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               onClick={() => removeItem(item.id)}
               title="Remove checklist item"
               type="button"

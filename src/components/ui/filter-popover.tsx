@@ -38,7 +38,7 @@ export function FilterPopover({
         <Popover.Content
           align="end"
           className={cn(
-            "z-50 w-[min(560px,calc(100vw-2rem))] rounded-md border border-border bg-surface p-3 shadow-lg outline-none",
+            "z-50 w-[min(560px,calc(100vw-2rem))] rounded-md border border-border bg-card p-3 shadow-lg outline-none",
             contentClassName,
           )}
           id={id}

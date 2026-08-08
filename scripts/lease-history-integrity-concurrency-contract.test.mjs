@@ -104,7 +104,7 @@ describe("lease-history integrity concurrency result contract", () => {
     expect(() =>
       evaluateCreateAgainstArchivedPerson({
         code: 0,
-        output: "create_lease_with_authoritative_term\n",
+        output: "create_lease_with_relationships\n",
       }),
     ).toThrow(/Lease creation unexpectedly succeeded/);
 

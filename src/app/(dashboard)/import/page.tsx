@@ -4,10 +4,10 @@ import {
   getImportSavedMappings,
   getRecentImportRuns,
 } from "@/features/imports/data/imports";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 
 export default async function ImportPage() {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const [referenceData, recentRuns, savedMappings] = await Promise.all([
     getImportReferenceData(context.organizationId),
     getRecentImportRuns(context.organizationId),

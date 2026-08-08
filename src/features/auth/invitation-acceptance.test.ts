@@ -29,7 +29,7 @@ const invitation = {
   expires_at: "2026-07-28T12:00:00.000Z",
   invitation_id: invitationId,
   invitation_status: "pending",
-  invited_role: "admin",
+  invited_role: "super_admin",
   organization_name: "Harbor Property Group",
   password_required: true,
   scope_name: "All branches",
@@ -68,7 +68,7 @@ describe("invitation acceptance", () => {
     });
   });
 
-  it.each(["admin", "manager", "member"])(
+  it.each(["super_admin", "operations_manager", "operations_member"])(
     "uses the same password requirement for %s invitations",
     async (role) => {
     rpc.mockResolvedValue({

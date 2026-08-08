@@ -53,7 +53,7 @@ describe("OverviewScreen", () => {
     expect(classTokens(metrics)).toContain("grid");
   });
 
-  it("neutralizes the legacy lens-list frame while keeping one operating scroll", () => {
+  it("neutralizes the old lens-list frame while keeping one operating scroll", () => {
     render(<OverviewScreen data={data} query={{ ...query, lens: "leasing" }} />);
 
     const operatingWork = screen.getByRole("region", {

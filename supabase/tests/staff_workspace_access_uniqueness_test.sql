@@ -49,13 +49,23 @@ SELECT
   now(), now()
 FROM (
   VALUES
+    ('00000000-0000-0000-0000-000000000301'::uuid, 'other-org-admin@example.com'),
     ('00000000-0000-0000-0000-000000000711'::uuid, 'duplicate-member@example.com'),
-    ('00000000-0000-0000-0000-000000000712'::uuid, 'legacy-one@example.com'),
-    ('00000000-0000-0000-0000-000000000713'::uuid, 'legacy-two@example.com'),
+    ('00000000-0000-0000-0000-000000000712'::uuid, 'unlinked-one@example.com'),
+    ('00000000-0000-0000-0000-000000000713'::uuid, 'unlinked-two@example.com'),
     ('00000000-0000-0000-0000-000000000714'::uuid, 'cross-org-member@example.com'),
     ('00000000-0000-0000-0000-000000000715'::uuid, 'accept-conflict@example.com'),
-    ('00000000-0000-0000-0000-000000000716'::uuid, 'linked-before-accept@example.com')
+    ('00000000-0000-0000-0000-000000000716'::uuid, 'linked-before-accept@example.com'),
+    ('00000000-0000-0000-0000-000000000718'::uuid, 'linked-access@example.com'),
+    ('00000000-0000-0000-0000-000000000719'::uuid, 'unlinked-access@example.com')
 ) AS fixture_users(user_id, email);
+
+INSERT INTO public.organizations (id, name, slug)
+VALUES (
+  '00000000-0000-0000-0000-000000000002',
+  'Access Boundary Organization',
+  'access-boundary-organization'
+);
 
 INSERT INTO public.people (
   id,
@@ -68,6 +78,16 @@ INSERT INTO public.people (
   updated_by
 )
 VALUES
+  (
+    '80300000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
+    'Linked Operations Member',
+    'Linked Operations Member',
+    'individual',
+    'linked-operations-member@example.com',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
   (
     '88300000-0000-0000-0000-000000000010',
     '00000000-0000-0000-0000-000000000001',
@@ -130,6 +150,14 @@ INSERT INTO public.person_roles (
 VALUES
   (
     '00000000-0000-0000-0000-000000000001',
+    '80300000-0000-0000-0000-000000000002',
+    'staff',
+    'active',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
     '88300000-0000-0000-0000-000000000010',
     'staff',
     'active',
@@ -169,15 +197,69 @@ VALUES
     '00000000-0000-0000-0000-000000000301'
   );
 
+INSERT INTO public.organization_branches (
+  id,
+  organization_id,
+  name,
+  code,
+  status,
+  created_by,
+  updated_by
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000221',
+  '00000000-0000-0000-0000-000000000002',
+  'Workspace access test branch',
+  'ACCESS-TEST',
+  'active',
+  '00000000-0000-0000-0000-000000000301',
+  '00000000-0000-0000-0000-000000000301'
+);
+
+INSERT INTO public.organization_members (
+  id,
+  organization_id,
+  user_id,
+  role,
+  person_id,
+  branch_id
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000302',
+    '00000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000301',
+    'super_admin',
+    NULL,
+    NULL
+  ),
+  (
+    '00000000-0000-0000-0000-000000000503',
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000718',
+    'operations_member',
+    '80300000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000211'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000603',
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000719',
+    'finance_member',
+    NULL,
+    NULL
+  );
+
 SELECT throws_ok(
   $$INSERT INTO public.organization_members (
-      id, organization_id, user_id, role, person_id
+      id, organization_id, user_id, role, person_id, branch_id
     ) VALUES (
       '00000000-0000-0000-0000-000000000721',
       '00000000-0000-0000-0000-000000000001',
       '00000000-0000-0000-0000-000000000711',
-      'member',
-      '80300000-0000-0000-0000-000000000001'
+      'operations_member',
+      '80300000-0000-0000-0000-000000000002',
+      '00000000-0000-0000-0000-000000000211'
     )$$,
   '23505',
   NULL,
@@ -194,17 +276,17 @@ SELECT lives_ok(
         '00000000-0000-0000-0000-000000000722',
         '00000000-0000-0000-0000-000000000001',
         '00000000-0000-0000-0000-000000000712',
-        'member',
+        'finance_member',
         NULL
       ),
       (
         '00000000-0000-0000-0000-000000000723',
         '00000000-0000-0000-0000-000000000001',
         '00000000-0000-0000-0000-000000000713',
-        'member',
+        'finance_member',
         NULL
       )$$,
-  'multiple legacy memberships without Staff links remain valid'
+  'multiple pre-existing memberships without Staff links remain valid'
 );
 SELECT is(
   (
@@ -217,18 +299,19 @@ SELECT is(
       AND person_id IS NULL
   ),
   2::bigint,
-  'legacy unlinked memberships remain unmodified'
+  'pre-existing unlinked memberships remain unmodified'
 );
 
 SELECT lives_ok(
   $$INSERT INTO public.organization_members (
-      id, organization_id, user_id, role, person_id
+      id, organization_id, user_id, role, person_id, branch_id
     ) VALUES (
       '00000000-0000-0000-0000-000000000724',
       '00000000-0000-0000-0000-000000000002',
       '00000000-0000-0000-0000-000000000714',
-      'member',
-      '88300000-0000-0000-0000-000000000020'
+      'operations_member',
+      '88300000-0000-0000-0000-000000000020',
+      '00000000-0000-0000-0000-000000000221'
     )$$,
   'a different organization can link its own Staff record'
 );
@@ -247,8 +330,8 @@ UPDATE staff_access_test_state
 SET first_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'first-invitation@example.com',
-  'member',
-  NULL,
+  'operations_member',
+  '00000000-0000-0000-0000-000000000211',
   '88300000-0000-0000-0000-000000000010'
 );
 SELECT ok(
@@ -259,8 +342,8 @@ SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'different-email@example.com',
-    'member',
-    NULL,
+    'operations_member',
+    '00000000-0000-0000-0000-000000000211',
     '88300000-0000-0000-0000-000000000010'
   )$$,
   '23505',
@@ -286,8 +369,8 @@ UPDATE staff_access_test_state
 SET replacement_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'replacement-invitation@example.com',
-  'member',
-  NULL,
+  'operations_member',
+  '00000000-0000-0000-0000-000000000211',
   '88300000-0000-0000-0000-000000000010'
 );
 SELECT is(
@@ -318,8 +401,8 @@ SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'replacement-invitation@example.com',
-    'manager',
-    '00000000-0000-0000-0000-000000000212',
+    'operations_manager',
+    '00000000-0000-0000-0000-000000000211',
     '88300000-0000-0000-0000-000000000011'
   )$$,
   '23505',
@@ -350,8 +433,8 @@ UPDATE staff_access_test_state
 SET recoverable_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'recoverable-expired@example.com',
-  'manager',
-  '00000000-0000-0000-0000-000000000212',
+  'operations_manager',
+  '00000000-0000-0000-0000-000000000211',
   '88300000-0000-0000-0000-000000000011'
 );
 UPDATE public.organization_invitations
@@ -415,15 +498,15 @@ SELECT is(
 SELECT lives_ok(
   $$SELECT public.create_organization_invitation(
       '00000000-0000-0000-0000-000000000001',
-      'legacy-invite-one@example.com',
-      'member',
+      'unlinked-invite-one@example.com',
+      'finance_member',
       NULL,
       NULL
     );
     SELECT public.create_organization_invitation(
       '00000000-0000-0000-0000-000000000001',
-      'legacy-invite-two@example.com',
-      'member',
+      'unlinked-invite-two@example.com',
+      'finance_member',
       NULL,
       NULL
     )$$,
@@ -435,20 +518,20 @@ SELECT is(
     FROM public.organization_invitations
     WHERE organization_id = '00000000-0000-0000-0000-000000000001'
       AND person_id IS NULL
-      AND email LIKE 'legacy-invite-%'
+      AND email LIKE 'unlinked-invite-%'
       AND status IN ('pending', 'send_failed')
   ),
   2::bigint,
-  'legacy unlinked invitations are not collapsed by Staff uniqueness'
+  'pre-existing unlinked invitations are not collapsed by Staff uniqueness'
 );
 
 SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'already-linked@example.com',
-    'member',
-    NULL,
-    '80300000-0000-0000-0000-000000000001'
+    'operations_member',
+    '00000000-0000-0000-0000-000000000211',
+    '80300000-0000-0000-0000-000000000002'
   )$$,
   '23505',
   'This staff member already has workspace access',
@@ -459,7 +542,7 @@ SELECT throws_ok(
   $$SELECT public.update_organization_member_access(
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000603',
-    'member',
+    'operations_member',
     '80300000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000211'
   )$$,
@@ -471,7 +554,7 @@ SELECT throws_ok(
   $$SELECT public.update_organization_member_access(
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000603',
-    'member',
+    'operations_member',
     '88300000-0000-0000-0000-000000000010',
     '00000000-0000-0000-0000-000000000211'
   )$$,
@@ -484,8 +567,8 @@ UPDATE staff_access_test_state
 SET accept_conflict_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'accept-conflict@example.com',
-  'member',
-  NULL,
+  'operations_member',
+  '00000000-0000-0000-0000-000000000211',
   '88300000-0000-0000-0000-000000000012'
 );
 INSERT INTO public.organization_members (
@@ -493,14 +576,16 @@ INSERT INTO public.organization_members (
   organization_id,
   user_id,
   role,
-  person_id
+  person_id,
+  branch_id
 )
 VALUES (
   '00000000-0000-0000-0000-000000000725',
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000716',
-  'member',
-  '88300000-0000-0000-0000-000000000012'
+  'operations_member',
+  '88300000-0000-0000-0000-000000000012',
+  '00000000-0000-0000-0000-000000000211'
 );
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000715', true);
 SELECT throws_ok(
@@ -518,8 +603,8 @@ UPDATE staff_access_test_state
 SET cross_org_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000002',
   'other-workspace-invite@example.com',
-  'member',
-  NULL,
+  'operations_member',
+  '00000000-0000-0000-0000-000000000221',
   '88300000-0000-0000-0000-000000000021'
 );
 SELECT ok(
@@ -532,8 +617,8 @@ SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'cross-organization-person@example.com',
-    'member',
-    NULL,
+    'operations_member',
+    '00000000-0000-0000-0000-000000000211',
     '88300000-0000-0000-0000-000000000020'
   )$$,
   '23503',
@@ -546,6 +631,7 @@ SELECT throws_ok(
       organization_id,
       email,
       role,
+      branch_id,
       person_id,
       status,
       invited_by,
@@ -553,7 +639,8 @@ SELECT throws_ok(
     ) VALUES (
       '00000000-0000-0000-0000-000000000001',
       'direct-duplicate@example.com',
-      'member',
+      'operations_member',
+      '00000000-0000-0000-0000-000000000211',
       '88300000-0000-0000-0000-000000000010',
       'pending',
       '00000000-0000-0000-0000-000000000101',
@@ -570,7 +657,7 @@ SELECT lives_ok(
   $$SELECT public.update_organization_member_access(
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000503',
-    'manager',
+    'operations_manager',
     '80300000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000211'
   )$$,

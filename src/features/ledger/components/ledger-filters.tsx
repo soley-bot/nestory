@@ -130,7 +130,7 @@ export function LedgerFilters({
             {hasActiveFilters ? (
               <Link
                 aria-label="Reset ledger filters"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 href={pathname}
                 scroll={false}
                 title="Reset filters"
@@ -143,7 +143,7 @@ export function LedgerFilters({
 
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-surface-muted p-2 text-[13px] lg:grid-cols-[minmax(180px,240px)_minmax(180px,240px)_minmax(150px,180px)_minmax(130px,160px)_minmax(130px,170px)_minmax(84px,104px)]"
+            className="grid gap-2 rounded-md border border-border bg-muted p-2 text-[13px] lg:grid-cols-[minmax(180px,240px)_minmax(180px,240px)_minmax(150px,180px)_minmax(130px,160px)_minmax(130px,170px)_minmax(84px,104px)]"
             id="ledger-advanced-search"
           >
             <SelectControl

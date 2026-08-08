@@ -24,7 +24,7 @@ export default async function AcceptInvitePage({
       visualSrc="/marketing/login-property-building-blue-hour.png"
     >
       {invitation.state === "signed_out" ? (
-        <div className="space-y-4 text-sm leading-6 text-foreground-muted">
+        <div className="space-y-4 text-sm leading-6 text-muted-foreground">
           <p>Open the newest invitation email to verify the invited address and continue.</p>
           <Link className="font-semibold text-foreground" href="/login">
             Sign in with an existing account
@@ -33,7 +33,7 @@ export default async function AcceptInvitePage({
       ) : null}
 
       {invitation.state === "unavailable" ? (
-        <div className="space-y-4 text-sm leading-6 text-foreground-muted">
+        <div className="space-y-4 text-sm leading-6 text-muted-foreground">
           <p>
             The link may be invalid, expired, revoked, or assigned to a different email than
             {invitation.accountEmail ? ` ${invitation.accountEmail}` : " this account"}.
@@ -66,7 +66,7 @@ export default async function AcceptInvitePage({
       ) : null}
 
       {invitation.state === "expired" || invitation.state === "revoked" || invitation.state === "send_failed" ? (
-        <div className="space-y-4 text-sm leading-6 text-foreground-muted">
+        <div className="space-y-4 text-sm leading-6 text-muted-foreground">
           <InvitationSummary invitation={invitation} />
           <p>Ask a workspace administrator to send a new invitation.</p>
         </div>
@@ -84,7 +84,7 @@ function InvitationSummary({
   >;
 }) {
   return (
-    <dl className="grid gap-3 rounded-md border border-border bg-surface-muted p-4 text-sm">
+    <dl className="grid gap-3 rounded-md border border-border bg-muted p-4 text-sm">
       <SummaryRow label="Workspace" value={invitation.organizationName} />
       <SummaryRow
         label="Access level"
@@ -100,7 +100,7 @@ function InvitationSummary({
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <dt className="text-foreground-muted">{label}</dt>
+      <dt className="text-muted-foreground">{label}</dt>
       <dd className="text-right font-medium text-foreground">{value}</dd>
     </div>
   );

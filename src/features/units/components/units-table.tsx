@@ -17,9 +17,9 @@ import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 const unitRowClassName =
-  "cursor-pointer border-t border-border outline-none transition-colors hover:bg-surface-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring";
+  "cursor-pointer border-t border-border outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 const selectedUnitRowClassName =
-  "bg-state-selected shadow-[inset_3px_0_0_var(--record-spine)]";
+  "bg-accent shadow-[inset_3px_0_0_var(--record-spine)]";
 
 type UnitsTableProps = {
   displayMode: UnitDisplayMode;
@@ -54,7 +54,7 @@ export function UnitsTable({
         )}
       >
         {units.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
+          <p className="rounded-md border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
             {getEmptyMessage(archiveState)}
           </p>
         ) : null}
@@ -83,7 +83,7 @@ export function UnitsTable({
                 <col className="w-[14%]" />
                 <col className="w-[22%]" />
               </colgroup>
-              <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
                     active={sort === "property_asc"}
@@ -253,8 +253,8 @@ function UnitCard({
       aria-label={`Preview unit ${unit.unitNumber}`}
       aria-pressed={selected}
       className={cn(
-        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-surface text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-focus-ring",
-        selected && "border-record-spine bg-state-selected",
+        "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-card text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-ring",
+        selected && "border-record-spine bg-accent",
         unit.isArchived && "text-muted-foreground",
       )}
       data-selected={selected ? "true" : "false"}
@@ -287,7 +287,7 @@ function UnitCard({
               {unit.propertyName}
             </p>
             <p
-              className="mt-0.5 truncate text-[13px] text-foreground-muted"
+              className="mt-0.5 truncate text-[13px] text-muted-foreground"
               title={unit.propertyCode}
             >
               {unit.propertyCode}
@@ -304,12 +304,12 @@ function UnitCard({
               <span className="font-semibold">{unit.rentLabel}</span>
             )}
           </div>
-          <p className="line-clamp-2 leading-5 text-foreground-muted">
+          <p className="line-clamp-2 leading-5 text-muted-foreground">
             {unit.leaseLabel}
           </p>
         </div>
 
-        <p className="mt-3 border-t border-border pt-2 text-xs font-medium text-foreground-muted">
+        <p className="mt-3 border-t border-border pt-2 text-xs font-medium text-muted-foreground">
           Open quick view
         </p>
       </div>
@@ -346,7 +346,7 @@ function SortableHeader({
       <button
         aria-label={sortLabel}
         className={cn(
-          "flex h-7 w-full items-center gap-1 rounded px-1 outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-focus-ring",
+          "flex h-7 w-full items-center gap-1 rounded px-1 outline-none transition-colors hover:bg-card focus-visible:ring-2 focus-visible:ring-ring",
           align === "center" && "justify-center",
           align === "right" && "justify-end",
         )}
@@ -371,7 +371,7 @@ function UnitStatusBadges({ unit }: { unit: UnitSummary }) {
 
 function UnitThumbnail({ unit }: { unit: UnitSummary }) {
   const className =
-    "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-muted-foreground";
+    "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground";
 
   if (unit.thumbnailUrl) {
     return (
@@ -392,7 +392,7 @@ function UnitThumbnail({ unit }: { unit: UnitSummary }) {
 
 function UnitPhoto({ unit }: { unit: UnitSummary }) {
   const className =
-    "flex h-36 w-full items-center justify-center bg-surface-muted text-muted-foreground";
+    "flex h-36 w-full items-center justify-center bg-muted text-muted-foreground";
 
   if (unit.thumbnailUrl) {
     return (

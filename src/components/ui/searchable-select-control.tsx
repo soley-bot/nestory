@@ -129,7 +129,7 @@ export function SearchableSelectControl({
             aria-haspopup="listbox"
             aria-label={ariaLabel}
             className={cn(
-              "flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-control-border bg-surface px-3 py-2 text-left shadow-sm outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
+              "flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-input bg-card px-3 py-2 text-left shadow-sm outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
               className,
             )}
             disabled={disabled}
@@ -155,7 +155,7 @@ export function SearchableSelectControl({
         <Popover.Portal container={portalContainer ?? undefined}>
           <Popover.Content
             align="start"
-            className="z-[90] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-1rem)] rounded-md border border-border bg-surface p-1 shadow-lg"
+            className="z-[90] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-1rem)] rounded-md border border-border bg-card p-1 shadow-lg"
             onOpenAutoFocus={(event) => {
               event.preventDefault();
               searchRef.current?.focus();
@@ -179,7 +179,7 @@ export function SearchableSelectControl({
                 aria-controls={listboxId}
                 aria-expanded={open}
                 aria-invalid={ariaInvalid}
-                className="h-9 w-full rounded-md border border-control-border bg-surface pl-9 pr-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-focus-ring"
+                className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-ring"
                 onChange={(event) => {
                   setQuery(event.currentTarget.value);
                   setActiveIndex(0);
@@ -206,8 +206,8 @@ export function SearchableSelectControl({
                   <button
                     aria-selected={option.value === value}
                     className={cn(
-                      "flex min-h-11 w-full min-w-0 items-center gap-3 rounded px-2.5 py-2 text-left outline-none transition-colors hover:bg-surface-muted focus-visible:bg-surface-muted disabled:pointer-events-none disabled:opacity-50",
-                      activeOption?.value === option.value && "bg-surface-muted",
+                      "flex min-h-11 w-full min-w-0 items-center gap-3 rounded px-2.5 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted disabled:pointer-events-none disabled:opacity-50",
+                      activeOption?.value === option.value && "bg-muted",
                     )}
                     disabled={option.disabled}
                     id={`${listboxId}-${encodeURIComponent(option.value)}`}

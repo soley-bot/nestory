@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type DocumentFieldErrors = {
@@ -96,7 +96,7 @@ export async function createDocumentAction(
   _state: DocumentActionState,
   formData: FormData,
 ): Promise<DocumentActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = metadataSchema.safeParse({
     category: readString(formData, "category"),
     leaseId: readString(formData, "leaseId"),
@@ -196,7 +196,7 @@ export async function updateDocumentAction(
   _state: DocumentActionState,
   formData: FormData,
 ): Promise<DocumentActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedDocumentId = documentIdSchema.safeParse(
     readString(formData, "documentId"),
   );
@@ -359,7 +359,7 @@ async function updateDocumentArchiveState({
   fallbackMessage: string;
   formData: FormData;
 }): Promise<DocumentActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedDocumentId = documentIdSchema.safeParse(
     readString(formData, "documentId"),
   );
@@ -467,7 +467,7 @@ async function validateDocumentLink({
 
   if (leaseId) {
     const leaseResult = await supabase
-      .from("leases")
+      .from("current_leases")
       .select("id, property_id, unit_id")
       .eq("organization_id", organizationId)
       .eq("id", leaseId)

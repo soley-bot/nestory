@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { getPeopleMutationErrorMessage } from "@/features/people/people-action-errors";
 import type { PersonRoleValue } from "@/features/people/people.types";
@@ -96,7 +96,7 @@ function nullableString(value: string) {
 }
 
 function peopleRpcPayload(
-  context: Awaited<ReturnType<typeof requireAdminContext>>,
+  context: Awaited<ReturnType<typeof requireSuperAdminContext>>,
   values: z.infer<typeof peopleMutationSchema>,
 ) {
   return {
@@ -116,7 +116,7 @@ export async function createPersonAction(
   _state: PeopleActionState,
   formData: FormData,
 ): Promise<PeopleActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = peopleMutationSchema.safeParse(readPeopleMutationInput(formData));
 
   if (!parsed.success) {
@@ -149,7 +149,7 @@ export async function updatePersonAction(
   _state: PeopleActionState,
   formData: FormData,
 ): Promise<PeopleActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedPersonId = personIdSchema.safeParse(readString(formData, "personId"));
   const parsed = peopleMutationSchema.safeParse(readPeopleMutationInput(formData));
 
@@ -218,7 +218,7 @@ async function updatePersonArchiveState({
   fallbackMessage: string;
   formData: FormData;
 }): Promise<PeopleActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedPersonId = personIdSchema.safeParse(readString(formData, "personId"));
 
   if (!parsedPersonId.success) {
@@ -263,7 +263,6 @@ function revalidatePeoplePaths() {
   revalidatePath("/tenants");
   revalidatePath("/owners");
   revalidatePath("/vendors");
-  revalidatePath("/team");
   revalidatePath("/leases");
   revalidatePath("/properties");
   revalidatePath("/timeline");

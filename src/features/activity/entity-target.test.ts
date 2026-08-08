@@ -11,11 +11,12 @@ describe("resolveActivityEntityTarget", () => {
     expect(activityEntityTypes).toEqual([
       "timeline_event",
       "ledger_entry",
-      "ledger_period",
-      "accounting_journal_entry",
-      "accounting_period",
+      "financial_month",
       "finance_income_item",
       "finance_expense_item",
+      "expense_submission",
+      "tenant_invoice",
+      "owner_payment",
       "petty_cash_entry",
       "petty_cash_account",
       "petty_cash_period",
@@ -31,7 +32,6 @@ describe("resolveActivityEntityTarget", () => {
       "organization_branch",
       "organization_invitation",
       "organization_membership",
-      "people_leases_backfill",
     ]);
   });
 
@@ -106,11 +106,11 @@ describe("resolveActivityEntityTarget", () => {
     },
   );
 
-  it("builds a ledger-period month target from safe snapshot context", () => {
+  it("builds a financial-month target from safe snapshot context", () => {
     expect(
       resolveActivityEntityTarget({
         entityId: id,
-        entityType: "ledger_period",
+        entityType: "financial_month",
         periodStart: "2026-07-01",
         recordLabel: "July 2026",
       }),
@@ -159,9 +159,55 @@ describe("resolveActivityEntityTarget", () => {
     });
   });
 
+  it("routes expense submission activity to the review queue", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "expense_submission",
+        recordLabel: "Maintenance cost submitted",
+      }),
+    ).toEqual({
+      actionLabel: "Open expense review queue",
+      entityLabel: "Bills & Expenses",
+      focusMode: "module",
+      href: "/bills-expenses",
+      recordLabel: "Maintenance cost submitted",
+    });
+  });
+
+  it("routes generated tenant invoice activity to Rent", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "tenant_invoice",
+        recordLabel: "September rent",
+      }),
+    ).toEqual({
+      actionLabel: "Open Rent invoices",
+      entityLabel: "Rent & Income",
+      focusMode: "module",
+      href: "/rent-income",
+      recordLabel: "September rent",
+    });
+  });
+
+  it("routes owner payment activity to Balances", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "owner_payment",
+        recordLabel: "Owner payment recorded",
+      }),
+    ).toEqual({
+      actionLabel: "Open Balances",
+      entityLabel: "Owner payment",
+      focusMode: "module",
+      href: "/balances",
+      recordLabel: "Owner payment recorded",
+    });
+  });
+
   it.each([
-    ["accounting_journal_entry", "Accounting", "/ledger"],
-    ["accounting_period", "Accounting", "/ledger"],
     ["organization", "Organization", "/settings?section=organization"],
     ["organization_branch", "Organization branch", "/settings?section=branches"],
     [
@@ -185,21 +231,6 @@ describe("resolveActivityEntityTarget", () => {
       entityLabel,
       focusMode: "module",
       href,
-    });
-  });
-
-  it("classifies people lease backfills as explicitly unavailable", () => {
-    const target = resolveActivityEntityTarget({
-      entityId: id,
-      entityType: "people_leases_backfill",
-      recordLabel: "Lease relationship backfill",
-    });
-
-    expect(target).toEqual({
-      actionLabel: "Source unavailable",
-      entityLabel: "People leases backfill",
-      focusMode: "unavailable",
-      recordLabel: "Lease relationship backfill",
     });
   });
 

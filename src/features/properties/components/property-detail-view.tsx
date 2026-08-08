@@ -443,7 +443,7 @@ function PropertyReportsPanel({
       <div className="grid gap-2 p-4 md:grid-cols-2">
         {reportCatalog.map((statement) => (
           <Link
-            className="group flex min-h-32 flex-col rounded-md border border-border bg-surface p-3 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="group flex min-h-32 flex-col rounded-md border border-border bg-card p-3 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
             href={buildPropertyStatementHref(
               property.id,
               statement.kind,
@@ -495,7 +495,7 @@ function ActionLink({
 }) {
   return (
     <Link
-      className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium transition-colors hover:bg-surface-muted ${
+      className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium transition-colors hover:bg-muted ${
         strong ? "bg-foreground text-background hover:bg-foreground/90" : "text-foreground"
       }`}
       href={href}
@@ -581,7 +581,7 @@ function EmptyBlock({
   label: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted/60 p-3 text-sm">
+    <div className="rounded-md border border-border bg-muted/60 p-3 text-sm">
       <p className="text-muted-foreground">{label}</p>
       <ActionLink className="mt-3" href={actionHref} icon={<FileText size={14} />}>
         {actionLabel}
@@ -612,7 +612,7 @@ function EmptyRow({
 function OwnerRow({ owner }: { owner: PropertyOwnerHistory }) {
   return (
     <Link
-      className="block px-3 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-3 py-3 text-sm transition-colors hover:bg-muted"
       href={owner.href}
       prefetch={false}
     >
@@ -634,7 +634,7 @@ function OwnerRow({ owner }: { owner: PropertyOwnerHistory }) {
 function LeaseRow({ lease }: { lease: PropertyDetailLease }) {
   return (
     <Link
-      className="block px-3 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-3 py-3 text-sm transition-colors hover:bg-muted"
       href={lease.href}
       prefetch={false}
     >
@@ -657,7 +657,7 @@ function LeaseRow({ lease }: { lease: PropertyDetailLease }) {
 function LedgerRow({ entry }: { entry: PropertyLedgerContext }) {
   return (
     <Link
-      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
       href={entry.href}
       prefetch={false}
     >
@@ -687,7 +687,7 @@ function MaintenanceRow({
 }) {
   return (
     <Link
-      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
       href={maintenanceCase.href}
       prefetch={false}
     >
@@ -715,7 +715,7 @@ function MaintenanceRow({
 function TimelineRow({ event }: { event: PropertyTimelineContext }) {
   return (
     <Link
-      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
       href={event.href}
       prefetch={false}
     >
@@ -754,7 +754,7 @@ function DocumentRow({ document }: { document: PropertyDocumentContext }) {
   if (document.url) {
     return (
       <a
-        className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+        className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
         href={document.url}
         rel="noreferrer"
         target="_blank"
@@ -767,7 +767,7 @@ function DocumentRow({ document }: { document: PropertyDocumentContext }) {
   if (document.linkedRecordHref) {
     return (
       <Link
-        className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+        className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
         href={document.linkedRecordHref}
         prefetch={false}
       >
@@ -791,7 +791,7 @@ function ActivityRow({ change }: { change: RecentChange }) {
 
   return change.href ? (
     <Link
-      className="block px-3 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-3 py-3 text-sm transition-colors hover:bg-muted"
       href={change.href}
       prefetch={false}
     >

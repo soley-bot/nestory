@@ -59,10 +59,20 @@ type DuplicateAccessTarget = {
 };
 
 const roleOptions = [
-  { label: "Admin", value: "admin" },
-  { label: "Manager", value: "manager" },
-  { label: "Member", value: "member" },
+  { label: "Super Admin", value: "super_admin" },
+  { label: "Finance Manager", value: "finance_manager" },
+  { label: "Finance Member", value: "finance_member" },
+  { label: "Operations Manager", value: "operations_manager" },
+  { label: "Operations Member", value: "operations_member" },
 ];
+
+function isOperationsRole(role: string) {
+  return role === "operations_manager" || role === "operations_member";
+}
+
+function isOrganizationWideRole(role: string) {
+  return !isOperationsRole(role);
+}
 
 export function AccessSettingsScreen({
   branches,
@@ -123,7 +133,7 @@ function AccessWorkspace({
   const guard = useSettingsNavigationGuard();
   const controllers = useRef(new Map<string, AccessDraftController>());
   const [draftVersion, setDraftVersion] = useState(0);
-  const adminCount = members.filter((member) => member.role === "admin").length;
+  const adminCount = members.filter((member) => member.role === "super_admin").length;
   const staffOptions = useMemo(() => activeStaffOptions(people), [people]);
   const accessByPersonId = useMemo(
     () =>
@@ -251,7 +261,7 @@ function AccessWorkspace({
           </div>
           <div className="flex items-center gap-3">
             <Link
-              className="text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href="/staff?action=create"
             >
               Add Staff
@@ -273,13 +283,13 @@ function AccessWorkspace({
                   <p className="truncate text-sm font-semibold">
                     {person.label}
                   </p>
-                  <p className="mt-1 truncate text-xs text-foreground-muted">
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
                     {person.primaryEmail ?? "No email recorded"}
                   </p>
                 </div>
                 <Link
                   aria-label={`Grant workspace access for ${person.label}`}
-                  className="shrink-0 text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="shrink-0 text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   href={`/users-roles?personId=${person.id}`}
                   prefetch={false}
                 >
@@ -289,7 +299,7 @@ function AccessWorkspace({
             ))}
           </div>
         ) : (
-          <div className="px-3 py-4 text-sm text-foreground-muted">
+          <div className="px-3 py-4 text-sm text-muted-foreground">
             All active Staff have access.
           </div>
         )}
@@ -319,7 +329,7 @@ function AccessWorkspace({
             ))}
           </div>
         ) : (
-          <div className="px-3 py-4 text-sm text-foreground-muted">
+          <div className="px-3 py-4 text-sm text-muted-foreground">
             No pending invitations.
           </div>
         )}
@@ -410,17 +420,18 @@ function InviteUserForm({
   const emailLabelId = useId();
   const staffHelpId = useId();
   const staffLabelId = useId();
+  const initialBranchId = branches.length === 1 ? branches[0]!.id : "";
   const initial = {
-    branchId: "",
+    branchId: initialBranchId,
     email: defaults?.email ?? "",
     personId: defaults?.personId ?? "",
-    role: "member",
+    role: "operations_member",
   };
   const clean = {
-    branchId: "",
+    branchId: initialBranchId,
     email: "",
     personId: "",
-    role: "member",
+    role: "operations_member",
   };
   const draft = useAccessDraft({
     action: inviteOrganizationUserAction,
@@ -433,10 +444,16 @@ function InviteUserForm({
       }
     },
     validate: (values) => {
-      if (!values.personId) {
+      if (isOperationsRole(values.role) && !values.personId) {
         return {
           field: "personId" as const,
           message: "Choose a Staff member.",
+        };
+      }
+      if (isOperationsRole(values.role) && !values.branchId) {
+        return {
+          field: "branchId" as const,
+          message: "Choose an operational branch.",
         };
       }
       return /^\S+@\S+\.\S+$/.test(values.email.trim())
@@ -476,6 +493,7 @@ function InviteUserForm({
             : undefined;
   const selectedStaffEmail =
     selectedPerson?.primaryEmail ?? defaults?.staffEmail;
+  const organizationWide = isOrganizationWideRole(draft.values.role);
   const emailMismatch =
     selectedPerson && selectedStaffEmail && draft.values.email.trim()
       ? selectedStaffEmail.toLocaleLowerCase() !==
@@ -523,8 +541,8 @@ function InviteUserForm({
             <PersonSelect
               aria-describedby={staffHelpId}
               aria-labelledby={staffLabelId}
-              aria-required="true"
-              disabled={draft.status === "saving"}
+              aria-required={!organizationWide}
+              disabled={draft.status === "saving" || organizationWide}
               name="personId"
               onValueChange={(value) => {
                 draft.setField("personId", value);
@@ -539,7 +557,7 @@ function InviteUserForm({
               value={draft.values.personId}
             />
             <span
-              className="text-xs font-normal text-foreground-muted"
+              className="text-xs font-normal text-muted-foreground"
               id={staffHelpId}
             >
               The employee or contractor this login belongs to.
@@ -550,7 +568,7 @@ function InviteUserForm({
             <input
               aria-describedby={emailHelpId}
               aria-labelledby={emailLabelId}
-              className="h-8 w-full rounded-md border border-border bg-surface px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="h-8 w-full rounded-md border border-border bg-card px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring"
               id={emailId}
               disabled={draft.status === "saving"}
               onChange={(event) => draft.setField("email", event.target.value)}
@@ -560,7 +578,7 @@ function InviteUserForm({
               value={draft.values.email}
             />
             <span
-              className="text-xs font-normal text-foreground-muted"
+              className="text-xs font-normal text-muted-foreground"
               id={emailHelpId}
             >
               The address used to sign in and receive the invitation.
@@ -572,14 +590,24 @@ function InviteUserForm({
             label="Access level"
             onValueChange={(value) => {
               draft.setField("role", value);
-              if (value === "admin") draft.setField("branchId", "");
+              if (isOrganizationWideRole(value)) {
+                draft.setField("branchId", "");
+                draft.setField("personId", "");
+              } else {
+                if (!draft.values.branchId && branches.length === 1) {
+                  draft.setField("branchId", branches[0]!.id);
+                }
+                if (!draft.values.personId && defaults?.personId) {
+                  draft.setField("personId", defaults.personId);
+                }
+              }
             }}
             options={roleOptions}
             value={draft.values.role}
           />
           <AccessSelect
             disabled={
-              draft.status === "saving" || draft.values.role === "admin"
+              draft.status === "saving" || organizationWide
             }
             description="Which branch or property context this person may access."
             label="Access scope"
@@ -587,7 +615,7 @@ function InviteUserForm({
             options={branchOptions(branches)}
             value={draft.values.branchId}
           />
-          <p className="text-xs leading-5 text-foreground-muted sm:col-span-2">
+          <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">
             Workspace access controls sign-in permissions. It does not change
             the person&apos;s operational Staff role.
           </p>
@@ -763,7 +791,7 @@ function PendingInvitationRow({
             <Badge tone="warning">Archived Staff</Badge>
           ) : null}
         </div>
-        <p className="mt-1 text-xs text-foreground-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           {invitation.lastSentAt
             ? `Last sent ${formatAccessDate(invitation.lastSentAt)}`
             : "Not delivered yet"}
@@ -776,27 +804,31 @@ function PendingInvitationRow({
       </div>
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-foreground-muted">Access level</dt>
+          <dt className="text-xs text-muted-foreground">Access level</dt>
           <dd className="mt-1 font-medium">
             {formatWorkspaceAccessRole(invitation.role)}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-foreground-muted">Access scope</dt>
+          <dt className="text-xs text-muted-foreground">Access scope</dt>
           <dd className="mt-1 font-medium">
-            {branchLabel(invitation.branchId ?? "", branches)}
+            {isOrganizationWideRole(invitation.role)
+              ? "All branches"
+              : branchLabel(invitation.branchId ?? "", branches)}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-foreground-muted">Linked staff record</dt>
+          <dt className="text-xs text-muted-foreground">Linked staff record</dt>
           <dd className="mt-1 font-medium">
-            {personLabel(invitation.personId, people)}
+            {isOrganizationWideRole(invitation.role)
+              ? "Not required"
+              : personLabel(invitation.personId, people)}
           </dd>
         </div>
       </dl>
       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
         <button
-          className="h-8 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-8 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
           disabled={status === "saving"}
           onClick={() => void runAction(resendOrganizationInvitationAction)}
           type="button"
@@ -817,7 +849,7 @@ function PendingInvitationRow({
           className={
             status === "error"
               ? "w-full text-xs text-danger"
-              : "w-full text-xs text-foreground-muted"
+              : "w-full text-xs text-muted-foreground"
           }
           role={status === "error" ? "alert" : undefined}
         >
@@ -832,7 +864,7 @@ function PendingInvitationRow({
             <p className="font-medium" id={revokeTitleId}>
               Revoke this invitation?
             </p>
-            <p className="mt-1 text-foreground-muted">
+            <p className="mt-1 text-muted-foreground">
               The invitation link will stop working immediately.
             </p>
             <div className="mt-3 flex justify-end gap-2">
@@ -904,23 +936,46 @@ function MemberAccessForm({
   const draft = useAccessDraft({
     action: updateMemberAccessAction,
     initialValues: {
-      branchId: member.role === "admin" ? "" : (member.branchId ?? ""),
+      branchId: isOrganizationWideRole(member.role)
+        ? ""
+        : (member.branchId ?? ""),
       memberId: member.id,
-      personId: member.personId ?? "",
+      personId: isOrganizationWideRole(member.role)
+        ? ""
+        : (member.personId ?? ""),
       role: member.role,
     },
+    validate: (values) => {
+      if (isOperationsRole(values.role) && !values.personId) {
+        return {
+          field: "personId" as const,
+          message: "Choose a Staff member.",
+        };
+      }
+      if (isOperationsRole(values.role) && !values.branchId) {
+        return {
+          field: "branchId" as const,
+          message: "Choose an operational branch.",
+        };
+      }
+      return undefined;
+    },
   });
-  const lastAdministrator = member.role === "admin" && adminCount === 1;
+  const lastAdministrator = member.role === "super_admin" && adminCount === 1;
   const blocksLastAdminDemotion =
-    lastAdministrator && draft.values.role !== "admin";
+    lastAdministrator && draft.values.role !== "super_admin";
   const accountLabel = member.email ?? personLabel(member.personId, people);
   const linkedPerson = people.find((person) => person.id === member.personId);
   const selectablePeople = activeStaffOptions(people);
-  const linkingLegacyMember =
+  const linkingUnlinkedMember =
     !member.personId && Boolean(draft.values.personId);
 
   const saveAccess = () => {
-    if (member.personId && draft.values.personId !== member.personId) {
+    if (
+      isOperationsRole(draft.values.role) &&
+      member.personId &&
+      draft.values.personId !== member.personId
+    ) {
       staffChangeTriggerRef.current =
         document.activeElement instanceof HTMLElement
           ? document.activeElement
@@ -1001,7 +1056,7 @@ function MemberAccessForm({
           <div className="flex min-w-0 items-center gap-2">
             <p className="truncate text-sm font-semibold">{accountLabel}</p>
             {current ? <Badge tone="accent">You</Badge> : null}
-            {!member.personId ? (
+            {isOperationsRole(member.role) && !member.personId ? (
               <Badge tone="warning">Unlinked</Badge>
             ) : null}
             {linkedPerson?.archived ? (
@@ -1019,15 +1074,19 @@ function MemberAccessForm({
         <CompactFact
           label="Access scope"
           value={
-            member.role === "admin"
+            isOrganizationWideRole(member.role)
               ? "All branches"
               : branchLabel(member.branchId ?? "", branches)
           }
         />
         <CompactFact
           label="Linked Staff"
-          value={linkedPerson?.label ?? "Not linked"}
-          warning={!member.personId}
+          value={
+            isOrganizationWideRole(member.role)
+              ? "Not required"
+              : (linkedPerson?.label ?? "Not linked")
+          }
+          warning={isOperationsRole(member.role) && !member.personId}
         />
         <Button
           aria-expanded={expanded}
@@ -1058,9 +1117,9 @@ function MemberAccessForm({
         >
           {lastAdministrator ? (
             <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-warning-soft px-3 py-2 text-sm">
-              <span className="font-medium text-warning">Last administrator</span>
+              <span className="font-medium text-warning">Last Super Admin</span>
               <span className="text-muted-foreground">
-                Add another administrator before reducing this role.
+                Add another Super Admin before reducing this role.
               </span>
             </div>
           ) : null}
@@ -1070,13 +1129,26 @@ function MemberAccessForm({
               label="Access level"
               onValueChange={(value) => {
                 draft.setField("role", value);
-                if (value === "admin") draft.setField("branchId", "");
+                if (isOrganizationWideRole(value)) {
+                  draft.setField("branchId", "");
+                  draft.setField("personId", "");
+                } else {
+                  if (!draft.values.branchId && branches.length === 1) {
+                    draft.setField("branchId", branches[0]!.id);
+                  }
+                  if (!draft.values.personId && member.personId) {
+                    draft.setField("personId", member.personId);
+                  }
+                }
               }}
               options={roleOptions}
               value={draft.values.role}
             />
             <AccessSelect
-              disabled={draft.status === "saving" || draft.values.role === "admin"}
+              disabled={
+                draft.status === "saving" ||
+                isOrganizationWideRole(draft.values.role)
+              }
               label="Access scope"
               onValueChange={(value) => draft.setField("branchId", value)}
               options={branchOptions(branches)}
@@ -1086,9 +1158,11 @@ function MemberAccessForm({
               <span>Linked staff record</span>
               <PersonSelect
                 aria-label="Linked staff record"
-                allowClear
                 context="linked Staff record"
-                disabled={draft.status === "saving"}
+                disabled={
+                  draft.status === "saving" ||
+                  isOrganizationWideRole(draft.values.role)
+                }
                 name="personId"
                 onValueChange={(value) => draft.setField("personId", value)}
                 options={selectablePeople}
@@ -1113,7 +1187,7 @@ function MemberAccessForm({
             <DraftActionBar
               disabledReason={
                 blocksLastAdminDemotion
-                  ? "Add another administrator before changing this role."
+                  ? "Add another Super Admin before changing this role."
                   : undefined
               }
               focusOnError={
@@ -1121,7 +1195,7 @@ function MemberAccessForm({
               }
               onDiscard={draft.discard}
               onSave={saveAccess}
-              saveLabel={linkingLegacyMember ? "Link staff record" : "Save access"}
+              saveLabel={linkingUnlinkedMember ? "Link staff record" : "Save access"}
               status={draft.status}
               statusMessage={draft.message}
             />
@@ -1155,7 +1229,7 @@ function MemberAccessForm({
                 ? "Unlink this Staff record?"
                 : "Replace the linked Staff record?"}
             </p>
-            <p className="mt-1 text-foreground-muted">
+            <p className="mt-1 text-muted-foreground">
               {confirmingStaffChange === "unlink"
                 ? `Workspace access will remain, but it will no longer be tied to ${linkedPerson?.label ?? "this account"}'s Staff record.`
                 : "Workspace access will move to the newly selected Staff record without changing either Staff record."}
@@ -1196,7 +1270,7 @@ function MemberAccessForm({
             <p className="font-medium" id={removeTitleId}>
               Remove workspace access?
             </p>
-            <p className="mt-1 text-foreground-muted">
+            <p className="mt-1 text-muted-foreground">
               This account will lose workspace access immediately.
             </p>
             <div className="mt-3 flex justify-end gap-2">
@@ -1275,7 +1349,7 @@ function AccessSelect({
         value={value}
       />
       {description ? (
-        <span className="text-xs font-normal text-foreground-muted">
+        <span className="text-xs font-normal text-muted-foreground">
           {description}
         </span>
       ) : null}
@@ -1454,13 +1528,15 @@ function accessRows(
     {
       label: "Access scope",
       value:
-        values.role === "admin"
+        isOrganizationWideRole(values.role)
           ? "Organization-wide"
           : branchLabel(values.branchId, branches),
     },
     {
       label: "Linked staff record",
-      value: personLabel(values.personId, people),
+      value: isOrganizationWideRole(values.role)
+        ? "Not required"
+        : personLabel(values.personId, people),
     },
     {
       label: "Effect",
@@ -1507,10 +1583,16 @@ function roleEffect(
   branchId: string,
   branches: OrganizationBranch[],
 ) {
-  if (role === "admin") {
+  if (role === "super_admin") {
     return "Full workspace access";
   }
-  if (role === "manager") {
+  if (role === "finance_manager") {
+    return "Read and approve finance activity";
+  }
+  if (role === "finance_member") {
+    return "Read finance activity and submit expenses";
+  }
+  if (role === "operations_manager") {
     return `Operational access · ${branchLabel(branchId, branches)}`;
   }
   return "Assigned work only";

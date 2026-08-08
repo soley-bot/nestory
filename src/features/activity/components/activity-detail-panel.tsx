@@ -23,7 +23,7 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
 
   return (
     <div className="space-y-5 px-4 py-5 sm:px-5">
-      <div className="rounded-md border border-border bg-surface-muted p-4">
+      <div className="rounded-md border border-border bg-muted p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <p className="break-words text-sm font-semibold">{change.recordLabel}</p>
           <Badge className="self-start sm:self-auto" tone={change.tone}>
@@ -45,7 +45,7 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
               Opens the operational record that produced this audit entry.
             </p>
             <Link
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-accent transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-accent transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href={target.href}
             >
               {target.actionLabel}
@@ -65,7 +65,7 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
         </p>
       ) : (
         <div className="overflow-hidden rounded-md border border-border">
-          <div className="hidden grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)] bg-surface-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:grid lg:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="hidden grid-cols-[140px_minmax(0,1fr)_minmax(0,1fr)] bg-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground sm:grid lg:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)]">
             <span>Field</span>
             <span>Before</span>
             <span>After</span>

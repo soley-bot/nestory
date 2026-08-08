@@ -104,9 +104,9 @@ SELECT lives_ok(
     'AUDIT-CASH-01',
     'Audit cash',
     500,
-    '80300000-0000-0000-0000-000000000001'
+    '80000000-0000-0000-0000-000000000008'
   )$$,
-  'active Staff can be assigned as account custodian'
+  'an active Operations Member can be assigned as account custodian'
 );
 
 SELECT is(
@@ -115,7 +115,7 @@ SELECT is(
     FROM public.petty_cash_accounts
     WHERE account_number = 'AUDIT-CASH-01'
   ),
-  '80300000-0000-0000-0000-000000000001'::uuid,
+  '80000000-0000-0000-0000-000000000008'::uuid,
   'account stores its validated custodian'
 );
 
@@ -138,7 +138,7 @@ SELECT is(
     WHERE account.account_number = 'AUDIT-CASH-01'
   ),
   0::numeric,
-  'new account does not duplicate opening cash as a legacy period advance'
+  'new account does not duplicate opening cash as a period advance'
 );
 
 SELECT is(
@@ -155,7 +155,7 @@ SELECT is(
     ORDER BY created_at DESC
     LIMIT 1
   ),
-  '80300000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000008',
   'account creation audit includes custodian identity'
 );
 
@@ -178,13 +178,13 @@ SELECT lives_ok(
     p_clear_date => current_date,
     p_entry_kind => 'advance',
     p_status => 'cleared',
-    p_category => 'STAFF-ADVANCE',
+    p_category => 'CUSTODIAN-ADVANCE',
     p_supplier => NULL,
     p_description => 'Additional custodian funding',
     p_amount => 100,
-    p_counterparty_person_id => '80300000-0000-0000-0000-000000000001'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000008'
   )$$,
-  'later Staff advance is additive to opening cash'
+  'later custodian advance is additive to opening cash'
 );
 
 SELECT throws_ok(
@@ -193,11 +193,18 @@ SELECT throws_ok(
     'AUDIT-BAD-CUSTODIAN',
     'Bad custodian',
     100,
-    '80200000-0000-0000-0000-000000000001'
+    '80000000-0000-0000-0000-000000000006'
   )$$,
   '23503',
   'Custodian must be active Staff in this organization',
   'vendor cannot be assigned as account custodian'
+);
+
+INSERT INTO public.organizations (id, name, slug)
+VALUES (
+  '00000000-0000-0000-0000-000000000002',
+  'Petty Cash Boundary Organization',
+  'petty-cash-boundary-organization'
 );
 
 INSERT INTO public.people (
@@ -251,7 +258,7 @@ SELECT lives_ok(
     p_supplier => 'Untrusted browser label',
     p_description => 'Linked person snapshot',
     p_amount => 75,
-    p_counterparty_person_id => '80200000-0000-0000-0000-000000000001'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
   )$$,
   'linked counterparty entry is created'
 );
@@ -262,13 +269,13 @@ SELECT is(
     FROM public.petty_cash_entries
     WHERE category = 'LINKED-IN'
   ),
-  'Phnom Penh Plumbing Co.',
+  'Khmer Home Services',
   'RPC derives the transaction-time supplier snapshot from Person'
 );
 
 UPDATE public.people
 SET display_name = 'PP Plumbing Renamed'
-WHERE id = '80200000-0000-0000-0000-000000000001';
+WHERE id = '80000000-0000-0000-0000-000000000006';
 
 SELECT is(
   (
@@ -276,7 +283,7 @@ SELECT is(
     FROM public.petty_cash_entries
     WHERE category = 'LINKED-IN'
   ),
-  'Phnom Penh Plumbing Co.',
+  'Khmer Home Services',
   'later Person rename does not rewrite the entry snapshot'
 );
 
@@ -314,7 +321,7 @@ SELECT set_config('app.people_leases_skip_sync', 'on', true);
 
 UPDATE public.people
 SET archived_at = now()
-WHERE id = '80200000-0000-0000-0000-000000000008';
+WHERE id = '80000000-0000-0000-0000-000000000006';
 
 SELECT set_config('app.people_leases_skip_sync', 'off', true);
 
@@ -341,7 +348,7 @@ SELECT throws_ok(
     p_supplier => NULL,
     p_description => 'Rejected archived person',
     p_amount => 10,
-    p_counterparty_person_id => '80200000-0000-0000-0000-000000000008'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
   )$$,
   '23503',
   'Counterparty must be an active person in this organization',
@@ -352,7 +359,7 @@ DO $$
 BEGIN
   PERFORM public.restore_person(
     '00000000-0000-0000-0000-000000000001',
-    '80200000-0000-0000-0000-000000000008'
+    '80000000-0000-0000-0000-000000000006'
   );
 END;
 $$;
@@ -441,7 +448,7 @@ SELECT lives_ok(
     p_supplier => NULL,
     p_description => 'Linked person snapshot corrected',
     p_amount => 75,
-    p_counterparty_person_id => '80200000-0000-0000-0000-000000000001'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
   )$$,
   'unposted entry operational fields can be corrected'
 );
@@ -729,7 +736,7 @@ SELECT lives_ok(
     p_supplier => NULL,
     p_description => 'Postable linked expense',
     p_amount => 30,
-    p_counterparty_person_id => '80200000-0000-0000-0000-000000000001'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
   )$$,
   'post candidate is created in the open period'
 );
@@ -759,7 +766,7 @@ SELECT is(
   (
     SELECT count(*)
     FROM public.ledger_entries
-    WHERE source_type = 'petty_cash'
+    WHERE source_type = 'petty_cash_entry'
       AND source_id = (
         SELECT id FROM public.petty_cash_entries WHERE category = 'POST-ME'
       )
@@ -784,7 +791,7 @@ SELECT throws_ok(
     p_supplier => NULL,
     p_description => 'Cannot edit posted',
     p_amount => 30,
-    p_counterparty_person_id => '80200000-0000-0000-0000-000000000001'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
   )$$,
   '22023',
   'Only unposted draft or cleared petty cash rows can be edited',
@@ -832,7 +839,7 @@ SELECT lives_ok(
     p_supplier => NULL,
     p_description => 'Must stop when account becomes inactive',
     p_amount => 15,
-    p_counterparty_person_id => '80200000-0000-0000-0000-000000000001'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
   )$$,
   'inactive-account guard candidate is created while account is active'
 );
@@ -863,7 +870,7 @@ SELECT throws_ok(
     p_supplier => NULL,
     p_description => 'Blocked correction',
     p_amount => 15,
-    p_counterparty_person_id => '80200000-0000-0000-0000-000000000001'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
   )$$,
   '23503',
   'Active petty cash account not found',

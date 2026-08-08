@@ -185,13 +185,13 @@ export function DocumentScreen({
       mode: "create",
     });
   const documentList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
       {documents.length === 0 ? (
         <EmptyState
           action={
             hasFilters ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
                 scroll={false}
               >
@@ -240,7 +240,7 @@ export function DocumentScreen({
   return (
     <WorkspacePage
       actions={
-        <Button onClick={openCreate} variant="primary">
+        <Button onClick={openCreate} variant="default">
           <Plus size={15} />
           Upload document
         </Button>
@@ -260,7 +260,7 @@ export function DocumentScreen({
         {statusMessage ? (
           <div className="shrink-0 px-4 pt-3 sm:px-6">
             <p
-              className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+              className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
               role="status"
             >
               {statusMessage}
@@ -440,14 +440,14 @@ function DocumentReviewStrip({
   count: number;
 }) {
   return (
-    <div className="border-b border-border bg-surface-muted/35 px-4 py-2 sm:px-6 lg:px-6">
+    <div className="border-b border-border bg-muted/35 px-4 py-2 sm:px-6 lg:px-6">
       <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="min-w-0 truncate font-medium text-foreground">
           {count} {count === 1 ? "document" : "documents"} {context.countLabel}
         </p>
-        <p className="text-foreground-muted">{context.nextStep}</p>
+        <p className="text-muted-foreground">{context.nextStep}</p>
       </div>
-      <p className="mt-1 text-xs text-foreground-subtle">
+      <p className="mt-1 text-xs text-muted-foreground">
         {context.description}
       </p>
     </div>
@@ -464,7 +464,7 @@ function DocumentTable({
   selectedDocumentId: string;
 }) {
   return (
-    <div className="overflow-hidden bg-surface">
+    <div className="overflow-hidden bg-card">
       <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
         <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px]">
           <colgroup>
@@ -475,7 +475,7 @@ function DocumentTable({
             <col className="w-[124px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-2.5 py-2.5 font-semibold">Document</th>
               <th className="px-1.5 py-2.5 font-semibold">Type</th>
@@ -600,7 +600,7 @@ function DocumentInspector({
   }
 
   return (
-    <div className="bg-surface">
+    <div className="bg-card">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -662,7 +662,7 @@ function DocumentInspector({
           )}
           {document.url ? (
             <a
-              className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               href={document.url}
               rel="noreferrer"
               target="_blank"
@@ -882,18 +882,18 @@ function DocumentArchivePanel({
     <form action={action} className="flex h-full flex-col">
       <input name="documentId" type="hidden" value={document.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
+        <div className="rounded-md border border-border bg-muted px-3 py-3">
           <p className="text-sm font-medium">{document.fileName}</p>
           <p className="mt-1 text-sm text-muted-foreground">{document.category}</p>
         </div>
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           {mode === "archive"
             ? "Archiving hides this document from active evidence lists without deleting the file."
             : "Restoring returns this document to active evidence lists."}
         </p>
         {state.message ? (
           <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
             role={state.status === "error" ? "alert" : "status"}
           >
             {state.message}
@@ -909,7 +909,7 @@ function DocumentArchivePanel({
             className="w-full sm:w-auto"
             disabled={pending}
             type="submit"
-            variant="primary"
+            variant="default"
           >
             {mode === "archive" ? (
               <Archive size={15} />
@@ -951,7 +951,7 @@ function DocumentAttentionNote({
   label: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+    <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate font-semibold">{item?.label ?? label}</p>
         <div className="flex shrink-0 items-center gap-2">
@@ -961,7 +961,7 @@ function DocumentAttentionNote({
           {item ? null : (
             <Link
               aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
               href={href}
               rel={href.startsWith("http") ? "noreferrer" : undefined}
               target={href.startsWith("http") ? "_blank" : undefined}
@@ -982,7 +982,7 @@ function DocumentLinkedRecords({
   records: DocumentSummary["linkedRecords"];
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+    <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="truncate font-semibold">Linked records</p>
         <Badge tone={records.length > 0 ? "success" : "warning"}>
@@ -996,7 +996,7 @@ function DocumentLinkedRecords({
           {records.map((record) => (
             <Link
               aria-label={record.label}
-              className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-surface px-2.5 py-2 text-sm transition-colors hover:bg-surface-muted"
+              className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-card px-2.5 py-2 text-sm transition-colors hover:bg-muted"
               href={record.href}
               key={`${record.type}-${record.href}`}
             >

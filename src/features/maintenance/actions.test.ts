@@ -1,15 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { maybeSingle, requireWorkspaceContext, revalidatePath, rpc } =
+const {
+  maybeSingle,
+  requireOperationsExecutionContext,
+  requireOperationsManagementContext,
+  revalidatePath,
+  rpc,
+} =
   vi.hoisted(() => ({
     maybeSingle: vi.fn(),
-    requireWorkspaceContext: vi.fn(),
+    requireOperationsExecutionContext: vi.fn(),
+    requireOperationsManagementContext: vi.fn(),
     revalidatePath: vi.fn(),
     rpc: vi.fn(),
   }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/auth/context", () => ({ requireWorkspaceContext }));
+vi.mock("@/lib/auth/context", () => ({
+  requireOperationsExecutionContext,
+  requireOperationsManagementContext,
+}));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({
     from: () => ({
@@ -27,12 +37,14 @@ import {
   executeAssignedMaintenanceTaskAction,
   executeCoordinatedMaintenanceTaskAction,
   reviewMaintenanceCompletionAction,
+  submitMaintenanceCostAction,
   updateMaintenanceCaseAction,
 } from "@/features/maintenance/actions";
 
 describe("maintenance action capabilities", () => {
   beforeEach(() => {
-    requireWorkspaceContext.mockReset();
+    requireOperationsExecutionContext.mockReset();
+    requireOperationsManagementContext.mockReset();
     maybeSingle.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
@@ -40,13 +52,12 @@ describe("maintenance action capabilities", () => {
     maybeSingle.mockResolvedValue({ data: null, error: null });
   });
 
-  it("never lets a manager request an official ledger posting", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+  it("updates maintenance details without a direct Ledger command", async () => {
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "manager",
+      role: "operations_manager",
     });
     const formData = validMaintenanceForm();
-    formData.set("linkActualCostToLedger", "on");
 
     const result = await updateMaintenanceCaseAction({}, formData);
 
@@ -56,35 +67,69 @@ describe("maintenance action capabilities", () => {
       "update_maintenance_task",
       expect.objectContaining({
         p_actual_cost_amount: 125.5,
-        p_link_actual_cost_to_ledger: false,
       }),
     );
     expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls[0]?.[1]).not.toHaveProperty(
+      "p_link_actual_cost_to_ledger",
+    );
   });
 
-  it("keeps official ledger posting available to admins", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+  it("submits the recorded cost to Finance through operations authority", async () => {
+    requireOperationsManagementContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "admin",
+      role: "operations_manager",
     });
-    const formData = validMaintenanceForm();
-    formData.set("linkActualCostToLedger", "on");
-
-    const result = await updateMaintenanceCaseAction({}, formData);
-
-    expect(result.status).toBe("success");
-    expect(rpc).toHaveBeenNthCalledWith(
-      1,
-      "update_maintenance_task",
-      expect.objectContaining({ p_link_actual_cost_to_ledger: true }),
+    const formData = new FormData();
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "maintenance-cost-submit-1");
+    formData.set("reference", "Receipt 42");
+    formData.set(
+      "supportingDocumentId",
+      "00000000-0000-4000-8000-000000000007",
     );
-    expect(rpc).toHaveBeenCalledTimes(1);
+    formData.set("taskId", "00000000-0000-4000-8000-000000000003");
+
+    await expect(submitMaintenanceCostAction({}, formData)).resolves.toEqual({
+      message: "Maintenance cost submitted to Finance.",
+      status: "success",
+    });
+    expect(requireOperationsManagementContext).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith("submit_maintenance_cost", {
+      p_expense_date: "2026-08-08",
+      p_idempotency_key: "maintenance-cost-submit-1",
+      p_organization_id: "00000000-0000-4000-8000-000000000001",
+      p_reference: "Receipt 42",
+      p_supporting_document_id:
+        "00000000-0000-4000-8000-000000000007",
+      p_task_id: "00000000-0000-4000-8000-000000000003",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/finance");
+    expect(revalidatePath).toHaveBeenCalledWith("/bills-expenses");
+  });
+
+  it("requires a receipt document or reference before authorization", async () => {
+    const formData = new FormData();
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "maintenance-cost-no-evidence");
+    formData.set("reference", "");
+    formData.set("supportingDocumentId", "");
+    formData.set("taskId", "00000000-0000-4000-8000-000000000003");
+
+    await expect(submitMaintenanceCostAction({}, formData)).resolves.toEqual({
+      fieldErrors: {
+        reference: ["Choose a receipt document or enter a reference."],
+      },
+      status: "error",
+    });
+    expect(requireOperationsManagementContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("creates and assigns a maintenance case in one checked RPC", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "manager",
+      role: "operations_manager",
     });
     const formData = validMaintenanceForm();
     formData.set("actualCostAmount", "");
@@ -108,9 +153,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("sends a changed vendor through the checked update RPC", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "admin",
+      role: "super_admin",
     });
     const formData = validMaintenanceForm();
     formData.set("vendorPersonId", "00000000-0000-4000-8000-000000000006");
@@ -127,9 +172,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("returns an operator-friendly error when a vendor is no longer eligible", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "admin",
+      role: "super_admin",
     });
     rpc.mockResolvedValueOnce({
       data: null,
@@ -146,9 +191,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("rejects manager archive requests before calling the archive RPC", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "manager",
+      role: "operations_manager",
     });
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
@@ -163,11 +208,11 @@ describe("maintenance action capabilities", () => {
   });
 
   it("routes member execution through the checked assignment RPC", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       branchId: "00000000-0000-4000-8000-000000000005",
       organizationId: "00000000-0000-4000-8000-000000000001",
       personId: "00000000-0000-4000-8000-000000000004",
-      role: "member",
+      role: "operations_member",
     });
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
@@ -186,9 +231,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("does not let a manager execute a member assignment", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "manager",
+      role: "operations_manager",
     });
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
@@ -201,10 +246,10 @@ describe("maintenance action capabilities", () => {
   });
 
   it("routes manager-coordinated execution through its checked RPC", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       branchId: "00000000-0000-4000-8000-000000000005",
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "manager",
+      role: "operations_manager",
     });
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
@@ -225,9 +270,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("requires a coordinated block or completion note and rejects members", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "manager",
+      role: "operations_manager",
     });
     const invalid = new FormData();
     invalid.set("taskId", "00000000-0000-4000-8000-000000000003");
@@ -240,9 +285,9 @@ describe("maintenance action capabilities", () => {
     });
     expect(rpc).not.toHaveBeenCalled();
 
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "member",
+      role: "operations_member",
     });
     const start = new FormData();
     start.set("taskId", "00000000-0000-4000-8000-000000000003");
@@ -255,9 +300,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("requires and trims a 3 to 500 character reopen note", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "manager",
+      role: "operations_manager",
     });
     const invalid = new FormData();
     invalid.set("taskId", "00000000-0000-4000-8000-000000000003");
@@ -286,9 +331,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("keeps an approval note optional for admins", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "admin",
+      role: "super_admin",
     });
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");

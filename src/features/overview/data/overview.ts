@@ -151,10 +151,8 @@ export async function getOverviewScreenData(
     .is("archived_at", null)
     .neq("status", "inactive");
   let leasesQuery = supabase
-    .from("leases")
-    .select(
-      "unit_id, lease_end_date, primary_tenant_person_id, units!inner(property_id)",
-    )
+    .from("current_leases")
+    .select("unit_id, property_id, lease_end_date, primary_tenant_person_id")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .in("status", [...activeLeaseStatuses]);
@@ -212,7 +210,7 @@ export async function getOverviewScreenData(
     const propertyId = effectiveQuery.propertyId;
     propertiesQuery = propertiesQuery.eq("id", propertyId);
     unitsQuery = unitsQuery.eq("property_id", propertyId);
-    leasesQuery = leasesQuery.eq("units.property_id", propertyId);
+    leasesQuery = leasesQuery.eq("property_id", propertyId);
     ledgerWindowQuery = ledgerWindowQuery.eq("property_id", propertyId);
     ledgerNetQuery = ledgerNetQuery.eq("property_id", propertyId);
     propertyOwnersQuery = propertyOwnersQuery.eq("property_id", propertyId);

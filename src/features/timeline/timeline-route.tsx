@@ -2,7 +2,7 @@ import { TimelineScreen } from "@/features/timeline/components/timeline-screen";
 import { getTimelineScreenData } from "@/features/timeline/data/timeline";
 import { parseTimelineSearchParams } from "@/features/timeline/timeline.filters";
 import type { TimelineScope } from "@/features/timeline/timeline.types";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 
 type TimelineRouteProps = {
   scope: TimelineScope;
@@ -15,7 +15,7 @@ export async function renderTimelineRoute({
   searchParams,
   title,
 }: TimelineRouteProps) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const params = await searchParams;
   const viewQuery = parseTimelineSearchParams(params);
   const data = await getTimelineScreenData(context.organizationId, viewQuery, {

@@ -36,7 +36,7 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
-      <section className="rounded-md border border-border bg-surface p-4">
+      <section className="rounded-md border border-border bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">Policy authority</h2>
@@ -58,11 +58,11 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
 
       {draft ? <DraftPolicyForm draft={draft} /> : <CreateDraftForm />}
 
-      <section className="rounded-md border border-border bg-surface p-4">
+      <section className="rounded-md border border-border bg-card p-4">
         <h2 className="text-sm font-semibold">Version history</h2>
         <div
           aria-label="Rent policy version history"
-          className="mt-3 overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+          className="mt-3 overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           tabIndex={0}
         >
           <table className="w-full min-w-[620px] text-left text-sm">
@@ -127,7 +127,7 @@ function CreateDraftForm() {
   return (
     <form
       action={action}
-      className="rounded-md border border-border bg-surface p-4"
+      className="rounded-md border border-border bg-card p-4"
     >
       <h2 className="text-sm font-semibold">Create policy draft</h2>
       <p className="mt-1 text-xs text-muted-foreground">
@@ -170,7 +170,7 @@ function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
   );
 
   return (
-    <section className="rounded-md border border-border bg-surface p-4">
+    <section className="rounded-md border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">

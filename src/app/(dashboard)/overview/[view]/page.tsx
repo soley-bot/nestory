@@ -5,7 +5,7 @@ import {
 } from "@/features/overview/components/overview-detail-page";
 import { getOverviewScreenData } from "@/features/overview/data/overview";
 import { parseOverviewSearchParams } from "@/features/overview/overview.filters";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 
 type OverviewDetailPageProps = {
   params: Promise<{ view: string }>;
@@ -19,7 +19,7 @@ export default async function OverviewDetailRoute({
   const { view } = await params;
   if (!isOverviewDetailView(view)) notFound();
 
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const query = parseOverviewSearchParams(await searchParams);
   const data = await getOverviewScreenData(context.organizationId, {
     ...query,

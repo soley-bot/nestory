@@ -315,13 +315,13 @@ function CreateSuccessActions({ propertyId }: { propertyId: string }) {
       <p className="text-sm font-semibold text-foreground">Next steps</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
-          className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
           href={`/properties/${propertyId}`}
         >
           Open property record
         </Link>
         <Link
-          className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
           href={`/units?action=create&propertyId=${propertyId}`}
         >
           Add units
@@ -355,7 +355,7 @@ function InlinePropertyPhotoField({
   preview: PhotoPreview | null;
 }) {
   return (
-    <section className="rounded-md border border-border bg-surface-muted p-3">
+    <section className="rounded-md border border-border bg-muted p-3">
       <FileDropzoneField
         accept={PHOTO_FILE_ACCEPT}
         aria-describedby={ariaDescribedBy}
@@ -390,8 +390,8 @@ function SelectedPropertyPhotoPreview({
   preview: PhotoPreview;
 }) {
   return (
-    <article className="mt-3 overflow-hidden rounded-md border border-accent/50 bg-surface">
-      <div className="relative h-44 bg-surface-muted">
+    <article className="mt-3 overflow-hidden rounded-md border border-accent/50 bg-card">
+      <div className="relative h-44 bg-muted">
         <Image
           alt=""
           className="size-full object-cover"
@@ -402,7 +402,7 @@ function SelectedPropertyPhotoPreview({
         />
         <button
           aria-label="Cancel selected photo"
-          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md border border-border bg-surface/95 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md border border-border bg-card/95 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
           onClick={onClear}
           type="button"
         >

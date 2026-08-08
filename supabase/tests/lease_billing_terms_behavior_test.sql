@@ -46,7 +46,7 @@ SELECT
 FROM lease_billing_state;
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
-SELECT organization_id, admin_id, 'admin'
+SELECT organization_id, admin_id, 'super_admin'
 FROM lease_billing_state;
 
 INSERT INTO public.properties(
@@ -100,10 +100,11 @@ SELECT
   organization_id, property_id, owner_id, 100, true, current_date - 365
 FROM lease_billing_state;
 
+SET LOCAL session_replication_role = replica;
+
 INSERT INTO public.leases(
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
-  tenant_name, lease_start_date, lease_end_date, monthly_rent_amount,
-  monthly_rent_currency, status
+  status
 )
 SELECT
   lease_id,
@@ -111,12 +112,32 @@ SELECT
   property_id,
   unit_id,
   tenant_id,
-  'Billing Tenant',
+  'active'
+FROM lease_billing_state;
+
+SET LOCAL session_replication_role = origin;
+
+INSERT INTO public.lease_terms(
+  organization_id, lease_id, term_sequence, start_date, end_date,
+  rent_amount, rent_currency, rent_due_day, payment_frequency, status,
+  authority_kind, confirmed_at, confirmed_by, created_by, updated_by
+)
+SELECT
+  organization_id,
+  lease_id,
+  1,
   current_date - 60,
   current_date + 300,
   1000,
   'USD'::public.currency_code,
-  'active'
+  1,
+  'monthly',
+  'active',
+  'authoritative',
+  now(),
+  admin_id,
+  admin_id,
+  admin_id
 FROM lease_billing_state;
 
 SELECT set_config(

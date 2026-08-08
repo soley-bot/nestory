@@ -3,7 +3,7 @@ import {
   getPropertyDetail,
   getPropertyOwnerOptions,
 } from "@/features/properties/data/properties";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import PropertyNotFound from "./not-found";
 
 type PropertyPageProps = {
@@ -12,7 +12,7 @@ type PropertyPageProps = {
 
 export default async function PropertyPage({ params }: PropertyPageProps) {
   const { propertyId } = await params;
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const [property, ownerOptions] = await Promise.all([
     getPropertyDetail(context.organizationId, propertyId),
     getPropertyOwnerOptions(context.organizationId),

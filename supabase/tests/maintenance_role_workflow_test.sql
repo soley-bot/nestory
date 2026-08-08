@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(108);
+SELECT plan(110);
 
 CREATE TEMP TABLE maintenance_role_workflow_state (
   created_task_id uuid
@@ -59,7 +59,7 @@ BEGIN
   SELECT pg_temp.call_create_maintenance_task(
     'pending',
     '00000000-0000-0000-0000-000000000211'::uuid,
-    '80300000-0000-0000-0000-000000000003'::uuid,
+    '80000000-0000-0000-0000-000000000008'::uuid,
     p_vendor_person_id
   );
 END;
@@ -70,7 +70,6 @@ CREATE OR REPLACE FUNCTION pg_temp.call_update_maintenance_task(
   p_status text DEFAULT NULL,
   p_actual_cost_amount numeric DEFAULT NULL,
   p_actual_cost_currency public.currency_code DEFAULT NULL,
-  p_link_actual_cost_to_ledger boolean DEFAULT false,
   p_branch_id uuid DEFAULT NULL,
   p_assignee_person_id uuid DEFAULT NULL
 )
@@ -107,7 +106,6 @@ BEGIN
     coalesce(p_actual_cost_currency, target.actual_cost_currency),
     target.checklist,
     target.recurrence_frequency,
-    p_link_actual_cost_to_ledger,
     coalesce(p_branch_id, target.branch_id),
     coalesce(p_assignee_person_id, target.assignee_person_id)
   );
@@ -151,15 +149,43 @@ BEGIN
     target.actual_cost_currency,
     target.checklist,
     target.recurrence_frequency,
-    false,
     target.branch_id,
     target.assignee_person_id
   );
 END;
 $$;
 
+INSERT INTO public.organizations (id, name, slug)
+VALUES (
+  '00000000-0000-0000-0000-000000000002',
+  'Maintenance Boundary Organization',
+  'maintenance-boundary-organization'
+);
+
+INSERT INTO public.organization_branches (
+  id,
+  organization_id,
+  name,
+  code,
+  status,
+  created_by,
+  updated_by
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000212',
+  '00000000-0000-0000-0000-000000000001',
+  'Secondary Operations Branch',
+  'SECONDARY-OPS',
+  'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
 INSERT INTO public.people (id, organization_id, display_name, archived_at)
 VALUES
+  ('80200000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Workflow Vendor One', NULL),
+  ('80200000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Workflow Vendor Two', NULL),
+  ('80300000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Unlinked Operations Person', NULL),
   ('82f00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Inactive Vendor', NULL),
   ('82f00000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Archived Role Vendor', NULL),
   ('82f00000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Archived Person Vendor', now()),
@@ -174,10 +200,106 @@ INSERT INTO public.person_roles (
   archived_at
 )
 VALUES
+  ('83e00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000001', 'vendor', 'active', NULL),
+  ('83e00000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000002', 'vendor', 'active', NULL),
+  ('83e00000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '80300000-0000-0000-0000-000000000004', 'staff', 'active', NULL),
   ('83f00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '82f00000-0000-0000-0000-000000000001', 'vendor', 'inactive', NULL),
   ('83f00000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '82f00000-0000-0000-0000-000000000002', 'vendor', 'active', now()),
   ('83f00000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '82f00000-0000-0000-0000-000000000003', 'vendor', 'active', NULL),
   ('83f00000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', '82f00000-0000-0000-0000-000000000004', 'vendor', 'active', NULL);
+
+INSERT INTO public.tenant_requests (
+  id,
+  organization_id,
+  property_id,
+  unit_id,
+  title,
+  category,
+  status,
+  requested_by_person_id,
+  created_by,
+  updated_by
+)
+SELECT
+  ('90000000-0000-0000-0000-' || lpad(sequence::text, 12, '0'))::uuid,
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  'Maintenance workflow request ' || sequence,
+  'Maintenance',
+  'open',
+  '80000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+FROM generate_series(1, 12) AS sequence;
+
+WITH workflow_tasks (
+  sequence,
+  status,
+  branch_id,
+  assignee_person_id,
+  actual_cost_amount,
+  completed_at
+) AS (
+  VALUES
+    (1, 'in_progress'::text, '00000000-0000-0000-0000-000000000211'::uuid, '80000000-0000-0000-0000-000000000008'::uuid, NULL::numeric, NULL::timestamptz),
+    (3, 'scheduled', '00000000-0000-0000-0000-000000000211', '80000000-0000-0000-0000-000000000008', NULL, NULL),
+    (4, 'pending', '00000000-0000-0000-0000-000000000211', '80000000-0000-0000-0000-000000000008', NULL, NULL),
+    (5, 'pending', '00000000-0000-0000-0000-000000000211', '80000000-0000-0000-0000-000000000008', NULL, NULL),
+    (6, 'scheduled', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000004', NULL, NULL),
+    (8, 'in_progress', '00000000-0000-0000-0000-000000000212', '80000000-0000-0000-0000-000000000008', NULL, NULL),
+    (9, 'pending', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000004', NULL, NULL),
+    (10, 'completed', '00000000-0000-0000-0000-000000000212', '80000000-0000-0000-0000-000000000008', 64, now()),
+    (12, 'blocked', '00000000-0000-0000-0000-000000000212', '80000000-0000-0000-0000-000000000008', NULL, NULL)
+)
+INSERT INTO public.tasks (
+  id,
+  organization_id,
+  tenant_request_id,
+  property_id,
+  unit_id,
+  title,
+  description,
+  category,
+  priority,
+  status,
+  due_date,
+  vendor_person_id,
+  cost_estimate_amount,
+  cost_estimate_currency,
+  actual_cost_amount,
+  actual_cost_currency,
+  checklist,
+  branch_id,
+  assignee_person_id,
+  completed_at,
+  created_by,
+  updated_by
+)
+SELECT
+  ('91000000-0000-0000-0000-' || lpad(sequence::text, 12, '0'))::uuid,
+  '00000000-0000-0000-0000-000000000001',
+  ('90000000-0000-0000-0000-' || lpad(sequence::text, 12, '0'))::uuid,
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  'Maintenance workflow task ' || sequence,
+  'Fixed-role maintenance behavior fixture.',
+  'Maintenance',
+  'normal',
+  status,
+  current_date + sequence,
+  '80200000-0000-0000-0000-000000000001',
+  100,
+  'USD',
+  actual_cost_amount,
+  CASE WHEN actual_cost_amount IS NULL THEN NULL ELSE 'USD'::public.currency_code END,
+  '[{"id":"pickup","label":"Collect required materials","completed":false}]'::jsonb,
+  branch_id,
+  assignee_person_id,
+  completed_at,
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+FROM workflow_tasks;
 
 SELECT ok(
   to_regprocedure('public.get_maintenance_vendor_options(uuid)') IS NOT NULL
@@ -327,7 +449,7 @@ SELECT is(
   (
     SELECT count(*)::bigint
     FROM public.get_maintenance_vendor_options('00000000-0000-0000-0000-000000000001')
-    WHERE id = '80300000-0000-0000-0000-000000000001'
+    WHERE id = '80000000-0000-0000-0000-000000000007'
   ),
   0::bigint,
   'staff-only people are excluded from maintenance vendor options'
@@ -389,7 +511,7 @@ SELECT is(
 );
 
 SELECT throws_ok(
-  $$SELECT pg_temp.call_create_maintenance_task('pending', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000003', '80100000-0000-0000-0000-000000000001')$$,
+  $$SELECT pg_temp.call_create_maintenance_task('pending', '00000000-0000-0000-0000-000000000211', '80000000-0000-0000-0000-000000000008', '80100000-0000-0000-0000-000000000001')$$,
   '23503',
   'Vendor not found',
   'maintenance creation rejects a newly selected non-vendor person'
@@ -454,14 +576,14 @@ INSERT INTO maintenance_role_workflow_state (created_task_id)
 SELECT pg_temp.call_create_maintenance_task(
   'pending',
   '00000000-0000-0000-0000-000000000211'::uuid,
-  '80300000-0000-0000-0000-000000000003'::uuid
+  '80000000-0000-0000-0000-000000000008'::uuid
 );
 
 SELECT ok(
   (
     SELECT status = 'pending'
       AND branch_id = '00000000-0000-0000-0000-000000000211'::uuid
-      AND assignee_person_id = '80300000-0000-0000-0000-000000000003'::uuid
+      AND assignee_person_id = '80000000-0000-0000-0000-000000000008'::uuid
     FROM public.tasks
     WHERE id = (SELECT created_task_id FROM maintenance_role_workflow_state)
   ),
@@ -469,21 +591,21 @@ SELECT ok(
 );
 
 SELECT throws_ok(
-  $$SELECT pg_temp.call_create_maintenance_task('completed', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000003')$$,
+  $$SELECT pg_temp.call_create_maintenance_task('completed', '00000000-0000-0000-0000-000000000211', '80000000-0000-0000-0000-000000000008')$$,
   '22023',
   'New maintenance tasks must be pending or scheduled',
   'new tasks cannot start completed'
 );
 
 SELECT throws_ok(
-  $$SELECT pg_temp.call_create_maintenance_task('pending', '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003')$$,
+  $$SELECT pg_temp.call_create_maintenance_task('pending', '00000000-0000-0000-0000-000000000212', '80000000-0000-0000-0000-000000000008')$$,
   '42501',
   'Manager can only manage tasks in their branch',
   'branch-scoped manager cannot create in another branch'
 );
 
 SELECT lives_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000003', NULL, 84, 'USD', false)$$,
+  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000003', NULL, 84, 'USD')$$,
   'manager records operational actual cost without financial posting'
 );
 
@@ -491,18 +613,17 @@ SELECT ok(
   (
     SELECT actual_cost_amount = 84
       AND actual_cost_currency = 'USD'::public.currency_code
-      AND ledger_entry_id IS NULL
     FROM public.tasks
     WHERE id = '91000000-0000-0000-0000-000000000003'
   ),
-  'manager actual cost does not create or link an official ledger entry'
+  'manager records the operational actual cost without creating a financial effect'
 );
 
-SELECT throws_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000003', NULL, 85, 'USD', true)$$,
-  '42501',
-  'Managers cannot create, update, link, or post maintenance ledger entries',
-  'manager ledger posting is explicitly rejected'
+SELECT hasnt_column(
+  'public',
+  'tasks',
+  'ledger_entry_id',
+  'maintenance tasks expose no direct Ledger link'
 );
 
 SELECT throws_ok(
@@ -520,12 +641,12 @@ SELECT throws_ok(
 );
 
 SELECT lives_ok(
-  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000003')$$,
+  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000211', '80000000-0000-0000-0000-000000000008')$$,
   'manager can atomically reassign a task inside their branch'
 );
 
 SELECT throws_ok(
-  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003')$$,
+  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000212', '80000000-0000-0000-0000-000000000008')$$,
   '42501',
   'Manager can only manage tasks in their branch',
   'manager assignment cannot escape branch scope'
@@ -551,7 +672,7 @@ SELECT lives_ok(
 );
 
 SELECT throws_matching(
-  $$INSERT INTO public.activity_logs (organization_id, actor_id, entity_type, entity_id, action) VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000501', 'task', '91000000-0000-0000-0000-000000000003', 'unchecked_manager_write')$$,
+  $$INSERT INTO public.activity_logs (organization_id, actor_id, entity_type, entity_id, action) VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000501', 'task', '91000000-0000-0000-0000-000000000003', 'unauthorized_manager_write')$$,
   'row-level security',
   'manager cannot write task activity outside the checked RPCs'
 );
@@ -606,10 +727,15 @@ SET branch_id = '00000000-0000-0000-0000-000000000211'
 WHERE organization_id = '00000000-0000-0000-0000-000000000001'
   AND user_id = '00000000-0000-0000-0000-000000000601';
 
-UPDATE public.organization_members
-SET branch_id = NULL
-WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  AND user_id = '00000000-0000-0000-0000-000000000501';
+SELECT throws_ok(
+  $$UPDATE public.organization_members
+    SET branch_id = NULL
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND user_id = '00000000-0000-0000-0000-000000000501'$$,
+  '23514',
+  NULL,
+  'operations managers cannot drop their required branch scope'
+);
 
 SET LOCAL ROLE authenticated;
 
@@ -621,19 +747,21 @@ SELECT is(
     )
   ),
   1::bigint,
-  'organization-scoped manager can enumerate executable members across branches'
-);
-
-SELECT lives_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000008', NULL, 77, 'USD', false)$$,
-  'manager without a branch preserves existing organization-wide management scope'
+  'branch-scoped operations manager enumerates executable members in its branch'
 );
 
 SELECT throws_ok(
-  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003')$$,
-  '23503',
-  'Assignee must be an executable linked member for the selected branch',
-  'new assignment to a branch-incompatible linked member fails'
+  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000008', NULL, 77, 'USD')$$,
+  '42501',
+  'Manager can only manage tasks in their branch',
+  'operations manager cannot update another branch task'
+);
+
+SELECT throws_ok(
+  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000212', '80000000-0000-0000-0000-000000000008')$$,
+  '42501',
+  'Manager can only manage tasks in their branch',
+  'operations manager cannot assign another branch task'
 );
 
 RESET ROLE;
@@ -661,7 +789,7 @@ SELECT throws_ok(
 
 SELECT lives_ok(
   $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000009', 'start', NULL)$$,
-  'manager starts legacy unlinked work through coordinated controls'
+  'manager starts unlinked work through coordinated controls'
 );
 
 SELECT is(
@@ -734,9 +862,13 @@ SELECT ok(
 );
 
 SELECT is(
-  (SELECT ledger_entry_id FROM public.tasks WHERE id = '91000000-0000-0000-0000-000000000009'),
-  NULL::uuid,
-  'coordinated completion creates no official ledger effect'
+  (
+    SELECT count(*)::bigint
+    FROM public.ledger_entries
+    WHERE source_id = '91000000-0000-0000-0000-000000000009'
+  ),
+  0::bigint,
+  'coordinated completion creates no source-owned Ledger event'
 );
 
 SELECT ok(
@@ -780,7 +912,7 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000601
 SET LOCAL ROLE authenticated;
 
 SELECT throws_ok(
-  $$SELECT pg_temp.call_create_maintenance_task('pending', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000003')$$,
+  $$SELECT pg_temp.call_create_maintenance_task('pending', '00000000-0000-0000-0000-000000000211', '80000000-0000-0000-0000-000000000008')$$,
   '42501',
   'Not authorized',
   'members cannot create maintenance tasks'
@@ -912,7 +1044,7 @@ SELECT throws_ok(
 );
 
 SELECT throws_ok(
-  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000003')$$,
+  $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000211', '80000000-0000-0000-0000-000000000008')$$,
   '42501',
   'Not authorized',
   'member cannot mutate task assignment fields'
@@ -937,7 +1069,7 @@ RESET ROLE;
 
 UPDATE public.tasks
 SET
-  assignee_person_id = '80300000-0000-0000-0000-000000000003',
+  assignee_person_id = '80000000-0000-0000-0000-000000000008',
   archived_at = now()
 WHERE id = (SELECT created_task_id FROM maintenance_role_workflow_state);
 
@@ -956,31 +1088,36 @@ UPDATE public.tasks
 SET archived_at = NULL
 WHERE id = (SELECT created_task_id FROM maintenance_role_workflow_state);
 
-UPDATE public.organization_members
-SET person_id = NULL
-WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  AND user_id = '00000000-0000-0000-0000-000000000601';
+SELECT throws_ok(
+  $$UPDATE public.organization_members
+    SET person_id = NULL
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND user_id = '00000000-0000-0000-0000-000000000601'$$,
+  '23514',
+  NULL,
+  'operations members cannot drop their required Staff scope'
+);
 
 SET LOCAL ROLE authenticated;
 
 SELECT throws_ok(
-  $$SELECT public.execute_assigned_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000005', 'start', NULL, NULL, NULL)$$,
+  $$SELECT public.execute_assigned_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000006', 'start', NULL, NULL, NULL)$$,
   '42501',
-  'Not authorized',
-  'member requires a linked staff person before executing work'
+  'Not authorized for this maintenance task',
+  'operations member cannot execute work assigned to another Staff identity'
 );
 
 RESET ROLE;
 
 UPDATE public.organization_members
-SET person_id = '80300000-0000-0000-0000-000000000003'
+SET person_id = '80000000-0000-0000-0000-000000000008'
 WHERE organization_id = '00000000-0000-0000-0000-000000000001'
   AND user_id = '00000000-0000-0000-0000-000000000601';
 
 SET LOCAL ROLE authenticated;
 
 SELECT throws_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000004', NULL, 10, 'USD', false)$$,
+  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000004', NULL, 10, 'USD')$$,
   '42501',
   'Not authorized',
   'member cannot record actual maintenance cost'
@@ -1140,22 +1277,21 @@ RESET ROLE;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SET LOCAL ROLE authenticated;
 
-SELECT lives_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000005', NULL, 130, 'USD', true)$$,
-  'admin can post recorded actual cost into the official ledger'
+SELECT ok(
+  to_regprocedure(
+    'public.update_maintenance_task(uuid,uuid,uuid,uuid,text,text,text,text,text,date,time without time zone,date,time without time zone,uuid,numeric,public.currency_code,numeric,public.currency_code,jsonb,text,boolean,uuid,uuid)'
+  ) IS NULL,
+  'the maintenance update API has no direct Ledger switch'
 );
 
-SELECT ok(
+SELECT is(
   (
-    SELECT tasks.ledger_entry_id IS NOT NULL
-      AND ledger.amount = 130
-      AND ledger.direction = 'expense'
-    FROM public.tasks
-    JOIN public.ledger_entries AS ledger
-      ON ledger.id = tasks.ledger_entry_id
-    WHERE tasks.id = '91000000-0000-0000-0000-000000000005'
+    SELECT count(*)::bigint
+    FROM public.ledger_entries
+    WHERE source_id = '91000000-0000-0000-0000-000000000005'
   ),
-  'admin posting creates and links the official maintenance ledger effect'
+  0::bigint,
+  'maintenance edits leave finance authority with the approval workflow'
 );
 
 RESET ROLE;

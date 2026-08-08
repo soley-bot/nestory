@@ -3,7 +3,7 @@ import { ReportBuilderScreen } from "@/features/reports/components/reports-scree
 import { getReportsScreenData } from "@/features/reports/data/reports";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
 import { isReportKind } from "@/features/reports/report-catalog";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 
 type ReportBuilderPageProps = {
   params: Promise<{ reportKind: string }>;
@@ -20,7 +20,7 @@ export default async function ReportBuilderPage({
     notFound();
   }
 
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const viewQuery = parseReportSearchParams({
     ...(await searchParams),
     report: reportKind,

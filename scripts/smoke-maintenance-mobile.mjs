@@ -28,7 +28,7 @@ const routeMatrix = [
   { active: "Work orders", heading: "Work Orders", label: "work-orders", path: "/work-orders", primary: "New work order", surface: "board" },
 ];
 const matrixViewports = MAINTENANCE_CAPTURE_VIEWPORTS;
-const legacyMaintenanceViewports = [
+const maintenanceViewports = [
   { height: 700, width: 320 },
   { height: 812, width: 375 },
   { height: 896, width: 414 },
@@ -152,10 +152,10 @@ try {
     }
   }
 
-  for (const viewport of legacyMaintenanceViewports) {
+  for (const viewport of maintenanceViewports) {
     await openRoute(routeMatrix[0], viewport);
     const primary = page.getByRole("button", { name: "New case", exact: true });
-    const measurement = await measureLayout(`legacy-cases-${viewport.width}`, {
+    const measurement = await measureLayout(`maintenance-${viewport.width}`, {
       primary,
       table: page.getByRole("table"),
     });

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 
 type PettyCashFieldErrors = {
   accountNumber?: string[];
@@ -275,7 +275,7 @@ export async function createPettyCashAccountAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = createAccountSchema.safeParse({
     accountNumber: readString(formData, "accountNumber"),
     custodianPersonId: readString(formData, "custodianPersonId"),
@@ -334,7 +334,7 @@ export async function createPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = parseEntryFormData(formData);
 
   if (!parsed.success) {
@@ -401,7 +401,7 @@ export async function updatePettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEntryId = entryIdSchema.safeParse(readString(formData, "entryId"));
   const parsed = parseEntryFormData(formData);
 
@@ -482,7 +482,7 @@ export async function voidPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = voidEntrySchema.safeParse({
     entryId: readString(formData, "entryId"),
     voidReason: readString(formData, "voidReason"),
@@ -518,7 +518,7 @@ export async function openNextPettyCashPeriodAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = openNextPeriodSchema.safeParse({
     accountId: readString(formData, "accountId"),
     advanceAmount: readString(formData, "advanceAmount"),
@@ -568,7 +568,7 @@ export async function postPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEntryId = entryIdSchema.safeParse(readString(formData, "entryId"));
 
   if (!parsedEntryId.success) {
@@ -604,8 +604,8 @@ function pettyCashErrorMessage(message: string) {
     return "That petty cash account already exists.";
   }
 
-  if (message.includes("Accounting period is locked")) {
-    return "The ledger period is locked. Unlock the period before posting.";
+  if (message.includes("Financial month is locked")) {
+    return "This month is locked. Unlock it before posting.";
   }
 
   if (message.includes("Only petty cash expenses")) {

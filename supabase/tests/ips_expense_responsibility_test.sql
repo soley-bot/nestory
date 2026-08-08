@@ -65,12 +65,13 @@ SELECT has_column(
 
 SELECT has_function(
   'public',
-  'record_ips_paid_expense',
+  'submit_expense',
   ARRAY[
-    'uuid', 'uuid', 'uuid', 'text', 'text', 'date', 'numeric', 'numeric',
-    'text', 'uuid', 'uuid', 'uuid', 'text', 'text'
+    'uuid', 'uuid', 'uuid', 'text', 'uuid', 'text', 'text', 'date',
+    'numeric', 'numeric', 'currency_code', 'text', 'uuid', 'uuid', 'uuid',
+    'uuid', 'text', 'text'
   ],
-  'one checked command records an IPS-paid owner or tenant expense'
+  'one checked command submits an owner or tenant expense for review'
 );
 
 SELECT has_view(
@@ -84,7 +85,7 @@ SELECT table_privs_are(
   'ips_expense_responsibilities',
   'authenticated',
   ARRAY['SELECT'],
-  'expense responsibility cannot bypass the checked command'
+  'expense responsibility cannot bypass approval'
 );
 
 SELECT table_privs_are(

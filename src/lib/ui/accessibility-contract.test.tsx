@@ -62,7 +62,7 @@ describe("platform accessibility contract", () => {
 
   it("gives every shell icon button a name and marks one current destination", () => {
     render(
-      <AppShell role="admin">
+      <AppShell role="super_admin">
         <div>Workspace</div>
       </AppShell>,
     );

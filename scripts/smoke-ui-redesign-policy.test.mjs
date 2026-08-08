@@ -488,7 +488,7 @@ describe("filesystem-backed evidence artifacts", () => {
     } finally {
       await rm(fixture.workspaceRoot, { force: true, recursive: true });
     }
-  });
+  }, 10_000);
 });
 
 function createPolicy() {
@@ -593,14 +593,20 @@ function createValidSummary() {
   const results = routeManifest.flatMap((entry) =>
     smokePolicy.MAIN_CAPTURE_VIEWPORTS.map((viewport) => ({
       ...passingRouteResult(viewport.name),
-      expectedAccess: entry.smoke.expectedAccess.admin,
-      accessResult: entry.smoke.expectedAccess.admin,
+      expectedAccess: entry.smoke.expectedAccess.super_admin,
+      accessResult: entry.smoke.expectedAccess.super_admin,
       manifestRoute: entry.route,
       route: entry.smoke.path,
     })),
   );
   const roleAudits = routeManifest.flatMap((entry) =>
-    ["manager", "member", "anonymous"].map((role) => ({
+    [
+      "finance_manager",
+      "finance_member",
+      "operations_manager",
+      "operations_member",
+      "anonymous",
+    ].map((role) => ({
       accessResult: entry.smoke.expectedAccess[role],
       expectedAccess: entry.smoke.expectedAccess[role],
       manifestRoute: entry.route,

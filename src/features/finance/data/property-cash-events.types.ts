@@ -1,49 +1,43 @@
-import type { Database } from "@/types/database";
-
-type GeneratedPropertyCashEventRow =
-  Database["public"]["Functions"]["get_property_cash_events_v1_page"]["Returns"][number];
-
-type NullablePropertyCashEventColumns = {
-  archived_at: string | null;
-  created_by: string | null;
+export type PropertyCashEventDatabaseRow = {
+  amount: number | string;
+  category_code: string;
+  contract_version: string;
+  currency: string;
+  cursor_event_date: string;
+  cursor_source_id: string;
+  cursor_source_type: string;
   deposit_liability_effect: number | string | null;
-  event_date: string | null;
-  journal_entry_id: string | null;
+  description: string;
+  economic_class: string;
+  event_date: string;
+  event_key: string;
+  is_reversal: boolean;
   lease_id: string | null;
   ledger_entry_id: string | null;
   management_fee_effect: number | string | null;
   obligation_id: string | null;
   obligation_type: string | null;
   operating_cash_effect: number | string | null;
+  organization_id: string;
   owner_cash_effect: number | string | null;
   owner_person_id: string | null;
-  period_start: string | null;
-  projection_status: string | null;
+  period_start: string;
+  property_id: string;
   reconciliation_source_id: string | null;
+  reference: string | null;
+  resolution_reason: string | null;
+  resolution_state: string;
   reversal_source_id: string | null;
   reversal_source_type: string | null;
+  source_id: string;
   source_parent_id: string | null;
   source_parent_type: string | null;
+  source_type: string;
   task_id: string | null;
   tenant_person_id: string | null;
   unit_id: string | null;
-  updated_at: string | null;
-  updated_by: string | null;
   vendor_person_id: string | null;
 };
-
-export type PropertyCashEventDatabaseRow = Omit<
-  GeneratedPropertyCashEventRow,
-  | "amount"
-  | "reconciliation_state"
-  | "resolution_codes"
-  | keyof NullablePropertyCashEventColumns
-> &
-  NullablePropertyCashEventColumns & {
-    amount: number | string;
-    reconciliation_state: string;
-    resolution_codes: string[];
-  };
 
 export const propertyCashEconomicClasses = [
   "operating_income",
@@ -51,83 +45,41 @@ export const propertyCashEconomicClasses = [
   "management_fee",
   "owner_contribution",
   "owner_distribution",
-  "owner_reserve",
   "security_deposit",
   "adjustment",
-  "legacy_unclassified",
 ] as const;
 
 export type PropertyCashEconomicClass =
   (typeof propertyCashEconomicClasses)[number];
 
-export const propertyCashClassificationStatuses = [
-  "source_stable",
-  "provisional_current_obligation",
-  "unresolved_source_scope",
-  "unresolved_reversal_header",
-  "unresolved_evidence",
-] as const;
-
-export type PropertyCashClassificationStatus =
-  (typeof propertyCashClassificationStatuses)[number];
-
 export const propertyCashSourceTypes = [
   "receipt_allocation",
-  "receipt_header_residual",
+  "owner_collection_allocation",
   "payment_allocation",
-  "payment_header_residual",
   "deposit_event",
   "petty_cash_entry",
-  "maintenance_task",
-  "ledger_entry",
+  "owner_payment",
+  "property_withdrawal",
 ] as const;
 
 export type PropertyCashSourceType = (typeof propertyCashSourceTypes)[number];
 
-export const propertyCashResolutionCodes = [
-  "deposit_cash_identity_missing",
-  "legacy_ledger_unclassified",
-  "maintenance_cash_settlement_unproven",
-  "management_fee_owner_recognition_unresolved",
-  "missing_reconciliation_source",
-  "mutable_obligation_classification",
-  "payment_header_overallocated",
-  "payment_header_unallocated",
-  "petty_cash_date_unproven",
-  "receipt_header_overallocated",
-  "receipt_header_unapplied",
-  "reversal_header_not_exact",
-  "source_scope_invalid",
-] as const;
+export const propertyCashResolutionStates = ["resolved", "unresolved"] as const;
 
-export type PropertyCashResolutionCode =
-  (typeof propertyCashResolutionCodes)[number];
-
-export const propertyCashReconciliationStates = [
-  "linked_exact_identity",
-  "missing_stable_identity",
-  "not_required",
-] as const;
-
-export type PropertyCashReconciliationState =
-  (typeof propertyCashReconciliationStates)[number];
+export type PropertyCashResolutionState =
+  (typeof propertyCashResolutionStates)[number];
 
 export type PropertyCashEvent = {
   amountCents: bigint;
-  archivedAt: string | null;
   categoryCode: string;
-  classificationStatus: PropertyCashClassificationStatus;
-  contractVersion: "property_cash_events_v1";
-  createdAt: string;
-  createdBy: string | null;
+  contractVersion: "property_cash_events.v1";
   currency: "USD";
   depositLiabilityEffectCents: bigint | null;
+  description: string;
   economicClass: PropertyCashEconomicClass;
-  eventDate: string | null;
+  eventDate: string;
   eventKey: string;
-  isLegacy: boolean;
   isReversal: boolean;
-  journalEntryId: string | null;
   leaseId: string | null;
   ledgerEntryId: string | null;
   managementFeeEffectCents: bigint | null;
@@ -137,32 +89,28 @@ export type PropertyCashEvent = {
   organizationId: string;
   ownerCashEffectCents: bigint | null;
   ownerPersonId: string | null;
-  periodStart: string | null;
-  projectionStatus: string | null;
+  periodStart: string;
   propertyId: string;
   reconciliationSourceId: string | null;
-  reconciliationState: PropertyCashReconciliationState;
-  requiresResolution: boolean;
-  resolutionCodes: PropertyCashResolutionCode[];
+  reference: string | null;
+  resolutionReason: string | null;
+  resolutionState: PropertyCashResolutionState;
   reversalSourceId: string | null;
   reversalSourceType: string | null;
   sourceId: string;
   sourceParentId: string | null;
   sourceParentType: string | null;
   sourceType: PropertyCashSourceType;
-  statementSection: string;
   taskId: string | null;
   tenantPersonId: string | null;
   unitId: string | null;
-  updatedAt: string | null;
-  updatedBy: string | null;
   vendorPersonId: string | null;
 };
 
 export type PropertyCashEventCursor = {
-  eventDate: string | null;
+  eventDate: string;
   sourceId: string;
-  sourceType: string;
+  sourceType: PropertyCashSourceType;
 };
 
 export type PropertyCashEventScope = {
@@ -189,7 +137,7 @@ export type PropertyCashEventsRpcArgs = {
 
 export type PropertyCashEventsRpcClient = {
   rpc(
-    name: "get_property_cash_events_v1_page",
+    name: "get_property_cash_events_page",
     args: PropertyCashEventsRpcArgs,
   ): PromiseLike<{
     data: PropertyCashEventDatabaseRow[] | null;

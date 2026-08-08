@@ -1,15 +1,25 @@
-export type WorkspaceAccessRole = "admin" | "manager" | "member";
+import type { WorkspaceRole } from "@/lib/auth/context";
+
+export type WorkspaceAccessRole = WorkspaceRole;
 
 export function formatWorkspaceAccessRole(role: WorkspaceAccessRole | string) {
-  if (role === "admin") {
-    return "Admin";
+  if (role === "super_admin") {
+    return "Super Admin";
   }
 
-  if (role === "manager") {
-    return "Manager";
+  if (role === "finance_manager") {
+    return "Finance Manager";
   }
 
-  return "Member";
+  if (role === "finance_member") {
+    return "Finance Member";
+  }
+
+  if (role === "operations_manager") {
+    return "Operations Manager";
+  }
+
+  return "Operations Member";
 }
 
 type MembershipAccessSource = {
@@ -249,7 +259,7 @@ function getScopeLabel(
   role: WorkspaceAccessRole,
   branches: AccessBranchSource[] = [],
 ) {
-  if (role === "admin" || !branchId) {
+  if (role === "super_admin" || !branchId) {
     return "All branches";
   }
 

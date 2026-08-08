@@ -9,17 +9,12 @@ import {
   type ActivityTargetQueryClient,
 } from "@/features/activity/recent-change-targets";
 import {
-  getFinanceCloseMonth,
-  getFinanceCloseSummary,
-} from "@/features/finance/data/finance-close";
-import {
   DEFAULT_LEDGER_VIEW_QUERY,
   buildLedgerPagination,
   getLedgerTransactionDateScope,
 } from "@/features/ledger/ledger.filters";
 import type {
   LedgerEntry,
-  LedgerCloseSummary,
   LedgerNextAction,
   LedgerPeriodLock,
   LedgerPropertyOption,
@@ -34,7 +29,7 @@ import { getQueryTokens, textMatchesToken } from "@/lib/query/screen-query";
 import { buildHref } from "@/lib/url/href";
 
 const ledgerEntrySelect =
-  "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, source_type, source_id, accounting_journal_entry_id, archived_at";
+  "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, source_type, source_id, reversal_of_ledger_entry_id, archived_at";
 const maxRelatedSearchIds = 100;
 
 type PropertyRow = {
@@ -50,7 +45,6 @@ type UnitRow = {
 };
 
 type LedgerEntryRow = {
-  accounting_journal_entry_id: string | null;
   amount: number;
   archived_at: string | null;
   category: string;
@@ -59,6 +53,7 @@ type LedgerEntryRow = {
   direction: string;
   id: string;
   property_id: string;
+  reversal_of_ledger_entry_id: string | null;
   source_id: string | null;
   source_type: string;
   transaction_date: string;
@@ -85,8 +80,9 @@ type DocumentRow = {
 
 type PeriodLockRow = {
   id: string;
+  is_locked: boolean;
   locked_at: string | null;
-  period_start: string;
+  month_start: string;
   reason: string | null;
 };
 
@@ -118,11 +114,11 @@ export async function getLedgerScreenData(
       .eq("organization_id", organizationId)
       .is("archived_at", null),
     supabase
-      .from("ledger_period_locks")
-      .select("id, period_start, locked_at, reason")
+      .from("financial_month_locks")
+      .select("id, month_start, is_locked, locked_at, reason")
       .eq("organization_id", organizationId)
-      .not("locked_at", "is", null)
-      .order("period_start", { ascending: false })
+      .eq("is_locked", true)
+      .order("month_start", { ascending: false })
       .limit(24),
     supabase
       .from("activity_logs")
@@ -130,7 +126,7 @@ export async function getLedgerScreenData(
         "id, entity_type, entity_id, action, previous_values, new_values, created_at",
       )
       .eq("organization_id", organizationId)
-      .in("entity_type", ["timeline_event", "ledger_entry", "ledger_period"])
+      .in("entity_type", ["timeline_event", "ledger_entry", "financial_month"])
       .order("created_at", { ascending: false })
       .limit(6),
   ]);
@@ -149,7 +145,7 @@ export async function getLedgerScreenData(
 
   if (periodLocksResult.error) {
     throw new Error(
-      `Could not load ledger period locks: ${periodLocksResult.error.message}`,
+      `Could not load financial month locks: ${periodLocksResult.error.message}`,
     );
   }
 
@@ -294,13 +290,7 @@ export async function getLedgerScreenData(
       unit: entry.unit_id ? unitsById.get(entry.unit_id) : undefined,
     }),
   );
-  const closeSummary: LedgerCloseSummary = await getFinanceCloseSummary({
-    month: getLedgerCloseMonth(viewQuery),
-    organizationId,
-  });
-
   return {
-    closeSummary,
     entries,
     pagination: buildLedgerPagination({
       page,
@@ -331,14 +321,6 @@ export async function getLedgerScreenData(
   };
 }
 
-function getLedgerCloseMonth(viewQuery: LedgerViewQuery) {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(viewQuery.dateFrom)) {
-    return viewQuery.dateFrom.slice(0, 7);
-  }
-
-  return getFinanceCloseMonth();
-}
-
 function toLedgerEntry({
   activity,
   documents,
@@ -364,7 +346,6 @@ function toLedgerEntry({
   };
 
   return {
-    accountingJournalEntryId: entry.accounting_journal_entry_id ?? undefined,
     activity,
     amount: entry.amount,
     archivedAt: entry.archived_at ?? undefined,
@@ -387,6 +368,8 @@ function toLedgerEntry({
     propertyId: entry.property_id,
     propertyName: property?.name ?? "Unknown property",
     recordCounts,
+    reversalOfLedgerEntryId:
+      entry.reversal_of_ledger_entry_id ?? undefined,
     relatedTimelineEvent: relatedTimelineEvent
       ? {
           id: relatedTimelineEvent.id,
@@ -394,11 +377,12 @@ function toLedgerEntry({
         }
       : undefined,
     riskIndicators: buildLedgerRiskIndicators({
-      accountingJournalEntryId: entry.accounting_journal_entry_id,
       isArchived: Boolean(entry.archived_at),
       isLocked,
       recordCounts,
+      reversalOfLedgerEntryId: entry.reversal_of_ledger_entry_id,
       relatedTimelineEvent,
+      sourceId: entry.source_id,
       unitId: entry.unit_id,
     }),
     sourceId: entry.source_id ?? undefined,
@@ -416,36 +400,40 @@ function indexById<T extends { id: string }>(rows: T[]) {
 
 export function normalizeLedgerSource(value: string) {
   if (
-    value === "finance_income" ||
-    value === "finance_expense" ||
-    value === "petty_cash" ||
-    value === "maintenance_task" ||
+    value === "deposit_event" ||
+    value === "owner_cash_event" ||
+    value === "payment_allocation" ||
+    value === "petty_cash_entry" ||
     value === "receipt_allocation"
   ) {
     return value;
   }
 
-  return "manual";
+  return "unknown";
 }
 
 export function formatLedgerSource(value: string) {
-  if (value === "finance_income" || value === "receipt_allocation") {
+  if (value === "receipt_allocation") {
     return "Rent & Income";
   }
 
-  if (value === "finance_expense") {
+  if (value === "payment_allocation") {
     return "Bills & Expenses";
   }
 
-  if (value === "petty_cash") {
+  if (value === "petty_cash_entry") {
     return "Petty Cash";
   }
 
-  if (value === "maintenance_task") {
-    return "Maintenance";
+  if (value === "deposit_event") {
+    return "Lease deposit";
   }
 
-  return "Manual";
+  if (value === "owner_cash_event") {
+    return "Owner cash";
+  }
+
+  return "Source unavailable";
 }
 
 function indexTimelineEventsByLedgerEntryId(rows: TimelineEventRow[]) {
@@ -552,37 +540,43 @@ function buildLedgerDetailHrefs(
 }
 
 function buildLedgerRiskIndicators({
-  accountingJournalEntryId,
   isArchived,
   isLocked,
   recordCounts,
+  reversalOfLedgerEntryId,
   relatedTimelineEvent,
+  sourceId,
   unitId,
 }: {
-  accountingJournalEntryId: string | null;
   isArchived: boolean;
   isLocked: boolean;
   recordCounts: LedgerRecordCounts;
+  reversalOfLedgerEntryId: string | null;
   relatedTimelineEvent?: TimelineEventRow;
+  sourceId: string | null;
   unitId: string | null;
 }): LedgerRiskIndicator[] {
   return [
     {
-      description: accountingJournalEntryId
-        ? "A balanced accounting journal is linked to this operational row."
-        : "No balanced accounting journal is linked. Month close must remain open until this is repaired.",
-      id: "accounting",
-      label: accountingJournalEntryId
-        ? "Balanced journal linked"
-        : "Accounting journal missing",
-      tone: accountingJournalEntryId ? "success" : "danger",
+      description: sourceId
+        ? reversalOfLedgerEntryId
+          ? "This immutable reversal points to its exact original Ledger event."
+          : "This immutable Ledger event points to its exact source record."
+        : "The source workflow identity is missing and needs review.",
+      id: "source",
+      label: sourceId
+        ? reversalOfLedgerEntryId
+          ? "Reversal linked"
+          : "Source linked"
+        : "Source needs review",
+      tone: sourceId ? "success" : "danger",
     },
     {
       description: isLocked
-        ? "The accounting month is locked, so this entry cannot be changed."
-        : "The accounting month is open for corrections.",
+        ? "The month is locked, so this entry cannot be changed."
+        : "The month is open for authorized corrections.",
       id: "lock",
-      label: isLocked ? "Period locked" : "Period open",
+      label: isLocked ? "Month locked" : "Month open",
       tone: isLocked ? "warning" : "success",
     },
     {
@@ -596,7 +590,7 @@ function buildLedgerRiskIndicators({
     {
       description: relatedTimelineEvent
         ? "A timeline event is linked and can show this transaction in history."
-        : "No linked timeline event was found. Editing the entry can recreate the sync record.",
+        : "No linked timeline event was found. Review the source workflow activity.",
       id: "timeline",
       label: relatedTimelineEvent ? "Timeline linked" : "Timeline missing",
       tone: relatedTimelineEvent ? "success" : "warning",
@@ -638,7 +632,7 @@ function buildLedgerNextAction({
   if (isLocked) {
     return {
       description:
-        "Unlock the accounting period before editing or restoring this entry.",
+        "Unlock this month before editing or restoring this entry.",
       href: hrefs.ledger,
       label: "Review lock",
       tone: "warning",
@@ -648,9 +642,9 @@ function buildLedgerNextAction({
   if (isArchived) {
     return {
       description:
-        "Restore this entry if it should return to active ledger totals.",
+        "This historical row is read-only. Review its source workflow before correction.",
       href: hrefs.ledger,
-      label: "Review restore",
+      label: "Review source",
       tone: "warning",
     };
   }
@@ -658,9 +652,9 @@ function buildLedgerNextAction({
   if (!relatedTimelineEvent) {
     return {
       description:
-        "Edit and save this entry to recreate its linked timeline record.",
+        "Review the source workflow activity for this Ledger event.",
       href: hrefs.ledger,
-      label: "Repair timeline",
+      label: "Review source",
       tone: "warning",
     };
   }
@@ -686,7 +680,7 @@ function toLedgerPeriodLocks(rows: PeriodLockRow[]): LedgerPeriodLock[] {
   return rows.map((row) => ({
     id: row.id,
     lockedAt: row.locked_at ?? undefined,
-    periodStart: row.period_start,
+    periodStart: row.month_start,
     reason: row.reason ?? undefined,
   }));
 }

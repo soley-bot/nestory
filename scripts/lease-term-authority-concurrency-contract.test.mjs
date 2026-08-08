@@ -19,13 +19,14 @@ describe("lease-term authority concurrency harness contract", () => {
     expect(source).toContain('child.stdin.on("error"');
   });
 
-  it("proves overlap rejection, period-transition rejection, and cleanup", () => {
+  it("proves overlap rejection, month-lock rejection, and cleanup", () => {
     const source = readFileSync(harnessPath, "utf8");
 
     expect(source).toContain("proveConcurrentOverlapFailsClosed");
     expect(source).toContain("lease_terms_authoritative_effective_range_excl");
+    expect(source).toContain("proveOrganizationMonthSerializesAcrossProperties");
     expect(source).toContain("provePeriodTransitionSerializesTermEdit");
-    expect(source).toContain("Organization Ledger period is locked");
+    expect(source).toContain("Financial month is locked");
     expect(source).toContain("await stopProcesses()");
     expect(source).toContain("cleanup()");
     expect(source).toContain("AggregateError");

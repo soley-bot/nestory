@@ -8,7 +8,7 @@ const adminIdentity = {
   branchLabel: "All branches",
   email: "admin@example.com",
   organizationName: "Nestory Test",
-  role: "admin" as const,
+  role: "super_admin" as const,
 };
 
 const linkedProfile = {
@@ -40,7 +40,7 @@ describe("AccountScreen", () => {
     const sectionTags = html.match(/<section\b[^>]*>/g) ?? [];
     expect(sectionTags).toHaveLength(4);
     for (const sectionTag of sectionTags) {
-      expect(sectionTag).not.toMatch(/rounded-md|bg-surface(?:-raised)?|border border-border/);
+      expect(sectionTag).not.toMatch(/rounded-md|bg-card(?:-raised)?|border border-border/);
     }
   });
 
@@ -90,7 +90,7 @@ describe("AccountScreen", () => {
           branchLabel: "BKK - Bangkok",
           email: "member@example.com",
           organizationName: "Nestory Test",
-          role: "member",
+          role: "operations_member",
         }}
         profile={null}
       />,
@@ -103,6 +103,26 @@ describe("AccountScreen", () => {
     expect(html).toContain("Set or change password");
     expect(html).toContain('href="/forgot-password"');
     expect(html).not.toContain("Delete account");
+  });
+
+  it("describes Finance roles as organization-wide and unlinked", () => {
+    const html = renderToStaticMarkup(
+      <AccountScreen
+        identity={{
+          branchLabel: "All branches",
+          email: "finance@example.com",
+          organizationName: "Nestory Test",
+          role: "finance_manager",
+        }}
+        profile={null}
+      />,
+    );
+
+    expect(html).toContain("Organization-wide");
+    expect(html).toContain(
+      "Organization-wide Finance read and expense review access.",
+    );
+    expect(html).not.toContain("Assigned task access");
   });
 
   it("shows the access-management link only for administrators", () => {

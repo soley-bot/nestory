@@ -7,50 +7,67 @@ export type MaintenanceCapabilities = {
   canEditCaseStructure: boolean;
   canExecuteAssignedCase: boolean;
   canManageCaseState: boolean;
-  canPostMaintenanceCost: boolean;
+  canSubmitMaintenanceCost: boolean;
   canRecordActualCost: boolean;
   canReviewCompletion: boolean;
   canUploadMaintenanceEvidence: boolean;
 };
 
 const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
-  admin: {
+  super_admin: {
     canArchiveCase: true,
     canAssignCase: true,
     canCreateCase: true,
     canEditCaseStructure: true,
     canExecuteAssignedCase: false,
     canManageCaseState: true,
-    canPostMaintenanceCost: true,
+    canSubmitMaintenanceCost: true,
     canRecordActualCost: true,
     canReviewCompletion: true,
     canUploadMaintenanceEvidence: true,
   },
-  manager: {
+  operations_manager: {
     canArchiveCase: false,
     canAssignCase: true,
     canCreateCase: true,
     canEditCaseStructure: true,
     canExecuteAssignedCase: false,
     canManageCaseState: true,
-    canPostMaintenanceCost: false,
+    canSubmitMaintenanceCost: true,
     canRecordActualCost: true,
     canReviewCompletion: true,
     canUploadMaintenanceEvidence: false,
   },
-  member: {
+  operations_member: {
     canArchiveCase: false,
     canAssignCase: false,
     canCreateCase: false,
     canEditCaseStructure: false,
     canExecuteAssignedCase: true,
     canManageCaseState: false,
-    canPostMaintenanceCost: false,
+    canSubmitMaintenanceCost: false,
     canRecordActualCost: false,
     canReviewCompletion: false,
     canUploadMaintenanceEvidence: false,
   },
+  finance_manager: noMaintenanceCapabilities(),
+  finance_member: noMaintenanceCapabilities(),
 };
+
+function noMaintenanceCapabilities(): MaintenanceCapabilities {
+  return {
+    canArchiveCase: false,
+    canAssignCase: false,
+    canCreateCase: false,
+    canEditCaseStructure: false,
+    canExecuteAssignedCase: false,
+    canManageCaseState: false,
+    canSubmitMaintenanceCost: false,
+    canRecordActualCost: false,
+    canReviewCompletion: false,
+    canUploadMaintenanceEvidence: false,
+  };
+}
 
 export function getMaintenanceCapabilities(
   role: WorkspaceRole,

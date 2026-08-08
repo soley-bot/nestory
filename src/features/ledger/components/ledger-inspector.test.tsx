@@ -13,10 +13,7 @@ describe("LedgerInspector managed receipt projections", () => {
   it("keeps receipt evidence visible without forbidden lifecycle actions", () => {
     const entry = receiptProjection();
     const callbacks = {
-      onArchiveEntry: vi.fn(),
       onAttachReceipt: vi.fn(),
-      onEditEntry: vi.fn(),
-      onRestoreEntry: vi.fn(),
     };
 
     const view = render(<LedgerInspector entry={entry} {...callbacks} />);
@@ -29,6 +26,8 @@ describe("LedgerInspector managed receipt projections", () => {
     expect(
       screen.queryByRole("button", { name: "Archive ledger entry" }),
     ).toBeNull();
+    expect(screen.queryByText(/accounting|journal/i)).toBeNull();
+    expect(screen.getByText("Source linked")).not.toBeNull();
 
     view.rerender(
       <LedgerInspector
@@ -43,7 +42,6 @@ describe("LedgerInspector managed receipt projections", () => {
 
 function receiptProjection(): LedgerEntry {
   return {
-    accountingJournalEntryId: "journal-1",
     activity: [],
     amount: -100,
     category: "Rent receipt reversal",
@@ -72,6 +70,7 @@ function receiptProjection(): LedgerEntry {
     recordCounts: { activity: 0, documents: 0, timelineEvents: 0 },
     riskIndicators: [],
     sourceId: "allocation-1",
+    reversalOfLedgerEntryId: "ledger-original",
     sourceLabel: "Rent & Income",
     sourceType: "receipt_allocation",
     transactionDate: "2026-07-10",

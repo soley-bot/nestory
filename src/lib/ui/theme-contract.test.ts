@@ -27,6 +27,29 @@ describe("Shadcn theme contract", () => {
     expect(globals).toContain(".dark");
   });
 
+  it("does not expose retired presentation aliases", () => {
+    for (const token of [
+      "--surface-canvas",
+      "--surface-work",
+      "--surface-raised",
+      "--surface-muted",
+      "--foreground-muted",
+      "--foreground-subtle",
+      "--border-neutral",
+      "--control-border",
+      "--focus-ring",
+      "--accent-strong",
+      "--accent-soft",
+      "--brand-solid",
+      "--brand-on-solid",
+      "--brand-text",
+      "--brand-soft",
+      "--state-selected",
+    ]) {
+      expect(globals).not.toContain(token);
+    }
+  });
+
   it("uses the configured Shadcn preset and CSS variables", () => {
     expect(components.style).toBe("radix-nova");
     expect(components.tailwind?.cssVariables).toBe(true);

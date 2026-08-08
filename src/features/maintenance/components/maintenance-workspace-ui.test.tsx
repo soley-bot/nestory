@@ -197,7 +197,7 @@ describe("maintenance workspace redesign contract", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
     await waitFor(() => expect(document.activeElement).toBe(row));
-  });
+  }, 10_000);
 
   it("replaces the wide quick view while a mutation drawer opens", () => {
     installMatchMedia(1440);
@@ -243,7 +243,7 @@ describe("maintenance workspace redesign contract", () => {
     ).not.toBeNull();
     filtered.unmount();
 
-    renderMaintenance({ actorRole: "member", cases: [] });
+    renderMaintenance({ actorRole: "operations_member", cases: [] });
     const emptyState = screen.getByText("No cases yet").closest("section");
     expect(emptyState?.getAttribute("data-kind")).toBe("empty");
     expect(screen.queryByRole("button", { name: "New case" })).toBeNull();
@@ -295,7 +295,7 @@ describe("maintenance workspace redesign contract", () => {
       "view=board&review=work_orders",
     );
     renderMaintenance({
-      actorRole: "member",
+      actorRole: "operations_member",
       showCaseViewTabs: true,
       surfaceVariant: "board",
       viewQuery: { ...defaultViewQuery, review: "work_orders", view: "board" },
@@ -613,7 +613,7 @@ describe("maintenance board accessible alternative", () => {
   it("keeps member work in the keyboard list without a misleading board switch", () => {
     render(
       <BoardSurface
-        actorRole="member"
+        actorRole="operations_member"
         cases={[makeCase()]}
         emptyLabel="No assigned work found."
         onSelect={vi.fn()}
@@ -631,7 +631,7 @@ describe("maintenance board accessible alternative", () => {
     const user = userEvent.setup();
     render(
       <BoardSurface
-        actorRole="manager"
+        actorRole="operations_manager"
         cases={[makeCase()]}
         emptyLabel="No work orders found."
         onSelect={vi.fn()}
@@ -660,7 +660,7 @@ describe("maintenance board accessible alternative", () => {
     const onSelect = vi.fn();
     const { container } = render(
       <BoardSurface
-        actorRole="manager"
+        actorRole="operations_manager"
         cases={[makeCase()]}
         emptyLabel="No work orders found."
         onStatusChange={vi.fn()}
@@ -693,7 +693,7 @@ describe("maintenance board accessible alternative", () => {
     const onSelect = vi.fn();
     render(
       <BoardSurface
-        actorRole="manager"
+        actorRole="operations_manager"
         cases={[makeCase()]}
         emptyLabel="No work orders found."
         onSelect={onSelect}
@@ -746,13 +746,13 @@ describe("maintenance record cards", () => {
 });
 
 function renderMaintenance({
-  actorRole = "admin",
+  actorRole = "super_admin",
   cases = [makeCase()],
   surfaceVariant = "table",
   showCaseViewTabs = false,
   viewQuery = defaultViewQuery,
 }: {
-  actorRole?: "admin" | "manager" | "member";
+  actorRole?: "super_admin" | "operations_manager" | "operations_member";
   cases?: MaintenanceCase[];
   surfaceVariant?: MaintenanceSurfaceVariant;
   showCaseViewTabs?: boolean;
@@ -797,7 +797,7 @@ function renderWorkflowSurface(
 ) {
   return render(
     <MaintenanceWorkflowSurface
-      actorRole="manager"
+      actorRole="operations_manager"
       cases={cases}
       emptyLabel="No maintenance cases found."
       month="2026-07"

@@ -29,7 +29,7 @@ try {
 
   cleanup();
   fixture();
-  await proveUnrelatedPropertiesRemainConcurrent();
+  await proveOrganizationMonthSerializesAcrossProperties();
 
   cleanup();
   fixture();
@@ -37,7 +37,7 @@ try {
   await provePeriodTransitionSerializesTermEdit();
 
   process.stdout.write(
-    "PASS lease-term authority: overlap and period-transition concurrency serialized correctly while unrelated properties remained concurrent.\n",
+    "PASS lease-term authority: overlapping terms, organization-month writes, and month-lock transitions serialize correctly.\n",
   );
 } catch (error) {
   proofError = error;
@@ -103,7 +103,7 @@ WHERE lease_id = '${ids.lease}'::uuid
   }
 }
 
-async function proveUnrelatedPropertiesRemainConcurrent() {
+async function proveOrganizationMonthSerializesAcrossProperties() {
   const first = startPsql(
     authoritativeTermSql(ids.lease, "term-unrelated-first", true),
     true,
@@ -113,20 +113,20 @@ async function proveUnrelatedPropertiesRemainConcurrent() {
   const second = startPsql(
     authoritativeTermSql(ids.otherLease, "term-unrelated-second", false),
   );
-  const secondResult = await new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error("Unrelated property term write was blocked.")),
-      timeoutMs,
+  await waitForLock(second);
+  if (second.completed) {
+    throw new Error(
+      `Same-organization month write bypassed financial-month serialization.\n${second.output}`,
     );
-    second.result.then((result) => {
-      clearTimeout(timer);
-      resolve(result);
-    }, reject);
-  });
+  }
 
-  assertSucceeded("unrelated property term", secondResult);
   first.release();
-  assertSucceeded("held property term", await first.result);
+  const [firstResult, secondResult] = await Promise.all([
+    first.result,
+    second.result,
+  ]);
+  assertSucceeded("held property term", firstResult);
+  assertSucceeded("serialized property term", secondResult);
 
   const count = queryScalar(`
 SELECT count(*)
@@ -145,7 +145,7 @@ async function provePeriodTransitionSerializesTermEdit() {
 BEGIN;
 SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
 SET LOCAL ROLE authenticated;
-SELECT public.set_ledger_period_lock(
+SELECT public.set_financial_month_lock(
   '${ids.organization}'::uuid,
   '2026-07-01'::date,
   true,
@@ -199,7 +199,7 @@ COMMIT;
 
   if (
     editResult.code === 0 ||
-    !editResult.output.includes("Organization Ledger period is locked")
+    !editResult.output.includes("Financial month is locked")
   ) {
     throw new Error(
       `Term edit did not fail against the committed period authority.\n${editResult.output}`,
@@ -247,7 +247,7 @@ VALUES (
   'lease-term-concurrency'
 );
 INSERT INTO public.organization_members(organization_id, user_id, role)
-VALUES ('${ids.organization}'::uuid, '${ids.admin}'::uuid, 'admin');
+VALUES ('${ids.organization}'::uuid, '${ids.admin}'::uuid, 'super_admin');
 INSERT INTO public.properties(
   id, organization_id, name, code, property_type, status
 )
@@ -299,10 +299,10 @@ VALUES (
 );
 INSERT INTO public.person_roles(organization_id, person_id, role)
 VALUES ('${ids.organization}'::uuid, '${ids.tenant}'::uuid, 'tenant');
+SET LOCAL session_replication_role = replica;
 INSERT INTO public.leases(
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
-  tenant_name, lease_start_date, lease_end_date, monthly_rent_amount,
-  monthly_rent_currency, status
+  status, created_by, updated_by
 )
 VALUES
 (
@@ -311,12 +311,9 @@ VALUES
   '${ids.property}'::uuid,
   '${ids.unit}'::uuid,
   '${ids.tenant}'::uuid,
-  'Lease term concurrency tenant',
-  '2026-07-15'::date,
-  '2027-06-30'::date,
-  1000,
-  'USD',
-  'active'
+  'active',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
 ),
 (
   '${ids.otherLease}'::uuid,
@@ -324,13 +321,11 @@ VALUES
   '${ids.otherProperty}'::uuid,
   '${ids.otherUnit}'::uuid,
   '${ids.tenant}'::uuid,
-  'Lease term concurrency tenant',
-  '2026-07-15'::date,
-  '2027-06-30'::date,
-  800,
-  'USD',
-  'active'
+  'active',
+  '${ids.admin}'::uuid,
+  '${ids.admin}'::uuid
 );
+SET LOCAL session_replication_role = origin;
 COMMIT;`);
 }
 
@@ -491,16 +486,10 @@ BEGIN;
 SELECT set_config('app.people_leases_skip_sync', 'on', true);
 DELETE FROM public.activity_logs
 WHERE organization_id = '${ids.organization}'::uuid;
-DELETE FROM public.ledger_period_locks
-WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM app_private.financial_idempotency_requests
 WHERE organization_id = '${ids.organization}'::uuid;
-ALTER TABLE public.property_reporting_periods
-  DISABLE TRIGGER enforce_property_period_mutation_context;
-DELETE FROM public.property_reporting_periods
+DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
-ALTER TABLE public.property_reporting_periods
-  ENABLE TRIGGER enforce_property_period_mutation_context;
 ALTER TABLE public.financial_reconciliation_sources
   DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
 DELETE FROM public.financial_reconciliation_sources

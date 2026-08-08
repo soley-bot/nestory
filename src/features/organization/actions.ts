@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuthCallbackUrl } from "@/lib/auth/callback-url";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -38,14 +38,26 @@ const memberSchema = z.object({
   branchId: optionalUuidSchema,
   memberId: uuidShapeSchema,
   personId: optionalUuidSchema,
-  role: z.enum(["admin", "manager", "member"]),
+  role: z.enum([
+    "super_admin",
+    "finance_manager",
+    "finance_member",
+    "operations_manager",
+    "operations_member",
+  ]),
 });
 
 const userAccessSchema = z.object({
   branchId: optionalUuidSchema,
   email: z.string().trim().toLowerCase().pipe(z.email()),
-  personId: uuidShapeSchema,
-  role: z.enum(["admin", "manager", "member"]),
+  personId: optionalUuidSchema,
+  role: z.enum([
+    "super_admin",
+    "finance_manager",
+    "finance_member",
+    "operations_manager",
+    "operations_member",
+  ]),
 });
 const invitationIdSchema = z.object({ invitationId: uuidShapeSchema });
 const memberIdSchema = z.object({ memberId: uuidShapeSchema });
@@ -60,7 +72,7 @@ export async function createBranchAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = branchSchema.safeParse({
     address: readString(formData, "address"),
     code: readString(formData, "code"),
@@ -91,7 +103,7 @@ export async function createTeamAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = teamSchema.safeParse({
     branchId: readString(formData, "branchId"),
     managerPersonId: readString(formData, "managerPersonId"),
@@ -122,7 +134,7 @@ export async function updateMemberAccessAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = memberSchema.safeParse({
     branchId: readString(formData, "branchId"),
     memberId: readString(formData, "memberId"),
@@ -132,6 +144,11 @@ export async function updateMemberAccessAction(
 
   if (!parsed.success) {
     return { message: "Choose a valid role and membership.", status: "error" };
+  }
+
+  const scopeError = workspaceRoleScopeError(parsed.data);
+  if (scopeError) {
+    return { message: scopeError, status: "error" };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -155,7 +172,7 @@ export async function inviteOrganizationUserAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = userAccessSchema.safeParse({
     branchId: readString(formData, "branchId"),
     email: readString(formData, "email"),
@@ -168,6 +185,11 @@ export async function inviteOrganizationUserAction(
       message: "Choose a valid Staff member, invitation email, and access level.",
       status: "error",
     };
+  }
+
+  const scopeError = workspaceRoleScopeError(parsed.data);
+  if (scopeError) {
+    return { message: scopeError, status: "error" };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -209,16 +231,46 @@ export async function inviteOrganizationUserAction(
         status: "error",
       }
     : {
-        message: `Invitation sent to ${parsed.data.email} for the selected Staff record.`,
+        message: parsed.data.personId
+          ? `Invitation sent to ${parsed.data.email} for the selected Staff record.`
+          : `Invitation sent to ${parsed.data.email}.`,
         status: "success",
       };
+}
+
+function workspaceRoleScopeError({
+  branchId,
+  personId,
+  role,
+}: {
+  branchId: string | null;
+  personId: string | null;
+  role:
+    | "super_admin"
+    | "finance_manager"
+    | "finance_member"
+    | "operations_manager"
+    | "operations_member";
+}) {
+  const operationsRole =
+    role === "operations_manager" || role === "operations_member";
+
+  if (operationsRole && (!branchId || !personId)) {
+    return "Choose a branch and Staff member for an Operations role.";
+  }
+
+  if (!operationsRole && (branchId || personId)) {
+    return "Super Admin and Finance roles use organization-wide access.";
+  }
+
+  return undefined;
 }
 
 export async function resendOrganizationInvitationAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  await requireAdminContext();
+  await requireSuperAdminContext();
   const parsed = invitationIdSchema.safeParse({
     invitationId: readString(formData, "invitationId"),
   });
@@ -263,7 +315,7 @@ export async function revokeOrganizationInvitationAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  await requireAdminContext();
+  await requireSuperAdminContext();
   const parsed = invitationIdSchema.safeParse({
     invitationId: readString(formData, "invitationId"),
   });
@@ -287,7 +339,7 @@ export async function removeMemberAccessAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = memberIdSchema.safeParse({
     memberId: readString(formData, "memberId"),
   });

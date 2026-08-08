@@ -32,7 +32,7 @@ export function PaginationControls({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 bg-surface px-3 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-3 bg-card px-3 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between",
         attached
           ? "-mt-px rounded-b-md border border-t-0 border-border"
           : "border-t border-border",
@@ -105,7 +105,7 @@ function PaginationLink({
     <Link
       className={cn(
         "inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border px-2.5 text-xs font-medium text-foreground transition-colors",
-        "hover:bg-surface-muted",
+        "hover:bg-muted",
       )}
       href={buildPageHref({ page, pathname, searchParams })}
       scroll={false}

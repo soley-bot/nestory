@@ -12,8 +12,8 @@ import {
 import type { WorkspaceSearchResult } from "@/features/workspace-search/workspace-search.types";
 
 type TableName =
+  | "current_leases"
   | "documents"
-  | "leases"
   | "people"
   | "properties"
   | "tasks"
@@ -172,7 +172,7 @@ function selectRecordedColumns(
 
 describe("workspace search scopes", () => {
   it("matches the routes exposed by the role-aware shell", () => {
-    expect(getWorkspaceSearchScopes("admin")).toEqual([
+    expect(getWorkspaceSearchScopes("super_admin")).toEqual([
       "properties",
       "units",
       "people",
@@ -180,25 +180,39 @@ describe("workspace search scopes", () => {
       "tasks",
       "documents",
     ]);
-    expect(getWorkspaceSearchScopes("manager")).toEqual(["tasks"]);
-    expect(getWorkspaceSearchScopes("member")).toEqual(["tasks"]);
+    expect(getWorkspaceSearchScopes("operations_manager")).toEqual(["tasks"]);
+    expect(getWorkspaceSearchScopes("operations_member")).toEqual(["tasks"]);
+    expect(getWorkspaceSearchScopes("finance_manager")).toEqual(["leases"]);
+    expect(getWorkspaceSearchScopes("finance_member")).toEqual(["leases"]);
 
-    expect(getWorkspaceSearchActions("admin").map((action) => action.href)).toEqual(
+    expect(getWorkspaceSearchActions("super_admin").map((action) => action.href)).toEqual(
       expect.arrayContaining(["/tasks", "/work-orders", "/inspections"]),
     );
-    expect(getWorkspaceSearchActions("admin")).toContainEqual(
+    expect(getWorkspaceSearchActions("super_admin")).toContainEqual(
       expect.objectContaining({ href: "/users-roles", label: "Workspace Access" }),
     );
 
-    expect(getWorkspaceSearchActions("manager").map((action) => action.href)).toEqual([
+    expect(getWorkspaceSearchActions("operations_manager").map((action) => action.href)).toEqual([
       "/maintenance",
       "/tasks",
     ]);
-    expect(getWorkspaceSearchActions("member").map((action) => action.href)).toEqual([
+    expect(getWorkspaceSearchActions("operations_member").map((action) => action.href)).toEqual([
       "/tasks",
     ]);
-    expect(getWorkspaceSearchActions("member")).not.toContainEqual(
+    expect(getWorkspaceSearchActions("operations_member")).not.toContainEqual(
       expect.objectContaining({ href: "/properties" }),
+    );
+    expect(getWorkspaceSearchActions("finance_manager").map((action) => action.href)).toEqual([
+      "/finance",
+      "/rent-income",
+      "/bills-expenses",
+      "/balances",
+      "/leases",
+      "/ledger",
+      "/petty-cash",
+    ]);
+    expect(getWorkspaceSearchActions("finance_member")).toEqual(
+      getWorkspaceSearchActions("finance_manager"),
     );
   });
 });
@@ -210,7 +224,7 @@ describe("searchWorkspace", () => {
     await expect(
       searchWorkspace({
         client: client as never,
-        context: { organizationId: "org-1", role: "admin" },
+        context: { organizationId: "org-1", role: "super_admin" },
         query: "  a  ",
       }),
     ).resolves.toEqual([]);
@@ -223,7 +237,7 @@ describe("searchWorkspace", () => {
     await expect(
       searchWorkspace({
         client: client as never,
-        context: { organizationId: "org-1", role: "admin" },
+        context: { organizationId: "org-1", role: "super_admin" },
         query: "🧰",
       }),
     ).resolves.toEqual([]);
@@ -252,7 +266,7 @@ describe("searchWorkspace", () => {
           organization_id: "org-1",
         },
       ],
-      leases: [
+      current_leases: [
         {
           archived_at: null,
           id: "lease-1",
@@ -318,12 +332,19 @@ describe("searchWorkspace", () => {
 
     const results = await searchWorkspace({
       client: client as never,
-      context: { organizationId: "org-1", role: "admin" },
+      context: { organizationId: "org-1", role: "super_admin" },
       query: "  boiler  ",
     });
 
     expect(new Set(queries.map((query) => query.table))).toEqual(
-      new Set(["documents", "leases", "people", "properties", "tasks", "units"]),
+      new Set([
+        "current_leases",
+        "documents",
+        "people",
+        "properties",
+        "tasks",
+        "units",
+      ]),
     );
     expect(queries).not.toHaveLength(0);
     expect(queries.every((query) => query.limit !== undefined && query.limit! <= 20)).toBe(true);
@@ -388,7 +409,7 @@ describe("searchWorkspace", () => {
       context: {
         branchId: "branch-a",
         organizationId: "org-1",
-        role: "manager",
+        role: "operations_manager",
       },
       query: "pump",
     });
@@ -411,7 +432,7 @@ describe("searchWorkspace", () => {
         branchId: "branch-a",
         organizationId: "org-1",
         personId: "person-1",
-        role: "member",
+        role: "operations_member",
       },
       query: "pump",
     });
@@ -457,7 +478,7 @@ describe("searchWorkspace", () => {
       context: {
         branchId: "branch-a",
         organizationId: "org-1",
-        role: "manager",
+        role: "operations_manager",
       },
       query: "boiler",
     });
@@ -491,12 +512,12 @@ describe("searchWorkspace", () => {
     const [firstResults, secondResults] = await Promise.all([
       searchWorkspace({
         client: firstSearch.client as never,
-        context: { organizationId: "org-1", role: "admin" },
+        context: { organizationId: "org-1", role: "super_admin" },
         query: "boiler",
       }),
       searchWorkspace({
         client: secondSearch.client as never,
-        context: { organizationId: "org-1", role: "admin" },
+        context: { organizationId: "org-1", role: "super_admin" },
         query: "boiler",
       }),
     ]);
@@ -530,7 +551,7 @@ describe("searchWorkspace", () => {
 
     await searchWorkspace({
       client: client as never,
-      context: { organizationId: "org-1", role: "admin" },
+      context: { organizationId: "org-1", role: "super_admin" },
       query: "boi%_(),\\",
     });
 
@@ -551,7 +572,7 @@ describe("searchWorkspace", () => {
     await expect(
       searchWorkspace({
         client: client as never,
-        context: { organizationId: "org-1", role: "manager" },
+        context: { organizationId: "org-1", role: "operations_manager" },
         query: "work orders",
       }),
     ).resolves.toEqual([
@@ -561,7 +582,7 @@ describe("searchWorkspace", () => {
     await expect(
       searchWorkspace({
         client: client as never,
-        context: { organizationId: "org-1", role: "member" },
+        context: { organizationId: "org-1", role: "operations_member" },
         query: "properties",
       }),
     ).resolves.toEqual([]);

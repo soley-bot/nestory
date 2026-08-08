@@ -17,7 +17,7 @@ vi.mock("@/features/auth/actions", () => ({
   signOutAction: vi.fn(),
 }));
 
-function renderPalette(role: "admin" | "manager" | "member" = "admin") {
+function renderPalette(role: "super_admin" | "operations_manager" | "operations_member" = "super_admin") {
   return render(
     <AppShell role={role}>
       <button type="button">Outside control</button>
@@ -62,7 +62,7 @@ describe("Workspace command palette access", () => {
     renderPalette();
     const trigger = screen.getByRole("button", { name: "Search or jump" });
     expect(trigger.className).toContain("focus-visible:ring-2");
-    expect(trigger.className).toContain("focus-visible:ring-focus-ring");
+    expect(trigger.className).toContain("focus-visible:ring-ring");
 
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
@@ -70,10 +70,10 @@ describe("Workspace command palette access", () => {
     const closeButton = screen.getByRole("button", { name: "Close search" });
 
     expect(inputFrame?.className).toContain("focus-within:ring-2");
-    expect(inputFrame?.className).toContain("focus-within:ring-focus-ring");
+    expect(inputFrame?.className).toContain("focus-within:ring-ring");
     expect(input.className).not.toContain("focus:ring-0");
     expect(closeButton.className).toContain("focus-visible:ring-2");
-    expect(closeButton.className).toContain("focus-visible:ring-focus-ring");
+    expect(closeButton.className).toContain("focus-visible:ring-ring");
   });
 
   it("opens with Ctrl+K or Cmd+K and opens from its single visible trigger", () => {
@@ -123,7 +123,7 @@ describe("Workspace command palette access", () => {
   });
 
   it("provides named dialog, combobox, listbox, groups, and consistent active option state", () => {
-    renderPalette("manager");
+    renderPalette("operations_manager");
     openPalette();
 
     const dialog = screen.getByRole("dialog", { name: "Search or jump" });
@@ -157,7 +157,7 @@ describe("Workspace command palette access", () => {
   });
 
   it("does not move, activate, or close while an IME composition is active", () => {
-    renderPalette("manager");
+    renderPalette("operations_manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
     fireEvent.change(input, { target: { value: ">" } });
@@ -188,7 +188,7 @@ describe("Workspace command palette access", () => {
   });
 
   it("honors native composing and keyCode 229 fallbacks", () => {
-    renderPalette("manager");
+    renderPalette("operations_manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
     fireEvent.change(input, { target: { value: ">" } });
@@ -211,7 +211,7 @@ describe("Workspace command palette results", () => {
   it("keeps one-character queries nonterminal and does not fetch records", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    renderPalette("member");
+    renderPalette("operations_member");
     openPalette();
     fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
       target: { value: "x" },
@@ -228,7 +228,7 @@ describe("Workspace command palette results", () => {
   it("does not flood short queries with page matches", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    renderPalette("member");
+    renderPalette("operations_member");
     openPalette();
     fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
       target: { value: "t" },
@@ -244,7 +244,7 @@ describe("Workspace command palette results", () => {
   });
 
   it("shows only immediate navigation actions visible to the current role", () => {
-    renderPalette("member");
+    renderPalette("operations_member");
     openPalette();
 
     expect(screen.getByRole("listbox", { name: "Search results" })).toBeTruthy();
@@ -394,7 +394,7 @@ describe("Workspace command palette results", () => {
   });
 
   it("moves through results with Arrow keys and activates the selected option with Enter", () => {
-    renderPalette("manager");
+    renderPalette("operations_manager");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
     fireEvent.change(input, { target: { value: ">" } });
@@ -440,7 +440,7 @@ describe("Workspace command palette results", () => {
       .mockResolvedValueOnce(jsonResponse({ results: [] }))
       .mockResolvedValueOnce(jsonResponse({ error: "Search unavailable" }, 500));
     vi.stubGlobal("fetch", fetchMock);
-    renderPalette("member");
+    renderPalette("operations_member");
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
 
@@ -547,7 +547,7 @@ describe("Workspace command palette results", () => {
         }),
       ),
     );
-    renderPalette("member");
+    renderPalette("operations_member");
     openPalette();
     fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
       target: { value: "safe" },
@@ -576,7 +576,7 @@ describe("Workspace command palette results", () => {
         }),
       ),
     );
-    renderPalette("member");
+    renderPalette("operations_member");
     openPalette();
     fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
       target: { value: "settings" },
@@ -677,7 +677,7 @@ describe("Workspace command palette results", () => {
         kind: "maintenance",
         label: "Denied settings",
       },
-      role: "manager" as const,
+      role: "operations_manager" as const,
     },
     {
       allowed: {
@@ -698,7 +698,7 @@ describe("Workspace command palette results", () => {
         kind: "task",
         label: "Denied settings",
       },
-      role: "member" as const,
+      role: "operations_member" as const,
     },
   ])(
     "keeps untrusted entity routes inside $role destinations",
@@ -740,10 +740,10 @@ describe("Workspace command palette results", () => {
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const view = renderPalette("admin");
+    const view = renderPalette("super_admin");
     openPalette();
     fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
-      target: { value: "admin" },
+      target: { value: "super_admin" },
     });
     await advanceSearch();
     await act(async () => {
@@ -753,7 +753,7 @@ describe("Workspace command palette results", () => {
     expect(screen.getByRole("option", { name: /Admin property/ })).toBeTruthy();
 
     view.rerender(
-      <AppShell role="member">
+      <AppShell role="operations_member">
         <button type="button">Outside control</button>
       </AppShell>,
     );

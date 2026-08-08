@@ -1384,7 +1384,7 @@ async function getPeopleIdsForActiveLeasesWithoutUnits(
   organizationId: string,
 ): Promise<PeopleIdQueryResult> {
   const result = await supabase
-    .from("leases")
+    .from("current_leases")
     .select("id, status, archived_at")
     .eq("organization_id", organizationId)
     .is("unit_id", null);
@@ -1477,7 +1477,7 @@ async function getPeopleIdsForActiveLeaseProperties(
   propertyIds: ReadonlySet<string>,
 ): Promise<PeopleIdQueryResult> {
   const result = await supabase
-    .from("leases")
+    .from("current_leases")
     .select("id, status, archived_at")
     .eq("organization_id", organizationId)
     .in("property_id", [...propertyIds]);
@@ -1507,7 +1507,7 @@ async function getPeopleIdsForActiveLeaseUnits(
   if (unitIds.size > PEOPLE_IN_FILTER_BATCH_SIZE) {
     const leaseIds = await queryValueBatches([...unitIds], async (batch) => {
       const result = await supabase
-        .from("leases")
+        .from("current_leases")
         .select("id, status, archived_at")
         .eq("organization_id", organizationId)
         .in("unit_id", batch);
@@ -1531,7 +1531,7 @@ async function getPeopleIdsForActiveLeaseUnits(
   }
 
   const result = await supabase
-    .from("leases")
+    .from("current_leases")
     .select("id, status, archived_at")
     .eq("organization_id", organizationId)
     .in("unit_id", [...unitIds]);

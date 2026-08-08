@@ -279,9 +279,9 @@ describe("maintenance status recovery", () => {
 function makeMaintenanceStatusScreen(cases: MaintenanceCase[]) {
   return (
     <MaintenanceScreen
-      actor={{ branchId: "branch-1", personId: "person-1", role: "manager" }}
+      actor={{ branchId: "branch-1", personId: "person-1", role: "operations_manager" }}
       branchOptions={[]}
-      capabilities={getMaintenanceCapabilities("manager")}
+      capabilities={getMaintenanceCapabilities("operations_manager")}
       cases={cases}
       pagination={{
         from: cases.length ? 1 : 0,

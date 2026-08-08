@@ -51,7 +51,7 @@ export function AcceptInvitationForm({
         </>
       ) : null}
 
-      <Button className="h-11 w-full" disabled={pending} type="submit" variant="primary">
+      <Button className="h-11 w-full" disabled={pending} type="submit" variant="default">
         {pending ? "Accepting..." : "Accept invitation"}
       </Button>
     </form>

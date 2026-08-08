@@ -19,8 +19,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("shows coordinated controls without admin links or upload for a manager", () => {
     render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", role: "manager" }}
-        capabilities={getMaintenanceCapabilities("manager")}
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={makeCase()}
         onArchive={vi.fn()}
         onEdit={vi.fn()}
@@ -43,8 +43,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
     try {
       render(
         <MaintenanceInspector
-          actor={{ branchId: "branch-1", role: "manager" }}
-          capabilities={getMaintenanceCapabilities("manager")}
+          actor={{ branchId: "branch-1", role: "operations_manager" }}
+          capabilities={getMaintenanceCapabilities("operations_manager")}
           maintenanceCase={{
             ...makeCase(),
             activity: [
@@ -77,8 +77,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("keeps manager transition consequences beside coordinated actions", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "manager" }}
-        capabilities={getMaintenanceCapabilities("manager")}
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={makeCase()}
         onStatusMessage={vi.fn()}
       />,
@@ -97,11 +97,119 @@ describe("MaintenanceInspector role-safe workflow", () => {
     );
   });
 
+  it("lets an Operations Manager hand a recorded cost to Finance", () => {
+    render(
+      <MaintenanceWorkflowPanel
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
+        maintenanceCase={{
+          ...makeCase(),
+          actualCostAmount: 125.5,
+          actualCostLabel: "USD 125.50",
+          documents: [
+            {
+              category: "Maintenance",
+              fileName: "receipt.pdf",
+              href: "/documents?documentId=document-1",
+              id: "document-1",
+              mimeType: "application/pdf",
+              sizeBytes: 100,
+              uploadedAt: "2026-08-08T08:00:00Z",
+            },
+          ],
+        }}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Finance handoff")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Submit cost to Finance" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Choose a linked document or enter a reference."),
+    ).toBeTruthy();
+    expect(screen.queryByText("Link actual cost to ledger")).toBeNull();
+  });
+
+  it("shows a submitted maintenance cost as locked and awaiting Finance", () => {
+    render(
+      <MaintenanceWorkflowPanel
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
+        maintenanceCase={{
+          ...makeCase(),
+          actualCostAmount: 125.5,
+          actualCostLabel: "USD 125.50",
+          costSubmission: {
+            id: "submission-1",
+            reviewReason: null,
+            status: "submitted",
+            submittedAt: "2026-08-08T08:00:00Z",
+          },
+        }}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Awaiting Finance")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Submit cost to Finance" }),
+    ).toBeNull();
+  });
+
+  it("reopens an approved cost for an explicit append-only adjustment", () => {
+    const baseCase = {
+      ...makeCase(),
+      actualCostAmount: 150,
+      actualCostLabel: "USD 150.00",
+    };
+    const { container, rerender } = render(
+      <MaintenanceWorkflowPanel
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
+        maintenanceCase={baseCase}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+    const originalKey = container.querySelector<HTMLInputElement>(
+      'input[name="idempotencyKey"]',
+    )?.value;
+
+    rerender(
+      <MaintenanceWorkflowPanel
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
+        maintenanceCase={{
+          ...baseCase,
+          costSubmission: {
+            id: "submission-1",
+            reviewReason: null,
+            status: "approved",
+            submittedAt: "2026-08-08T08:00:00Z",
+          },
+        }}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Approved by Finance")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Submit cost adjustment" }),
+    ).toBeTruthy();
+    expect(screen.getByText(/Approved history stays unchanged/)).toBeTruthy();
+    expect(
+      container.querySelector<HTMLInputElement>(
+        'input[name="idempotencyKey"]',
+      )?.value,
+    ).not.toBe(originalKey);
+  });
+
   it("shows the member submission handoff without manager-only controls", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", personId: "person-1", role: "member" }}
-        capabilities={getMaintenanceCapabilities("member")}
+        actor={{ branchId: "branch-1", personId: "person-1", role: "operations_member" }}
+        capabilities={getMaintenanceCapabilities("operations_member")}
         maintenanceCase={{
           ...makeCase(),
           assigneeLabel: "Pich",
@@ -131,8 +239,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("states approval and return outcomes before completion review", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "admin" }}
-        capabilities={getMaintenanceCapabilities("admin")}
+        actor={{ branchId: "branch-1", role: "super_admin" }}
+        capabilities={getMaintenanceCapabilities("super_admin")}
         maintenanceCase={{
           ...makeCase(),
           assigneeLabel: "Pich",
@@ -156,8 +264,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("keeps inspector mutations aligned to admin and member capabilities", () => {
     const admin = render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", role: "admin" }}
-        capabilities={getMaintenanceCapabilities("admin")}
+        actor={{ branchId: "branch-1", role: "super_admin" }}
+        capabilities={getMaintenanceCapabilities("super_admin")}
         maintenanceCase={{
           ...makeCase(),
           hrefs: { documentUpload: "/documents?action=create", task: "/maintenance" },
@@ -176,8 +284,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
 
     render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", personId: "person-1", role: "member" }}
-        capabilities={getMaintenanceCapabilities("member")}
+        actor={{ branchId: "branch-1", personId: "person-1", role: "operations_member" }}
+        capabilities={getMaintenanceCapabilities("operations_member")}
         maintenanceCase={{
           ...makeCase(),
           assigneeLabel: "Pich",

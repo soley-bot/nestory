@@ -23,7 +23,7 @@ const presentations = {
   },
   info: {
     Icon: Info,
-    className: "border-border bg-surface-muted text-foreground-muted",
+    className: "border-border bg-muted text-muted-foreground",
   },
   success: {
     Icon: CheckCircle2,
@@ -59,7 +59,7 @@ export function StatusNotice({
         <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
         <div className="min-w-0">
           <p className="font-semibold text-foreground">{title}</p>
-          <div className="mt-0.5 leading-5 text-foreground-muted">{message}</div>
+          <div className="mt-0.5 leading-5 text-muted-foreground">{message}</div>
         </div>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}

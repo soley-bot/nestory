@@ -5,7 +5,7 @@ import type {
 import type { CurrencyCode, MoneyDisplayValue } from "@/lib/money/format";
 
 export type ReportKind =
-  | "owner-activity"
+  | "monthly-owner-activity"
   | "rent-roll"
   | "unit-performance"
   | "unit-profit-loss"
@@ -58,11 +58,14 @@ export type ReportSourceRecordType =
   | "ledger"
   | "maintenance"
   | "owner"
+  | "owner-collection-allocation"
+  | "owner-payment"
   | "payment"
   | "payment-allocation"
   | "petty-cash-entry"
   | "person"
   | "property"
+  | "property-withdrawal"
   | "receipt"
   | "receipt-allocation"
   | "income-obligation"

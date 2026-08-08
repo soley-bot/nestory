@@ -249,7 +249,7 @@ export function SettingsNavigationGuardProvider({
             aria-describedby={dialogDescriptionId}
             aria-labelledby={dialogTitleId}
             aria-modal="true"
-            className="w-full max-w-sm rounded-lg border border-border bg-surface-raised p-4 shadow-xl outline-none"
+            className="w-full max-w-sm rounded-lg border border-border bg-popover p-4 shadow-xl outline-none"
             ref={dialogRef}
             role="dialog"
             tabIndex={-1}
@@ -258,7 +258,7 @@ export function SettingsNavigationGuardProvider({
               Open {pendingNavigation.label}?
             </h2>
             <p
-              className="mt-2 text-sm text-foreground-muted"
+              className="mt-2 text-sm text-muted-foreground"
               id={dialogDescriptionId}
             >
               {pendingNavigation.mode === "saving"
@@ -281,7 +281,7 @@ export function SettingsNavigationGuardProvider({
                 <Button
                   className="w-full sm:w-auto"
                   onClick={discardAndNavigate}
-                  variant="primary"
+                  variant="default"
                 >
                   Discard and open {pendingNavigation.label}
                 </Button>

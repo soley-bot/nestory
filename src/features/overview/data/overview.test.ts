@@ -70,7 +70,7 @@ describe("getOverviewScreenData", () => {
   it("links missing lease tenants to the lease repair view", async () => {
     vi.mocked(createSupabaseServerClient).mockResolvedValue(
       createSupabaseStub({
-        leases: {
+        current_leases: {
           data: [
             {
               lease_end_date: "2099-01-01",

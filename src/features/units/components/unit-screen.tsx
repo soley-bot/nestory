@@ -193,20 +193,20 @@ export function UnitScreen({
     openUnitAction({ initialValues: createInitialValues, mode: "create" });
   };
   const unitList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
       {units.length === 0 ? (
         <EmptyState
           action={
             hasFilters ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
                 scroll={false}
               >
                 Clear filters
               </Link>
             ) : canCreate ? (
-              <Button onClick={openCreateUnit} variant="primary">
+              <Button onClick={openCreateUnit} variant="default">
                 <Plus size={15} />
                 Add unit
               </Button>
@@ -267,7 +267,7 @@ export function UnitScreen({
             ) : null}
             {activeReview?.reportHref ? (
               <Link
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
                 href={activeReview.reportHref}
               >
                 <FileText size={15} />
@@ -275,7 +275,7 @@ export function UnitScreen({
               </Link>
             ) : null}
             {canCreate ? (
-              <Button onClick={openCreateUnit} variant="primary">
+              <Button onClick={openCreateUnit} variant="default">
                 <Plus size={15} />
                 Add unit
               </Button>
@@ -384,7 +384,7 @@ function UnitReviewStrip({
           {count} {count === 1 ? "unit" : "units"} {context.countLabel}
           {propertyLabel ? ` in ${propertyLabel}` : ""}
         </p>
-        <p className="text-foreground-muted">
+        <p className="text-muted-foreground">
           {context.nextStep}
         </p>
       </div>

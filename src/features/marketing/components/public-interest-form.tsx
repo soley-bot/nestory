@@ -37,7 +37,7 @@ export function PublicInterestForm({
   if (state.status === "success") {
     return (
       <div
-        className="flex min-h-[430px] flex-col justify-between rounded-lg border border-[var(--landing-border)] bg-[var(--surface)] p-6 sm:p-8"
+        className="flex min-h-[430px] flex-col justify-between rounded-lg border border-[var(--landing-border)] bg-[var(--card)] p-6 sm:p-8"
         role="status"
       >
         <div>
@@ -81,7 +81,7 @@ export function PublicInterestForm({
       action={action}
       aria-busy={pending ? "true" : "false"}
       aria-label="Request information or a demo"
-      className="rounded-lg border border-[var(--landing-border)] bg-[var(--surface)] p-5 shadow-sm sm:p-7"
+      className="rounded-lg border border-[var(--landing-border)] bg-[var(--card)] p-5 shadow-sm sm:p-7"
     >
       <fieldset className="space-y-5 border-0 p-0" disabled={pending}>
         <legend className="sr-only">Request details</legend>

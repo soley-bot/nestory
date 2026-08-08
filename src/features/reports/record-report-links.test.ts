@@ -16,11 +16,11 @@ describe("record detail report links", () => {
     expect(
       buildPropertyStatementHref(
         "property-1",
-        "owner-activity",
+        "monthly-owner-activity",
         "2026-07",
       ),
     ).toBe(
-      "/reports/owner-activity?month=2026-07&propertyId=property-1",
+      "/reports/monthly-owner-activity?month=2026-07&propertyId=property-1",
     );
   });
 

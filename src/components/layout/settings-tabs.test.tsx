@@ -62,6 +62,6 @@ describe("SettingsTabs", () => {
     expect(navigationSlot?.className).not.toContain("mt-2");
     expect(navigation.className).toContain("overflow-x-auto");
     expect(navigation.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
-    expect(navigation.className).not.toContain("bg-surface");
+    expect(navigation.className).not.toContain("bg-card");
   });
 });

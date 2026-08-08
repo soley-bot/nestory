@@ -63,7 +63,7 @@ export function BoardSurface({
   waitingForReviewLabel = false,
 }: BoardSurfaceProps) {
   const [presentation, setPresentation] = useState<"board" | "list">(
-    actorRole === "member" ? "list" : "board",
+    actorRole === "operations_member" ? "list" : "board",
   );
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -96,13 +96,13 @@ export function BoardSurface({
 
   if (cases.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-md border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
         {emptyLabel}
       </div>
     );
   }
 
-  if (actorRole === "member") {
+  if (actorRole === "operations_member") {
     return (
       <BoardListSurface
         cases={cases}
@@ -167,10 +167,10 @@ export function BoardSurface({
         <button
           aria-pressed={presentation === "board"}
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
+            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
             presentation === "board"
-              ? "border-accent bg-accent-soft text-foreground"
-              : "border-border bg-surface text-foreground-muted hover:bg-surface-muted",
+              ? "border-accent bg-accent text-foreground"
+              : "border-border bg-card text-muted-foreground hover:bg-muted",
           )}
           onClick={() => setPresentation("board")}
           type="button"
@@ -181,10 +181,10 @@ export function BoardSurface({
         <button
           aria-pressed={presentation === "list"}
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
+            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
             presentation === "list"
-              ? "border-accent bg-accent-soft text-foreground"
-              : "border-border bg-surface text-foreground-muted hover:bg-surface-muted",
+              ? "border-accent bg-accent text-foreground"
+              : "border-border bg-card text-muted-foreground hover:bg-muted",
           )}
           onClick={() => setPresentation("list")}
           type="button"
@@ -222,7 +222,7 @@ function BoardListSurface({
         aria-label="Work order list"
         className="w-full min-w-[760px] border-collapse text-left text-[13px]"
       >
-        <thead className="bg-surface-muted text-[11px] uppercase text-foreground-muted">
+        <thead className="bg-muted text-[11px] uppercase text-muted-foreground">
           <tr>
             <th className="px-3 py-2 font-semibold">Work order</th>
             <th className="px-3 py-2 font-semibold">Status / Priority</th>
@@ -235,9 +235,9 @@ function BoardListSurface({
             <tr
               aria-selected={selectedTaskId === maintenanceCase.id}
               className={cn(
-                "cursor-pointer border-t border-border outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring",
+                "cursor-pointer border-t border-border outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 selectedTaskId === maintenanceCase.id &&
-                  "bg-state-selected shadow-[inset_3px_0_0_var(--state-selected-strong)]",
+                  "bg-accent shadow-[inset_3px_0_0_var(--primary)]",
               )}
               data-maintenance-record-trigger={maintenanceCase.id}
               key={maintenanceCase.id}
@@ -259,7 +259,7 @@ function BoardListSurface({
             >
               <td className="px-3 py-2 font-medium">
                 <Link
-                  className="block truncate outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="block truncate outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                   href={maintenanceCase.hrefs.task}
                   onClick={(event) => event.stopPropagation()}
                   prefetch={false}
@@ -280,13 +280,13 @@ function BoardListSurface({
               </td>
               <td className="px-3 py-2">
                 <p>{maintenanceCase.propertyLabel}</p>
-                <p className="text-xs text-foreground-muted">
+                <p className="text-xs text-muted-foreground">
                   {maintenanceCase.unitLabel}
                 </p>
               </td>
               <td className="px-3 py-2">
                 <p>{maintenanceCase.assigneeLabel}</p>
-                <p className="text-xs text-foreground-muted">
+                <p className="text-xs text-muted-foreground">
                   {maintenanceCase.vendorLabel}
                 </p>
               </td>
@@ -323,8 +323,8 @@ function BoardColumn({
   return (
     <section
       className={cn(
-        "flex min-h-[calc(100vh-310px)] flex-col rounded-md border border-border bg-surface transition-colors",
-        isOver && "border-accent bg-accent-soft/40",
+        "flex min-h-[calc(100vh-310px)] flex-col rounded-md border border-border bg-card transition-colors",
+        isOver && "border-accent bg-accent/40",
       )}
       data-status-column={column.status}
       ref={setNodeRef}
@@ -425,17 +425,17 @@ function MaintenanceCard({
   return (
     <article
       className={cn(
-        "w-full rounded-md border bg-surface p-3 text-left text-sm shadow-sm transition-colors hover:bg-surface-muted",
-        isDragging && "shadow-lg ring-2 ring-state-selected-strong",
+        "w-full rounded-md border bg-card p-3 text-left text-sm shadow-sm transition-colors hover:bg-muted",
+        isDragging && "shadow-lg ring-2 ring-primary",
         selected
-          ? "border-accent ring-2 ring-state-selected-strong"
+          ? "border-accent ring-2 ring-primary"
           : "border-border",
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
-            className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
             href={maintenanceCase.hrefs.task}
             prefetch={false}
             title={maintenanceCase.title}
@@ -449,7 +449,7 @@ function MaintenanceCard({
         {movable ? (
           <button
             aria-label={`Move ${maintenanceCase.title}`}
-            className="inline-flex size-7 shrink-0 touch-none items-center justify-center rounded text-muted-foreground outline-none hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring active:cursor-grabbing"
+            className="inline-flex size-7 shrink-0 touch-none items-center justify-center rounded text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
             type="button"
             {...dragAttributes}
             {...dragListeners}
@@ -477,14 +477,14 @@ function MaintenanceCard({
           </Badge>
         </div>
       </div>
-      <div className="mt-2 grid gap-1 text-xs text-foreground-muted">
+      <div className="mt-2 grid gap-1 text-xs text-muted-foreground">
         <span className="truncate">Assignee: {maintenanceCase.assigneeLabel}</span>
         <span className="truncate">Vendor: {maintenanceCase.vendorLabel}</span>
       </div>
       <button
         aria-label={`Preview ${maintenanceCase.title}`}
         aria-pressed={selected}
-        className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
         data-maintenance-record-trigger={maintenanceCase.id}
         onClick={() => onSelect(maintenanceCase.id)}
         type="button"

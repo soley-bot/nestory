@@ -22,7 +22,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
     <button
       aria-label="Toggle color theme"
       className={cn(
-        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
       onClick={toggleTheme}

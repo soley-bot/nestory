@@ -1,7 +1,7 @@
 import { PersonDetailScreen } from "@/features/people/components/person-detail-screen";
 import { getAccessByPersonId } from "@/features/organization/data";
 import { getPersonDetail } from "@/features/people/data/people";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import PersonNotFound from "./not-found";
 
 type PersonPageProps = {
@@ -10,7 +10,7 @@ type PersonPageProps = {
 
 export default async function PersonPage({ params }: PersonPageProps) {
   const { personId } = await params;
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const person = await getPersonDetail(context.organizationId, personId);
 
   if (!person) {

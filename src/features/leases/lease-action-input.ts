@@ -107,12 +107,3 @@ export function getLeaseMutationErrorMessage(
 
   return null;
 }
-
-export function getMonthlyRentGenerationErrorMessage(error: {
-  details?: string | null;
-  message?: string;
-}) {
-  return error.details === "rent_generation_blocked_plan_09"
-    ? "Automatic rent generation is paused until the authoritative term-and-policy generator is implemented in Plan 09."
-    : "We could not generate this month's rent charges. Please try again.";
-}

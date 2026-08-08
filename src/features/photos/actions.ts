@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type PhotoFieldErrors = {
@@ -69,7 +69,7 @@ export async function createAssetPhotoAction(
   _state: PhotoActionState,
   formData: FormData,
 ): Promise<PhotoActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = photoInputSchema.safeParse({
     caption: readString(formData, "caption"),
     propertyId: readString(formData, "propertyId"),
@@ -161,7 +161,7 @@ export async function createAssetPhotoAction(
 }
 
 export async function setAssetPhotoCoverAction(formData: FormData) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedPhotoId = photoIdSchema.safeParse(readString(formData, "photoId"));
 
   if (!parsedPhotoId.success) {
@@ -193,7 +193,7 @@ export async function setAssetPhotoCoverAction(formData: FormData) {
 }
 
 export async function archiveAssetPhotoAction(formData: FormData) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedPhotoId = photoIdSchema.safeParse(readString(formData, "photoId"));
 
   if (!parsedPhotoId.success) {

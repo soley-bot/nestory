@@ -4,15 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   getMaintenanceReminderNotifications,
   getMaintenanceScreenData,
-  requireWorkspaceContext,
+  requireOperationsExecutionContext,
 } = vi.hoisted(() => ({
   getMaintenanceReminderNotifications: vi.fn(),
   getMaintenanceScreenData: vi.fn(),
-  requireWorkspaceContext: vi.fn(),
+  requireOperationsExecutionContext: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({
-  requireWorkspaceContext,
+  requireOperationsExecutionContext,
 }));
 
 vi.mock("@/features/maintenance/data/maintenance", () => ({
@@ -30,14 +30,14 @@ describe("TasksPage", () => {
   beforeEach(() => {
     getMaintenanceReminderNotifications.mockReset();
     getMaintenanceScreenData.mockReset();
-    requireWorkspaceContext.mockReset();
+    requireOperationsExecutionContext.mockReset();
   });
 
   it("shows a setup-required state for a member without a linked staff profile", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "organization-1",
       organizationName: "Nestory Test",
-      role: "member",
+      role: "operations_member",
       userId: "user-1",
     });
 
@@ -51,11 +51,11 @@ describe("TasksPage", () => {
   });
 
   it("loads the assigned queue for a member with a linked staff profile", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "organization-1",
       organizationName: "Nestory Test",
       personId: "person-1",
-      role: "member",
+      role: "operations_member",
       userId: "user-1",
     });
     getMaintenanceScreenData.mockResolvedValue({
@@ -77,7 +77,7 @@ describe("TasksPage", () => {
     expect(getMaintenanceScreenData).toHaveBeenCalledWith(
       "organization-1",
       expect.any(Object),
-      expect.objectContaining({ personId: "person-1", role: "member" }),
+      expect.objectContaining({ personId: "person-1", role: "operations_member" }),
     );
   });
 });

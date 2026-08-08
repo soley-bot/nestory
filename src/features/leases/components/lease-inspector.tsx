@@ -25,6 +25,7 @@ import { getBusinessDateValue } from "@/lib/dates/business-date";
 import type { LeaseSummary } from "@/features/leases/lease.types";
 
 type LeaseInspectorProps = {
+  canConfigure: boolean;
   getLeaseHref: (id: string) => string;
   lease: LeaseSummary | null;
   onArchiveLease: (lease: LeaseSummary) => void;
@@ -33,6 +34,7 @@ type LeaseInspectorProps = {
 };
 
 export function LeaseInspector({
+  canConfigure,
   getLeaseHref,
   lease,
   onArchiveLease,
@@ -53,26 +55,20 @@ export function LeaseInspector({
   const displayedTerm =
     lease.terms.find((term) => term.id === lease.rentReadiness.termId) ??
     lease.terms[0];
-  const activeAuthoritativeTerm = lease.terms.find(
-    (term) =>
-      term.authorityKind === "authoritative" && term.status === "active",
-  );
-  const authoritativeTerms = lease.terms.filter(
-    (term) => term.authorityKind === "authoritative",
-  );
+  const activeTerm = lease.terms.find((term) => term.status === "active");
   const scheduleIdempotencyKey = [
     scheduleIdempotencySeed,
     lease.id,
-    activeAuthoritativeTerm?.endDate ?? "no-active-term",
-    authoritativeTerms.length,
+    activeTerm?.endDate ?? "no-active-term",
+    lease.terms.length,
   ].join(":");
   const iconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring";
   const primaryIconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
-    <div className="bg-surface">
+    <div className="bg-card">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -126,10 +122,7 @@ export function LeaseInspector({
           </div>
           {displayedTerm ? (
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-              <Detail
-                label="Term authority"
-                value={displayedTerm.authorityLabel}
-              />
+              <Detail label="Term" value={displayedTerm.datesLabel} />
               <Detail label="Due" value={displayedTerm.dueLabel} />
               <Detail
                 label="Frequency"
@@ -138,15 +131,17 @@ export function LeaseInspector({
               <Detail label="Lifecycle" value={displayedTerm.statusLabel} />
             </dl>
           ) : null}
-          <Link
-            className="mt-3 inline-flex text-xs font-medium text-accent hover:underline"
-            href="/settings/rent-policy"
-          >
-            Open rent policy
-          </Link>
+          {canConfigure ? (
+            <Link
+              className="mt-3 inline-flex text-xs font-medium text-accent hover:underline"
+              href="/settings/rent-policy"
+            >
+              Open rent policy
+            </Link>
+          ) : null}
         </section>
 
-        {activeAuthoritativeTerm && !lease.isArchived ? (
+        {canConfigure && activeTerm && !lease.isArchived ? (
           <section
             aria-label="Future rent term"
             className="rounded-md border border-border p-3"
@@ -159,13 +154,13 @@ export function LeaseInspector({
             <form
               action={scheduleFutureTerm}
               className="mt-3 grid gap-3"
-              key={`${lease.id}:${activeAuthoritativeTerm.id}`}
+              key={`${lease.id}:${activeTerm.id}`}
             >
               <input name="leaseId" type="hidden" value={lease.id} />
               <input
                 name="supersedesTermId"
                 type="hidden"
-                value={activeAuthoritativeTerm.id}
+                value={activeTerm.id}
               />
               <input
                 name="idempotencyKey"
@@ -192,7 +187,7 @@ export function LeaseInspector({
                 <label className="grid gap-1 text-xs font-medium">
                   <span>Rent amount</span>
                   <NumberInput
-                    defaultValue={activeAuthoritativeTerm.rentAmount}
+                    defaultValue={activeTerm.rentAmount}
                     min="0"
                     name="rentAmount"
                     required
@@ -202,7 +197,7 @@ export function LeaseInspector({
                   <span>Due day</span>
                   <NumberInput
                     defaultValue={
-                      activeAuthoritativeTerm.rentDueDay ?? undefined
+                      activeTerm.rentDueDay ?? undefined
                     }
                     max="31"
                     min="1"
@@ -216,7 +211,7 @@ export function LeaseInspector({
                 <SelectControl
                   ariaLabel="Future term payment frequency"
                   defaultValue={
-                    activeAuthoritativeTerm.paymentFrequency ?? "monthly"
+                    activeTerm.paymentFrequency ?? "monthly"
                   }
                   name="paymentFrequency"
                   options={[
@@ -245,11 +240,11 @@ export function LeaseInspector({
                 </p>
               ) : null}
             </form>
-            {authoritativeTerms.length > 1 ? (
+            {lease.terms.length > 1 ? (
               <div className="mt-3 border-t border-border pt-3">
                 <p className="text-xs font-medium">Term history</p>
                 <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                  {authoritativeTerms.map((term) => (
+                  {lease.terms.map((term) => (
                     <li key={term.id}>
                       {term.datesLabel} · {term.rentLabel} · {term.statusLabel}
                     </li>
@@ -265,9 +260,10 @@ export function LeaseInspector({
             <div><h3 className="text-sm font-semibold">Security deposit</h3><p className="text-xs text-muted-foreground">Held tenant funds are separate from property income.</p></div>
             {lease.deposits.map((deposit) => <div className="space-y-2 rounded-md border border-border p-3" key={deposit.id}>
               <div className="flex justify-between gap-3 text-sm"><span>{deposit.typeLabel}</span><span>Held <MoneyDisplay value={deposit.heldBalanceDisplay} /></span></div>
-              <form action={recordDepositEvent} className="grid grid-cols-2 gap-2">
+              {canConfigure ? (
+                <form action={recordDepositEvent} className="grid grid-cols-2 gap-2">
                 <input name="leaseDepositId" type="hidden" value={deposit.id} />
-                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                <label className="grid gap-1 text-xs font-medium text-muted-foreground">
                   <span>Event type</span>
                   <SelectControl
                     ariaLabel="Deposit event type"
@@ -275,7 +271,7 @@ export function LeaseInspector({
                     options={[{label:"Receipt",value:"received"},{label:"Application",value:"applied"},{label:"Retention",value:"retained"},{label:"Refund",value:"refunded"}]}
                   />
                 </label>
-                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                <label className="grid gap-1 text-xs font-medium text-muted-foreground">
                   <span>Event date</span>
                   <DatePickerField
                     ariaLabel="Deposit event date"
@@ -283,25 +279,26 @@ export function LeaseInspector({
                     defaultValue={getBusinessDateValue()}
                   />
                 </label>
-                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                <label className="grid gap-1 text-xs font-medium text-muted-foreground">
                   <span>Amount</span>
                   <NumberInput name="amount" required />
                 </label>
-                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                <label className="grid gap-1 text-xs font-medium text-muted-foreground">
                   <span>Reference</span>
                   <Input name="reference" />
                 </label>
-                <Button className="col-span-2" disabled={depositPending} type="submit">{depositPending ? "Saving..." : "Record event"}</Button>
-              </form>
-              {depositState.message ? <p className="text-xs" role="status">{depositState.message}</p> : null}
-              <div className="space-y-1">{deposit.events.map((event) => <div className="flex items-center justify-between gap-2 text-xs" key={event.id}><span>{event.eventDate} · {event.eventType} · <MoneyDisplay value={event.amountDisplay} /> {event.reference}</span>{event.reversible ? <form action={reverseDepositEvent}><input name="eventId" type="hidden" value={event.id}/><input name="eventDate" type="hidden" value={getBusinessDateValue()}/><Button disabled={reversalPending} type="submit">Reverse</Button></form> : null}</div>)}</div>
-              {reversalState.message ? <p className="text-xs" role="status">{reversalState.message}</p> : null}
+                  <Button className="col-span-2" disabled={depositPending} type="submit">{depositPending ? "Saving..." : "Record event"}</Button>
+                </form>
+              ) : null}
+              {canConfigure && depositState.message ? <p className="text-xs" role="status">{depositState.message}</p> : null}
+              <div className="space-y-1">{deposit.events.map((event) => <div className="flex items-center justify-between gap-2 text-xs" key={event.id}><span>{event.eventDate} · {event.eventType} · <MoneyDisplay value={event.amountDisplay} /> {event.reference}</span>{canConfigure && event.reversible ? <form action={reverseDepositEvent}><input name="eventId" type="hidden" value={event.id}/><input name="eventDate" type="hidden" value={getBusinessDateValue()}/><Button disabled={reversalPending} type="submit">Reverse</Button></form> : null}</div>)}</div>
+              {canConfigure && reversalState.message ? <p className="text-xs" role="status">{reversalState.message}</p> : null}
             </div>)}
           </section>
         ) : null}
 
         <AttentionNote
-          href={lease.nextAction.href}
+          href={canConfigure ? lease.nextAction.href : undefined}
           item={getAttentionItem(lease.riskIndicators)}
           label={lease.nextAction.label}
         />
@@ -317,7 +314,7 @@ export function LeaseInspector({
             <ExternalLink size={15} />
             <span className="truncate">Open lease</span>
           </Link>
-          {lease.unitId ? (
+          {canConfigure && lease.unitId ? (
             <Link
               aria-label={`Open ${lease.unitLabel}`}
               className={iconButtonClassName}
@@ -328,7 +325,7 @@ export function LeaseInspector({
               <ExternalLink size={15} />
               <span className="truncate">Open unit</span>
             </Link>
-          ) : (
+          ) : canConfigure ? (
             <Link
               aria-label={`Open property ${lease.propertyCode}`}
               className={iconButtonClassName}
@@ -339,8 +336,8 @@ export function LeaseInspector({
               <ExternalLink size={15} />
               <span className="truncate">Open property</span>
             </Link>
-          )}
-          {lease.isArchived ? (
+          ) : null}
+          {canConfigure && lease.isArchived ? (
             <button
               aria-label={`Review restore requirements for ${lease.tenantName}`}
               className={primaryIconButtonClassName}
@@ -351,7 +348,7 @@ export function LeaseInspector({
               <RotateCcw size={15} />
               <span className="truncate">Restore review</span>
             </button>
-          ) : (
+          ) : canConfigure ? (
             <button
               aria-label={`Edit lease for ${lease.tenantName}`}
               className={iconButtonClassName}
@@ -362,8 +359,8 @@ export function LeaseInspector({
               <Pencil size={15} />
               <span className="truncate">Edit</span>
             </button>
-          )}
-          {!lease.isArchived ? (
+          ) : null}
+          {canConfigure && !lease.isArchived ? (
             <button
               aria-label={`Archive lease for ${lease.tenantName}`}
               className={`${iconButtonClassName} text-danger hover:text-danger`}
@@ -374,31 +371,33 @@ export function LeaseInspector({
               <Archive size={15} />
               <span className="truncate">Archive</span>
             </button>
-          ) : (
+          ) : canConfigure ? (
             <span aria-hidden="true" />
-          )}
+          ) : null}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Link
-            aria-label={`Open timeline filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
-            href={lease.hrefs.timeline}
-            title="Open lease timeline"
-          >
-            <ListTree size={15} />
-            <span className="truncate">Timeline</span>
-          </Link>
-          <Link
-            aria-label={`Open ledger filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
-            href={lease.hrefs.ledger}
-            title="Open lease ledger"
-          >
-            <Landmark size={15} />
-            <span className="truncate">Ledger</span>
-          </Link>
-        </div>
+        {canConfigure ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Link
+              aria-label={`Open timeline filtered to ${lease.tenantName}`}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              href={lease.hrefs.timeline}
+              title="Open lease timeline"
+            >
+              <ListTree size={15} />
+              <span className="truncate">Timeline</span>
+            </Link>
+            <Link
+              aria-label={`Open ledger filtered to ${lease.tenantName}`}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              href={lease.hrefs.ledger}
+              title="Open lease ledger"
+            >
+              <Landmark size={15} />
+              <span className="truncate">Ledger</span>
+            </Link>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -436,22 +435,22 @@ function AttentionNote({
   item,
   label,
 }: {
-  href: string;
+  href?: string;
   item?: LeaseSummary["riskIndicators"][number];
   label: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+    <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate text-sm font-semibold">{item?.label ?? label}</p>
         <div className="flex shrink-0 items-center gap-2">
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}
           </Badge>
-          {item ? null : (
+          {item || !href ? null : (
             <Link
               aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
               href={href}
               prefetch={false}
               title="Open action"

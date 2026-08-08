@@ -13,7 +13,7 @@ import type {
   GenericImportPreviewRow,
   ImportType,
 } from "@/features/imports/import.types";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { Json } from "@/types/database";
 
@@ -132,7 +132,7 @@ export async function stageImportRunAction(
     };
   }
 
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const supabase = await createSupabaseServerClient();
   const importDb = supabase;
   const referenceData = await getImportReferenceData(context.organizationId);
@@ -225,7 +225,7 @@ export async function commitStagedImportRunAction(
     };
   }
 
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const supabase = await createSupabaseServerClient();
   const importDb = supabase;
   const runResult = await importDb
@@ -319,7 +319,7 @@ export async function commitStagedImportRunAction(
   if (stagedRowsResult.count !== run.total_rows) {
     return {
       message:
-        "This legacy or incomplete import cannot be resumed. Re-upload the CSV to create a fresh atomic run.",
+        "This incomplete import cannot be resumed. Re-upload the CSV to create a fresh run.",
       runId,
       runStatus: "staged",
       status: "error",
@@ -640,8 +640,8 @@ function revalidateImportPaths(importType: ImportType) {
 }
 
 function importRunErrorMessage(message: string) {
-  if (message.includes("Legacy staged import must be re-uploaded")) {
-    return "This legacy staged import cannot be resumed. Re-upload the CSV to create a fresh atomic run.";
+  if (message.includes("Incomplete staged import must be re-uploaded")) {
+    return "This staged import cannot be resumed. Re-upload the CSV to create a fresh run.";
   }
 
   if (message.includes("already been committed")) {

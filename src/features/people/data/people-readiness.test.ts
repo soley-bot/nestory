@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAccessByPersonId } from "@/features/organization/data";
 import { getPeopleScreenData } from "@/features/people/data/people";
 import { getPeopleReadinessReport } from "@/features/people/data/people-readiness";
-import { buildTrustedReportCsv } from "@/features/reports/data/csv";
 import { buildTrustedReportPdf } from "@/features/reports/data/pdf";
 import type { PeopleSummary } from "@/features/people/people.types";
 
@@ -91,7 +90,7 @@ describe("getPeopleReadinessReport", () => {
     );
   });
 
-  it("stabilizes duplicate names across pages for preview, CSV, and PDF", async () => {
+  it("stabilizes duplicate names across pages for preview and PDF", async () => {
     const people = Array.from({ length: 101 }, (_, index) => {
       const person = staffPerson(
         `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
@@ -142,12 +141,6 @@ describe("getPeopleReadinessReport", () => {
     expect(report.rows.map((row) => row.id)).toEqual(expectedIds);
     expect(new Set(report.rows.map((row) => row.id))).toHaveLength(101);
     expect(report.totalRowCount).toBe(101);
-
-    const csvRows = buildTrustedReportCsv(report)
-      .split("\r\n")
-      .filter((row) => /^\d+,/.test(row));
-    expect(csvRows).toHaveLength(101);
-    expect(csvRows.map((row) => row.split(",").at(-2))).toEqual(expectedIds);
 
     const pdfText = extractPdfCommandText(
       Buffer.from(

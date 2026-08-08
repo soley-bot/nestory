@@ -44,7 +44,7 @@ function AttentionWorkspace({ data }: { data: OverviewScreenData }) {
             {data.attentionItems.length} queues
           </Badge>
         </div>
-        <p className="mt-1 text-sm text-foreground-muted">
+        <p className="mt-1 text-sm text-muted-foreground">
           Open operating checks across leasing, maintenance, occupancy, and finance.
         </p>
       </header>
@@ -53,13 +53,13 @@ function AttentionWorkspace({ data }: { data: OverviewScreenData }) {
           {data.attentionItems.map((item) => (
             <li key={item.id}>
               <Link
-                className="group flex min-h-16 items-center gap-3 px-1 py-3 hover:bg-surface-muted"
+                className="group flex min-h-16 items-center gap-3 px-1 py-3 hover:bg-muted"
                 href={item.href}
               >
                 <Badge tone={item.tone}>{item.count}</Badge>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-foreground">{item.label}</span>
-                  <span className="block truncate text-xs text-foreground-muted">{item.helper}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{item.helper}</span>
                 </span>
                 <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-foreground">
                   {item.actionLabel}
@@ -70,7 +70,7 @@ function AttentionWorkspace({ data }: { data: OverviewScreenData }) {
           ))}
         </ul>
       ) : (
-        <p className="py-8 text-sm text-foreground-muted">No operating checks need attention.</p>
+        <p className="py-8 text-sm text-muted-foreground">No operating checks need attention.</p>
       )}
     </section>
   );

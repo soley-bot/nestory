@@ -2,8 +2,11 @@ import routeCoverageJson from "../../../config/ui-route-coverage.json";
 import type { WorkspaceRole } from "@/lib/auth/context";
 
 export type UiPhase = 2 | 3 | 4 | 5 | 6;
-export type UiRole = "public" | "unlinked" | "admin" | "staff" | "maintenance";
-export type UiSurface = "public" | "auth" | "workspace" | "detail" | "settings" | "redirect";
+export type UiRole =
+  | "public"
+  | "unlinked"
+  | WorkspaceRole;
+export type UiSurface = "public" | "auth" | "workspace" | "detail" | "settings";
 
 export interface UiRouteContract {
   route: string;
@@ -17,10 +20,12 @@ export interface UiRouteContract {
 export const uiPersonaWorkspaceRoles: Readonly<
   Record<UiRole, readonly WorkspaceRole[]>
 > = {
-  admin: ["admin"],
-  maintenance: ["member"],
+  finance_manager: ["finance_manager"],
+  finance_member: ["finance_member"],
+  operations_manager: ["operations_manager"],
+  operations_member: ["operations_member"],
   public: [],
-  staff: ["manager", "member"],
+  super_admin: ["super_admin"],
   unlinked: [],
 };
 

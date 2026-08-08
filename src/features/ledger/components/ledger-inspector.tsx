@@ -1,12 +1,5 @@
 import Link from "next/link";
-import {
-  Archive,
-  ExternalLink,
-  Lock,
-  Pencil,
-  RotateCcw,
-  Upload,
-} from "lucide-react";
+import { ExternalLink, Lock, Upload } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,33 +8,28 @@ import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 
 type LedgerInspectorProps = {
+  canManageFinance?: boolean;
   entry: LedgerEntry | null;
-  onArchiveEntry: (entry: LedgerEntry) => void;
   onAttachReceipt: (entry: LedgerEntry) => void;
-  onEditEntry: (entry: LedgerEntry) => void;
-  onRestoreEntry: (entry: LedgerEntry) => void;
 };
 
 export function LedgerInspector({
+  canManageFinance = true,
   entry,
-  onArchiveEntry,
   onAttachReceipt,
-  onEditEntry,
-  onRestoreEntry,
 }: LedgerInspectorProps) {
   if (!entry) {
     return (
-      <aside className="bg-surface p-4">
+      <aside className="bg-card p-4">
         <h2 className="text-base font-semibold tracking-tight">Ledger entry</h2>
       </aside>
     );
   }
 
   const isArchived = Boolean(entry.archivedAt);
-  const canManageLifecycle = entry.sourceType !== "receipt_allocation";
 
   return (
-    <aside className="bg-surface">
+    <aside className="bg-card">
       <div className="border-b border-border p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <DirectionBadge direction={entry.direction} />
@@ -90,18 +78,16 @@ export function LedgerInspector({
           <CompactFact label="Scope">
             {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property level"}
           </CompactFact>
-          <CompactFact label="Accounting">
+          <CompactFact label="Record integrity">
             <span
-              className={
-                entry.accountingJournalEntryId ? "text-success" : "text-danger"
-              }
-              title={entry.accountingJournalEntryId}
+              className={entry.sourceId ? "text-success" : "text-danger"}
             >
-              {entry.accountingJournalEntryId
-                ? "Balanced journal linked"
-                : "Accounting journal missing"}
+              {entry.sourceId ? "Source linked" : "Needs review"}
             </span>
           </CompactFact>
+          {entry.reversalOfLedgerEntryId ? (
+            <CompactFact label="Reversal">Linked to original</CompactFact>
+          ) : null}
         </div>
 
         <AttentionNote
@@ -110,76 +96,17 @@ export function LedgerInspector({
           label={entry.nextAction.label}
         />
 
-        {!isArchived || canManageLifecycle ? (
-          <div className="grid gap-2 sm:grid-cols-3">
-            {isArchived ? (
-              <Button
-                className="sm:col-span-3"
-                disabled={entry.isLocked}
-                onClick={() => onRestoreEntry(entry)}
-                title={
-                  entry.isLocked
-                    ? "This accounting period is locked."
-                    : undefined
-                }
-                variant="primary"
-              >
-                <RotateCcw size={15} />
-                Restore
-              </Button>
-            ) : (
-              <>
-                <Button
-                  aria-label="Attach receipt"
-                  className={
-                    canManageLifecycle ? "px-2" : "px-2 sm:col-span-3"
-                  }
-                  disabled={entry.isLocked}
-                  onClick={() => onAttachReceipt(entry)}
-                  title={
-                    entry.isLocked
-                      ? "This accounting period is locked."
-                      : "Attach receipt"
-                  }
-                >
-                  <Upload size={15} />
-                  Attach
-                </Button>
-                {canManageLifecycle ? (
-                  <>
-                    <Button
-                      aria-label="Edit ledger entry"
-                      className="px-2"
-                      disabled={entry.isLocked}
-                      onClick={() => onEditEntry(entry)}
-                      title={
-                        entry.isLocked
-                          ? "This accounting period is locked."
-                          : "Edit"
-                      }
-                    >
-                      <Pencil size={15} />
-                      Edit
-                    </Button>
-                    <Button
-                      aria-label="Archive ledger entry"
-                      className="px-2"
-                      disabled={entry.isLocked}
-                      onClick={() => onArchiveEntry(entry)}
-                      title={
-                        entry.isLocked
-                          ? "This accounting period is locked."
-                          : "Archive"
-                      }
-                    >
-                      <Archive size={15} />
-                      Archive
-                    </Button>
-                  </>
-                ) : null}
-              </>
-            )}
-          </div>
+        {canManageFinance && !isArchived ? (
+          <Button
+            aria-label="Attach receipt"
+            className="w-full"
+            disabled={entry.isLocked}
+            onClick={() => onAttachReceipt(entry)}
+            title={entry.isLocked ? "This month is locked." : "Attach receipt"}
+          >
+            <Upload size={15} />
+            Attach
+          </Button>
         ) : null}
       </div>
     </aside>
@@ -221,7 +148,7 @@ function AttentionNote({
   label: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+    <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate font-semibold">{item?.label ?? label}</p>
         <div className="flex shrink-0 items-center gap-2">
@@ -231,7 +158,7 @@ function AttentionNote({
           {item ? null : (
             <Link
               aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
               href={href}
               title="Open action"
             >

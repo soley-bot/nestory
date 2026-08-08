@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getAccessByPersonId, getPersonDetail, requireAdminContext } = vi.hoisted(
+const { getAccessByPersonId, getPersonDetail, requireSuperAdminContext } = vi.hoisted(
   () => ({
     getAccessByPersonId: vi.fn(),
     getPersonDetail: vi.fn(),
-    requireAdminContext: vi.fn(),
+    requireSuperAdminContext: vi.fn(),
   }),
 );
 
 vi.mock("@/features/organization/data", () => ({ getAccessByPersonId }));
 vi.mock("@/features/people/data/people", () => ({ getPersonDetail }));
-vi.mock("@/lib/auth/context", () => ({ requireAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
 
 import PersonPage from "./page";
 
@@ -18,8 +18,8 @@ describe("person detail access loading", () => {
   beforeEach(() => {
     getAccessByPersonId.mockReset();
     getPersonDetail.mockReset();
-    requireAdminContext.mockReset();
-    requireAdminContext.mockResolvedValue({ organizationId: "organization-1" });
+    requireSuperAdminContext.mockReset();
+    requireSuperAdminContext.mockResolvedValue({ organizationId: "organization-1" });
     getAccessByPersonId.mockResolvedValue({
       "person-1": {
         primaryAction: "grant_access",

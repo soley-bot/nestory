@@ -60,7 +60,7 @@ describe("PettyCashScreen finance workspace contract", () => {
     )!;
     expect(registerSurface.className).toContain("overflow-hidden");
     expect(registerSurface.className).not.toMatch(
-      /rounded-(?:md|lg)|border(?:\s|$)|bg-surface/,
+      /rounded-(?:md|lg)|border(?:\s|$)|bg-card/,
     );
     const rows = within(table).getAllByRole("row").slice(1);
     expect(
@@ -85,7 +85,7 @@ describe("PettyCashScreen finance workspace contract", () => {
       '[data-slot="cash-quick-view-body"]',
     )!;
     expect(quickViewBody.className).not.toMatch(
-      /rounded-(?:md|lg)|border(?:\s|$)|bg-surface/,
+      /rounded-(?:md|lg)|border(?:\s|$)|bg-card/,
     );
     expect(screen.queryByText(/select a row/i)).toBeNull();
   });
@@ -286,6 +286,32 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
   });
 
+  it("keeps Finance roles read-only while preserving petty cash inspection", async () => {
+    const user = userEvent.setup();
+    renderPettyCash({ canManageFinance: false });
+
+    for (const action of ["Add account", "Open next month", "Add cash row"]) {
+      expect(screen.queryByRole("button", { name: action })).toBeNull();
+    }
+    const financeNav = screen.getByRole("navigation", {
+      name: "Finance workspace",
+    });
+    expect(within(financeNav).getByRole("link", { name: "Ledger" })).not.toBeNull();
+    expect(
+      within(financeNav).getByRole("link", { name: "Petty Cash" }),
+    ).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
+    const inspector = screen.getByRole("dialog", {
+      name: "Cleaning cash quick view",
+    });
+    for (const action of ["Post to ledger", "Edit", "Void"]) {
+      expect(
+        within(inspector).queryByRole("button", { name: action }),
+      ).toBeNull();
+    }
+  });
+
   it("opens the authoritative focused row and clears back to its account", () => {
     renderPettyCash({ focusedEntryId: "cash-2" });
 
@@ -416,6 +442,7 @@ const entries: PettyCashEntry[] = [
 
 function renderPettyCash({
   accounts = [account],
+  canManageFinance = true,
   counterpartyOptions = [],
   entries: nextEntries = entries,
   period: nextPeriod = period,
@@ -425,6 +452,7 @@ function renderPettyCash({
   focusState = focusedEntryId ? "available" : "none",
 }: {
   accounts?: PettyCashAccount[];
+  canManageFinance?: boolean;
   counterpartyOptions?: PersonSelectOption[];
   entries?: PettyCashEntry[];
   period?: PettyCashPeriod | null;
@@ -436,6 +464,7 @@ function renderPettyCash({
   return render(
     <PettyCashScreen
       accounts={accounts}
+      canManageFinance={canManageFinance}
       counterpartyOptions={counterpartyOptions}
       entries={nextEntries}
       focusedEntryId={focusedEntryId}

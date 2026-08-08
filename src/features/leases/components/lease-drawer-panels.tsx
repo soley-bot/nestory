@@ -45,7 +45,7 @@ export function ArchiveLeasePanel({
           <p className="text-sm font-semibold">Archive confirmation</p>
         </div>
         <LeasePanelSummary lease={lease} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           End or cancel open occupancy and Lease party roles through checked
           transitions before archiving. Existing tenant, unit, rent, deposit,
           and move history is preserved.
@@ -89,7 +89,7 @@ export function RestoreLeasePanel({
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>
         <LeasePanelSummary lease={lease} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           Restore is unavailable until checked review confirms that linked
           Lease roles, occupancy records, and dependencies can be safely
           reactivated.
@@ -110,7 +110,7 @@ export function RestoreLeasePanel({
 
 function LeasePanelSummary({ lease }: { lease: LeaseSummary }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
+    <div className="rounded-md border border-border bg-muted px-3 py-3">
       <p className="text-sm font-medium">{lease.tenantName}</p>
       <p className="mt-1 text-sm text-muted-foreground">
         {lease.propertyCode} / {lease.unitLabel}
@@ -129,7 +129,7 @@ function PanelMessage({ state }: { state: LeaseActionState }) {
 
   return (
     <p
-      className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+      className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
       role={state.status === "error" ? "alert" : "status"}
     >
       {state.message}
@@ -160,7 +160,7 @@ function PanelFooter({
           className="w-full sm:w-auto"
           disabled={disabled || pending}
           type="submit"
-          variant="primary"
+          variant="default"
         >
           {icon}
           {confirmLabel}

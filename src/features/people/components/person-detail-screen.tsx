@@ -88,7 +88,7 @@ export function PersonDetailScreen({
                 setStatusMessage(null);
                 setDrawer({ mode: "restore", person });
               }}
-              variant="primary"
+              variant="default"
             >
               <RotateCcw size={15} />
               Restore
@@ -96,7 +96,7 @@ export function PersonDetailScreen({
           ) : (
             <>
               <Link
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-foreground px-2.5 text-sm font-medium text-background outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-foreground px-2.5 text-sm font-medium text-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 href={person.nextAction.href}
                 prefetch={false}
               >
@@ -205,7 +205,7 @@ export function PersonDetailScreen({
                   </dl>
 
                   {person.notes ? (
-                    <div className="mt-4 rounded-md border border-border bg-surface-muted/60 p-3 text-sm">
+                    <div className="mt-4 rounded-md border border-border bg-muted/60 p-3 text-sm">
                       <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
                         Notes
                       </p>
@@ -324,12 +324,12 @@ export function PersonDetailScreen({
                 title="Photos"
               />
               <div className="grid gap-4 p-4 md:grid-cols-[220px_minmax(0,1fr)]">
-                <div className="grid aspect-square place-items-center rounded-md border border-border bg-surface-muted">
-                  <div className="grid h-20 w-20 place-items-center rounded-full border border-border bg-surface text-muted-foreground">
+                <div className="grid aspect-square place-items-center rounded-md border border-border bg-muted">
+                  <div className="grid h-20 w-20 place-items-center rounded-full border border-border bg-card text-muted-foreground">
                     <UserRound size={34} />
                   </div>
                 </div>
-                <div className="rounded-md border border-border bg-surface-muted/60 p-4 text-sm">
+                <div className="rounded-md border border-border bg-muted/60 p-4 text-sm">
                   <p className="font-semibold">No profile photo yet</p>
                   <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">
                     Person photos need a person-scoped storage target. Related
@@ -465,7 +465,7 @@ function PersonActivityRow({
 
   return change.href ? (
     <Link
-      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
       href={change.href}
       prefetch={false}
     >
@@ -497,9 +497,9 @@ function PersonRecordNav({
             }
             aria-selected={activeSection === section.id}
             className={cn(
-              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground",
+              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
               activeSection === section.id &&
-                "bg-accent-soft text-foreground",
+                "bg-accent text-foreground",
             )}
             id={`person-tab-${section.id}`}
             key={section.id}
@@ -642,7 +642,7 @@ function LinkedGroup({
 function LeaseLinkRow({ lease }: { lease: PeopleLeaseLink }) {
   return (
     <Link
-      className="block py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block py-3 text-sm transition-colors hover:bg-muted"
       data-slot="linked-record-row"
       href={lease.href}
       prefetch={false}
@@ -663,7 +663,7 @@ function LeaseLinkRow({ lease }: { lease: PeopleLeaseLink }) {
 function PropertyLinkRow({ property }: { property: PeoplePropertyLink }) {
   return (
     <Link
-      className="block py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block py-3 text-sm transition-colors hover:bg-muted"
       data-slot="linked-record-row"
       href={property.href}
       prefetch={false}
@@ -698,7 +698,7 @@ function DocumentRow({
 
   return (
     <Link
-      className="block transition-colors hover:bg-surface-muted"
+      className="block transition-colors hover:bg-muted"
       href={document.url}
       prefetch={false}
       target="_blank"
@@ -764,7 +764,7 @@ function ActionLink({
   return (
     <Link
       className={cn(
-        "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium transition-colors hover:bg-surface-muted",
+        "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium transition-colors hover:bg-muted",
         className,
       )}
       href={href}

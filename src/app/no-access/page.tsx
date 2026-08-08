@@ -12,7 +12,7 @@ export default async function NoAccessPage() {
       title="No workspace access"
     >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-foreground-muted">
+        <p className="text-sm leading-6 text-muted-foreground">
           Ask a workspace administrator to add this email through Workspace Access,
           or sign in with an account that already belongs here.
         </p>
@@ -26,7 +26,7 @@ export default async function NoAccessPage() {
             </button>
           </form>
           <Link
-            className="inline-flex h-9 items-center rounded-md px-3 text-sm font-semibold text-foreground-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+            className="inline-flex h-9 items-center rounded-md px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             href="/"
           >
             Return home

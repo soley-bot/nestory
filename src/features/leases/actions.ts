@@ -2,11 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   getLeaseMutationErrorMessage,
-  getMonthlyRentGenerationErrorMessage,
   parseFutureRentTermInput,
   parseIdempotencyKey,
 } from "@/features/leases/lease-action-input";
@@ -189,7 +188,7 @@ export async function createLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = leaseMutationSchema.safeParse(readLeaseMutationInput(formData));
 
   if (!parsed.success) {
@@ -258,7 +257,7 @@ export async function updateLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
   const parsed = leaseMutationSchema.safeParse(readLeaseMutationInput(formData));
 
@@ -331,7 +330,7 @@ export async function scheduleFutureRentTermAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = parseFutureRentTermInput({
     endDate: readString(formData, "endDate"),
     leaseId: readString(formData, "leaseId"),
@@ -409,7 +408,7 @@ export async function archiveLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
 
   if (!parsedLeaseId.success) {
@@ -455,7 +454,7 @@ export async function restoreLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
 
   if (!parsedLeaseId.success) {
@@ -497,41 +496,6 @@ export async function restoreLeaseAction(
   };
 }
 
-export async function generateMonthlyRentAction(
-  _state: LeaseActionState,
-): Promise<LeaseActionState> {
-  void _state;
-
-  const context = await requireAdminContext();
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("generate_monthly_rent_income_items", {
-    p_organization_id: context.organizationId,
-  });
-
-  if (error) {
-    return {
-      message: getMonthlyRentGenerationErrorMessage(error),
-      status: "error",
-    };
-  }
-
-  revalidatePath("/leases");
-  revalidatePath("/rent-income");
-  revalidatePath("/ledger");
-  revalidatePath("/overview");
-  revalidatePath("/reports");
-
-  const count = Number(data ?? 0);
-
-  return {
-    message:
-      count === 0
-        ? "Rent charges are already generated for this month."
-        : `${count} rent charge${count === 1 ? "" : "s"} generated for this month.`,
-    status: "success",
-  };
-}
-
 function readLeaseMutationInput(formData: FormData) {
   return {
     depositAmount: readString(formData, "depositAmount"),
@@ -559,7 +523,7 @@ async function getLeasePathContext(
   leaseId: string,
 ) {
   const { data } = await supabase
-    .from("leases")
+    .from("current_leases")
     .select("property_id, unit_id")
     .eq("id", leaseId)
     .eq("organization_id", organizationId)
@@ -654,7 +618,7 @@ function leaseActionErrorMessage(message: string) {
 }
 
 export async function recordLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = depositEventSchema.safeParse({ amount: readString(formData, "amount"), eventDate: readString(formData, "eventDate"), eventType: readString(formData, "eventType"), leaseDepositId: readString(formData, "leaseDepositId"), reference: readString(formData, "reference") });
   if (!parsed.success) return invalidFormState(parsed.error);
   const supabase = await createSupabaseServerClient();
@@ -665,7 +629,7 @@ export async function recordLeaseDepositEventAction(_state: LeaseActionState, fo
 }
 
 export async function reverseLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const eventId = z.uuid().safeParse(readString(formData, "eventId"));
   const eventDate = dateSchema.safeParse(readString(formData, "eventDate"));
   if (!eventId.success || !eventDate.success) return { message: "Choose a valid event and date.", status: "error" };
@@ -680,7 +644,7 @@ export async function createRentPolicyDraftAction(
   _state: RentPolicyActionState,
   formData: FormData,
 ): Promise<RentPolicyActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const effectiveFrom = dateSchema.safeParse(
     readString(formData, "effectiveFrom"),
   );
@@ -758,7 +722,7 @@ export async function updateRentPolicyDraftAction(
   _state: RentPolicyActionState,
   formData: FormData,
 ): Promise<RentPolicyActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = rentPolicyDraftSchema.safeParse({
     concessionsSupportState: readString(formData, "concessionsSupportState"),
     dueDaySource: readString(formData, "dueDaySource"),
@@ -853,7 +817,7 @@ export async function approveRentPolicyVersionAction(
   _state: RentPolicyActionState,
   formData: FormData,
 ): Promise<RentPolicyActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const policyId = z.uuid().safeParse(readString(formData, "policyId"));
   if (!policyId.success) {
     return { message: "Choose a policy version.", status: "error" };

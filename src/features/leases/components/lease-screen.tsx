@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Plus } from "lucide-react";
@@ -23,10 +23,6 @@ import {
   ArchiveLeasePanel,
   RestoreLeasePanel,
 } from "@/features/leases/components/lease-drawer-panels";
-import {
-  generateMonthlyRentAction,
-  type LeaseActionState,
-} from "@/features/leases/actions";
 import { LeaseFilters } from "@/features/leases/components/lease-filters";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import { LeaseInspector } from "@/features/leases/components/lease-inspector";
@@ -45,8 +41,6 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   year: "numeric",
 });
-const rentGenerationInitialState: LeaseActionState = {};
-
 type LeaseCreateInitialValues = Partial<
   Pick<LeaseFormValues, "propertyId" | "tenantPersonId" | "unitId">
 >;
@@ -64,8 +58,7 @@ type DrawerState =
   | { lease: LeaseSummary; mode: "restore" };
 
 type LeaseScreenProps = {
-  canCreate?: boolean;
-  canGenerateRent?: boolean;
+  canConfigure?: boolean;
   initialLeaseId?: string;
   leases: LeaseSummary[];
   pagination: LeasePagination;
@@ -76,8 +69,7 @@ type LeaseScreenProps = {
 };
 
 export function LeaseScreen({
-  canCreate = true,
-  canGenerateRent = true,
+  canConfigure = true,
   initialLeaseId,
   leases,
   pagination,
@@ -101,7 +93,7 @@ export function LeaseScreen({
   );
   const createIntent = getLeaseCreateIntent(searchParams, createInitialValues);
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    canCreate && searchParams.get("action") === "create"
+    canConfigure && searchParams.get("action") === "create"
       ? {
           initialValues: createInitialValues,
           intent: createIntent,
@@ -114,13 +106,9 @@ export function LeaseScreen({
   );
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(
     Boolean(initialLeaseId) &&
-      (!canCreate || searchParams.get("action") !== "create"),
+      (!canConfigure || searchParams.get("action") !== "create"),
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [rentState, generateRent, generatingRent] = useActionState(
-    generateMonthlyRentAction,
-    rentGenerationInitialState,
-  );
   const focusedLease = initialLeaseId
     ? leases.find((lease) => lease.id === initialLeaseId) ?? null
     : null;
@@ -166,7 +154,7 @@ export function LeaseScreen({
       return;
     }
 
-    if (!canCreate) {
+    if (!canConfigure) {
       router.replace(getHrefWithoutActionParam(pathname, searchParams), {
         scroll: false,
       });
@@ -185,32 +173,24 @@ export function LeaseScreen({
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [canCreate, createInitialValues, createIntent, pathname, router, searchParams]);
-
-  useEffect(() => {
-    if (rentState.status === "success" || rentState.status === "error") {
-      queueMicrotask(() => {
-        setStatusMessage(rentState.message ?? null);
-      });
-    }
-  }, [rentState.message, rentState.status]);
+  }, [canConfigure, createInitialValues, createIntent, pathname, router, searchParams]);
 
   const hasFilters = hasActiveLeaseFilters(viewQuery);
   const leaseList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
       {leases.length === 0 ? (
         <EmptyState
           action={
             hasFilters ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
                 scroll={false}
               >
                 Clear filters
               </Link>
-            ) : canCreate ? (
-              <Button onClick={() => openLeaseAction({ mode: "create" })} variant="primary">
+            ) : canConfigure ? (
+              <Button onClick={() => openLeaseAction({ mode: "create" })} variant="default">
                 <Plus size={15} />
                 Add lease
               </Button>
@@ -239,6 +219,7 @@ export function LeaseScreen({
   );
   const leaseInspector = selectedLease ? (
     <LeaseInspector
+      canConfigure={canConfigure}
       lease={selectedLease}
       onArchiveLease={(lease) => openLeaseAction({ lease, mode: "archive" })}
       onEditLease={(lease) => openLeaseAction({ lease, mode: "edit" })}
@@ -251,17 +232,17 @@ export function LeaseScreen({
     <WorkspacePage
       actions={
         <div className="flex flex-wrap gap-2">
-            {canGenerateRent ? (
-              <form action={generateRent}>
-                <Button disabled={generatingRent} type="submit">
-                  {generatingRent ? "Generating..." : "Generate rent"}
-                </Button>
-              </form>
-            ) : null}
-            {canCreate ? (
+            <div
+              className="inline-flex min-h-8 items-center gap-1.5 text-xs text-muted-foreground"
+              role="status"
+            >
+              <CheckCircle2 className="text-success" size={14} />
+              Rent is generated automatically
+            </div>
+            {canConfigure ? (
               <Button
                 onClick={() => openLeaseAction({ mode: "create" })}
-                variant="primary"
+                variant="default"
               >
                 <Plus size={15} />
                 Add lease
@@ -271,7 +252,9 @@ export function LeaseScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/leases"
-      localNav={<FinanceWorkspaceNavigation activeRoute="/leases" />}
+      localNav={(
+        <FinanceWorkspaceNavigation activeRoute="/leases" />
+      )}
       title="Leases"
       toolbar={<LeaseFilters
         properties={propertyOptions}
@@ -499,10 +482,10 @@ function LeaseReviewStrip({
         className="grid min-w-0 gap-x-4 gap-y-1 text-[13px] sm:grid-cols-[minmax(0,auto)_minmax(0,1fr)] sm:items-baseline [&>div]:mt-0 [&>h3]:truncate"
         summary={
           <div className="flex min-w-0 flex-col gap-1 text-xs sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-            <span className="min-w-0 text-foreground-subtle">
+            <span className="min-w-0 text-muted-foreground">
               {context.description}
             </span>
-            <span className="shrink-0 text-foreground-muted">
+            <span className="shrink-0 text-muted-foreground">
               {context.nextStep}
             </span>
           </div>

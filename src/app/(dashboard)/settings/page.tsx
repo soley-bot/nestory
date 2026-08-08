@@ -3,21 +3,21 @@ import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { OrganizationSettingsScreen } from "@/features/organization/components/organization-settings-screen";
 import type { SettingsSection } from "@/features/organization/components/settings-workspace";
 import { getOrganizationSettingsData } from "@/features/organization/data";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 
 type SettingsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const params = await searchParams;
   const data = await getOrganizationSettingsData(context.organizationId);
 
   return (
     <OrganizationSettingsScreen
       branches={data.branches}
-      canManageStructure={context.role === "admin"}
+      canManageStructure={context.role === "super_admin"}
       header={
         <PageHeader
           className="px-3 py-3 sm:px-4 lg:px-5 lg:py-3"

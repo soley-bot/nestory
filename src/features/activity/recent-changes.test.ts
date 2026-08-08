@@ -273,22 +273,22 @@ describe("toRecentChange", () => {
     });
   });
 
-  it("links ledger period activity to the affected month", () => {
+  it("links financial month activity to the affected month", () => {
     expect(
       toRecentChange({
         action: "locked",
         created_at: "2026-06-17T09:00:00.000Z",
         entity_id: "66666666-6666-4666-8666-666666666666",
-        entity_type: "ledger_period",
+        entity_type: "financial_month",
         id: "log-6",
         new_values: {
-          period_start: "2026-06-01",
+          month_start: "2026-06-01",
         },
         previous_values: null,
       }),
     ).toMatchObject({
-      actionLabel: "Period locked",
-      entityLabel: "Period lock",
+      actionLabel: "Month locked",
+      entityLabel: "Month lock",
       href: "/ledger?dateFrom=2026-06-01&dateTo=2026-06-30",
       tone: "warning",
     });
@@ -547,8 +547,6 @@ describe("toRecentChange", () => {
       id: "log-petty-cash",
       new_values: {
         account_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        accounting_journal_entry_id:
-          "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
         counterparty_person_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
         custodian_person_id: "12121212-1212-4121-8121-121212121212",
         period_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",

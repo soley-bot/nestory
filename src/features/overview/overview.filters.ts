@@ -1,5 +1,4 @@
 import type {
-  OverviewFinanceView,
   OverviewLens,
   OverviewPropertySort,
   OverviewReview,
@@ -37,15 +36,9 @@ export function parseOverviewSearchParams(
   params: Record<string, SearchParamValue>,
   currentDate = new Date(),
 ): OverviewViewQuery {
-  const legacyView = getFirstSearchParam(params.financeView);
-  const financeView = normalizeFinanceView(legacyView);
-
   return {
-    financeView,
-    lens:
-      legacyView === "property-ranking"
-        ? "all"
-        : normalizeOverviewLens(params.lens),
+    financeView: "collections",
+    lens: normalizeOverviewLens(params.lens),
     month: parseMonth(params.month, currentDate),
     propertyQuery: normalizePropertyQuery(params.propertyQuery),
     propertyId: getUuidOrAllSearchParam(params.propertyId),
@@ -97,11 +90,6 @@ export function buildOverviewHref(
   if (next.review !== "all") params.set("review", next.review);
   if (next.sort && next.sort !== "property-asc") params.set("sort", next.sort);
   return `/overview?${params.toString()}`;
-}
-
-function normalizeFinanceView(value: string | undefined): OverviewFinanceView {
-  void value;
-  return "collections";
 }
 
 function normalizeOverviewLens(value: SearchParamValue): OverviewLens {

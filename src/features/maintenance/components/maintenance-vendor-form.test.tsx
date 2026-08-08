@@ -21,9 +21,8 @@ describe("maintenance vendor form", () => {
     const vendorSelect = getMaintenanceVendorSelectOptions({ vendors });
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ role: "admin" }}
+        actor={{ role: "super_admin" }}
         branches={[]}
-        canPostMaintenanceCost
         canRecordActualCost
         mode="create"
         onClose={vi.fn()}
@@ -57,10 +56,10 @@ describe("maintenance vendor form", () => {
         recurrenceFrequency: "none",
         status: "pending",
         title: "Repair sink",
-        vendorPersonId: "legacy-vendor",
+        vendorPersonId: "inactive-vendor",
       },
       id: "task-1",
-      vendorLabel: "Legacy Plumbing",
+      vendorLabel: "Former Plumbing",
     } as MaintenanceCase;
 
     const vendorSelect = getMaintenanceVendorSelectOptions({
@@ -70,9 +69,8 @@ describe("maintenance vendor form", () => {
     });
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ role: "admin" }}
+        actor={{ role: "super_admin" }}
         branches={[]}
-        canPostMaintenanceCost
         canRecordActualCost
         maintenanceCase={maintenanceCase}
         mode="edit"
@@ -90,8 +88,8 @@ describe("maintenance vendor form", () => {
       options: [
         { label: "No vendor", value: "" },
         {
-          label: "Legacy Plumbing (historical/inactive)",
-          value: "legacy-vendor",
+          label: "Former Plumbing (historical/inactive)",
+          value: "inactive-vendor",
         },
         { label: "Active Vendor", value: "active-vendor" },
       ],
@@ -103,9 +101,8 @@ describe("maintenance vendor form", () => {
   it("keeps vendor assignment available to managers without exposing ledger posting", () => {
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ branchId: "branch-1", role: "manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
         branches={[{ id: "branch-1", label: "Main branch" }]}
-        canPostMaintenanceCost={false}
         canRecordActualCost
         maintenanceCase={{
           assigneeLabel: "Unassigned",
@@ -146,5 +143,65 @@ describe("maintenance vendor form", () => {
     expect(html).toContain('name="vendorPersonId" value="vendor-1"');
     expect(html).toContain("Actual cost");
     expect(html).not.toContain("Link actual cost to ledger");
+  });
+
+  it("locks approved property, unit, and vendor scope while keeping adjustment cost editable", () => {
+    const html = renderToStaticMarkup(
+      <MaintenanceForm
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        branches={[{ id: "branch-1", label: "Main branch" }]}
+        canRecordActualCost
+        maintenanceCase={{
+          assigneeLabel: "Unassigned",
+          branchId: "branch-1",
+          branchLabel: "Main branch",
+          costSubmission: {
+            id: "submission-1",
+            reviewReason: null,
+            status: "approved",
+            submittedAt: "2026-08-08T08:00:00Z",
+          },
+          executionMode: "manager_coordinated",
+          formValues: {
+            actualCostAmount: 100,
+            branchId: "branch-1",
+            category: "Plumbing",
+            checklistText: "",
+            priority: "normal",
+            propertyId: "property-1",
+            recurrenceFrequency: "none",
+            status: "completed",
+            title: "Repair sink",
+            unitId: "unit-1",
+            vendorPersonId: "vendor-1",
+          },
+          id: "task-1",
+          vendorLabel: "Rapid Repairs",
+        } as MaintenanceCase}
+        mode="edit"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+        properties={[{ id: "property-1", label: "Property One" }]}
+        staff={[]}
+        units={[
+          { id: "unit-1", label: "Unit One", propertyId: "property-1" },
+        ]}
+        vendors={[{ id: "vendor-1", label: "Rapid Repairs" }]}
+      />,
+    );
+
+    expect(html.match(/name="propertyId"/g)).toHaveLength(1);
+    expect(html.match(/name="unitId"/g)).toHaveLength(1);
+    expect(html.match(/name="vendorPersonId"/g)).toHaveLength(1);
+    expect(html).toContain(
+      'type="hidden" name="propertyId" value="property-1"',
+    );
+    expect(html).toContain('type="hidden" name="unitId" value="unit-1"');
+    expect(html).toContain(
+      'type="hidden" name="vendorPersonId" value="vendor-1"',
+    );
+    expect(html).toContain("locked to the approved financial history");
+    expect(html).toContain('name="actualCostAmount"');
+    expect(html).not.toMatch(/name="actualCostAmount"[^>]*readonly/);
   });
 });

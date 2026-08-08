@@ -1,6 +1,6 @@
 import { PettyCashScreen } from "@/features/petty-cash/components/petty-cash-screen";
 import { getPettyCashScreenData } from "@/features/petty-cash/data/petty-cash";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireFinanceContext } from "@/lib/auth/context";
 import { getUuidSearchParam } from "@/lib/validation/search-params";
 
 type PettyCashPageProps = {
@@ -10,7 +10,7 @@ type PettyCashPageProps = {
 export default async function PettyCashPage({
   searchParams,
 }: PettyCashPageProps) {
-  const context = await requireAdminContext();
+  const context = await requireFinanceContext();
   const params = await searchParams;
   const data = await getPettyCashScreenData(
     context.organizationId,
@@ -20,5 +20,10 @@ export default async function PettyCashPage({
     },
   );
 
-  return <PettyCashScreen {...data} />;
+  return (
+    <PettyCashScreen
+      {...data}
+      canManageFinance={context.capabilities.canManageFinanceOperations}
+    />
+  );
 }

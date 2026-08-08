@@ -226,7 +226,7 @@ export function ImportPreviewScreen({
       />
 
       <main className="mx-auto w-full max-w-[1120px] space-y-3 px-4 py-4 sm:px-6 lg:max-h-[calc(100vh-112px)] lg:overflow-auto lg:py-5">
-        <section className="rounded-md border border-border bg-surface">
+        <section className="rounded-md border border-border bg-card">
           <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[minmax(0,260px)_minmax(0,1fr)_auto] sm:items-end">
             <label className="block min-w-0 text-sm font-medium">
               <span className="mb-1.5 block">Import type</span>
@@ -253,7 +253,7 @@ export function ImportPreviewScreen({
               </p>
             </div>
             <a
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
               download={`nestory-${selectedType}-import-template.csv`}
               href={templateHref}
             >
@@ -282,7 +282,7 @@ export function ImportPreviewScreen({
         </section>
 
         {parsedFile ? (
-          <section className="overflow-hidden rounded-md border border-border bg-surface">
+          <section className="overflow-hidden rounded-md border border-border bg-card">
             <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <h2 className="truncate text-sm font-semibold">
@@ -306,14 +306,14 @@ export function ImportPreviewScreen({
               className="border-b border-border"
               open={missingRequiredMatches > 0}
             >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
                 <span>
                   Column mapping · {mappedFieldCount} matched ·{" "}
                   {missingRequiredMatches} required missing
                 </span>
                 <ChevronDown aria-hidden="true" className="text-muted-foreground" size={15} />
               </summary>
-              <div className="border-t border-border bg-surface-muted/30 p-4">
+              <div className="border-t border-border bg-muted/30 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <p className="text-xs text-muted-foreground">
                     Required fields are marked with an asterisk.
@@ -384,7 +384,7 @@ export function ImportPreviewScreen({
               tabIndex={0}
             >
               <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">
-                <thead className="sticky top-0 bg-surface-muted text-[11px] uppercase text-muted-foreground">
+                <thead className="sticky top-0 bg-muted text-[11px] uppercase text-muted-foreground">
                   <tr>
                     <th className="border-b border-border px-3 py-2 font-semibold">
                       Row
@@ -441,7 +441,7 @@ export function ImportPreviewScreen({
                     stats.readyCount === 0
                   }
                   type="submit"
-                  variant="primary"
+                  variant="default"
                 >
                   {currentAction.mode === "imported" ? (
                     <CheckCircle2 aria-hidden="true" size={15} />
@@ -544,7 +544,7 @@ function PreviewRow({ row }: { row: GenericImportPreviewRow }) {
   const hasError = row.issues.some((issue) => issue.level === "error");
 
   return (
-    <tr className="align-top hover:bg-surface-muted/60">
+    <tr className="align-top hover:bg-muted/60">
       <td className="border-b border-border px-3 py-2.5">
         <p className="font-medium tabular-nums text-foreground">
           {row.sourceRowNumber}
@@ -606,8 +606,8 @@ function AttentionDetails({
   const groups = groupCleanupItems(items);
 
   return (
-    <details className="rounded-md border border-border bg-surface">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring">
+    <details className="rounded-md border border-border bg-card">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
         <span className="inline-flex items-center gap-2">
           <AlertTriangle aria-hidden="true" className="text-warning" size={15} />
           {errorCount} blocked
@@ -621,7 +621,7 @@ function AttentionDetails({
         {errorRowsHref && fixTemplateHref ? (
           <div className="mb-3 flex flex-wrap gap-2">
             <a
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium hover:bg-surface-muted"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium hover:bg-muted"
               download="nestory-import-error-rows.csv"
               href={errorRowsHref}
             >
@@ -629,7 +629,7 @@ function AttentionDetails({
               Error rows
             </a>
             <a
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium hover:bg-surface-muted"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium hover:bg-muted"
               download="nestory-import-fix-template.csv"
               href={fixTemplateHref}
             >
@@ -641,7 +641,7 @@ function AttentionDetails({
         <div className="max-h-64 space-y-2 overflow-auto">
           {groups.slice(0, 8).map((group) => (
             <div
-              className="rounded-md border border-border bg-surface-muted/50 px-3 py-2 text-sm"
+              className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm"
               key={`${group.sourceRowNumber}-${group.unitNumber}`}
             >
               <div className="flex items-center justify-between gap-3">
@@ -697,8 +697,8 @@ function PastImports({
   state: CommitImportRunState;
 }) {
   return (
-    <details className="rounded-md border border-border bg-surface">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring">
+    <details className="rounded-md border border-border bg-card">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
         <span>Past imports</span>
         <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
           {runs.length}
@@ -716,7 +716,7 @@ function PastImports({
         ) : (
           runs.map((run) => (
             <div
-              className="rounded-md border border-border bg-surface-muted/40 px-3 py-2 text-sm"
+              className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
               key={run.id}
             >
               <div className="flex items-start justify-between gap-3">

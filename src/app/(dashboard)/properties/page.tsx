@@ -4,7 +4,7 @@ import {
   getPropertyOwnerOptions,
 } from "@/features/properties/data/properties";
 import { parsePropertySearchParams } from "@/features/properties/property.filters";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { getUuidSearchParam } from "@/lib/validation/search-params";
 
 type PropertiesPageProps = {
@@ -14,7 +14,7 @@ type PropertiesPageProps = {
 export default async function PropertiesPage({
   searchParams,
 }: PropertiesPageProps) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const params = await searchParams;
   const viewQuery = parsePropertySearchParams(params);
   const [{ pagination, properties }, ownerOptions] = await Promise.all([

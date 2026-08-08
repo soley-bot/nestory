@@ -23,16 +23,16 @@ describe("parseOverviewSearchParams", () => {
   });
 
   it.each(["company-pnl", "owner-receivables", "ledger", "property-ranking"])(
-    "normalizes retired finance view %s to Portfolio",
+    "ignores retired finance view %s without changing canonical filters",
     (financeView) => {
     expect(
       parseOverviewSearchParams(
-        { financeView, lens: "finance" },
+        { financeView, lens: "maintenance" },
         new Date("2026-07-10"),
       ),
     ).toMatchObject({
       financeView: "collections",
-      lens: "all",
+      lens: "maintenance",
     });
     },
   );

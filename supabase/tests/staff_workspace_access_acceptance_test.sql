@@ -2,14 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(25);
-
-SELECT has_function(
-  'app_private',
-  'assert_staff_workspace_access_uniqueness',
-  ARRAY[]::text[],
-  'the migration exposes a private upgrade preflight assertion'
-);
+SELECT plan(23);
 
 INSERT INTO auth.users (
   instance_id,
@@ -46,6 +39,7 @@ FROM (
     ('00000000-0000-0000-0000-000000000731'::uuid, 'existing-unlinked@example.com'),
     ('00000000-0000-0000-0000-000000000732'::uuid, 'existing-same-linked@example.com'),
     ('00000000-0000-0000-0000-000000000733'::uuid, 'existing-different-linked@example.com'),
+    ('00000000-0000-0000-0000-000000000735'::uuid, 'access-update@example.com'),
     ('00000000-0000-0000-0000-000000000736'::uuid, 'accept-unrelated-unique@example.com')
 ) AS fixture_users(user_id, email);
 
@@ -120,6 +114,83 @@ FROM (
     ('88300000-0000-0000-0000-000000000037'::uuid)
 ) AS fixture_roles(person_id);
 
+INSERT INTO public.organization_branches (
+  id,
+  organization_id,
+  name,
+  code,
+  status,
+  created_by,
+  updated_by
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000212',
+  '00000000-0000-0000-0000-000000000001',
+  'Invitation Acceptance Branch',
+  'INV-ACCEPT',
+  'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.people (
+  id,
+  organization_id,
+  display_name,
+  legal_name,
+  party_type,
+  primary_email,
+  created_by,
+  updated_by
+)
+VALUES
+  (
+    '80300000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
+    'Final Admin Demotion Target',
+    'Final Admin Demotion Target',
+    'individual',
+    'admin-demotion-target@example.com',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '80300000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
+    'Access Update Target',
+    'Access Update Target',
+    'individual',
+    'access-update-target@example.com',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
+
+INSERT INTO public.person_roles (
+  organization_id,
+  person_id,
+  role,
+  status,
+  created_by,
+  updated_by
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '80300000-0000-0000-0000-000000000001',
+    'staff',
+    'active',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '80300000-0000-0000-0000-000000000002',
+    'staff',
+    'active',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
+
 INSERT INTO public.organization_members (
   id,
   organization_id,
@@ -133,7 +204,7 @@ VALUES
     '00000000-0000-0000-0000-000000000731',
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000731',
-    'member',
+    'finance_member',
     NULL,
     NULL
   ),
@@ -141,7 +212,7 @@ VALUES
     '00000000-0000-0000-0000-000000000732',
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000732',
-    'member',
+    'operations_member',
     '88300000-0000-0000-0000-000000000032',
     '00000000-0000-0000-0000-000000000211'
   ),
@@ -149,9 +220,17 @@ VALUES
     '00000000-0000-0000-0000-000000000733',
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000733',
-    'member',
+    'operations_member',
     '88300000-0000-0000-0000-000000000033',
     '00000000-0000-0000-0000-000000000211'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000503',
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000735',
+    'finance_member',
+    NULL,
+    NULL
   );
 
 INSERT INTO public.organization_invitations (
@@ -170,7 +249,7 @@ VALUES
     '89300000-0000-0000-0000-000000000031',
     '00000000-0000-0000-0000-000000000001',
     'existing-unlinked@example.com',
-    'admin',
+    'operations_manager',
     '00000000-0000-0000-0000-000000000212',
     '88300000-0000-0000-0000-000000000031',
     'pending',
@@ -181,7 +260,7 @@ VALUES
     '89300000-0000-0000-0000-000000000032',
     '00000000-0000-0000-0000-000000000001',
     'existing-same-linked@example.com',
-    'manager',
+    'operations_manager',
     '00000000-0000-0000-0000-000000000212',
     '88300000-0000-0000-0000-000000000032',
     'pending',
@@ -192,7 +271,7 @@ VALUES
     '89300000-0000-0000-0000-000000000033',
     '00000000-0000-0000-0000-000000000001',
     'existing-different-linked@example.com',
-    'manager',
+    'operations_manager',
     '00000000-0000-0000-0000-000000000212',
     '88300000-0000-0000-0000-000000000034',
     'pending',
@@ -203,7 +282,7 @@ VALUES
     '89300000-0000-0000-0000-000000000034',
     '00000000-0000-0000-0000-000000000001',
     'nestory@gmail.com',
-    'manager',
+    'operations_manager',
     '00000000-0000-0000-0000-000000000212',
     '80300000-0000-0000-0000-000000000001',
     'pending',
@@ -214,7 +293,7 @@ VALUES
     '89300000-0000-0000-0000-000000000035',
     '00000000-0000-0000-0000-000000000001',
     'handler-create@example.com',
-    'member',
+    'finance_member',
     NULL,
     NULL,
     'pending',
@@ -225,20 +304,13 @@ VALUES
     '89300000-0000-0000-0000-000000000036',
     '00000000-0000-0000-0000-000000000001',
     'accept-unrelated-unique@example.com',
-    'member',
-    NULL,
+    'operations_member',
+    '00000000-0000-0000-0000-000000000211',
     '88300000-0000-0000-0000-000000000036',
     'pending',
     '00000000-0000-0000-0000-000000000101',
     now() + interval '1 hour'
   );
-
-SELECT throws_ok(
-  $$SELECT app_private.assert_staff_workspace_access_uniqueness()$$,
-  '23505',
-  'Cannot enforce Staff access uniqueness: linked memberships overlap live Staff invitations',
-  'upgrade preflight rejects member and live-invitation overlap for the same Staff record'
-);
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000731', true);
 SELECT lives_ok(
@@ -249,11 +321,12 @@ SELECT lives_ok(
 );
 SELECT is(
   (
-    SELECT role || ':' || person_id::text || ':' || branch_id::text
+    SELECT role || ':' || coalesce(person_id::text, 'null') || ':' ||
+      coalesce(branch_id::text, 'null')
     FROM public.organization_members
     WHERE id = '00000000-0000-0000-0000-000000000731'
   ),
-  'admin:88300000-0000-0000-0000-000000000031:00000000-0000-0000-0000-000000000212',
+  'operations_manager:88300000-0000-0000-0000-000000000031:00000000-0000-0000-0000-000000000212',
   'acceptance applies the invited access level, Staff link, and scope'
 );
 SELECT is(
@@ -269,7 +342,7 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101
 SELECT public.update_organization_member_access(
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000731',
-  'member',
+  'operations_member',
   '88300000-0000-0000-0000-000000000037',
   '00000000-0000-0000-0000-000000000211'
 );
@@ -293,7 +366,7 @@ SELECT is(
     FROM public.organization_members
     WHERE id = '00000000-0000-0000-0000-000000000731'
   ),
-  'member:88300000-0000-0000-0000-000000000037:00000000-0000-0000-0000-000000000211',
+  'operations_member:88300000-0000-0000-0000-000000000037:00000000-0000-0000-0000-000000000211',
   'accepted-invitation retry preserves later role, Staff, and scope changes'
 );
 SELECT is(
@@ -321,7 +394,7 @@ SELECT is(
     FROM public.organization_members
     WHERE id = '00000000-0000-0000-0000-000000000732'
   ),
-  'manager:88300000-0000-0000-0000-000000000032:00000000-0000-0000-0000-000000000212',
+  'operations_manager:88300000-0000-0000-0000-000000000032:00000000-0000-0000-0000-000000000212',
   'same-Staff acceptance applies the invited access level and scope'
 );
 SELECT is(
@@ -368,16 +441,18 @@ SELECT throws_ok(
     '89300000-0000-0000-0000-000000000034'
   )$$,
   '55000',
-  'The final administrator cannot be demoted',
+  'The final Super Admin cannot be demoted',
   'acceptance preserves the final-administrator invariant'
 );
 SELECT is(
   (
-    SELECT role || ':' || person_id::text || ':' || branch_id::text
+    SELECT role || ':' || coalesce(person_id::text, 'null') || ':' ||
+      coalesce(branch_id::text, 'null')
     FROM public.organization_members
-    WHERE id = '00000000-0000-0000-0000-000000000201'
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND user_id = '00000000-0000-0000-0000-000000000101'
   ),
-  'admin:80300000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000000211',
+  'super_admin:null:null',
   'a rejected final-administrator acceptance preserves the active configuration'
 );
 SELECT is(
@@ -401,7 +476,7 @@ CREATE UNIQUE INDEX staff_access_unrelated_activity_uidx
 SELECT public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'handler-create@example.com',
-  'member',
+  'finance_member',
   NULL,
   NULL
 );
@@ -409,7 +484,7 @@ SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'handler-create@example.com',
-    'member',
+    'finance_member',
     NULL,
     NULL
   )$$,
@@ -430,7 +505,7 @@ SELECT is(
 SELECT public.update_organization_member_access(
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000503',
-  'manager',
+  'operations_manager',
   '80300000-0000-0000-0000-000000000002',
   '00000000-0000-0000-0000-000000000211'
 );
@@ -438,7 +513,7 @@ SELECT throws_ok(
   $$SELECT public.update_organization_member_access(
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000503',
-    'manager',
+    'operations_manager',
     '80300000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000211'
   )$$,
@@ -452,7 +527,7 @@ SELECT is(
     FROM public.organization_members
     WHERE id = '00000000-0000-0000-0000-000000000503'
   ),
-  'manager:80300000-0000-0000-0000-000000000002:00000000-0000-0000-0000-000000000211',
+  'operations_manager:80300000-0000-0000-0000-000000000002:00000000-0000-0000-0000-000000000211',
   'an unrelated update failure preserves the last successful configuration'
 );
 

@@ -49,13 +49,9 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(
       container.querySelector('[data-slot="workspace-split-view"]'),
     ).not.toBeNull();
-    const closeStrip = screen.getByText("July 2026").closest("section");
-    expect(closeStrip?.className).not.toContain("overflow-x-auto");
-    expect(within(closeStrip!).queryByText("Clear")).toBeNull();
-    expect(
-      within(closeStrip!).getByText("All close checks clear"),
-    ).not.toBeNull();
-    expect(within(closeStrip!).getByText("Visible net")).not.toBeNull();
+    const summaryStrip = screen.getByText("Visible net").closest("section");
+    expect(summaryStrip?.className).not.toContain("overflow-x-auto");
+    expect(within(summaryStrip!).queryByText("Clear")).toBeNull();
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
@@ -123,7 +119,7 @@ describe("LedgerScreen finance workspace contract", () => {
   });
 
   it.each([1024, 390])(
-    "opens a deliberate preview at %ipx and replaces it with one consequence drawer",
+    "keeps source-owned records immutable in the preview at %ipx",
     async (width) => {
       installMatchMedia(width);
       const user = userEvent.setup();
@@ -135,35 +131,26 @@ describe("LedgerScreen finance workspace contract", () => {
       expect(
         screen.getByRole("dialog", { name: "Rent ledger quick view" }),
       ).not.toBeNull();
-      await user.click(
-        screen.getByRole("button", { name: "Archive ledger entry" }),
-      );
-
-      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+      expect(screen.getByRole("button", { name: "Attach receipt" })).not.toBeNull();
       expect(
-        screen.getByRole("dialog", { name: "Archive ledger entry" }),
-      ).not.toBeNull();
-      const consequence = screen.getByRole("region", {
-        name: "Archive consequence",
-      });
-      expect(consequence.textContent).toContain("active totals");
+        screen.queryByRole("button", { name: "Archive ledger entry" }),
+      ).toBeNull();
       expect(
-        (document.querySelector('input[name="entryId"]') as HTMLInputElement)
-          .value,
-      ).toBe("ledger-1");
+        screen.queryByRole("button", { name: "Edit ledger entry" }),
+      ).toBeNull();
 
-      await user.click(screen.getByRole("button", { name: "Close drawer" }));
+      await user.click(screen.getByRole("button", { name: "Close quick view" }));
       expect(document.activeElement).toBe(preview);
     },
   );
 
-  it("places the period-lock consequence beside the unchanged mutation fields", async () => {
+  it("places the month-lock consequence beside the unchanged mutation fields", async () => {
     const user = userEvent.setup();
     renderLedger();
-    await user.click(screen.getByRole("button", { name: "Period lock" }));
+    await user.click(screen.getByRole("button", { name: "Month lock" }));
 
     const consequence = screen.getByRole("region", {
-      name: "Period lock consequence",
+      name: "Month lock consequence",
     });
     expect(consequence.textContent).toContain("historical financial records");
     expect(document.querySelector('[name="periodStart"]')).not.toBeNull();
@@ -190,9 +177,37 @@ describe("LedgerScreen finance workspace contract", () => {
       .getByText("No ledger entries yet")
       .closest("section")!;
     expect(emptyState.getAttribute("data-kind")).toBe("empty");
+    expect(within(emptyState).queryByRole("button")).toBeNull();
+    expect(emptyState.textContent).toMatch(/source workflows/i);
+  });
+
+  it("keeps Finance roles read-only while preserving ledger inspection", async () => {
+    const user = userEvent.setup();
+    renderLedger(entries, {}, false);
+
+    expect(screen.queryByRole("button", { name: "Add entry" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Month lock" })).toBeNull();
+    const financeNav = screen.getByRole("navigation", {
+      name: "Finance workspace",
+    });
+    expect(within(financeNav).getByRole("link", { name: "Ledger" })).not.toBeNull();
     expect(
-      within(emptyState).getByRole("button", { name: "Add entry" }),
+      within(financeNav).getByRole("link", { name: "Petty Cash" }),
     ).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Preview Rent" }));
+    const inspector = screen.getByRole("dialog", {
+      name: "Rent ledger quick view",
+    });
+    for (const action of [
+      "Attach receipt",
+      "Edit ledger entry",
+      "Archive ledger entry",
+    ]) {
+      expect(
+        within(inspector).queryByRole("button", { name: action }),
+      ).toBeNull();
+    }
   });
 });
 
@@ -220,21 +235,11 @@ const entries = [
 function renderLedger(
   nextEntries: LedgerEntry[] = entries,
   query: Partial<LedgerViewQuery> = {},
+  canManageFinance = true,
 ) {
   return render(
     <LedgerScreen
-      closeSummary={{
-        accountingUnlinkedCount: "0",
-        accountingUnlinkedHref: "/ledger",
-        billsReadyHref: "/bills-expenses",
-        billsReadyToPost: "0",
-        incomeReadyHref: "/rent-income",
-        incomeReadyToPost: "0",
-        month: "2026-07",
-        monthLabel: "July 2026",
-        pettyCashReadyHref: "/petty-cash",
-        pettyCashReadyToPost: "0",
-      }}
+      canManageFinance={canManageFinance}
       entries={nextEntries}
       pagination={{
         from: nextEntries.length ? 1 : 0,
@@ -260,7 +265,6 @@ function makeEntry(
   amount: number,
 ): LedgerEntry {
   return {
-    accountingJournalEntryId: `journal-${id}`,
     activity: [],
     amount,
     category,
@@ -288,8 +292,10 @@ function makeEntry(
     propertyName: "Home",
     recordCounts: { activity: 0, documents: 0, timelineEvents: 1 },
     riskIndicators: [],
+    sourceId: `source-${id}`,
     sourceLabel: direction === "income" ? "Rent & Income" : "Bills & Expenses",
-    sourceType: direction === "income" ? "finance_income" : "finance_expense",
+    sourceType:
+      direction === "income" ? "receipt_allocation" : "payment_allocation",
     transactionDate: "2026-07-10",
   };
 }

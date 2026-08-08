@@ -1,12 +1,10 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sourceRoot = join(process.cwd(), "src");
 const manifestPath = "config/ui-route-coverage.json";
-const allowedCompatibilityFiles = new Set([
-  "src/app/(dashboard)/people-reports/page.test.tsx",
-  "src/app/(dashboard)/people-reports/page.tsx",
+const allowedAssertionFiles = new Set([
   "src/features/reports/people-readiness-retirement.test.ts",
 ]);
 
@@ -18,7 +16,7 @@ describe("People Reports retirement", () => {
     ];
     const stale = activeFiles.flatMap((file) => {
       const normalized = file.replaceAll("\\", "/");
-      if (allowedCompatibilityFiles.has(normalized)) {
+      if (allowedAssertionFiles.has(normalized)) {
         return [];
       }
 
@@ -33,7 +31,7 @@ describe("People Reports retirement", () => {
     expect(stale).toEqual([]);
   });
 
-  it("keeps the old page only as an executable compatibility redirect", () => {
+  it("removes the retired route instead of retaining a redirect", () => {
     const manifest = JSON.parse(
       readFileSync(join(process.cwd(), manifestPath), "utf8"),
     ) as Array<{
@@ -47,15 +45,15 @@ describe("People Reports retirement", () => {
       surface: string;
     }>;
 
-    expect(manifest.find((entry) => entry.route === "/people-reports")).toMatchObject({
-      smoke: {
-        expectedFinalPath: "/people",
-        path: "/people-reports?report=staff-access&archiveState=archived",
-        queryContract: "redirect-normalized",
-      },
-      states: [],
-      surface: "redirect",
-    });
+    expect(manifest.find((entry) => entry.route === "/people-reports")).toBeUndefined();
+    expect(
+      existsSync(
+        join(
+          process.cwd(),
+          "src/app/(dashboard)/people-reports/page.tsx",
+        ),
+      ),
+    ).toBe(false);
   });
 });
 

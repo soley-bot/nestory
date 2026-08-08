@@ -33,12 +33,12 @@ export function PeopleInspector({
   }
 
   const iconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring";
   const primaryIconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
-    <div className="bg-surface">
+    <div className="bg-card">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -193,7 +193,7 @@ function AttentionNote({
   const label = item?.label ?? fallbackLabel;
 
   return (
-    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+    <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate text-sm font-semibold">{label}</p>
         <div className="flex shrink-0 items-center gap-2">
@@ -203,7 +203,7 @@ function AttentionNote({
           {item ? null : (
             <Link
               aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
               href={href}
               title="Open action"
             >

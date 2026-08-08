@@ -4,18 +4,18 @@ const {
   adminInvite,
   adminOtp,
   revalidatePath,
-  requireAdminContext,
+  requireSuperAdminContext,
   rpc,
 } = vi.hoisted(() => ({
   adminInvite: vi.fn(),
   adminOtp: vi.fn(),
   revalidatePath: vi.fn(),
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/auth/context", () => ({ requireAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({ rpc }),
 }));
@@ -37,15 +37,16 @@ import {
 
 const invitationId = "11111111-1111-4111-8111-111111111111";
 const personId = "55555555-5555-4555-8555-555555555555";
+const branchId = "66666666-6666-4666-8666-666666666666";
 
 describe("organization invitation actions", () => {
   beforeEach(() => {
     adminInvite.mockReset();
     adminOtp.mockReset();
     revalidatePath.mockReset();
-    requireAdminContext.mockReset();
+    requireSuperAdminContext.mockReset();
     rpc.mockReset();
-    requireAdminContext.mockResolvedValue({
+    requireSuperAdminContext.mockResolvedValue({
       organizationId: "22222222-2222-4222-8222-222222222222",
       userId: "33333333-3333-4333-8333-333333333333",
     });
@@ -140,11 +141,53 @@ describe("organization invitation actions", () => {
     formData.set("personId", "");
 
     await expect(inviteOrganizationUserAction({}, formData)).resolves.toEqual({
-      message: "Choose a valid Staff member, invitation email, and access level.",
+      message: "Choose a branch and Staff member for an Operations role.",
       status: "error",
     });
     expect(rpc).not.toHaveBeenCalled();
     expect(adminInvite).not.toHaveBeenCalled();
+  });
+
+  it("requires branch and Staff scope for an Operations invitation", async () => {
+    const formData = inviteForm();
+    formData.set("branchId", "");
+
+    await expect(inviteOrganizationUserAction({}, formData)).resolves.toEqual({
+      message: "Choose a branch and Staff member for an Operations role.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(adminInvite).not.toHaveBeenCalled();
+  });
+
+  it("accepts a Finance invitation without branch or Staff scope", async () => {
+    rpc
+      .mockResolvedValueOnce({ data: invitationId, error: null })
+      .mockResolvedValueOnce({ data: invitationId, error: null });
+    adminInvite.mockResolvedValue({
+      data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+      error: null,
+    });
+    const formData = new FormData();
+    formData.set("email", "finance@example.com");
+    formData.set("role", "finance_manager");
+    formData.set("branchId", "");
+    formData.set("personId", "");
+
+    await expect(inviteOrganizationUserAction({}, formData)).resolves.toEqual({
+      message: "Invitation sent to finance@example.com.",
+      status: "success",
+    });
+    expect(rpc.mock.calls[0]).toEqual([
+      "create_organization_invitation",
+      {
+        p_branch_id: null,
+        p_email: "finance@example.com",
+        p_organization_id: "22222222-2222-4222-8222-222222222222",
+        p_person_id: null,
+        p_role: "finance_manager",
+      },
+    ]);
   });
 
   it.each([
@@ -306,8 +349,8 @@ describe("organization invitation actions", () => {
 function inviteForm() {
   const formData = new FormData();
   formData.set("email", "  Invitee@Example.com  ");
-  formData.set("role", "member");
-  formData.set("branchId", "");
+  formData.set("role", "operations_member");
+  formData.set("branchId", branchId);
   formData.set("personId", personId);
   return formData;
 }

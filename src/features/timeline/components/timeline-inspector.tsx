@@ -43,7 +43,7 @@ export function TimelineInspector({
   const isDisabled = event.isLocked || archiveDisabled;
 
   return (
-    <div className="bg-surface">
+    <div className="bg-card">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -77,11 +77,11 @@ export function TimelineInspector({
           </CompactFact>
         </div>
 
-        <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+        <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
           <p className="mb-2 font-semibold">Record context</p>
           <div className="space-y-1.5">
             <Link
-              className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-surface px-2.5 py-2 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-card px-2.5 py-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               href={event.hrefs.property}
             >
               <span className="min-w-0 truncate">{event.propertyName}</span>
@@ -89,7 +89,7 @@ export function TimelineInspector({
             </Link>
             {event.hrefs.unit && event.unitNumber ? (
               <Link
-                className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-surface px-2.5 py-2 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-card px-2.5 py-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={event.hrefs.unit}
               >
                 <span>Unit {event.unitNumber}</span>
@@ -97,7 +97,7 @@ export function TimelineInspector({
               </Link>
             ) : null}
             <Link
-              className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-surface px-2.5 py-2 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="flex min-w-0 items-center justify-between gap-3 rounded border border-border bg-card px-2.5 py-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               href={event.hrefs.timeline}
             >
               <span>Open timeline event</span>
@@ -120,7 +120,7 @@ export function TimelineInspector({
                 source.availability === "available" ? (
                   <Link
                     aria-label={`Open ${source.moduleLabel} source ${source.label}`}
-                    className="flex min-w-0 items-center justify-between gap-3 rounded border border-border px-2.5 py-2 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="flex min-w-0 items-center justify-between gap-3 rounded border border-border px-2.5 py-2 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                     href={source.href}
                     key={`${source.entityType}:${source.entityId}`}
                   >
@@ -141,7 +141,7 @@ export function TimelineInspector({
                   </Link>
                 ) : (
                   <div
-                    className="rounded border border-border bg-surface-muted/70 px-2.5 py-2"
+                    className="rounded border border-border bg-muted/70 px-2.5 py-2"
                     key={`${source.entityType}:unavailable`}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -181,7 +181,7 @@ export function TimelineInspector({
           {isLedgerLinked ? (
             <Link
               aria-label="Open linked ledger entry"
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border text-sm font-medium transition-colors hover:bg-surface-muted"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-border text-sm font-medium transition-colors hover:bg-muted"
               href={event.hrefs.ledger ?? event.hrefs.timeline}
               title="Open linked ledger entry"
             >
@@ -197,11 +197,11 @@ export function TimelineInspector({
               onClick={() => onRestore?.(event)}
               title={
                 event.isLocked
-                  ? "This accounting period is locked."
+                  ? "This month is locked."
                   : "Restore record"
               }
               type="button"
-              variant="primary"
+              variant="default"
             >
               <RotateCcw size={15} />
               Restore
@@ -228,7 +228,7 @@ export function TimelineInspector({
                     onClick={() => onEdit?.(event)}
                     title={
                       event.isLocked
-                        ? "This accounting period is locked."
+                        ? "This month is locked."
                         : "Edit record"
                     }
                     type="button"
@@ -239,12 +239,12 @@ export function TimelineInspector({
                   </Button>
                   <Button
                     aria-label="Archive timeline record"
-                    className="border-danger/40 px-2 text-danger hover:bg-surface-muted"
+                    className="border-danger/40 px-2 text-danger hover:bg-muted"
                     disabled={isDisabled}
                     onClick={() => onArchive?.(event)}
                     title={
                       event.isLocked
-                        ? "This accounting period is locked."
+                        ? "This month is locked."
                         : "Archive record"
                     }
                     type="button"
@@ -290,7 +290,7 @@ function AttentionNote({
   label: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+    <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate font-semibold">{item?.label ?? label}</p>
         <div className="flex shrink-0 items-center gap-2">
@@ -299,7 +299,7 @@ function AttentionNote({
           </Badge>
           <Link
             aria-label="Open action"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
             href={href}
             title="Open action"
           >

@@ -7,7 +7,7 @@ describe("trusted report PDF export", () => {
     const pdf = Buffer.from(
       buildTrustedReportPdf({
         organizationName: "Sokha Property Services",
-        report: ownerActivityReport(),
+        report: monthlyOwnerActivityReport(),
       }),
     ).toString("latin1");
 
@@ -22,7 +22,7 @@ describe("trusted report PDF export", () => {
     const pdf = Buffer.from(
       buildTrustedReportPdf({
         organizationName: "Sokha Property Services",
-        report: ownerActivityReport(),
+        report: monthlyOwnerActivityReport(),
       }),
     ).toString("latin1");
 
@@ -31,7 +31,7 @@ describe("trusted report PDF export", () => {
   });
 });
 
-function ownerActivityReport(): TrustedReport {
+function monthlyOwnerActivityReport(): TrustedReport {
   return {
     columns: [
       { key: "property", label: "Property" },
@@ -41,9 +41,9 @@ function ownerActivityReport(): TrustedReport {
     description: "Monthly owner activity.",
     emptyDescription: "No activity.",
     emptyTitle: "No owner activity",
-    exportFilenameBase: "owner-activity",
+    exportFilenameBase: "monthly-owner-activity",
     generatedAt: "2026-08-04T00:00:00.000Z",
-    kind: "owner-activity",
+    kind: "monthly-owner-activity",
     periodLabel: "01 Aug 2026 - 31 Aug 2026",
     rows: [
       {

@@ -3,7 +3,7 @@ import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { buildAccessByPersonId } from "@/features/organization/access-status";
 import { AccessSettingsScreen } from "@/features/organization/components/access-settings-screen";
 import { getAccessSettingsData } from "@/features/organization/data";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 
 type UsersRolesPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -12,7 +12,7 @@ type UsersRolesPageProps = {
 export default async function UsersRolesPage({
   searchParams,
 }: UsersRolesPageProps) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const params = await searchParams;
   const data = await getAccessSettingsData(context.organizationId);
   const requestedPersonId = readUuidParam(params.personId);

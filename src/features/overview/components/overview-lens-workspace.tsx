@@ -70,7 +70,7 @@ function getLensConfig(data: OverviewScreenData, query: OverviewViewQuery, lens:
 
   return {
     metrics: [
-      { href: destinationHref("/reports/owner-activity", query, true), label: "Owner activity", value: String(data.recordsByProperty.length) },
+      { href: destinationHref("/reports/monthly-owner-activity", query, true), label: "Owner activity", value: String(data.recordsByProperty.length) },
       { href: destinationHref("/properties?ownerStatus=missing", query, false), label: "Missing owner links", value: missingOwners ? String(missingOwners.count) : "Not calculated" },
       { href: destinationHref("/documents", query, false), label: "Documents", value: String(data.recordsByProperty.reduce((sum, row) => sum + row.documentCount, 0)) },
       { href: destinationHref("/leases?status=current&tenantStatus=missing", query, false), label: "Missing lease links", value: missingLeaseLinks ? String(missingLeaseLinks.count) : "Not calculated" },

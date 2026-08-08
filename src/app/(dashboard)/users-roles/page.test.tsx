@@ -2,13 +2,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getAccessSettingsData, requireAdminContext, screenSpy } = vi.hoisted(() => ({
+const { getAccessSettingsData, requireSuperAdminContext, screenSpy } = vi.hoisted(() => ({
   getAccessSettingsData: vi.fn(),
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
   screenSpy: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/context", () => ({ requireAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
 vi.mock("@/features/organization/data", () => ({ getAccessSettingsData }));
 vi.mock("@/features/organization/components/access-settings-screen", () => ({
   AccessSettingsScreen: (props: Record<string, unknown> & { header?: ReactNode }) => {
@@ -27,11 +27,11 @@ import UsersRolesPage from "@/app/(dashboard)/users-roles/page";
 describe("UsersRolesPage", () => {
   beforeEach(() => {
     getAccessSettingsData.mockReset();
-    requireAdminContext.mockReset();
+    requireSuperAdminContext.mockReset();
     screenSpy.mockReset();
-    requireAdminContext.mockResolvedValue({
+    requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
-      role: "admin",
+      role: "super_admin",
       userId: "user-1",
     });
     getAccessSettingsData.mockResolvedValue({ branches: [], invitations: [], members: [], staff: [] });
@@ -44,7 +44,7 @@ describe("UsersRolesPage", () => {
 
     expect(html).toContain("Access workspace");
     expect(html).toContain("Workspace Access");
-    expect(requireAdminContext).toHaveBeenCalledOnce();
+    expect(requireSuperAdminContext).toHaveBeenCalledOnce();
     expect(getAccessSettingsData).toHaveBeenCalledWith("organization-1");
     expect(screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -65,7 +65,7 @@ describe("UsersRolesPage", () => {
     expect(html).toMatch(
       /<header[^>]*>[\s\S]*aria-label="Settings sections"[\s\S]*<\/header>/,
     );
-    expect(requireAdminContext).toHaveBeenCalledOnce();
+    expect(requireSuperAdminContext).toHaveBeenCalledOnce();
   });
 
   it("prefills only a current Staff record with its authoritative primary email", async () => {
@@ -79,7 +79,7 @@ describe("UsersRolesPage", () => {
         email: "unrelated@example.com",
         id: unrelatedMemberId,
         personId: null,
-        role: "member",
+        role: "operations_member",
         userId: "88888888-8888-4888-8888-888888888888",
       }],
       staff: [{
@@ -127,7 +127,7 @@ describe("UsersRolesPage", () => {
         invitedAt: "2026-07-23T12:00:00.000Z",
         lastSentAt: "2026-07-23T12:01:00.000Z",
         personId,
-        role: "member",
+        role: "operations_member",
         status: "pending",
       }],
       members: [],
@@ -167,7 +167,7 @@ describe("UsersRolesPage", () => {
         email: "member@example.com",
         id: memberId,
         personId: null,
-        role: "member",
+        role: "operations_member",
         userId: "55555555-5555-4555-8555-555555555555",
       }],
       staff: [],

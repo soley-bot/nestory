@@ -56,7 +56,7 @@ describe("parsePeopleSearchParams", () => {
         page: "-1",
         pageSize: "999",
         personId: "not-a-uuid",
-        role: "manager",
+        role: "operations_manager",
         sort: "random",
         status: "draft",
       }),

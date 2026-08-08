@@ -32,7 +32,7 @@ describe("timeline scope helpers", () => {
     expect(getRecentActivityEntityTypes("financial")).toEqual([
       "timeline_event",
       "ledger_entry",
-      "ledger_period",
+      "financial_month",
       "finance_income_item",
       "finance_expense_item",
       "petty_cash_entry",

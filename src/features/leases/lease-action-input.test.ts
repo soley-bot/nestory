@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   getLeaseMutationErrorMessage,
-  getMonthlyRentGenerationErrorMessage,
   parseFutureRentTermInput,
   parseIdempotencyKey,
 } from "@/features/leases/lease-action-input";
@@ -49,22 +48,6 @@ describe("lease action input", () => {
       data: "lease:term:12345678",
       success: true,
     });
-  });
-
-  it("classifies the Plan 09 generation guard by its stable detail code", () => {
-    expect(
-      getMonthlyRentGenerationErrorMessage({
-        details: "rent_generation_blocked_plan_09",
-        message: "localized or revised database message",
-      }),
-    ).toContain("Plan 09");
-
-    expect(
-      getMonthlyRentGenerationErrorMessage({
-        details: null,
-        message: "Plan 09 appears only in an unrelated message",
-      }),
-    ).not.toContain("Plan 09");
   });
 
   it.each([

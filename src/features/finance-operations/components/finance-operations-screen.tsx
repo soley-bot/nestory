@@ -26,6 +26,7 @@ import { DatePickerField } from "@/components/ui/date-picker-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
@@ -34,19 +35,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   confirmOwnerCollectionAction,
-  generateTenantInvoiceAction,
-  recordIpsExpenseAction,
   recordOwnerPaymentAction,
   recordTenantInvoicePaymentAction,
   recordWithdrawalAction,
+  recoverLeaseRentPeriodAction,
+  recoverRentGenerationExceptionAction,
+  reverseExpenseAction,
+  reverseOwnerCollectionConfirmationAction,
+  reverseTenantInvoicePaymentAction,
+  reviewExpenseAction,
   saveLeaseBillingAction,
+  submitExpenseAction,
 } from "@/features/finance-operations/actions";
 import type {
+  ExpenseSubmissionSummary,
   FinanceLease,
   FinanceOperationsActionState,
   FinanceOperationsData,
   OwnerInvoiceSummary,
   PropertyFinancePosition,
+  RentGenerationException,
+  TenantInvoiceSettlement,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
@@ -58,17 +67,30 @@ export type FinanceOperationsView =
   "account" | "balances" | "expenses" | "rent" | "work";
 
 type ModalState =
-  | { lease: FinanceLease; mode: "generate" }
   | {
       canChooseAnother?: boolean;
       invoice?: TenantInvoiceSummary;
       mode: "payment";
     }
   | { invoice: OwnerInvoiceSummary; mode: "owner-payment" }
+  | {
+      decision: "approve" | "reject";
+      mode: "expense-review";
+      submission: ExpenseSubmissionSummary;
+    }
+  | {
+      mode: "expense-reversal";
+      submission: ExpenseSubmissionSummary;
+    }
+  | {
+      invoice: TenantInvoiceSummary;
+      mode: "settlement-reversal";
+    }
   | { mode: "withdrawal"; position: PropertyFinancePosition };
 
 type DrawerState =
   | { lease: FinanceLease; mode: "billing" }
+  | { mode: "rent-recovery" }
   | {
       initialInvoiceId?: string;
       initialResponsibility?: "owner" | "tenant";
@@ -76,12 +98,23 @@ type DrawerState =
     };
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
+  canConfigureRent: boolean;
+  canManageFinance: boolean;
+  canRecoverRent: boolean;
+  canReviewExpense: boolean;
+  canReverseExpense: boolean;
+  canSubmitExpense: boolean;
   organizationName: string;
   selectedPropertyId?: string | null;
   view: FinanceOperationsView;
 };
 
 const actionInitialState: FinanceOperationsActionState = {};
+const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  timeZone: "UTC",
+  year: "numeric",
+});
 
 export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
   const organizationName = props.organizationName.trim() || "our company";
@@ -110,6 +143,17 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
     openModal,
     openDrawer,
   );
+  const visibleDrawer =
+    drawer &&
+    (drawer.mode === "billing"
+      ? props.canConfigureRent
+      : drawer.mode === "rent-recovery"
+        ? props.canRecoverRent
+        : props.canSubmitExpense)
+      ? drawer
+      : null;
+  const visibleModal =
+    modal && canRenderFinanceModal(modal, props) ? modal : null;
 
   return (
     <WorkspacePage
@@ -117,13 +161,15 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       context={screen.context}
       contextHref={screen.contextHref}
       headerClassName="py-3 lg:py-3"
-      localNav={<FinanceWorkspaceNavigation activeRoute={screen.activeRoute} />}
+      localNav={(
+        <FinanceWorkspaceNavigation activeRoute={screen.activeRoute} />
+      )}
       title={screen.title}
       toolbar={screen.toolbar}
     >
       <div className="flex h-full min-h-0 flex-col">
         {statusMessage ? (
-          <div className="shrink-0 border-b border-border bg-surface px-4 py-2 sm:px-6">
+          <div className="shrink-0 border-b border-border bg-card px-4 py-2 sm:px-6">
             <p className="text-sm" role="status">
               {statusMessage}
             </p>
@@ -132,41 +178,42 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
         {screen.body}
       </div>
 
-      {drawer ? (
-        <SideDrawer onClose={closeDrawer} open title={getDrawerTitle(drawer)}>
-          {drawer.mode === "billing" ? (
+      {visibleDrawer ? (
+        <SideDrawer onClose={closeDrawer} open title={getDrawerTitle(visibleDrawer)}>
+          {visibleDrawer.mode === "billing" ? (
             <BillingSetupForm
-              lease={drawer.lease}
+              lease={visibleDrawer.lease}
               onSuccess={onActionSuccess}
               organizationName={organizationName}
               peopleOptions={props.peopleOptions}
             />
+          ) : visibleDrawer.mode === "rent-recovery" ? (
+            <HistoricalRentRecoveryForm
+              leases={props.leases}
+              onSuccess={onActionSuccess}
+            />
           ) : (
             <ExpenseForm
-              initialInvoiceId={drawer.initialInvoiceId}
-              initialResponsibility={drawer.initialResponsibility}
+              initialInvoiceId={visibleDrawer.initialInvoiceId}
+              initialResponsibility={visibleDrawer.initialResponsibility}
               invoices={props.tenantInvoices}
               onSuccess={onActionSuccess}
               propertyOptions={props.propertyOptions}
+              reconciliationSources={props.reconciliationSources}
               unitOptions={props.unitOptions}
             />
           )}
         </SideDrawer>
       ) : null}
 
-      {modal ? (
-        <Modal onClose={closeModal} open title={getModalTitle(modal)}>
-          {modal.mode === "generate" ? (
-            <GenerateInvoiceForm
-              lease={modal.lease}
-              onSuccess={onActionSuccess}
-            />
-          ) : modal.mode === "payment" ? (
-            modal.invoice ? (
+      {visibleModal ? (
+        <Modal onClose={closeModal} open title={getModalTitle(visibleModal)}>
+          {visibleModal.mode === "payment" ? (
+            visibleModal.invoice ? (
               <SettleInvoiceForm
-                invoice={modal.invoice}
+                invoice={visibleModal.invoice}
                 onChooseAnother={
-                  modal.canChooseAnother
+                  visibleModal.canChooseAnother
                     ? () => setModal({ mode: "payment" })
                     : undefined
                 }
@@ -183,15 +230,32 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
                 }
               />
             )
-          ) : modal.mode === "owner-payment" ? (
+          ) : visibleModal.mode === "owner-payment" ? (
             <OwnerPaymentForm
-              invoice={modal.invoice}
+              invoice={visibleModal.invoice}
+              onSuccess={onActionSuccess}
+            />
+          ) : visibleModal.mode === "expense-review" ? (
+            <ExpenseReviewForm
+              decision={visibleModal.decision}
+              onSuccess={onActionSuccess}
+              reconciliationSources={props.reconciliationSources}
+              submission={visibleModal.submission}
+            />
+          ) : visibleModal.mode === "expense-reversal" ? (
+            <ExpenseReversalForm
+              onSuccess={onActionSuccess}
+              submission={visibleModal.submission}
+            />
+          ) : visibleModal.mode === "settlement-reversal" ? (
+            <SettlementReversalForm
+              invoice={visibleModal.invoice}
               onSuccess={onActionSuccess}
             />
           ) : (
             <WithdrawalForm
               onSuccess={onActionSuccess}
-              position={modal.position}
+              position={visibleModal.position}
             />
           )}
         </Modal>
@@ -205,28 +269,42 @@ function getScreen(
   openModal: (modal: ModalState) => void,
   openDrawer: (drawer: DrawerState) => void,
 ) {
+  const canConfigureRent = props.canConfigureRent;
+  const canRecoverRent = props.canRecoverRent;
+
   if (props.view === "rent") {
     return {
       activeRoute: "/rent-income" as const,
-      actions: (
+      actions:
+        props.canManageFinance || props.canSubmitExpense || canRecoverRent ? (
         <>
-          <Button
-            onClick={() => openModal({ mode: "payment" })}
-            variant="primary"
-          >
-            <WalletCards size={15} /> Record payment
-          </Button>
-          <Button
-            onClick={() =>
-              openDrawer({ initialResponsibility: "tenant", mode: "expense" })
-            }
-          >
-            <Plus size={15} /> Add charge
-          </Button>
+          {canRecoverRent ? (
+            <Button onClick={() => openDrawer({ mode: "rent-recovery" })}>
+              Recover missed month
+            </Button>
+          ) : null}
+          {props.canManageFinance ? (
+            <Button
+              onClick={() => openModal({ mode: "payment" })}
+              variant="default"
+            >
+              <WalletCards size={15} /> Record payment
+            </Button>
+          ) : null}
+          {props.canSubmitExpense ? (
+            <Button
+              onClick={() =>
+                openDrawer({ initialResponsibility: "tenant", mode: "expense" })
+              }
+            >
+              <Plus size={15} /> Add charge
+            </Button>
+          ) : null}
         </>
-      ),
+        ) : undefined,
       body: (
         <RentView
+          canRecordPayments={props.canManageFinance}
           invoices={props.tenantInvoices}
           openModal={openModal}
           organizationName={props.organizationName}
@@ -242,16 +320,23 @@ function getScreen(
   if (props.view === "expenses") {
     return {
       activeRoute: "/bills-expenses" as const,
-      actions: (
+      actions: props.canSubmitExpense ? (
         <Button
           onClick={() => openDrawer({ mode: "expense" })}
-          variant="primary"
+          variant="default"
         >
           <Plus size={15} /> Add expense
         </Button>
+      ) : undefined,
+      body: (
+        <ExpensesView
+          canReview={props.canReviewExpense}
+          canReverse={props.canReverseExpense}
+          openModal={openModal}
+          submissions={props.expenseSubmissions}
+        />
       ),
-      body: <ExpensesView expenses={props.expenses} />,
-      context: `${props.expenses.length} expenses`,
+      context: `${props.expenseSubmissions.length} submissions`,
       contextHref: "/bills-expenses",
       title: "Expenses",
       toolbar: undefined,
@@ -264,6 +349,7 @@ function getScreen(
       actions: undefined,
       body: (
         <BalancesView
+          canManageFinance={props.canManageFinance}
           invoices={props.tenantInvoices}
           openModal={openModal}
           ownerInvoices={props.ownerInvoices}
@@ -285,10 +371,10 @@ function getScreen(
     return {
       activeRoute: "/balances" as const,
       actions:
-        position && position.availableWithdrawal > 0 ? (
+        props.canManageFinance && position && position.availableWithdrawal > 0 ? (
           <Button
             onClick={() => openModal({ mode: "withdrawal", position })}
-            variant="primary"
+            variant="default"
           >
             Record withdrawal
           </Button>
@@ -317,17 +403,21 @@ function getScreen(
 
   return {
     activeRoute: "/finance" as const,
-    actions: (
-      <Button onClick={() => openModal({ mode: "payment" })} variant="primary">
+    actions: props.canManageFinance ? (
+      <Button onClick={() => openModal({ mode: "payment" })} variant="default">
         <WalletCards size={15} /> Record payment
       </Button>
-    ),
+    ) : undefined,
     body: (
       <FinanceWorkView
+        canConfigureRent={canConfigureRent}
+        canManageFinance={props.canManageFinance}
+        canRecoverRent={canRecoverRent}
         leases={props.leases}
         openDrawer={openDrawer}
         openModal={openModal}
         ownerInvoices={props.ownerInvoices}
+        rentGenerationExceptions={props.rentGenerationExceptions}
         tenantInvoices={props.tenantInvoices}
       />
     ),
@@ -339,29 +429,37 @@ function getScreen(
 }
 
 function FinanceWorkView({
+  canConfigureRent,
+  canManageFinance,
+  canRecoverRent,
   leases,
   openDrawer,
   openModal,
   ownerInvoices,
+  rentGenerationExceptions,
   tenantInvoices,
 }: {
+  canConfigureRent: boolean;
+  canManageFinance: boolean;
+  canRecoverRent: boolean;
   leases: FinanceLease[];
   openDrawer: (drawer: DrawerState) => void;
   openModal: (modal: ModalState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
+  rentGenerationExceptions: RentGenerationException[];
   tenantInvoices: TenantInvoiceSummary[];
 }) {
-  const leasesNeedingSetup = leases.filter((lease) => !lease.billing);
-  const readyWithoutInvoice = leases.filter(
+  const leasesNeedingSetup = leases.filter(
     (lease) =>
-      lease.billing &&
-      !tenantInvoices.some((invoice) => invoice.leaseId === lease.id),
+      (lease.status === "active" || lease.status === "notice_given") &&
+      !lease.billing,
   );
+  const leaseById = new Map(leases.map((lease) => [lease.id, lease]));
   const tenantDue = tenantInvoices.filter((invoice) => invoice.balanceDue > 0);
   const ownerDue = ownerInvoices.filter((invoice) => invoice.balanceDue > 0);
   const workCount =
     leasesNeedingSetup.length +
-    readyWithoutInvoice.length +
+    rentGenerationExceptions.length +
     tenantDue.length +
     ownerDue.length;
 
@@ -371,6 +469,7 @@ function FinanceWorkView({
         variant="cards"
         items={[
           { label: "Needs setup", value: leasesNeedingSetup.length },
+          { label: "Rent exceptions", value: rentGenerationExceptions.length },
           { label: "Tenant balances", value: tenantDue.length },
           { label: "Owner balances", value: ownerDue.length },
         ]}
@@ -414,38 +513,27 @@ function FinanceWorkView({
                     <Td>—</Td>
                     <Td>Before invoicing</Td>
                     <Td align="right">
-                      <Button
-                        onClick={() => openDrawer({ lease, mode: "billing" })}
-                      >
-                        Set up
-                      </Button>
+                      {canConfigureRent ? (
+                        <Button
+                          onClick={() => openDrawer({ lease, mode: "billing" })}
+                        >
+                          Set up
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Super Admin setup
+                        </span>
+                      )}
                     </Td>
                   </tr>
                 ))}
-                {readyWithoutInvoice.map((lease) => (
-                  <tr
-                    className="border-b border-border"
-                    key={`invoice-${lease.id}`}
-                  >
-                    <Td>
-                      <p className="font-medium">Create rent invoice</p>
-                      <p className="text-xs text-muted-foreground">
-                        {lease.tenantLabel} · {lease.unitLabel}
-                      </p>
-                    </Td>
-                    <Td>{lease.propertyLabel}</Td>
-                    <Td>
-                      <Money amount={lease.monthlyRent} />
-                    </Td>
-                    <Td>This month</Td>
-                    <Td align="right">
-                      <Button
-                        onClick={() => openModal({ lease, mode: "generate" })}
-                      >
-                        Create
-                      </Button>
-                    </Td>
-                  </tr>
+                {rentGenerationExceptions.map((exception) => (
+                  <RentGenerationExceptionRow
+                    canRecover={canRecoverRent}
+                    exception={exception}
+                    key={`rent-exception-${exception.id}`}
+                    lease={leaseById.get(exception.leaseId) ?? null}
+                  />
                 ))}
                 {tenantDue.map((invoice) => (
                   <tr
@@ -468,13 +556,19 @@ function FinanceWorkView({
                     </Td>
                     <Td>{formatDate(invoice.dueDate)}</Td>
                     <Td align="right">
-                      <Button
-                        onClick={() => openModal({ invoice, mode: "payment" })}
-                      >
-                        {invoice.collectionRoute === "through_ips"
-                          ? "Record"
-                          : "Confirm"}
-                      </Button>
+                      {canManageFinance ? (
+                        <Button
+                          onClick={() => openModal({ invoice, mode: "payment" })}
+                        >
+                          {invoice.collectionRoute === "through_ips"
+                            ? "Record"
+                            : "Confirm"}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Read only
+                        </span>
+                      )}
                     </Td>
                   </tr>
                 ))}
@@ -495,13 +589,19 @@ function FinanceWorkView({
                     </Td>
                     <Td>{formatDate(invoice.dueDate)}</Td>
                     <Td align="right">
-                      <Button
-                        onClick={() =>
-                          openModal({ invoice, mode: "owner-payment" })
-                        }
-                      >
-                        Record
-                      </Button>
+                      {canManageFinance ? (
+                        <Button
+                          onClick={() =>
+                            openModal({ invoice, mode: "owner-payment" })
+                          }
+                        >
+                          Record
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Read only
+                        </span>
+                      )}
                     </Td>
                   </tr>
                 ))}
@@ -514,11 +614,157 @@ function FinanceWorkView({
   );
 }
 
+function RentGenerationExceptionRow({
+  canRecover,
+  exception,
+  lease,
+}: {
+  canRecover: boolean;
+  exception: RentGenerationException;
+  lease: FinanceLease | null;
+}) {
+  const monthLabel = formatLeaseMonth(exception.billingPeriodStart);
+
+  return (
+    <tr className="border-b border-border">
+      <Td>
+        <p className="font-medium">Rent generation needs attention</p>
+        <p className="text-xs text-muted-foreground">{exception.message}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {exception.attemptCount}{" "}
+          {exception.attemptCount === 1 ? "attempt" : "attempts"}
+        </p>
+      </Td>
+      <Td>{lease?.propertyLabel ?? "Property unavailable"}</Td>
+      <Td>{lease ? <Money amount={lease.monthlyRent} /> : "—"}</Td>
+      <Td>{monthLabel}</Td>
+      <Td align="right">
+        {canRecover ? (
+          <RentGenerationRetry
+            exceptionId={exception.id}
+            monthLabel={monthLabel}
+          />
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            Super Admin retry
+          </span>
+        )}
+      </Td>
+    </tr>
+  );
+}
+
+function RentGenerationRetry({
+  exceptionId,
+  monthLabel,
+}: {
+  exceptionId: string;
+  monthLabel: string;
+}) {
+  const [state, action, pending] = useActionState(
+    recoverRentGenerationExceptionAction,
+    actionInitialState,
+  );
+
+  return (
+    <form action={action} className="space-y-1">
+      <input name="exceptionId" type="hidden" value={exceptionId} />
+      <Button
+        aria-label={`Retry rent for ${monthLabel}`}
+        disabled={pending}
+        type="submit"
+      >
+        {pending ? "Retrying..." : "Retry"}
+      </Button>
+      {state.message ? (
+        <p
+          className={cn(
+            "max-w-48 text-xs",
+            state.status === "error" ? "text-destructive" : "text-success",
+          )}
+          role="status"
+        >
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function HistoricalRentRecoveryForm({
+  leases,
+  onSuccess,
+}: {
+  leases: FinanceLease[];
+  onSuccess: (message: string) => void;
+}) {
+  const eligibleLeases = leases.filter(
+    (lease) =>
+      lease.status === "active" ||
+      lease.status === "notice_given" ||
+      lease.status === "ended" ||
+      lease.status === "terminated",
+  );
+  const [state, action] = useActionState(
+    recoverLeaseRentPeriodAction,
+    actionInitialState,
+  );
+  useSuccess(state, onSuccess);
+
+  if (eligibleLeases.length === 0) {
+    return (
+      <EmptyState
+        body="A current or ended lease with confirmed historical rent setup is required."
+        className="h-full"
+        kind="empty"
+        title="No eligible leases"
+      />
+    );
+  }
+
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <p className="text-sm text-muted-foreground">
+        Generate one missed completed month, including a month before a lease
+        ended. This never fills earlier or later months automatically.
+      </p>
+      <Field label="Lease">
+        <SelectControl
+          defaultValue={eligibleLeases[0]?.id}
+          name="leaseId"
+          options={eligibleLeases.map((lease) => ({
+            label: `${lease.tenantLabel} · ${lease.unitLabel}`,
+            value: lease.id,
+          }))}
+          required
+        />
+      </Field>
+      <Field label="Missed rent month">
+        <MonthPickerField
+          ariaLabel="Missed rent month"
+          defaultValue={getPreviousBusinessMonthValue()}
+          name="billingPeriod"
+          required
+        />
+      </Field>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span className="text-xs text-muted-foreground">
+          Existing lease-month invoices are replayed safely.
+        </span>
+        <SubmitButton label="Generate selected month" />
+      </FormFooter>
+    </form>
+  );
+}
+
 function RentView({
+  canRecordPayments,
   invoices,
   openModal,
   organizationName,
 }: {
+  canRecordPayments: boolean;
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
   organizationName: string;
@@ -544,7 +790,7 @@ function RentView({
       >
         {invoices.length === 0 ? (
           <EmptyState
-            body="Set up an active lease, then create its first rent invoice."
+            body="Rent invoices are generated automatically when the lease, billing, and rent policy setup is ready."
             className="flex-1"
             kind="empty"
             title="No rent invoices"
@@ -572,6 +818,17 @@ function RentView({
                       <p className="text-xs text-muted-foreground">
                         Due {formatDate(invoice.dueDate)}
                       </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatLeaseMonth(invoice.billingPeriodStart)} lease month
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <Badge tone="neutral">
+                          {getRentGenerationLabel(invoice.generationSource)}
+                        </Badge>
+                        {invoice.isProrated ? (
+                          <Badge tone="accent">Prorated</Badge>
+                        ) : null}
+                      </div>
                     </Td>
                     <Td>
                       <p>{invoice.recipientLabel}</p>
@@ -602,19 +859,50 @@ function RentView({
                       <StatusBadge status={invoice.paymentStatus} />
                     </Td>
                     <Td align="right">
-                      {invoice.balanceDue > 0 ? (
-                        <Button
-                          onClick={() =>
-                            openModal({ invoice, mode: "payment" })
-                          }
-                        >
-                          {invoice.collectionRoute === "through_ips"
-                            ? "Record payment"
-                            : "Confirm collected"}
-                        </Button>
-                      ) : (
+                      {canRecordPayments ? (
+                        <div className="flex justify-end gap-2">
+                          {invoice.balanceDue > 0 ? (
+                            <Button
+                              onClick={() =>
+                                openModal({ invoice, mode: "payment" })
+                              }
+                            >
+                              {invoice.collectionRoute === "through_ips"
+                                ? "Record payment"
+                                : "Confirm collected"}
+                            </Button>
+                          ) : null}
+                          {invoice.settlements.some(
+                            (settlement) => !settlement.isReversed,
+                          ) ? (
+                            <Button
+                              onClick={() =>
+                                openModal({
+                                  invoice,
+                                  mode: "settlement-reversal",
+                                })
+                              }
+                              variant="outline"
+                            >
+                              Correct
+                            </Button>
+                          ) : null}
+                          {invoice.balanceDue <= 0 &&
+                          !invoice.settlements.some(
+                            (settlement) => !settlement.isReversed,
+                          ) ? (
+                            <span className="self-center text-xs text-muted-foreground">
+                              Done
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : invoice.balanceDue <= 0 ? (
                         <span className="text-xs text-muted-foreground">
                           Done
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Read only
                         </span>
                       )}
                     </Td>
@@ -630,20 +918,97 @@ function RentView({
 }
 
 function ExpensesView({
-  expenses,
+  canReview,
+  canReverse,
+  openModal,
+  submissions,
 }: {
-  expenses: FinanceOperationsData["expenses"];
+  canReview: boolean;
+  canReverse: boolean;
+  openModal: (modal: ModalState) => void;
+  submissions: FinanceOperationsData["expenseSubmissions"];
 }) {
-  return expenses.length === 0 ? (
-    <EmptyState
-      body="Record a property cost and choose whether the owner or tenant is responsible."
-      className="h-full"
-      kind="empty"
-      title="No expenses"
-    />
-  ) : (
+  const [status, setStatus] = useState<ExpenseSubmissionSummary["status"]>(
+    "submitted",
+  );
+
+  if (submissions.length === 0) {
+    return (
+      <EmptyState
+        body="Submit a paid property cost for Finance review. Nothing affects balances until approval."
+        className="h-full"
+        kind="empty"
+        title="No expenses"
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-5 p-4 sm:p-6">
+      <Tabs
+        onValueChange={(value) =>
+          setStatus(value as ExpenseSubmissionSummary["status"])
+        }
+        value={status}
+      >
+        <TabsList aria-label="Expense status">
+          {(
+            ["submitted", "approved", "rejected", "reversed"] as const
+          ).map((value) => (
+            <TabsTrigger key={value} value={value}>
+              {expenseStatusLabel(value)} (
+              {submissions.filter((item) => item.status === value).length})
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {(["submitted", "approved", "rejected", "reversed"] as const).map(
+          (value) => (
+            <TabsContent key={value} value={value}>
+              <ExpenseSubmissionTable
+                canReview={canReview}
+                canReverse={canReverse}
+                openModal={openModal}
+                status={value}
+                submissions={submissions.filter(
+                  (submission) => submission.status === value,
+                )}
+              />
+            </TabsContent>
+          ),
+        )}
+      </Tabs>
+
+    </div>
+  );
+}
+
+function ExpenseSubmissionTable({
+  canReview,
+  canReverse,
+  openModal,
+  status,
+  submissions,
+}: {
+  canReview: boolean;
+  canReverse: boolean;
+  openModal: (modal: ModalState) => void;
+  status: ExpenseSubmissionSummary["status"];
+  submissions: ExpenseSubmissionSummary[];
+}) {
+  if (submissions.length === 0) {
+    return (
+      <EmptyState
+        body="There are no expenses in this status."
+        className="min-h-56"
+        kind="empty"
+        title={`No ${expenseStatusLabel(status).toLowerCase()} expenses`}
+      />
+    );
+  }
+
+  return (
     <TableFrame>
-      <Table className="min-w-[980px]">
+      <Table className="min-w-[1080px]">
         <thead>
           <tr>
             <Th>Date</Th>
@@ -653,53 +1018,144 @@ function ExpensesView({
             <Th>Paid</Th>
             <Th>Billed</Th>
             <Th>Status</Th>
+            <Th>Action</Th>
           </tr>
         </thead>
         <tbody>
-          {expenses.map((expense) => (
-            <tr className="border-b border-border" key={expense.id}>
-              <Td>{formatDate(expense.date)}</Td>
+          {submissions.map((submission) => (
+            <tr className="border-b border-border" key={submission.id}>
+              <Td>{formatDate(submission.date)}</Td>
               <Td>
-                <p className="font-medium">{expense.customerLabel}</p>
-                <p className="text-xs text-muted-foreground">
-                  {expense.vendorLabel}
+                <p className="font-medium">
+                  {categoryLabel(submission.category)}
                 </p>
+                {submission.sourceType === "maintenance_task" ? (
+                  <Badge className="mt-1" tone="neutral">
+                    {submission.adjustsSubmissionId
+                      ? "Maintenance adjustment"
+                      : "Maintenance cost"}
+                  </Badge>
+                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  {submission.vendorLabel}
+                </p>
+                {submission.reference ? (
+                  <p className="text-xs text-muted-foreground">
+                    Ref: {submission.reference}
+                  </p>
+                ) : null}
+                {submission.evidence ? (
+                  submission.evidence.href ? (
+                    <a
+                      className="text-xs text-primary underline-offset-2 hover:underline"
+                      href={submission.evidence.href}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {submission.evidence.fileName}
+                    </a>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {submission.evidence.fileName} (file unavailable)
+                    </p>
+                  )
+                ) : null}
               </Td>
               <Td>
-                <p>{expense.propertyLabel}</p>
+                <p>{submission.propertyLabel}</p>
                 <p className="text-xs text-muted-foreground">
-                  {expense.unitLabel}
+                  {submission.unitLabel}
                 </p>
               </Td>
               <Td>
                 <Badge
                   tone={
-                    expense.responsibility === "owner" ? "accent" : "neutral"
+                    submission.responsibility === "owner"
+                      ? "accent"
+                      : "neutral"
                   }
                 >
-                  {expense.responsibility === "owner"
+                  {submission.responsibility === "owner"
                     ? "Property owner"
                     : "Tenant or company"}
                 </Badge>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {expense.responsibleLabel}
+                  {submission.fundingSourceLabel}
                 </p>
               </Td>
               <Td>
-                <Money amount={expense.internalCost} />
+                <Money amount={submission.internalCost} />
+                {submission.adjustsSubmissionId &&
+                submission.recordedTotal !== null &&
+                submission.recordedTotal !== undefined ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Recorded total {formatMoneyDisplay(submission.recordedTotal).primary}
+                  </p>
+                ) : null}
               </Td>
               <Td>
-                <Money amount={expense.customerTotal} />
+                <Money amount={submission.customerTotal} />
               </Td>
               <Td>
-                {expense.responsibility === "tenant" ? (
-                  "Added to invoice"
-                ) : expense.ipsAdvanceAmount > 0 ? (
-                  <span className="text-warning">
-                    Owner owes <Money amount={expense.ipsAdvanceAmount} />
-                  </span>
+                <Badge tone={expenseStatusTone(submission.status)}>
+                  {expenseStatusLabel(submission.status)}
+                </Badge>
+                {submission.reviewReason || submission.reversalReason ? (
+                  <p className="mt-1 max-w-52 text-xs text-muted-foreground">
+                    {submission.reversalReason ?? submission.reviewReason}
+                  </p>
+                ) : null}
+              </Td>
+              <Td>
+                {submission.status === "submitted" && canReview ? (
+                  <div className="flex gap-2">
+                    <Button
+                      aria-label={`Approve ${submission.vendorLabel}`}
+                      onClick={() =>
+                        openModal({
+                          decision: "approve",
+                          mode: "expense-review",
+                          submission,
+                        })
+                      }
+                      size="sm"
+                      variant="default"
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      aria-label={`Reject ${submission.vendorLabel}`}
+                      onClick={() =>
+                        openModal({
+                          decision: "reject",
+                          mode: "expense-review",
+                          submission,
+                        })
+                      }
+                      size="sm"
+                      variant="outline"
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                ) : submission.status === "approved" && canReverse ? (
+                  <Button
+                    aria-label={`Reverse ${submission.vendorLabel}`}
+                    onClick={() =>
+                      openModal({
+                        mode: "expense-reversal",
+                        submission,
+                      })
+                    }
+                    size="sm"
+                    variant="outline"
+                  >
+                    Reverse
+                  </Button>
                 ) : (
-                  "Deducted from owner funds"
+                  <span className="text-xs text-muted-foreground">
+                    Read only
+                  </span>
                 )}
               </Td>
             </tr>
@@ -711,11 +1167,13 @@ function ExpensesView({
 }
 
 function BalancesView({
+  canManageFinance,
   invoices,
   openModal,
   ownerInvoices,
   positions,
 }: {
+  canManageFinance: boolean;
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
@@ -808,7 +1266,7 @@ function BalancesView({
                     </Td>
                     <Td align="right">
                       <div className="flex justify-end gap-1">
-                        {ownerInvoice ? (
+                        {canManageFinance && ownerInvoice ? (
                           <Button
                             onClick={() =>
                               openModal({
@@ -820,7 +1278,7 @@ function BalancesView({
                             Owner payment
                           </Button>
                         ) : null}
-                        {position.availableWithdrawal > 0 ? (
+                        {canManageFinance && position.availableWithdrawal > 0 ? (
                           <Button
                             onClick={() =>
                               openModal({ mode: "withdrawal", position })
@@ -895,7 +1353,7 @@ function PropertyAccountView({
       />
     );
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
+    <div className="flex h-full min-h-0 flex-col bg-card">
       <CompactTotals
         items={[
           {
@@ -1205,60 +1663,13 @@ function BillingSetupForm({
           <Button
             disabled={step === 2 && !recipientId}
             onClick={() => setStep((current) => current + 1)}
-            variant="primary"
+            variant="default"
           >
             Continue <ChevronRight size={14} />
           </Button>
         ) : (
           <SubmitButton label="Activate billing" />
         )}
-      </FormFooter>
-    </form>
-  );
-}
-
-function GenerateInvoiceForm({
-  lease,
-  onSuccess,
-}: {
-  lease: FinanceLease;
-  onSuccess: (message: string) => void;
-}) {
-  const idempotencyKey = useStableActionId("invoice");
-  const [state, action] = useActionState(
-    generateTenantInvoiceAction,
-    actionInitialState,
-  );
-  const today = getBusinessDateValue();
-  useSuccess(state, onSuccess);
-  return (
-    <form action={action} className="space-y-4 p-4">
-      <DefinitionRows
-        rows={[
-          ["Lease", `${lease.tenantLabel} · ${lease.unitLabel}`],
-          ["Property", lease.propertyLabel],
-          ["Rent", formatMoneyDisplay(lease.monthlyRent).primary],
-        ]}
-      />
-      <input name="leaseId" type="hidden" value={lease.id} />
-      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Billing month">
-          <Input
-            defaultValue={`${today.slice(0, 7)}-01`}
-            name="billingPeriodStart"
-            required
-            type="date"
-          />
-        </Field>
-        <Field label="Issue date">
-          <DatePickerField defaultValue={today} name="issueDate" required />
-        </Field>
-      </div>
-      <ActionMessage state={state} />
-      <FormFooter>
-        <span />
-        <SubmitButton label="Create invoice" />
       </FormFooter>
     </form>
   );
@@ -1429,6 +1840,7 @@ function ExpenseForm({
   invoices,
   onSuccess,
   propertyOptions,
+  reconciliationSources,
   unitOptions,
 }: {
   initialInvoiceId?: string;
@@ -1436,6 +1848,7 @@ function ExpenseForm({
   invoices: TenantInvoiceSummary[];
   onSuccess: (message: string) => void;
   propertyOptions: FinanceOperationsData["propertyOptions"];
+  reconciliationSources: FinanceOperationsData["reconciliationSources"];
   unitOptions: FinanceOperationsData["unitOptions"];
 }) {
   const idempotencyKey = useStableActionId("expense");
@@ -1443,7 +1856,7 @@ function ExpenseForm({
     (invoice) => invoice.id === initialInvoiceId,
   );
   const [state, action] = useActionState(
-    recordIpsExpenseAction,
+    submitExpenseAction,
     actionInitialState,
   );
   const [propertyId, setPropertyId] = useState(
@@ -1456,6 +1869,13 @@ function ExpenseForm({
   const [markup, setMarkup] = useState("0");
   const [expenseDate, setExpenseDate] = useState(getBusinessDateValue());
   const [reference, setReference] = useState("");
+  const [reconciliationSourceId, setReconciliationSourceId] = useState(
+    reconciliationSources.find(
+      (source) =>
+        source.propertyId == null ||
+        source.propertyId === initialInvoice?.propertyId,
+    )?.id ?? "",
+  );
   const [responsibility, setResponsibility] = useState<"owner" | "tenant">(
     initialResponsibility ?? "owner",
   );
@@ -1465,7 +1885,14 @@ function ExpenseForm({
   const effectiveResponsibility =
     responsibility === "tenant" ? "tenant" : "owner";
   const matchingInvoices = invoices.filter(
-    (invoice) => invoice.propertyId === propertyId && invoice.balanceDue > 0,
+    (invoice) =>
+      invoice.propertyId === propertyId &&
+      invoice.balanceDue > 0 &&
+      (!unitId || invoice.unitId === unitId),
+  );
+  const matchingSources = reconciliationSources.filter(
+    (source) =>
+      source.propertyId == null || source.propertyId === propertyId,
   );
   const effectiveMarkup = effectiveResponsibility === "tenant" ? markup : "0";
   const invoiceTotal = Number(cost || 0) + Number(effectiveMarkup || 0);
@@ -1480,6 +1907,11 @@ function ExpenseForm({
       <input name="internalMarkup" type="hidden" value={effectiveMarkup} />
       <input name="expenseDate" type="hidden" value={expenseDate} />
       <input name="reference" type="hidden" value={reference} />
+      <input
+        name="reconciliationSourceId"
+        type="hidden"
+        value={reconciliationSourceId}
+      />
       <input
         name="responsibility"
         type="hidden"
@@ -1498,6 +1930,12 @@ function ExpenseForm({
               setPropertyId(value);
               setUnitId("");
               setTenantInvoiceId("");
+              setReconciliationSourceId(
+                reconciliationSources.find(
+                  (source) =>
+                    source.propertyId == null || source.propertyId === value,
+                )?.id ?? "",
+              );
             }}
             options={propertyOptions.map((option) => ({
               label: option.label,
@@ -1508,7 +1946,15 @@ function ExpenseForm({
         </Field>
         <Field label="Unit">
           <SelectControl
-            onValueChange={setUnitId}
+            onValueChange={(value) => {
+              setUnitId(value);
+              const selectedInvoice = invoices.find(
+                (invoice) => invoice.id === tenantInvoiceId,
+              );
+              if (selectedInvoice?.unitId !== (value || null)) {
+                setTenantInvoiceId("");
+              }
+            }}
             options={[
               { label: "No unit", value: "" },
               ...unitOptions
@@ -1555,6 +2001,21 @@ function ExpenseForm({
             value={expenseDate}
           />
         </Field>
+        <Field label="Paid from">
+          <SelectControl
+            onValueChange={setReconciliationSourceId}
+            options={matchingSources.map((source) => ({
+              label: source.label,
+              value: source.id,
+            }))}
+            placeholder={
+              matchingSources.length > 0
+                ? "Choose funding source"
+                : "No funding source"
+            }
+            value={reconciliationSourceId}
+          />
+        </Field>
       </div>
 
       <fieldset className="space-y-2 border-t border-border pt-4">
@@ -1595,7 +2056,11 @@ function ExpenseForm({
         <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
           <Field label="Invoice">
             <SelectControl
-              onValueChange={setTenantInvoiceId}
+              onValueChange={(value) => {
+                setTenantInvoiceId(value);
+                const invoice = invoices.find((item) => item.id === value);
+                setUnitId(invoice?.unitId ?? "");
+              }}
               options={matchingInvoices.map((invoice) => ({
                 label: `${invoice.recipientLabel} · ${invoice.invoiceNumber}`,
                 value: invoice.id,
@@ -1625,32 +2090,324 @@ function ExpenseForm({
         </div>
       ) : null}
 
-      <Field label="Receipt or reference">
+      <Field label="Receipt or payment reference">
         <Input
           onChange={(event) => setReference(event.target.value)}
-          placeholder="Optional"
+          placeholder="Receipt number, bank transfer, or payment note"
+          required
           value={reference}
         />
       </Field>
+      <p className="text-xs text-muted-foreground">
+        This stays awaiting approval and does not affect balances until a
+        Finance Manager approves it.
+      </p>
       <ActionMessage state={state} />
       <FormFooter>
         <span />
         <SubmitButton
           disabled={
             !propertyId ||
+            !reconciliationSourceId ||
             !vendor ||
+            !reference.trim() ||
             Number(cost) <= 0 ||
             (effectiveResponsibility === "tenant" && !tenantInvoiceId)
           }
-          label={
-            effectiveResponsibility === "tenant"
-              ? "Add to invoice"
-              : "Save owner expense"
-          }
+          label="Submit for review"
         />
       </FormFooter>
     </form>
   );
+}
+
+function ExpenseReviewForm({
+  decision,
+  onSuccess,
+  reconciliationSources,
+  submission,
+}: {
+  decision: "approve" | "reject";
+  onSuccess: (message: string) => void;
+  reconciliationSources: FinanceOperationsData["reconciliationSources"];
+  submission: ExpenseSubmissionSummary;
+}) {
+  const idempotencyKey = useStableActionId(`expense-${decision}`);
+  const [state, action] = useActionState(
+    reviewExpenseAction,
+    actionInitialState,
+  );
+  const [reason, setReason] = useState("");
+  const [reconciliationSourceId, setReconciliationSourceId] = useState("");
+  const needsFundingSource =
+    decision === "approve" && submission.sourceType === "maintenance_task";
+  const matchingSources = reconciliationSources.filter(
+    (source) =>
+      source.propertyId === null ||
+      source.propertyId === undefined ||
+      source.propertyId === submission.propertyId,
+  );
+  useSuccess(state, onSuccess);
+
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <input name="decision" type="hidden" value={decision} />
+      <input name="submissionId" type="hidden" value={submission.id} />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <input name="reason" type="hidden" value={reason} />
+      <DefinitionRows
+        rows={[
+          ["Vendor", submission.vendorLabel],
+          ["Property", submission.propertyLabel],
+          [
+            submission.adjustsSubmissionId ? "Additional paid" : "Paid",
+            formatMoneyDisplay(submission.internalCost).primary,
+          ],
+          ...(submission.adjustsSubmissionId
+            ? ([
+                [
+                  "Previously approved",
+                  formatMoneyDisplay(submission.previouslyApproved ?? 0).primary,
+                ],
+                [
+                  "Recorded total",
+                  formatMoneyDisplay(
+                    submission.recordedTotal ?? submission.internalCost,
+                  ).primary,
+                ],
+              ] satisfies [string, ReactNode][])
+            : []),
+          ["Charged", formatMoneyDisplay(submission.customerTotal).primary],
+          ["Reference", submission.reference ?? "None provided"],
+          [
+            "Evidence",
+            submission.evidence ? (
+              submission.evidence.href ? (
+                <a
+                  className="text-primary underline-offset-2 hover:underline"
+                  href={submission.evidence.href}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {submission.evidence.fileName}
+                </a>
+              ) : (
+                `${submission.evidence.fileName} (file unavailable)`
+              )
+            ) : (
+              "No document attached"
+            ),
+          ],
+          ["Paid from", submission.fundingSourceLabel],
+        ]}
+      />
+      {needsFundingSource ? (
+        <Field label="Paid from">
+          <SelectControl
+            ariaLabel="Paid from"
+            name="reconciliationSourceId"
+            onValueChange={setReconciliationSourceId}
+            options={matchingSources.map((source) => ({
+              label: source.label,
+              value: source.id,
+            }))}
+            placeholder="Choose the account used"
+            required
+            value={reconciliationSourceId}
+          />
+        </Field>
+      ) : (
+        <input name="reconciliationSourceId" type="hidden" value="" />
+      )}
+      <Field
+        label={decision === "reject" ? "Rejection reason" : "Review note"}
+      >
+        <Input
+          onChange={(event) => setReason(event.target.value)}
+          placeholder={decision === "reject" ? "Required" : "Optional"}
+          required={decision === "reject"}
+          value={reason}
+        />
+      </Field>
+      {decision === "approve" ? (
+        <p className="text-xs text-muted-foreground">
+          Approval records the paid cost, customer responsibility, and property
+          balance effect together.
+        </p>
+      ) : null}
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton
+          disabled={
+            (decision === "reject" && reason.trim().length < 3) ||
+            (needsFundingSource && !reconciliationSourceId)
+          }
+          label={decision === "approve" ? "Approve expense" : "Reject expense"}
+        />
+      </FormFooter>
+    </form>
+  );
+}
+
+function ExpenseReversalForm({
+  onSuccess,
+  submission,
+}: {
+  onSuccess: (message: string) => void;
+  submission: ExpenseSubmissionSummary;
+}) {
+  const idempotencyKey = useStableActionId("expense-reversal");
+  const [state, action] = useActionState(
+    reverseExpenseAction,
+    actionInitialState,
+  );
+  const [reason, setReason] = useState("");
+  useSuccess(state, onSuccess);
+
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <input name="submissionId" type="hidden" value={submission.id} />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <input name="reason" type="hidden" value={reason} />
+      <DefinitionRows
+        rows={[
+          ["Vendor", submission.vendorLabel],
+          ["Property", submission.propertyLabel],
+          ["Paid", formatMoneyDisplay(submission.internalCost).primary],
+          ["Charged", formatMoneyDisplay(submission.customerTotal).primary],
+        ]}
+      />
+      <Field label="Reversal date">
+        <DatePickerField
+          defaultValue={getBusinessDateValue()}
+          name="reversalDate"
+          required
+        />
+      </Field>
+      <Field label="Reason">
+        <Input
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Required"
+          required
+          value={reason}
+        />
+      </Field>
+      <p className="text-xs text-muted-foreground">
+        Reversal keeps the original record and adds an opposite cash, balance,
+        and customer correction.
+      </p>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton
+          disabled={reason.trim().length < 3}
+          label="Reverse expense"
+        />
+      </FormFooter>
+    </form>
+  );
+}
+
+function SettlementReversalForm({
+  invoice,
+  onSuccess,
+}: {
+  invoice: TenantInvoiceSummary;
+  onSuccess: (message: string) => void;
+}) {
+  const settlements = invoice.settlements.filter(
+    (settlement) => !settlement.isReversed,
+  );
+  const [settlementId, setSettlementId] = useState(settlements[0]?.id ?? "");
+  const [reason, setReason] = useState("");
+  const idempotencyKey = useStableActionId("settlement-reversal");
+  const action =
+    invoice.collectionRoute === "through_ips"
+      ? reverseTenantInvoicePaymentAction
+      : reverseOwnerCollectionConfirmationAction;
+  const [state, formAction] = useActionState(action, actionInitialState);
+  useSuccess(state, onSuccess);
+
+  if (settlements.length === 0) {
+    return (
+      <EmptyState
+        body="Every recorded settlement for this invoice is already reversed."
+        kind="empty"
+        title="No settlement to correct"
+      />
+    );
+  }
+
+  return (
+    <form action={formAction} className="space-y-4 p-4">
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <input name="reason" type="hidden" value={reason} />
+      <DefinitionRows
+        rows={[
+          ["Invoice", invoice.invoiceNumber],
+          ["Customer", invoice.recipientLabel],
+          [
+            "Collection route",
+            invoice.collectionRoute === "through_ips"
+              ? "Collected by IPS"
+              : "Collected by owner",
+          ],
+        ]}
+      />
+      <Field label="Settlement">
+        <SelectControl
+          ariaLabel="Settlement"
+          name="settlementId"
+          onValueChange={setSettlementId}
+          options={settlements.map((settlement) => ({
+            label: settlementOptionLabel(settlement),
+            value: settlement.id,
+          }))}
+          required
+          value={settlementId}
+        />
+      </Field>
+      <Field label="Reversal date">
+        <DatePickerField
+          defaultValue={getBusinessDateValue()}
+          name="reversalDate"
+          required
+        />
+      </Field>
+      <Field label="Reason">
+        <Input
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Explain the correction"
+          required
+          value={reason}
+        />
+      </Field>
+      <p className="text-xs text-muted-foreground">
+        The original stays in history. Nestory adds an equal opposite invoice,
+        property-account, and Ledger event.
+      </p>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton
+          disabled={!settlementId || reason.trim().length < 3}
+          label="Reverse settlement"
+        />
+      </FormFooter>
+    </form>
+  );
+}
+
+function settlementOptionLabel(settlement: TenantInvoiceSettlement) {
+  const reference = settlement.reference?.trim();
+  return [
+    formatDate(settlement.date),
+    formatMoneyDisplay(settlement.amount).primary,
+    reference || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function OwnerPaymentForm({
@@ -1761,16 +2518,46 @@ function WithdrawalForm({
 }
 
 function getModalTitle(modal: ModalState) {
-  if (modal.mode === "generate") return "Create rent invoice";
   if (modal.mode === "payment")
     return !modal.invoice || modal.invoice.collectionRoute === "through_ips"
       ? "Record payment"
       : "Confirm owner collection";
   if (modal.mode === "owner-payment") return "Owner payment";
+  if (modal.mode === "expense-review") {
+    return modal.decision === "approve" ? "Approve expense" : "Reject expense";
+  }
+  if (modal.mode === "expense-reversal") return "Reverse expense";
+  if (modal.mode === "settlement-reversal") return "Correct settlement";
   return "Owner withdrawal";
 }
+
+function canRenderFinanceModal(
+  modal: ModalState,
+  capabilities: Pick<
+    FinanceOperationsScreenProps,
+    "canManageFinance" | "canReviewExpense" | "canReverseExpense"
+  >,
+) {
+  if (
+    modal.mode === "payment" ||
+    modal.mode === "settlement-reversal" ||
+    modal.mode === "owner-payment" ||
+    modal.mode === "withdrawal"
+  ) {
+    return capabilities.canManageFinance;
+  }
+
+  if (modal.mode === "expense-review") {
+    return capabilities.canReviewExpense;
+  }
+
+  return capabilities.canReverseExpense;
+}
+
 function getDrawerTitle(drawer: DrawerState) {
-  return drawer.mode === "billing" ? "Set up lease billing" : "Add expense";
+  if (drawer.mode === "billing") return "Set up lease billing";
+  if (drawer.mode === "rent-recovery") return "Recover missed rent";
+  return "Add expense";
 }
 function useSuccess(
   state: FinanceOperationsActionState,
@@ -1791,6 +2578,43 @@ function categoryLabel(category: string) {
   return category === "repairs_maintenance"
     ? "Repairs and Maintenance"
     : category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+function expenseStatusLabel(status: ExpenseSubmissionSummary["status"]) {
+  if (status === "submitted") return "Awaiting approval";
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function expenseStatusTone(
+  status: ExpenseSubmissionSummary["status"],
+): "danger" | "neutral" | "success" | "warning" {
+  if (status === "approved") return "success";
+  if (status === "rejected") return "danger";
+  if (status === "reversed") return "neutral";
+  return "warning";
+}
+
+function formatLeaseMonth(value: string) {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? value : leaseMonthFormatter.format(date);
+}
+
+function getPreviousBusinessMonthValue() {
+  const [year, month] = getBusinessDateValue()
+    .slice(0, 7)
+    .split("-")
+    .map(Number);
+  return new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
+}
+
+function getRentGenerationLabel(
+  source: TenantInvoiceSummary["generationSource"],
+) {
+  if (source === "manual_recovery") return "Recovered by Super Admin";
+  if (source === "scheduled" || source === "activation_catch_up") {
+    return "Generated automatically";
+  }
+  return "Existing invoice";
 }
 
 function CompactTotals({
@@ -1821,7 +2645,7 @@ function CompactTotals({
 
   return (
     <div
-      className="grid shrink-0 divide-x divide-border border-b border-border bg-surface-muted/35"
+      className="grid shrink-0 divide-x divide-border border-b border-border bg-muted/35"
       style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
       {items.map((item) => (
@@ -1855,7 +2679,7 @@ function Th({
   return (
     <TableHead
       className={cn(
-        "border-b border-border bg-surface-muted/65 px-3 py-2 text-xs font-semibold text-muted-foreground",
+        "border-b border-border bg-muted/65 px-3 py-2 text-xs font-semibold text-muted-foreground",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -1955,7 +2779,7 @@ function SubmitButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button disabled={disabled || pending} type="submit" variant="primary">
+    <Button disabled={disabled || pending} type="submit" variant="default">
       {pending ? "Saving…" : label}
     </Button>
   );

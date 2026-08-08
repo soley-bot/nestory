@@ -7,23 +7,38 @@ type PublicSchemaGenerated = DatabaseGenerated["public"];
 type GeneratedFunctions = PublicSchemaGenerated["Functions"];
 type CurrencyCode = PublicSchemaGenerated["Enums"]["currency_code"];
 type TimelineEventType = PublicSchemaGenerated["Enums"]["timeline_event_type"];
-type LeaseEffectiveRentRow = Pick<
-  PublicSchemaGenerated["Tables"]["leases"]["Row"],
-  | "archived_at"
-  | "deposit_amount"
-  | "deposit_currency"
+type GeneratedCurrentLease =
+  PublicSchemaGenerated["Views"]["current_leases"];
+type CurrentLeaseRow = Omit<
+  GeneratedCurrentLease["Row"],
+  | "created_at"
   | "id"
   | "lease_end_date"
   | "lease_start_date"
+  | "lease_term_id"
   | "monthly_rent_amount"
   | "monthly_rent_currency"
+  | "organization_id"
   | "primary_tenant_person_id"
   | "property_id"
   | "status"
   | "tenant_name"
-  | "unit_id"
->;
-
+  | "updated_at"
+> & {
+  created_at: string;
+  id: string;
+  lease_end_date: string;
+  lease_start_date: string;
+  lease_term_id: string;
+  monthly_rent_amount: number;
+  monthly_rent_currency: CurrencyCode;
+  organization_id: string;
+  primary_tenant_person_id: string;
+  property_id: string;
+  status: string;
+  tenant_name: string;
+  updated_at: string;
+};
 type WithArgs<Name extends keyof GeneratedFunctions, Args> = Omit<
   GeneratedFunctions[Name],
   "Args"
@@ -51,9 +66,10 @@ type RpcFunctionOverrides = {
       p_supersedes_billing_term_id: string | null;
     }
   >;
-  record_ips_paid_expense: WithArgs<
-    "record_ips_paid_expense",
+  submit_expense: WithArgs<
+    "submit_expense",
     {
+      p_currency: CurrencyCode;
       p_customer_category: string;
       p_expense_date: string;
       p_idempotency_key: string;
@@ -61,13 +77,38 @@ type RpcFunctionOverrides = {
       p_internal_markup_amount: number;
       p_organization_id: string;
       p_property_id: string;
-      p_reference: string;
+      p_reconciliation_source_id: string;
+      p_reference: string | null;
       p_responsibility: string;
+      p_source_id: string | null;
+      p_source_type: string;
       p_supporting_document_id: string | null;
       p_tenant_invoice_id: string | null;
       p_unit_id: string | null;
       p_vendor_label: string;
       p_vendor_person_id: string | null;
+    }
+  >;
+  review_expense: WithArgs<
+    "review_expense",
+    {
+      p_decision: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_reason: string | null;
+      p_reconciliation_source_id: string | null;
+      p_submission_id: string;
+    }
+  >;
+  submit_maintenance_cost: WithArgs<
+    "submit_maintenance_cost",
+    {
+      p_expense_date: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_reference: string | null;
+      p_supporting_document_id: string | null;
+      p_task_id: string;
     }
   >;
   create_organization_invitation: WithArgs<
@@ -105,13 +146,6 @@ type RpcFunctionOverrides = {
       branch_id: string | null;
       person_id: string;
     }[];
-  };
-  get_leases_with_effective_rent: {
-    Args: {
-      p_effective_date: string;
-      p_organization_id: string;
-    };
-    Returns: LeaseEffectiveRentRow[];
   };
   assign_maintenance_task: WithArgs<
     "assign_maintenance_task",
@@ -159,47 +193,6 @@ type RpcFunctionOverrides = {
       p_unit_id?: string | null;
     }
   >;
-  create_finance_expense_item: WithArgs<
-    "create_finance_expense_item",
-    {
-      p_amount: number;
-      p_category: string;
-      p_company_loss_amount?: number;
-      p_description: string | null;
-      p_due_date: string | null;
-      p_economic_scope?: string;
-      p_expense_type: string;
-      p_invoice_date: string;
-      p_organization_id: string;
-      p_owner_bill_status?: string;
-      p_owner_reimbursable_amount?: number;
-      p_owner_reimbursed_amount?: number;
-      p_property_id: string;
-      p_reference: string | null;
-      p_task_id: string | null;
-      p_unit_id: string | null;
-      p_vendor_label: string;
-      p_vendor_person_id: string | null;
-    }
-  >;
-  create_finance_income_item: WithArgs<
-    "create_finance_income_item",
-    {
-      p_amount_due: number;
-      p_amount_received: number;
-      p_description: string | null;
-      p_due_date: string;
-      p_income_type: string;
-      p_lease_id: string | null;
-      p_organization_id: string;
-      p_payer_label: string;
-      p_payer_person_id?: string | null;
-      p_property_id: string;
-      p_received_date: string | null;
-      p_reference: string | null;
-      p_unit_id: string | null;
-    }
-  >;
   get_finance_expense_workflow_summary: {
     Args: {
       p_invoice_before: string;
@@ -238,20 +231,6 @@ type RpcFunctionOverrides = {
       unposted_count: number;
     }[];
   };
-  create_ledger_entry: WithArgs<
-    "create_ledger_entry",
-    {
-      p_amount: number;
-      p_category: string;
-      p_currency: CurrencyCode;
-      p_description: string | null;
-      p_direction: string;
-      p_organization_id: string;
-      p_property_id: string;
-      p_transaction_date: string;
-      p_unit_id: string | null;
-    }
-  >;
   create_petty_cash_account: WithArgs<
     "create_petty_cash_account",
     {
@@ -320,22 +299,6 @@ type RpcFunctionOverrides = {
       p_advance_amount?: number | null;
       p_organization_id: string;
       p_period_id: string;
-    }
-  >;
-  create_lease: WithArgs<
-    "create_lease",
-    {
-      p_deposit_amount: number | null;
-      p_deposit_currency: CurrencyCode | null;
-      p_lease_end_date: string;
-      p_lease_start_date: string;
-      p_monthly_rent_amount: number;
-      p_monthly_rent_currency: CurrencyCode;
-      p_organization_id: string;
-      p_primary_tenant_person_id: string;
-      p_property_id: string;
-      p_status: string;
-      p_unit_id: string | null;
     }
   >;
   create_maintenance_task: WithArgs<
@@ -447,44 +410,6 @@ type RpcFunctionOverrides = {
       p_unit_number: string;
     }
   >;
-  post_finance_expense_item: WithArgs<
-    "post_finance_expense_item",
-    {
-      p_expense_item_id: string;
-      p_organization_id: string;
-      p_paid_date?: string | null;
-    }
-  >;
-  record_finance_income_payment: WithArgs<
-    "record_finance_income_payment",
-    {
-      p_amount_received: number;
-      p_income_item_id: string;
-      p_organization_id: string;
-      p_received_date: string;
-      p_reference: string | null;
-    }
-  >;
-  record_finance_payment: WithArgs<
-    "record_finance_payment",
-    {
-      p_amount: number;
-      p_expense_item_id: string;
-      p_organization_id: string;
-      p_paid_date: string;
-      p_reference?: string | null;
-    }
-  >;
-  record_finance_receipt: WithArgs<
-    "record_finance_receipt",
-    {
-      p_amount: number;
-      p_income_item_id: string;
-      p_organization_id: string;
-      p_received_date: string;
-      p_reference?: string | null;
-    }
-  >;
   review_maintenance_task_completion: WithArgs<
     "review_maintenance_task_completion",
     {
@@ -492,24 +417,6 @@ type RpcFunctionOverrides = {
       p_organization_id: string;
       p_review_note?: string | null;
       p_task_id: string;
-    }
-  >;
-  reverse_finance_payment: WithArgs<
-    "reverse_finance_payment",
-    {
-      p_organization_id: string;
-      p_payment_id: string;
-      p_reference?: string | null;
-      p_reversal_date: string;
-    }
-  >;
-  reverse_finance_receipt: WithArgs<
-    "reverse_finance_receipt",
-    {
-      p_organization_id: string;
-      p_receipt_id: string;
-      p_reference?: string | null;
-      p_reversal_date: string;
     }
   >;
   update_document: WithArgs<
@@ -528,38 +435,6 @@ type RpcFunctionOverrides = {
       p_unit_id?: string | null;
     }
   >;
-  update_ledger_entry: WithArgs<
-    "update_ledger_entry",
-    {
-      p_amount: number;
-      p_category: string;
-      p_currency: CurrencyCode;
-      p_description: string | null;
-      p_direction: string;
-      p_entry_id: string;
-      p_organization_id: string;
-      p_property_id: string;
-      p_transaction_date: string;
-      p_unit_id: string | null;
-    }
-  >;
-  update_lease: WithArgs<
-    "update_lease",
-    {
-      p_deposit_amount: number | null;
-      p_deposit_currency: CurrencyCode | null;
-      p_lease_end_date: string;
-      p_lease_id: string;
-      p_lease_start_date: string;
-      p_monthly_rent_amount: number;
-      p_monthly_rent_currency: CurrencyCode;
-      p_organization_id: string;
-      p_primary_tenant_person_id: string;
-      p_property_id: string;
-      p_status: string;
-      p_unit_id: string | null;
-    }
-  >;
   update_maintenance_task: WithArgs<
     "update_maintenance_task",
     {
@@ -574,7 +449,6 @@ type RpcFunctionOverrides = {
       p_description: string | null;
       p_due_date: string | null;
       p_due_time: string | null;
-      p_link_actual_cost_to_ledger: boolean;
       p_organization_id: string;
       p_priority: string;
       p_property_id: string;
@@ -663,9 +537,19 @@ type RpcFunctionOverrides = {
 type PublicFunctions = Omit<GeneratedFunctions, keyof RpcFunctionOverrides> &
   RpcFunctionOverrides;
 
+type PublicViews = Omit<
+  PublicSchemaGenerated["Views"],
+  "current_leases"
+> & {
+  current_leases: Omit<GeneratedCurrentLease, "Row"> & {
+    Row: CurrentLeaseRow;
+  };
+};
+
 export type Database = Omit<DatabaseGenerated, "public"> & {
-  public: Omit<PublicSchemaGenerated, "Functions"> & {
+  public: Omit<PublicSchemaGenerated, "Functions" | "Views"> & {
     Functions: PublicFunctions;
+    Views: PublicViews;
   };
 };
 

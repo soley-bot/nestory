@@ -200,7 +200,7 @@ async function getOccupancyReport({
     .is("archived_at", null);
 
   let leasesQuery = supabase
-    .from("leases")
+    .from("current_leases")
     .select(occupancyLeaseSelect)
     .eq("organization_id", organizationId)
     .is("archived_at", null)

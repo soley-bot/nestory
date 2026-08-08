@@ -43,13 +43,30 @@ export type TenantInvoiceLine = {
   lineType: string;
 };
 
+export type TenantInvoiceSettlement = {
+  amount: number;
+  date: string;
+  id: string;
+  isReversed: boolean;
+  reference: string | null;
+  reversalReason: string | null;
+  route: "direct_to_owner" | "through_ips";
+};
+
 export type TenantInvoiceSummary = {
   balanceDue: number;
+  billingPeriodStart: string;
   collectedByOwner: number;
   collectionRoute: "direct_to_owner" | "through_ips";
   dueDate: string;
+  generationSource:
+    | "activation_catch_up"
+    | "manual_recovery"
+    | "scheduled"
+    | null;
   id: string;
   invoiceNumber: string;
+  isProrated: boolean | null;
   issueDate: string;
   leaseId: string;
   lines: TenantInvoiceLine[];
@@ -59,9 +76,21 @@ export type TenantInvoiceSummary = {
   propertyId: string;
   propertyLabel: string;
   recipientLabel: string;
+  settlements: TenantInvoiceSettlement[];
   totalAmount: number;
   unitId: string | null;
   unitLabel: string;
+};
+
+export type RentGenerationException = {
+  attemptCount: number;
+  billingPeriodStart: string;
+  code: string;
+  id: string;
+  lastAttemptAt: string;
+  leaseId: string;
+  message: string;
+  propertyId: string;
 };
 
 export type OwnerInvoiceSummary = {
@@ -79,20 +108,34 @@ export type OwnerInvoiceSummary = {
   totalAmount: number;
 };
 
-export type FinanceExpenseSummary = {
+export type ExpenseSubmissionSummary = {
+  adjustsSubmissionId?: string | null;
   category: string;
-  customerLabel: string;
   customerTotal: number;
   date: string;
-  heldCashAmount: number;
+  evidence?: {
+    documentId: string;
+    fileName: string;
+    href?: string;
+    mimeType: string;
+    sizeBytes: number;
+  };
+  fundingSourceLabel: string;
   id: string;
   internalCost: number;
   internalMarkup: number;
-  ipsAdvanceAmount: number;
   propertyId: string;
   propertyLabel: string;
+  previouslyApproved?: number | null;
+  recordedTotal?: number | null;
+  reference: string | null;
   responsibility: "owner" | "tenant";
-  responsibleLabel: string;
+  reviewReason: string | null;
+  reversalReason: string | null;
+  sourceId: string | null;
+  sourceType: "general" | "maintenance_task";
+  status: "approved" | "rejected" | "reversed" | "submitted";
+  submittedAt: string;
   unitId: string | null;
   unitLabel: string;
   vendorLabel: string;
@@ -126,13 +169,14 @@ export type PropertyAccountEntry = {
 
 export type FinanceOperationsData = {
   accountEntries: PropertyAccountEntry[];
-  expenses: FinanceExpenseSummary[];
+  expenseSubmissions: ExpenseSubmissionSummary[];
   leases: FinanceLease[];
   ownerInvoices: OwnerInvoiceSummary[];
   peopleOptions: FinanceOption[];
   positions: PropertyFinancePosition[];
   propertyOptions: FinanceOption[];
   reconciliationSources: FinanceOption[];
+  rentGenerationExceptions: RentGenerationException[];
   tenantInvoices: TenantInvoiceSummary[];
   unitOptions: FinanceOption[];
 };
