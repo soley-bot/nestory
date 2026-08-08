@@ -183,13 +183,22 @@ function AccessFact({ label, value }: { label: string; value: string }) {
 }
 
 function roleScope(role: WorkspaceRole, branchLabel: string) {
-  if (role === "super_admin") return "Organization-wide";
+  if (
+    role === "super_admin" ||
+    role === "finance_manager" ||
+    role === "finance_member"
+  )
+    return "Organization-wide";
   if (role === "operations_manager") return branchLabel;
   return "Assigned work";
 }
 
 function roleEffect(role: WorkspaceRole) {
   if (role === "super_admin") return "Full workspace and settings access.";
+  if (role === "finance_manager")
+    return "Organization-wide Finance read and expense review access.";
+  if (role === "finance_member")
+    return "Organization-wide Finance read and expense submission access.";
   if (role === "operations_manager") return "Operational access within the assigned branch scope.";
   return "Assigned task access through the linked staff profile.";
 }

@@ -20,6 +20,11 @@ const validRoles = new Set([
   "admin",
   "staff",
   "maintenance",
+  "super_admin",
+  "finance_manager",
+  "finance_member",
+  "operations_manager",
+  "operations_member",
 ]);
 const validSurfaces = new Set([
   "public",
@@ -128,11 +133,49 @@ describe("UI route coverage contract", () => {
   it("maps fixture personas to real base workspace roles", () => {
     expect(uiPersonaWorkspaceRoles).toEqual({
       admin: ["super_admin"],
+      finance_manager: ["finance_manager"],
+      finance_member: ["finance_member"],
       maintenance: ["operations_member"],
+      operations_manager: ["operations_manager"],
+      operations_member: ["operations_member"],
       public: [],
       staff: ["operations_manager", "operations_member"],
+      super_admin: ["super_admin"],
       unlinked: [],
     });
+  });
+
+  it("records the fixed-role access matrix for Finance and Operations routes", () => {
+    for (const route of [
+      "/finance",
+      "/rent-income",
+      "/bills-expenses",
+      "/balances",
+      "/leases",
+      "/ledger",
+      "/petty-cash",
+      "/properties/[propertyId]/account",
+    ]) {
+      expect(getUiRouteContract(route)?.roles, route).toEqual([
+        "super_admin",
+        "finance_manager",
+        "finance_member",
+      ]);
+    }
+
+    for (const route of [
+      "/maintenance",
+      "/tasks",
+      "/work-orders",
+      "/inspections",
+      "/recurring-tasks",
+    ]) {
+      expect(getUiRouteContract(route)?.roles, route).toEqual([
+        "super_admin",
+        "operations_manager",
+        "operations_member",
+      ]);
+    }
   });
 
   it("exposes typed route and phase lookup helpers", () => {

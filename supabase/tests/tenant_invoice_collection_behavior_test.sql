@@ -2,7 +2,11 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(14);
+-- This exercises the retained internal compatibility kernel. Data API execute
+-- privileges for the retired invoice writer are asserted separately.
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
+SELECT plan(19);
 
 CREATE TEMP TABLE tenant_invoice_state (
   organization_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001',
@@ -28,7 +32,7 @@ SELECT set_config(
   (SELECT admin_id::text FROM tenant_invoice_state),
   true
 );
-SET LOCAL ROLE authenticated;
+RESET ROLE;
 
 SELECT lives_ok(
   $$
@@ -141,6 +145,76 @@ SELECT is(
   ),
   400.00::numeric,
   'through-IPS payment creates exactly the linked cash receipts'
+);
+
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.reverse_finance_receipt(uuid,uuid,date,text)'),
+    'EXECUTE'
+  ), false),
+  'legacy receipt reversal remains available for non-rent compatibility records'
+);
+
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.reverse_finance_receipt_v2(uuid,uuid,date,uuid,text,text)'),
+    'EXECUTE'
+  ), false),
+  'atomic receipt reversal remains available for non-rent compatibility records'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_finance_receipt(
+      (SELECT organization_id FROM tenant_invoice_state),
+      (
+        SELECT finance_receipt_id
+        FROM public.tenant_invoice_payment_allocations
+        WHERE payment_id = (SELECT payment_id FROM tenant_invoice_state)
+        ORDER BY allocation_order
+        LIMIT 1
+      ),
+      current_date,
+      'Direct invoice receipt reversal blocked'
+    )
+  $$,
+  '42501',
+  'Lease-derived rent must be settled through its tenant invoice',
+  'legacy reversal cannot diverge a generated tenant invoice'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_finance_receipt_v2(
+      (SELECT organization_id FROM tenant_invoice_state),
+      (
+        SELECT finance_receipt_id
+        FROM public.tenant_invoice_payment_allocations
+        WHERE payment_id = (SELECT payment_id FROM tenant_invoice_state)
+        ORDER BY allocation_order
+        LIMIT 1
+      ),
+      current_date,
+      (SELECT source_id FROM tenant_invoice_state),
+      'Direct atomic invoice reversal blocked',
+      'invoice-direct-reversal-blocked'
+    )
+  $$,
+  '42501',
+  'Lease-derived rent must be settled through its tenant invoice',
+  'atomic reversal cannot bypass tenant-invoice payment state'
+);
+
+SELECT results_eq(
+  $$
+    SELECT paid_through_ips, balance_due, payment_status
+    FROM public.tenant_invoice_balances
+    WHERE id = (SELECT through_invoice_id FROM tenant_invoice_state)
+  $$,
+  $$VALUES (400.00::numeric, 380.00::numeric, 'partly_paid'::text)$$,
+  'retired direct reversals leave the tenant invoice payment state unchanged'
 );
 
 SELECT lives_ok(

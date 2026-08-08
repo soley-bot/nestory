@@ -277,7 +277,7 @@ SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'blocked-manager@example.com',
-    'member',
+    'finance_member',
     NULL,
     NULL
   )$$,
@@ -291,7 +291,7 @@ SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'blocked-member@example.com',
-    'member',
+    'finance_member',
     NULL,
     NULL
   )$$,
@@ -305,9 +305,9 @@ SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'cross-scope@example.com',
-    'member',
+    'operations_member',
     '00000000-0000-0000-0000-000000009999',
-    NULL
+    '80300000-0000-0000-0000-000000000004'
   )$$,
   '23503',
   'Branch not found',
@@ -317,8 +317,8 @@ SELECT throws_ok(
   $$SELECT public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'cross-person@example.com',
-    'member',
-    NULL,
+    'operations_member',
+    '00000000-0000-0000-0000-000000000211',
     '00000000-0000-0000-0000-000000009999'
   )$$,
   '23503',
@@ -330,7 +330,7 @@ INSERT INTO invitation_test_state (invitation_id)
 SELECT public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   ' Invitee@Example.com ',
-  'member',
+  'operations_member',
   '00000000-0000-0000-0000-000000000211',
   '80300000-0000-0000-0000-000000000004'
 );
@@ -344,7 +344,7 @@ SELECT is(
   public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'invitee@example.com',
-    'member',
+    'operations_member',
     '00000000-0000-0000-0000-000000000211',
     '80300000-0000-0000-0000-000000000004'
   ),
@@ -361,7 +361,7 @@ UPDATE invitation_test_state
 SET brand_new_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'brand-new@example.com',
-  'manager',
+  'finance_manager',
   NULL,
   NULL
 );
@@ -403,7 +403,7 @@ UPDATE invitation_test_state
 SET magic_link_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'magic-manager@example.com',
-  'manager',
+  'finance_manager',
   NULL,
   NULL
 );
@@ -437,21 +437,21 @@ SET
   magic_admin_invitation_id = public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'magic-admin@example.com',
-    'admin',
+    'super_admin',
     NULL,
     NULL
   ),
   magic_member_invitation_id = public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'magic-member@example.com',
-    'member',
+    'finance_member',
     NULL,
     NULL
   ),
   proven_invitation_id = public.create_organization_invitation(
     '00000000-0000-0000-0000-000000000001',
     'other@example.com',
-    'member',
+    'finance_member',
     NULL,
     NULL
   );
@@ -739,12 +739,12 @@ SELECT throws_ok(
   $$SELECT public.update_organization_member_access(
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000201',
-    'manager',
+    'operations_manager',
     '80300000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000211'
   )$$,
   '55000',
-  'The final administrator cannot be demoted',
+  'The final Super Admin cannot be demoted',
   'final administrator demotion is rejected in SQL'
 );
 SELECT throws_ok(
@@ -753,7 +753,7 @@ SELECT throws_ok(
     '00000000-0000-0000-0000-000000000201'
   )$$,
   '55000',
-  'The final administrator cannot be removed',
+  'The final Super Admin cannot be removed',
   'final administrator removal is rejected in SQL'
 );
 
@@ -785,12 +785,12 @@ UPDATE invitation_test_state
 SET revoked_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'revoked@example.com',
-  'member', NULL, NULL
+  'finance_member', NULL, NULL
 ),
 expired_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'expired@example.com',
-  'member', NULL, NULL
+  'finance_member', NULL, NULL
 );
 SELECT lives_ok(
   format(

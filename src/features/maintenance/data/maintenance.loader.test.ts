@@ -80,6 +80,88 @@ describe("getMaintenanceScreenData reference loading", () => {
     expect(result.staffOptions).toHaveLength(205);
   });
 
+  it("loads visible task evidence through the checked maintenance projection", async () => {
+    const supabase = createMaintenanceSupabaseStub({
+      documentRows: [
+        {
+          category: "Maintenance",
+          file_name: "receipt.pdf",
+          id: "document-visible",
+          mime_type: "application/pdf",
+          size_bytes: 128,
+          storage_path: "org-1/receipt.pdf",
+          task_id: "task-visible",
+          uploaded_at: "2026-07-02T00:00:00.000Z",
+        },
+      ],
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+
+    const result = await getMaintenanceScreenData(
+      "org-1",
+      makeViewQuery(),
+      { branchId: "branch-visible", role: "operations_manager" },
+    );
+
+    expect(supabase.client.rpc).toHaveBeenCalledWith(
+      "get_maintenance_task_documents",
+      {
+        p_organization_id: "org-1",
+        p_task_ids: ["task-visible"],
+      },
+    );
+    expect(supabase.fromCalls).not.toContain("documents");
+    expect(result.cases[0]?.documents).toEqual([
+      expect.objectContaining({
+        fileName: "receipt.pdf",
+        id: "document-visible",
+        url: "https://documents.test/receipt.pdf",
+      }),
+    ]);
+  });
+
+  it("loads only assigned task evidence for an Operations Member", async () => {
+    const supabase = createMaintenanceSupabaseStub({
+      documentRows: [
+        {
+          category: "Maintenance",
+          file_name: "assigned-receipt.pdf",
+          id: "document-assigned",
+          mime_type: "application/pdf",
+          size_bytes: 128,
+          storage_path: "org-1/assigned-receipt.pdf",
+          task_id: "task-visible",
+          uploaded_at: "2026-07-02T00:00:00.000Z",
+        },
+      ],
+    });
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
+
+    const result = await getMaintenanceScreenData(
+      "org-1",
+      makeViewQuery(),
+      {
+        branchId: "branch-visible",
+        personId: "visible-assignee",
+        role: "operations_member",
+      },
+    );
+
+    expect(supabase.client.rpc).toHaveBeenCalledWith(
+      "get_maintenance_task_documents",
+      {
+        p_organization_id: "org-1",
+        p_task_ids: ["task-visible"],
+      },
+    );
+    expect(result.cases[0]?.documents).toEqual([
+      expect.objectContaining({
+        fileName: "assigned-receipt.pdf",
+        id: "document-assigned",
+      }),
+    ]);
+  });
+
   it.each([
     {
       actor: { role: "super_admin" } as MaintenanceActor,
@@ -226,12 +308,15 @@ type EqCall = {
 };
 
 function createMaintenanceSupabaseStub({
+  documentRows = [],
   memberIdentityCount = 1,
 }: {
+  documentRows?: Array<Record<string, unknown>>;
   memberIdentityCount?: number;
 } = {}) {
   const inCalls: QueryCall[] = [];
   const eqCalls: EqCall[] = [];
+  const fromCalls: string[] = [];
   const memberPersonIds = memberIdentityCount === 1
     ? ["member-option"]
     : Array.from(
@@ -291,10 +376,14 @@ function createMaintenanceSupabaseStub({
   };
 
   const client = {
-    from: vi.fn((table: string) =>
-      createQuery(table, rowsByTable, inCalls, eqCalls),
-    ),
+    from: vi.fn((table: string) => {
+      fromCalls.push(table);
+      return createQuery(table, rowsByTable, inCalls, eqCalls);
+    }),
     rpc: vi.fn(async (name: string) => {
+      if (name === "get_maintenance_task_documents") {
+        return { data: documentRows, error: null };
+      }
       if (name === "get_maintenance_execution_members") {
         return {
           data: memberPersonIds.map((personId) => ({
@@ -314,12 +403,17 @@ function createMaintenanceSupabaseStub({
     }),
     storage: {
       from: vi.fn(() => ({
-        createSignedUrls: vi.fn(async () => ({ data: [], error: null })),
+        createSignedUrls: vi.fn(async () => ({
+          data: documentRows.map((row) => ({
+            signedUrl: `https://documents.test/${String(row.file_name)}`,
+          })),
+          error: null,
+        })),
       })),
     },
   } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
-  return { client, eqCalls, inCalls };
+  return { client, eqCalls, fromCalls, inCalls };
 }
 
 function createQuery(

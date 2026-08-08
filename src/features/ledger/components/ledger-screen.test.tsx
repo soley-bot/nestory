@@ -53,7 +53,7 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(closeStrip?.className).not.toContain("overflow-x-auto");
     expect(within(closeStrip!).queryByText("Clear")).toBeNull();
     expect(
-      within(closeStrip!).getByText("All close checks clear"),
+      within(closeStrip!).getByText("All review checks clear"),
     ).not.toBeNull();
     expect(within(closeStrip!).getByText("Visible net")).not.toBeNull();
     const table = screen.getByRole("table");
@@ -157,13 +157,13 @@ describe("LedgerScreen finance workspace contract", () => {
     },
   );
 
-  it("places the period-lock consequence beside the unchanged mutation fields", async () => {
+  it("places the month-lock consequence beside the unchanged mutation fields", async () => {
     const user = userEvent.setup();
     renderLedger();
-    await user.click(screen.getByRole("button", { name: "Period lock" }));
+    await user.click(screen.getByRole("button", { name: "Month lock" }));
 
     const consequence = screen.getByRole("region", {
-      name: "Period lock consequence",
+      name: "Month lock consequence",
     });
     expect(consequence.textContent).toContain("historical financial records");
     expect(document.querySelector('[name="periodStart"]')).not.toBeNull();
@@ -194,6 +194,35 @@ describe("LedgerScreen finance workspace contract", () => {
       within(emptyState).getByRole("button", { name: "Add entry" }),
     ).not.toBeNull();
   });
+
+  it("keeps Finance roles read-only while preserving ledger inspection", async () => {
+    const user = userEvent.setup();
+    renderLedger(entries, {}, false);
+
+    expect(screen.queryByRole("button", { name: "Add entry" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Month lock" })).toBeNull();
+    const financeNav = screen.getByRole("navigation", {
+      name: "Finance workspace",
+    });
+    expect(within(financeNav).getByRole("link", { name: "Ledger" })).not.toBeNull();
+    expect(
+      within(financeNav).getByRole("link", { name: "Petty Cash" }),
+    ).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Preview Rent" }));
+    const inspector = screen.getByRole("dialog", {
+      name: "Rent ledger quick view",
+    });
+    for (const action of [
+      "Attach receipt",
+      "Edit ledger entry",
+      "Archive ledger entry",
+    ]) {
+      expect(
+        within(inspector).queryByRole("button", { name: action }),
+      ).toBeNull();
+    }
+  });
 });
 
 const defaultViewQuery: LedgerViewQuery = {
@@ -220,9 +249,11 @@ const entries = [
 function renderLedger(
   nextEntries: LedgerEntry[] = entries,
   query: Partial<LedgerViewQuery> = {},
+  canManageFinance = true,
 ) {
   return render(
     <LedgerScreen
+      canManageFinance={canManageFinance}
       closeSummary={{
         accountingUnlinkedCount: "0",
         accountingUnlinkedHref: "/ledger",

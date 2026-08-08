@@ -2,6 +2,46 @@
 -- product roles.  Authorization stays organization-scoped and capability
 -- predicates are the shared database boundary for RLS and checked RPCs.
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.organization_members AS membership
+    WHERE (
+      membership.role = 'admin'
+      AND (membership.branch_id IS NOT NULL OR membership.person_id IS NOT NULL)
+    ) OR (
+      membership.role IN ('manager', 'member')
+      AND (membership.branch_id IS NULL OR membership.person_id IS NULL)
+    )
+  ) THEN
+    RAISE EXCEPTION
+      'Legacy workspace memberships must be scoped before fixed-role migration'
+      USING
+        ERRCODE = '23514',
+        HINT = 'Clear branch/Staff scope for admins and assign both branch and active Staff scope to every manager/member.';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.organization_invitations AS invitation
+    WHERE (
+      invitation.role = 'admin'
+      AND (invitation.branch_id IS NOT NULL OR invitation.person_id IS NOT NULL)
+    ) OR (
+      invitation.role IN ('manager', 'member')
+      AND (invitation.branch_id IS NULL OR invitation.person_id IS NULL)
+    )
+  ) THEN
+    RAISE EXCEPTION
+      'Legacy workspace invitations must be scoped before fixed-role migration'
+      USING
+        ERRCODE = '23514',
+        HINT = 'Clear branch/Staff scope for admins and assign both branch and active Staff scope to every manager/member invitation.';
+  END IF;
+END;
+$$;
+
 ALTER TABLE public.organization_members
   DROP CONSTRAINT IF EXISTS organization_members_role_check;
 ALTER TABLE public.organization_invitations
@@ -63,6 +103,18 @@ AS $$
   FROM public.organization_members AS membership
   WHERE membership.organization_id = target_organization_id
     AND membership.user_id = (SELECT auth.uid())
+    AND (
+      (
+        membership.role IN ('super_admin', 'finance_manager', 'finance_member')
+        AND membership.branch_id IS NULL
+        AND membership.person_id IS NULL
+      )
+      OR (
+        membership.role IN ('operations_manager', 'operations_member')
+        AND membership.branch_id IS NOT NULL
+        AND membership.person_id IS NOT NULL
+      )
+    )
   LIMIT 1;
 $$;
 
@@ -320,14 +372,12 @@ GRANT EXECUTE ON FUNCTION app_private.can_assign_tasks(uuid) TO authenticated;
 ALTER TABLE public.organization_members
   DROP CONSTRAINT IF EXISTS organization_members_role_scope_check,
   ADD CONSTRAINT organization_members_role_scope_check
-  CHECK (app_private.workspace_role_scope_is_valid(role, branch_id, person_id))
-  NOT VALID;
+  CHECK (app_private.workspace_role_scope_is_valid(role, branch_id, person_id));
 
 ALTER TABLE public.organization_invitations
   DROP CONSTRAINT IF EXISTS organization_invitations_role_scope_check,
   ADD CONSTRAINT organization_invitations_role_scope_check
-  CHECK (app_private.workspace_role_scope_is_valid(role, branch_id, person_id))
-  NOT VALID;
+  CHECK (app_private.workspace_role_scope_is_valid(role, branch_id, person_id));
 
 CREATE OR REPLACE FUNCTION public.provision_client_workspace(
   p_name text,
@@ -914,6 +964,10 @@ BEGIN
     RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
   END IF;
 
+  IF actor_role = 'manager' AND actor_branch_id IS NULL THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
   RETURN QUERY
   SELECT membership.person_id, membership.branch_id
   FROM public.organization_members AS membership
@@ -922,12 +976,253 @@ BEGIN
     AND membership.person_id IS NOT NULL
     AND (
       actor_role = 'admin'
-      OR actor_branch_id IS NULL
       OR membership.branch_id IS NOT DISTINCT FROM actor_branch_id
     )
   ORDER BY membership.branch_id NULLS FIRST, membership.person_id;
 END;
 $$;
+
+-- The maintenance workflow predates fixed workspace roles. Its checked RPCs
+-- read organization_members directly and therefore cannot rely on the
+-- current_org_role compatibility helper. Recreate only those known functions
+-- with the fixed stored-role labels while preserving their established
+-- validation and workflow behavior.
+DO $$
+DECLARE
+  target_function record;
+  original_definition text;
+  updated_definition text;
+BEGIN
+  FOR target_function IN
+    SELECT procedure.oid, namespace.nspname, procedure.proname
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+    WHERE (
+      namespace.nspname = 'app_private'
+      AND procedure.proname IN (
+        'assign_maintenance_task_legacy_checked',
+        'create_maintenance_task_legacy_checked',
+        'update_maintenance_task_legacy_checked'
+      )
+    ) OR (
+      namespace.nspname = 'public'
+      AND procedure.proname IN (
+        'execute_assigned_maintenance_task',
+        'execute_coordinated_maintenance_task',
+        'review_maintenance_task_completion'
+      )
+    )
+  LOOP
+    -- pg_get_functiondef preserves the server's line endings. Normalize them
+    -- before applying the deliberately narrow compatibility rewrite so this
+    -- migration behaves the same on Windows and Linux reset environments.
+    original_definition := replace(
+      pg_get_functiondef(target_function.oid),
+      E'\r\n',
+      E'\n'
+    );
+    updated_definition := replace(
+      replace(
+        replace(
+          replace(
+            replace(original_definition,
+              'actor_role NOT IN (''admin'', ''manager'')',
+              'actor_role NOT IN (''super_admin'', ''operations_manager'')'
+            ),
+            'actor_role = ''manager''',
+            'actor_role = ''operations_manager'''
+          ),
+          'actor_role = ''admin''',
+          'actor_role = ''super_admin'''
+        ),
+        'actor_role <> ''member''',
+        'actor_role <> ''operations_member'''
+      ),
+      'assignee_membership.role = ''member''',
+      'assignee_membership.role = ''operations_member'''
+    );
+
+    IF target_function.proname = 'execute_assigned_maintenance_task' THEN
+      updated_definition := replace(
+        updated_definition,
+        'actor_role <> ''operations_member'' OR actor_role IS NULL OR actor_person_id IS NULL',
+        'actor_role <> ''operations_member'' OR actor_role IS NULL OR actor_person_id IS NULL OR actor_branch_id IS NULL'
+      );
+
+      IF position('actor_branch_id IS NULL' IN updated_definition) = 0 THEN
+        RAISE EXCEPTION
+          'Fixed-role maintenance member scope did not fail closed for %.%',
+          target_function.nspname,
+          target_function.proname;
+      END IF;
+    ELSE
+      updated_definition := replace(
+        updated_definition,
+        '  IF actor_role NOT IN (''super_admin'', ''operations_manager'') OR actor_role IS NULL THEN
+    RAISE EXCEPTION ''Not authorized'' USING ERRCODE = ''42501'';
+  END IF;',
+        '  IF actor_role NOT IN (''super_admin'', ''operations_manager'') OR actor_role IS NULL THEN
+    RAISE EXCEPTION ''Not authorized'' USING ERRCODE = ''42501'';
+  END IF;
+
+  IF actor_role = ''operations_manager'' AND actor_branch_id IS NULL THEN
+    RAISE EXCEPTION ''Not authorized'' USING ERRCODE = ''42501'';
+  END IF;'
+      );
+
+      IF position(
+        'actor_role = ''operations_manager'' AND actor_branch_id IS NULL'
+        IN updated_definition
+      ) = 0 THEN
+        RAISE EXCEPTION
+          'Fixed-role maintenance manager scope did not fail closed for %.%',
+          target_function.nspname,
+          target_function.proname;
+      END IF;
+    END IF;
+
+    IF updated_definition = original_definition THEN
+      RAISE EXCEPTION
+        'Fixed-role maintenance compatibility did not update %.%',
+        target_function.nspname,
+        target_function.proname;
+    END IF;
+
+    EXECUTE updated_definition;
+  END LOOP;
+END;
+$$;
+
+-- Invitation acceptance can update an existing membership. Keep the final
+-- Super Admin invariant aligned with the new stored role.
+DO $$
+DECLARE
+  function_oid oid := to_regprocedure(
+    'public.accept_organization_invitation(uuid)'
+  );
+  original_definition text;
+  updated_definition text;
+BEGIN
+  IF function_oid IS NULL THEN
+    RAISE EXCEPTION 'Invitation acceptance function is missing';
+  END IF;
+
+  original_definition := replace(
+    pg_get_functiondef(function_oid),
+    E'\r\n',
+    E'\n'
+  );
+  updated_definition := replace(
+    replace(
+      replace(
+        replace(original_definition,
+          'existing_membership.role = ''admin''',
+          'existing_membership.role = ''super_admin'''
+        ),
+        'target.role <> ''admin''',
+        'target.role <> ''super_admin'''
+      ),
+      'member.role = ''admin''',
+      'member.role = ''super_admin'''
+    ),
+    'The final administrator cannot be demoted',
+    'The final Super Admin cannot be demoted'
+  );
+
+  IF updated_definition = original_definition THEN
+    RAISE EXCEPTION 'Fixed-role invitation acceptance compatibility did not update';
+  END IF;
+
+  EXECUTE updated_definition;
+END;
+$$;
+
+DROP POLICY IF EXISTS "Maintenance roles can read scoped tasks"
+ON public.tasks;
+CREATE POLICY "Maintenance roles can read scoped tasks"
+ON public.tasks
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.organization_members AS membership
+    WHERE membership.organization_id = tasks.organization_id
+      AND membership.user_id = (SELECT auth.uid())
+      AND (
+        (
+          membership.role = 'operations_manager'
+          AND membership.branch_id IS NOT DISTINCT FROM tasks.branch_id
+        )
+        OR (
+          membership.role = 'operations_member'
+          AND membership.person_id = tasks.assignee_person_id
+          AND membership.branch_id IS NOT DISTINCT FROM tasks.branch_id
+        )
+      )
+  )
+);
+
+DROP POLICY IF EXISTS "Maintenance roles can read scoped task requests"
+ON public.tenant_requests;
+CREATE POLICY "Maintenance roles can read scoped task requests"
+ON public.tenant_requests
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.tasks AS scoped_task
+    JOIN public.organization_members AS membership
+      ON membership.organization_id = scoped_task.organization_id
+     AND membership.user_id = (SELECT auth.uid())
+    WHERE scoped_task.organization_id = tenant_requests.organization_id
+      AND scoped_task.tenant_request_id = tenant_requests.id
+      AND scoped_task.archived_at IS NULL
+      AND (
+        (
+          membership.role = 'operations_manager'
+          AND membership.branch_id IS NOT DISTINCT FROM scoped_task.branch_id
+        )
+        OR (
+          membership.role = 'operations_member'
+          AND membership.person_id = scoped_task.assignee_person_id
+          AND membership.branch_id IS NOT DISTINCT FROM scoped_task.branch_id
+        )
+      )
+  )
+);
+
+DROP POLICY IF EXISTS "Maintenance roles can read scoped task activity logs"
+ON public.activity_logs;
+CREATE POLICY "Maintenance roles can read scoped task activity logs"
+ON public.activity_logs
+FOR SELECT
+TO authenticated
+USING (
+  activity_logs.entity_type = 'task'
+  AND EXISTS (
+    SELECT 1
+    FROM public.tasks AS scoped_task
+    JOIN public.organization_members AS membership
+      ON membership.organization_id = scoped_task.organization_id
+     AND membership.user_id = (SELECT auth.uid())
+    WHERE scoped_task.organization_id = activity_logs.organization_id
+      AND scoped_task.id = activity_logs.entity_id
+      AND (
+        (
+          membership.role = 'operations_manager'
+          AND membership.branch_id IS NOT DISTINCT FROM scoped_task.branch_id
+        )
+        OR (
+          membership.role = 'operations_member'
+          AND membership.person_id = scoped_task.assignee_person_id
+          AND membership.branch_id IS NOT DISTINCT FROM scoped_task.branch_id
+        )
+      )
+  )
+);
 
 REVOKE ALL ON FUNCTION public.provision_client_workspace(text, text, text)
 FROM PUBLIC, anon, authenticated;
@@ -973,9 +1268,16 @@ DECLARE
     'finance_receipt_allocation_journals',
     'finance_receipt_allocations',
     'finance_receipts',
+    'financial_reconciliation_sources',
     'ips_expense_responsibilities',
     'ledger_entries',
     'ledger_period_locks',
+    'lease_billing_terms',
+    'lease_deposit_events',
+    'lease_deposits',
+    'lease_occupancies',
+    'lease_parties',
+    'lease_terms',
     'management_fee_occurrences',
     'owner_charge_cash_allocations',
     'owner_collection_confirmation_allocations',
@@ -990,6 +1292,7 @@ DECLARE
     'property_close_revisions',
     'property_reporting_periods',
     'property_withdrawals',
+    'rent_policy_versions',
     'tenant_invoice_lines',
     'tenant_invoice_payment_allocations',
     'tenant_invoice_payments',
@@ -1027,3 +1330,50 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+DO $$
+DECLARE
+  function_signature regprocedure;
+  original_definition text;
+  updated_definition text;
+  guarded_functions constant regprocedure[] := ARRAY[
+    'public.resolve_authoritative_lease_term(uuid,uuid,date)'::regprocedure,
+    'public.resolve_lease_billing_term(uuid,uuid,date)'::regprocedure
+  ];
+BEGIN
+  FOREACH function_signature IN ARRAY guarded_functions LOOP
+    SELECT pg_get_functiondef(function_signature)
+    INTO original_definition;
+
+    updated_definition := replace(
+      original_definition,
+      'app_private.is_org_member(p_organization_id)',
+      'app_private.can_read_finance(p_organization_id)'
+    );
+
+    IF updated_definition = original_definition THEN
+      RAISE EXCEPTION
+        'Finance-only lease resolver compatibility did not update: %',
+        function_signature;
+    END IF;
+
+    EXECUTE updated_definition;
+  END LOOP;
+END;
+$$;
+
+DROP POLICY IF EXISTS "Finance roles can read lease context" ON public.leases;
+CREATE POLICY "Finance roles can read lease context"
+ON public.leases
+FOR SELECT
+TO authenticated
+USING ((SELECT app_private.can_read_finance(organization_id)));
+GRANT SELECT ON TABLE public.leases TO authenticated;
+
+DROP POLICY IF EXISTS "Finance roles can read owner context" ON public.property_owners;
+CREATE POLICY "Finance roles can read owner context"
+ON public.property_owners
+FOR SELECT
+TO authenticated
+USING ((SELECT app_private.can_read_finance(organization_id)));
+GRANT SELECT ON TABLE public.property_owners TO authenticated;

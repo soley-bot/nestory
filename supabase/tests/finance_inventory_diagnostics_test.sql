@@ -70,16 +70,16 @@ SELECT cross_organization_id, 'Finance inventory cross test', 'finance-inventory
 FROM finance_inventory_test_state;
 
 INSERT INTO public.organization_members (organization_id, user_id, role)
-SELECT organization_id, admin_user_id, 'admin'
+SELECT organization_id, admin_user_id, 'super_admin'
 FROM finance_inventory_test_state
 UNION ALL
-SELECT organization_id, member_user_id, 'member'
+SELECT organization_id, member_user_id, 'finance_member'
 FROM finance_inventory_test_state
 UNION ALL
-SELECT organization_id, manager_user_id, 'manager'
+SELECT organization_id, manager_user_id, 'finance_manager'
 FROM finance_inventory_test_state
 UNION ALL
-SELECT cross_organization_id, cross_admin_user_id, 'admin'
+SELECT cross_organization_id, cross_admin_user_id, 'super_admin'
 FROM finance_inventory_test_state;
 
 INSERT INTO public.properties (
@@ -322,8 +322,8 @@ RESET ROLE;
 
 SELECT ok(
   NOT has_table_privilege('anon', 'public.ledger_entries', 'SELECT')
-  AND has_table_privilege('authenticated', 'public.ledger_entries', 'UPDATE'),
-  'table privilege evidence retains the current anonymous denial and authenticated Ledger bypass'
+  AND NOT has_table_privilege('authenticated', 'public.ledger_entries', 'UPDATE'),
+  'table privileges deny anonymous reads and authenticated Ledger writes'
 );
 
 SELECT * FROM finish();

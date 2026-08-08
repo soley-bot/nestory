@@ -117,15 +117,25 @@ export type FinanceExpenseSummary = {
 };
 
 export type ExpenseSubmissionSummary = {
+  adjustsSubmissionId?: string | null;
   category: string;
   customerTotal: number;
   date: string;
+  evidence?: {
+    documentId: string;
+    fileName: string;
+    href?: string;
+    mimeType: string;
+    sizeBytes: number;
+  };
   fundingSourceLabel: string;
   id: string;
   internalCost: number;
   internalMarkup: number;
   propertyId: string;
   propertyLabel: string;
+  previouslyApproved?: number | null;
+  recordedTotal?: number | null;
   reference: string | null;
   responsibility: "owner" | "tenant";
   reviewReason: string | null;

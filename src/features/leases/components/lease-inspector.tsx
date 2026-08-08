@@ -25,6 +25,7 @@ import { getBusinessDateValue } from "@/lib/dates/business-date";
 import type { LeaseSummary } from "@/features/leases/lease.types";
 
 type LeaseInspectorProps = {
+  canConfigure: boolean;
   getLeaseHref: (id: string) => string;
   lease: LeaseSummary | null;
   onArchiveLease: (lease: LeaseSummary) => void;
@@ -33,6 +34,7 @@ type LeaseInspectorProps = {
 };
 
 export function LeaseInspector({
+  canConfigure,
   getLeaseHref,
   lease,
   onArchiveLease,
@@ -138,15 +140,17 @@ export function LeaseInspector({
               <Detail label="Lifecycle" value={displayedTerm.statusLabel} />
             </dl>
           ) : null}
-          <Link
-            className="mt-3 inline-flex text-xs font-medium text-accent hover:underline"
-            href="/settings/rent-policy"
-          >
-            Open rent policy
-          </Link>
+          {canConfigure ? (
+            <Link
+              className="mt-3 inline-flex text-xs font-medium text-accent hover:underline"
+              href="/settings/rent-policy"
+            >
+              Open rent policy
+            </Link>
+          ) : null}
         </section>
 
-        {activeAuthoritativeTerm && !lease.isArchived ? (
+        {canConfigure && activeAuthoritativeTerm && !lease.isArchived ? (
           <section
             aria-label="Future rent term"
             className="rounded-md border border-border p-3"
@@ -265,7 +269,8 @@ export function LeaseInspector({
             <div><h3 className="text-sm font-semibold">Security deposit</h3><p className="text-xs text-muted-foreground">Held tenant funds are separate from property income.</p></div>
             {lease.deposits.map((deposit) => <div className="space-y-2 rounded-md border border-border p-3" key={deposit.id}>
               <div className="flex justify-between gap-3 text-sm"><span>{deposit.typeLabel}</span><span>Held <MoneyDisplay value={deposit.heldBalanceDisplay} /></span></div>
-              <form action={recordDepositEvent} className="grid grid-cols-2 gap-2">
+              {canConfigure ? (
+                <form action={recordDepositEvent} className="grid grid-cols-2 gap-2">
                 <input name="leaseDepositId" type="hidden" value={deposit.id} />
                 <label className="grid gap-1 text-xs font-medium text-foreground-muted">
                   <span>Event type</span>
@@ -291,17 +296,18 @@ export function LeaseInspector({
                   <span>Reference</span>
                   <Input name="reference" />
                 </label>
-                <Button className="col-span-2" disabled={depositPending} type="submit">{depositPending ? "Saving..." : "Record event"}</Button>
-              </form>
-              {depositState.message ? <p className="text-xs" role="status">{depositState.message}</p> : null}
-              <div className="space-y-1">{deposit.events.map((event) => <div className="flex items-center justify-between gap-2 text-xs" key={event.id}><span>{event.eventDate} · {event.eventType} · <MoneyDisplay value={event.amountDisplay} /> {event.reference}</span>{event.reversible ? <form action={reverseDepositEvent}><input name="eventId" type="hidden" value={event.id}/><input name="eventDate" type="hidden" value={getBusinessDateValue()}/><Button disabled={reversalPending} type="submit">Reverse</Button></form> : null}</div>)}</div>
-              {reversalState.message ? <p className="text-xs" role="status">{reversalState.message}</p> : null}
+                  <Button className="col-span-2" disabled={depositPending} type="submit">{depositPending ? "Saving..." : "Record event"}</Button>
+                </form>
+              ) : null}
+              {canConfigure && depositState.message ? <p className="text-xs" role="status">{depositState.message}</p> : null}
+              <div className="space-y-1">{deposit.events.map((event) => <div className="flex items-center justify-between gap-2 text-xs" key={event.id}><span>{event.eventDate} · {event.eventType} · <MoneyDisplay value={event.amountDisplay} /> {event.reference}</span>{canConfigure && event.reversible ? <form action={reverseDepositEvent}><input name="eventId" type="hidden" value={event.id}/><input name="eventDate" type="hidden" value={getBusinessDateValue()}/><Button disabled={reversalPending} type="submit">Reverse</Button></form> : null}</div>)}</div>
+              {canConfigure && reversalState.message ? <p className="text-xs" role="status">{reversalState.message}</p> : null}
             </div>)}
           </section>
         ) : null}
 
         <AttentionNote
-          href={lease.nextAction.href}
+          href={canConfigure ? lease.nextAction.href : undefined}
           item={getAttentionItem(lease.riskIndicators)}
           label={lease.nextAction.label}
         />
@@ -317,7 +323,7 @@ export function LeaseInspector({
             <ExternalLink size={15} />
             <span className="truncate">Open lease</span>
           </Link>
-          {lease.unitId ? (
+          {canConfigure && lease.unitId ? (
             <Link
               aria-label={`Open ${lease.unitLabel}`}
               className={iconButtonClassName}
@@ -328,7 +334,7 @@ export function LeaseInspector({
               <ExternalLink size={15} />
               <span className="truncate">Open unit</span>
             </Link>
-          ) : (
+          ) : canConfigure ? (
             <Link
               aria-label={`Open property ${lease.propertyCode}`}
               className={iconButtonClassName}
@@ -339,8 +345,8 @@ export function LeaseInspector({
               <ExternalLink size={15} />
               <span className="truncate">Open property</span>
             </Link>
-          )}
-          {lease.isArchived ? (
+          ) : null}
+          {canConfigure && lease.isArchived ? (
             <button
               aria-label={`Review restore requirements for ${lease.tenantName}`}
               className={primaryIconButtonClassName}
@@ -351,7 +357,7 @@ export function LeaseInspector({
               <RotateCcw size={15} />
               <span className="truncate">Restore review</span>
             </button>
-          ) : (
+          ) : canConfigure ? (
             <button
               aria-label={`Edit lease for ${lease.tenantName}`}
               className={iconButtonClassName}
@@ -362,8 +368,8 @@ export function LeaseInspector({
               <Pencil size={15} />
               <span className="truncate">Edit</span>
             </button>
-          )}
-          {!lease.isArchived ? (
+          ) : null}
+          {canConfigure && !lease.isArchived ? (
             <button
               aria-label={`Archive lease for ${lease.tenantName}`}
               className={`${iconButtonClassName} text-danger hover:text-danger`}
@@ -374,31 +380,33 @@ export function LeaseInspector({
               <Archive size={15} />
               <span className="truncate">Archive</span>
             </button>
-          ) : (
+          ) : canConfigure ? (
             <span aria-hidden="true" />
-          )}
+          ) : null}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Link
-            aria-label={`Open timeline filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
-            href={lease.hrefs.timeline}
-            title="Open lease timeline"
-          >
-            <ListTree size={15} />
-            <span className="truncate">Timeline</span>
-          </Link>
-          <Link
-            aria-label={`Open ledger filtered to ${lease.tenantName}`}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
-            href={lease.hrefs.ledger}
-            title="Open lease ledger"
-          >
-            <Landmark size={15} />
-            <span className="truncate">Ledger</span>
-          </Link>
-        </div>
+        {canConfigure ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Link
+              aria-label={`Open timeline filtered to ${lease.tenantName}`}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href={lease.hrefs.timeline}
+              title="Open lease timeline"
+            >
+              <ListTree size={15} />
+              <span className="truncate">Timeline</span>
+            </Link>
+            <Link
+              aria-label={`Open ledger filtered to ${lease.tenantName}`}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+              href={lease.hrefs.ledger}
+              title="Open lease ledger"
+            >
+              <Landmark size={15} />
+              <span className="truncate">Ledger</span>
+            </Link>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -436,7 +444,7 @@ function AttentionNote({
   item,
   label,
 }: {
-  href: string;
+  href?: string;
   item?: LeaseSummary["riskIndicators"][number];
   label: string;
 }) {
@@ -448,7 +456,7 @@ function AttentionNote({
           <Badge tone={item?.tone ?? "neutral"}>
             {item ? "Review" : "Action"}
           </Badge>
-          {item ? null : (
+          {item || !href ? null : (
             <Link
               aria-label="Open action"
               className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"

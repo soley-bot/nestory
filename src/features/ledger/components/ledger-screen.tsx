@@ -76,6 +76,7 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type LedgerScreenProps = {
+  canManageFinance?: boolean;
   closeSummary: LedgerCloseSummary;
   entries: LedgerEntry[];
   initialEntryId?: string;
@@ -88,6 +89,7 @@ type LedgerScreenProps = {
 };
 
 export function LedgerScreen({
+  canManageFinance = true,
   closeSummary,
   entries,
   initialEntryId,
@@ -106,7 +108,7 @@ export function LedgerScreen({
     [propertyOptions, unitOptions, viewQuery],
   );
   const [drawerState, setDrawerState] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create"
+    canManageFinance && searchParams.get("action") === "create"
       ? { initialValues: createInitialValues, mode: "add" }
       : null,
   );
@@ -125,10 +127,17 @@ export function LedgerScreen({
     records: entries,
     selectedRecordId: selectedEntryId,
   });
-  const reviewContext = getLedgerReviewContext(viewQuery, {
+  const rawReviewContext = getLedgerReviewContext(viewQuery, {
     hasFocusedEntry: Boolean(focusedEntry),
     hasFocusedEntryIntent: Boolean(initialEntryId),
   });
+  const reviewContext =
+    rawReviewContext && !canManageFinance
+      ? {
+          ...rawReviewContext,
+          nextStep: "Select an entry to inspect its operational record.",
+        }
+      : rawReviewContext;
   const reviewPropertyLabel = getSelectedPropertyLabel(
     propertyOptions,
     viewQuery.propertyId,
@@ -155,7 +164,7 @@ export function LedgerScreen({
   }, [focusedEntryId]);
 
   useEffect(() => {
-    if (searchParams.get("action") !== "create") {
+    if (!canManageFinance || searchParams.get("action") !== "create") {
       return;
     }
 
@@ -166,7 +175,7 @@ export function LedgerScreen({
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [createInitialValues, pathname, router, searchParams]);
+  }, [canManageFinance, createInitialValues, pathname, router, searchParams]);
 
   const hasFilters =
     viewQuery.archiveState !== "active" ||
@@ -194,17 +203,19 @@ export function LedgerScreen({
               >
                 Clear filters
               </Link>
-            ) : (
+            ) : canManageFinance ? (
               <Button onClick={openCreate} variant="primary">
                 <Plus size={15} />
                 Add entry
               </Button>
-            )
+            ) : undefined
           }
           body={
             hasFilters
               ? "The current filters return no financial ledger records."
-              : "Add the first official income or expense record."
+              : canManageFinance
+                ? "Add the first official income or expense record."
+                : "No official income or expense records are available yet."
           }
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}
@@ -230,6 +241,7 @@ export function LedgerScreen({
   );
   const ledgerInspector = selectedEntry ? (
     <LedgerInspector
+      canManageFinance={canManageFinance}
       entry={selectedEntry}
       onArchiveEntry={(entry) => openLedgerAction({ entry, mode: "archive" })}
       onAttachReceipt={(entry) => openLedgerAction({ entry, mode: "receipt" })}
@@ -248,19 +260,27 @@ export function LedgerScreen({
               openLedgerAction({ change, mode: "activity" });
             }}
           />
-          <Button onClick={() => openLedgerAction({ mode: "period-lock" })}>
-            <Lock size={15} />
-            Period lock
-          </Button>
-          <Button onClick={() => openCreate()} variant="primary">
-            <Plus size={15} />
-            Add entry
-          </Button>
+          {canManageFinance ? (
+            <>
+              <Button
+                onClick={() => openLedgerAction({ mode: "period-lock" })}
+              >
+                <Lock size={15} />
+                Month lock
+              </Button>
+              <Button onClick={() => openCreate()} variant="primary">
+                <Plus size={15} />
+                Add entry
+              </Button>
+            </>
+          ) : null}
         </>
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/ledger"
-      localNav={<FinanceWorkspaceNavigation activeRoute="/ledger" />}
+      localNav={(
+        <FinanceWorkspaceNavigation activeRoute="/ledger" />
+      )}
       title="Financial Ledger"
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -309,7 +329,8 @@ export function LedgerScreen({
           )}
         </div>
 
-        {drawerState ? (
+        {drawerState &&
+        (canManageFinance || drawerState.mode === "activity") ? (
           <SideDrawer
             description={getLedgerDrawerDescription(drawerState)}
             onClose={() => setDrawerState(null)}
@@ -386,7 +407,7 @@ function getLedgerDrawerTitle(drawer: DrawerState) {
   }
 
   if (drawer.mode === "period-lock") {
-    return "Accounting period lock";
+    return "Month lock";
   }
 
   if (drawer.mode === "activity") {
@@ -414,7 +435,7 @@ function getLedgerDrawerDescription(drawer: DrawerState) {
   }
 
   if (drawer.mode === "period-lock") {
-    return "Lock or unlock accounting months so historical financial records cannot be changed accidentally.";
+    return "Lock or unlock operational months so historical financial records cannot be changed accidentally.";
   }
 
   if (drawer.mode === "activity") {
@@ -488,7 +509,7 @@ export function getLedgerReviewContext(
       countLabel: "in the current month",
       description: "Dashboard ledger net opens this month-to-date view.",
       nextStep:
-        "Select an entry to inspect, edit, attach a receipt, or lock the period.",
+        "Select an entry to inspect, edit, attach a receipt, or lock the month.",
     };
   }
 
@@ -587,8 +608,8 @@ function LedgerCloseStrip({
         </div>
         <p className="hidden whitespace-nowrap text-xs text-muted-foreground xl:block">
           {openCheckCount > 0
-            ? `${openCheckCount} close ${openCheckCount === 1 ? "item needs" : "items need"} review`
-            : "All close checks clear"}
+            ? `${openCheckCount} ${openCheckCount === 1 ? "item needs" : "items need"} review`
+            : "All review checks clear"}
         </p>
         <div className="flex items-baseline gap-2 border-l border-border/70 pl-3">
           <p className="text-xs text-muted-foreground">Visible net</p>
@@ -916,7 +937,7 @@ function PeriodLockPanel({
 
   useEffect(() => {
     if (state.status === "success") {
-      onSuccess(state.message ?? "Accounting period updated.");
+      onSuccess(state.message ?? "Month lock updated.");
       onClose();
     }
   }, [onClose, onSuccess, state.message, state.status]);
@@ -926,13 +947,13 @@ function PeriodLockPanel({
       <div className="flex-1 space-y-5 px-4 py-5 sm:px-5">
         <ConsequencePanel
           summary="Locking prevents changes to historical financial records in the selected month. Unlocking reopens that month for authorized changes."
-          title="Period lock consequence"
+          title="Month lock consequence"
         />
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
           <label className="block text-sm font-medium">
-            Accounting month
+            Month
             <MonthPickerField
-              ariaLabel="Accounting month"
+              ariaLabel="Month"
               className="mt-2"
               name="periodStart"
               required
@@ -964,7 +985,7 @@ function PeriodLockPanel({
           <Textarea
             className="mt-2"
             name="reason"
-            placeholder="Month-end close, correction window, or audit note"
+            placeholder="Routine month lock, correction window, or audit note"
           />
           {state.fieldErrors?.reason?.[0] ? (
             <p className="mt-1 text-xs text-danger">
@@ -984,11 +1005,11 @@ function PeriodLockPanel({
 
         <section className="rounded-md border border-border">
           <div className="border-b border-border px-3 py-2">
-            <p className="text-sm font-semibold">Locked periods</p>
+            <p className="text-sm font-semibold">Locked months</p>
           </div>
           {periodLocks.length === 0 ? (
             <p className="px-3 py-3 text-sm text-muted-foreground">
-              No accounting periods are locked.
+              No months are locked.
             </p>
           ) : (
             <div className="divide-y divide-border">
@@ -1024,7 +1045,7 @@ function PeriodLockPanel({
             variant="primary"
           >
             <Lock size={15} />
-            {pending ? "Updating..." : "Update period"}
+            {pending ? "Updating..." : "Update month"}
           </Button>
         </div>
       </div>

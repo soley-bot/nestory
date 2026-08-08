@@ -39,7 +39,7 @@ INSERT INTO public.organization_members(organization_id, user_id, role)
 VALUES (
   'a7020000-0000-4000-8000-000000000001',
   'a7020000-0000-4000-8000-000000000002',
-  'admin'
+  'super_admin'
 );
 
 INSERT INTO public.import_runs(

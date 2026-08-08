@@ -48,6 +48,7 @@ describe("finance routes", () => {
       requireFinanceContext.mockResolvedValue({
         capabilities: {
           canConfigureLeases: false,
+          canManageFinanceOperations: false,
           canReviewExpense,
           canReverseExpense: false,
           canSubmitExpense,
@@ -65,6 +66,7 @@ describe("finance routes", () => {
       expect(screenSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           canConfigureRent: false,
+          canManageFinance: false,
           canRecoverRent: false,
           canReviewExpense,
           canReverseExpense: false,
@@ -79,6 +81,7 @@ describe("finance routes", () => {
     requireFinanceContext.mockResolvedValue({
       capabilities: {
         canConfigureLeases: true,
+        canManageFinanceOperations: true,
         canReviewExpense: true,
         canReverseExpense: true,
         canSubmitExpense: true,
@@ -93,6 +96,7 @@ describe("finance routes", () => {
     expect(screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         canConfigureRent: true,
+        canManageFinance: true,
         canRecoverRent: true,
         canReviewExpense: true,
         canReverseExpense: true,

@@ -100,7 +100,19 @@ type RpcFunctionOverrides = {
       p_idempotency_key: string;
       p_organization_id: string;
       p_reason: string | null;
+      p_reconciliation_source_id: string | null;
       p_submission_id: string;
+    }
+  >;
+  submit_maintenance_cost: WithArgs<
+    "submit_maintenance_cost",
+    {
+      p_expense_date: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_reference: string | null;
+      p_supporting_document_id: string | null;
+      p_task_id: string;
     }
   >;
   create_organization_invitation: WithArgs<

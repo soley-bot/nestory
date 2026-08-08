@@ -49,7 +49,7 @@ VALUES (
   'finance-inventory-' || left(:'organization_id', 8)
 );
 INSERT INTO public.organization_members (organization_id, user_id, role)
-VALUES (:'organization_id', :'admin_id', 'admin');
+VALUES (:'organization_id', :'admin_id', 'super_admin');
 INSERT INTO public.properties (id, organization_id, name, code, property_type, status)
 VALUES (:'property_id', :'organization_id', 'Inventory fixture property', 'FIN-INV', 'apartment', 'active');
 INSERT INTO public.units (

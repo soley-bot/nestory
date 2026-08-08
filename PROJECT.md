@@ -30,6 +30,8 @@ a public self-service workspace builder.
 
 The implemented product includes:
 
+- A public product page and persisted information-request intake; the operating
+  workspace itself remains invite-only.
 - Invite-only authentication, organization membership, roles, and workspace
   access.
 - Overview and attention surfaces for portfolio, leasing,
@@ -37,11 +39,14 @@ The implemented product includes:
 - Property and unit records with linked leases, money, maintenance, documents,
   photos, and timeline history.
 - People records for tenants, owners, vendors, and staff.
-- Lease terms, parties, occupancy evidence, deposits, and rent policy.
-- Rent and income, bills and expenses, ledger history, period locks, and petty
-  cash.
-- Maintenance cases, assigned tasks, work orders, inspections, recurring work,
-  scheduling, reminders, and completion review.
+- Lease terms, parties, occupancy evidence, deposits, approved rent policy,
+  lease billing, and automatic current-month rent generation.
+- Rent invoices and collections, paid-expense submission and Finance review,
+  owner charges and payments, withdrawals, operational Ledger history, a
+  monthly Ledger lock, and petty cash.
+- Maintenance cases, assigned tasks, work orders, inspections, recurrence
+  metadata, scheduling, best-effort browser reminders, completion review, and
+  an Operations-to-Finance actual-cost handoff.
 - Private documents and photos.
 - Staged CSV imports for properties, units, people, and leases.
 - Monthly Owner Activity and traceable Unit Profit and Loss reporting, with
@@ -56,8 +61,10 @@ counts or exhaustive route lists in documentation.
 
 These are intentional truth boundaries, not invitations to synthesize data:
 
-- Automated recurring rent generation is blocked until it consumes exact
-  authoritative lease-term and approved rent-policy identities.
+- Automatic rent generation requires an eligible authoritative lease term,
+  effective billing configuration, and approved rent policy. A failed lease
+  month remains visible as a typed exception for Super Admin recovery; the
+  system never fabricates missing setup or silently creates historical rent.
 - Existing-lease party, occupancy, and resident transitions remain fail-closed
   until their impact and correction workflows are implemented.
 - Owner Statement publication remains outside the public report catalog until
@@ -65,14 +72,26 @@ These are intentional truth boundaries, not invitations to synthesize data:
 - A separate Management Fee Statement remains outside the public report catalog
   until owner-recognition authority exists. Legacy allocations and estimates
   are not substitutes.
-- Maintenance can capture actual cost and, for administrators, link an official
-  ledger effect. It does not yet provide a complete bill or petty-cash handoff
-  with reciprocal links, duplicate prevention, and void recovery.
+- Human-entered costs represent expenses already paid by the company. Unpaid
+  vendor bills, accounts-payable scheduling, bank reconciliation, and approval
+  chains beyond submit/review are outside the current boundary.
+- Operations Manager or Super Admin can submit a recorded maintenance cost to
+  Finance. Submission has no financial effect; Finance Manager or Super Admin
+  must approve it before the official expense, payment, customer effect, and
+  internal projections exist. Maintenance does not post directly to Ledger or
+  hand a cost into petty cash.
+- Recurrence on maintenance tasks is metadata and filtering only. The system
+  does not create future task instances. Reminder delivery is browser-only,
+  best effort, and not a durable background notification service.
 - Petty cash rolls forward a calculated closing balance but does not capture a
   separate physical cash count or resolve a counted-versus-calculated variance.
 - The accounting schema is retained as a compatibility kernel behind current
   workflows. It is not a user-facing payroll, overhead, tax, company P&L,
   general-ledger, or ERP module.
+- There is no full period-close workflow. The visible control is a narrow
+  organization-month Ledger lock used to stop operational financial changes;
+  internal property-period and journal guards are compatibility controls, not
+  a customer-facing accounting close.
 - The database currency enum currently supports USD.
 
 ## Technology And Repository Shape
@@ -111,7 +130,13 @@ provisioning are disabled.
   and JWTs.
 - Nestory owns invitation intent, organization membership, access level,
   branch scope, staff linkage, acceptance, revocation, and audit history.
-- The supported access levels are `admin`, `manager`, and `member`.
+- One membership has exactly one supported role: `super_admin`,
+  `finance_manager`, `finance_member`, `operations_manager`, or
+  `operations_member`.
+- Super Admin and both Finance roles are organization-scoped. Operations roles
+  require an active Staff identity and branch scope. Multiple simultaneous
+  roles, custom permissions, amount thresholds, and team ACLs are not
+  implemented.
 - An active Staff record is the operational person identity. Workspace Access
   is a separate sign-in grant linked to Staff; a People role never grants
   software access by itself.
@@ -119,18 +144,22 @@ provisioning are disabled.
   configured, the organization host. Localhost and reserved hosts use fallback
   membership resolution.
 - Unlinked authenticated users go to `/no-access`. Only the server-only
-  provisioning command may create an organization and its pending first-admin
-  invitation.
+  provisioning command may create an organization and its pending first
+  Super Admin invitation.
 - Never create an active membership before the matching verified identity
   explicitly accepts its invitation.
-- Final-administrator protection, invitation state, staff linkage, role, and
+- Final-Super-Admin protection, invitation state, staff linkage, role, and
   scope must remain enforced in checked SQL boundaries.
 
-Use `requireAdminContext` for administrator-only surfaces and
-`requireWorkspaceContext` for role-aware workspace surfaces. Administrators
-have the full operating shell. Managers and members have restricted
-maintenance-oriented access; members execute only work assigned through their
-linked Staff identity and exact scope.
+Use capability-specific server contexts for protected surfaces and actions;
+`requireAdminContext` is only a compatibility alias for Super Admin code.
+Super Admin configures leases, rent, access, and recovery. Finance Member reads
+Finance and submits paid-expense evidence. Finance Manager reads Finance and
+approves or rejects it. Operations Manager coordinates branch maintenance and
+submits recorded cost. Operations Member executes only work assigned through
+the linked Staff identity and exact branch scope. Navigation is not an
+authorization boundary: actions, RPCs, RLS, and grants repeat the capability
+check.
 
 Invitation acceptance must fail closed unless Nestory has positive proof for
 the identity's current password or the user creates a replacement password.
@@ -192,6 +221,13 @@ history.
   exist only as drafts; approved versions are complete and immutable.
 - Compatibility rent fields alone never make a lease ready for automatic rent
   generation.
+- Eligible current-month rent is generated from the effective lease term,
+  billing term, and approved rent policy. Activation catch-up and the scheduled
+  generator share one idempotent private implementation; manual independent
+  rent creation is retired.
+- Generated rent is an official obligation and invoice, not cash. Cash and
+  owner-property effects begin only with a checked tenant payment allocation or
+  direct-owner collection confirmation.
 
 ## Financial Authority
 
@@ -207,6 +243,15 @@ Finance distinguishes obligations from dated settlement events:
 - Unit Profit and Loss consumes resolved, unit-linked property cash effects,
   preserves reversal signs, and excludes property-level, deposit,
   owner-funding, company-fee, and unresolved effects.
+- A general paid expense is submitted by Finance Member or Super Admin as
+  immutable evidence with no financial effect. Finance Manager or Super Admin
+  approves or rejects it; approval atomically creates the official expense,
+  payment/allocation, owner-or-tenant effect, and exact internal projections.
+  Only Super Admin may append an exact reversal.
+- A maintenance cost uses the same review boundary, but Operations supplies the
+  task, vendor, amount, date, and evidence while Finance chooses the verified
+  paid-from source at approval. Maintenance completion and Finance approval are
+  independent states.
 
 Checked finance transactions must preserve organization and property scope,
 source identity, reconciliation identity, payload-bound idempotency, balanced

@@ -2,6 +2,10 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
+-- This exercises the retained internal compatibility kernel. Data API execute
+-- privileges for these retired writers are asserted separately.
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
 SELECT plan(16);
 
 CREATE TEMP TABLE owner_account_state (
@@ -30,7 +34,7 @@ SELECT set_config(
   (SELECT admin_id::text FROM owner_account_state),
   true
 );
-SET LOCAL ROLE authenticated;
+RESET ROLE;
 
 SELECT lives_ok(
   $$

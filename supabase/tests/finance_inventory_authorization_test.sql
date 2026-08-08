@@ -2,6 +2,9 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
+-- Compatibility fixture rows represent lease-derived automatic rent.
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
 SELECT plan(44);
 
 CREATE TEMP TABLE finance_inventory_auth_state (
@@ -67,13 +70,13 @@ SELECT cross_organization_id, 'Finance inventory cross authorization',
 FROM finance_inventory_auth_state;
 
 INSERT INTO public.organization_members (organization_id, user_id, role)
-SELECT organization_id, admin_id, 'admin' FROM finance_inventory_auth_state
+SELECT organization_id, admin_id, 'super_admin' FROM finance_inventory_auth_state
 UNION ALL
-SELECT organization_id, member_id, 'member' FROM finance_inventory_auth_state
+SELECT organization_id, member_id, 'finance_member' FROM finance_inventory_auth_state
 UNION ALL
-SELECT organization_id, manager_id, 'manager' FROM finance_inventory_auth_state
+SELECT organization_id, manager_id, 'finance_manager' FROM finance_inventory_auth_state
 UNION ALL
-SELECT cross_organization_id, cross_admin_id, 'admin'
+SELECT cross_organization_id, cross_admin_id, 'super_admin'
 FROM finance_inventory_auth_state;
 
 INSERT INTO public.properties (
@@ -232,18 +235,18 @@ GROUP BY book.id;
 GRANT SELECT ON finance_inventory_auth_accounting TO authenticated;
 
 SELECT ok(
-  has_table_privilege('authenticated', 'public.finance_income_items', 'INSERT')
-  AND has_table_privilege('authenticated', 'public.finance_expense_items', 'INSERT')
+  NOT has_table_privilege('authenticated', 'public.finance_income_items', 'INSERT')
+  AND NOT has_table_privilege('authenticated', 'public.finance_expense_items', 'INSERT')
   AND NOT has_table_privilege('authenticated', 'public.finance_receipts', 'INSERT')
   AND NOT has_table_privilege('authenticated', 'public.finance_receipt_allocations', 'INSERT')
   AND NOT has_table_privilege('authenticated', 'public.finance_payments', 'INSERT')
   AND NOT has_table_privilege('authenticated', 'public.finance_payment_allocations', 'INSERT')
-  AND has_table_privilege('authenticated', 'public.ledger_entries', 'INSERT')
-  AND has_table_privilege('authenticated', 'public.ledger_entries', 'UPDATE')
+  AND NOT has_table_privilege('authenticated', 'public.ledger_entries', 'INSERT')
+  AND NOT has_table_privilege('authenticated', 'public.ledger_entries', 'UPDATE')
   AND NOT has_table_privilege('authenticated', 'public.accounting_journal_entries', 'INSERT')
   AND NOT has_table_privilege('authenticated', 'public.lease_deposit_events', 'INSERT')
   AND NOT has_table_privilege('authenticated', 'public.petty_cash_entries', 'INSERT'),
-  'authenticated direct financial table privileges match the current mixed grant boundary'
+  'authenticated callers have no direct financial write privileges'
 );
 
 SELECT ok(
@@ -476,8 +479,8 @@ FROM (VALUES
       'other', 'Admin direct', '2026-07-10', 'USD', 'open',
       'ADMIN-DIRECT-INCOME'
     ),
-    true,
-    'admin direct obligation DML currently succeeds'
+    false,
+    'Super Admin direct obligation DML is denied by table privilege'
   ),
   (
     format(
@@ -497,8 +500,8 @@ FROM (VALUES
       'vendor_bill', 'Admin direct', '2026-07-10', 'USD', 'Repairs', 'draft',
       'ADMIN-DIRECT-EXPENSE'
     ),
-    true,
-    'admin direct expense-obligation DML currently succeeds'
+    false,
+    'Super Admin direct expense-obligation DML is denied by table privilege'
   ),
   (
     format(
@@ -537,8 +540,8 @@ FROM (VALUES
       (SELECT property_id FROM finance_inventory_auth_state),
       '2026-07-10', 'income', 'Admin direct', 'USD', 'Admin direct'
     ),
-    true,
-    'admin direct Ledger DML currently succeeds'
+    false,
+    'Super Admin direct Ledger DML is denied by table privilege'
   ),
   (
     format(
@@ -582,7 +585,7 @@ SELECT throws_ok(
     (SELECT organization_id FROM finance_inventory_auth_state),
     (SELECT property_id FROM finance_inventory_auth_state),
     (SELECT other_unit_id FROM finance_inventory_auth_state),
-    'rent', 'Wrong unit', '2026-07-15', 'AUTH-WRONG-UNIT'
+    'other', 'Wrong unit', '2026-07-15', 'AUTH-WRONG-UNIT'
   ),
   '23503',
   'Unit not found under selected property',
@@ -596,7 +599,7 @@ SELECT throws_ok(
     (SELECT other_property_id FROM finance_inventory_auth_state),
     (SELECT other_unit_id FROM finance_inventory_auth_state),
     (SELECT lease_id FROM finance_inventory_auth_state),
-    'rent', 'Wrong lease', '2026-07-15', 'AUTH-WRONG-LEASE'
+    'other', 'Wrong lease', '2026-07-15', 'AUTH-WRONG-LEASE'
   ),
   '23503',
   'Lease not found for selected property and unit',
@@ -610,14 +613,14 @@ SELECT lives_ok(
     (SELECT property_id FROM finance_inventory_auth_state),
     (SELECT unit_id FROM finance_inventory_auth_state),
     (SELECT lease_id FROM finance_inventory_auth_state),
-    'rent', 'Ignored when payer person is present', '2026-07-15',
+    'other', 'Ignored when payer person is present', '2026-07-15',
     'AUTH-UNRELATED-PAYER',
     (SELECT other_person_id FROM finance_inventory_auth_state)
   ),
   'income RPC currently accepts an unrelated same-organization payer person for a lease'
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   format(
     'SELECT public.create_finance_expense_item(%L,%L,%L,%L,%L,%L,%L,%L,NULL,1,%L,NULL,%L)',
     (SELECT organization_id FROM finance_inventory_auth_state),
@@ -628,10 +631,12 @@ SELECT lives_ok(
     'vendor_bill', 'Unrelated vendor', '2026-07-15', 'Repairs',
     'AUTH-WRONG-EXPENSE-UNIT'
   ),
-  'expense RPC currently accepts a same-organization unit from the wrong property'
+  '42501',
+  NULL,
+  'retired direct expense RPC is not executable'
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   format(
     'SELECT public.create_finance_expense_item(%L,%L,%L,%L,%L,%L,%L,%L,NULL,1,%L,NULL,%L)',
     (SELECT organization_id FROM finance_inventory_auth_state),
@@ -642,7 +647,9 @@ SELECT lives_ok(
     'vendor_bill', 'Unrelated vendor', '2026-07-15', 'Repairs',
     'AUTH-WRONG-EXPENSE-TASK'
   ),
-  'expense RPC currently accepts a task and vendor person unrelated to the selected property'
+  '42501',
+  NULL,
+  'retired direct expense RPC stays unavailable across property scope'
 );
 
 SELECT throws_ok(
@@ -658,7 +665,7 @@ SELECT throws_ok(
   'admin generic Ledger create RPC is exposed but fails at private-helper execute denial'
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   format(
     'SELECT public.update_ledger_entry(%L,%L,%L,%L,%L,%L,%L,11,%L,%L)',
     (SELECT ledger_id FROM finance_inventory_auth_state),
@@ -668,16 +675,20 @@ SELECT lives_ok(
     '2026-07-05', 'income', 'Authorization updated', 'USD',
     'Generic update evidence'
   ),
-  'admin generic Ledger update RPC currently succeeds'
+  '42501',
+  NULL,
+  'Super Admin generic Ledger update cannot bypass the checked projection boundary'
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   format(
     'SELECT public.archive_ledger_entry(%L,%L)',
     (SELECT ledger_id FROM finance_inventory_auth_state),
     (SELECT organization_id FROM finance_inventory_auth_state)
   ),
-  'admin generic Ledger archive RPC currently succeeds'
+  '42501',
+  NULL,
+  'Super Admin generic Ledger archive cannot bypass the checked projection boundary'
 );
 
 SELECT throws_ok(
@@ -794,7 +805,7 @@ SELECT throws_ok(
   'direct allocation wrong-property link is denied by table privilege'
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   format(
     'UPDATE public.ledger_entries SET source_type=%L,source_id=%L WHERE id=%L AND organization_id=%L',
     'finance_income',
@@ -810,7 +821,9 @@ SELECT lives_ok(
     ),
     (SELECT organization_id FROM finance_inventory_auth_state)
   ),
-  'admin direct Ledger update can impersonate a reserved namespace with a wrong-property source'
+  '42501',
+  NULL,
+  'Super Admin direct Ledger updates are denied by table privilege'
 );
 
 RESET ROLE;

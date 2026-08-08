@@ -2,6 +2,9 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
+-- Compatibility fixture rows represent lease-derived automatic rent.
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
 SELECT plan(61);
 
 CREATE TEMP TABLE property_cash_events_test_state (
@@ -109,16 +112,16 @@ SELECT cross_organization_id, 'Property cash events cross test',
 FROM property_cash_events_test_state;
 
 INSERT INTO public.organization_members (organization_id, user_id, role)
-SELECT organization_id, admin_id, 'admin'
+SELECT organization_id, admin_id, 'super_admin'
 FROM property_cash_events_test_state
 UNION ALL
-SELECT organization_id, member_id, 'member'
+SELECT organization_id, member_id, 'finance_member'
 FROM property_cash_events_test_state
 UNION ALL
-SELECT organization_id, manager_id, 'manager'
+SELECT organization_id, manager_id, 'finance_manager'
 FROM property_cash_events_test_state
 UNION ALL
-SELECT cross_organization_id, cross_admin_id, 'admin'
+SELECT cross_organization_id, cross_admin_id, 'super_admin'
 FROM property_cash_events_test_state;
 
 INSERT INTO public.properties (
@@ -307,6 +310,8 @@ SELECT represented_request_id, organization_id, property_id, unit_id,
   'Represented maintenance request', 'General', 'closed'
 FROM property_cash_events_test_state;
 
+SET LOCAL session_replication_role = replica;
+
 INSERT INTO public.tasks (
   id, organization_id, tenant_request_id, property_id, unit_id, title,
   category, status, vendor_person_id, actual_cost_amount,
@@ -327,6 +332,8 @@ SELECT represented_task_id, organization_id, represented_request_id,
   property_id, unit_id, 'Represented repair', 'Electrical', 'completed',
   vendor_id, 35, 'USD', represented_ledger_id, '2026-07-21'
 FROM property_cash_events_test_state;
+
+SET LOCAL session_replication_role = origin;
 
 INSERT INTO public.finance_expense_items (
   id, organization_id, property_id, unit_id, task_id, vendor_person_id,
@@ -1544,11 +1551,13 @@ WHERE source_id = (
   SELECT receipt_owner_allocation_id FROM property_cash_events_test_state
 );
 
+RESET ROLE;
 UPDATE public.finance_income_items
 SET income_type = 'rent'
 WHERE id = (
   SELECT income_owner_id FROM property_cash_events_test_state
 );
+SET LOCAL ROLE authenticated;
 
 SELECT ok(
   economic_class = 'operating_income'

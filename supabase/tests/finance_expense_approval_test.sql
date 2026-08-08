@@ -27,7 +27,7 @@ SELECT has_function(
 SELECT has_function(
   'public',
   'review_expense',
-  ARRAY['uuid', 'uuid', 'text', 'text', 'text'],
+  ARRAY['uuid', 'uuid', 'text', 'text', 'text', 'uuid'],
   'Finance Manager and Super Admin share one checked review RPC'
 );
 SELECT has_function(
@@ -35,6 +35,45 @@ SELECT has_function(
   'reverse_expense',
   ARRAY['uuid', 'uuid', 'date', 'text', 'text'],
   'Super Admin has one checked expense reversal RPC'
+);
+
+SELECT ok(
+  (
+    SELECT routine.prosecdef
+    FROM pg_catalog.pg_proc AS routine
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = routine.pronamespace
+    WHERE namespace.nspname = 'public'
+      AND routine.proname = 'get_property_cash_events_v1_page'
+  ),
+  'the public cash projection uses a checked definer boundary'
+);
+
+SELECT ok(
+  (
+    SELECT routine.prosecdef
+    FROM pg_catalog.pg_proc AS routine
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = routine.pronamespace
+    WHERE namespace.nspname = 'app_private'
+      AND routine.proname =
+        'get_property_cash_events_v1_page_pre_expense_approval'
+  ),
+  'the legacy cash baseline reads a role-independent trusted projection'
+);
+
+SELECT ok(
+  NOT coalesce(
+    has_function_privilege(
+      'authenticated',
+      to_regprocedure(
+        'app_private.get_property_cash_events_v1_page_pre_expense_approval(uuid,uuid,currency_code,date,date,date,text,uuid,integer)'
+      ),
+      'EXECUTE'
+    ),
+    false
+  ),
+  'authenticated callers cannot bypass the public cash projection boundary'
 );
 
 SELECT ok(
@@ -49,6 +88,131 @@ SELECT ok(
     false
   ),
   'the direct paid-expense RPC is retired from the Data API'
+);
+
+SELECT ok(
+  NOT coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure(
+      'public.create_finance_expense_item(uuid,uuid,uuid,uuid,uuid,text,text,date,date,numeric,text,text,text,text,text,numeric,numeric,numeric)'
+    ),
+    'EXECUTE'
+  ), false),
+  'legacy direct expense creation is retired from the Data API'
+);
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.record_finance_payment(uuid,uuid,numeric,date,text)'),
+    'EXECUTE'
+  ), false),
+  'legacy payment recording remains available for historical expenses'
+);
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.reverse_finance_payment(uuid,uuid,date,text)'),
+    'EXECUTE'
+  ), false),
+  'legacy payment reversal remains available for historical payments'
+);
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.post_finance_expense_item(uuid,uuid,date)'),
+    'EXECUTE'
+  ), false),
+  'legacy expense posting remains available for historical expenses'
+);
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.set_finance_expense_status(uuid,uuid,text)'),
+    'EXECUTE'
+  ), false),
+  'legacy expense status remains available for historical expenses'
+);
+
+SELECT ok(
+  (
+    SELECT
+      strpos(definition, 'lock_open_property_reporting_period') > 0
+      AND strpos(definition, 'lock_open_property_reporting_period')
+        < strpos(definition, ':owner-cash')
+      AND strpos(definition, ':owner-cash')
+        < strpos(definition, 'approve_expense_submission')
+    FROM (
+      SELECT pg_catalog.pg_get_functiondef(
+        'public.review_expense(uuid,uuid,text,text,text,uuid)'::regprocedure
+      ) AS definition
+    ) AS reviewed
+  ),
+  'expense approval locks period then customer settlement scope before invoice effects'
+);
+
+SELECT ok(
+  (
+    SELECT
+      strpos(definition, 'lock_open_property_reporting_period') > 0
+      AND strpos(definition, 'lock_open_property_reporting_period')
+        < strpos(definition, ':owner-cash')
+    FROM (
+      SELECT pg_catalog.pg_get_functiondef(
+        'public.reverse_expense(uuid,uuid,date,text,text)'::regprocedure
+      ) AS definition
+    ) AS reviewed
+  ),
+  'expense reversal locks the reporting period before owner or tenant settlement scope'
+);
+
+SELECT ok(
+  (
+    SELECT
+      strpos(definition, 'financial_idempotency_v1') > 0
+      AND strpos(definition, 'financial_idempotency_v1')
+        < strpos(definition, ':owner-cash')
+      AND strpos(definition, ':owner-cash') < strpos(definition, 'SELECT invoice.*')
+    FROM (
+      SELECT pg_catalog.pg_get_functiondef(
+        'public.record_owner_invoice_payment(uuid,uuid,numeric,date,text,text)'::regprocedure
+      ) AS definition
+    ) AS reviewed
+  ),
+  'owner payment serializes its request then locks owner cash before the invoice row'
+);
+
+SELECT ok(
+  (
+    SELECT
+      strpos(definition, 'lock_open_property_reporting_period') > 0
+      AND strpos(definition, 'lock_open_property_reporting_period')
+        < strpos(definition, 'tenant_invoice_payment_v1')
+      AND strpos(definition, 'tenant_invoice_payment_v1')
+        < strpos(definition, 'record_tenant_invoice_payment_lease_derived_unchecked')
+    FROM (
+      SELECT pg_catalog.pg_get_functiondef(
+        'public.record_tenant_invoice_payment(uuid,uuid,numeric,date,uuid,text,jsonb,text)'::regprocedure
+      ) AS definition
+    ) AS reviewed
+  ),
+  'tenant payment locks period then invoice settlement key before invoice rows'
+);
+
+SELECT ok(
+  (
+    SELECT
+      strpos(definition, 'lock_open_property_reporting_period') > 0
+      AND strpos(definition, 'lock_open_property_reporting_period')
+        < strpos(definition, 'owner_collection_v1')
+      AND strpos(definition, 'owner_collection_v1')
+        < strpos(definition, 'confirm_owner_collected_rent_lease_derived_unchecked')
+    FROM (
+      SELECT pg_catalog.pg_get_functiondef(
+        'public.confirm_owner_collected_rent(uuid,uuid,numeric,date,text,jsonb,text)'::regprocedure
+      ) AS definition
+    ) AS reviewed
+  ),
+  'owner collection locks period then invoice settlement key before invoice rows'
 );
 
 CREATE TEMP TABLE expense_approval_state (
@@ -387,6 +551,21 @@ SELECT set_config(
   true
 );
 
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*) FROM public.leases),
+      (SELECT count(*) FROM public.property_owners),
+      (
+        SELECT count(*)
+        FROM public.financial_reconciliation_sources
+        WHERE id = (SELECT source_id FROM expense_approval_state)
+      )
+  $$,
+  $$VALUES (1::bigint, 1::bigint, 1::bigint)$$,
+  'Finance Member can load the lease, owner, and funding context used by Finance'
+);
+
 SELECT lives_ok(
   $$
     UPDATE expense_approval_state
@@ -481,8 +660,121 @@ FROM expense_approval_state;
 
 SELECT set_config(
   'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM expense_approval_state),
+  true
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.archive_financial_reconciliation_source(
+      organization_id,
+      source_id
+    )
+    FROM expense_approval_state
+  $$,
+  'Super Admin archives the funding source after the completed submission'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_member_id::text FROM expense_approval_state),
+  true
+);
+
+SELECT is(
+  (
+    public.submit_expense(
+      organization_id,
+      property_id,
+      unit_id,
+      'general',
+      NULL,
+      'cleaning',
+      'Clean Co.',
+      '2026-08-08',
+      50,
+      20,
+      'USD',
+      'owner',
+      NULL,
+      source_id,
+      NULL,
+      NULL,
+      'Move-out cleaning',
+      'expense-submit-owner-0001'
+    )->>'submission_id'
+  )::uuid,
+  (SELECT submission_id FROM expense_approval_state),
+  'a completed submission replay survives later funding-source archival'
+)
+FROM expense_approval_state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
   (SELECT finance_manager_id::text FROM expense_approval_state),
   true
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.review_expense(
+      organization_id,
+      submission_id,
+      'approve',
+      NULL,
+      'expense-approve-archived-source-0001',
+      NULL
+    )
+    FROM expense_approval_state
+  $$,
+  '23503',
+  'Funding source does not belong to this property and currency',
+  'approval revalidates that the snapshotted funding source is still active'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT status FROM public.expense_submissions
+       WHERE id = (SELECT submission_id FROM expense_approval_state)),
+      (SELECT count(*) FROM public.finance_expense_items),
+      (SELECT count(*) FROM public.finance_payments),
+      (SELECT count(*) FROM public.finance_payment_allocations),
+      (SELECT count(*) FROM public.ledger_entries),
+      (SELECT count(*) FROM public.accounting_journal_entries)
+  $$,
+  $$VALUES ('submitted'::text, 0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
+  'failed source revalidation leaves the submission and all financial effects unchanged'
+);
+
+RESET ROLE;
+SELECT set_config('app.financial_reconciliation_source_context', 'on', true);
+UPDATE public.financial_reconciliation_sources
+SET archived_at = NULL,
+    archived_by = NULL
+WHERE id = (SELECT source_id FROM expense_approval_state);
+SELECT set_config('app.financial_reconciliation_source_context', 'off', true);
+SET LOCAL ROLE authenticated;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_manager_id::text FROM expense_approval_state),
+  true
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*) FROM public.leases),
+      (SELECT count(*) FROM public.property_owners),
+      (
+        SELECT count(*)
+        FROM public.financial_reconciliation_sources
+        WHERE id = (SELECT source_id FROM expense_approval_state)
+      )
+  $$,
+  $$VALUES (1::bigint, 1::bigint, 1::bigint)$$,
+  'Finance Manager can load the lease, owner, and funding context needed for review'
 );
 
 SELECT throws_ok(
@@ -513,7 +805,8 @@ SELECT lives_ok(
       submission_id,
       'approve',
       NULL,
-      'expense-approve-owner-0001'
+      'expense-approve-owner-0001',
+      NULL
     )
   $$,
   'Finance Manager can approve a submitted expense'
@@ -591,6 +884,159 @@ SELECT results_eq(
   'approval creates one balanced Ledger and journal projection at allocation identity'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM expense_approval_state),
+  true
+);
+
+CREATE TEMP TABLE expense_approval_cash_projection AS
+SELECT coalesce(
+  pg_catalog.jsonb_agg(pg_catalog.to_jsonb(event) ORDER BY event.event_key),
+  '[]'::jsonb
+) AS events
+FROM expense_approval_state AS state
+CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+  state.organization_id,
+  state.property_id,
+  'USD',
+  '2026-08-01',
+  '2026-08-31',
+  NULL,
+  NULL,
+  NULL,
+  100
+) AS event;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_manager_id::text FROM expense_approval_state),
+  true
+);
+
+SELECT lives_ok(
+  $$
+    SELECT count(*)
+    FROM expense_approval_state AS state
+    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+      state.organization_id,
+      state.property_id,
+      'USD',
+      '2026-08-01',
+      '2026-08-31',
+      NULL,
+      NULL,
+      NULL,
+      100
+    )
+  $$,
+  'Finance Manager can read canonical property cash events'
+);
+
+SELECT results_eq(
+  $$
+    SELECT coalesce(
+      pg_catalog.jsonb_agg(pg_catalog.to_jsonb(event) ORDER BY event.event_key),
+      '[]'::jsonb
+    )
+    FROM expense_approval_state AS state
+    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+      state.organization_id,
+      state.property_id,
+      'USD',
+      '2026-08-01',
+      '2026-08-31',
+      NULL,
+      NULL,
+      NULL,
+      100
+    ) AS event
+  $$,
+  $$ SELECT events FROM expense_approval_cash_projection $$,
+  'Finance Manager receives the same canonical cash projection as Super Admin'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_member_id::text FROM expense_approval_state),
+  true
+);
+
+SELECT lives_ok(
+  $$
+    SELECT count(*)
+    FROM expense_approval_state AS state
+    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+      state.organization_id,
+      state.property_id,
+      'USD',
+      '2026-08-01',
+      '2026-08-31',
+      NULL,
+      NULL,
+      NULL,
+      100
+    )
+  $$,
+  'Finance Member can read canonical property cash events'
+);
+
+SELECT results_eq(
+  $$
+    SELECT coalesce(
+      pg_catalog.jsonb_agg(pg_catalog.to_jsonb(event) ORDER BY event.event_key),
+      '[]'::jsonb
+    )
+    FROM expense_approval_state AS state
+    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+      state.organization_id,
+      state.property_id,
+      'USD',
+      '2026-08-01',
+      '2026-08-31',
+      NULL,
+      NULL,
+      NULL,
+      100
+    ) AS event
+  $$,
+  $$ SELECT events FROM expense_approval_cash_projection $$,
+  'Finance Member receives the same canonical cash projection as Super Admin'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT operations_manager_id::text FROM expense_approval_state),
+  true
+);
+
+SELECT throws_ok(
+  $$
+    SELECT count(*)
+    FROM expense_approval_state AS state
+    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+      state.organization_id,
+      state.property_id,
+      'USD',
+      '2026-08-01',
+      '2026-08-31',
+      NULL,
+      NULL,
+      NULL,
+      100
+    )
+  $$,
+  '42501',
+  'Not authorized',
+  'Operations Manager cannot read canonical Finance cash events'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_manager_id::text FROM expense_approval_state),
+  true
+);
+
 SELECT results_eq(
   $$
     SELECT
@@ -612,6 +1058,71 @@ SELECT results_eq(
 
 SELECT set_config(
   'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM expense_approval_state),
+  true
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.record_finance_payment(
+      organization_id,
+      (approval_result->>'finance_expense_item_id')::uuid,
+      1,
+      '2026-08-10',
+      'Bypass blocked'
+    )
+    FROM expense_approval_state
+  $$,
+  '42501',
+  'Approved expense must be changed through its submission workflow',
+  'legacy payment recording cannot mutate an approval-owned expense'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_finance_payment(
+      organization_id,
+      (approval_result->>'payment_id')::uuid,
+      '2026-08-10',
+      'Bypass blocked'
+    )
+    FROM expense_approval_state
+  $$,
+  '42501',
+  'Approved expense must be changed through its submission workflow',
+  'legacy payment reversal cannot bypass reverse_expense'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.post_finance_expense_item(
+      (approval_result->>'finance_expense_item_id')::uuid,
+      organization_id,
+      '2026-08-10'
+    )
+    FROM expense_approval_state
+  $$,
+  '42501',
+  'Approved expense must be changed through its submission workflow',
+  'legacy posting cannot create a second Ledger effect for approved workflow'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.set_finance_expense_status(
+      (approval_result->>'finance_expense_item_id')::uuid,
+      organization_id,
+      'void'
+    )
+    FROM expense_approval_state
+  $$,
+  '42501',
+  'Approved expense must be changed through its submission workflow',
+  'legacy status mutation cannot void an approval-owned expense'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
   (SELECT finance_member_id::text FROM expense_approval_state),
   true
 );
@@ -620,7 +1131,7 @@ SELECT throws_ok(
   format(
     $sql$
       SELECT public.review_expense(
-        %L, %L, 'reject', 'Not supported', 'expense-member-review-0001'
+        %L, %L, 'reject', 'Not supported', 'expense-member-review-0001', NULL
       )
     $sql$,
     organization_id,
@@ -671,7 +1182,7 @@ SELECT throws_ok(
   format(
     $sql$
       SELECT public.review_expense(
-        %L, %L, 'reject', NULL, 'expense-reject-no-reason-0001'
+        %L, %L, 'reject', NULL, 'expense-reject-no-reason-0001', NULL
       )
     $sql$,
     organization_id,
@@ -690,7 +1201,8 @@ SELECT lives_ok(
       rejection_submission_id,
       'reject',
       'Receipt does not match the cost',
-      'expense-reject-0001'
+      'expense-reject-0001',
+      NULL
     )
     FROM expense_approval_state
   $$,
@@ -711,6 +1223,39 @@ SELECT set_config(
   'request.jwt.claim.sub',
   (SELECT super_admin_id::text FROM expense_approval_state),
   true
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_expense(
+      organization_id,
+      submission_id,
+      '2026-08-07',
+      'Invalid earlier reversal date',
+      'expense-reverse-owner-earlier-0001'
+    )
+    FROM expense_approval_state
+  $$,
+  '22023',
+  'Reversal date cannot be before the original payment date',
+  'an expense cannot be reversed before its original payment date'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      submission.status,
+      submission.reversal_payment_id IS NULL,
+      count(reversal.id)
+    FROM public.expense_submissions AS submission
+    LEFT JOIN public.finance_payments AS reversal
+      ON reversal.organization_id = submission.organization_id
+     AND reversal.reversal_of_id = submission.approved_payment_id
+    WHERE submission.id = (SELECT submission_id FROM expense_approval_state)
+    GROUP BY submission.status, submission.reversal_payment_id
+  $$,
+  $$VALUES ('approved'::text, true, 0::bigint)$$,
+  'an earlier-date reversal leaves the approved submission and payment unchanged'
 );
 
 SELECT lives_ok(
@@ -766,6 +1311,111 @@ SELECT results_eq(
 
 SELECT results_eq(
   $$
+    SELECT
+      event.event_date,
+      event.amount,
+      event.owner_cash_effect,
+      event.operating_cash_effect,
+      event.economic_class,
+      event.statement_section,
+      event.category_code,
+      event.classification_status,
+      event.is_reversal,
+      event.is_legacy,
+      event.requires_resolution,
+      cardinality(event.resolution_codes),
+      event.reconciliation_source_id,
+      event.reconciliation_state,
+      event.ledger_entry_id IS NOT NULL,
+      event.journal_entry_id IS NOT NULL,
+      event.projection_status
+    FROM expense_approval_state AS state
+    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+      state.organization_id,
+      state.property_id,
+      'USD',
+      '2026-08-01',
+      '2026-08-31',
+      NULL,
+      NULL,
+      NULL,
+      100
+    ) AS event
+    WHERE event.source_type = 'payment_allocation'
+      AND event.source_id IN (
+        (state.approval_result->>'payment_allocation_id')::uuid,
+        (state.reversal_result->>'payment_allocation_id')::uuid
+      )
+    ORDER BY event.event_date, event.source_id
+  $$,
+  $$
+    SELECT *
+    FROM (
+      VALUES
+        (
+          '2026-08-08'::date,
+          50.00::numeric,
+          -50.00::numeric,
+          -50.00::numeric,
+          'operating_expense'::text,
+          'expenses'::text,
+          'expense_maintenance'::text,
+          'contract_current'::text,
+          false,
+          false,
+          false,
+          0,
+          (SELECT source_id FROM expense_approval_state),
+          'linked_exact_identity'::text,
+          true,
+          true,
+          'allocation_level_ledger_and_journal'::text
+        ),
+        (
+          '2026-08-10'::date,
+          50.00::numeric,
+          50.00::numeric,
+          50.00::numeric,
+          'operating_expense'::text,
+          'expenses'::text,
+          'expense_maintenance'::text,
+          'contract_current'::text,
+          true,
+          false,
+          false,
+          0,
+          (SELECT source_id FROM expense_approval_state),
+          'linked_exact_identity'::text,
+          true,
+          true,
+          'allocation_level_ledger_and_journal'::text
+        )
+    ) AS expected(
+      event_date,
+      amount,
+      owner_cash_effect,
+      operating_cash_effect,
+      economic_class,
+      statement_section,
+      category_code,
+      classification_status,
+      is_reversal,
+      is_legacy,
+      requires_resolution,
+      resolution_code_count,
+      reconciliation_source_id,
+      reconciliation_state,
+      has_ledger,
+      has_journal,
+      projection_status
+    )
+    ORDER BY event_date
+  $$,
+  'approved expense and reversal are resolved exact cash and NOI events'
+);
+
+SELECT results_eq(
+  $$
     SELECT total_amount, paid_from_held_cash, paid_by_owner, balance_due
     FROM public.owner_invoice_balances
     WHERE property_id = (SELECT property_id FROM expense_approval_state)
@@ -773,6 +1423,144 @@ SELECT results_eq(
   $$VALUES (0.00::numeric, 0.00::numeric, 0.00::numeric, 0.00::numeric)$$,
   'the reversed owner charge no longer affects the owner balance'
 );
+
+SELECT throws_ok(
+  format(
+    $sql$
+      SELECT public.record_owner_invoice_payment(
+        %L, %L, 1, '2026-08-10', 'Stale owner payment',
+        'owner-payment-reversed-0001'
+      )
+    $sql$,
+    state.organization_id,
+    line.invoice_id
+  ),
+  '22023',
+  'Owner payment exceeds invoice balance',
+  'a stale owner-payment action cannot settle a reversed owner charge'
+)
+FROM expense_approval_state AS state
+JOIN public.expense_submissions AS submission
+  ON submission.id = state.submission_id
+JOIN public.ips_expense_responsibilities AS responsibility
+  ON responsibility.id = submission.approved_responsibility_id
+JOIN public.owner_invoice_lines AS line
+  ON line.id = responsibility.owner_invoice_line_id;
+
+RESET ROLE;
+
+INSERT INTO public.owner_invoice_lines (
+  organization_id,
+  invoice_id,
+  property_id,
+  source_type,
+  source_id,
+  customer_label,
+  description,
+  amount,
+  sort_order,
+  created_by
+)
+SELECT
+  state.organization_id,
+  line.invoice_id,
+  state.property_id,
+  'owner_expense',
+  'b8000000-0000-0000-0000-000000000099',
+  'Unrelated owner charge',
+  'Still payable after another line was reversed',
+  12,
+  99,
+  state.super_admin_id
+FROM expense_approval_state AS state
+JOIN public.expense_submissions AS submission
+  ON submission.id = state.submission_id
+JOIN public.ips_expense_responsibilities AS responsibility
+  ON responsibility.id = submission.approved_responsibility_id
+JOIN public.owner_invoice_lines AS line
+  ON line.id = responsibility.owner_invoice_line_id;
+
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    SELECT public.record_owner_invoice_payment(
+      state.organization_id,
+      line.invoice_id,
+      12,
+      '2026-08-10',
+      'Unrelated line payment',
+      'owner-payment-unrelated-0001'
+    )
+    FROM expense_approval_state AS state
+    JOIN public.owner_invoice_lines AS line
+      ON line.organization_id = state.organization_id
+     AND line.source_id = 'b8000000-0000-0000-0000-000000000099'
+  $$,
+  'an unrelated owner invoice line remains payable after the expense reversal'
+);
+
+SELECT results_eq(
+  $$
+    SELECT line.source_id, allocation.amount
+    FROM public.owner_payment_allocations AS allocation
+    JOIN public.owner_invoice_lines AS line
+      ON line.organization_id = allocation.organization_id
+     AND line.id = allocation.owner_invoice_line_id
+    WHERE line.source_id = 'b8000000-0000-0000-0000-000000000099'
+  $$,
+  $$VALUES (
+    'b8000000-0000-0000-0000-000000000099'::uuid,
+    12.00::numeric
+  )$$,
+  'owner payment allocation skips the reversed line and targets only adjusted outstanding'
+);
+
+SELECT results_eq(
+  $$
+    SELECT public.record_owner_invoice_payment(
+      state.organization_id,
+      line.invoice_id,
+      12,
+      '2026-08-10',
+      'Unrelated line payment',
+      'owner-payment-unrelated-0001'
+    )
+    FROM expense_approval_state AS state
+    JOIN public.owner_invoice_lines AS line
+      ON line.organization_id = state.organization_id
+     AND line.source_id = 'b8000000-0000-0000-0000-000000000099'
+  $$,
+  $$
+    SELECT allocation.owner_payment_id
+    FROM public.owner_payment_allocations AS allocation
+    JOIN public.owner_invoice_lines AS line
+      ON line.organization_id = allocation.organization_id
+     AND line.id = allocation.owner_invoice_line_id
+    WHERE line.source_id = 'b8000000-0000-0000-0000-000000000099'
+  $$,
+  'an exact owner-payment retry returns the original payment'
+);
+
+SELECT throws_ok(
+  format(
+    $sql$
+      SELECT public.record_owner_invoice_payment(
+        %L, %L, 11, '2026-08-10', 'Unrelated line payment',
+        'owner-payment-unrelated-0001'
+      )
+    $sql$,
+    state.organization_id,
+    line.invoice_id
+  ),
+  '22023',
+  'Conflicting owner payment idempotency request',
+  'a changed owner-payment payload cannot reuse a completed key'
+)
+FROM expense_approval_state AS state
+JOIN public.owner_invoice_lines AS line
+  ON line.organization_id = state.organization_id
+ AND line.source_id = 'b8000000-0000-0000-0000-000000000099';
 
 SELECT throws_ok(
   format(
@@ -796,6 +1584,27 @@ SELECT set_config(
   (SELECT finance_member_id::text FROM expense_approval_state),
   true
 );
+
+SELECT throws_ok(
+  format(
+    $sql$
+      SELECT public.submit_expense(
+        %L, %L, NULL, 'general', NULL, 'utility', 'Utility Vendor',
+        '2026-08-12', 20, 5, 'USD', 'tenant', %L, %L,
+        NULL, NULL, 'Tenant utility without unit',
+        'expense-submit-tenant-null-unit'
+      )
+    $sql$,
+    organization_id,
+    property_id,
+    invoice_id,
+    source_id
+  ),
+  '23503',
+  'Tenant invoice does not belong to this property, unit, and currency',
+  'tenant expense submission cannot treat a missing unit as a wildcard'
+)
+FROM expense_approval_state;
 
 SELECT lives_ok(
   $$
@@ -840,7 +1649,8 @@ SELECT lives_ok(
       tenant_submission_id,
       'approve',
       NULL,
-      'expense-approve-tenant-0001'
+      'expense-approve-tenant-0001',
+      NULL
     )
   $$,
   'Finance Manager can approve a tenant-responsible cost'
@@ -852,7 +1662,8 @@ SELECT is(
     tenant_submission_id,
     'approve',
     NULL,
-    'expense-approve-tenant-0001'
+    'expense-approve-tenant-0001',
+    NULL
   ),
   tenant_approval_result,
   'an exact review replay returns the original approval result'
@@ -886,6 +1697,169 @@ SELECT set_config(
   true
 );
 
+SELECT results_eq(
+  $$
+    SELECT
+      event.owner_cash_effect,
+      event.operating_cash_effect,
+      event.economic_class,
+      event.statement_section,
+      event.category_code,
+      event.requires_resolution,
+      cardinality(event.resolution_codes),
+      event.reconciliation_source_id,
+      event.ledger_entry_id IS NOT NULL,
+      event.journal_entry_id IS NOT NULL
+    FROM expense_approval_state AS state
+    CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
+      state.organization_id,
+      state.property_id,
+      'USD',
+      '2026-08-01',
+      '2026-08-31',
+      NULL,
+      NULL,
+      NULL,
+      100
+    ) AS event
+    WHERE event.source_type = 'payment_allocation'
+      AND event.source_id =
+        (state.tenant_approval_result->>'payment_allocation_id')::uuid
+  $$,
+  $$
+    SELECT
+      NULL::numeric,
+      NULL::numeric,
+      'company_expense'::text,
+      'company_expenses'::text,
+      'company_utilities'::text,
+      false,
+      0,
+      source_id,
+      true,
+      true
+    FROM expense_approval_state
+  $$,
+  'tenant-responsible cost is resolved company cash context and stays out of property NOI'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.void_finance_income_item(%L, %L)',
+    line.income_item_id,
+    state.organization_id
+  ),
+  '42501',
+  'Approved tenant charge must be changed through its tenant invoice',
+  'legacy void cannot mutate an approval-owned tenant charge'
+)
+FROM expense_approval_state AS state
+JOIN public.tenant_invoice_lines AS line
+  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+
+RESET ROLE;
+
+SELECT throws_ok(
+  format(
+    'SELECT public.post_finance_income_item(%L, %L)',
+    line.income_item_id,
+    state.organization_id
+  ),
+  '42501',
+  'Approved tenant charge must be changed through its tenant invoice',
+  'legacy posting cannot mutate an approval-owned tenant charge'
+)
+FROM expense_approval_state AS state
+JOIN public.tenant_invoice_lines AS line
+  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM expense_approval_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  format(
+    $sql$
+      SELECT public.record_finance_income_payment(
+        %L, %L, 1, '2026-08-12', 'Bypass blocked'
+      )
+    $sql$,
+    line.income_item_id,
+    state.organization_id
+  ),
+  '42501',
+  'Approved tenant charge must be changed through its tenant invoice',
+  'legacy income payment cannot mutate an approval-owned tenant charge'
+)
+FROM expense_approval_state AS state
+JOIN public.tenant_invoice_lines AS line
+  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+
+SELECT throws_ok(
+  format(
+    $sql$
+      SELECT public.record_finance_receipt(
+        %L, %L, 1, '2026-08-12', 'Bypass blocked'
+      )
+    $sql$,
+    state.organization_id,
+    line.income_item_id
+  ),
+  '42501',
+  'Approved tenant charge must be changed through its tenant invoice',
+  'legacy receipt cannot settle an approval-owned tenant charge'
+)
+FROM expense_approval_state AS state
+JOIN public.tenant_invoice_lines AS line
+  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+
+SELECT throws_ok(
+  format(
+    $sql$
+      SELECT public.record_finance_receipt_v2(
+        %L, %L, 1, '2026-08-12', %L, 'Bypass blocked',
+        'tenant-charge-bypass-0001'
+      )
+    $sql$,
+    state.organization_id,
+    line.income_item_id,
+    state.source_id
+  ),
+  '42501',
+  'Approved tenant charge must be changed through its tenant invoice',
+  'atomic receipt cannot settle an approval-owned tenant charge outside its invoice'
+)
+FROM expense_approval_state AS state
+JOIN public.tenant_invoice_lines AS line
+  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+
+RESET ROLE;
+
+SELECT throws_ok(
+  format(
+    'UPDATE public.finance_income_items SET status = %L WHERE organization_id = %L AND id = %L',
+    'void',
+    state.organization_id,
+    line.income_item_id
+  ),
+  '42501',
+  'Approved tenant charge must be changed through its tenant invoice',
+  'direct table mutation cannot bypass the approval-owned tenant charge guard'
+)
+FROM expense_approval_state AS state
+JOIN public.tenant_invoice_lines AS line
+  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM expense_approval_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
     SELECT public.reverse_expense(
@@ -902,7 +1876,14 @@ SELECT lives_ok(
 
 SELECT results_eq(
   $$
-    SELECT invoice.total_amount, income.status, adjustment.amount
+    SELECT
+      invoice.total_amount,
+      income.status,
+      line.amount,
+      adjustment.amount,
+      balance.total_amount,
+      balance.balance_due,
+      line_balance.balance_due
     FROM public.expense_submissions AS submission
     JOIN public.expense_customer_adjustments AS adjustment
       ON adjustment.submission_id = submission.id
@@ -910,11 +1891,69 @@ SELECT results_eq(
       ON invoice.id = adjustment.tenant_invoice_id
     JOIN public.finance_income_items AS income
       ON income.id = adjustment.tenant_income_item_id
+    JOIN public.tenant_invoice_lines AS line
+      ON line.income_item_id = income.id
+    JOIN public.tenant_invoice_line_balances AS line_balance
+      ON line_balance.organization_id = line.organization_id
+     AND line_balance.id = line.id
+    JOIN public.tenant_invoice_balances AS balance
+      ON balance.id = invoice.id
     WHERE submission.id = (SELECT tenant_submission_id FROM expense_approval_state)
   $$,
-  $$VALUES (1000.00::numeric, 'void'::text, -25.00::numeric)$$,
-  'tenant reversal removes the invoice effect and voids the unsettled charge source'
+  $$VALUES (
+    1025.00::numeric,
+    'open'::text,
+    25.00::numeric,
+    -25.00::numeric,
+    1000.00::numeric,
+    1000.00::numeric,
+    0.00::numeric
+  )$$,
+  'tenant reversal preserves original evidence while the signed adjustment nets its economic effect to zero'
 );
+
+SELECT throws_ok(
+  format(
+    $sql$
+      SELECT public.record_tenant_invoice_payment(
+        %L,
+        %L,
+        25,
+        '2026-08-13',
+        %L,
+        'Stale tenant payment',
+        jsonb_build_array(
+          jsonb_build_object('lineId', %L, 'amount', 25)
+        ),
+        'tenant-payment-reversed-line-0001'
+      )
+    $sql$,
+    state.organization_id,
+    state.invoice_id,
+    state.source_id,
+    line.id
+  ),
+  '22023',
+  'Payment allocation exceeds the invoice line balance',
+  'canonical tenant collection cannot allocate money to a reversed charge line'
+)
+FROM expense_approval_state AS state
+JOIN public.tenant_invoice_lines AS line
+  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+
+SELECT throws_ok(
+  format(
+    'SELECT public.void_finance_income_item(%L, %L)',
+    line.income_item_id,
+    state.organization_id
+  ),
+  '42501',
+  'Approved tenant charge must be changed through its tenant invoice',
+  'the original tenant charge remains protected after append-only reversal'
+)
+FROM expense_approval_state AS state
+JOIN public.tenant_invoice_lines AS line
+  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -970,17 +2009,44 @@ SELECT lives_ok(
   'Super Admin can lock the submitted expense month'
 );
 
+SELECT is(
+  public.reverse_expense(
+    organization_id,
+    submission_id,
+    '2026-08-10',
+    'Vendor refunded the charge',
+    'expense-reverse-owner-0001'
+  ),
+  reversal_result,
+  'a completed reversal replay survives later period locking'
+)
+FROM expense_approval_state;
+
 SELECT set_config(
   'request.jwt.claim.sub',
   (SELECT finance_manager_id::text FROM expense_approval_state),
   true
 );
 
+SELECT is(
+  public.review_expense(
+    organization_id,
+    tenant_submission_id,
+    'approve',
+    NULL,
+    'expense-approve-tenant-0001',
+    NULL
+  ),
+  tenant_approval_result,
+  'a completed review replay survives later period locking'
+)
+FROM expense_approval_state;
+
 SELECT throws_ok(
   format(
     $sql$
       SELECT public.review_expense(
-        %L, %L, 'approve', NULL, 'expense-approve-locked-0001'
+        %L, %L, 'approve', NULL, 'expense-approve-locked-0001', NULL
       )
     $sql$,
     organization_id,
@@ -1033,6 +2099,17 @@ SELECT set_config(
   true
 );
 
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*) FROM public.leases),
+      (SELECT count(*) FROM public.property_owners),
+      (SELECT count(*) FROM public.financial_reconciliation_sources)
+  $$,
+  $$VALUES (0::bigint, 0::bigint, 0::bigint)$$,
+  'Operations Manager cannot read Finance lease, owner, or funding context'
+);
+
 SELECT throws_ok(
   format(
     $sql$
@@ -1052,6 +2129,42 @@ SELECT throws_ok(
   'Operations Manager cannot bypass the maintenance handoff with a general expense'
 )
 FROM expense_approval_state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_member_id::text FROM expense_approval_state),
+  true
+);
+
+SELECT throws_ok(
+  format(
+    $sql$
+      SELECT public.submit_expense(
+        %L, %L, %L, 'general', NULL, 'cleaning', 'No Evidence Vendor',
+        '2026-09-08', 25, 0, 'USD', 'owner', NULL, %L,
+        NULL, NULL, NULL, 'expense-submit-no-evidence-0001'
+      )
+    $sql$,
+    organization_id,
+    property_id,
+    unit_id,
+    source_id
+  ),
+  '22023',
+  'Add a supporting document or receipt reference',
+  'a human-entered expense cannot be submitted without evidence'
+)
+FROM expense_approval_state;
+
+SELECT is(
+  (
+    SELECT count(*)
+    FROM public.expense_submissions
+    WHERE idempotency_key = 'expense-submit-no-evidence-0001'
+  ),
+  0::bigint,
+  'an evidence-free submission creates no review record'
+);
 
 SELECT * FROM finish();
 ROLLBACK;

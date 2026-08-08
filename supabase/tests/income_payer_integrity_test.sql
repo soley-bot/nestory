@@ -2,6 +2,10 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
+-- Exercise payer integrity as the internal lease-derived writer; the separate
+-- rent-generation contract proves ordinary callers cannot create rent rows.
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
 SELECT plan(11);
 
 SELECT has_column(
@@ -128,7 +132,7 @@ SELECT lives_ok(
       p_property_id => '10000000-0000-0000-0000-000000000001',
       p_unit_id => NULL,
       p_lease_id => NULL,
-      p_income_type => 'rent',
+      p_income_type => 'other',
       p_payer_label => 'Ignored caller label',
       p_due_date => '2026-08-01',
       p_amount_due => 100,
@@ -157,7 +161,7 @@ SELECT throws_ok(
     p_property_id => '10000000-0000-0000-0000-000000000001',
     p_unit_id => NULL,
     p_lease_id => NULL,
-    p_income_type => 'rent',
+    p_income_type => 'other',
     p_payer_label => 'Cross-organization payer',
     p_due_date => '2026-08-01',
     p_amount_due => 100,
@@ -173,12 +177,12 @@ SELECT throws_ok(
 );
 
 SELECT ok(
-  NOT has_function_privilege(
+  has_function_privilege(
     'authenticated',
     'public.post_finance_income_item(uuid,uuid)',
     'EXECUTE'
   ),
-  'operators cannot separately post an income obligation'
+  'the checked compatibility posting wrapper remains available for historical non-rent rows'
 );
 
 RESET ROLE;
@@ -199,7 +203,7 @@ SELECT throws_ok(
     p_property_id => '10000000-0000-0000-0000-000000000001',
     p_unit_id => NULL,
     p_lease_id => NULL,
-    p_income_type => 'rent',
+    p_income_type => 'other',
     p_payer_label => 'Archived payer',
     p_due_date => '2026-08-01',
     p_amount_due => 100,

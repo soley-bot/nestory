@@ -137,16 +137,16 @@ SELECT
 FROM lease_history_tb02_state;
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
-SELECT organization_id, admin_id, 'admin'
+SELECT organization_id, admin_id, 'super_admin'
 FROM lease_history_tb02_state
 UNION ALL
-SELECT organization_id, manager_id, 'manager'
+SELECT organization_id, manager_id, 'finance_manager'
 FROM lease_history_tb02_state
 UNION ALL
-SELECT organization_id, member_id, 'member'
+SELECT organization_id, member_id, 'finance_member'
 FROM lease_history_tb02_state
 UNION ALL
-SELECT cross_organization_id, cross_admin_id, 'admin'
+SELECT cross_organization_id, cross_admin_id, 'super_admin'
 FROM lease_history_tb02_state;
 
 INSERT INTO public.properties(

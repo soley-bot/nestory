@@ -2,6 +2,10 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
+-- Compatibility fixture rows represent lease-derived rent created by the
+-- automatic generator; production callers cannot set this private context.
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
 SELECT plan(25);
 
 SELECT set_config(

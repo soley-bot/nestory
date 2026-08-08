@@ -410,15 +410,47 @@ describe("LeaseScreen redesign contract", () => {
     expect(within(filteredState!).getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/leases");
     filtered.unmount();
 
-    renderLeases({ canCreate: false, leases: [] });
+    renderLeases({ canConfigure: false, leases: [] });
     expect(screen.getByText("No leases yet")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Add lease" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Generate rent" })).toBeNull();
   });
 
+  it("keeps Finance lease inspection read-only", () => {
+    renderLeases({ canConfigure: false });
+
+    fireEvent.click(screen.getAllByRole("row")[1]!);
+    const quickView = screen.getByRole("dialog", {
+      name: "Alice Tenant lease quick view",
+    });
+
+    expect(within(quickView).getByText("USD 1,200.00 held")).not.toBeNull();
+    expect(within(quickView).queryByRole("button", { name: "Record event" })).toBeNull();
+    expect(
+      within(quickView).queryByRole("button", { name: "Schedule future term" }),
+    ).toBeNull();
+    expect(
+      within(quickView).queryByRole("button", {
+        name: "Edit lease for Alice Tenant",
+      }),
+    ).toBeNull();
+    expect(
+      within(quickView).queryByRole("button", {
+        name: "Archive lease for Alice Tenant",
+      }),
+    ).toBeNull();
+    expect(within(quickView).queryByRole("link", { name: "Open rent policy" })).toBeNull();
+    expect(within(quickView).queryByRole("link", { name: "Open Unit 2A" })).toBeNull();
+    expect(
+      within(quickView).queryByRole("link", {
+        name: "Open ledger filtered to Alice Tenant",
+      }),
+    ).toBeNull();
+  });
+
   it("does not open action=create when creation is unauthorized", () => {
     navigation.searchParams = new URLSearchParams("action=create");
-    renderLeases({ canCreate: false, leases: [] });
+    renderLeases({ canConfigure: false, leases: [] });
 
     expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
   });
@@ -449,12 +481,12 @@ describe("LeaseScreen redesign contract", () => {
 });
 
 function renderLeases({
-  canCreate = true,
+  canConfigure = true,
   leases: nextLeases = leases,
   pagination,
   viewQuery = defaultViewQuery,
 }: {
-  canCreate?: boolean;
+  canConfigure?: boolean;
   leases?: typeof leases;
   pagination?: {
     from: number;
@@ -468,7 +500,7 @@ function renderLeases({
 } = {}) {
   return render(
     <LeaseScreen
-      canCreate={canCreate}
+      canConfigure={canConfigure}
       leases={nextLeases}
       pagination={pagination ?? {
           from: nextLeases.length > 0 ? 1 : 0,

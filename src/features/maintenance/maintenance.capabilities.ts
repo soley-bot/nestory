@@ -7,7 +7,7 @@ export type MaintenanceCapabilities = {
   canEditCaseStructure: boolean;
   canExecuteAssignedCase: boolean;
   canManageCaseState: boolean;
-  canPostMaintenanceCost: boolean;
+  canSubmitMaintenanceCost: boolean;
   canRecordActualCost: boolean;
   canReviewCompletion: boolean;
   canUploadMaintenanceEvidence: boolean;
@@ -21,7 +21,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
     canEditCaseStructure: true,
     canExecuteAssignedCase: false,
     canManageCaseState: true,
-    canPostMaintenanceCost: true,
+    canSubmitMaintenanceCost: true,
     canRecordActualCost: true,
     canReviewCompletion: true,
     canUploadMaintenanceEvidence: true,
@@ -33,7 +33,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
     canEditCaseStructure: true,
     canExecuteAssignedCase: false,
     canManageCaseState: true,
-    canPostMaintenanceCost: false,
+    canSubmitMaintenanceCost: true,
     canRecordActualCost: true,
     canReviewCompletion: true,
     canUploadMaintenanceEvidence: false,
@@ -45,7 +45,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
     canEditCaseStructure: false,
     canExecuteAssignedCase: true,
     canManageCaseState: false,
-    canPostMaintenanceCost: false,
+    canSubmitMaintenanceCost: false,
     canRecordActualCost: false,
     canReviewCompletion: false,
     canUploadMaintenanceEvidence: false,
@@ -62,7 +62,7 @@ function noMaintenanceCapabilities(): MaintenanceCapabilities {
     canEditCaseStructure: false,
     canExecuteAssignedCase: false,
     canManageCaseState: false,
-    canPostMaintenanceCost: false,
+    canSubmitMaintenanceCost: false,
     canRecordActualCost: false,
     canReviewCompletion: false,
     canUploadMaintenanceEvidence: false,

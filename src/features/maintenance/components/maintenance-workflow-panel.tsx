@@ -1,16 +1,20 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, CornerUpLeft, Pause, Play, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
+import { DatePickerField } from "@/components/ui/date-picker-field";
+import { Input } from "@/components/ui/input";
+import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
 import {
   executeAssignedMaintenanceTaskAction,
   executeCoordinatedMaintenanceTaskAction,
   reviewMaintenanceCompletionAction,
+  submitMaintenanceCostAction,
   type MaintenanceActionState,
 } from "@/features/maintenance/actions";
 import type { MaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
@@ -20,6 +24,7 @@ import {
   getCoordinatedMaintenanceActions,
   getMaintenanceWorkflowState,
 } from "@/features/maintenance/maintenance.workflow";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 
 const initialState: MaintenanceActionState = {};
 
@@ -63,6 +68,13 @@ export function MaintenanceWorkflowPanel({
           <p className="mt-1 leading-5 text-muted-foreground">{workflow.latestReviewInstruction}</p>
         </div>
       ) : null}
+      {capabilities.canSubmitMaintenanceCost &&
+      (maintenanceCase.actualCostAmount > 0 || maintenanceCase.costSubmission) ? (
+        <MaintenanceCostHandoffPanel
+          maintenanceCase={maintenanceCase}
+          onStatusMessage={onStatusMessage}
+        />
+      ) : null}
       {capabilities.canExecuteAssignedCase && maintenanceCase.executionMode === "member_assigned" ? (
         <MemberExecutionPanel maintenanceCase={maintenanceCase} onStatusMessage={onStatusMessage} />
       ) : null}
@@ -74,6 +86,175 @@ export function MaintenanceWorkflowPanel({
       ) : null}
     </section>
   );
+}
+
+function MaintenanceCostHandoffPanel({
+  maintenanceCase,
+  onStatusMessage,
+}: {
+  maintenanceCase: MaintenanceCase;
+  onStatusMessage: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    submitMaintenanceCostAction,
+    initialState,
+  );
+  const submission = maintenanceCase.costSubmission;
+  const isLegacyPosted = Boolean(maintenanceCase.ledgerEntryId) && !submission;
+  const idempotencyKey = useMemo(
+    () =>
+      `maintenance-cost-${submission?.id ?? "initial"}-${globalThis.crypto.randomUUID()}`,
+    [submission?.id],
+  );
+  const isLocked = submission?.status === "submitted" || isLegacyPosted;
+  const isApprovedAdjustment = submission?.status === "approved";
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onStatusMessage(state.message ?? "Maintenance cost submitted to Finance.");
+      router.refresh();
+    }
+  }, [onStatusMessage, router, state.message, state.status]);
+
+  return (
+    <div className="space-y-3 border-t border-border pt-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Finance handoff</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Operations records what was paid. Finance verifies it and chooses
+            the paid-from account at approval.
+          </p>
+        </div>
+        <Badge tone={maintenanceCostStatusTone(submission?.status)}>
+          {isLegacyPosted
+            ? "Historical Ledger cost"
+            : maintenanceCostStatusLabel(submission?.status)}
+        </Badge>
+      </div>
+
+      {submission?.reviewReason ? (
+        <div className="rounded-md border border-border bg-surface px-3 py-2 text-sm">
+          <p className="font-medium">
+            {submission.status === "rejected"
+              ? "Finance return reason"
+              : "Finance note"}
+          </p>
+          <p className="mt-1 leading-5 text-muted-foreground">
+            {submission.reviewReason}
+          </p>
+        </div>
+      ) : null}
+
+      {isLocked ? (
+        <p className="text-xs leading-5 text-muted-foreground">
+          {isLegacyPosted
+            ? "This task already has a historical Ledger-linked cost. Super Admin must reconcile it before it can enter the Finance approval workflow."
+            : "The submitted amount and vendor are locked. Operational completion can continue independently."}
+        </p>
+      ) : (
+        <form action={action} className="space-y-3 rounded-md border border-border bg-surface p-3">
+          {isApprovedAdjustment ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              Approved history stays unchanged. Update the recorded total in
+              Edit, then submit the increase as a new adjustment. A reduction
+              requires Super Admin reversal first.
+            </p>
+          ) : null}
+          <input name="taskId" type="hidden" value={maintenanceCase.id} />
+          <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5 text-sm font-medium">
+              <span>Paid date</span>
+              <DatePickerField
+                defaultValue={
+                  maintenanceCase.actualCostDate ?? getBusinessDateValue()
+                }
+                name="expenseDate"
+                required
+              />
+            </label>
+            <label className="space-y-1.5 text-sm font-medium">
+              <span>Receipt or evidence</span>
+              <SelectControl
+                ariaLabel="Receipt or evidence"
+                defaultValue={maintenanceCase.actualCostDocumentId ?? ""}
+                name="supportingDocumentId"
+                options={[
+                  { label: "No linked document", value: "" },
+                  ...maintenanceCase.documents.map((document) => ({
+                    label: document.fileName,
+                    value: document.id,
+                  })),
+                ]}
+              />
+            </label>
+          </div>
+          <label className="block space-y-1.5 text-sm font-medium">
+            <span>Reference</span>
+            <Input
+              defaultValue={maintenanceCase.actualCostReference ?? ""}
+              maxLength={160}
+              name="reference"
+              placeholder="Receipt number or payment note"
+            />
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Choose a linked document or enter a reference.
+          </p>
+          {state.fieldErrors?.reference?.[0] ? (
+            <p className="text-xs text-danger">
+              {state.fieldErrors.reference[0]}
+            </p>
+          ) : null}
+          {state.fieldErrors?.expenseDate?.[0] ? (
+            <p className="text-xs text-danger">
+              {state.fieldErrors.expenseDate[0]}
+            </p>
+          ) : null}
+          {state.status === "error" && state.message ? (
+            <p className="text-sm text-danger" role="alert">
+              {state.message}
+            </p>
+          ) : null}
+          <Button
+            disabled={
+              pending ||
+              maintenanceCase.actualCostAmount <= 0 ||
+              !maintenanceCase.vendorPersonId
+            }
+            type="submit"
+            variant="primary"
+          >
+            <Send size={14} />{" "}
+            {isApprovedAdjustment
+              ? "Submit cost adjustment"
+              : "Submit cost to Finance"}
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function maintenanceCostStatusLabel(
+  status: NonNullable<MaintenanceCase["costSubmission"]>["status"] | undefined,
+) {
+  if (status === "submitted") return "Awaiting Finance";
+  if (status === "approved") return "Approved by Finance";
+  if (status === "rejected") return "Returned by Finance";
+  if (status === "reversed") return "Reversed";
+  return "Ready to submit";
+}
+
+function maintenanceCostStatusTone(
+  status: NonNullable<MaintenanceCase["costSubmission"]>["status"] | undefined,
+): "danger" | "neutral" | "success" | "warning" {
+  if (status === "approved") return "success";
+  if (status === "rejected") return "danger";
+  if (status === "submitted") return "warning";
+  return "neutral";
 }
 
 function CoordinatedExecutionPanel({

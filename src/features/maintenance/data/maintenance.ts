@@ -59,14 +59,12 @@ import {
 } from "@/lib/money/format";
 
 const taskSelect =
-  "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, blocked_reason, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
+  "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, blocked_reason, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, actual_cost_date, actual_cost_document_id, actual_cost_reference, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
 const propertySelect = "id, code, name";
 const unitSelect = "id, property_id, unit_number";
 const personSelect = "id, organization_id, display_name, archived_at";
 const branchSelect = "id, name, code";
 const staffRoleSelect = "person_id";
-const documentSelect =
-  "id, task_id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at";
 const MAINTENANCE_QUERY_BATCH_SIZE = 1_000;
 const MAINTENANCE_REFERENCE_ID_BATCH_SIZE = 100;
 
@@ -76,6 +74,9 @@ type MaintenanceTaskQuery = ReturnType<typeof createBaseTaskQuery>;
 type MaintenanceTaskRow = {
   actual_cost_amount: number | null;
   actual_cost_currency: CurrencyCode | null;
+  actual_cost_date: string | null;
+  actual_cost_document_id: string | null;
+  actual_cost_reference: string | null;
   assignee_person_id: string | null;
   archived_at: string | null;
   branch_id: string | null;
@@ -156,6 +157,14 @@ type DocumentRow = {
 };
 
 type ActivityRow = Parameters<typeof toRecentChange>[0];
+
+type MaintenanceCostSubmissionRow = {
+  review_reason: string | null;
+  submission_id: string;
+  status: string;
+  submitted_at: string;
+  task_id: string;
+};
 
 export async function getMaintenanceScreenData(
   organizationId: string,
@@ -241,16 +250,21 @@ export async function getMaintenanceScreenData(
     }),
   );
   const pageTaskIds = pageCases.map((maintenanceCase) => maintenanceCase.id);
-  const [documentRows, activityRows, reopenRows] = await Promise.all([
-    isMember
-      ? Promise.resolve([])
-      : getTaskDocuments(supabase, organizationId, pageTaskIds),
-    getTaskActivity(supabase, organizationId, pageTaskIds),
-    getTaskReopenActivity(supabase, organizationId, pageTaskIds),
-  ]);
+  const [documentRows, activityRows, reopenRows, costSubmissionRows] =
+    await Promise.all([
+      getTaskDocuments(supabase, organizationId, pageTaskIds),
+      getTaskActivity(supabase, organizationId, pageTaskIds),
+      getTaskReopenActivity(supabase, organizationId, pageTaskIds),
+      isMember
+        ? Promise.resolve([] as MaintenanceCostSubmissionRow[])
+        : getTaskCostSubmissions(supabase, organizationId, pageTaskIds),
+    ]);
   const documentsByTaskId = groupDocumentsByTaskId(documentRows);
   const activityByTaskId = groupActivityByTaskId(activityRows);
   const reopenInstructionByTaskId = getLatestReviewInstructionByTaskId(reopenRows);
+  const costSubmissionByTaskId = getLatestCostSubmissionByTaskId(
+    costSubmissionRows,
+  );
   const personOptions = references.people.map((person) => ({
     id: person.id,
     label: person.display_name,
@@ -286,6 +300,7 @@ export async function getMaintenanceScreenData(
     cases: pageCases.map((maintenanceCase) => ({
       ...maintenanceCase,
       activity: activityByTaskId.get(maintenanceCase.id) ?? [],
+      costSubmission: costSubmissionByTaskId.get(maintenanceCase.id),
       documents: (documentsByTaskId.get(maintenanceCase.id) ?? []).map(
         toLinkedDocument,
       ),
@@ -1014,19 +1029,40 @@ async function getTaskDocuments(
     return [];
   }
 
-  const result = await supabase
-    .from("documents")
-    .select(documentSelect)
-    .eq("organization_id", organizationId)
-    .in("task_id", taskIds)
-    .is("archived_at", null)
-    .order("uploaded_at", { ascending: false });
+  const result = await supabase.rpc("get_maintenance_task_documents", {
+    p_organization_id: organizationId,
+    p_task_ids: taskIds,
+  });
 
   if (result.error) {
     throw new Error(`Could not load maintenance documents: ${result.error.message}`);
   }
 
   return addSignedDocumentUrls(result.data ?? [], supabase);
+}
+
+async function getTaskCostSubmissions(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  taskIds: string[],
+): Promise<MaintenanceCostSubmissionRow[]> {
+  if (taskIds.length === 0) {
+    return [];
+  }
+
+  const result = await supabase
+    .rpc("get_maintenance_cost_statuses", {
+      p_organization_id: organizationId,
+      p_task_ids: taskIds,
+    });
+
+  if (result.error) {
+    throw new Error(
+      `Could not load maintenance cost status: ${result.error.message}`,
+    );
+  }
+
+  return result.data ?? [];
 }
 
 async function getTaskActivity(
@@ -1162,11 +1198,14 @@ function toMaintenanceCase({
   const maintenanceCase = {
     activity,
     actualCostAmount: task.actual_cost_amount ?? 0,
+    actualCostDate: task.actual_cost_date ?? undefined,
+    actualCostDocumentId: task.actual_cost_document_id ?? undefined,
     actualCostDisplay,
     actualCostLabel:
       task.actual_cost_amount !== null && task.actual_cost_currency
         ? formatMoney(task.actual_cost_amount, task.actual_cost_currency)
         : "No actual cost",
+    actualCostReference: task.actual_cost_reference ?? undefined,
     archivedAt: task.archived_at ?? undefined,
     assigneeLabel: assignee?.display_name ?? "Unassigned",
     assigneePersonId: task.assignee_person_id ?? undefined,
@@ -1715,6 +1754,39 @@ function groupDocumentsByTaskId(rows: DocumentRow[]) {
   }
 
   return grouped;
+}
+
+function getLatestCostSubmissionByTaskId(
+  rows: MaintenanceCostSubmissionRow[],
+) {
+  const submissions = new Map<
+    string,
+    NonNullable<MaintenanceCase["costSubmission"]>
+  >();
+
+  for (const row of rows) {
+    if (!row.task_id || submissions.has(row.task_id)) {
+      continue;
+    }
+
+    if (
+      row.status !== "approved" &&
+      row.status !== "rejected" &&
+      row.status !== "reversed" &&
+      row.status !== "submitted"
+    ) {
+      continue;
+    }
+
+    submissions.set(row.task_id, {
+      id: row.submission_id,
+      reviewReason: row.review_reason,
+      status: row.status,
+      submittedAt: row.submitted_at,
+    });
+  }
+
+  return submissions;
 }
 
 function groupActivityByTaskId(rows: ActivityRow[]) {

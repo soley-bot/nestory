@@ -31,6 +31,7 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 import {
+  recoverLeaseRentPeriodAction,
   recoverRentGenerationExceptionAction,
   reverseExpenseAction,
   reviewExpenseAction,
@@ -39,6 +40,7 @@ import {
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const exceptionId = "00000000-0000-4000-8000-000000000002";
+const leaseId = "00000000-0000-4000-8000-000000000006";
 const propertyId = "00000000-0000-4000-8000-000000000003";
 const sourceId = "00000000-0000-4000-8000-000000000004";
 const submissionId = "00000000-0000-4000-8000-000000000005";
@@ -100,6 +102,43 @@ describe("rent generation recovery action", () => {
       status: "error",
     });
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("generates only the selected historical lease month", async () => {
+    rpc.mockResolvedValue({
+      data: { invoiceId: "invoice-1", status: "generated" },
+      error: null,
+    });
+    const formData = new FormData();
+    formData.set("billingPeriod", "2026-07");
+    formData.set("leaseId", leaseId);
+
+    await expect(recoverLeaseRentPeriodAction({}, formData)).resolves.toEqual({
+      message: "Historical rent month generated.",
+      status: "success",
+    });
+    expect(requireLeaseConfigurationContext).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith("recover_lease_rent_period", {
+      p_billing_period_start: "2026-07-01",
+      p_lease_id: leaseId,
+      p_organization_id: organizationId,
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/rent-income");
+  });
+
+  it("rejects an invalid recovery month before authorization", async () => {
+    const formData = new FormData();
+    formData.set("billingPeriod", "July 2026");
+    formData.set("leaseId", leaseId);
+
+    await expect(
+      recoverLeaseRentPeriodAction({}, formData),
+    ).resolves.toMatchObject({
+      message: "Choose a historical rent month.",
+      status: "error",
+    });
+    expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid exception identity before authorization or RPC access", async () => {
@@ -170,6 +209,29 @@ describe("expense approval actions", () => {
     });
   });
 
+  it("rejects an expense without a receipt reference before authorization", async () => {
+    const formData = new FormData();
+    formData.set("category", "cleaning");
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "expense-submit-no-evidence");
+    formData.set("internalCost", "200");
+    formData.set("internalMarkup", "0");
+    formData.set("propertyId", propertyId);
+    formData.set("reconciliationSourceId", sourceId);
+    formData.set("reference", "");
+    formData.set("responsibility", "owner");
+    formData.set("tenantInvoiceId", "");
+    formData.set("unitId", "");
+    formData.set("vendorLabel", "Sokha Repairs");
+
+    await expect(submitExpenseAction({}, formData)).resolves.toEqual({
+      message: "Enter a receipt or payment reference.",
+      status: "error",
+    });
+    expect(requireFinanceSubmissionContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("uses Finance Manager review authority for approval", async () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = expenseDecisionForm("approve", "Reviewed receipt");
@@ -185,8 +247,34 @@ describe("expense approval actions", () => {
       p_idempotency_key: "expense-review-1",
       p_organization_id: organizationId,
       p_reason: "Reviewed receipt",
+      p_reconciliation_source_id: null,
       p_submission_id: submissionId,
     });
+  });
+
+  it("passes the funding source selected for maintenance approval", async () => {
+    rpc.mockResolvedValue({ data: submissionId, error: null });
+    const formData = expenseDecisionForm("approve", "Reviewed receipt");
+    formData.set("reconciliationSourceId", sourceId);
+
+    await expect(reviewExpenseAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "review_expense",
+      expect.objectContaining({ p_reconciliation_source_id: sourceId }),
+    );
+  });
+
+  it("rejects a too-short optional approval note before database access", async () => {
+    const formData = expenseDecisionForm("approve", "ok");
+
+    await expect(reviewExpenseAction({}, formData)).resolves.toEqual({
+      message: "Review notes must contain at least 3 characters.",
+      status: "error",
+    });
+    expect(requireFinanceReviewContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("requires a rejection reason before authorization or database access", async () => {

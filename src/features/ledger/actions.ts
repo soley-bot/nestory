@@ -76,7 +76,7 @@ const periodLockSchema = z.object({
   periodStart: z
     .string()
     .trim()
-    .regex(/^\d{4}-\d{2}$/, "Choose an accounting month."),
+    .regex(/^\d{4}-\d{2}$/, "Choose a month."),
   reason: z.string().trim().max(400, "Keep the reason under 400 characters."),
 });
 
@@ -342,8 +342,8 @@ export async function setLedgerPeriodLockAction(
   return {
     message:
       parsed.data.lockState === "locked"
-        ? "Accounting period locked."
-        : "Accounting period unlocked.",
+        ? "Month locked."
+        : "Month unlocked.",
     status: "success",
   };
 }
@@ -475,7 +475,7 @@ export async function attachLedgerReceiptAction(
 
 function ledgerActionErrorMessage(message: string) {
   if (message.includes("Accounting period is locked")) {
-    return "This accounting period is locked. Unlock the period before changing this record.";
+    return "This month is locked. Unlock it before changing this record.";
   }
 
   return "We could not save the ledger entry. Please check the fields and try again.";

@@ -15,6 +15,7 @@ import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 
 type LedgerInspectorProps = {
+  canManageFinance?: boolean;
   entry: LedgerEntry | null;
   onArchiveEntry: (entry: LedgerEntry) => void;
   onAttachReceipt: (entry: LedgerEntry) => void;
@@ -23,6 +24,7 @@ type LedgerInspectorProps = {
 };
 
 export function LedgerInspector({
+  canManageFinance = true,
   entry,
   onArchiveEntry,
   onAttachReceipt,
@@ -90,16 +92,15 @@ export function LedgerInspector({
           <CompactFact label="Scope">
             {entry.unitNumber ? `Unit ${entry.unitNumber}` : "Property level"}
           </CompactFact>
-          <CompactFact label="Accounting">
+          <CompactFact label="Record integrity">
             <span
               className={
                 entry.accountingJournalEntryId ? "text-success" : "text-danger"
               }
-              title={entry.accountingJournalEntryId}
             >
               {entry.accountingJournalEntryId
-                ? "Balanced journal linked"
-                : "Accounting journal missing"}
+                ? "Verified"
+                : "Needs review"}
             </span>
           </CompactFact>
         </div>
@@ -110,7 +111,7 @@ export function LedgerInspector({
           label={entry.nextAction.label}
         />
 
-        {!isArchived || canManageLifecycle ? (
+        {canManageFinance && (!isArchived || canManageLifecycle) ? (
           <div className="grid gap-2 sm:grid-cols-3">
             {isArchived ? (
               <Button
@@ -119,7 +120,7 @@ export function LedgerInspector({
                 onClick={() => onRestoreEntry(entry)}
                 title={
                   entry.isLocked
-                    ? "This accounting period is locked."
+                    ? "This month is locked."
                     : undefined
                 }
                 variant="primary"
@@ -138,7 +139,7 @@ export function LedgerInspector({
                   onClick={() => onAttachReceipt(entry)}
                   title={
                     entry.isLocked
-                      ? "This accounting period is locked."
+                      ? "This month is locked."
                       : "Attach receipt"
                   }
                 >
@@ -154,7 +155,7 @@ export function LedgerInspector({
                       onClick={() => onEditEntry(entry)}
                       title={
                         entry.isLocked
-                          ? "This accounting period is locked."
+                          ? "This month is locked."
                           : "Edit"
                       }
                     >
@@ -168,7 +169,7 @@ export function LedgerInspector({
                       onClick={() => onArchiveEntry(entry)}
                       title={
                         entry.isLocked
-                          ? "This accounting period is locked."
+                          ? "This month is locked."
                           : "Archive"
                       }
                     >

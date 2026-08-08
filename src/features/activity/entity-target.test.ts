@@ -16,6 +16,9 @@ describe("resolveActivityEntityTarget", () => {
       "accounting_period",
       "finance_income_item",
       "finance_expense_item",
+      "expense_submission",
+      "tenant_invoice",
+      "owner_payment",
       "petty_cash_entry",
       "petty_cash_account",
       "petty_cash_period",
@@ -159,9 +162,57 @@ describe("resolveActivityEntityTarget", () => {
     });
   });
 
+  it("routes expense submission activity to the review queue", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "expense_submission",
+        recordLabel: "Maintenance cost submitted",
+      }),
+    ).toEqual({
+      actionLabel: "Open expense review queue",
+      entityLabel: "Bills & Expenses",
+      focusMode: "module",
+      href: "/bills-expenses",
+      recordLabel: "Maintenance cost submitted",
+    });
+  });
+
+  it("routes generated tenant invoice activity to Rent", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "tenant_invoice",
+        recordLabel: "September rent",
+      }),
+    ).toEqual({
+      actionLabel: "Open Rent invoices",
+      entityLabel: "Rent & Income",
+      focusMode: "module",
+      href: "/rent-income",
+      recordLabel: "September rent",
+    });
+  });
+
+  it("routes owner payment activity to Balances", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "owner_payment",
+        recordLabel: "Owner payment recorded",
+      }),
+    ).toEqual({
+      actionLabel: "Open Balances",
+      entityLabel: "Owner payment",
+      focusMode: "module",
+      href: "/balances",
+      recordLabel: "Owner payment recorded",
+    });
+  });
+
   it.each([
-    ["accounting_journal_entry", "Accounting", "/ledger"],
-    ["accounting_period", "Accounting", "/ledger"],
+    ["accounting_journal_entry", "Ledger", "/ledger"],
+    ["accounting_period", "Period lock", "/ledger"],
     ["organization", "Organization", "/settings?section=organization"],
     ["organization_branch", "Organization branch", "/settings?section=branches"],
     [

@@ -603,15 +603,15 @@ VALUES
   '00000000-0000-0000-0000-000000000201',
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000101',
-  'admin',
-  '80300000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000211'
+  'super_admin',
+  null,
+  null
 ),
 (
   '00000000-0000-0000-0000-000000000401',
   '00000000-0000-0000-0000-000000000002',
   '00000000-0000-0000-0000-000000000301',
-  'admin',
+  'super_admin',
   null,
   null
 ),
@@ -619,7 +619,7 @@ VALUES
   '00000000-0000-0000-0000-000000000503',
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000501',
-  'manager',
+  'operations_manager',
   '80300000-0000-0000-0000-000000000002',
   '00000000-0000-0000-0000-000000000211'
 ),
@@ -627,7 +627,7 @@ VALUES
   '00000000-0000-0000-0000-000000000603',
   '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000601',
-  'member',
+  'operations_member',
   '80300000-0000-0000-0000-000000000003',
   '00000000-0000-0000-0000-000000000211'
 );
@@ -1006,6 +1006,10 @@ VALUES
 ('90000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', 'maintenance', 'Quarterly AC cleaning for A-1204', 'Scheduled cleaning after tenant reported weak airflow last month.', 'AC service', 'normal', 'closed', '2026-06-18 09:30:00+07', '80000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('90000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', NULL, 'maintenance', 'Parking gate sensor intermittent', 'Residents report gate sensor fails when cars queue after 6 PM.', 'Access control', 'high', 'open', '2026-06-29 18:40:00+07', NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
 
+-- Preserve the explicit legacy Ledger links in this compatibility fixture.
+-- New runtime inserts remain blocked by guard_maintenance_cost_fields.
+SET session_replication_role = replica;
+
 INSERT INTO public.tasks (
   id,
   organization_id,
@@ -1049,6 +1053,8 @@ VALUES
 ('91000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000006', NULL, 'Replace common corridor lights', 'BrightLine replaced failed LED drivers on levels 3 and 4.', 'Electrical', 'normal', 'completed', '2026-06-28', '11:00', '2026-06-28', '10:00', '80200000-0000-0000-0000-000000000004', 70, 'USD', 64, 'USD', '[{"id":"isolate","label":"Isolate affected corridor circuits","completed":true},{"id":"replace","label":"Replace failed LED drivers","completed":true},{"id":"photo","label":"Attach completion photos","completed":true}]'::jsonb, 'none', '40000000-0000-0000-0000-000000000104', '50000000-0000-0000-0000-000000000104', '2026-06-28 13:20:00+07', '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('91000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', 'Quarterly AC cleaning for A-1204', 'Filter wash, drain flush, and cooling test completed.', 'AC service', 'normal', 'completed', '2026-06-20', '13:00', '2026-06-19', '17:00', '80200000-0000-0000-0000-000000000002', 95, 'USD', 95, 'USD', '[{"id":"access","label":"Confirm access with tenant","completed":true},{"id":"clean","label":"Clean filters and drain line","completed":true},{"id":"temperature","label":"Record temperature readings","completed":true},{"id":"invoice","label":"Attach invoice and close case","completed":true}]'::jsonb, 'quarterly', '40000000-0000-0000-0000-000000000103', '50000000-0000-0000-0000-000000000103', '2026-06-20 15:10:00+07', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
 ('91000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000005', NULL, 'Parking gate sensor fault', 'Sensor fails during evening queue. Need diagnostic before ordering replacement part.', 'Access control', 'high', 'blocked', '2026-07-04', '18:30', '2026-07-03', '16:00', '80200000-0000-0000-0000-000000000004', 280, 'USD', NULL, NULL, '[{"id":"diagnose","label":"Reproduce sensor failure during evening queue","completed":true},{"id":"quote","label":"Request replacement sensor quote","completed":false},{"id":"approval","label":"Get manager approval before ordering part","completed":false}]'::jsonb, 'none', NULL, '50000000-0000-0000-0000-000000000105', NULL, '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
+
+SET session_replication_role = origin;
 
 INSERT INTO public.activity_logs (
   id,
@@ -1653,6 +1659,14 @@ WHERE ledger_period_locks.id =
 DO $seed_finance_income$
 BEGIN
   PERFORM app_private.set_finance_settlement_context(true);
+  -- These stable demo IDs predate automatic rent generation and are referenced
+  -- throughout the fixture. Seed them through the same guarded context used by
+  -- the lease-derived generator so production callers still cannot create rent.
+  PERFORM set_config(
+    'app.rent_generation_context',
+    'lease-derived-v1',
+    true
+  );
 
 INSERT INTO public.finance_income_items (
   id,
@@ -1850,6 +1864,7 @@ CROSS JOIN LATERAL (
 ) AS context;
 
   PERFORM app_private.set_finance_settlement_context(false);
+  PERFORM set_config('app.rent_generation_context', '', true);
 END;
 $seed_finance_income$;
 

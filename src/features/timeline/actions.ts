@@ -468,7 +468,7 @@ function revalidateTimelinePaths({
 
 function timelineActionErrorMessage(message: string) {
   if (message.includes("Accounting period is locked")) {
-    return "This accounting period is locked. Unlock the period before changing this record.";
+    return "This month is locked. Unlock it before changing this record.";
   }
 
   if (message.includes("restored from ledger")) {

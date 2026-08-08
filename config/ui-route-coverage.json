@@ -639,7 +639,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin",
+      "finance_manager",
+      "finance_member"
     ],
     "states": [
       "loading",
@@ -715,7 +717,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin",
+      "finance_manager",
+      "finance_member"
     ],
     "states": [
       "loading",
@@ -791,7 +795,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin",
+      "finance_manager",
+      "finance_member"
     ],
     "states": [
       "loading",
@@ -867,7 +873,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin",
+      "finance_manager",
+      "finance_member"
     ],
     "states": [
       "loading",
@@ -943,7 +951,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin",
+      "finance_manager",
+      "finance_member"
     ],
     "states": [
       "loading",
@@ -1019,9 +1029,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin",
-      "staff",
-      "maintenance"
+      "super_admin",
+      "operations_manager",
+      "operations_member"
     ],
     "states": [
       "loading",
@@ -1097,9 +1107,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin",
-      "staff",
-      "maintenance"
+      "super_admin",
+      "operations_manager",
+      "operations_member"
     ],
     "states": [
       "loading",
@@ -1175,9 +1185,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin",
-      "staff",
-      "maintenance"
+      "super_admin",
+      "operations_manager",
+      "operations_member"
     ],
     "states": [
       "loading",
@@ -1253,9 +1263,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin",
-      "staff",
-      "maintenance"
+      "super_admin",
+      "operations_manager",
+      "operations_member"
     ],
     "states": [
       "loading",
@@ -1331,9 +1341,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin",
-      "staff",
-      "maintenance"
+      "super_admin",
+      "operations_manager",
+      "operations_member"
     ],
     "states": [
       "loading",
@@ -1787,43 +1797,12 @@
     "route": "/reports",
     "source": "src/app/(dashboard)/reports/page.tsx",
     "phase": 3,
-    "surface": "workspace",
+    "surface": "redirect",
     "roles": [
       "admin"
     ],
-    "states": [
-      "loading",
-      "populated",
-      "empty",
-      "filtered-empty",
-      "error",
-      "permission-blocked"
-    ],
-    "evidence": {
-      "loading": [
-        "src/app/(dashboard)/reports/page.tsx",
-        "src/components/layout/module-loading.tsx"
-      ],
-      "populated": [
-        "src/app/(dashboard)/reports/page.tsx"
-      ],
-      "empty": [
-        "src/app/(dashboard)/reports/page.tsx",
-        "src/components/ui/empty-state.tsx"
-      ],
-      "filtered-empty": [
-        "src/app/(dashboard)/reports/page.tsx",
-        "src/components/ui/empty-state.tsx"
-      ],
-      "error": [
-        "src/app/(dashboard)/reports/page.tsx",
-        "src/components/ui/error-state.tsx"
-      ],
-      "permission-blocked": [
-        "src/app/(dashboard)/reports/page.tsx",
-        "src/components/ui/status-notice.tsx"
-      ]
-    },
+    "states": [],
+    "evidence": {},
     "smoke": {
       "path": "/reports",
       "expectedAccess": {
@@ -1834,11 +1813,7 @@
       },
       "queryContract": "redirect-normalized",
       "workflowEvidence": [
-        "src/app/(dashboard)/reports/page.tsx",
-        "src/components/layout/module-loading.tsx",
-        "src/components/ui/empty-state.tsx",
-        "src/components/ui/error-state.tsx",
-        "src/components/ui/status-notice.tsx"
+        "src/app/(dashboard)/reports/page.tsx"
       ],
       "limitations": []
     }
@@ -3072,7 +3047,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin",
+      "finance_manager",
+      "finance_member"
     ],
     "states": [
       "loading",
@@ -3220,7 +3197,9 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin",
+      "finance_manager",
+      "finance_member"
     ],
     "states": [
       "loading",
@@ -3288,7 +3267,9 @@
     "phase": 5,
     "surface": "detail",
     "roles": [
-      "admin"
+      "super_admin",
+      "finance_manager",
+      "finance_member"
     ],
     "states": [
       "loading",

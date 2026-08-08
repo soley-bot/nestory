@@ -58,7 +58,7 @@ type DrawerState =
   | { lease: LeaseSummary; mode: "restore" };
 
 type LeaseScreenProps = {
-  canCreate?: boolean;
+  canConfigure?: boolean;
   initialLeaseId?: string;
   leases: LeaseSummary[];
   pagination: LeasePagination;
@@ -69,7 +69,7 @@ type LeaseScreenProps = {
 };
 
 export function LeaseScreen({
-  canCreate = true,
+  canConfigure = true,
   initialLeaseId,
   leases,
   pagination,
@@ -93,7 +93,7 @@ export function LeaseScreen({
   );
   const createIntent = getLeaseCreateIntent(searchParams, createInitialValues);
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    canCreate && searchParams.get("action") === "create"
+    canConfigure && searchParams.get("action") === "create"
       ? {
           initialValues: createInitialValues,
           intent: createIntent,
@@ -106,7 +106,7 @@ export function LeaseScreen({
   );
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(
     Boolean(initialLeaseId) &&
-      (!canCreate || searchParams.get("action") !== "create"),
+      (!canConfigure || searchParams.get("action") !== "create"),
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedLease = initialLeaseId
@@ -154,7 +154,7 @@ export function LeaseScreen({
       return;
     }
 
-    if (!canCreate) {
+    if (!canConfigure) {
       router.replace(getHrefWithoutActionParam(pathname, searchParams), {
         scroll: false,
       });
@@ -173,7 +173,7 @@ export function LeaseScreen({
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [canCreate, createInitialValues, createIntent, pathname, router, searchParams]);
+  }, [canConfigure, createInitialValues, createIntent, pathname, router, searchParams]);
 
   const hasFilters = hasActiveLeaseFilters(viewQuery);
   const leaseList = (
@@ -189,7 +189,7 @@ export function LeaseScreen({
               >
                 Clear filters
               </Link>
-            ) : canCreate ? (
+            ) : canConfigure ? (
               <Button onClick={() => openLeaseAction({ mode: "create" })} variant="primary">
                 <Plus size={15} />
                 Add lease
@@ -219,6 +219,7 @@ export function LeaseScreen({
   );
   const leaseInspector = selectedLease ? (
     <LeaseInspector
+      canConfigure={canConfigure}
       lease={selectedLease}
       onArchiveLease={(lease) => openLeaseAction({ lease, mode: "archive" })}
       onEditLease={(lease) => openLeaseAction({ lease, mode: "edit" })}
@@ -238,7 +239,7 @@ export function LeaseScreen({
               <CheckCircle2 className="text-success" size={14} />
               Rent is generated automatically
             </div>
-            {canCreate ? (
+            {canConfigure ? (
               <Button
                 onClick={() => openLeaseAction({ mode: "create" })}
                 variant="primary"
@@ -251,7 +252,9 @@ export function LeaseScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/leases"
-      localNav={<FinanceWorkspaceNavigation activeRoute="/leases" />}
+      localNav={(
+        <FinanceWorkspaceNavigation activeRoute="/leases" />
+      )}
       title="Leases"
       toolbar={<LeaseFilters
         properties={propertyOptions}

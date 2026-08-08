@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(108);
+SELECT plan(110);
 
 CREATE TEMP TABLE maintenance_role_workflow_state (
   created_task_id uuid
@@ -500,8 +500,8 @@ SELECT ok(
 
 SELECT throws_ok(
   $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000003', NULL, 85, 'USD', true)$$,
-  '42501',
-  'Managers cannot create, update, link, or post maintenance ledger entries',
+  '22023',
+  'Direct maintenance cost posting is retired; submit the cost to Finance',
   'manager ledger posting is explicitly rejected'
 );
 
@@ -606,10 +606,15 @@ SET branch_id = '00000000-0000-0000-0000-000000000211'
 WHERE organization_id = '00000000-0000-0000-0000-000000000001'
   AND user_id = '00000000-0000-0000-0000-000000000601';
 
-UPDATE public.organization_members
-SET branch_id = NULL
-WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  AND user_id = '00000000-0000-0000-0000-000000000501';
+SELECT throws_ok(
+  $$UPDATE public.organization_members
+    SET branch_id = NULL
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND user_id = '00000000-0000-0000-0000-000000000501'$$,
+  '23514',
+  NULL,
+  'operations managers cannot drop their required branch scope'
+);
 
 SET LOCAL ROLE authenticated;
 
@@ -621,19 +626,21 @@ SELECT is(
     )
   ),
   1::bigint,
-  'organization-scoped manager can enumerate executable members across branches'
+  'branch-scoped operations manager enumerates executable members in its branch'
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000008', NULL, 77, 'USD', false)$$,
-  'manager without a branch preserves existing organization-wide management scope'
+  '42501',
+  'Manager can only manage tasks in their branch',
+  'operations manager cannot update another branch task'
 );
 
 SELECT throws_ok(
   $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003')$$,
-  '23503',
-  'Assignee must be an executable linked member for the selected branch',
-  'new assignment to a branch-incompatible linked member fails'
+  '42501',
+  'Manager can only manage tasks in their branch',
+  'operations manager cannot assign another branch task'
 );
 
 RESET ROLE;
@@ -956,18 +963,23 @@ UPDATE public.tasks
 SET archived_at = NULL
 WHERE id = (SELECT created_task_id FROM maintenance_role_workflow_state);
 
-UPDATE public.organization_members
-SET person_id = NULL
-WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  AND user_id = '00000000-0000-0000-0000-000000000601';
+SELECT throws_ok(
+  $$UPDATE public.organization_members
+    SET person_id = NULL
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND user_id = '00000000-0000-0000-0000-000000000601'$$,
+  '23514',
+  NULL,
+  'operations members cannot drop their required Staff scope'
+);
 
 SET LOCAL ROLE authenticated;
 
 SELECT throws_ok(
-  $$SELECT public.execute_assigned_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000005', 'start', NULL, NULL, NULL)$$,
+  $$SELECT public.execute_assigned_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000006', 'start', NULL, NULL, NULL)$$,
   '42501',
-  'Not authorized',
-  'member requires a linked staff person before executing work'
+  'Not authorized for this maintenance task',
+  'operations member cannot execute work assigned to another Staff identity'
 );
 
 RESET ROLE;
@@ -1140,22 +1152,21 @@ RESET ROLE;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SET LOCAL ROLE authenticated;
 
-SELECT lives_ok(
+SELECT throws_ok(
   $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000005', NULL, 130, 'USD', true)$$,
-  'admin can post recorded actual cost into the official ledger'
+  '22023',
+  'Direct maintenance cost posting is retired; submit the cost to Finance',
+  'Super Admin cannot bypass the Finance handoff with direct Ledger posting'
 );
 
-SELECT ok(
+SELECT is(
   (
-    SELECT tasks.ledger_entry_id IS NOT NULL
-      AND ledger.amount = 130
-      AND ledger.direction = 'expense'
+    SELECT ledger_entry_id
     FROM public.tasks
-    JOIN public.ledger_entries AS ledger
-      ON ledger.id = tasks.ledger_entry_id
-    WHERE tasks.id = '91000000-0000-0000-0000-000000000005'
+    WHERE id = '91000000-0000-0000-0000-000000000005'
   ),
-  'admin posting creates and links the official maintenance ledger effect'
+  NULL::uuid,
+  'rejected direct posting leaves the maintenance task without a Ledger effect'
 );
 
 RESET ROLE;

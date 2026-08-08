@@ -79,13 +79,13 @@ SELECT
 FROM lease_authority_state;
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
-SELECT organization_id, admin_id, 'admin'
+SELECT organization_id, admin_id, 'super_admin'
 FROM lease_authority_state
 UNION ALL
-SELECT organization_id, manager_id, 'manager'
+SELECT organization_id, manager_id, 'finance_manager'
 FROM lease_authority_state
 UNION ALL
-SELECT cross_organization_id, cross_admin_id, 'admin'
+SELECT cross_organization_id, cross_admin_id, 'super_admin'
 FROM lease_authority_state;
 
 INSERT INTO public.properties(
@@ -522,9 +522,9 @@ SELECT throws_ok(
     'SELECT public.generate_monthly_rent_income_items(%L,current_date)',
     (SELECT organization_id FROM lease_authority_state)
   ),
-  '0A000',
-  'Legacy rent generation is blocked until Plan 09 consumes authoritative term and policy identities',
-  'legacy generator cannot treat unresolved or new authoritative terms as safe'
+  '42501',
+  NULL,
+  'retired legacy rent generator is not executable'
 );
 
 SELECT throws_ok(

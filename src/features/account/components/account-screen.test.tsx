@@ -105,6 +105,26 @@ describe("AccountScreen", () => {
     expect(html).not.toContain("Delete account");
   });
 
+  it("describes Finance roles as organization-wide and unlinked", () => {
+    const html = renderToStaticMarkup(
+      <AccountScreen
+        identity={{
+          branchLabel: "All branches",
+          email: "finance@example.com",
+          organizationName: "Nestory Test",
+          role: "finance_manager",
+        }}
+        profile={null}
+      />,
+    );
+
+    expect(html).toContain("Organization-wide");
+    expect(html).toContain(
+      "Organization-wide Finance read and expense review access.",
+    );
+    expect(html).not.toContain("Assigned task access");
+  });
+
   it("shows the access-management link only for administrators", () => {
     const html = renderToStaticMarkup(
       <AccountScreen

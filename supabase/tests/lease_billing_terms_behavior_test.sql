@@ -46,7 +46,7 @@ SELECT
 FROM lease_billing_state;
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
-SELECT organization_id, admin_id, 'admin'
+SELECT organization_id, admin_id, 'super_admin'
 FROM lease_billing_state;
 
 INSERT INTO public.properties(

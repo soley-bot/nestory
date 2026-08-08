@@ -204,7 +204,7 @@ INSERT INTO public.organization_members(organization_id, user_id, role)
 VALUES (
   'f4980000-0000-4000-8000-000000000001',
   'f4980000-0000-4000-8000-000000000002',
-  'admin'
+  'super_admin'
 );
 
 INSERT INTO public.properties(

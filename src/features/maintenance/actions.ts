@@ -8,7 +8,10 @@ import { getMaintenanceExecutionMode } from "@/features/maintenance/maintenance.
 import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
 import type { MaintenanceStatus } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
-import { requireOperationsExecutionContext } from "@/lib/auth/context";
+import {
+  requireOperationsExecutionContext,
+  requireOperationsManagementContext,
+} from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type MaintenanceFieldErrors = {
@@ -23,13 +26,16 @@ type MaintenanceFieldErrors = {
   description?: string[];
   dueDate?: string[];
   dueTime?: string[];
+  expenseDate?: string[];
   priority?: string[];
   propertyId?: string[];
   recurrenceFrequency?: string[];
   reminderDate?: string[];
   reminderTime?: string[];
+  reference?: string[];
   reviewNote?: string[];
   status?: string[];
+  supportingDocumentId?: string[];
   taskId?: string[];
   title?: string[];
   unitId?: string[];
@@ -94,6 +100,29 @@ const executionActionSchema = z.enum([
 const reviewActionSchema = z.enum(["approve", "reopen"]);
 const coordinatedActionSchema = z.enum(["start", "block", "resume", "complete"]);
 const optionalReviewNoteSchema = z.string().trim().max(500, "Keep the note under 500 characters.");
+const maintenanceCostSubmissionSchema = z
+  .object({
+    expenseDate: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose the paid date."),
+    idempotencyKey: z.string().trim().min(8),
+    reference: z
+      .string()
+      .trim()
+      .max(160, "Keep the reference under 160 characters."),
+    supportingDocumentId: optionalUuidSchema,
+    taskId: uuidShapeSchema,
+  })
+  .superRefine((submission, context) => {
+    if (!submission.supportingDocumentId && !submission.reference) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a receipt document or enter a reference.",
+        path: ["reference"],
+      });
+    }
+  });
 const maintenanceSchema = z
   .object({
     actualCostAmount: optionalMoneySchema,
@@ -271,9 +300,7 @@ export async function updateMaintenanceCaseAction(
     p_description: parsed.data.description || null,
     p_due_date: parsed.data.dueDate,
     p_due_time: parsed.data.dueTime,
-    p_link_actual_cost_to_ledger:
-      capabilities.canPostMaintenanceCost &&
-      formData.get("linkActualCostToLedger") === "on",
+    p_link_actual_cost_to_ledger: false,
     p_organization_id: context.organizationId,
     p_priority: parsed.data.priority,
     p_property_id: parsed.data.propertyId,
@@ -301,6 +328,58 @@ export async function updateMaintenanceCaseAction(
 
   return {
     message: "Maintenance case updated.",
+    status: "success",
+  };
+}
+
+export async function submitMaintenanceCostAction(
+  _state: MaintenanceActionState,
+  formData: FormData,
+): Promise<MaintenanceActionState> {
+  const parsed = maintenanceCostSubmissionSchema.safeParse({
+    expenseDate: readString(formData, "expenseDate"),
+    idempotencyKey: readString(formData, "idempotencyKey"),
+    reference: readString(formData, "reference"),
+    supportingDocumentId: readString(formData, "supportingDocumentId"),
+    taskId: readString(formData, "taskId"),
+  });
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const context = await requireOperationsManagementContext();
+  const supabase = await createSupabaseServerClient();
+  const pathContext = await getMaintenancePathContext(
+    supabase,
+    context.organizationId,
+    parsed.data.taskId,
+  );
+  const { error } = await supabase.rpc("submit_maintenance_cost", {
+    p_expense_date: parsed.data.expenseDate,
+    p_idempotency_key: parsed.data.idempotencyKey,
+    p_organization_id: context.organizationId,
+    p_reference: parsed.data.reference || null,
+    p_supporting_document_id: parsed.data.supportingDocumentId,
+    p_task_id: parsed.data.taskId,
+  });
+
+  if (error) {
+    return {
+      message: maintenanceActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidateMaintenancePaths({
+    propertyIds: [pathContext?.property_id],
+    unitIds: [pathContext?.unit_id],
+  });
+  revalidatePath("/finance");
+  revalidatePath("/bills-expenses");
+
+  return {
+    message: "Maintenance cost submitted to Finance.",
     status: "success",
   };
 }
@@ -778,14 +857,6 @@ function revalidateMaintenancePaths({
 }
 
 function maintenanceActionErrorMessage(message: string) {
-  if (message.includes("violates row-level security") || message.includes("Not authorized")) {
-    return "You do not have access to save this maintenance case.";
-  }
-
-  if (message.includes("period is locked")) {
-    return "The linked ledger period is locked. Unlock the period before linking actual cost.";
-  }
-
   if (message.includes("Property not found")) {
     return "Choose an active property.";
   }
@@ -818,7 +889,7 @@ function maintenanceActionErrorMessage(message: string) {
   }
 
   if (message.includes("Not authorized for this maintenance task")) {
-    return "Only the assigned member can perform this maintenance work.";
+    return "You can only manage maintenance cases inside your assigned branch.";
   }
 
   if (message.includes("Only submitted maintenance work can be reviewed")) {
@@ -829,8 +900,35 @@ function maintenanceActionErrorMessage(message: string) {
     return "A reopen note between 3 and 500 characters is required.";
   }
 
-  if (message.includes("Managers cannot create, update, link, or post maintenance ledger entries")) {
-    return "Managers can record actual cost, but only administrators can post it to the ledger.";
+  if (message.includes("Record an exact positive actual cost")) {
+    return "Record a positive actual cost before submitting it to Finance.";
+  }
+
+  if (message.includes("Choose an active maintenance vendor")) {
+    return "Choose an active vendor before submitting the cost to Finance.";
+  }
+
+  if (message.includes("already awaiting or approved by Finance")) {
+    return "This cost is already awaiting or approved by Finance.";
+  }
+
+  if (message.includes("Submitted maintenance cost fields are locked")) {
+    return "Finance is reviewing this cost. Return or reverse it before changing the amount or vendor.";
+  }
+
+  if (message.includes("Maintenance cost document must belong to this task")) {
+    return "Choose a document attached to this maintenance case.";
+  }
+
+  if (message.includes("Direct maintenance cost posting is retired")) {
+    return "Submit the recorded cost to Finance for approval.";
+  }
+
+  if (
+    message.includes("violates row-level security") ||
+    message.includes("Not authorized")
+  ) {
+    return "You do not have access to save this maintenance case.";
   }
 
   return "We could not save the maintenance case. Please check the fields and try again.";

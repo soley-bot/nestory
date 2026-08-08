@@ -2,7 +2,21 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(45);
+SELECT plan(78);
+
+SELECT has_column(
+  'public',
+  'finance_income_items',
+  'rent_billing_period_start',
+  'rent obligations carry an explicit lease billing-month identity'
+);
+
+SELECT has_index(
+  'public',
+  'finance_income_items',
+  'finance_income_items_org_lease_rent_period_unique',
+  'rent uniqueness is based on lease billing month instead of due date'
+);
 
 SELECT has_column(
   'public',
@@ -107,6 +121,12 @@ SELECT has_function(
   ARRAY['uuid', 'uuid'],
   'Super Admin has one checked rent-recovery action'
 );
+SELECT has_function(
+  'public',
+  'recover_lease_rent_period',
+  ARRAY['uuid', 'uuid', 'date'],
+  'Super Admin can recover one selected historical lease month'
+);
 
 SELECT ok(
   NOT coalesce(
@@ -210,21 +230,29 @@ SELECT ok(
 
 CREATE TEMP TABLE lease_rent_state (
   organization_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000001',
+  missing_policy_organization_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000002',
   super_admin_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000101',
   finance_manager_id uuid NOT NULL DEFAULT 'a1000000-0000-0000-0000-000000000102',
   property_id uuid NOT NULL DEFAULT 'a2000000-0000-0000-0000-000000000001',
   good_unit_id uuid NOT NULL DEFAULT 'a3000000-0000-0000-0000-000000000001',
   blocked_unit_id uuid NOT NULL DEFAULT 'a3000000-0000-0000-0000-000000000002',
+  recovery_unit_id uuid NOT NULL DEFAULT 'a3000000-0000-0000-0000-000000000004',
   good_tenant_id uuid NOT NULL DEFAULT 'a4000000-0000-0000-0000-000000000001',
   blocked_tenant_id uuid NOT NULL DEFAULT 'a4000000-0000-0000-0000-000000000002',
   owner_id uuid NOT NULL DEFAULT 'a4000000-0000-0000-0000-000000000003',
+  recovery_tenant_id uuid NOT NULL DEFAULT 'a4000000-0000-0000-0000-000000000005',
   good_lease_id uuid NOT NULL DEFAULT 'a5000000-0000-0000-0000-000000000001',
   blocked_lease_id uuid NOT NULL DEFAULT 'a5000000-0000-0000-0000-000000000002',
+  missing_policy_lease_id uuid NOT NULL DEFAULT 'a5000000-0000-0000-0000-000000000003',
+  recovery_lease_id uuid NOT NULL DEFAULT 'a5000000-0000-0000-0000-000000000004',
   good_term_id uuid NOT NULL DEFAULT 'a6000000-0000-0000-0000-000000000001',
   blocked_term_id uuid NOT NULL DEFAULT 'a6000000-0000-0000-0000-000000000002',
+  recovery_term_id uuid NOT NULL DEFAULT 'a6000000-0000-0000-0000-000000000003',
   good_billing_id uuid NOT NULL DEFAULT 'a7000000-0000-0000-0000-000000000001',
   blocked_billing_id uuid NOT NULL DEFAULT 'a7000000-0000-0000-0000-000000000002',
-  policy_id uuid NOT NULL DEFAULT 'a8000000-0000-0000-0000-000000000001'
+  recovery_billing_id uuid NOT NULL DEFAULT 'a7000000-0000-0000-0000-000000000003',
+  policy_id uuid NOT NULL DEFAULT 'a8000000-0000-0000-0000-000000000001',
+  source_id uuid
 ) ON COMMIT DROP;
 
 INSERT INTO lease_rent_state DEFAULT VALUES;
@@ -319,6 +347,9 @@ SELECT good_unit_id, organization_id, property_id, 'A-01', 'vacant'
 FROM lease_rent_state
 UNION ALL
 SELECT blocked_unit_id, organization_id, property_id, 'A-02', 'vacant'
+FROM lease_rent_state
+UNION ALL
+SELECT recovery_unit_id, organization_id, property_id, 'A-03', 'vacant'
 FROM lease_rent_state;
 
 INSERT INTO public.people (
@@ -334,6 +365,9 @@ SELECT blocked_tenant_id, organization_id, 'Blocked Lease Tenant', 'individual'
 FROM lease_rent_state
 UNION ALL
 SELECT owner_id, organization_id, 'Lease Rent Owner', 'individual'
+FROM lease_rent_state
+UNION ALL
+SELECT recovery_tenant_id, organization_id, 'Historical Recovery Tenant', 'individual'
 FROM lease_rent_state;
 
 INSERT INTO public.person_roles (
@@ -349,6 +383,9 @@ SELECT organization_id, blocked_tenant_id, 'tenant', 'active'
 FROM lease_rent_state
 UNION ALL
 SELECT organization_id, owner_id, 'owner', 'active'
+FROM lease_rent_state
+UNION ALL
+SELECT organization_id, recovery_tenant_id, 'tenant', 'active'
 FROM lease_rent_state;
 
 INSERT INTO public.property_owners (
@@ -419,6 +456,22 @@ SELECT
   'active',
   super_admin_id,
   super_admin_id
+FROM lease_rent_state
+UNION ALL
+SELECT
+  recovery_lease_id,
+  organization_id,
+  property_id,
+  recovery_unit_id,
+  recovery_tenant_id,
+  'Historical Recovery Tenant',
+  '2026-01-01'::date,
+  '2026-07-31'::date,
+  1100::numeric,
+  'USD'::public.currency_code,
+  'ended',
+  super_admin_id,
+  super_admin_id
 FROM lease_rent_state;
 
 INSERT INTO public.lease_terms (
@@ -470,6 +523,25 @@ SELECT
   NULL::integer,
   'monthly',
   'active',
+  'authoritative',
+  now(),
+  super_admin_id,
+  super_admin_id,
+  super_admin_id
+FROM lease_rent_state
+UNION ALL
+SELECT
+  recovery_term_id,
+  organization_id,
+  recovery_lease_id,
+  2,
+  '2026-01-01'::date,
+  '2026-07-31'::date,
+  1100::numeric,
+  'USD'::public.currency_code,
+  NULL::integer,
+  'monthly',
+  'expired',
   'authoritative',
   now(),
   super_admin_id,
@@ -550,8 +622,8 @@ SELECT
   organization_id,
   good_lease_id,
   property_id,
-  '2026-08-15',
-  '2027-07-31',
+  '2026-08-15'::date,
+  '2027-07-31'::date,
   'through_ips',
   'percentage',
   10,
@@ -559,8 +631,157 @@ SELECT
   false,
   'individual',
   good_tenant_id,
-  750,
-  NULL,
+  750::numeric,
+  NULL::numeric,
+  now(),
+  super_admin_id,
+  super_admin_id,
+  super_admin_id
+FROM lease_rent_state
+UNION ALL
+SELECT
+  recovery_billing_id,
+  organization_id,
+  recovery_lease_id,
+  property_id,
+  '2026-01-01'::date,
+  '2026-07-31'::date,
+  'through_ips',
+  'flat',
+  50,
+  true,
+  true,
+  'individual',
+  recovery_tenant_id,
+  NULL::numeric,
+  NULL::numeric,
+  now(),
+  super_admin_id,
+  super_admin_id,
+  super_admin_id
+FROM lease_rent_state;
+
+INSERT INTO public.organizations (id, name, slug)
+SELECT
+  missing_policy_organization_id,
+  'Missing rent policy organization',
+  'missing-rent-policy'
+FROM lease_rent_state;
+
+INSERT INTO public.organization_members (organization_id, user_id, role)
+SELECT missing_policy_organization_id, super_admin_id, 'super_admin'
+FROM lease_rent_state;
+
+INSERT INTO public.properties (
+  id,
+  organization_id,
+  name,
+  code,
+  property_type,
+  status
+)
+SELECT
+  'a2000000-0000-0000-0000-000000000002',
+  missing_policy_organization_id,
+  'Missing policy property',
+  'LR-002',
+  'apartment',
+  'active'
+FROM lease_rent_state;
+
+INSERT INTO public.units (
+  id,
+  organization_id,
+  property_id,
+  unit_number,
+  status
+)
+SELECT
+  'a3000000-0000-0000-0000-000000000003',
+  missing_policy_organization_id,
+  'a2000000-0000-0000-0000-000000000002',
+  'B-01',
+  'vacant'
+FROM lease_rent_state;
+
+INSERT INTO public.people (id, organization_id, display_name, party_type)
+SELECT
+  'a4000000-0000-0000-0000-000000000004',
+  missing_policy_organization_id,
+  'Missing Policy Tenant',
+  'individual'
+FROM lease_rent_state;
+
+INSERT INTO public.person_roles (organization_id, person_id, role, status)
+SELECT
+  missing_policy_organization_id,
+  'a4000000-0000-0000-0000-000000000004',
+  'tenant',
+  'active'
+FROM lease_rent_state;
+
+SET LOCAL session_replication_role = replica;
+INSERT INTO public.leases (
+  id,
+  organization_id,
+  property_id,
+  unit_id,
+  primary_tenant_person_id,
+  tenant_name,
+  lease_start_date,
+  lease_end_date,
+  monthly_rent_amount,
+  monthly_rent_currency,
+  status,
+  created_by,
+  updated_by
+)
+SELECT
+  missing_policy_lease_id,
+  missing_policy_organization_id,
+  'a2000000-0000-0000-0000-000000000002',
+  'a3000000-0000-0000-0000-000000000003',
+  'a4000000-0000-0000-0000-000000000004',
+  'Missing Policy Tenant',
+  '2026-08-01',
+  '2027-07-31',
+  700,
+  'USD',
+  'active',
+  super_admin_id,
+  super_admin_id
+FROM lease_rent_state;
+SET LOCAL session_replication_role = origin;
+
+INSERT INTO public.lease_terms (
+  organization_id,
+  lease_id,
+  term_sequence,
+  start_date,
+  end_date,
+  rent_amount,
+  rent_currency,
+  rent_due_day,
+  payment_frequency,
+  status,
+  authority_kind,
+  confirmed_at,
+  confirmed_by,
+  created_by,
+  updated_by
+)
+SELECT
+  missing_policy_organization_id,
+  missing_policy_lease_id,
+  1,
+  '2026-08-01',
+  '2027-07-31',
+  700,
+  'USD',
+  5,
+  'monthly',
+  'active',
+  'authoritative',
   now(),
   super_admin_id,
   super_admin_id,
@@ -588,9 +809,25 @@ SELECT lives_ok(
   $$
     SELECT app_private.run_due_rent_generation(
       '2026-08-31 17:30:00+00'::timestamptz
+    );
+    SELECT app_private.run_due_rent_generation(
+      '2026-09-01 00:30:00+00'::timestamptz
     )
   $$,
-  'the scheduled runner isolates leases and uses a supplied clock'
+  'the scheduled runner isolates leases and covers policy timezones plus the UTC fallback'
+);
+
+SELECT results_eq(
+  $$
+    SELECT error_code, attempt_count, resolved_at IS NULL
+    FROM public.rent_generation_exceptions
+    WHERE lease_id = (
+      SELECT missing_policy_lease_id FROM lease_rent_state
+    )
+      AND billing_period_start = '2026-09-01'
+  $$,
+  $$VALUES ('rent_policy_missing'::text, 1, true)$$,
+  'scheduled generation exposes a pre-existing active lease with no rent policy'
 );
 
 SELECT is(
@@ -688,7 +925,7 @@ SELECT results_eq(
     WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
       AND billing_period_start = '2026-09-01'
   $$,
-  $$ VALUES ('billing_setup_missing'::text, 2, true) $$,
+  $$ VALUES ('billing_setup_missing'::text, 3, true) $$,
   'one lease failure is isolated in a typed exception and repeated runs increment attempts'
 );
 
@@ -741,6 +978,113 @@ SELECT is(
   ),
   0,
   'a locked month has no financial effect'
+);
+
+SELECT set_config('app.financial_authority_period_context', 'on', true);
+INSERT INTO public.property_reporting_periods (
+  organization_id,
+  property_id,
+  currency,
+  period_start,
+  lifecycle_status,
+  created_by,
+  updated_by
+)
+SELECT
+  organization_id,
+  property_id,
+  'USD',
+  '2026-11-01',
+  'closed',
+  super_admin_id,
+  super_admin_id
+FROM lease_rent_state;
+SELECT set_config('app.financial_authority_period_context', 'off', true);
+
+SELECT results_eq(
+  $$
+    SELECT app_private.try_generate_lease_rent_invoice(
+      (SELECT organization_id FROM lease_rent_state),
+      (SELECT good_lease_id FROM lease_rent_state),
+      '2026-11-01',
+      '2026-11-01',
+      'scheduled',
+      (SELECT super_admin_id FROM lease_rent_state)
+    ) ->> 'code'
+  $$,
+  $$VALUES ('period_locked'::text)$$,
+  'a closed property reporting period rejects rent generation through the shared authority lock'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.tenant_invoices
+    WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
+      AND billing_period_start = '2026-11-01'
+  ),
+  0,
+  'closed property-period generation creates no rent or fee effect'
+);
+
+SELECT app_private.ensure_accounting_books_and_accounts(
+  (SELECT organization_id FROM lease_rent_state),
+  'USD'
+);
+
+INSERT INTO public.accounting_periods (
+  organization_id,
+  book_id,
+  period_start,
+  status,
+  locked_at,
+  locked_by,
+  lock_reason,
+  created_by,
+  updated_by
+)
+SELECT
+  state.organization_id,
+  book.id,
+  '2026-12-01',
+  'locked',
+  now(),
+  state.super_admin_id,
+  'Rent authority test',
+  state.super_admin_id,
+  state.super_admin_id
+FROM lease_rent_state AS state
+JOIN public.accounting_books AS book
+  ON book.organization_id = state.organization_id
+ AND book.book_type = 'client'
+ AND book.currency = 'USD'
+ AND book.is_default
+ AND book.archived_at IS NULL;
+
+SELECT results_eq(
+  $$
+    SELECT app_private.try_generate_lease_rent_invoice(
+      (SELECT organization_id FROM lease_rent_state),
+      (SELECT good_lease_id FROM lease_rent_state),
+      '2026-12-01',
+      '2026-12-01',
+      'scheduled',
+      (SELECT super_admin_id FROM lease_rent_state)
+    ) ->> 'code'
+  $$,
+  $$VALUES ('period_locked'::text)$$,
+  'a locked client accounting-book period rejects rent generation'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.tenant_invoices
+    WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
+      AND billing_period_start = '2026-12-01'
+  ),
+  0,
+  'locked accounting-book generation creates no rent or fee effect'
 );
 
 INSERT INTO public.lease_billing_terms (
@@ -816,10 +1160,100 @@ SELECT throws_ok(
   'Finance Manager cannot recover rent generation'
 );
 
+SELECT throws_ok(
+  format(
+    'SELECT public.recover_lease_rent_period(%L, %L, %L)',
+    (SELECT organization_id FROM lease_rent_state),
+    (SELECT recovery_lease_id FROM lease_rent_state),
+    '2026-07-01'
+  ),
+  '42501',
+  'Not authorized',
+  'Finance Manager cannot generate a selected historical rent month'
+);
+
 SELECT set_config(
   'request.jwt.claim.sub',
   (SELECT super_admin_id::text FROM lease_rent_state),
   true
+);
+
+RESET ROLE;
+
+INSERT INTO public.ledger_period_locks (
+  organization_id,
+  period_start,
+  locked_at,
+  locked_by,
+  reason
+)
+SELECT
+  organization_id,
+  '2026-08-01',
+  now(),
+  super_admin_id,
+  'Historical recovery must stay in the selected month'
+FROM lease_rent_state;
+
+SET LOCAL ROLE authenticated;
+
+SELECT results_eq(
+  $$
+    SELECT public.recover_lease_rent_period(
+      (SELECT organization_id FROM lease_rent_state),
+      (SELECT recovery_lease_id FROM lease_rent_state),
+      '2026-07-01'
+    ) ->> 'status'
+  $$,
+  $$ VALUES ('generated'::text) $$,
+  'Super Admin can generate exactly one selected historical lease month'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.recover_lease_rent_period(
+      (SELECT organization_id FROM lease_rent_state),
+      (SELECT recovery_lease_id FROM lease_rent_state),
+      '2026-07-01'
+    )
+  $$,
+  'selected-period recovery safely replays the existing lease-month invoice'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.tenant_invoices
+    WHERE lease_id = (SELECT recovery_lease_id FROM lease_rent_state)
+      AND billing_period_start = '2026-07-01'
+  ),
+  1,
+  'selected-period recovery is idempotent by lease and billing month'
+);
+
+SELECT is(
+  (
+    SELECT fee.fee_date
+    FROM public.management_fee_occurrences AS fee
+    JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = fee.organization_id
+     AND invoice.id = fee.tenant_invoice_id
+    WHERE invoice.lease_id = (SELECT recovery_lease_id FROM lease_rent_state)
+      AND invoice.billing_period_start = '2026-07-01'
+  ),
+  '2026-07-01'::date,
+  'historical recovery recognizes its management fee in the selected month even when the retry month is locked'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.tenant_invoices
+    WHERE lease_id = (SELECT recovery_lease_id FROM lease_rent_state)
+      AND billing_period_start = '2026-06-01'
+  ),
+  0,
+  'selected-period recovery never backfills an adjacent historical month'
 );
 
 SELECT lives_ok(
@@ -897,6 +1331,471 @@ SELECT results_eq(
   $$,
   $$ VALUES ('through_ips'::text, 'Good Lease Tenant'::text) $$,
   'generated rent preserves the configured collection route and recipient'
+);
+
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.void_finance_income_item(uuid,uuid)'),
+    'EXECUTE'
+  ), false),
+  'legacy income void remains available for non-rent compatibility records'
+);
+
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.post_finance_income_item(uuid,uuid)'),
+    'EXECUTE'
+  ), false),
+  'legacy income posting remains available for non-rent compatibility records'
+);
+
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.record_finance_receipt(uuid,uuid,numeric,date,text)'),
+    'EXECUTE'
+  ), false),
+  'legacy receipt allocation remains available for non-rent compatibility records'
+);
+
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.record_finance_income_payment(uuid,uuid,numeric,date,text)'),
+    'EXECUTE'
+  ), false),
+  'legacy income-payment compatibility remains available for non-rent records'
+);
+
+SELECT ok(
+  coalesce(has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.record_finance_receipt_v2(uuid,uuid,numeric,date,uuid,text,text)'),
+    'EXECUTE'
+  ), false),
+  'atomic receipt settlement remains available for non-rent compatibility records'
+);
+
+RESET ROLE;
+
+UPDATE lease_rent_state
+SET source_id = public.create_financial_reconciliation_source(
+  organization_id,
+  'RENTGUARD',
+  'Rent guard test account',
+  'bank',
+  'property_dedicated',
+  'USD',
+  property_id,
+  '****9100'
+);
+
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    SELECT public.void_finance_income_item(
+      (
+        SELECT line.income_item_id
+        FROM public.tenant_invoice_lines AS line
+        JOIN public.tenant_invoices AS invoice
+          ON invoice.organization_id = line.organization_id
+         AND invoice.id = line.invoice_id
+        WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
+          AND invoice.billing_period_start = '2026-09-01'
+          AND line.line_type = 'rent'
+      ),
+      (SELECT organization_id FROM lease_rent_state)
+    )
+  $$,
+  '42501',
+  'Lease-derived rent must be settled through its tenant invoice',
+  'legacy void cannot archive a lease-derived rent obligation'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.post_finance_income_item(
+      (
+        SELECT line.income_item_id
+        FROM public.tenant_invoice_lines AS line
+        JOIN public.tenant_invoices AS invoice
+          ON invoice.organization_id = line.organization_id
+         AND invoice.id = line.invoice_id
+        WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
+          AND invoice.billing_period_start = '2026-09-01'
+          AND line.line_type = 'rent'
+      ),
+      (SELECT organization_id FROM lease_rent_state)
+    )
+  $$,
+  '42501',
+  'Lease-derived rent must be settled through its tenant invoice',
+  'legacy posting cannot create a separate Ledger effect for generated rent'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.record_finance_receipt(
+      (SELECT organization_id FROM lease_rent_state),
+      (
+        SELECT line.income_item_id
+        FROM public.tenant_invoice_lines AS line
+        JOIN public.tenant_invoices AS invoice
+          ON invoice.organization_id = line.organization_id
+         AND invoice.id = line.invoice_id
+        WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
+          AND invoice.billing_period_start = '2026-09-01'
+          AND line.line_type = 'rent'
+      ),
+      10,
+      '2026-09-05',
+      'Direct receipt blocked'
+    )
+  $$,
+  '42501',
+  'Lease-derived rent must be settled through its tenant invoice',
+  'legacy receipt cannot settle generated rent outside its invoice'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.record_finance_income_payment(
+      (
+        SELECT line.income_item_id
+        FROM public.tenant_invoice_lines AS line
+        JOIN public.tenant_invoices AS invoice
+          ON invoice.organization_id = line.organization_id
+         AND invoice.id = line.invoice_id
+        WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
+          AND invoice.billing_period_start = '2026-09-01'
+          AND line.line_type = 'rent'
+      ),
+      (SELECT organization_id FROM lease_rent_state),
+      10,
+      '2026-09-05',
+      'Direct compatibility payment blocked'
+    )
+  $$,
+  '42501',
+  'Lease-derived rent must be settled through its tenant invoice',
+  'income-payment compatibility cannot settle generated rent directly'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.record_finance_receipt_v2(
+      (SELECT organization_id FROM lease_rent_state),
+      (
+        SELECT line.income_item_id
+        FROM public.tenant_invoice_lines AS line
+        JOIN public.tenant_invoices AS invoice
+          ON invoice.organization_id = line.organization_id
+         AND invoice.id = line.invoice_id
+        WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
+          AND invoice.billing_period_start = '2026-09-01'
+          AND line.line_type = 'rent'
+      ),
+      10,
+      '2026-09-05',
+      (SELECT source_id FROM lease_rent_state),
+      'Direct atomic receipt blocked',
+      'rent-direct-v2-blocked'
+    )
+  $$,
+  '42501',
+  'Lease-derived rent must be settled through its tenant invoice',
+  'atomic settlement cannot bypass the tenant-invoice allocation'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      income.status,
+      income.amount_received,
+      income.archived_at IS NULL,
+      invoice.lifecycle,
+      invoice.total_amount
+    FROM public.tenant_invoices AS invoice
+    JOIN public.tenant_invoice_lines AS line
+      ON line.organization_id = invoice.organization_id
+     AND line.invoice_id = invoice.id
+     AND line.line_type = 'rent'
+    JOIN public.finance_income_items AS income
+      ON income.organization_id = line.organization_id
+     AND income.id = line.income_item_id
+    WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
+      AND invoice.billing_period_start = '2026-09-01'
+  $$,
+  $$VALUES ('open'::text, 0::numeric, true, 'issued'::text, 1000.00::numeric)$$,
+  'retired direct mutations leave the generated invoice and income obligation unchanged'
+);
+
+RESET ROLE;
+
+SET LOCAL session_replication_role = replica;
+DELETE FROM public.property_reporting_periods
+WHERE organization_id = (SELECT organization_id FROM lease_rent_state)
+  AND property_id = (SELECT property_id FROM lease_rent_state)
+  AND currency = 'USD'
+  AND period_start = '2026-11-01';
+DELETE FROM public.accounting_periods
+WHERE organization_id = (SELECT organization_id FROM lease_rent_state)
+  AND period_start = '2026-12-01';
+SET LOCAL session_replication_role = origin;
+
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
+INSERT INTO public.finance_income_items (
+  id,
+  organization_id,
+  property_id,
+  unit_id,
+  lease_id,
+  income_type,
+  payer_label,
+  due_date,
+  amount_due,
+  amount_received,
+  status,
+  currency,
+  description,
+  reference,
+  created_by,
+  updated_by
+)
+SELECT
+  legacy_id,
+  organization_id,
+  property_id,
+  good_unit_id,
+  good_lease_id,
+  'rent',
+  'Good Lease Tenant',
+  due_date,
+  amount_due,
+  0,
+  'open',
+  'USD'::public.currency_code,
+  'Monthly rent',
+  reference,
+  super_admin_id,
+  super_admin_id
+FROM (
+  SELECT
+    'a9000000-0000-0000-0000-000000000001'::uuid AS legacy_id,
+    organization_id,
+    property_id,
+    good_unit_id,
+    good_lease_id,
+    '2026-11-01'::date AS due_date,
+    1000::numeric AS amount_due,
+    '2026-11'::text AS reference,
+    super_admin_id
+  FROM lease_rent_state
+  UNION ALL
+  SELECT
+    'a9000000-0000-0000-0000-000000000002'::uuid,
+    organization_id,
+    property_id,
+    good_unit_id,
+    good_lease_id,
+    '2026-12-01'::date,
+    999::numeric,
+    '2026-12'::text,
+    super_admin_id
+  FROM lease_rent_state
+) AS legacy_rows;
+
+SELECT set_config('app.rent_generation_context', 'off', true);
+
+SELECT lives_ok(
+  $$
+    SELECT app_private.generate_lease_rent_invoice(
+      (SELECT organization_id FROM lease_rent_state),
+      (SELECT good_lease_id FROM lease_rent_state),
+      '2026-11-01',
+      '2026-11-01',
+      'scheduled',
+      (SELECT super_admin_id FROM lease_rent_state)
+    )
+  $$,
+  'automatic rent adopts a compatible legacy month-start obligation'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      income.id,
+      income.rent_billing_period_start,
+      income.due_date,
+      income.payer_person_id,
+      line.income_item_id,
+      invoice.due_date
+    FROM public.finance_income_items AS income
+    JOIN public.tenant_invoice_lines AS line
+      ON line.organization_id = income.organization_id
+     AND line.income_item_id = income.id
+    JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = line.organization_id
+     AND invoice.id = line.invoice_id
+    WHERE income.id = 'a9000000-0000-0000-0000-000000000001'
+  $$,
+  $$
+    SELECT
+      'a9000000-0000-0000-0000-000000000001'::uuid,
+      '2026-11-01'::date,
+      '2026-11-05'::date,
+      good_tenant_id,
+      'a9000000-0000-0000-0000-000000000001'::uuid,
+      '2026-11-05'::date
+    FROM lease_rent_state
+  $$,
+  'adoption normalizes due date and recipient while keeping one obligation identity'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.finance_income_items
+    WHERE organization_id = (SELECT organization_id FROM lease_rent_state)
+      AND lease_id = (SELECT good_lease_id FROM lease_rent_state)
+      AND income_type = 'rent'
+      AND due_date BETWEEN '2026-11-01' AND '2026-11-30'
+      AND archived_at IS NULL
+  ),
+  1,
+  'legacy adoption cannot duplicate the November rent obligation'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT app_private.generate_lease_rent_invoice(
+      (SELECT organization_id FROM lease_rent_state),
+      (SELECT good_lease_id FROM lease_rent_state),
+      '2026-12-01',
+      '2026-12-01',
+      'scheduled',
+      (SELECT super_admin_id FROM lease_rent_state)
+    )
+  $$,
+  '23514',
+  'Existing rent activity conflicts with this lease month',
+  'automatic rent refuses a legacy month whose amount conflicts with lease authority'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.tenant_invoices
+    WHERE lease_id = (SELECT good_lease_id FROM lease_rent_state)
+      AND billing_period_start = '2026-12-01'
+  ),
+  0,
+  'a conflicting legacy obligation produces no duplicate December invoice'
+);
+
+INSERT INTO public.rent_policy_versions (
+  id,
+  organization_id,
+  version_number,
+  effective_from,
+  supported_frequencies,
+  rent_calculation_timezone,
+  due_day_source,
+  policy_default_due_day,
+  short_month_due_day_rule,
+  lease_start_proration_rule,
+  lease_end_proration_rule,
+  notice_period_charging_rule,
+  mid_period_rent_change_rule,
+  concessions_support_state,
+  rent_free_support_state,
+  waivers_support_state,
+  lifecycle,
+  created_by,
+  updated_by,
+  approved_at,
+  approved_by
+)
+SELECT
+  'a8000000-0000-0000-0000-000000000002',
+  organization_id,
+  2,
+  '2027-01-01',
+  ARRAY['monthly']::text[],
+  'Asia/Bangkok',
+  'policy_default',
+  31,
+  'next_calendar_month',
+  'actual_days',
+  'actual_days',
+  'through_lease_end',
+  'prorate_actual_days',
+  'unsupported',
+  'unsupported',
+  'unsupported',
+  'approved',
+  super_admin_id,
+  super_admin_id,
+  now(),
+  super_admin_id
+FROM lease_rent_state;
+
+SELECT lives_ok(
+  $$
+    SELECT app_private.generate_lease_rent_invoice(
+      (SELECT organization_id FROM lease_rent_state),
+      (SELECT good_lease_id FROM lease_rent_state),
+      '2027-02-01',
+      '2027-02-01',
+      'scheduled',
+      (SELECT super_admin_id FROM lease_rent_state)
+    )
+  $$,
+  'February rent supports a next-calendar-month due date'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT app_private.generate_lease_rent_invoice(
+      (SELECT organization_id FROM lease_rent_state),
+      (SELECT good_lease_id FROM lease_rent_state),
+      '2027-03-01',
+      '2027-03-01',
+      'scheduled',
+      (SELECT super_admin_id FROM lease_rent_state)
+    )
+  $$,
+  'March rent can share February rent''s due date without collision'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      invoice.billing_period_start,
+      income.rent_billing_period_start,
+      income.due_date
+    FROM public.tenant_invoices AS invoice
+    JOIN public.tenant_invoice_lines AS line
+      ON line.organization_id = invoice.organization_id
+     AND line.invoice_id = invoice.id
+     AND line.line_type = 'rent'
+    JOIN public.finance_income_items AS income
+      ON income.organization_id = line.organization_id
+     AND income.id = line.income_item_id
+    WHERE invoice.lease_id = (SELECT good_lease_id FROM lease_rent_state)
+      AND invoice.billing_period_start IN ('2027-02-01', '2027-03-01')
+    ORDER BY invoice.billing_period_start
+  $$,
+  $$
+    VALUES
+      ('2027-02-01'::date, '2027-02-01'::date, '2027-03-31'::date),
+      ('2027-03-01'::date, '2027-03-01'::date, '2027-03-31'::date)
+  $$,
+  'two lease months remain distinct even when their due dates are identical'
 );
 
 SELECT * FROM finish();

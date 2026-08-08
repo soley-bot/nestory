@@ -48,6 +48,12 @@ const billingSchema = z.object({
 });
 
 const recoverRentSchema = z.object({ exceptionId: uuid });
+const recoverLeaseRentPeriodSchema = z.object({
+  billingPeriod: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "Choose a historical rent month."),
+  leaseId: uuid,
+});
 
 const invoiceSettlementSchema = z.object({
   amount,
@@ -69,7 +75,11 @@ const expenseSchema = z.object({
   internalMarkup: z.coerce.number().nonnegative(),
   propertyId: uuid,
   reconciliationSourceId: uuid,
-  reference: z.string().trim().max(160),
+  reference: z
+    .string()
+    .trim()
+    .min(1, "Enter a receipt or payment reference.")
+    .max(160),
   responsibility: z.enum(["owner", "tenant"]),
   tenantInvoiceId: z.preprocess((value) => value || null, uuid.nullable()),
   unitId: z.preprocess((value) => value || null, uuid.nullable()),
@@ -79,7 +89,17 @@ const expenseSchema = z.object({
 const expenseReviewSchema = z.object({
   decision: z.enum(["approve", "reject"]),
   idempotencyKey: z.string().min(8),
-  reason: z.string().trim().max(500),
+  reason: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((value) => value.length === 0 || value.length >= 3, {
+      message: "Review notes must contain at least 3 characters.",
+    }),
+  reconciliationSourceId: z.preprocess(
+    (value) => value || null,
+    uuid.nullable(),
+  ),
   submissionId: uuid,
 });
 
@@ -191,6 +211,39 @@ export async function recoverRentGenerationExceptionAction(
   return { message: "Rent generation retried.", status: "success" };
 }
 
+export async function recoverLeaseRentPeriodAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = recoverLeaseRentPeriodSchema.safeParse(
+    Object.fromEntries(formData),
+  );
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireLeaseConfigurationContext();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("recover_lease_rent_period", {
+    p_billing_period_start: `${parsed.data.billingPeriod}-01`,
+    p_lease_id: parsed.data.leaseId,
+    p_organization_id: context.organizationId,
+  });
+  if (error) return actionError(error.message);
+
+  const result = asActionResult(data);
+  if (result?.status === "failed") {
+    return {
+      message:
+        typeof result.message === "string"
+          ? result.message
+          : "Review the lease rent setup and try again.",
+      status: "error",
+    };
+  }
+
+  revalidateFinance();
+  return { message: "Historical rent month generated.", status: "success" };
+}
+
 export async function recordTenantInvoicePaymentAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
@@ -296,6 +349,7 @@ export async function reviewExpenseAction(
     p_idempotency_key: parsed.data.idempotencyKey,
     p_organization_id: context.organizationId,
     p_reason: parsed.data.reason || null,
+    p_reconciliation_source_id: parsed.data.reconciliationSourceId,
     p_submission_id: parsed.data.submissionId,
   });
   if (error) return expenseWorkflowError(error.message);

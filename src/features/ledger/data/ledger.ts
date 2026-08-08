@@ -569,20 +569,20 @@ function buildLedgerRiskIndicators({
   return [
     {
       description: accountingJournalEntryId
-        ? "A balanced accounting journal is linked to this operational row."
-        : "No balanced accounting journal is linked. Month close must remain open until this is repaired.",
+        ? "The internal verification record is complete for this operational row."
+        : "The internal verification record is incomplete. Keep this month unlocked until it is repaired.",
       id: "accounting",
       label: accountingJournalEntryId
-        ? "Balanced journal linked"
-        : "Accounting journal missing",
+        ? "Record verified"
+        : "Record needs review",
       tone: accountingJournalEntryId ? "success" : "danger",
     },
     {
       description: isLocked
-        ? "The accounting month is locked, so this entry cannot be changed."
-        : "The accounting month is open for corrections.",
+        ? "The month is locked, so this entry cannot be changed."
+        : "The month is open for authorized corrections.",
       id: "lock",
-      label: isLocked ? "Period locked" : "Period open",
+      label: isLocked ? "Month locked" : "Month open",
       tone: isLocked ? "warning" : "success",
     },
     {
@@ -638,7 +638,7 @@ function buildLedgerNextAction({
   if (isLocked) {
     return {
       description:
-        "Unlock the accounting period before editing or restoring this entry.",
+        "Unlock this month before editing or restoring this entry.",
       href: hrefs.ledger,
       label: "Review lock",
       tone: "warning",

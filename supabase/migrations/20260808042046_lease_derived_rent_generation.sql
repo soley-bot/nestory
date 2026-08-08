@@ -6,6 +6,34 @@
 
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
 
+-- A due date is not a rent-period identity. Under the supported
+-- next-calendar-month rule, consecutive billing periods can legitimately have
+-- the same due date (for example February and March both due on March 31).
+ALTER TABLE public.finance_income_items
+  ADD COLUMN rent_billing_period_start date,
+  ADD CONSTRAINT finance_income_items_rent_billing_period_check
+    CHECK (
+      rent_billing_period_start IS NULL
+      OR (
+        income_type = 'rent'
+        AND rent_billing_period_start =
+          date_trunc('month', rent_billing_period_start)::date
+      )
+    );
+
+DROP INDEX IF EXISTS public.finance_income_items_org_lease_rent_due_unique;
+
+CREATE UNIQUE INDEX finance_income_items_org_lease_rent_period_unique
+  ON public.finance_income_items (
+    organization_id,
+    lease_id,
+    rent_billing_period_start
+  )
+  WHERE archived_at IS NULL
+    AND lease_id IS NOT NULL
+    AND income_type = 'rent'
+    AND rent_billing_period_start IS NOT NULL;
+
 ALTER TABLE public.tenant_invoices
   ADD COLUMN lease_term_id uuid,
   ADD COLUMN rent_policy_version_id uuid,
@@ -135,6 +163,130 @@ FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT ON TABLE public.rent_generation_exceptions
 TO authenticated, service_role;
 
+CREATE TABLE app_private.tenant_invoice_settlement_context_capability (
+  singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+  capability_token text NOT NULL UNIQUE
+    CHECK (capability_token ~ '^[0-9a-f]{64}$')
+);
+
+INSERT INTO app_private.tenant_invoice_settlement_context_capability (
+  singleton,
+  capability_token
+)
+VALUES (true, encode(extensions.gen_random_bytes(32), 'hex'));
+
+REVOKE ALL ON TABLE
+  app_private.tenant_invoice_settlement_context_capability
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION app_private.set_tenant_invoice_settlement_context(
+  p_enabled boolean
+)
+RETURNS void
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_capability_token text;
+BEGIN
+  IF p_enabled IS NULL THEN
+    RAISE EXCEPTION 'Tenant invoice settlement context state is required'
+      USING ERRCODE = '22004';
+  END IF;
+
+  SELECT capability.capability_token
+  INTO STRICT v_capability_token
+  FROM app_private.tenant_invoice_settlement_context_capability AS capability
+  WHERE capability.singleton;
+
+  PERFORM pg_catalog.set_config(
+    'app.tenant_invoice_settlement_context',
+    CASE WHEN p_enabled THEN v_capability_token ELSE 'off' END,
+    true
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.has_tenant_invoice_settlement_context()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT pg_catalog.current_setting(
+    'app.tenant_invoice_settlement_context',
+    true
+  ) IS NOT DISTINCT FROM (
+    SELECT capability.capability_token
+    FROM app_private.tenant_invoice_settlement_context_capability AS capability
+    WHERE capability.singleton
+  );
+$$;
+
+REVOKE ALL ON FUNCTION
+  app_private.set_tenant_invoice_settlement_context(boolean),
+  app_private.has_tenant_invoice_settlement_context()
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION app_private.is_lease_derived_rent_income(
+  p_organization_id uuid,
+  p_income_item_id uuid
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.finance_income_items AS income
+    WHERE income.organization_id = p_organization_id
+      AND income.id = p_income_item_id
+      AND income.rent_billing_period_start IS NOT NULL
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.is_lease_derived_rent_receipt(
+  p_organization_id uuid,
+  p_receipt_id uuid
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT
+    EXISTS (
+      SELECT 1
+      FROM public.finance_receipt_allocations AS allocation
+      JOIN public.finance_income_items AS income
+        ON income.organization_id = allocation.organization_id
+       AND income.id = allocation.income_item_id
+      WHERE allocation.organization_id = p_organization_id
+        AND allocation.receipt_id = p_receipt_id
+        AND income.rent_billing_period_start IS NOT NULL
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.tenant_invoice_payment_allocations AS allocation
+      JOIN public.tenant_invoice_payments AS payment
+        ON payment.organization_id = allocation.organization_id
+       AND payment.id = allocation.payment_id
+      WHERE allocation.organization_id = p_organization_id
+        AND allocation.finance_receipt_id = p_receipt_id
+    );
+$$;
+
+REVOKE ALL ON FUNCTION
+  app_private.is_lease_derived_rent_income(uuid, uuid),
+  app_private.is_lease_derived_rent_receipt(uuid, uuid)
+FROM PUBLIC, anon, authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION app_private.guard_lease_derived_rent_income()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -142,14 +294,46 @@ SECURITY INVOKER
 SET search_path = ''
 AS $$
 BEGIN
-  IF NEW.income_type = 'rent'
+  IF TG_OP = 'UPDATE'
+    AND to_jsonb(NEW) IS NOT DISTINCT FROM to_jsonb(OLD) THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+    AND OLD.rent_billing_period_start IS NOT NULL
     AND coalesce(
+      current_setting('app.rent_generation_context', true),
+      ''
+    ) <> 'lease-derived-v1'
+    AND NOT app_private.has_tenant_invoice_settlement_context() THEN
+    RAISE EXCEPTION
+      'Lease-derived rent must be settled through its tenant invoice'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF (
+      TG_OP = 'INSERT'
+      AND NEW.income_type = 'rent'
+    ) OR (
+      TG_OP = 'UPDATE'
+      AND (
+        NEW.income_type IS DISTINCT FROM OLD.income_type
+        OR NEW.rent_billing_period_start IS DISTINCT FROM
+          OLD.rent_billing_period_start
+      )
+      AND (
+        NEW.income_type = 'rent'
+        OR NEW.rent_billing_period_start IS NOT NULL
+      )
+    ) THEN
+    IF coalesce(
       current_setting('app.rent_generation_context', true),
       ''
     ) <> 'lease-derived-v1' THEN
     RAISE EXCEPTION
       'Rent income is created automatically from the active lease configuration'
       USING ERRCODE = '42501';
+    END IF;
   END IF;
 
   RETURN NEW;
@@ -157,12 +341,250 @@ END;
 $$;
 
 CREATE TRIGGER guard_lease_derived_rent_income
-BEFORE INSERT OR UPDATE OF income_type
+BEFORE INSERT OR UPDATE
 ON public.finance_income_items
 FOR EACH ROW EXECUTE FUNCTION app_private.guard_lease_derived_rent_income();
 
 REVOKE ALL ON FUNCTION app_private.guard_lease_derived_rent_income()
 FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION
+  app_private.guard_lease_derived_rent_receipt_allocation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_income_item_id uuid := CASE
+    WHEN TG_OP = 'DELETE' THEN OLD.income_item_id
+    ELSE NEW.income_item_id
+  END;
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.finance_income_items AS income
+    WHERE income.id = v_income_item_id
+      AND income.rent_billing_period_start IS NOT NULL
+  ) AND NOT app_private.has_tenant_invoice_settlement_context() THEN
+    RAISE EXCEPTION
+      'Lease-derived rent must be settled through its tenant invoice'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER guard_lease_derived_rent_receipt_allocation
+BEFORE INSERT OR UPDATE OR DELETE
+ON public.finance_receipt_allocations
+FOR EACH ROW
+EXECUTE FUNCTION
+  app_private.guard_lease_derived_rent_receipt_allocation();
+
+CREATE TRIGGER guard_lease_derived_rent_owner_collection_allocation
+BEFORE INSERT OR UPDATE OR DELETE
+ON public.owner_collection_confirmation_allocations
+FOR EACH ROW
+EXECUTE FUNCTION
+  app_private.guard_lease_derived_rent_receipt_allocation();
+
+REVOKE ALL ON FUNCTION
+  app_private.guard_lease_derived_rent_receipt_allocation()
+FROM PUBLIC, anon, authenticated, service_role;
+
+ALTER FUNCTION public.record_tenant_invoice_payment(
+  uuid, uuid, numeric, date, uuid, text, jsonb, text
+)
+RENAME TO record_tenant_invoice_payment_lease_derived_unchecked;
+
+REVOKE ALL ON FUNCTION
+  public.record_tenant_invoice_payment_lease_derived_unchecked(
+    uuid, uuid, numeric, date, uuid, text, jsonb, text
+  )
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.record_tenant_invoice_payment(
+  p_organization_id uuid,
+  p_invoice_id uuid,
+  p_amount numeric,
+  p_received_date date,
+  p_reconciliation_source_id uuid,
+  p_reference text,
+  p_allocations jsonb,
+  p_idempotency_key text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_payment_id uuid;
+  v_property_id uuid;
+  v_currency public.currency_code;
+BEGIN
+  IF (SELECT auth.uid()) IS NULL
+    OR NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT invoice.property_id, invoice.currency
+  INTO v_property_id, v_currency
+  FROM public.tenant_invoices AS invoice
+  WHERE invoice.organization_id = p_organization_id
+    AND invoice.id = p_invoice_id;
+
+  IF FOUND AND p_received_date IS NOT NULL THEN
+    PERFORM app_private.lock_open_property_reporting_period(
+      p_organization_id,
+      v_property_id,
+      v_currency,
+      p_received_date
+    );
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        pg_catalog.concat_ws(
+          ':',
+          'tenant_invoice_payment_v1',
+          p_organization_id,
+          p_invoice_id
+        ),
+        0
+      )
+    );
+  END IF;
+
+  PERFORM app_private.set_tenant_invoice_settlement_context(true);
+
+  BEGIN
+    v_payment_id :=
+      public.record_tenant_invoice_payment_lease_derived_unchecked(
+        p_organization_id,
+        p_invoice_id,
+        p_amount,
+        p_received_date,
+        p_reconciliation_source_id,
+        p_reference,
+        p_allocations,
+        p_idempotency_key
+      );
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM app_private.set_tenant_invoice_settlement_context(false);
+    RAISE;
+  END;
+
+  PERFORM app_private.set_tenant_invoice_settlement_context(false);
+  RETURN v_payment_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_tenant_invoice_payment(
+  uuid, uuid, numeric, date, uuid, text, jsonb, text
+)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.record_tenant_invoice_payment(
+  uuid, uuid, numeric, date, uuid, text, jsonb, text
+)
+TO authenticated;
+
+ALTER FUNCTION public.confirm_owner_collected_rent(
+  uuid, uuid, numeric, date, text, jsonb, text
+)
+RENAME TO confirm_owner_collected_rent_lease_derived_unchecked;
+
+REVOKE ALL ON FUNCTION
+  public.confirm_owner_collected_rent_lease_derived_unchecked(
+    uuid, uuid, numeric, date, text, jsonb, text
+  )
+FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.confirm_owner_collected_rent(
+  p_organization_id uuid,
+  p_invoice_id uuid,
+  p_amount numeric,
+  p_confirmed_date date,
+  p_reference text,
+  p_allocations jsonb,
+  p_idempotency_key text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_confirmation_id uuid;
+  v_property_id uuid;
+  v_currency public.currency_code;
+BEGIN
+  IF (SELECT auth.uid()) IS NULL
+    OR NOT app_private.is_org_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT invoice.property_id, invoice.currency
+  INTO v_property_id, v_currency
+  FROM public.tenant_invoices AS invoice
+  WHERE invoice.organization_id = p_organization_id
+    AND invoice.id = p_invoice_id;
+
+  IF FOUND AND p_confirmed_date IS NOT NULL THEN
+    PERFORM app_private.lock_open_property_reporting_period(
+      p_organization_id,
+      v_property_id,
+      v_currency,
+      p_confirmed_date
+    );
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        pg_catalog.concat_ws(
+          ':',
+          'owner_collection_v1',
+          p_organization_id,
+          p_invoice_id
+        ),
+        0
+      )
+    );
+  END IF;
+
+  PERFORM app_private.set_tenant_invoice_settlement_context(true);
+
+  BEGIN
+    v_confirmation_id :=
+      public.confirm_owner_collected_rent_lease_derived_unchecked(
+        p_organization_id,
+        p_invoice_id,
+        p_amount,
+        p_confirmed_date,
+        p_reference,
+        p_allocations,
+        p_idempotency_key
+      );
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM app_private.set_tenant_invoice_settlement_context(false);
+    RAISE;
+  END;
+
+  PERFORM app_private.set_tenant_invoice_settlement_context(false);
+  RETURN v_confirmation_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.confirm_owner_collected_rent(
+  uuid, uuid, numeric, date, text, jsonb, text
+)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.confirm_owner_collected_rent(
+  uuid, uuid, numeric, date, text, jsonb, text
+)
+TO authenticated;
 
 CREATE OR REPLACE FUNCTION app_private.generate_lease_rent_invoice(
   p_organization_id uuid,
@@ -263,8 +685,19 @@ BEGIN
     AND lease.archived_at IS NULL
   FOR SHARE;
 
-  IF NOT FOUND OR v_lease.status NOT IN ('active', 'notice_given') THEN
-    RAISE EXCEPTION 'Only an active lease can generate rent'
+  IF NOT FOUND OR (
+    p_generation_source = 'manual_recovery'
+    AND v_lease.status NOT IN (
+      'active',
+      'notice_given',
+      'ended',
+      'terminated'
+    )
+  ) OR (
+    p_generation_source <> 'manual_recovery'
+    AND v_lease.status NOT IN ('active', 'notice_given')
+  ) THEN
+    RAISE EXCEPTION 'The lease is not eligible for this rent month'
       USING ERRCODE = '23514';
   END IF;
 
@@ -297,7 +730,16 @@ BEGIN
   WHERE term.organization_id = p_organization_id
     AND term.lease_id = p_lease_id
     AND term.authority_kind = 'authoritative'
-    AND term.status IN ('active', 'upcoming')
+    AND (
+      (
+        p_generation_source = 'manual_recovery'
+        AND term.status IN ('active', 'upcoming', 'expired', 'terminated')
+      )
+      OR (
+        p_generation_source <> 'manual_recovery'
+        AND term.status IN ('active', 'upcoming')
+      )
+    )
     AND term.archived_at IS NULL
     AND v_effective_date <@ term.effective_range;
 
@@ -312,7 +754,16 @@ BEGIN
   WHERE term.organization_id = p_organization_id
     AND term.lease_id = p_lease_id
     AND term.authority_kind = 'authoritative'
-    AND term.status IN ('active', 'upcoming')
+    AND (
+      (
+        p_generation_source = 'manual_recovery'
+        AND term.status IN ('active', 'upcoming', 'expired', 'terminated')
+      )
+      OR (
+        p_generation_source <> 'manual_recovery'
+        AND term.status IN ('active', 'upcoming')
+      )
+    )
     AND term.archived_at IS NULL
     AND v_effective_date <@ term.effective_range;
 
@@ -321,11 +772,18 @@ BEGIN
       USING ERRCODE = '0A000';
   END IF;
 
+  PERFORM app_private.lock_open_property_reporting_period(
+    p_organization_id,
+    v_lease.property_id,
+    v_term.rent_currency,
+    p_billing_period_start
+  );
+
   SELECT policy.*
   INTO v_policy
   FROM public.rent_policy_versions AS policy
   WHERE policy.organization_id = p_organization_id
-    AND policy.lifecycle = 'approved'
+    AND policy.lifecycle IN ('approved', 'superseded')
     AND policy.effective_from <= v_effective_date
   ORDER BY policy.effective_from DESC, policy.version_number DESC, policy.id DESC
   LIMIT 1;
@@ -357,7 +815,10 @@ BEGIN
   FROM public.people AS people
   WHERE people.organization_id = p_organization_id
     AND people.id = v_billing.billing_recipient_person_id
-    AND people.archived_at IS NULL;
+    AND (
+      p_generation_source = 'manual_recovery'
+      OR people.archived_at IS NULL
+    );
 
   IF NOT FOUND
     OR v_recipient.party_type IS DISTINCT FROM v_billing.billing_recipient_kind THEN
@@ -471,15 +932,65 @@ BEGIN
   FROM public.finance_income_items AS income
   WHERE income.organization_id = p_organization_id
     AND income.lease_id = p_lease_id
-    AND income.due_date = v_due_date
     AND income.income_type = 'rent'
     AND income.archived_at IS NULL
+    AND (
+      income.rent_billing_period_start = p_billing_period_start
+      OR (
+        income.rent_billing_period_start IS NULL
+        AND income.due_date = p_billing_period_start
+        AND income.reference = pg_catalog.to_char(
+          p_billing_period_start,
+          'YYYY-MM'
+        )
+        AND lower(trim(income.description)) = 'monthly rent'
+      )
+    )
+  ORDER BY
+    (income.rent_billing_period_start = p_billing_period_start) DESC,
+    income.created_at,
+    income.id
+  LIMIT 1
   FOR SHARE;
 
   IF FOUND THEN
-    IF v_existing_income.amount_due IS DISTINCT FROM v_rent_amount
+    IF EXISTS (
+      SELECT 1
+      FROM public.finance_income_items AS duplicate
+      WHERE duplicate.organization_id = p_organization_id
+        AND duplicate.lease_id = p_lease_id
+        AND duplicate.income_type = 'rent'
+        AND duplicate.archived_at IS NULL
+        AND duplicate.id <> v_existing_income.id
+        AND (
+          duplicate.rent_billing_period_start = p_billing_period_start
+          OR (
+            duplicate.rent_billing_period_start IS NULL
+            AND duplicate.due_date = p_billing_period_start
+            AND duplicate.reference = pg_catalog.to_char(
+              p_billing_period_start,
+              'YYYY-MM'
+            )
+            AND lower(trim(duplicate.description)) = 'monthly rent'
+          )
+        )
+    )
+      OR v_existing_income.amount_due IS DISTINCT FROM v_rent_amount
       OR v_existing_income.currency IS DISTINCT FROM v_term.rent_currency
       OR v_existing_income.status = 'void'
+      OR v_existing_income.property_id IS DISTINCT FROM v_lease.property_id
+      OR v_existing_income.unit_id IS DISTINCT FROM v_lease.unit_id
+      OR (
+        v_existing_income.payer_person_id IS NOT NULL
+        AND v_existing_income.payer_person_id IS DISTINCT FROM v_recipient.id
+      )
+      OR (
+        v_existing_income.payer_person_id IS NULL
+        AND trim(v_existing_income.payer_label) NOT IN (
+          v_recipient.display_name,
+          v_lease.tenant_name
+        )
+      )
       OR EXISTS (
         SELECT 1
         FROM public.tenant_invoice_lines AS existing_line
@@ -489,6 +1000,46 @@ BEGIN
       RAISE EXCEPTION 'Existing rent activity conflicts with this lease month'
         USING ERRCODE = '23514';
     END IF;
+
+    IF v_billing.collection_route = 'direct_to_owner'
+      AND EXISTS (
+        SELECT 1
+        FROM public.finance_receipt_allocations AS allocation
+        WHERE allocation.organization_id = p_organization_id
+          AND allocation.income_item_id = v_existing_income.id
+      ) THEN
+      RAISE EXCEPTION 'Existing rent activity conflicts with this lease month'
+        USING ERRCODE = '23514';
+    END IF;
+
+    IF v_billing.collection_route = 'through_ips'
+      AND EXISTS (
+        SELECT 1
+        FROM public.owner_collection_confirmation_allocations AS allocation
+        WHERE allocation.organization_id = p_organization_id
+          AND allocation.income_item_id = v_existing_income.id
+      ) THEN
+      RAISE EXCEPTION 'Existing rent activity conflicts with this lease month'
+        USING ERRCODE = '23514';
+    END IF;
+
+    PERFORM set_config(
+      'app.rent_generation_context',
+      'lease-derived-v1',
+      true
+    );
+
+    UPDATE public.finance_income_items
+    SET rent_billing_period_start = p_billing_period_start,
+        due_date = v_due_date,
+        payer_person_id = v_recipient.id,
+        payer_label = v_recipient.display_name,
+        description = 'Rent',
+        reference = v_invoice_number,
+        updated_by = p_actor_id
+    WHERE organization_id = p_organization_id
+      AND id = v_existing_income.id;
+
     v_income_item_id := v_existing_income.id;
   ELSE
     v_income_item_id := gen_random_uuid();
@@ -507,6 +1058,7 @@ BEGIN
       income_type,
       payer_person_id,
       payer_label,
+      rent_billing_period_start,
       due_date,
       amount_due,
       amount_received,
@@ -526,6 +1078,7 @@ BEGIN
       'rent',
       v_recipient.id,
       v_recipient.display_name,
+      p_billing_period_start,
       v_due_date,
       v_rent_amount,
       0,
@@ -651,7 +1204,7 @@ BEGIN
       p_lease_id,
       v_invoice_id,
       v_billing.id,
-      p_issue_date,
+      p_billing_period_start,
       v_fee_amount,
       v_term.rent_currency,
       v_billing.management_fee_mode,
@@ -781,7 +1334,11 @@ BEGIN
       WHEN v_error_message LIKE 'Complete lease billing setup%' THEN 'billing_setup_missing'
       WHEN v_error_message LIKE 'The lease billing recipient%' THEN 'billing_recipient_invalid'
       WHEN v_error_message LIKE 'Automatic rent currently supports%' THEN 'unsupported_frequency'
-      WHEN v_error_message LIKE 'This month is locked%' THEN 'period_locked'
+      WHEN v_error_message LIKE 'This month is locked%'
+        OR v_error_message LIKE 'Property reporting period is not open%'
+        OR v_error_message LIKE 'Organization Ledger period is locked%'
+        OR v_error_message LIKE 'Accounting book period is locked%'
+        THEN 'period_locked'
       WHEN v_error_message LIKE 'The lease is not active%' THEN 'lease_outside_period'
       WHEN v_error_message LIKE 'Only an active lease%' THEN 'lease_inactive'
       WHEN v_error_message LIKE 'Complete the rent due-day%' THEN 'due_day_missing'
@@ -992,12 +1549,6 @@ BEGIN
     FROM public.leases AS lease
     WHERE lease.archived_at IS NULL
       AND lease.status IN ('active', 'notice_given')
-      AND EXISTS (
-        SELECT 1
-        FROM public.rent_policy_versions AS policy
-        WHERE policy.organization_id = lease.organization_id
-          AND policy.lifecycle = 'approved'
-      )
     ORDER BY lease.organization_id, lease.id
   LOOP
     v_result := app_private.try_current_month_rent(
@@ -1087,6 +1638,65 @@ $$;
 REVOKE ALL ON FUNCTION public.recover_rent_generation_exception(uuid, uuid)
 FROM PUBLIC, anon, service_role;
 GRANT EXECUTE ON FUNCTION public.recover_rent_generation_exception(uuid, uuid)
+TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.recover_lease_rent_period(
+  p_organization_id uuid,
+  p_lease_id uuid,
+  p_billing_period_start date
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_actor_id uuid := (SELECT auth.uid());
+  v_business_date date;
+  v_current_period date;
+BEGIN
+  IF p_organization_id IS NULL
+    OR p_lease_id IS NULL
+    OR p_billing_period_start IS NULL
+    OR p_billing_period_start IS DISTINCT FROM
+      date_trunc('month', p_billing_period_start)::date THEN
+    RAISE EXCEPTION 'Choose one lease and one complete billing month'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF v_actor_id IS NULL
+    OR NOT app_private.is_super_admin(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  v_business_date := app_private.rent_business_date(
+    p_organization_id,
+    now()
+  );
+  v_current_period := date_trunc('month', v_business_date)::date;
+
+  IF p_billing_period_start >= v_current_period THEN
+    RAISE EXCEPTION 'Choose a completed historical rent month'
+      USING ERRCODE = '22023';
+  END IF;
+
+  -- The private generator locks and keys by lease plus billing month. Repeating
+  -- this action therefore returns the same invoice instead of backfilling any
+  -- adjacent month or creating a duplicate obligation.
+  RETURN app_private.try_generate_lease_rent_invoice(
+    p_organization_id,
+    p_lease_id,
+    p_billing_period_start,
+    v_business_date,
+    'manual_recovery',
+    v_actor_id
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.recover_lease_rent_period(uuid, uuid, date)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.recover_lease_rent_period(uuid, uuid, date)
 TO authenticated;
 
 CREATE OR REPLACE FUNCTION app_private.catch_up_lease_rent()
@@ -1373,6 +1983,58 @@ REVOKE ALL ON FUNCTION
   public.generate_monthly_rent_income_items_legacy_unchecked(uuid, date)
 FROM PUBLIC, anon, authenticated, service_role;
 
+-- Compatibility settlement remains available for historical non-rent rows.
+-- Triggers above reject only lease-derived rent unless the checked tenant
+-- invoice payment boundary establishes its private capability context.
+REVOKE ALL ON FUNCTION public.void_finance_income_item(uuid, uuid)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.void_finance_income_item(uuid, uuid)
+TO authenticated;
+REVOKE ALL ON FUNCTION public.post_finance_income_item(uuid, uuid)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.post_finance_income_item(uuid, uuid)
+TO authenticated;
+REVOKE ALL ON FUNCTION public.record_finance_income_payment(
+  uuid, uuid, numeric, date, text
+)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.record_finance_income_payment(
+  uuid, uuid, numeric, date, text
+)
+TO authenticated;
+REVOKE ALL ON FUNCTION public.record_finance_receipt(
+  uuid, uuid, numeric, date, text
+)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.record_finance_receipt(
+  uuid, uuid, numeric, date, text
+)
+TO authenticated;
+REVOKE ALL ON FUNCTION public.record_finance_receipt_v2(
+  uuid, uuid, numeric, date, uuid, text, text
+)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.record_finance_receipt_v2(
+  uuid, uuid, numeric, date, uuid, text, text
+)
+TO authenticated;
+REVOKE ALL ON FUNCTION public.reverse_finance_receipt(
+  uuid, uuid, date, text
+)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.reverse_finance_receipt(
+  uuid, uuid, date, text
+)
+TO authenticated;
+REVOKE ALL ON FUNCTION public.reverse_finance_receipt_v2(
+  uuid, uuid, date, uuid, text, text
+)
+FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.reverse_finance_receipt_v2(
+  uuid, uuid, date, uuid, text, text
+)
+TO authenticated;
+
 DO $$
 DECLARE
   v_job_id bigint;
@@ -1406,3 +2068,5 @@ COMMENT ON FUNCTION app_private.generate_lease_rent_invoice(
   'Private authority for one lease-derived monthly invoice. Uses lease, policy, billing, and month identities for deterministic replay.';
 COMMENT ON FUNCTION public.recover_rent_generation_exception(uuid, uuid) IS
   'Super-Admin-only retry for one typed automatic-rent exception.';
+COMMENT ON FUNCTION public.recover_lease_rent_period(uuid, uuid, date) IS
+  'Super-Admin-only, lease-month-idempotent recovery for one selected historical rent month; it never backfills adjacent periods.';

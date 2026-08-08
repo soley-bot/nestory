@@ -1,14 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 const financeDestinations = [
@@ -21,16 +13,12 @@ const financeDestinations = [
   { href: "/bills-expenses", label: "Expenses", route: "/bills-expenses" },
   { href: "/balances", label: "Owner Balance", route: "/balances" },
   { href: "/leases", label: "Leases", route: "/leases" },
-] as const;
-
-const moreDestinations = [
   { href: "/ledger", label: "Ledger", route: "/ledger" },
   { href: "/petty-cash", label: "Petty Cash", route: "/petty-cash" },
 ] as const;
 
 export type FinanceWorkspaceRoute =
   | (typeof financeDestinations)[number]["route"]
-  | (typeof moreDestinations)[number]["route"]
   | "/reports";
 
 export function FinanceWorkspaceNavigation({
@@ -38,9 +26,6 @@ export function FinanceWorkspaceNavigation({
 }: {
   activeRoute: FinanceWorkspaceRoute;
 }) {
-  const moreActive = moreDestinations.some(
-    (destination) => destination.route === activeRoute,
-  );
   return (
     <nav
       aria-label="Finance workspace"
@@ -60,26 +45,6 @@ export function FinanceWorkspaceNavigation({
             {destination.label}
           </Link>
         ))}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              aria-current={moreActive ? "page" : undefined}
-              className={navClass(moreActive)}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              More <ChevronDown size={13} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-40">
-            {moreDestinations.map((destination) => (
-              <DropdownMenuItem asChild key={destination.route}>
-                <Link href={destination.href}>{destination.label}</Link>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </nav>
   );

@@ -662,7 +662,6 @@ export function MaintenanceScreen({
           ) : (
             <MaintenanceForm
               actor={actor}
-              canPostMaintenanceCost={capabilities.canPostMaintenanceCost}
               canRecordActualCost={capabilities.canRecordActualCost}
               initialValues={
                 drawer.mode === "create" ? drawer.initialValues : undefined
@@ -1595,7 +1594,6 @@ function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {
 export function MaintenanceForm({
   actor,
   branches,
-  canPostMaintenanceCost,
   canRecordActualCost,
   initialValues,
   maintenanceCase,
@@ -1609,7 +1607,6 @@ export function MaintenanceForm({
 }: {
   actor: MaintenanceActor;
   branches: MaintenanceBranchOption[];
-  canPostMaintenanceCost: boolean;
   canRecordActualCost: boolean;
   initialValues?: Partial<MaintenanceCase["formValues"]>;
   maintenanceCase?: MaintenanceCase;
@@ -1712,6 +1709,10 @@ export function MaintenanceForm({
     currentVendorLabel: maintenanceCase?.vendorLabel,
     vendors,
   });
+  const costSubmissionStatus = maintenanceCase?.costSubmission?.status;
+  const costFieldsLocked = costSubmissionStatus === "submitted";
+  const costScopeLocked =
+    costSubmissionStatus === "submitted" || costSubmissionStatus === "approved";
   const managerBranch =
     actor.role === "operations_manager" && actor.branchId
       ? branches.find((branch) => branch.id === actor.branchId)
@@ -1742,9 +1743,13 @@ export function MaintenanceForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Property" error={state.fieldErrors?.propertyId?.[0]}>
+            {costScopeLocked ? (
+              <input name="propertyId" type="hidden" value={propertyId} />
+            ) : null}
             <SelectControl
               ariaLabel="Property"
-              name="propertyId"
+              disabled={costScopeLocked}
+              name={costScopeLocked ? undefined : "propertyId"}
               onValueChange={(value) => {
                 setPropertyId(value);
                 setUnitId("");
@@ -1756,15 +1761,18 @@ export function MaintenanceForm({
                   value: property.id,
                 })),
               ]}
-              required
+              required={!costScopeLocked}
               value={propertyId}
             />
           </Field>
           <Field label="Unit" error={state.fieldErrors?.unitId?.[0]}>
+            {costScopeLocked ? (
+              <input name="unitId" type="hidden" value={unitId} />
+            ) : null}
             <SelectControl
               ariaLabel="Unit"
-              disabled={!propertyId}
-              name="unitId"
+              disabled={!propertyId || costScopeLocked}
+              name={costScopeLocked ? undefined : "unitId"}
               onValueChange={setUnitId}
               options={[
                 { label: "Property level", value: "" },
@@ -1859,10 +1867,18 @@ export function MaintenanceForm({
         </div>
 
         <Field label="Vendor" error={state.fieldErrors?.vendorPersonId?.[0]}>
+          {costScopeLocked ? (
+            <input
+              name="vendorPersonId"
+              type="hidden"
+              value={defaults.vendorPersonId ?? ""}
+            />
+          ) : null}
           <SelectControl
             ariaLabel="Vendor"
             defaultValue={defaults.vendorPersonId ?? ""}
-            name="vendorPersonId"
+            disabled={costScopeLocked}
+            name={costScopeLocked ? undefined : "vendorPersonId"}
             options={vendorSelect.options}
           />
           {vendorSelect.hasHistoricalVendor ? (
@@ -1992,32 +2008,19 @@ export function MaintenanceForm({
                 defaultValue={defaults.actualCostAmount ?? ""}
                 min="0"
                 name="actualCostAmount"
+                readOnly={costFieldsLocked}
                 step="0.01"
               />
             </Field>
           ) : null}
         </div>
 
-        {mode === "edit" && canPostMaintenanceCost ? (
-          <label className="flex items-start gap-2 rounded-md border border-border bg-surface-muted/70 px-3 py-2 text-sm">
-            <CheckboxControl
-              className="mt-1"
-              defaultChecked={Boolean(
-                maintenanceCase?.actualCostAmount &&
-                !maintenanceCase.ledgerEntryId,
-              )}
-              name="linkActualCostToLedger"
-            />
-            <span>
-              <span className="block font-medium">
-                Link actual cost to ledger
-              </span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                Creates or updates the maintenance expense row when actual cost
-                is present.
-              </span>
-            </span>
-          </label>
+        {mode === "edit" && costScopeLocked ? (
+          <p className="rounded-md border border-border bg-surface-muted/70 px-3 py-2 text-xs leading-5 text-muted-foreground">
+            {costFieldsLocked
+              ? "The property, unit, actual cost, and vendor are locked while Finance reviews this submission. Other maintenance details remain editable."
+              : "The property, unit, and vendor are locked to the approved financial history. Update the actual cost only when submitting a new adjustment."}
+          </p>
         ) : null}
 
         <Field label="Description" error={state.fieldErrors?.description?.[0]}>

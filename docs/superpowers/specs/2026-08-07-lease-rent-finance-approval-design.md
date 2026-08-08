@@ -1,7 +1,7 @@
 # Lease-Derived Rent and Finance Approval Design
 
 **Date:** 2026-08-07
-**Status:** Approved direction; implementation requires the reviewed plan that follows this specification.
+**Status:** Implemented locally; hosted migration, Cron enablement, deployment, and role invitation remain release checkpoints.
 **Supersedes:** The manual-rent-generation limitation and admin-only expense-entry portions of `PROJECT.md` and the relevant runtime-transition sections of `2026-07-30-ips-finance-workflow-simplification-design.md`.
 
 ## Purpose
@@ -107,7 +107,7 @@ Generated rent is an immediately official invoice and obligation because Super A
 
 Generation handles each lease independently so one bad lease does not abort the batch. A typed `rent_generation_exceptions` record is unique by organization, lease, and billing period and stores the failure code, safe operator message, attempt count, first/last attempt, and resolution timestamp.
 
-Finance roles can read the exception queue. Super Admin can retry a selected row through the same checked generator. Successful generation resolves the exception automatically.
+Finance roles can read the exception queue. Super Admin can retry a selected row through the same checked generator. When a scheduler outage left no exception row, Super Admin can select one lease and one completed historical month from Rent; the action is idempotent for that lease-month and never fills adjacent months. Successful generation resolves any matching exception automatically.
 
 The generic income RPC rejects `income_type = 'rent'`. The legacy batch RPC/button is retired. No UI path can create independent manual rent obligations.
 

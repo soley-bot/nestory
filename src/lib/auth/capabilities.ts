@@ -13,6 +13,7 @@ export type WorkspaceCapabilities = {
   canExecuteOperations: boolean;
   canManageAccess: boolean;
   canManageOperations: boolean;
+  canManageFinanceOperations: boolean;
   canReadFinance: boolean;
   canReviewExpense: boolean;
   canReverseExpense: boolean;
@@ -24,6 +25,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canConfigureLeases: true,
     canExecuteOperations: true,
     canManageAccess: true,
+    canManageFinanceOperations: true,
     canManageOperations: true,
     canReadFinance: true,
     canReviewExpense: true,
@@ -34,6 +36,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canConfigureLeases: false,
     canExecuteOperations: false,
     canManageAccess: false,
+    canManageFinanceOperations: false,
     canManageOperations: false,
     canReadFinance: true,
     canReviewExpense: true,
@@ -44,6 +47,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canConfigureLeases: false,
     canExecuteOperations: false,
     canManageAccess: false,
+    canManageFinanceOperations: false,
     canManageOperations: false,
     canReadFinance: true,
     canReviewExpense: false,
@@ -54,6 +58,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canConfigureLeases: false,
     canExecuteOperations: true,
     canManageAccess: false,
+    canManageFinanceOperations: false,
     canManageOperations: true,
     canReadFinance: false,
     canReviewExpense: false,
@@ -64,6 +69,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canConfigureLeases: false,
     canExecuteOperations: true,
     canManageAccess: false,
+    canManageFinanceOperations: false,
     canManageOperations: false,
     canReadFinance: false,
     canReviewExpense: false,

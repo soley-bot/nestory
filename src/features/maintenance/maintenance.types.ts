@@ -96,6 +96,13 @@ export type MaintenanceLinkedDocument = LinkedDocument & {
   href: string;
 };
 
+export type MaintenanceCostSubmission = {
+  id: string;
+  reviewReason: string | null;
+  status: "approved" | "rejected" | "reversed" | "submitted";
+  submittedAt: string;
+};
+
 export type MaintenanceFormValues = {
   actualCostAmount?: number | null;
   assigneePersonId?: string | null;
@@ -132,8 +139,11 @@ export type MaintenanceCaseHrefs = {
 export type MaintenanceCase = {
   activity: RecentChange[];
   actualCostAmount: number;
+  actualCostDate?: string;
+  actualCostDocumentId?: string;
   actualCostDisplay?: MoneyDisplayValue;
   actualCostLabel: string;
+  actualCostReference?: string;
   archivedAt?: string;
   assigneeLabel: string;
   assigneePersonId?: string;
@@ -147,6 +157,7 @@ export type MaintenanceCase = {
   costEstimateAmount: number;
   costEstimateDisplay?: MoneyDisplayValue;
   costEstimateLabel: string;
+  costSubmission?: MaintenanceCostSubmission;
   createdAt: string;
   description: string;
   documents: MaintenanceLinkedDocument[];

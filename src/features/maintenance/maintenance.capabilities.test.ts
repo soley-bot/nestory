@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 
 describe("getMaintenanceCapabilities", () => {
-  it("gives admins operational cost capture and official finance posting", () => {
+  it("gives Super Admin operational cost capture and Finance handoff", () => {
     expect(getMaintenanceCapabilities("super_admin")).toEqual({
       canArchiveCase: true,
       canAssignCase: true,
@@ -10,14 +10,14 @@ describe("getMaintenanceCapabilities", () => {
       canEditCaseStructure: true,
       canExecuteAssignedCase: false,
       canManageCaseState: true,
-      canPostMaintenanceCost: true,
       canRecordActualCost: true,
       canReviewCompletion: true,
+      canSubmitMaintenanceCost: true,
       canUploadMaintenanceEvidence: true,
     });
   });
 
-  it("lets managers record actual cost without posting official finance effects", () => {
+  it("lets Operations Managers record and submit actual cost", () => {
     expect(getMaintenanceCapabilities("operations_manager")).toEqual({
       canArchiveCase: false,
       canAssignCase: true,
@@ -25,9 +25,9 @@ describe("getMaintenanceCapabilities", () => {
       canEditCaseStructure: true,
       canExecuteAssignedCase: false,
       canManageCaseState: true,
-      canPostMaintenanceCost: false,
       canRecordActualCost: true,
       canReviewCompletion: true,
+      canSubmitMaintenanceCost: true,
       canUploadMaintenanceEvidence: false,
     });
   });
@@ -40,9 +40,9 @@ describe("getMaintenanceCapabilities", () => {
       canEditCaseStructure: false,
       canExecuteAssignedCase: true,
       canManageCaseState: false,
-      canPostMaintenanceCost: false,
       canRecordActualCost: false,
       canReviewCompletion: false,
+      canSubmitMaintenanceCost: false,
       canUploadMaintenanceEvidence: false,
     });
   });
@@ -57,9 +57,9 @@ describe("getMaintenanceCapabilities", () => {
         canEditCaseStructure: false,
         canExecuteAssignedCase: false,
         canManageCaseState: false,
-        canPostMaintenanceCost: false,
         canRecordActualCost: false,
         canReviewCompletion: false,
+        canSubmitMaintenanceCost: false,
         canUploadMaintenanceEvidence: false,
       });
     },

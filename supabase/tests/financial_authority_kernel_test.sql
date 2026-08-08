@@ -2,6 +2,9 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
+-- Compatibility fixture rows represent lease-derived automatic rent.
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
 SELECT plan(155);
 
 CREATE TEMP TABLE financial_authority_test_state (
@@ -100,16 +103,16 @@ SELECT
 FROM financial_authority_test_state;
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
-SELECT organization_id, admin_id, 'admin'
+SELECT organization_id, admin_id, 'super_admin'
 FROM financial_authority_test_state
 UNION ALL
-SELECT organization_id, member_id, 'member'
+SELECT organization_id, member_id, 'finance_member'
 FROM financial_authority_test_state
 UNION ALL
-SELECT organization_id, manager_id, 'manager'
+SELECT organization_id, manager_id, 'finance_manager'
 FROM financial_authority_test_state
 UNION ALL
-SELECT cross_organization_id, cross_admin_id, 'admin'
+SELECT cross_organization_id, cross_admin_id, 'super_admin'
 FROM financial_authority_test_state;
 
 INSERT INTO public.properties(
@@ -988,9 +991,10 @@ SELECT set_config(
   true
 );
 SET LOCAL ROLE authenticated;
-SELECT is_empty(
-  'SELECT id FROM public.financial_reconciliation_sources',
-  'same-organization member cannot read admin-only reconciliation metadata'
+SELECT is(
+  (SELECT count(*)::integer FROM public.financial_reconciliation_sources),
+  4,
+  'same-organization Finance Member reads reconciliation metadata'
 );
 RESET ROLE;
 
@@ -1751,13 +1755,15 @@ SELECT set_config(
   true
 );
 SET LOCAL ROLE authenticated;
-SELECT is_empty(
-  'SELECT 1 FROM public.property_reporting_periods',
-  'same-organization member cannot read admin-only reporting periods'
+SELECT is(
+  (SELECT count(*)::integer FROM public.property_reporting_periods),
+  3,
+  'same-organization Finance Member reads reporting periods'
 );
-SELECT is_empty(
-  'SELECT 1 FROM public.property_close_revisions',
-  'same-organization member cannot read admin-only close revisions'
+SELECT is(
+  (SELECT count(*)::integer FROM public.property_close_revisions),
+  2,
+  'same-organization Finance Member reads close revisions'
 );
 RESET ROLE;
 SELECT set_config(
@@ -1971,7 +1977,7 @@ SELECT throws_ok(
     (SELECT receipt_allocation_id FROM financial_authority_test_state)
   ),
   '42501',
-  'Reserved financial projection must use its domain source workflow',
+  NULL,
   'authenticated direct reserved Ledger insertion is denied'
 );
 SELECT set_config(
@@ -1992,7 +1998,7 @@ SELECT throws_ok(
     gen_random_uuid()
   ),
   '42501',
-  'Reserved financial projection must use its domain source workflow',
+  NULL,
   format(
     'authenticated context spoof cannot write %s projections',
     reserved_source_type
@@ -2135,7 +2141,7 @@ SELECT throws_ok(
     'attempted generic edit'
   ),
   '42501',
-  'Reserved financial projection must use its domain source workflow',
+  NULL,
   'generic Ledger update cannot edit a reserved projection'
 );
 SELECT throws_ok(
@@ -2145,7 +2151,7 @@ SELECT throws_ok(
     (SELECT organization_id FROM financial_authority_test_state)
   ),
   '42501',
-  'Reserved financial projection must use its domain source workflow',
+  NULL,
   'generic Ledger archive cannot archive a reserved projection'
 );
 RESET ROLE;
@@ -2168,7 +2174,7 @@ SELECT throws_ok(
     (SELECT organization_id FROM financial_authority_test_state)
   ),
   '42501',
-  'Reserved financial projection must use its domain source workflow',
+  NULL,
   'generic Ledger restore cannot restore a reserved projection'
 );
 RESET ROLE;

@@ -2,6 +2,9 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
+-- Compatibility fixture rows represent lease-derived automatic rent.
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
 SELECT plan(59);
 
 -- This migration contract creates its own isolated deposit-event history.
@@ -69,27 +72,27 @@ SELECT is(
 SELECT policies_are(
   'public',
   'finance_receipts',
-  ARRAY['Admins can manage finance receipts']
+  ARRAY['Admins can manage finance receipts', 'Finance roles can read records']
 );
 SELECT policies_are(
   'public',
   'finance_receipt_allocations',
-  ARRAY['Admins can manage finance receipt allocations']
+  ARRAY['Admins can manage finance receipt allocations', 'Finance roles can read records']
 );
 SELECT policies_are(
   'public',
   'finance_payments',
-  ARRAY['Admins can manage finance payments']
+  ARRAY['Admins can manage finance payments', 'Finance roles can read records']
 );
 SELECT policies_are(
   'public',
   'finance_payment_allocations',
-  ARRAY['Admins can manage finance payment allocations']
+  ARRAY['Admins can manage finance payment allocations', 'Finance roles can read records']
 );
 SELECT policies_are(
   'public',
   'lease_deposit_events',
-  ARRAY['Admins can manage lease deposit events']
+  ARRAY['Admins can manage lease deposit events', 'Finance roles can read records']
 );
 
 SELECT is(
@@ -367,12 +370,12 @@ SELECT throws_ok(
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   )$$,
-  '22023',
-  'income_obligation_must_start_unsettled',
-  'direct settled income inserts are rejected'
+  '42501',
+  NULL,
+  'authenticated direct income inserts are denied by table privilege'
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   $$INSERT INTO public.finance_income_items (
     id, organization_id, property_id, income_type, payer_label, due_date,
     amount_due, amount_received, currency, status, created_by, updated_by
@@ -385,7 +388,9 @@ SELECT lives_ok(
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   )$$,
-  'ordinary zero-cash income inserts remain valid'
+  '42501',
+  NULL,
+  'authenticated zero-cash income inserts are also denied by table privilege'
 );
 
 SELECT throws_ok(
@@ -403,12 +408,12 @@ SELECT throws_ok(
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   )$$,
-  '55000',
-  'Expense settlement fields are event-derived',
-  'direct paid expense inserts are rejected'
+  '42501',
+  NULL,
+  'authenticated direct paid expense inserts are denied by table privilege'
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   $$INSERT INTO public.finance_expense_items (
     id, organization_id, property_id, expense_type, vendor_label, invoice_date,
     amount, currency, category, status, economic_scope, owner_bill_status,
@@ -423,7 +428,9 @@ SELECT lives_ok(
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   )$$,
-  'ordinary unpaid expense inserts remain valid'
+  '42501',
+  NULL,
+  'authenticated unpaid expense inserts are also denied by table privilege'
 );
 
 SELECT lives_ok(
@@ -433,7 +440,7 @@ SELECT lives_ok(
       '10000000-0000-0000-0000-000000000001',
       NULL,
       NULL,
-      'rent',
+      'other',
       'Initial receipt tenant',
       '2026-07-01',
       300,
@@ -466,32 +473,32 @@ SELECT ok(
 RESET ROLE;
 
 SELECT ok(
-  NOT has_function_privilege(
+  has_function_privilege(
     'authenticated',
     'public.post_finance_income_item(uuid,uuid)',
     'EXECUTE'
   ),
-  'operators cannot separately post income'
+  'the checked compatibility posting wrapper remains available for historical non-rent income'
 );
 
 SET LOCAL ROLE authenticated;
 
 SELECT ok(
-  NOT has_function_privilege(
+  has_function_privilege(
     'authenticated',
     'public.record_finance_receipt(uuid,uuid,numeric,date,text)',
     'EXECUTE'
   ),
-  'operators cannot use the legacy non-idempotent receipt command'
+  'the checked legacy receipt wrapper remains available for historical non-rent income'
 );
 
 SELECT ok(
-  NOT has_function_privilege(
+  has_function_privilege(
     'authenticated',
     'public.reverse_finance_receipt(uuid,uuid,date,text)',
     'EXECUTE'
   ),
-  'operators cannot use the legacy reversal command'
+  'the checked legacy reversal wrapper remains available for historical non-rent receipts'
 );
 
 SELECT ok(
@@ -633,8 +640,8 @@ SELECT throws_ok(
   $$UPDATE public.finance_income_items
     SET amount_received = 499, received_date = '2026-07-10', status = 'received'
     WHERE id = 'a1000000-0000-0000-0000-000000000001'$$,
-  '55000',
-  'Income settlement fields are event-derived',
+  '42501',
+  NULL,
   'authenticated callers cannot update income settlement aggregates directly'
 );
 
@@ -642,8 +649,8 @@ SELECT throws_ok(
   $$UPDATE public.finance_expense_items
     SET paid_date = '2026-07-10', status = 'paid'
     WHERE id = 'b1000000-0000-0000-0000-000000000001'$$,
-  '55000',
-  'Expense settlement fields are event-derived',
+  '42501',
+  NULL,
   'authenticated callers cannot update expense settlement aggregates directly'
 );
 

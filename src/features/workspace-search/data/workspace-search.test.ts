@@ -182,8 +182,8 @@ describe("workspace search scopes", () => {
     ]);
     expect(getWorkspaceSearchScopes("operations_manager")).toEqual(["tasks"]);
     expect(getWorkspaceSearchScopes("operations_member")).toEqual(["tasks"]);
-    expect(getWorkspaceSearchScopes("finance_manager")).toEqual([]);
-    expect(getWorkspaceSearchScopes("finance_member")).toEqual([]);
+    expect(getWorkspaceSearchScopes("finance_manager")).toEqual(["leases"]);
+    expect(getWorkspaceSearchScopes("finance_member")).toEqual(["leases"]);
 
     expect(getWorkspaceSearchActions("super_admin").map((action) => action.href)).toEqual(
       expect.arrayContaining(["/tasks", "/work-orders", "/inspections"]),

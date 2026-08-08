@@ -2,6 +2,9 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
+-- Compatibility fixture rows represent lease-derived automatic rent.
+SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
+
 SELECT plan(63);
 
 SELECT has_function(
@@ -60,21 +63,21 @@ SELECT has_table(
 );
 
 SELECT ok(
-  NOT has_function_privilege(
+  has_function_privilege(
     'authenticated',
     'public.post_finance_income_item(uuid,uuid)',
     'EXECUTE'
   ),
-  'authenticated operators cannot separately post settled income'
+  'the checked compatibility posting wrapper remains available for historical non-rent income'
 );
 
 SELECT ok(
-  NOT has_function_privilege(
+  has_function_privilege(
     'authenticated',
     'public.record_finance_receipt(uuid,uuid,numeric,date,text)',
     'EXECUTE'
   ),
-  'the legacy non-idempotent receipt wrapper is no longer an operator authority'
+  'the checked legacy receipt wrapper remains available for historical non-rent income'
 );
 
 SELECT ok(
@@ -160,10 +163,10 @@ SELECT
 FROM plan05_test_state;
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
-SELECT organization_id, admin_id, 'admin'
+SELECT organization_id, admin_id, 'super_admin'
 FROM plan05_test_state
 UNION ALL
-SELECT organization_id, member_id, 'member'
+SELECT organization_id, member_id, 'finance_member'
 FROM plan05_test_state;
 
 INSERT INTO public.properties(
@@ -403,9 +406,9 @@ SELECT throws_ok(
     lease_id,
     tenant_id
   ),
-  '22023',
-  'income_obligation_must_start_unsettled',
-  'direct obligation inserts cannot pre-populate unprojected cash'
+  '42501',
+  NULL,
+  'authenticated callers cannot insert obligations directly'
 )
 FROM plan05_test_state;
 
@@ -422,7 +425,7 @@ SET reconciliation_source_id =
     '****0505'
   );
 
-SELECT lives_ok(
+SELECT throws_ok(
   $$
     SET LOCAL ROLE authenticated;
     UPDATE public.finance_income_items
@@ -430,7 +433,9 @@ SELECT lives_ok(
     WHERE id = (SELECT income_id FROM plan05_test_state);
     RESET ROLE;
   $$,
-  'an unsettled obligation remains correctable before its first source snapshot'
+  '42501',
+  NULL,
+  'authenticated callers cannot correct obligations through direct DML'
 );
 
 SELECT throws_ok(
@@ -445,7 +450,7 @@ SELECT throws_ok(
     RESET ROLE;
   $$,
   '42501',
-  'Income obligation posting requires the checked settlement workflow',
+  NULL,
   'direct posting cannot attach Ledger authority before the first allocation'
 );
 
@@ -466,7 +471,7 @@ SELECT throws_ok(
     RESET ROLE;
   $$,
   '42501',
-  'Income obligation posting requires the checked settlement workflow',
+  NULL,
   'direct posting cannot mark a legacy received obligation as posted'
 );
 
@@ -1149,8 +1154,8 @@ SELECT is(
     SELECT count(*)::bigint
     FROM public.finance_receipt_allocation_journals
   ),
-  0::bigint,
-  'non-admin members cannot read allocation-to-journal identities'
+  3::bigint,
+  'Finance Members can read allocation-to-journal identities'
 );
 
 RESET ROLE;
@@ -1371,9 +1376,9 @@ SELECT throws_ok(
     lease_id,
     tenant_id
   ),
-  '22023',
-  'rent_occurrence_generation_required',
-  'activated creation rejects caller-supplied Plan 09 provenance'
+  '42501',
+  NULL,
+  'authenticated direct creation cannot spoof automatic-rent provenance'
 )
 FROM plan05_test_state;
 

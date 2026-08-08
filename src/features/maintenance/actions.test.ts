@@ -1,15 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { maybeSingle, requireOperationsExecutionContext, revalidatePath, rpc } =
+const {
+  maybeSingle,
+  requireOperationsExecutionContext,
+  requireOperationsManagementContext,
+  revalidatePath,
+  rpc,
+} =
   vi.hoisted(() => ({
     maybeSingle: vi.fn(),
     requireOperationsExecutionContext: vi.fn(),
+    requireOperationsManagementContext: vi.fn(),
     revalidatePath: vi.fn(),
     rpc: vi.fn(),
   }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/auth/context", () => ({ requireOperationsExecutionContext }));
+vi.mock("@/lib/auth/context", () => ({
+  requireOperationsExecutionContext,
+  requireOperationsManagementContext,
+}));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({
     from: () => ({
@@ -27,12 +37,14 @@ import {
   executeAssignedMaintenanceTaskAction,
   executeCoordinatedMaintenanceTaskAction,
   reviewMaintenanceCompletionAction,
+  submitMaintenanceCostAction,
   updateMaintenanceCaseAction,
 } from "@/features/maintenance/actions";
 
 describe("maintenance action capabilities", () => {
   beforeEach(() => {
     requireOperationsExecutionContext.mockReset();
+    requireOperationsManagementContext.mockReset();
     maybeSingle.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
@@ -62,7 +74,7 @@ describe("maintenance action capabilities", () => {
     expect(rpc).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps official ledger posting available to admins", async () => {
+  it("retires direct Ledger posting for Super Admin too", async () => {
     requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
       role: "super_admin",
@@ -76,9 +88,60 @@ describe("maintenance action capabilities", () => {
     expect(rpc).toHaveBeenNthCalledWith(
       1,
       "update_maintenance_task",
-      expect.objectContaining({ p_link_actual_cost_to_ledger: true }),
+      expect.objectContaining({ p_link_actual_cost_to_ledger: false }),
     );
     expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits the recorded cost to Finance through operations authority", async () => {
+    requireOperationsManagementContext.mockResolvedValue({
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      role: "operations_manager",
+    });
+    const formData = new FormData();
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "maintenance-cost-submit-1");
+    formData.set("reference", "Receipt 42");
+    formData.set(
+      "supportingDocumentId",
+      "00000000-0000-4000-8000-000000000007",
+    );
+    formData.set("taskId", "00000000-0000-4000-8000-000000000003");
+
+    await expect(submitMaintenanceCostAction({}, formData)).resolves.toEqual({
+      message: "Maintenance cost submitted to Finance.",
+      status: "success",
+    });
+    expect(requireOperationsManagementContext).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith("submit_maintenance_cost", {
+      p_expense_date: "2026-08-08",
+      p_idempotency_key: "maintenance-cost-submit-1",
+      p_organization_id: "00000000-0000-4000-8000-000000000001",
+      p_reference: "Receipt 42",
+      p_supporting_document_id:
+        "00000000-0000-4000-8000-000000000007",
+      p_task_id: "00000000-0000-4000-8000-000000000003",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/finance");
+    expect(revalidatePath).toHaveBeenCalledWith("/bills-expenses");
+  });
+
+  it("requires a receipt document or reference before authorization", async () => {
+    const formData = new FormData();
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "maintenance-cost-no-evidence");
+    formData.set("reference", "");
+    formData.set("supportingDocumentId", "");
+    formData.set("taskId", "00000000-0000-4000-8000-000000000003");
+
+    await expect(submitMaintenanceCostAction({}, formData)).resolves.toEqual({
+      fieldErrors: {
+        reference: ["Choose a receipt document or enter a reference."],
+      },
+      status: "error",
+    });
+    expect(requireOperationsManagementContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("creates and assigns a maintenance case in one checked RPC", async () => {
