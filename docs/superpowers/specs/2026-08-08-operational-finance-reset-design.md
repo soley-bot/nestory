@@ -1,7 +1,7 @@
 # Operational Finance Reset Design
 
 **Date:** 2026-08-08  
-**Status:** Approved direction; written specification awaiting final user review  
+**Status:** Approved for implementation
 **Supersedes:** The accounting-kernel compatibility direction, dual-posting
 bridges, legacy route aliases, and migration-history preservation requirements
 that predate this development reset.
@@ -287,4 +287,3 @@ compatible with the new empty development database.
 This work is performed on an isolated local branch. Completion may include local
 commits. It does not include pushing, merging, hosted Supabase migration, Cron
 activation, Vercel deployment, or user invitation without separate approval.
-
