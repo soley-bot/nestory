@@ -759,7 +759,7 @@ SELECT is(
   (
     SELECT count(*)
     FROM public.ledger_entries
-    WHERE source_type = 'petty_cash'
+    WHERE source_type = 'petty_cash_entry'
       AND source_id = (
         SELECT id FROM public.petty_cash_entries WHERE category = 'POST-ME'
       )

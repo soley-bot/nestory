@@ -34,7 +34,7 @@ import { getQueryTokens, textMatchesToken } from "@/lib/query/screen-query";
 import { buildHref } from "@/lib/url/href";
 
 const ledgerEntrySelect =
-  "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, source_type, source_id, accounting_journal_entry_id, archived_at";
+  "id, property_id, unit_id, transaction_date, direction, category, amount, currency, description, source_type, source_id, reversal_of_ledger_entry_id, archived_at";
 const maxRelatedSearchIds = 100;
 
 type PropertyRow = {
@@ -50,7 +50,6 @@ type UnitRow = {
 };
 
 type LedgerEntryRow = {
-  accounting_journal_entry_id: string | null;
   amount: number;
   archived_at: string | null;
   category: string;
@@ -59,6 +58,7 @@ type LedgerEntryRow = {
   direction: string;
   id: string;
   property_id: string;
+  reversal_of_ledger_entry_id: string | null;
   source_id: string | null;
   source_type: string;
   transaction_date: string;
@@ -365,7 +365,6 @@ function toLedgerEntry({
   };
 
   return {
-    accountingJournalEntryId: entry.accounting_journal_entry_id ?? undefined,
     activity,
     amount: entry.amount,
     archivedAt: entry.archived_at ?? undefined,
@@ -388,6 +387,8 @@ function toLedgerEntry({
     propertyId: entry.property_id,
     propertyName: property?.name ?? "Unknown property",
     recordCounts,
+    reversalOfLedgerEntryId:
+      entry.reversal_of_ledger_entry_id ?? undefined,
     relatedTimelineEvent: relatedTimelineEvent
       ? {
           id: relatedTimelineEvent.id,
@@ -395,11 +396,12 @@ function toLedgerEntry({
         }
       : undefined,
     riskIndicators: buildLedgerRiskIndicators({
-      accountingJournalEntryId: entry.accounting_journal_entry_id,
       isArchived: Boolean(entry.archived_at),
       isLocked,
       recordCounts,
+      reversalOfLedgerEntryId: entry.reversal_of_ledger_entry_id,
       relatedTimelineEvent,
+      sourceId: entry.source_id,
       unitId: entry.unit_id,
     }),
     sourceId: entry.source_id ?? undefined,
@@ -417,36 +419,40 @@ function indexById<T extends { id: string }>(rows: T[]) {
 
 export function normalizeLedgerSource(value: string) {
   if (
-    value === "finance_income" ||
-    value === "finance_expense" ||
-    value === "petty_cash" ||
-    value === "maintenance_task" ||
+    value === "deposit_event" ||
+    value === "owner_cash_event" ||
+    value === "payment_allocation" ||
+    value === "petty_cash_entry" ||
     value === "receipt_allocation"
   ) {
     return value;
   }
 
-  return "manual";
+  return "unknown";
 }
 
 export function formatLedgerSource(value: string) {
-  if (value === "finance_income" || value === "receipt_allocation") {
+  if (value === "receipt_allocation") {
     return "Rent & Income";
   }
 
-  if (value === "finance_expense") {
+  if (value === "payment_allocation") {
     return "Bills & Expenses";
   }
 
-  if (value === "petty_cash") {
+  if (value === "petty_cash_entry") {
     return "Petty Cash";
   }
 
-  if (value === "maintenance_task") {
-    return "Maintenance";
+  if (value === "deposit_event") {
+    return "Lease deposit";
   }
 
-  return "Manual";
+  if (value === "owner_cash_event") {
+    return "Owner cash";
+  }
+
+  return "Source unavailable";
 }
 
 function indexTimelineEventsByLedgerEntryId(rows: TimelineEventRow[]) {
@@ -553,30 +559,36 @@ function buildLedgerDetailHrefs(
 }
 
 function buildLedgerRiskIndicators({
-  accountingJournalEntryId,
   isArchived,
   isLocked,
   recordCounts,
+  reversalOfLedgerEntryId,
   relatedTimelineEvent,
+  sourceId,
   unitId,
 }: {
-  accountingJournalEntryId: string | null;
   isArchived: boolean;
   isLocked: boolean;
   recordCounts: LedgerRecordCounts;
+  reversalOfLedgerEntryId: string | null;
   relatedTimelineEvent?: TimelineEventRow;
+  sourceId: string | null;
   unitId: string | null;
 }): LedgerRiskIndicator[] {
   return [
     {
-      description: accountingJournalEntryId
-        ? "The internal verification record is complete for this operational row."
-        : "The internal verification record is incomplete. Keep this month unlocked until it is repaired.",
-      id: "accounting",
-      label: accountingJournalEntryId
-        ? "Record verified"
-        : "Record needs review",
-      tone: accountingJournalEntryId ? "success" : "danger",
+      description: sourceId
+        ? reversalOfLedgerEntryId
+          ? "This immutable reversal points to its exact original Ledger event."
+          : "This immutable Ledger event points to its exact source record."
+        : "The source workflow identity is missing and needs review.",
+      id: "source",
+      label: sourceId
+        ? reversalOfLedgerEntryId
+          ? "Reversal linked"
+          : "Source linked"
+        : "Source needs review",
+      tone: sourceId ? "success" : "danger",
     },
     {
       description: isLocked
@@ -597,7 +609,7 @@ function buildLedgerRiskIndicators({
     {
       description: relatedTimelineEvent
         ? "A timeline event is linked and can show this transaction in history."
-        : "No linked timeline event was found. Editing the entry can recreate the sync record.",
+        : "No linked timeline event was found. Review the source workflow activity.",
       id: "timeline",
       label: relatedTimelineEvent ? "Timeline linked" : "Timeline missing",
       tone: relatedTimelineEvent ? "success" : "warning",
@@ -649,9 +661,9 @@ function buildLedgerNextAction({
   if (isArchived) {
     return {
       description:
-        "Restore this entry if it should return to active ledger totals.",
+        "This historical row is read-only. Review its source workflow before correction.",
       href: hrefs.ledger,
-      label: "Review restore",
+      label: "Review source",
       tone: "warning",
     };
   }
@@ -659,9 +671,9 @@ function buildLedgerNextAction({
   if (!relatedTimelineEvent) {
     return {
       description:
-        "Edit and save this entry to recreate its linked timeline record.",
+        "Review the source workflow activity for this Ledger event.",
       href: hrefs.ledger,
-      label: "Repair timeline",
+      label: "Review source",
       tone: "warning",
     };
   }

@@ -9,7 +9,6 @@ import {
   sortLedgerEntries,
 } from "@/features/ledger/ledger.filters";
 import {
-  getLedgerCreateInitialValues,
   getLedgerReviewContext,
 } from "@/features/ledger/components/ledger-screen";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
@@ -197,8 +196,12 @@ function withLedgerDetailContext(
       timelineEvents: entry.relatedTimelineEvent ? 1 : 0,
     },
     riskIndicators: [],
-    sourceLabel: entry.direction === "income" ? "Rent & Income" : "Manual",
-    sourceType: entry.direction === "income" ? "finance_income" : "manual",
+    sourceLabel:
+      entry.direction === "income" ? "Rent & Income" : "Bills & Expenses",
+    sourceType:
+      entry.direction === "income"
+        ? "receipt_allocation"
+        : "payment_allocation",
   };
 }
 
@@ -342,18 +345,6 @@ describe("ledger list helpers", () => {
     expect(snapshot.totalIncome.primary).toBe("USD 850.00");
     expect(snapshot.totalExpense.primary).toBe("USD 2,520.00");
     expect(snapshot.lockedPeriodCount).toBe("2");
-  });
-});
-
-describe("ledger create defaults", () => {
-  it("carries an expense route into the add-entry drawer", () => {
-    expect(
-      getLedgerCreateInitialValues(
-        { ...DEFAULT_LEDGER_VIEW_QUERY, direction: "expense" },
-        [],
-        [],
-      ),
-    ).toEqual({ direction: "expense" });
   });
 });
 

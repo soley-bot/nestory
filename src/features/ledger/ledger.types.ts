@@ -6,12 +6,12 @@ import type { FinanceCloseSummary } from "@/features/finance/finance.types";
 
 export type LedgerDirection = "income" | "expense";
 export type LedgerSourceType =
-  | "finance_expense"
-  | "finance_income"
-  | "maintenance_task"
-  | "manual"
-  | "petty_cash"
-  | "receipt_allocation";
+  | "deposit_event"
+  | "owner_cash_event"
+  | "payment_allocation"
+  | "petty_cash_entry"
+  | "receipt_allocation"
+  | "unknown";
 
 export type LedgerRecordCounts = {
   activity: number;
@@ -43,7 +43,6 @@ export type LedgerNextAction = {
 };
 
 export type LedgerEntry = {
-  accountingJournalEntryId?: string;
   activity: RecentChange[];
   amount: number;
   archivedAt?: string;
@@ -60,6 +59,7 @@ export type LedgerEntry = {
   propertyId: string;
   propertyName: string;
   recordCounts: LedgerRecordCounts;
+  reversalOfLedgerEntryId?: string;
   relatedTimelineEvent?: {
     id: string;
     title: string;

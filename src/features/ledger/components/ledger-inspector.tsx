@@ -1,12 +1,5 @@
 import Link from "next/link";
-import {
-  Archive,
-  ExternalLink,
-  Lock,
-  Pencil,
-  RotateCcw,
-  Upload,
-} from "lucide-react";
+import { ExternalLink, Lock, Upload } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,19 +10,13 @@ import { formatMoneyDisplay } from "@/lib/money/format";
 type LedgerInspectorProps = {
   canManageFinance?: boolean;
   entry: LedgerEntry | null;
-  onArchiveEntry: (entry: LedgerEntry) => void;
   onAttachReceipt: (entry: LedgerEntry) => void;
-  onEditEntry: (entry: LedgerEntry) => void;
-  onRestoreEntry: (entry: LedgerEntry) => void;
 };
 
 export function LedgerInspector({
   canManageFinance = true,
   entry,
-  onArchiveEntry,
   onAttachReceipt,
-  onEditEntry,
-  onRestoreEntry,
 }: LedgerInspectorProps) {
   if (!entry) {
     return (
@@ -40,7 +27,6 @@ export function LedgerInspector({
   }
 
   const isArchived = Boolean(entry.archivedAt);
-  const canManageLifecycle = entry.sourceType !== "receipt_allocation";
 
   return (
     <aside className="bg-surface">
@@ -94,15 +80,14 @@ export function LedgerInspector({
           </CompactFact>
           <CompactFact label="Record integrity">
             <span
-              className={
-                entry.accountingJournalEntryId ? "text-success" : "text-danger"
-              }
+              className={entry.sourceId ? "text-success" : "text-danger"}
             >
-              {entry.accountingJournalEntryId
-                ? "Verified"
-                : "Needs review"}
+              {entry.sourceId ? "Source linked" : "Needs review"}
             </span>
           </CompactFact>
+          {entry.reversalOfLedgerEntryId ? (
+            <CompactFact label="Reversal">Linked to original</CompactFact>
+          ) : null}
         </div>
 
         <AttentionNote
@@ -111,76 +96,17 @@ export function LedgerInspector({
           label={entry.nextAction.label}
         />
 
-        {canManageFinance && (!isArchived || canManageLifecycle) ? (
-          <div className="grid gap-2 sm:grid-cols-3">
-            {isArchived ? (
-              <Button
-                className="sm:col-span-3"
-                disabled={entry.isLocked}
-                onClick={() => onRestoreEntry(entry)}
-                title={
-                  entry.isLocked
-                    ? "This month is locked."
-                    : undefined
-                }
-                variant="primary"
-              >
-                <RotateCcw size={15} />
-                Restore
-              </Button>
-            ) : (
-              <>
-                <Button
-                  aria-label="Attach receipt"
-                  className={
-                    canManageLifecycle ? "px-2" : "px-2 sm:col-span-3"
-                  }
-                  disabled={entry.isLocked}
-                  onClick={() => onAttachReceipt(entry)}
-                  title={
-                    entry.isLocked
-                      ? "This month is locked."
-                      : "Attach receipt"
-                  }
-                >
-                  <Upload size={15} />
-                  Attach
-                </Button>
-                {canManageLifecycle ? (
-                  <>
-                    <Button
-                      aria-label="Edit ledger entry"
-                      className="px-2"
-                      disabled={entry.isLocked}
-                      onClick={() => onEditEntry(entry)}
-                      title={
-                        entry.isLocked
-                          ? "This month is locked."
-                          : "Edit"
-                      }
-                    >
-                      <Pencil size={15} />
-                      Edit
-                    </Button>
-                    <Button
-                      aria-label="Archive ledger entry"
-                      className="px-2"
-                      disabled={entry.isLocked}
-                      onClick={() => onArchiveEntry(entry)}
-                      title={
-                        entry.isLocked
-                          ? "This month is locked."
-                          : "Archive"
-                      }
-                    >
-                      <Archive size={15} />
-                      Archive
-                    </Button>
-                  </>
-                ) : null}
-              </>
-            )}
-          </div>
+        {canManageFinance && !isArchived ? (
+          <Button
+            aria-label="Attach receipt"
+            className="w-full"
+            disabled={entry.isLocked}
+            onClick={() => onAttachReceipt(entry)}
+            title={entry.isLocked ? "This month is locked." : "Attach receipt"}
+          >
+            <Upload size={15} />
+            Attach
+          </Button>
         ) : null}
       </div>
     </aside>

@@ -854,20 +854,18 @@ SELECT results_eq(
       ledger.source_id,
       ledger.direction,
       ledger.amount,
-      journal.source_type,
-      journal.source_id,
-      sum(lines.debit_amount),
-      sum(lines.credit_amount)
+      submission.approved_journal_entry_id IS NULL,
+      ledger.reversal_of_ledger_entry_id IS NULL,
+      (
+        SELECT count(*)
+        FROM public.accounting_journal_entries AS journal
+        WHERE journal.source_type = ledger.source_type
+          AND journal.source_id = ledger.source_id
+      )
     FROM public.expense_submissions AS submission
     JOIN public.ledger_entries AS ledger
       ON ledger.id = submission.approved_ledger_entry_id
-    JOIN public.accounting_journal_entries AS journal
-      ON journal.id = submission.approved_journal_entry_id
-    JOIN public.accounting_journal_lines AS lines
-      ON lines.journal_entry_id = journal.id
     WHERE submission.id = (SELECT submission_id FROM expense_approval_state)
-    GROUP BY ledger.source_type, ledger.source_id, ledger.direction,
-      ledger.amount, journal.source_type, journal.source_id
   $$,
   $$
     SELECT
@@ -875,13 +873,12 @@ SELECT results_eq(
       (approval_result->>'payment_allocation_id')::uuid,
       'expense'::text,
       50.00::numeric,
-      'payment_allocation'::text,
-      (approval_result->>'payment_allocation_id')::uuid,
-      50.00::numeric,
-      50.00::numeric
+      true,
+      true,
+      0::bigint
     FROM expense_approval_state
   $$,
-  'approval creates one balanced Ledger and journal projection at allocation identity'
+  'approval creates one immutable Ledger projection without a journal dependency'
 );
 
 SELECT set_config(
@@ -1368,8 +1365,8 @@ SELECT results_eq(
           (SELECT source_id FROM expense_approval_state),
           'linked_exact_identity'::text,
           true,
-          true,
-          'allocation_level_ledger_and_journal'::text
+          false,
+          'allocation_level_ledger'::text
         ),
         (
           '2026-08-10'::date,
@@ -1387,8 +1384,8 @@ SELECT results_eq(
           (SELECT source_id FROM expense_approval_state),
           'linked_exact_identity'::text,
           true,
-          true,
-          'allocation_level_ledger_and_journal'::text
+          false,
+          'allocation_level_ledger'::text
         )
     ) AS expected(
       event_date,
@@ -1736,8 +1733,8 @@ SELECT results_eq(
       false,
       0,
       source_id,
-      true,
-      true
+          true,
+          false
     FROM expense_approval_state
   $$,
   'tenant-responsible cost is resolved company cash context and stays out of property NOI'

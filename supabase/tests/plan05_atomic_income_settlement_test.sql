@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- Compatibility fixture rows represent lease-derived automatic rent.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(63);
+SELECT plan(62);
 
 SELECT has_function(
   'public',
@@ -716,8 +716,8 @@ SELECT is(
       ON link.allocation_id =
         (plan05_test_state.first_result->>'allocation_id')::uuid
   ),
-  1::bigint,
-  'the allocation owns one journal in its one applicable book'
+  0::bigint,
+  'the allocation owns one Ledger event and no journal bridge'
 );
 
 SELECT ok(
@@ -776,19 +776,16 @@ SELECT ok(
   'the allocation owner adapter includes the reversal destination period'
 );
 
-SELECT ok(
+SELECT is(
   (
-    SELECT
-      sum(line.debit_amount) = sum(line.credit_amount)
-      AND sum(line.debit_amount) = 100
+    SELECT count(*)::bigint
     FROM plan05_test_state
     JOIN public.finance_receipt_allocation_journals AS link
       ON link.allocation_id =
         (plan05_test_state.first_result->>'allocation_id')::uuid
-    JOIN public.accounting_journal_lines AS line
-      ON line.journal_entry_id = link.journal_entry_id
   ),
-  'the allocation journal is complete and balanced'
+  0::bigint,
+  'the receipt allocation does not create an accounting journal'
 );
 
 SELECT is(
@@ -1057,29 +1054,6 @@ SELECT ok(
 
 SELECT is(
   (
-    SELECT count(*)::bigint
-    FROM plan05_test_state
-    CROSS JOIN LATERAL public.get_finance_inventory_page(
-      plan05_test_state.organization_id,
-      plan05_test_state.property_id,
-      'USD',
-      '2026-09-01',
-      '2026-09-30',
-      'diagnostics',
-      NULL,
-      100,
-      ARRAY['LEDGER_JOURNAL_AMOUNT_MISMATCH'],
-      NULL
-    ) AS diagnostic
-    WHERE diagnostic.payload->>'ledgerEntryId' =
-      plan05_test_state.reversal_result->>'ledger_entry_id'
-  ),
-  0::bigint,
-  'finance inventory accepts balanced contra-income reversal projections'
-);
-
-SELECT is(
-  (
     SELECT amount_received
     FROM public.finance_income_items
     WHERE id = (SELECT income_id FROM plan05_test_state)
@@ -1090,20 +1064,14 @@ SELECT is(
 
 SELECT ok(
   (
-    SELECT original.status = 'reversed'
-      AND original.reversed_by_id = reversal.id
-      AND reversal.reversal_of_id = original.id
+    SELECT reversal.reversal_of_ledger_entry_id = original.id
     FROM plan05_test_state
-    JOIN public.accounting_journal_entries AS original
-      ON original.id = (
-        plan05_test_state.first_result->'journal_entry_ids'->>0
-      )::uuid
-    JOIN public.accounting_journal_entries AS reversal
-      ON reversal.id = (
-        plan05_test_state.reversal_result->'journal_entry_ids'->>0
-      )::uuid
+    JOIN public.ledger_entries AS original
+      ON original.id = (plan05_test_state.first_result->>'ledger_entry_id')::uuid
+    JOIN public.ledger_entries AS reversal
+      ON reversal.id = (plan05_test_state.reversal_result->>'ledger_entry_id')::uuid
   ),
-  'journal reversal identity is exact and symmetric'
+  'Ledger reversal identity points to the exact original event'
 );
 
 SELECT throws_ok(
@@ -1154,8 +1122,8 @@ SELECT is(
     SELECT count(*)::bigint
     FROM public.finance_receipt_allocation_journals
   ),
-  3::bigint,
-  'Finance Members can read allocation-to-journal identities'
+  0::bigint,
+  'Finance Members do not depend on allocation-to-journal identities'
 );
 
 RESET ROLE;
@@ -1226,7 +1194,7 @@ SELECT set_config(
 
 SELECT lives_ok(
   $$
-    SELECT public.set_ledger_period_lock(
+    SELECT public.set_financial_month_lock(
       organization_id,
       '2026-07-01',
       true,
@@ -1268,7 +1236,7 @@ SELECT throws_ok(
     FROM plan05_test_state
   $$,
   '22023',
-  'Income settlement period is not open',
+  'Financial month is locked',
   'a genuinely new receipt is rejected in a closed period'
 );
 
@@ -1276,13 +1244,12 @@ SELECT ok(
   (
     SELECT event.ledger_entry_id =
         (plan05_test_state.second_result->>'ledger_entry_id')::uuid
-      AND event.journal_entry_id =
-        (plan05_test_state.second_result->'journal_entry_ids'->>0)::uuid
+      AND event.journal_entry_id IS NULL
       AND event.reconciliation_source_id =
         plan05_test_state.reconciliation_source_id
       AND event.reconciliation_state = 'linked_exact_identity'
       AND event.projection_status =
-        'obligation_level_ledger_and_journal'
+        'obligation_level_ledger'
     FROM plan05_test_state
     CROSS JOIN LATERAL public.get_property_cash_events_v1_page(
       plan05_test_state.organization_id,

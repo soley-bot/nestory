@@ -1,6 +1,27 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(13);
+SELECT plan(16);
+
+SELECT has_column(
+  'public',
+  'lease_deposit_events',
+  'ledger_entry_id',
+  'deposit events own their operational Ledger identity'
+);
+
+SELECT hasnt_function(
+  'public',
+  'record_lease_deposit_event_operational_unchecked',
+  ARRAY['uuid', 'uuid', 'text', 'date', 'numeric', 'text'],
+  'deposit recording has no unchecked compatibility writer'
+);
+
+SELECT hasnt_function(
+  'public',
+  'reverse_lease_deposit_event_operational_unchecked',
+  ARRAY['uuid', 'uuid', 'date', 'text'],
+  'deposit reversal has no unchecked compatibility writer'
+);
 
 -- The workflow assertions build their own balance history.
 DELETE FROM public.lease_deposit_events;

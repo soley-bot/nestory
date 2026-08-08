@@ -2688,6 +2688,7 @@ export type Database = {
           event_type: string
           id: string
           lease_deposit_id: string
+          ledger_entry_id: string | null
           organization_id: string
           property_id: string
           reconciliation_source_id: string | null
@@ -2703,6 +2704,7 @@ export type Database = {
           event_type: string
           id?: string
           lease_deposit_id: string
+          ledger_entry_id?: string | null
           organization_id: string
           property_id: string
           reconciliation_source_id?: string | null
@@ -2718,6 +2720,7 @@ export type Database = {
           event_type?: string
           id?: string
           lease_deposit_id?: string
+          ledger_entry_id?: string | null
           organization_id?: string
           property_id?: string
           reconciliation_source_id?: string | null
@@ -2730,6 +2733,13 @@ export type Database = {
             columns: ["lease_deposit_id"]
             isOneToOne: false
             referencedRelation: "lease_deposits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_deposit_events_ledger_entry_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: true
+            referencedRelation: "ledger_entries"
             referencedColumns: ["id"]
           },
           {
@@ -3557,6 +3567,7 @@ export type Database = {
           id: string
           organization_id: string
           property_id: string
+          reversal_of_ledger_entry_id: string | null
           source_id: string | null
           source_type: string
           transaction_date: string
@@ -3578,6 +3589,7 @@ export type Database = {
           id?: string
           organization_id: string
           property_id: string
+          reversal_of_ledger_entry_id?: string | null
           source_id?: string | null
           source_type?: string
           transaction_date: string
@@ -3599,6 +3611,7 @@ export type Database = {
           id?: string
           organization_id?: string
           property_id?: string
+          reversal_of_ledger_entry_id?: string | null
           source_id?: string | null
           source_type?: string
           transaction_date?: string
@@ -3634,6 +3647,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ledger_entries_reversal_of_ledger_entry_fkey"
+            columns: ["reversal_of_ledger_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "ledger_entries_unit_id_fkey"
@@ -4546,6 +4566,7 @@ export type Database = {
           currency: Database["public"]["Enums"]["currency_code"]
           id: string
           idempotency_key: string
+          ledger_entry_id: string | null
           organization_id: string
           owner_invoice_id: string
           owner_person_id: string
@@ -4561,6 +4582,7 @@ export type Database = {
           currency?: Database["public"]["Enums"]["currency_code"]
           id?: string
           idempotency_key: string
+          ledger_entry_id?: string | null
           organization_id: string
           owner_invoice_id: string
           owner_person_id: string
@@ -4576,6 +4598,7 @@ export type Database = {
           currency?: Database["public"]["Enums"]["currency_code"]
           id?: string
           idempotency_key?: string
+          ledger_entry_id?: string | null
           organization_id?: string
           owner_invoice_id?: string
           owner_person_id?: string
@@ -4598,6 +4621,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "owner_invoices"
             referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_payments_ledger_entry_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: true
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "owner_payments_organization_id_fkey"
@@ -5439,6 +5469,7 @@ export type Database = {
           currency: Database["public"]["Enums"]["currency_code"]
           id: string
           idempotency_key: string
+          ledger_entry_id: string | null
           organization_id: string
           owner_person_id: string
           property_id: string
@@ -5452,6 +5483,7 @@ export type Database = {
           currency?: Database["public"]["Enums"]["currency_code"]
           id?: string
           idempotency_key: string
+          ledger_entry_id?: string | null
           organization_id: string
           owner_person_id: string
           property_id: string
@@ -5465,6 +5497,7 @@ export type Database = {
           currency?: Database["public"]["Enums"]["currency_code"]
           id?: string
           idempotency_key?: string
+          ledger_entry_id?: string | null
           organization_id?: string
           owner_person_id?: string
           property_id?: string
@@ -5472,6 +5505,13 @@ export type Database = {
           withdrawal_date?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "property_withdrawals_ledger_entry_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: true
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "property_withdrawals_organization_id_fkey"
             columns: ["organization_id"]
@@ -6970,10 +7010,6 @@ export type Database = {
         Args: { p_lease_id: string; p_organization_id: string }
         Returns: string
       }
-      archive_ledger_entry: {
-        Args: { p_entry_id: string; p_organization_id: string }
-        Returns: string
-      }
       archive_maintenance_task: {
         Args: { p_organization_id: string; p_task_id: string }
         Returns: string
@@ -7230,20 +7266,6 @@ export type Database = {
           p_unit_id: string
         }
         Returns: Json
-      }
-      create_ledger_entry: {
-        Args: {
-          p_amount: number
-          p_category: string
-          p_currency: Database["public"]["Enums"]["currency_code"]
-          p_description: string
-          p_direction: string
-          p_organization_id: string
-          p_property_id: string
-          p_transaction_date: string
-          p_unit_id: string
-        }
-        Returns: string
       }
       create_maintenance_task: {
         Args: {
@@ -7889,7 +7911,7 @@ export type Database = {
           p_event_type: string
           p_lease_deposit_id: string
           p_organization_id: string
-          p_reference?: string
+          p_reference: string
         }
         Returns: string
       }
@@ -8062,10 +8084,6 @@ export type Database = {
         Args: { p_lease_id: string; p_organization_id: string }
         Returns: string
       }
-      restore_ledger_entry: {
-        Args: { p_entry_id: string; p_organization_id: string }
-        Returns: string
-      }
       restore_maintenance_task: {
         Args: { p_organization_id: string; p_task_id: string }
         Returns: string
@@ -8168,7 +8186,7 @@ export type Database = {
           p_event_date: string
           p_event_id: string
           p_organization_id: string
-          p_reference?: string
+          p_reference: string
         }
         Returns: string
       }
@@ -8394,21 +8412,6 @@ export type Database = {
           p_rent_currency: Database["public"]["Enums"]["currency_code"]
           p_rent_due_day: number
           p_term_status: string
-          p_unit_id: string
-        }
-        Returns: string
-      }
-      update_ledger_entry: {
-        Args: {
-          p_amount: number
-          p_category: string
-          p_currency: Database["public"]["Enums"]["currency_code"]
-          p_description: string
-          p_direction: string
-          p_entry_id: string
-          p_organization_id: string
-          p_property_id: string
-          p_transaction_date: string
           p_unit_id: string
         }
         Returns: string

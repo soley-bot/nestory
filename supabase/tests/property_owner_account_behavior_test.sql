@@ -6,7 +6,35 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for these retired writers are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(16);
+SELECT plan(24);
+
+SELECT has_column(
+  'public',
+  'owner_payments',
+  'ledger_entry_id',
+  'owner payments own their operational Ledger identity'
+);
+
+SELECT hasnt_function(
+  'public',
+  'record_owner_invoice_payment_operational_unchecked',
+  ARRAY['uuid', 'uuid', 'numeric', 'date', 'text', 'text'],
+  'owner payments have no unchecked compatibility writer'
+);
+
+SELECT hasnt_function(
+  'public',
+  'record_property_withdrawal_operational_unchecked',
+  ARRAY['uuid', 'uuid', 'numeric', 'date', 'text', 'text'],
+  'withdrawals have no unchecked compatibility writer'
+);
+
+SELECT has_column(
+  'public',
+  'property_withdrawals',
+  'ledger_entry_id',
+  'property withdrawals own their operational Ledger identity'
+);
 
 CREATE TEMP TABLE owner_account_state (
   organization_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001',
@@ -188,6 +216,53 @@ SELECT results_eq(
   'withdrawal updates the property running balance and held cash together'
 );
 
+SELECT ok(
+  (
+    SELECT withdrawal.ledger_entry_id IS NOT NULL
+      AND ledger.source_type = 'owner_cash_event'
+      AND ledger.source_id = withdrawal.id
+    FROM owner_account_state AS state
+    JOIN public.property_withdrawals AS withdrawal
+      ON withdrawal.id = state.withdrawal_id
+    JOIN public.ledger_entries AS ledger
+      ON ledger.id = withdrawal.ledger_entry_id
+  ),
+  'withdrawal owns one source-linked operational Ledger event'
+);
+
+SELECT results_eq(
+  $$
+    SELECT public.record_property_withdrawal(
+      organization_id,
+      through_property_id,
+      400,
+      current_date,
+      'Owner bank transfer',
+      'account-withdrawal-0001'
+    )
+    FROM owner_account_state
+  $$,
+  $$SELECT withdrawal_id FROM owner_account_state$$,
+  'an exact withdrawal retry returns the original source event'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.record_property_withdrawal(
+      organization_id,
+      through_property_id,
+      399,
+      current_date,
+      'Owner bank transfer',
+      'account-withdrawal-0001'
+    )
+    FROM owner_account_state
+  $$,
+  '22023',
+  'Conflicting withdrawal idempotency request',
+  'a changed withdrawal payload cannot reuse a completed key'
+);
+
 SELECT throws_ok(
   $$
     SELECT public.record_property_withdrawal(
@@ -297,6 +372,20 @@ SELECT results_eq(
   $$,
   $$VALUES (102.00::numeric, 0.00::numeric, 102.00::numeric)$$,
   'owner payment settles IPS without pretending IPS holds owner rent cash'
+);
+
+SELECT ok(
+  (
+    SELECT payment.ledger_entry_id IS NOT NULL
+      AND ledger.source_type = 'owner_cash_event'
+      AND ledger.source_id = payment.id
+    FROM owner_account_state AS state
+    JOIN public.owner_payments AS payment
+      ON payment.id = state.owner_payment_id
+    JOIN public.ledger_entries AS ledger
+      ON ledger.id = payment.ledger_entry_id
+  ),
+  'owner payment owns one source-linked operational Ledger event'
 );
 
 SELECT * FROM finish();

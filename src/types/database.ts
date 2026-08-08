@@ -283,20 +283,6 @@ type RpcFunctionOverrides = {
       unposted_count: number;
     }[];
   };
-  create_ledger_entry: WithArgs<
-    "create_ledger_entry",
-    {
-      p_amount: number;
-      p_category: string;
-      p_currency: CurrencyCode;
-      p_description: string | null;
-      p_direction: string;
-      p_organization_id: string;
-      p_property_id: string;
-      p_transaction_date: string;
-      p_unit_id: string | null;
-    }
-  >;
   create_petty_cash_account: WithArgs<
     "create_petty_cash_account",
     {
@@ -571,21 +557,6 @@ type RpcFunctionOverrides = {
       p_storage_path?: string | null;
       p_task_id?: string | null;
       p_unit_id?: string | null;
-    }
-  >;
-  update_ledger_entry: WithArgs<
-    "update_ledger_entry",
-    {
-      p_amount: number;
-      p_category: string;
-      p_currency: CurrencyCode;
-      p_description: string | null;
-      p_direction: string;
-      p_entry_id: string;
-      p_organization_id: string;
-      p_property_id: string;
-      p_transaction_date: string;
-      p_unit_id: string | null;
     }
   >;
   update_lease: WithArgs<
