@@ -31,7 +31,7 @@ describe("GET /api/workspace-search", () => {
       organizationId: "org-1",
       organizationName: "Nestory",
       personId: "person-1",
-      role: "manager",
+      role: "operations_manager",
     });
     vi.mocked(searchWorkspace).mockResolvedValue([
       {
@@ -77,7 +77,7 @@ describe("GET /api/workspace-search", () => {
           branchId: "branch-a",
           organizationId: "org-1",
           personId: "person-1",
-          role: "manager",
+          role: "operations_manager",
         },
         query: "boiler",
       }),

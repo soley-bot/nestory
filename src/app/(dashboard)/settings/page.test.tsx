@@ -47,7 +47,7 @@ describe("SettingsPage", () => {
     const context = {
       organizationId: "organization-1",
       organizationName: "Nestory Test",
-      role: "admin",
+      role: "super_admin",
       userId: "user-1",
     };
     requireAdminContext.mockResolvedValue(context);

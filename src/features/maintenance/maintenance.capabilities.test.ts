@@ -3,7 +3,7 @@ import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.c
 
 describe("getMaintenanceCapabilities", () => {
   it("gives admins operational cost capture and official finance posting", () => {
-    expect(getMaintenanceCapabilities("admin")).toEqual({
+    expect(getMaintenanceCapabilities("super_admin")).toEqual({
       canArchiveCase: true,
       canAssignCase: true,
       canCreateCase: true,
@@ -18,7 +18,7 @@ describe("getMaintenanceCapabilities", () => {
   });
 
   it("lets managers record actual cost without posting official finance effects", () => {
-    expect(getMaintenanceCapabilities("manager")).toEqual({
+    expect(getMaintenanceCapabilities("operations_manager")).toEqual({
       canArchiveCase: false,
       canAssignCase: true,
       canCreateCase: true,
@@ -33,7 +33,7 @@ describe("getMaintenanceCapabilities", () => {
   });
 
   it("limits members to execution of their assigned work", () => {
-    expect(getMaintenanceCapabilities("member")).toEqual({
+    expect(getMaintenanceCapabilities("operations_member")).toEqual({
       canArchiveCase: false,
       canAssignCase: false,
       canCreateCase: false,
@@ -46,4 +46,22 @@ describe("getMaintenanceCapabilities", () => {
       canUploadMaintenanceEvidence: false,
     });
   });
+
+  it.each(["finance_manager", "finance_member"] as const)(
+    "does not grant %s an operations capability",
+    (role) => {
+      expect(getMaintenanceCapabilities(role)).toEqual({
+        canArchiveCase: false,
+        canAssignCase: false,
+        canCreateCase: false,
+        canEditCaseStructure: false,
+        canExecuteAssignedCase: false,
+        canManageCaseState: false,
+        canPostMaintenanceCost: false,
+        canRecordActualCost: false,
+        canReviewCompletion: false,
+        canUploadMaintenanceEvidence: false,
+      });
+    },
+  );
 });

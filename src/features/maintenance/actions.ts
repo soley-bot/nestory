@@ -8,7 +8,7 @@ import { getMaintenanceExecutionMode } from "@/features/maintenance/maintenance.
 import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
 import type { MaintenanceStatus } from "@/features/maintenance/maintenance.types";
 import type { Json } from "@/types/database";
-import { requireWorkspaceContext } from "@/lib/auth/context";
+import { requireOperationsExecutionContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type MaintenanceFieldErrors = {
@@ -165,7 +165,7 @@ export async function createMaintenanceCaseAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireWorkspaceContext();
+  const context = await requireOperationsExecutionContext();
   const capabilities = getMaintenanceCapabilities(context.role);
 
   if (!capabilities.canCreateCase) {
@@ -234,7 +234,7 @@ export async function updateMaintenanceCaseAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireWorkspaceContext();
+  const context = await requireOperationsExecutionContext();
   const capabilities = getMaintenanceCapabilities(context.role);
 
   if (!capabilities.canEditCaseStructure) {
@@ -309,7 +309,7 @@ export async function updateMaintenanceStatusAction(
   taskId: string,
   status: MaintenanceStatus,
 ): Promise<MaintenanceActionState> {
-  const context = await requireWorkspaceContext();
+  const context = await requireOperationsExecutionContext();
   const capabilities = getMaintenanceCapabilities(context.role);
 
   if (!capabilities.canManageCaseState) {
@@ -462,7 +462,7 @@ async function updateMaintenanceArchiveState({
   fallbackMessage: string;
   formData: FormData;
 }): Promise<MaintenanceActionState> {
-  const context = await requireWorkspaceContext();
+  const context = await requireOperationsExecutionContext();
   const capabilities = getMaintenanceCapabilities(context.role);
 
   if (!capabilities.canArchiveCase) {
@@ -517,7 +517,7 @@ export async function executeAssignedMaintenanceTaskAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireWorkspaceContext();
+  const context = await requireOperationsExecutionContext();
   const capabilities = getMaintenanceCapabilities(context.role);
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
   const parsedAction = executionActionSchema.safeParse(readString(formData, "executionAction"));
@@ -583,7 +583,7 @@ export async function executeCoordinatedMaintenanceTaskAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireWorkspaceContext();
+  const context = await requireOperationsExecutionContext();
   const capabilities = getMaintenanceCapabilities(context.role);
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
   const parsedAction = coordinatedActionSchema.safeParse(
@@ -654,7 +654,7 @@ export async function reviewMaintenanceCompletionAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireWorkspaceContext();
+  const context = await requireOperationsExecutionContext();
   const capabilities = getMaintenanceCapabilities(context.role);
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
   const parsedAction = reviewActionSchema.safeParse(readString(formData, "reviewAction"));

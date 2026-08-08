@@ -19,6 +19,7 @@ const ADMIN_SCOPES = [
 ] satisfies readonly WorkspaceSearchScope[];
 
 const TASK_SCOPES = ["tasks"] satisfies readonly WorkspaceSearchScope[];
+const FINANCE_SCOPES = [] satisfies readonly WorkspaceSearchScope[];
 
 const ADMIN_ACTIONS = [
   action("overview", "Overview", "/overview", ["dashboard", "home"]),
@@ -100,20 +101,47 @@ const MEMBER_ACTIONS = [
   action("tasks", "Tasks", "/tasks", ["assigned work"]),
 ] satisfies readonly WorkspaceSearchAction[];
 
+const FINANCE_ACTIONS = [
+  action("finance-work", "Finance work", "/finance", ["finance", "open work"]),
+  action("rent-income", "Rent", "/rent-income", [
+    "income",
+    "payments",
+    "tenant invoices",
+  ]),
+  action("bills-expenses", "Expenses", "/bills-expenses", ["bills", "charges"]),
+  action("balances", "Balances", "/balances", [
+    "owners",
+    "customers",
+    "property accounts",
+  ]),
+  action("leases", "Leases", "/leases"),
+  action("ledger", "Ledger", "/ledger"),
+  action("petty-cash", "Petty Cash", "/petty-cash"),
+] satisfies readonly WorkspaceSearchAction[];
+
 export function getWorkspaceSearchScopes(
   role: WorkspaceRole,
 ): readonly WorkspaceSearchScope[] {
-  return role === "admin" ? ADMIN_SCOPES : TASK_SCOPES;
+  if (role === "super_admin") return ADMIN_SCOPES;
+  if (role === "finance_manager" || role === "finance_member") {
+    return FINANCE_SCOPES;
+  }
+
+  return TASK_SCOPES;
 }
 
 export function getWorkspaceSearchActions(
   role: WorkspaceRole,
 ): readonly WorkspaceSearchAction[] {
-  if (role === "admin") {
+  if (role === "super_admin") {
     return ADMIN_ACTIONS;
   }
 
-  return role === "manager" ? MANAGER_ACTIONS : MEMBER_ACTIONS;
+  if (role === "finance_manager" || role === "finance_member") {
+    return FINANCE_ACTIONS;
+  }
+
+  return role === "operations_manager" ? MANAGER_ACTIONS : MEMBER_ACTIONS;
 }
 
 function action(

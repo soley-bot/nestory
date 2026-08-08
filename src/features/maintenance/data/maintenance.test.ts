@@ -182,18 +182,18 @@ describe("maintenance route contracts", () => {
       vendor_person_id: null,
     } as Parameters<typeof buildMaintenanceHrefs>[0];
 
-    expect(buildMaintenanceHrefs(task, { role: "admin" }).documentUpload).toBe(
+    expect(buildMaintenanceHrefs(task, { role: "super_admin" }).documentUpload).toBe(
       "/documents?action=create&category=Maintenance&propertyId=property-1&taskId=task-1&unitId=unit-1",
     );
-    expect(buildMaintenanceHrefs(task, { role: "admin" }).task).toBe(
+    expect(buildMaintenanceHrefs(task, { role: "super_admin" }).task).toBe(
       "/maintenance?archiveState=all&taskId=task-1",
     );
-    expect(buildMaintenanceHrefs(task, { role: "admin" }).unit).toBe(
+    expect(buildMaintenanceHrefs(task, { role: "super_admin" }).unit).toBe(
       "/units/unit-1?section=maintenance&sourceTaskId=task-1",
     );
   });
 
-  it.each(["manager", "member"] as const)("omits no-access record hrefs for %s", (role) => {
+  it.each(["operations_manager", "operations_member"] as const)("omits no-access record hrefs for %s", (role) => {
     const task = {
       assignee_person_id: "assignee-1",
       id: "task-1",
@@ -220,14 +220,14 @@ describe("maintenance role-safe loading", () => {
       vendorOptions: [{ id: "vendor-1", label: "Vendor" }],
     };
 
-    expect(scopeMaintenanceMutableOptions({ role: "member" }, options)).toEqual({
+    expect(scopeMaintenanceMutableOptions({ role: "operations_member" }, options)).toEqual({
       branchOptions: [],
       propertyOptions: [],
       staffOptions: [],
       unitOptions: [],
       vendorOptions: [],
     });
-    expect(scopeMaintenanceMutableOptions({ role: "manager" }, options)).toBe(options);
+    expect(scopeMaintenanceMutableOptions({ role: "operations_manager" }, options)).toBe(options);
   });
 
   it("maps the newest dedicated reopen instruction independently of general activity", () => {

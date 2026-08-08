@@ -7,17 +7,17 @@ import {
 } from "@/features/maintenance/data/maintenance";
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
-import { requireWorkspaceContext } from "@/lib/auth/context";
+import { requireOperationsExecutionContext } from "@/lib/auth/context";
 
 type TasksPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function TasksPage({ searchParams }: TasksPageProps) {
-  const context = await requireWorkspaceContext();
+  const context = await requireOperationsExecutionContext();
   const capabilities = getMaintenanceCapabilities(context.role);
 
-  if (context.role === "member" && !context.personId) {
+  if (context.role === "operations_member" && !context.personId) {
     return <UnlinkedMemberTasksState />;
   }
 
@@ -43,12 +43,12 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       cases={data.cases}
       createButtonLabel="New task"
       description={
-        context.role === "member"
+        context.role === "operations_member"
           ? "Assigned work, due dates, checklists, and current status."
           : "Assign branch work, track staff load, and keep task follow-through visible."
       }
       emptyLabel={
-        context.role === "member"
+        context.role === "operations_member"
           ? "No assigned tasks found."
           : "No tasks found."
       }

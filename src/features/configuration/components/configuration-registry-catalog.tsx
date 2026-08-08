@@ -133,7 +133,7 @@ function formatValue(value: boolean | number | string) {
 }
 
 function formatOwner(owner: WorkspaceRole) {
-  if (owner === "admin") return "Admin";
-  if (owner === "manager") return "Manager";
+  if (owner === "super_admin") return "Admin";
+  if (owner === "operations_manager") return "Manager";
   return "Member";
 }

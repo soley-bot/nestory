@@ -642,14 +642,14 @@ function getQuickAccessActions(
   role: WorkspaceRole,
 ) {
   const preferredIds =
-    role === "admin"
+    role === "super_admin"
       ? [
           "action:properties",
           "action:people",
           "action:rent-income",
           "action:maintenance",
         ]
-      : role === "manager"
+      : role === "operations_manager"
         ? ["action:maintenance", "action:tasks"]
         : ["action:tasks"];
   const preferred = preferredIds.flatMap((id) => {
@@ -812,11 +812,11 @@ function isPermittedEntityResult(
     return false;
   }
 
-  if (role === "member") {
+  if (role === "operations_member") {
     return result.kind === "task" && pathname === "/tasks";
   }
 
-  if (role === "manager") {
+  if (role === "operations_manager") {
     return result.kind === "maintenance" && pathname === "/maintenance";
   }
 

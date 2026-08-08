@@ -89,7 +89,7 @@ function CoordinatedExecutionPanel({
     initialState,
   );
   const availableActions = getCoordinatedMaintenanceActions(maintenanceCase, {
-    role: "manager",
+    role: "operations_manager",
   });
 
   useEffect(() => {

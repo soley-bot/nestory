@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAccessByPersonId } from "./access-status";
+import { buildAccessByPersonId, formatWorkspaceAccessRole } from "./access-status";
 
 const now = new Date("2026-07-23T12:00:00.000Z");
 
@@ -9,7 +9,7 @@ const membership = {
   email: "staff@example.com",
   id: "membership-1",
   personId: "person-1",
-  role: "manager" as const,
+  role: "operations_manager" as const,
   userId: "auth-user-secret-to-presentation",
 };
 
@@ -21,7 +21,7 @@ const invitation = {
   invitedAt: "2026-07-22T12:00:00.000Z",
   lastSentAt: "2026-07-22T12:05:00.000Z",
   personId: "person-1",
-  role: "member" as const,
+  role: "operations_member" as const,
   status: "pending" as const,
 };
 
@@ -52,7 +52,7 @@ describe("buildAccessByPersonId", () => {
         email: "staff@example.com",
         membershipId: "membership-1",
         primaryAction: "manage_access",
-        role: "manager",
+        role: "operations_manager",
         scopeLabel: "Central Office",
         state: "active_workspace_access",
       },
@@ -60,12 +60,12 @@ describe("buildAccessByPersonId", () => {
   });
 
   it("keeps Administrator access organization-wide despite a stale branch link", () => {
-    const adminMembership = { ...membership, role: "admin" as const };
+    const adminMembership = { ...membership, role: "super_admin" as const };
     const adminInvitation = {
       ...invitation,
       branchId: "branch-1",
       personId: "person-2",
-      role: "admin" as const,
+      role: "super_admin" as const,
     };
 
     const result = buildAccessByPersonId(
@@ -77,12 +77,12 @@ describe("buildAccessByPersonId", () => {
     );
 
     expect(result["person-1"]).toMatchObject({
-      role: "admin",
+      role: "super_admin",
       scopeLabel: "All branches",
       state: "active_workspace_access",
     });
     expect(result["person-2"]).toMatchObject({
-      role: "admin",
+      role: "super_admin",
       scopeLabel: "All branches",
       state: "invitation_pending",
     });
@@ -98,8 +98,8 @@ describe("buildAccessByPersonId", () => {
   });
 
   it("selects an active membership deterministically if legacy data has duplicates", () => {
-    const firstById = { ...membership, id: "membership-a", role: "member" as const };
-    const lastById = { ...membership, id: "membership-z", role: "admin" as const };
+    const firstById = { ...membership, id: "membership-a", role: "operations_member" as const };
+    const lastById = { ...membership, id: "membership-z", role: "super_admin" as const };
 
     expect(
       buildAccessByPersonId(
@@ -110,7 +110,7 @@ describe("buildAccessByPersonId", () => {
       )["person-1"],
     ).toMatchObject({
       membershipId: "membership-a",
-      role: "member",
+      role: "operations_member",
       state: "active_workspace_access",
     });
   });
@@ -124,7 +124,7 @@ describe("buildAccessByPersonId", () => {
         invitationId: "invitation-1",
         lastSentAt: "2026-07-22T12:05:00.000Z",
         primaryAction: "review_invitation",
-        role: "member",
+        role: "operations_member",
         scopeLabel: "All branches",
         state: "invitation_pending",
       },
@@ -145,7 +145,7 @@ describe("buildAccessByPersonId", () => {
       invitationId: "invitation-1",
       lastSentAt: "2026-07-22T12:05:00.000Z",
       primaryAction: "retry_invitation",
-      role: "member",
+      role: "operations_member",
       scopeLabel: "All branches",
       state: "delivery_failed",
     });
@@ -165,7 +165,7 @@ describe("buildAccessByPersonId", () => {
       invitationId: "invitation-1",
       lastSentAt: "2026-07-22T12:05:00.000Z",
       primaryAction: "review_invitation",
-      role: "member",
+      role: "operations_member",
       scopeLabel: "All branches",
       state: "expired",
     });
@@ -218,5 +218,17 @@ describe("buildAccessByPersonId", () => {
       },
     });
     expect(result).not.toHaveProperty("null");
+  });
+});
+
+describe("formatWorkspaceAccessRole", () => {
+  it.each([
+    ["super_admin", "Super Admin"],
+    ["finance_manager", "Finance Manager"],
+    ["finance_member", "Finance Member"],
+    ["operations_manager", "Operations Manager"],
+    ["operations_member", "Operations Member"],
+  ] as const)("formats %s as %s", (role, label) => {
+    expect(formatWorkspaceAccessRole(role)).toBe(label);
   });
 });

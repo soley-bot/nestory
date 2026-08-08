@@ -2,7 +2,16 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getOrganizationSlugFromHost } from "@/lib/auth/tenant";
+import {
+  getWorkspaceCapabilities,
+  isWorkspaceRole,
+  WORKSPACE_ROLES,
+  type WorkspaceCapabilities,
+  type WorkspaceRole,
+} from "@/lib/auth/capabilities";
 import { createSupabaseServerClient } from "@/lib/db/server";
+
+export type { WorkspaceCapabilities, WorkspaceRole } from "@/lib/auth/capabilities";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -10,8 +19,6 @@ type AuthUser = {
   email?: string;
   id: string;
 };
-
-export type WorkspaceRole = "admin" | "manager" | "member";
 
 type WorkspaceMembership = {
   branchId?: string;
@@ -25,6 +32,15 @@ type WorkspaceMembership = {
 type WorkspaceMembershipOptions = {
   organizationSlug?: string | null;
 };
+
+type FinanceRole = Extract<
+  WorkspaceRole,
+  "super_admin" | "finance_manager" | "finance_member"
+>;
+type OperationsRole = Extract<
+  WorkspaceRole,
+  "super_admin" | "operations_manager" | "operations_member"
+>;
 
 export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
   const supabase = await createSupabaseServerClient();
@@ -63,7 +79,7 @@ export async function getAdminMembershipForUser(
 ): Promise<WorkspaceMembership | null> {
   const membership = await getWorkspaceMembershipForUser(userId, client, options);
 
-  return membership?.role === "admin" ? membership : null;
+  return membership?.role === "super_admin" ? membership : null;
 }
 
 export async function getWorkspaceMembershipForUser(
@@ -80,7 +96,7 @@ export async function getWorkspaceMembershipForUser(
     .from("organization_members")
     .select("organization_id, role, person_id, branch_id, created_at, organizations!inner(name, slug)")
     .eq("user_id", userId)
-    .in("role", ["admin", "manager", "member"]);
+    .in("role", [...WORKSPACE_ROLES]);
 
   if (membershipOptions.organizationSlug) {
     query = query.eq("organizations.slug", membershipOptions.organizationSlug);
@@ -96,7 +112,7 @@ export async function getWorkspaceMembershipForUser(
       .from("organization_members")
       .select("organization_id, role, person_id, branch_id, created_at, organizations(name, slug)")
       .eq("user_id", userId)
-      .in("role", ["admin", "manager", "member"])
+      .in("role", [...WORKSPACE_ROLES])
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -132,10 +148,6 @@ export async function getCurrentOrganizationSlug() {
   return getOrganizationSlugFromHost(requestHeaders.get("host"));
 }
 
-function isWorkspaceRole(role: string): role is WorkspaceRole {
-  return role === "admin" || role === "manager" || role === "member";
-}
-
 export const requireWorkspaceContext = cache(async () => {
   const user = await requireUser();
   const organizationSlug = await getCurrentOrganizationSlug();
@@ -149,29 +161,79 @@ export const requireWorkspaceContext = cache(async () => {
 
   return {
     ...membership,
+    capabilities: getWorkspaceCapabilities(membership.role),
     userEmail: user.email,
     userId: user.id,
   };
 });
 
-export const requireAdminContext = cache(async () => {
-  const user = await requireUser();
-  const organizationSlug = await getCurrentOrganizationSlug();
-  const membership = await getWorkspaceMembershipForUser(user.id, undefined, {
-    organizationSlug,
-  });
+async function requireCapability(
+  capability: keyof WorkspaceCapabilities,
+) {
+  const context = await requireWorkspaceContext();
 
-  if (!membership) {
+  if (!context.capabilities[capability]) {
     redirect("/no-access");
   }
 
-  if (membership.role !== "admin") {
-    redirect("/no-access");
-  }
+  return context;
+}
 
-  return {
-    ...membership,
-    userEmail: user.email,
-    userId: user.id,
-  };
-});
+export const requireSuperAdminContext = cache(async () =>
+  requireCapability("canManageAccess").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
+/** @deprecated Use the capability-specific context for new code. */
+export const requireAdminContext = requireSuperAdminContext;
+
+export const requireLeaseConfigurationContext = cache(async () =>
+  requireCapability("canConfigureLeases").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
+export const requireFinanceContext = cache(async () =>
+  requireCapability("canReadFinance").then((context) => ({
+    ...context,
+    role: context.role as FinanceRole,
+  })),
+);
+
+export const requireFinanceSubmissionContext = cache(async () =>
+  requireCapability("canSubmitExpense").then((context) => ({
+    ...context,
+    role: context.role as Extract<WorkspaceRole, "super_admin" | "finance_member">,
+  })),
+);
+
+export const requireFinanceReviewContext = cache(async () =>
+  requireCapability("canReviewExpense").then((context) => ({
+    ...context,
+    role: context.role as Extract<WorkspaceRole, "super_admin" | "finance_manager">,
+  })),
+);
+
+export const requireFinanceReversalContext = cache(async () =>
+  requireCapability("canReverseExpense").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
+export const requireOperationsManagementContext = cache(async () =>
+  requireCapability("canManageOperations").then((context) => ({
+    ...context,
+    role: context.role as Extract<WorkspaceRole, "super_admin" | "operations_manager">,
+  })),
+);
+
+export const requireOperationsExecutionContext = cache(async () =>
+  requireCapability("canExecuteOperations").then((context) => ({
+    ...context,
+    role: context.role as OperationsRole,
+  })),
+);

@@ -266,13 +266,13 @@ export function MaintenanceScreen({
   );
   const normalizedViewQuery = useMemo(
     () =>
-      actor.role === "member" && viewQuery.view === "board"
+      actor.role === "operations_member" && viewQuery.view === "board"
         ? { ...viewQuery, view: "list" as const }
         : viewQuery,
     [actor.role, viewQuery],
   );
   const normalizedSurfaceVariant =
-    actor.role === "member" && surfaceVariant === "board"
+    actor.role === "operations_member" && surfaceVariant === "board"
       ? "table"
       : surfaceVariant;
   const focusedCase = initialTaskId
@@ -553,7 +553,7 @@ export function MaintenanceScreen({
             }
             statusChangePending={statusChangePending}
             variant={normalizedSurfaceVariant}
-            waitingForReviewLabel={actor.role === "member"}
+            waitingForReviewLabel={actor.role === "operations_member"}
           />
         </div>
       )}
@@ -1639,7 +1639,7 @@ export function MaintenanceForm({
     branchId:
       maintenanceCase?.formValues.branchId ??
       initialValues?.branchId ??
-      (actor.role === "manager" ? actor.branchId : undefined) ??
+      (actor.role === "operations_manager" ? actor.branchId : undefined) ??
       "",
     category:
       maintenanceCase?.formValues.category ??
@@ -1713,7 +1713,7 @@ export function MaintenanceForm({
     vendors,
   });
   const managerBranch =
-    actor.role === "manager" && actor.branchId
+    actor.role === "operations_manager" && actor.branchId
       ? branches.find((branch) => branch.id === actor.branchId)
       : undefined;
   const branchControlMode = getMaintenanceBranchControlMode(actor);

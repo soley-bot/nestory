@@ -38,14 +38,26 @@ const memberSchema = z.object({
   branchId: optionalUuidSchema,
   memberId: uuidShapeSchema,
   personId: optionalUuidSchema,
-  role: z.enum(["admin", "manager", "member"]),
+  role: z.enum([
+    "super_admin",
+    "finance_manager",
+    "finance_member",
+    "operations_manager",
+    "operations_member",
+  ]),
 });
 
 const userAccessSchema = z.object({
   branchId: optionalUuidSchema,
   email: z.string().trim().toLowerCase().pipe(z.email()),
-  personId: uuidShapeSchema,
-  role: z.enum(["admin", "manager", "member"]),
+  personId: optionalUuidSchema,
+  role: z.enum([
+    "super_admin",
+    "finance_manager",
+    "finance_member",
+    "operations_manager",
+    "operations_member",
+  ]),
 });
 const invitationIdSchema = z.object({ invitationId: uuidShapeSchema });
 const memberIdSchema = z.object({ memberId: uuidShapeSchema });
@@ -134,6 +146,11 @@ export async function updateMemberAccessAction(
     return { message: "Choose a valid role and membership.", status: "error" };
   }
 
+  const scopeError = workspaceRoleScopeError(parsed.data);
+  if (scopeError) {
+    return { message: scopeError, status: "error" };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("update_organization_member_access", {
     p_branch_id: parsed.data.branchId,
@@ -168,6 +185,11 @@ export async function inviteOrganizationUserAction(
       message: "Choose a valid Staff member, invitation email, and access level.",
       status: "error",
     };
+  }
+
+  const scopeError = workspaceRoleScopeError(parsed.data);
+  if (scopeError) {
+    return { message: scopeError, status: "error" };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -209,9 +231,39 @@ export async function inviteOrganizationUserAction(
         status: "error",
       }
     : {
-        message: `Invitation sent to ${parsed.data.email} for the selected Staff record.`,
+        message: parsed.data.personId
+          ? `Invitation sent to ${parsed.data.email} for the selected Staff record.`
+          : `Invitation sent to ${parsed.data.email}.`,
         status: "success",
       };
+}
+
+function workspaceRoleScopeError({
+  branchId,
+  personId,
+  role,
+}: {
+  branchId: string | null;
+  personId: string | null;
+  role:
+    | "super_admin"
+    | "finance_manager"
+    | "finance_member"
+    | "operations_manager"
+    | "operations_member";
+}) {
+  const operationsRole =
+    role === "operations_manager" || role === "operations_member";
+
+  if (operationsRole && (!branchId || !personId)) {
+    return "Choose a branch and Staff member for an Operations role.";
+  }
+
+  if (!operationsRole && (branchId || personId)) {
+    return "Super Admin and Finance roles use organization-wide access.";
+  }
+
+  return undefined;
 }
 
 export async function resendOrganizationInvitationAction(

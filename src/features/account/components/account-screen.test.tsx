@@ -8,7 +8,7 @@ const adminIdentity = {
   branchLabel: "All branches",
   email: "admin@example.com",
   organizationName: "Nestory Test",
-  role: "admin" as const,
+  role: "super_admin" as const,
 };
 
 const linkedProfile = {
@@ -90,7 +90,7 @@ describe("AccountScreen", () => {
           branchLabel: "BKK - Bangkok",
           email: "member@example.com",
           organizationName: "Nestory Test",
-          role: "member",
+          role: "operations_member",
         }}
         profile={null}
       />,

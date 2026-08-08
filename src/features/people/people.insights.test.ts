@@ -248,7 +248,7 @@ describe("people insights", () => {
           invitationId,
           lastSentAt: "2026-07-24T00:00:00.000Z",
           primaryAction: "review_invitation",
-          role: "member",
+          role: "operations_member",
           scopeLabel: "All branches",
           state: "invitation_pending",
         },
@@ -257,7 +257,7 @@ describe("people insights", () => {
           email: "active@example.com",
           membershipId,
           primaryAction: "manage_access",
-          role: "manager",
+          role: "operations_manager",
           scopeLabel: "All branches",
           state: "active_workspace_access",
         },
@@ -328,7 +328,7 @@ describe("people insights", () => {
       `person:${pending.displayName} | workspace-access:Invitation pending,${pending.id} | ${invitationId}`,
     );
     expect(csv).toContain(
-      `person:${active.displayName} | workspace-access:Manager / All branches,${active.id} | ${membershipId}`,
+      `person:${active.displayName} | workspace-access:Operations Manager / All branches,${active.id} | ${membershipId}`,
     );
 
     const pdfText = extractPdfCommandText(

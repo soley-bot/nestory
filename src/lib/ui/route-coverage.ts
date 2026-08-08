@@ -17,10 +17,10 @@ export interface UiRouteContract {
 export const uiPersonaWorkspaceRoles: Readonly<
   Record<UiRole, readonly WorkspaceRole[]>
 > = {
-  admin: ["admin"],
-  maintenance: ["member"],
+  admin: ["super_admin"],
+  maintenance: ["operations_member"],
   public: [],
-  staff: ["manager", "member"],
+  staff: ["operations_manager", "operations_member"],
   unlinked: [],
 };
 

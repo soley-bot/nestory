@@ -127,10 +127,10 @@ describe("UI route coverage contract", () => {
 
   it("maps fixture personas to real base workspace roles", () => {
     expect(uiPersonaWorkspaceRoles).toEqual({
-      admin: ["admin"],
-      maintenance: ["member"],
+      admin: ["super_admin"],
+      maintenance: ["operations_member"],
       public: [],
-      staff: ["manager", "member"],
+      staff: ["operations_manager", "operations_member"],
       unlinked: [],
     });
   });

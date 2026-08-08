@@ -34,7 +34,7 @@ export function buildMaintenanceHrefs(
     taskId: task.id,
   });
   const hasAdminRecordAccess = "role" in access
-    ? access.role === "admin"
+    ? access.role === "super_admin"
     : access.canUploadMaintenanceEvidence;
 
   if (!hasAdminRecordAccess) {

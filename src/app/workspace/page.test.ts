@@ -15,9 +15,9 @@ describe("WorkspacePage", () => {
   });
 
   it.each([
-    ["admin", "/overview"],
-    ["manager", "/maintenance"],
-    ["member", "/tasks"],
+    ["super_admin", "/overview"],
+    ["operations_manager", "/maintenance"],
+    ["operations_member", "/tasks"],
   ] as const)("links %s users to %s", async (role, expectedPath) => {
     requireWorkspaceContext.mockResolvedValue({
       organizationName: "Riverside Operations",
@@ -33,7 +33,7 @@ describe("WorkspacePage", () => {
   it("renders concise organization and role context without a second dashboard shell", async () => {
     requireWorkspaceContext.mockResolvedValue({
       organizationName: "Riverside Operations",
-      role: "manager",
+      role: "operations_manager",
     });
 
     const html = renderToStaticMarkup(await WorkspacePage());
@@ -51,8 +51,8 @@ describe("WorkspacePage", () => {
   });
 
   it.each([
-    ["admin", "Admin workspace"],
-    ["member", "Member workspace"],
+    ["super_admin", "Admin workspace"],
+    ["operations_member", "Member workspace"],
   ] as const)("uses the Workspace Access role label for %s", async (role, expectedLabel) => {
     requireWorkspaceContext.mockResolvedValue({
       organizationName: "Riverside Operations",
@@ -67,7 +67,7 @@ describe("WorkspacePage", () => {
   it("renders the approved cinematic workspace arrival composition", async () => {
     requireWorkspaceContext.mockResolvedValue({
       organizationName: "Riverside Operations",
-      role: "admin",
+      role: "super_admin",
     });
 
     const html = renderToStaticMarkup(await WorkspacePage());

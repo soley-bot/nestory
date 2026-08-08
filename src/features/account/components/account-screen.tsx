@@ -122,7 +122,7 @@ export function AccountScreen({
             value={profile?.displayName ?? "Not linked"}
           />
         </dl>
-        {identity.role === "admin" ? (
+        {identity.role === "super_admin" ? (
           <div className="mt-3">
             <Link
               className="font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
@@ -183,14 +183,14 @@ function AccessFact({ label, value }: { label: string; value: string }) {
 }
 
 function roleScope(role: WorkspaceRole, branchLabel: string) {
-  if (role === "admin") return "Organization-wide";
-  if (role === "manager") return branchLabel;
+  if (role === "super_admin") return "Organization-wide";
+  if (role === "operations_manager") return branchLabel;
   return "Assigned work";
 }
 
 function roleEffect(role: WorkspaceRole) {
-  if (role === "admin") return "Full workspace and settings access.";
-  if (role === "manager") return "Operational access within the assigned branch scope.";
+  if (role === "super_admin") return "Full workspace and settings access.";
+  if (role === "operations_manager") return "Operational access within the assigned branch scope.";
   return "Assigned task access through the linked staff profile.";
 }
 

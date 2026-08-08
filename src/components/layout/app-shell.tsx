@@ -145,6 +145,10 @@ const ADMIN_GLOBAL_DESTINATIONS = [
   },
 ] satisfies readonly GlobalDestination[];
 
+const FINANCE_GLOBAL_DESTINATIONS = ADMIN_GLOBAL_DESTINATIONS.filter(
+  (destination) => destination.id === "finance",
+);
+
 type AppShellProps = {
   children: React.ReactNode;
   organizationName?: string;
@@ -155,11 +159,15 @@ type AppShellProps = {
 function getGlobalDestinations(
   role: WorkspaceRole,
 ): readonly GlobalDestination[] {
-  if (role === "admin") return ADMIN_GLOBAL_DESTINATIONS;
+  if (role === "super_admin") return ADMIN_GLOBAL_DESTINATIONS;
+  if (role === "finance_manager" || role === "finance_member") {
+    return FINANCE_GLOBAL_DESTINATIONS;
+  }
+
   return [
     {
       id: "maintenance",
-      href: role === "manager" ? "/maintenance" : "/tasks",
+      href: role === "operations_manager" ? "/maintenance" : "/tasks",
       icon: Wrench,
       label: "Maintenance",
       routes: [
@@ -186,7 +194,7 @@ function destinationMatchesPath(
 export function AppShell({
   children,
   organizationName = "Nestory workspace",
-  role = "admin",
+  role = "super_admin",
   userEmail,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -241,7 +249,7 @@ export function AppShell({
             >
               <SidebarGroup>
                 <SidebarGroupContent className="flex flex-col gap-2">
-                  {role === "admin" ? (
+                  {role === "super_admin" ? (
                     <SidebarMenu>
                       <SidebarMenuItem>
                         <SidebarMenuButton

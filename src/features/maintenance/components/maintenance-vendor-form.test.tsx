@@ -21,7 +21,7 @@ describe("maintenance vendor form", () => {
     const vendorSelect = getMaintenanceVendorSelectOptions({ vendors });
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ role: "admin" }}
+        actor={{ role: "super_admin" }}
         branches={[]}
         canPostMaintenanceCost
         canRecordActualCost
@@ -70,7 +70,7 @@ describe("maintenance vendor form", () => {
     });
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ role: "admin" }}
+        actor={{ role: "super_admin" }}
         branches={[]}
         canPostMaintenanceCost
         canRecordActualCost
@@ -103,7 +103,7 @@ describe("maintenance vendor form", () => {
   it("keeps vendor assignment available to managers without exposing ledger posting", () => {
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ branchId: "branch-1", role: "manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
         branches={[{ id: "branch-1", label: "Main branch" }]}
         canPostMaintenanceCost={false}
         canRecordActualCost

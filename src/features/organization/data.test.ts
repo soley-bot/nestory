@@ -39,7 +39,7 @@ describe("getAccessByPersonId", () => {
           invited_at: "2026-07-22T12:00:00.000Z",
           last_sent_at: "2026-07-22T12:05:00.000Z",
           person_id: "person-pending",
-          role: "member",
+          role: "operations_member",
           status: "pending",
         },
         {
@@ -50,7 +50,7 @@ describe("getAccessByPersonId", () => {
           invited_at: "2026-07-23T11:00:00.000Z",
           last_sent_at: null,
           person_id: "person-active",
-          role: "admin",
+          role: "super_admin",
           status: "pending",
         },
         {
@@ -61,7 +61,7 @@ describe("getAccessByPersonId", () => {
           invited_at: "2026-07-22T12:00:00.000Z",
           last_sent_at: null,
           person_id: "person-failed",
-          role: "manager",
+          role: "operations_manager",
           status: "send_failed",
         },
         {
@@ -72,7 +72,7 @@ describe("getAccessByPersonId", () => {
           invited_at: "2026-07-22T12:00:00.000Z",
           last_sent_at: null,
           person_id: "person-expired",
-          role: "member",
+          role: "operations_member",
           status: "expired",
         },
         {
@@ -83,7 +83,7 @@ describe("getAccessByPersonId", () => {
           invited_at: "2026-07-22T12:00:00.000Z",
           last_sent_at: null,
           person_id: null,
-          role: "admin",
+          role: "super_admin",
           status: "pending",
         },
       ],
@@ -128,7 +128,7 @@ describe("getAccessByPersonId", () => {
             email: "active@example.com",
             id: "membership-1",
             person_id: "person-active",
-            role: "manager",
+            role: "operations_manager",
             user_id: "auth-user-1",
           },
           {
@@ -136,8 +136,16 @@ describe("getAccessByPersonId", () => {
             email: "legacy-member@example.com",
             id: "membership-unlinked",
             person_id: null,
-            role: "member",
+            role: "operations_member",
             user_id: "auth-user-unlinked",
+          },
+          {
+            branch_id: null,
+            email: "finance@example.com",
+            id: "membership-finance",
+            person_id: "person-finance",
+            role: "finance_manager",
+            user_id: "auth-user-finance",
           },
         ],
         error: null,
@@ -151,6 +159,7 @@ describe("getAccessByPersonId", () => {
       "person-failed",
       "person-expired",
       "person-none",
+      "person-finance",
     ]);
 
     expect(supabase.rpc).toHaveBeenCalledWith("get_organization_access_members", {
@@ -178,6 +187,11 @@ describe("getAccessByPersonId", () => {
       "person-failed": {
         invitationId: "invitation-failed",
         state: "delivery_failed",
+      },
+      "person-finance": {
+        membershipId: "membership-finance",
+        role: "finance_manager",
+        state: "active_workspace_access",
       },
       "person-none": {
         state: "no_access",

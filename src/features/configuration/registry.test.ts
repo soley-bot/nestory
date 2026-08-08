@@ -35,7 +35,7 @@ describe("configuration registry", () => {
   });
 
   it("assigns ownership only to workspace roles", () => {
-    const workspaceRoles = new Set(["admin", "manager", "member"]);
+    const workspaceRoles = new Set(["super_admin", "operations_manager", "operations_member"]);
 
     expect(configurationRegistry.every((definition) => workspaceRoles.has(definition.owner))).toBe(
       true,

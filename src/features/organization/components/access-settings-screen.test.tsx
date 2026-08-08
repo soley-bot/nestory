@@ -74,7 +74,7 @@ const admin = {
   email: "admin@example.com",
   id: "33333333-3333-4333-8333-333333333333",
   personId: adminPerson.id,
-  role: "admin" as const,
+  role: "super_admin" as const,
   userId: "44444444-4444-4444-8444-444444444444",
 };
 
@@ -86,7 +86,7 @@ const pendingInvitation = {
   invitedAt: "2026-07-21T11:00:00.000Z",
   lastSentAt: "2026-07-21T11:01:00.000Z",
   personId: person.id,
-  role: "member" as const,
+  role: "operations_member" as const,
   status: "pending" as const,
 };
 
@@ -308,16 +308,13 @@ describe("AccessSettingsScreen", () => {
     );
 
     const member = getExpandedMember(admin.id);
-    expect(within(member).getAllByText("Admin").length).toBeGreaterThan(0);
+    expect(within(member).getAllByText("Super Admin").length).toBeGreaterThan(0);
     expect(within(member).getAllByText("All branches").length).toBeGreaterThan(0);
     expect(
       within(member).getByRole("combobox", { name: "Access scope" })
         .textContent,
     ).toContain("All branches");
-    expect(within(member).getAllByText("Admin Staff").length).toBeGreaterThan(
-      0,
-    );
-    expect(within(member).getAllByText("Admin Staff").length).toBeGreaterThan(0);
+    expect(within(member).getAllByText("Not required").length).toBeGreaterThan(0);
   });
 
   it("preserves a focused active-member deep link without opening Invite Staff", async () => {
@@ -432,10 +429,10 @@ describe("AccessSettingsScreen", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
-    expect(within(member).getByText("Last administrator")).toBeTruthy();
+    expect(within(member).getByText("Last Super Admin")).toBeTruthy();
     expect(
       within(member).getByText(
-        /add another administrator before reducing this role/i,
+        /add another Super Admin before reducing this role/i,
       ),
     ).toBeTruthy();
   });
@@ -507,6 +504,78 @@ describe("AccessSettingsScreen", () => {
           within(addForm).getByRole("button", { name: "Send invitation" }),
         ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("offers the five fixed workspace roles", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person, adminPerson]}
+      />,
+    );
+
+    const addForm = getInviteForm();
+    await user.click(
+      within(addForm).getByRole("combobox", { name: "Access level" }),
+    );
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual([
+      "Super Admin",
+      "Finance Manager",
+      "Finance Member",
+      "Operations Manager",
+      "Operations Member",
+    ]);
+  });
+
+  it("submits finance access organization-wide without a Staff link", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        inviteDefaults={{ email: "finance@example.com" }}
+        members={[admin]}
+        people={[person, adminPerson]}
+      />,
+    );
+
+    const addForm = getInviteForm();
+    await user.click(
+      within(addForm).getByRole("combobox", { name: "Access level" }),
+    );
+    await user.click(screen.getByRole("option", { name: "Finance Manager" }));
+
+    expect(
+      (
+        within(addForm).getByRole("combobox", {
+          name: "Staff member",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        within(addForm).getByRole("combobox", {
+          name: "Access scope",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    await user.click(
+      within(addForm).getByRole("button", { name: "Send invitation" }),
+    );
+    await waitFor(() => expect(addAccess).toHaveBeenCalledOnce());
+    expect(
+      Object.fromEntries((addAccess.mock.calls[0][1] as FormData).entries()),
+    ).toMatchObject({
+      branchId: "",
+      email: "finance@example.com",
+      personId: "",
+      role: "finance_manager",
+    });
   });
 
   it("keeps a trusted invite handoff actionable without retyping", () => {
@@ -762,7 +831,7 @@ describe("AccessSettingsScreen", () => {
     ).toBe("");
   });
 
-  it("clears and disables branch scope for Administrator invitations", async () => {
+  it("clears and disables branch and Staff scope for Super Admin invitations", async () => {
     render(
       <AccessSettingsScreen
         branches={[branch]}
@@ -783,7 +852,7 @@ describe("AccessSettingsScreen", () => {
     fireEvent.click(
       within(addForm).getByRole("combobox", { name: "Access level" }),
     );
-    fireEvent.click(screen.getByRole("option", { name: "Admin" }));
+    fireEvent.click(screen.getByRole("option", { name: "Super Admin" }));
 
     expect(
       (
@@ -798,8 +867,8 @@ describe("AccessSettingsScreen", () => {
       Object.fromEntries((addAccess.mock.calls[0][1] as FormData).entries()),
     ).toMatchObject({
       branchId: "",
-      personId: person.id,
-      role: "admin",
+      personId: "",
+      role: "super_admin",
     });
   });
 
@@ -955,7 +1024,7 @@ describe("AccessSettingsScreen", () => {
       email: "historical@example.com",
       id: "12121212-1212-4212-8212-121212121212",
       personId: historicalStaff.id,
-      role: "member" as const,
+      role: "operations_member" as const,
       userId: "13131313-1313-4313-8313-131313131313",
     };
     render(
@@ -971,8 +1040,10 @@ describe("AccessSettingsScreen", () => {
     ).toBeGreaterThan(0);
     expect(within(member).getByText("Archived")).toBeTruthy();
     expect(
-      within(member).getByRole("button", { name: "Clear linked Staff record" }),
-    ).toBeTruthy();
+      within(member).queryByRole("button", {
+        name: "Clear linked Staff record",
+      }),
+    ).toBeNull();
 
     await user.click(
       within(getInviteForm()).getByRole("combobox", { name: "Staff member" }),
@@ -988,8 +1059,9 @@ describe("AccessSettingsScreen", () => {
       ...admin,
       email: "legacy@example.com",
       id: "99999999-9999-4999-8999-999999999999",
+      branchId: branch.id,
       personId: null,
-      role: "member" as const,
+      role: "operations_member" as const,
       userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     };
     render(
@@ -1021,52 +1093,28 @@ describe("AccessSettingsScreen", () => {
     });
   });
 
-  it("requires an explicit confirmation before unlinking a Staff record", async () => {
-    const user = userEvent.setup();
-    const otherAdmin = {
+  it("does not allow an operations account to be unlinked from Staff", () => {
+    const operationsManager = {
       ...admin,
+      branchId: branch.id,
       email: "other@example.com",
       id: "55555555-5555-4555-8555-555555555555",
+      role: "operations_manager" as const,
       userId: "66666666-6666-4666-8666-666666666666",
     };
     render(
       <AccessSettingsScreen
         branches={[branch]}
-        members={[admin, otherAdmin]}
+        members={[admin, operationsManager]}
         people={[person, adminPerson]}
       />,
     );
-    const member = getExpandedMember(admin.id);
-    await user.click(
-      within(member).getByRole("button", { name: "Clear linked Staff record" }),
-    );
-    await user.click(
-      within(member).getByRole("button", { name: "Save access" }),
-    );
-
-    expect(updateAccess).not.toHaveBeenCalled();
-    const unlinkDialog = within(member).getByRole("alertdialog", {
-      name: "Unlink this Staff record?",
-    });
-    expect(unlinkDialog.textContent).toContain(
-      "Workspace access will remain, but it will no longer be tied to Admin Staff's Staff record.",
-    );
-    expect(document.activeElement).toBe(
-      within(unlinkDialog).getByRole("button", { name: "Keep current link" }),
-    );
-    await user.click(
-      within(unlinkDialog).getByRole("button", { name: "Keep current link" }),
-    );
-    expect(document.activeElement).toBe(
-      within(member).getByRole("button", { name: "Save access" }),
-    );
-    await user.click(
-      within(member).getByRole("button", { name: "Save access" }),
-    );
-    await user.click(
-      within(member).getByRole("button", { name: "Confirm unlink" }),
-    );
-    await waitFor(() => expect(updateAccess).toHaveBeenCalledOnce());
+    const member = getExpandedMember(operationsManager.id);
+    expect(
+      within(member).queryByRole("button", {
+        name: "Clear linked Staff record",
+      }),
+    ).toBeNull();
   });
 
   it("focuses the invalid email and announces one actionable error", async () => {
@@ -1271,7 +1319,10 @@ describe("AccessSettingsScreen", () => {
       }),
     );
     fireEvent.click(
-      screen.getAllByRole("option", { hidden: true, name: "Manager" })[0]!,
+      screen.getAllByRole("option", {
+        hidden: true,
+        name: "Operations Manager",
+      })[0]!,
     );
     const addForm = getInviteForm();
     fireEvent.change(within(addForm).getByLabelText("Invitation email"), {
@@ -1398,7 +1449,9 @@ describe("AccessSettingsScreen", () => {
     await user.click(
       within(member).getByRole("combobox", { name: "Access level" }),
     );
-    await user.click(screen.getByRole("option", { name: "Manager" }));
+    await user.click(
+      screen.getByRole("option", { name: "Operations Manager" }),
+    );
 
     expect(
       (
@@ -1409,7 +1462,7 @@ describe("AccessSettingsScreen", () => {
     ).toBe(true);
     expect(
       within(member).getByText(
-        "Add another administrator before changing this role.",
+        "Add another Super Admin before changing this role.",
       ),
     ).toBeTruthy();
     expect(within(member).getByText(/Operational access/)).toBeTruthy();
@@ -1436,7 +1489,9 @@ describe("AccessSettingsScreen", () => {
     await user.click(
       within(member).getByRole("combobox", { name: "Access level" }),
     );
-    await user.click(screen.getByRole("option", { name: "Manager" }));
+    await user.click(
+      screen.getByRole("option", { name: "Operations Manager" }),
+    );
     fireEvent.click(
       within(member).getByRole("button", { name: "Save access" }),
     );
@@ -1444,10 +1499,10 @@ describe("AccessSettingsScreen", () => {
     await waitFor(() => expect(updateAccess).toHaveBeenCalledTimes(1));
     const submitted = updateAccess.mock.calls[0][1] as FormData;
     expect(Object.fromEntries(submitted.entries())).toEqual({
-      branchId: "",
+      branchId: branch.id,
       memberId: admin.id,
       personId: adminPerson.id,
-      role: "manager",
+      role: "operations_manager",
     });
     expect(await within(member).findByText("Access updated.")).toBeTruthy();
   });

@@ -1,13 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getMaintenanceScreenData, requireWorkspaceContext } = vi.hoisted(() => ({
+const { getMaintenanceScreenData, requireOperationsExecutionContext } = vi.hoisted(() => ({
   getMaintenanceScreenData: vi.fn(),
-  requireWorkspaceContext: vi.fn(),
+  requireOperationsExecutionContext: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({
-  requireWorkspaceContext,
+  requireOperationsExecutionContext,
 }));
 
 vi.mock("@/features/maintenance/data/maintenance", () => ({
@@ -23,14 +23,14 @@ import MaintenancePage from "@/app/(dashboard)/maintenance/page";
 describe("MaintenancePage", () => {
   beforeEach(() => {
     getMaintenanceScreenData.mockReset();
-    requireWorkspaceContext.mockReset();
+    requireOperationsExecutionContext.mockReset();
   });
 
   it("shows a setup-required state for a member without a linked staff profile", async () => {
-    requireWorkspaceContext.mockResolvedValue({
+    requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "organization-1",
       organizationName: "Nestory Test",
-      role: "member",
+      role: "operations_member",
       userId: "user-1",
     });
     getMaintenanceScreenData.mockResolvedValue({

@@ -63,7 +63,7 @@ export function BoardSurface({
   waitingForReviewLabel = false,
 }: BoardSurfaceProps) {
   const [presentation, setPresentation] = useState<"board" | "list">(
-    actorRole === "member" ? "list" : "board",
+    actorRole === "operations_member" ? "list" : "board",
   );
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -102,7 +102,7 @@ export function BoardSurface({
     );
   }
 
-  if (actorRole === "member") {
+  if (actorRole === "operations_member") {
     return (
       <BoardListSurface
         cases={cases}

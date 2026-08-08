@@ -319,5 +319,5 @@ export type MaintenanceScreenData = {
 export type MaintenanceActor = {
   branchId?: string;
   personId?: string;
-  role: "admin" | "manager" | "member";
+  role: "super_admin" | "operations_manager" | "operations_member";
 };

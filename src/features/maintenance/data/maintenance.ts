@@ -181,7 +181,7 @@ export async function getMaintenanceScreenData(
     ...pagedTasks.rows,
     ...summaryTaskRows,
   ]);
-  const isMember = actor?.role === "member";
+  const isMember = actor?.role === "operations_member";
   const memberIdentities = isMember
     ? actor?.personId
       ? [{ branchId: actor.branchId, personId: actor.personId }]
@@ -204,7 +204,7 @@ export async function getMaintenanceScreenData(
   const propertiesById = indexById(references.properties);
   const unitsById = indexById(references.units);
   const peopleById = indexById(references.people);
-  const resolvedActor = actor ?? { role: "admin" as const };
+  const resolvedActor = actor ?? { role: "super_admin" as const };
   const eligibleVendorPersonIds = isMember
     ? undefined
     : new Set(vendorOptions.map((vendor) => vendor.id));
@@ -304,7 +304,7 @@ export function scopeMaintenanceMutableOptions(
     "branchOptions" | "propertyOptions" | "staffOptions" | "unitOptions" | "vendorOptions"
   >,
 ) {
-  if (actor.role !== "member") {
+  if (actor.role !== "operations_member") {
     return options;
   }
 
@@ -824,13 +824,13 @@ function applyActorTaskScope<T extends { eq: (column: string, value: string) => 
   query: T,
   actor?: MaintenanceActor,
 ) {
-  if (actor?.role === "member") {
+  if (actor?.role === "operations_member") {
     return actor.personId
       ? query.eq("assignee_person_id", actor.personId)
       : query.eq("assignee_person_id", "00000000-0000-0000-0000-000000000000");
   }
 
-  if (actor?.role === "manager" && actor.branchId) {
+  if (actor?.role === "operations_manager" && actor.branchId) {
     return query.eq("branch_id", actor.branchId);
   }
 

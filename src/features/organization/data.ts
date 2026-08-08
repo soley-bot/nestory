@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { isWorkspaceRole } from "@/lib/auth/capabilities";
 import type { PersonSelectOption } from "@/features/people/person-select";
 
 import {
@@ -304,5 +305,9 @@ function mergeStaffOptions(
 }
 
 function normalizeRole(role: string): OrganizationMembership["role"] {
-  return role === "manager" || role === "member" ? role : "admin";
+  if (!isWorkspaceRole(role)) {
+    throw new Error(`Unsupported workspace role: ${role}`);
+  }
+
+  return role;
 }

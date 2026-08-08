@@ -307,7 +307,7 @@ async function searchTasks(
   context: WorkspaceSearchContext,
   pattern: string,
 ): Promise<WorkspaceSearchCandidate[]> {
-  if (context.role === "member" && !context.personId) {
+  if (context.role === "operations_member" && !context.personId) {
     return [];
   }
 
@@ -323,7 +323,7 @@ async function searchTasks(
       result: {
         href: buildTaskHref(context.role, task.id),
         id: task.id,
-        kind: context.role === "member" ? "task" : "maintenance",
+        kind: context.role === "operations_member" ? "task" : "maintenance",
         label: task.title,
         meta: [formatStoredLabel(task.status), formatStoredLabel(task.category)].join(
           " · ",
@@ -347,11 +347,11 @@ function createTaskSearchQuery(
     .is("archived_at", null)
     .ilike(field, pattern);
 
-  if (context.role === "manager" && context.branchId) {
+  if (context.role === "operations_manager" && context.branchId) {
     query = query.eq("branch_id", context.branchId);
   }
 
-  if (context.role === "member") {
+  if (context.role === "operations_member") {
     query = query.eq("assignee_person_id", context.personId!);
     query = context.branchId
       ? query.eq("branch_id", context.branchId)
@@ -421,7 +421,7 @@ function getMatchRank(
 }
 
 function buildTaskHref(role: WorkspaceSearchContext["role"], taskId: string) {
-  const route = role === "member" ? "/tasks" : "/maintenance";
+  const route = role === "operations_member" ? "/tasks" : "/maintenance";
   return `${route}?archiveState=all&taskId=${encodeURIComponent(taskId)}`;
 }
 

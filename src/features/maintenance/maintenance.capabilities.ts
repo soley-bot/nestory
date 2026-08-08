@@ -14,7 +14,7 @@ export type MaintenanceCapabilities = {
 };
 
 const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
-  admin: {
+  super_admin: {
     canArchiveCase: true,
     canAssignCase: true,
     canCreateCase: true,
@@ -26,7 +26,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
     canReviewCompletion: true,
     canUploadMaintenanceEvidence: true,
   },
-  manager: {
+  operations_manager: {
     canArchiveCase: false,
     canAssignCase: true,
     canCreateCase: true,
@@ -38,7 +38,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
     canReviewCompletion: true,
     canUploadMaintenanceEvidence: false,
   },
-  member: {
+  operations_member: {
     canArchiveCase: false,
     canAssignCase: false,
     canCreateCase: false,
@@ -50,7 +50,24 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
     canReviewCompletion: false,
     canUploadMaintenanceEvidence: false,
   },
+  finance_manager: noMaintenanceCapabilities(),
+  finance_member: noMaintenanceCapabilities(),
 };
+
+function noMaintenanceCapabilities(): MaintenanceCapabilities {
+  return {
+    canArchiveCase: false,
+    canAssignCase: false,
+    canCreateCase: false,
+    canEditCaseStructure: false,
+    canExecuteAssignedCase: false,
+    canManageCaseState: false,
+    canPostMaintenanceCost: false,
+    canRecordActualCost: false,
+    canReviewCompletion: false,
+    canUploadMaintenanceEvidence: false,
+  };
+}
 
 export function getMaintenanceCapabilities(
   role: WorkspaceRole,

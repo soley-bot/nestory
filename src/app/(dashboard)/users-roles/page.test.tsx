@@ -31,7 +31,7 @@ describe("UsersRolesPage", () => {
     screenSpy.mockReset();
     requireAdminContext.mockResolvedValue({
       organizationId: "organization-1",
-      role: "admin",
+      role: "super_admin",
       userId: "user-1",
     });
     getAccessSettingsData.mockResolvedValue({ branches: [], invitations: [], members: [], staff: [] });
@@ -79,7 +79,7 @@ describe("UsersRolesPage", () => {
         email: "unrelated@example.com",
         id: unrelatedMemberId,
         personId: null,
-        role: "member",
+        role: "operations_member",
         userId: "88888888-8888-4888-8888-888888888888",
       }],
       staff: [{
@@ -127,7 +127,7 @@ describe("UsersRolesPage", () => {
         invitedAt: "2026-07-23T12:00:00.000Z",
         lastSentAt: "2026-07-23T12:01:00.000Z",
         personId,
-        role: "member",
+        role: "operations_member",
         status: "pending",
       }],
       members: [],
@@ -167,7 +167,7 @@ describe("UsersRolesPage", () => {
         email: "member@example.com",
         id: memberId,
         personId: null,
-        role: "member",
+        role: "operations_member",
         userId: "55555555-5555-4555-8555-555555555555",
       }],
       staff: [],

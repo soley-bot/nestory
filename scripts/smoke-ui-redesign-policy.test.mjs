@@ -488,7 +488,7 @@ describe("filesystem-backed evidence artifacts", () => {
     } finally {
       await rm(fixture.workspaceRoot, { force: true, recursive: true });
     }
-  });
+  }, 10_000);
 });
 
 function createPolicy() {

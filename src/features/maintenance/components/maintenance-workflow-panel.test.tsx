@@ -19,8 +19,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("shows coordinated controls without admin links or upload for a manager", () => {
     render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", role: "manager" }}
-        capabilities={getMaintenanceCapabilities("manager")}
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={makeCase()}
         onArchive={vi.fn()}
         onEdit={vi.fn()}
@@ -43,8 +43,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
     try {
       render(
         <MaintenanceInspector
-          actor={{ branchId: "branch-1", role: "manager" }}
-          capabilities={getMaintenanceCapabilities("manager")}
+          actor={{ branchId: "branch-1", role: "operations_manager" }}
+          capabilities={getMaintenanceCapabilities("operations_manager")}
           maintenanceCase={{
             ...makeCase(),
             activity: [
@@ -77,8 +77,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("keeps manager transition consequences beside coordinated actions", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "manager" }}
-        capabilities={getMaintenanceCapabilities("manager")}
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={makeCase()}
         onStatusMessage={vi.fn()}
       />,
@@ -100,8 +100,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("shows the member submission handoff without manager-only controls", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", personId: "person-1", role: "member" }}
-        capabilities={getMaintenanceCapabilities("member")}
+        actor={{ branchId: "branch-1", personId: "person-1", role: "operations_member" }}
+        capabilities={getMaintenanceCapabilities("operations_member")}
         maintenanceCase={{
           ...makeCase(),
           assigneeLabel: "Pich",
@@ -131,8 +131,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("states approval and return outcomes before completion review", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "admin" }}
-        capabilities={getMaintenanceCapabilities("admin")}
+        actor={{ branchId: "branch-1", role: "super_admin" }}
+        capabilities={getMaintenanceCapabilities("super_admin")}
         maintenanceCase={{
           ...makeCase(),
           assigneeLabel: "Pich",
@@ -156,8 +156,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("keeps inspector mutations aligned to admin and member capabilities", () => {
     const admin = render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", role: "admin" }}
-        capabilities={getMaintenanceCapabilities("admin")}
+        actor={{ branchId: "branch-1", role: "super_admin" }}
+        capabilities={getMaintenanceCapabilities("super_admin")}
         maintenanceCase={{
           ...makeCase(),
           hrefs: { documentUpload: "/documents?action=create", task: "/maintenance" },
@@ -176,8 +176,8 @@ describe("MaintenanceInspector role-safe workflow", () => {
 
     render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", personId: "person-1", role: "member" }}
-        capabilities={getMaintenanceCapabilities("member")}
+        actor={{ branchId: "branch-1", personId: "person-1", role: "operations_member" }}
+        capabilities={getMaintenanceCapabilities("operations_member")}
         maintenanceCase={{
           ...makeCase(),
           assigneeLabel: "Pich",

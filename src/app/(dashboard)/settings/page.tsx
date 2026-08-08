@@ -17,7 +17,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   return (
     <OrganizationSettingsScreen
       branches={data.branches}
-      canManageStructure={context.role === "admin"}
+      canManageStructure={context.role === "super_admin"}
       header={
         <PageHeader
           className="px-3 py-3 sm:px-4 lg:px-5 lg:py-3"

@@ -6,7 +6,7 @@ import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenanc
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
-import { requireWorkspaceContext } from "@/lib/auth/context";
+import { requireOperationsExecutionContext } from "@/lib/auth/context";
 
 type MaintenancePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -15,10 +15,10 @@ type MaintenancePageProps = {
 export default async function MaintenancePage({
   searchParams,
 }: MaintenancePageProps) {
-  const context = await requireWorkspaceContext();
+  const context = await requireOperationsExecutionContext();
   const capabilities = getMaintenanceCapabilities(context.role);
 
-  if (context.role === "member" && !context.personId) {
+  if (context.role === "operations_member" && !context.personId) {
     return <UnlinkedMemberMaintenanceState />;
   }
 

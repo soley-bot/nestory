@@ -18,7 +18,7 @@ describe("getMaintenanceScreenData reference loading", () => {
     const result = await getMaintenanceScreenData(
       "org-1",
       makeViewQuery(),
-      { role: "admin" },
+      { role: "super_admin" },
     );
 
     expect(
@@ -64,7 +64,7 @@ describe("getMaintenanceScreenData reference loading", () => {
     const result = await getMaintenanceScreenData(
       "org-1",
       makeViewQuery(),
-      { role: "admin" },
+      { role: "super_admin" },
     );
 
     const peopleIdCalls = supabase.inCalls.filter(
@@ -82,17 +82,17 @@ describe("getMaintenanceScreenData reference loading", () => {
 
   it.each([
     {
-      actor: { role: "admin" } as MaintenanceActor,
+      actor: { role: "super_admin" } as MaintenanceActor,
       excludedColumns: ["assignee_person_id", "branch_id"],
       expectedFilter: undefined,
     },
     {
-      actor: { branchId: "branch-visible", role: "manager" } as MaintenanceActor,
+      actor: { branchId: "branch-visible", role: "operations_manager" } as MaintenanceActor,
       excludedColumns: ["assignee_person_id"],
       expectedFilter: ["branch_id", "branch-visible"] as const,
     },
     {
-      actor: { personId: "visible-assignee", role: "member" } as MaintenanceActor,
+      actor: { personId: "visible-assignee", role: "operations_member" } as MaintenanceActor,
       excludedColumns: ["branch_id"],
       expectedFilter: ["assignee_person_id", "visible-assignee"] as const,
     },
@@ -117,7 +117,7 @@ describe("getMaintenanceScreenData reference loading", () => {
         call.filters.every(([filterColumn]) => filterColumn !== column),
       )).toBe(true);
     }
-    if (actor.role === "member") {
+    if (actor.role === "operations_member") {
       expect(result.summary.propertyStats).toContainEqual(
         expect.objectContaining({
           propertyId: "property-off-page",
