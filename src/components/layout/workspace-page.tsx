@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/layout/page-header";
 
 type WorkspacePageProps = {
   actions?: ReactNode;
+  controlsClassName?: string;
   header?: ReactNode;
   headerClassName?: string;
   localNav?: ReactNode;
@@ -18,6 +19,7 @@ type WorkspacePageProps = {
 export function WorkspacePage({
   actions,
   children,
+  controlsClassName,
   context,
   contextHref,
   header,
@@ -50,7 +52,7 @@ export function WorkspacePage({
       {header ?? generatedHeader}
       {localNav || toolbar ? (
         <div
-          className="flex min-w-0 shrink-0 flex-col bg-background lg:flex-row lg:items-center"
+          className={`flex min-w-0 shrink-0 flex-col bg-background lg:flex-row lg:items-center ${controlsClassName ?? ""}`}
           data-slot="workspace-controls"
         >
           {localNav ? (

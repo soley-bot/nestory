@@ -40,7 +40,6 @@ import {
   getSelectedRecord,
 } from "@/components/data/record-selection";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
-import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
@@ -574,11 +573,10 @@ export function MaintenanceScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref={pathname}
+      controlsClassName="bg-card"
+      headerClassName="bg-card"
       localNav={
-        <LocalWorkspaceNav
-          items={getMaintenanceWorkspaceNavItems(pathname)}
-          label="Maintenance workspace"
-        />
+        <MaintenanceWorkspaceNavigation pathname={pathname} />
       }
       toolbar={
         !showCaseViewTabs && showFilters ? (
@@ -2358,6 +2356,41 @@ const MAINTENANCE_WORKSPACE_ROUTES = [
   { href: "/inspections", label: "Inspections" },
   { href: "/work-orders", label: "Work orders" },
 ] as const;
+
+function MaintenanceWorkspaceNavigation({ pathname }: { pathname: string }) {
+  const items = getMaintenanceWorkspaceNavItems(pathname);
+  const current = items.find((item) => item.active) ?? items[0];
+
+  return (
+    <nav
+      aria-label="Maintenance workspace"
+      className="px-4 py-1.5 sm:px-6"
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button className="min-w-44 justify-between" variant="outline">
+            {current.label}
+            <ChevronDown aria-hidden="true" size={14} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {items.map((item) => (
+            <DropdownMenuItem asChild key={item.href}>
+              <Link
+                aria-current={item.active ? "page" : undefined}
+                href={item.href}
+                prefetch={false}
+              >
+                {item.label}
+                {item.active ? <Check className="ml-auto" size={14} /> : null}
+              </Link>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </nav>
+  );
+}
 
 export function getMaintenanceWorkspaceNavItems(pathname: string) {
   return MAINTENANCE_WORKSPACE_ROUTES.map((item) => ({

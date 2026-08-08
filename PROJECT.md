@@ -15,9 +15,10 @@ this file when they disagree with it.
 - Update this file in the same change when a durable product boundary changes.
 - Keep dated evidence, rollout notes, and implementation history out of this
   file. Git and executable artifacts own that history.
-- Treat documents under `docs/implementation` and `docs/superpowers/specs` as
-  scoped historical or implementation references. Reconcile them with current
-  code before reuse.
+- Treat `design-qa.md`, `.superpowers/sdd`, and documents under
+  `docs/implementation`, `docs/superpowers/specs`, `docs/superpowers/plans`,
+  and `docs/verification` as dated or scoped evidence. Reconcile them with the
+  current checkout and exact candidate SHA before reuse.
 - Read the matching local guide under `node_modules/next/dist/docs/` before
   changing Next.js behavior. This repository uses Next.js 16.2.9 App Router and
   newer conventions.
@@ -38,8 +39,9 @@ The implemented product includes:
   photos, and timeline history.
 - People records for tenants, owners, vendors, and staff.
 - Lease terms, parties, occupancy evidence, deposits, and rent policy.
-- Rent and income, bills and expenses, ledger history, period locks, and petty
-  cash.
+- Lease billing terms, manual tenant rent invoices and payments, owner- or
+  manager-collected rent, bills and expenses, owner charges and payments,
+  property withdrawals, operational Ledger history, and petty cash.
 - Maintenance cases, assigned tasks, work orders, inspections, recurring work,
   scheduling, reminders, and completion review.
 - Private documents and photos.
@@ -47,29 +49,47 @@ The implemented product includes:
 - Monthly Owner Activity and traceable Unit Profit and Loss reporting, with
   statement families blocked where their authority remains incomplete.
 - Organization settings, branches, teams, invitations, and access management.
+- A public marketing site and persisted information-request intake. Workspace
+  signup and organization provisioning remain invite-only.
 
-The executable route inventory is `config/ui-route-coverage.json`. Route files
-under `src/app` and that manifest are authoritative; do not preserve route
-counts or exhaustive route lists in documentation.
+Route files under `src/app` own runtime behavior.
+`config/ui-route-coverage.json` owns intended route and UI-state coverage and
+must agree with those files. Its tests validate manifest structure and source
+ownership; they do not by themselves prove runtime route behavior. Do not
+preserve route counts or exhaustive route lists in documentation.
 
 ## Current Limitations
 
 These are intentional truth boundaries, not invitations to synthesize data:
 
-- Automated recurring rent generation is blocked until it consumes exact
-  authoritative lease-term and approved rent-policy identities.
+- Effective lease billing terms and manual per-lease, per-month tenant rent
+  invoices are implemented. Automated recurring or batch rent generation is
+  not; the retained legacy batch RPC fails closed and must not be presented as
+  a usable action.
 - Existing-lease party, occupancy, and resident transitions remain fail-closed
   until their impact and correction workflows are implemented.
 - Owner Statement publication remains outside the public report catalog until
   authoritative opening and closing owner balances exist.
-- A separate Management Fee Statement remains outside the public report catalog
-  until owner-recognition authority exists. Legacy allocations and estimates
-  are not substitutes.
+- A separate Management Fee Statement remains outside the public report
+  catalog. Invoice-backed management fees can create owner charges and settle
+  through owner invoices, but legacy fee rows remain unresolved and no
+  standalone publication contract is approved.
 - Maintenance can capture actual cost and, for administrators, link an official
   ledger effect. It does not yet provide a complete bill or petty-cash handoff
   with reciprocal links, duplicate prevention, and void recovery.
 - Petty cash rolls forward a calculated closing balance but does not capture a
   separate physical cash count or resolve a counted-versus-calculated variance.
+- Nestory has no completed user-facing period-close or immutable report
+  publication workflow. The visible organization-month Ledger lock, internal
+  accounting-book locks, and partially adopted property reporting-period
+  lifecycle are overlapping controls, not three valid product authorities.
+  They do not uniformly protect every source that feeds public reports and must
+  not be described as a closed month.
+- If report publication requires a historical cutoff, converge on one
+  property/month reporting close with an explicit reopen reason and retained
+  publication versions. Until every report-affecting RPC enforces that one
+  boundary atomically, keep close/reopen UI out of the product and treat the
+  existing lock layers as compatibility guards only.
 - The accounting schema is retained as a compatibility kernel behind current
   workflows. It is not a user-facing payroll, overhead, tax, company P&L,
   general-ledger, or ERP module.
@@ -79,10 +99,12 @@ These are intentional truth boundaries, not invitations to synthesize data:
 
 - Next.js 16.2.9 App Router and React 19
 - TypeScript and Tailwind CSS 4
+- shadcn/Radix UI primitives and class-variance-authority
 - Supabase Auth, Postgres, Row Level Security, RPCs, and private Storage
 - Zod validation
 - Vitest, Playwright, Testing Library, ESLint, and TypeScript checks
-- Node.js 24 for local, CI, and container consistency
+- Node.js 24 in CI and Docker. Local contributors should match it; the
+  repository does not yet enforce a local or Vercel Node version pin.
 
 Repository ownership:
 
@@ -91,6 +113,7 @@ Repository ownership:
   components, and tests
 - `src/components/ui`: shared visible UI primitives
 - `src/components/layout`: authenticated shell and navigation
+- `src/hooks`: shared client interaction hooks
 - `src/lib`: small cross-feature infrastructure, auth, and Supabase helpers
 - `supabase/migrations`: append-only database history
 - `supabase/tests`: database contracts and security checks
@@ -192,6 +215,9 @@ history.
   exist only as drafts; approved versions are complete and immutable.
 - Compatibility rent fields alone never make a lease ready for automatic rent
   generation.
+- `lease_billing_terms` is the effective-dated collection and invoice policy
+  authority used by manual tenant rent invoice generation. It does not imply a
+  recurring scheduler.
 
 ## Financial Authority
 
@@ -209,10 +235,12 @@ Finance distinguishes obligations from dated settlement events:
   owner-funding, company-fee, and unresolved effects.
 
 Checked finance transactions must preserve organization and property scope,
-source identity, reconciliation identity, payload-bound idempotency, balanced
-journal compatibility, activity history, exact Ledger projection identity,
-and every affected property-period lock. Take shared locks in deterministic
-order and fail closed on closed or changed periods.
+source identity, reconciliation identity, payload-bound idempotency, activity
+history, and exact operational projections. Compatibility journals may remain
+balanced internally. Before claiming historical-period safety, verify that the
+specific RPC takes the applicable property/month authority lock; current
+coverage is not uniform across every tenant-invoice, owner-account, withdrawal,
+and expense path.
 
 Reserved receipt-allocation Ledger rows are derived Rent and Income evidence,
 not editable manual rows. Their lifecycle follows the source receipt or exact
@@ -248,14 +276,16 @@ CSV import supports properties, units or rent roll, people, and leases.
   silently imported.
 
 The public report catalog is limited to Monthly Owner Activity and Monthly Unit
-Profit and Loss. Owner Activity mirrors the property account categories for
-rent, management fees, owner-responsible property costs, withdrawals, and net
-change. Retired statement families have no public routes; their checked data
-compatibility code stays internal until replacement authority is approved.
-Reports remain traceable to source records and scoped period/property context.
-PDF and Excel are the public export formats; the retained CSV compatibility
-endpoint must remain auth-gated and formula-safe. Do not add report families or
-infer blocked balances without an approved product and data-authority change.
+Profit and Loss. Owner Activity reads live `property_account_entries` and
+mirrors their categories for rent, management fees, owner-responsible property
+costs, withdrawals, and net change. Neither report is currently an immutable
+closed-period publication. Retired statement families have no public routes;
+their checked data compatibility code stays internal until replacement
+authority is approved. Reports remain traceable to source records and scoped
+period/property context. PDF and Excel are the public export formats; the
+retained CSV compatibility endpoint must remain auth-gated and formula-safe.
+Do not add report families, freeze a publication, or infer blocked balances
+without an approved product and data-authority change.
 
 ## Interface Contract
 
@@ -266,26 +296,25 @@ Authenticated Nestory is quiet, neutral, dense operating software.
   permits. Use no more than one secondary controls row below it.
 - Keep primary search visible. Disclose advanced URL-backed filters instead of
   giving every filter permanent visual weight.
-- Give each workspace one dominant work surface. Desktop tables and row lists
-  stay unframed while retaining captions, headers, row semantics, keyboard
-  behavior, and accessible selection state.
-- Reserve cards for genuinely discrete objects, states, or actions; do not use
-  decorative card shells to divide one continuous operating surface.
+- Give each workspace one dominant work surface. A desktop register may use one
+  restrained bordered surface for its filters and rows while retaining
+  captions, headers, row semantics, keyboard behavior, and accessible selection
+  state. Avoid nested or decorative card shells inside one continuous register.
 - Use compact headers, tables, list selectors, badges, quick views, side
   drawers, and explicit record links.
 - Keep primary records and common actions early in the viewport.
 - Desktop workspaces should use the remaining viewport height and internal
   scrolling instead of small document-level scrollbars.
-- Do not reserve a persistent side inspector beside operational tables. Row
-  click or Enter opens a focus-managed quick view; an explicit record link
-  reaches a real detail route. Double-click may be a pointer shortcut only when
-  that detail route exists.
+- Do not reserve a persistent side inspector beside operational tables. Where
+  a quick view exists, row click or Enter opens it with managed focus. Otherwise
+  use an explicit record link and do not make a passive row appear interactive.
+  Double-click may be a pointer shortcut only when a detail route exists.
 - Use the shared side drawer for create, edit, archive, restore, upload, and
   other focused record work.
 - Keep one global `Search or jump` surface. Entity results stay server-scoped
   and must not expose raw UUIDs as operator labels.
 - Settings uses header-level Workspace and Workspace Access navigation followed
-  by a two-zone layout: one uncontained section rail and one labelled content
+  by a two-zone layout: one compact muted section rail and one labelled content
   region. It has one shared save/discard/status area. Configuration is a
   read-only registry catalog until persistence, approval, and effective-dating
   authority are implemented.
@@ -329,7 +358,7 @@ npx tsc --noEmit
 npm run test:all
 npm run build
 npm run db:reset
-npm run db:reset:demo -- --reference-date 2030-01-15
+npm run db:test:fixture
 npm run db:lint
 npm run db:types
 npx supabase test db --local supabase/tests
@@ -372,9 +401,14 @@ npm run test:ui-coverage
 npm run test:ui-copy
 ```
 
-Database changes also require the applicable local Supabase reset, lint,
-generated-type comparison, pgTAP suite, and concurrency harnesses from
-`package.json`. Never run a destructive reset against a hosted project.
+The GitHub Application job currently enforces lint, TypeScript, `test:all`, and
+build. Run the two UI contract commands explicitly; a green Application job
+does not prove them or an authenticated browser smoke.
+
+Database changes also require the applicable local Supabase reset,
+`npm run db:test:fixture`, lint, generated-type comparison, pgTAP suite, and
+concurrency harnesses from `package.json`. A normal local reset intentionally
+starts empty. Never run a destructive reset against a hosted project.
 
 Authenticated UI, auth, layout, drawers, uploads, imports, maintenance, and
 report-export changes require a real local browser smoke. Available runners
@@ -387,9 +421,12 @@ npm run test:properties-flow
 npm run test:maintenance-mobile
 ```
 
-Browser runners use explicit loopback `BASE_URL` and disposable local
-credentials supplied through the current PowerShell session. Prefer read-only
-smokes unless the test owns cleanup. Invitation changes require the complete
+Browser-runner environment contracts are script-specific. The redesign and
+accessibility runners use `BASE_URL`, `E2E_EMAIL`, and `E2E_PASSWORD`;
+Maintenance uses `NESTORY_BASE_URL` and `NESTORY_TEST_*`; the Properties flow
+currently has local defaults. Use only disposable local credentials, inspect
+the runner before invoking it, and prefer read-only smokes unless the test owns
+cleanup. Invitation changes require the complete
 invite, password-proof or replacement, acceptance, workspace continuation,
 sign-out, and password-login lifecycle—not merely one successful redirect.
 
@@ -403,8 +440,9 @@ badge. Recompute and report:
   public/protected route behavior, and recent runtime errors
 - Backup/restore readiness when the release gate requires it
 
-If the Vercel CLI is unavailable, install it with `npm i -g vercel` before
-using `vercel env pull`, `vercel deploy`, or `vercel logs`.
+Prefer the repository-pinned CLI through `npx vercel`. If a callable Vercel CLI
+is unavailable, install it with `npm i -g vercel` before using `vercel env
+pull`, `vercel deploy`, or `vercel logs`.
 
 ## Handoff
 

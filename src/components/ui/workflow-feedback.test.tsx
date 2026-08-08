@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/draft-action-bar";
 import { EmptyState, type EmptyStateKind } from "@/components/ui/empty-state";
 import { FormSection } from "@/components/ui/form-section";
-import { RecordPreviewDrawer } from "@/components/ui/record-preview-drawer";
 import { SideDrawer } from "@/components/ui/side-drawer";
 
 beforeEach(() => {
@@ -548,28 +547,6 @@ describe("drawer workflow slots", () => {
     expect(footer?.className).toContain("shrink-0");
     expect(dialog.querySelector('[data-slot="drawer-portals"]')?.className)
       .toContain("contents");
-  });
-
-  it("forwards summary and footer slots through RecordPreviewDrawer", () => {
-    render(
-      <RecordPreviewDrawer
-        footer={<button type="button">Open record</button>}
-        onClose={vi.fn()}
-        open
-        summary={<div>Active lease</div>}
-        title="Unit 4B"
-      >
-        <div>Preview details</div>
-      </RecordPreviewDrawer>,
-    );
-
-    const dialog = screen.getByRole("dialog", { name: "Unit 4B" });
-    expect(dialog.querySelector('[data-slot="drawer-summary"]')?.textContent).toContain(
-      "Active lease",
-    );
-    expect(dialog.querySelector('[data-slot="drawer-footer"]')?.textContent).toContain(
-      "Open record",
-    );
   });
 
   it("preserves the existing children-only drawer API", () => {

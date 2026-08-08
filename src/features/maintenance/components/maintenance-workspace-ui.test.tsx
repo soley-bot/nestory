@@ -126,15 +126,12 @@ describe("maintenance workspace redesign contract", () => {
       const localNavigation = screen.getByRole("navigation", {
         name: "Maintenance workspace",
       });
-      const currentLinks = within(localNavigation)
-        .getAllByRole("link")
-        .filter((link) => link.getAttribute("aria-current") === "page");
-
       expect(
         screen.getAllByRole("navigation", { name: "Maintenance workspace" }),
       ).toHaveLength(1);
-      expect(currentLinks).toHaveLength(1);
-      expect(currentLinks[0]?.textContent).toBe(currentLabel);
+      expect(
+        within(localNavigation).getByRole("button", { name: currentLabel }),
+      ).not.toBeNull();
     },
   );
 
