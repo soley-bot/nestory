@@ -116,12 +116,8 @@ SELECT ok(
   'legacy payment reversal remains available for historical payments'
 );
 SELECT ok(
-  coalesce(has_function_privilege(
-    'authenticated',
-    to_regprocedure('public.post_finance_expense_item(uuid,uuid,date)'),
-    'EXECUTE'
-  ), false),
-  'legacy expense posting remains available for historical expenses'
+  to_regprocedure('public.post_finance_expense_item(uuid,uuid,date)') IS NULL,
+  'legacy direct expense posting is absent'
 );
 SELECT ok(
   coalesce(has_function_privilege(
@@ -135,8 +131,8 @@ SELECT ok(
 SELECT ok(
   (
     SELECT
-      strpos(definition, 'lock_open_property_reporting_period') > 0
-      AND strpos(definition, 'lock_open_property_reporting_period')
+      strpos(definition, 'lock_open_property_financial_month') > 0
+      AND strpos(definition, 'lock_open_property_financial_month')
         < strpos(definition, ':owner-cash')
       AND strpos(definition, ':owner-cash')
         < strpos(definition, 'approve_expense_submission')
@@ -152,8 +148,8 @@ SELECT ok(
 SELECT ok(
   (
     SELECT
-      strpos(definition, 'lock_open_property_reporting_period') > 0
-      AND strpos(definition, 'lock_open_property_reporting_period')
+      strpos(definition, 'lock_open_property_financial_month') > 0
+      AND strpos(definition, 'lock_open_property_financial_month')
         < strpos(definition, ':owner-cash')
     FROM (
       SELECT pg_catalog.pg_get_functiondef(
@@ -161,7 +157,7 @@ SELECT ok(
       ) AS definition
     ) AS reviewed
   ),
-  'expense reversal locks the reporting period before owner or tenant settlement scope'
+  'expense reversal locks the financial month before owner or tenant settlement scope'
 );
 
 SELECT ok(
@@ -183,8 +179,8 @@ SELECT ok(
 SELECT ok(
   (
     SELECT
-      strpos(definition, 'lock_open_property_reporting_period') > 0
-      AND strpos(definition, 'lock_open_property_reporting_period')
+      strpos(definition, 'lock_open_property_financial_month') > 0
+      AND strpos(definition, 'lock_open_property_financial_month')
         < strpos(definition, 'tenant_invoice_payment_v1')
       AND strpos(definition, 'tenant_invoice_payment_v1')
         < strpos(definition, 'record_tenant_invoice_payment_lease_derived_unchecked')
@@ -622,11 +618,10 @@ SELECT results_eq(
       (SELECT count(*) FROM public.finance_payment_allocations),
       (SELECT count(*) FROM public.ips_expense_responsibilities),
       (SELECT count(*) FROM public.ledger_entries),
-      (SELECT count(*) FROM public.accounting_journal_entries),
       (SELECT count(*) FROM public.owner_invoice_lines)
   $$,
-  $$VALUES (0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
-  'submission creates no financial, Ledger, journal, or customer effect'
+  $$VALUES (0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
+  'submission creates no financial, Ledger, or customer effect'
 );
 
 SELECT is(
@@ -739,10 +734,9 @@ SELECT results_eq(
       (SELECT count(*) FROM public.finance_expense_items),
       (SELECT count(*) FROM public.finance_payments),
       (SELECT count(*) FROM public.finance_payment_allocations),
-      (SELECT count(*) FROM public.ledger_entries),
-      (SELECT count(*) FROM public.accounting_journal_entries)
+      (SELECT count(*) FROM public.ledger_entries)
   $$,
-  $$VALUES ('submitted'::text, 0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
+  $$VALUES ('submitted'::text, 0::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
   'failed source revalidation leaves the submission and all financial effects unchanged'
 );
 
@@ -853,14 +847,7 @@ SELECT results_eq(
       ledger.source_id,
       ledger.direction,
       ledger.amount,
-      submission.approved_journal_entry_id IS NULL,
-      ledger.reversal_of_ledger_entry_id IS NULL,
-      (
-        SELECT count(*)
-        FROM public.accounting_journal_entries AS journal
-        WHERE journal.source_type = ledger.source_type
-          AND journal.source_id = ledger.source_id
-      )
+      ledger.reversal_of_ledger_entry_id IS NULL
     FROM public.expense_submissions AS submission
     JOIN public.ledger_entries AS ledger
       ON ledger.id = submission.approved_ledger_entry_id
@@ -872,12 +859,10 @@ SELECT results_eq(
       (approval_result->>'payment_allocation_id')::uuid,
       'expense'::text,
       50.00::numeric,
-      true,
-      true,
-      0::bigint
+      true
     FROM expense_approval_state
   $$,
-  'approval creates one immutable Ledger projection without a journal dependency'
+  'approval creates one immutable source-owned Ledger event'
 );
 
 SELECT set_config(
@@ -1089,18 +1074,9 @@ SELECT throws_ok(
   'legacy payment reversal cannot bypass reverse_expense'
 );
 
-SELECT throws_ok(
-  $$
-    SELECT public.post_finance_expense_item(
-      (approval_result->>'finance_expense_item_id')::uuid,
-      organization_id,
-      '2026-08-10'
-    )
-    FROM expense_approval_state
-  $$,
-  '42501',
-  'Approved expense must be changed through its submission workflow',
-  'legacy posting cannot create a second Ledger effect for approved workflow'
+SELECT ok(
+  to_regprocedure('public.post_finance_expense_item(uuid,uuid,date)') IS NULL,
+  'legacy expense posting cannot create a second Ledger effect because it is absent'
 );
 
 SELECT throws_ok(
@@ -1727,19 +1703,10 @@ JOIN public.tenant_invoice_lines AS line
 
 RESET ROLE;
 
-SELECT throws_ok(
-  format(
-    'SELECT public.post_finance_income_item(%L, %L)',
-    line.income_item_id,
-    state.organization_id
-  ),
-  '42501',
-  'Approved tenant charge must be changed through its tenant invoice',
-  'legacy posting cannot mutate an approval-owned tenant charge'
-)
-FROM expense_approval_state AS state
-JOIN public.tenant_invoice_lines AS line
-  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+SELECT ok(
+  to_regprocedure('public.post_finance_income_item(uuid,uuid)') IS NULL,
+  'legacy income posting cannot mutate an approval-owned tenant charge because it is absent'
+);
 
 SELECT set_config(
   'request.jwt.claim.sub',

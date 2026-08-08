@@ -4,8 +4,6 @@ export const activityEntityTypes = [
   "timeline_event",
   "ledger_entry",
   "financial_month",
-  "accounting_journal_entry",
-  "accounting_period",
   "finance_income_item",
   "finance_expense_item",
   "expense_submission",
@@ -62,20 +60,6 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
     getHref: ({ entityId }) =>
       buildHref("/timeline", { archiveState: "all", eventId: entityId }),
     mode: "exact",
-  },
-  accounting_journal_entry: {
-    actionLabel: "Open Ledger",
-    entityLabel: "Ledger",
-    fallbackRecordLabel: "Internal verification",
-    getHref: () => "/ledger",
-    mode: "module",
-  },
-  accounting_period: {
-    actionLabel: "Open Ledger",
-    entityLabel: "Period lock",
-    fallbackRecordLabel: "Month lock",
-    getHref: () => "/ledger",
-    mode: "module",
   },
   ledger_entry: {
     actionLabel: "Open Ledger entry",

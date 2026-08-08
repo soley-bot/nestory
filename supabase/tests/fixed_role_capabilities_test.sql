@@ -354,12 +354,12 @@ SELECT results_eq(
 SELECT set_config('request.jwt.claim.sub', (SELECT super_admin_id::text FROM fixed_role_state), true);
 SELECT ok(
   app_private.is_org_admin((SELECT organization_id FROM fixed_role_state)),
-  'the compatibility admin predicate recognizes only Super Admin authority'
+  'the Super Admin predicate recognizes only Super Admin authority'
 );
 SELECT set_config('request.jwt.claim.sub', (SELECT operations_manager_id::text FROM fixed_role_state), true);
 SELECT ok(
   app_private.can_assign_tasks((SELECT organization_id FROM fixed_role_state)),
-  'the compatibility task-assignment predicate recognizes Operations Manager'
+  'the task-assignment predicate recognizes Operations Manager'
 );
 
 SELECT results_eq(
@@ -370,20 +370,19 @@ SELECT results_eq(
       AND cmd = 'SELECT'
       AND coalesce(qual, '') LIKE '%can_read_finance%'
       AND tablename = ANY (ARRAY[
-        'accounting_accounts', 'accounting_books', 'accounting_journal_entries',
-        'accounting_journal_lines', 'accounting_periods', 'finance_expense_items',
+        'finance_expense_items',
         'finance_income_items', 'finance_payment_allocations', 'finance_payments',
-        'finance_receipt_allocation_journals', 'finance_receipt_allocations',
-        'finance_receipts', 'financial_reconciliation_sources',
+        'finance_receipt_allocations', 'finance_receipts',
+        'financial_month_locks', 'financial_reconciliation_sources',
         'ips_expense_responsibilities', 'lease_billing_terms',
         'lease_deposit_events',
         'lease_deposits', 'lease_occupancies', 'lease_parties', 'lease_terms',
-        'ledger_entries', 'ledger_period_locks', 'management_fee_occurrences',
+        'ledger_entries', 'management_fee_occurrences',
         'owner_charge_cash_allocations', 'owner_collection_confirmation_allocations',
         'owner_collection_confirmations', 'owner_invoice_lines', 'owner_invoices',
         'owner_payment_allocations', 'owner_payments', 'petty_cash_accounts',
-        'petty_cash_entries', 'petty_cash_periods', 'property_close_revisions',
-        'property_reporting_periods', 'property_withdrawals', 'rent_policy_versions',
+        'petty_cash_entries', 'petty_cash_periods', 'property_withdrawals',
+        'rent_policy_versions',
         'tenant_invoice_lines',
         'tenant_invoice_payment_allocations', 'tenant_invoice_payments', 'tenant_invoices'
       ])
@@ -391,20 +390,19 @@ SELECT results_eq(
   $$,
   $$
     SELECT unnest(ARRAY[
-      'accounting_accounts', 'accounting_books', 'accounting_journal_entries',
-      'accounting_journal_lines', 'accounting_periods', 'finance_expense_items',
+      'finance_expense_items',
       'finance_income_items', 'finance_payment_allocations', 'finance_payments',
-      'finance_receipt_allocation_journals', 'finance_receipt_allocations',
-      'finance_receipts', 'financial_reconciliation_sources',
+      'finance_receipt_allocations', 'finance_receipts',
+      'financial_month_locks', 'financial_reconciliation_sources',
       'ips_expense_responsibilities', 'lease_billing_terms',
       'lease_deposit_events',
       'lease_deposits', 'lease_occupancies', 'lease_parties', 'lease_terms',
-      'ledger_entries', 'ledger_period_locks', 'management_fee_occurrences',
+      'ledger_entries', 'management_fee_occurrences',
       'owner_charge_cash_allocations', 'owner_collection_confirmation_allocations',
       'owner_collection_confirmations', 'owner_invoice_lines', 'owner_invoices',
       'owner_payment_allocations', 'owner_payments', 'petty_cash_accounts',
-      'petty_cash_entries', 'petty_cash_periods', 'property_close_revisions',
-      'property_reporting_periods', 'property_withdrawals', 'rent_policy_versions',
+      'petty_cash_entries', 'petty_cash_periods', 'property_withdrawals',
+      'rent_policy_versions',
       'tenant_invoice_lines',
       'tenant_invoice_payment_allocations', 'tenant_invoice_payments', 'tenant_invoices'
     ]::text[]) COLLATE "C"

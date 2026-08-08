@@ -59,7 +59,6 @@ const actionLabels: Record<string, string> = {
 
 const hiddenDetailFields = new Set([
   "account_id",
-  "accounting_journal_entry_id",
   "actor_id",
   "archived_by",
   "created_by",

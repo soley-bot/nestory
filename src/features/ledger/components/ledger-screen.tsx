@@ -30,7 +30,6 @@ import { FinanceWorkspaceNavigation } from "@/features/finance/components/financ
 import { ActivityDetailPanel } from "@/features/activity/components/activity-detail-panel";
 import { RecentChangesPopover } from "@/features/activity/components/recent-changes-popover";
 import type { RecentChange } from "@/features/activity/activity.types";
-import { Badge } from "@/components/ui/badge";
 import {
   attachLedgerReceiptAction,
   type LedgerActionState,
@@ -41,7 +40,6 @@ import { LedgerInspector } from "@/features/ledger/components/ledger-inspector";
 import { LedgerTable } from "@/features/ledger/components/ledger-table";
 import type {
   LedgerEntry,
-  LedgerCloseSummary,
   LedgerPagination as LedgerPaginationMeta,
   LedgerPeriodLock,
   LedgerPropertyOption,
@@ -61,7 +59,6 @@ type DrawerState =
 
 type LedgerScreenProps = {
   canManageFinance?: boolean;
-  closeSummary: LedgerCloseSummary;
   entries: LedgerEntry[];
   initialEntryId?: string;
   pagination: LedgerPaginationMeta;
@@ -74,7 +71,6 @@ type LedgerScreenProps = {
 
 export function LedgerScreen({
   canManageFinance = true,
-  closeSummary,
   entries,
   initialEntryId,
   pagination,
@@ -238,8 +234,7 @@ export function LedgerScreen({
           </div>
         ) : null}
 
-        <LedgerCloseStrip
-          closeSummary={closeSummary}
+        <LedgerSummaryStrip
           entries={entries}
           filters={
             <LedgerFilters
@@ -462,12 +457,10 @@ function formatLedgerDateRange(dateFrom: string, dateTo: string) {
   return `entries through ${formatDate(dateTo)}`;
 }
 
-function LedgerCloseStrip({
-  closeSummary,
+function LedgerSummaryStrip({
   entries,
   filters,
 }: {
-  closeSummary: LedgerCloseSummary;
   entries: LedgerEntry[];
   filters: ReactNode;
 }) {
@@ -478,29 +471,10 @@ function LedgerCloseStrip({
     .filter((entry) => entry.direction === "expense")
     .reduce((total, entry) => total + entry.amount, 0);
   const net = income - expense;
-  const openCheckCount =
-    Number(closeSummary.incomeReadyToPost) +
-    Number(closeSummary.billsReadyToPost) +
-    Number(closeSummary.pettyCashReadyToPost) +
-    Number(closeSummary.accountingUnlinkedCount);
-
   return (
     <section className="flex flex-col gap-2 border-b border-border/70 bg-background px-4 py-2 sm:px-6 lg:flex-row lg:items-start">
       <div className="flex min-h-8 shrink-0 items-center gap-3 rounded-md border border-border/70 bg-card px-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="whitespace-nowrap text-sm font-semibold">
-            {closeSummary.monthLabel}
-          </p>
-          <Badge tone={hasOpenCloseQueue(closeSummary) ? "warning" : "success"}>
-            {hasOpenCloseQueue(closeSummary) ? "Needs review" : "Ready"}
-          </Badge>
-        </div>
-        <p className="hidden whitespace-nowrap text-xs text-muted-foreground xl:block">
-          {openCheckCount > 0
-            ? `${openCheckCount} ${openCheckCount === 1 ? "item needs" : "items need"} review`
-            : "All review checks clear"}
-        </p>
-        <div className="flex items-baseline gap-2 border-l border-border/70 pl-3">
+        <div className="flex items-baseline gap-2">
           <p className="text-xs text-muted-foreground">Visible net</p>
           <p
             className={`text-sm font-semibold tabular-nums ${
@@ -519,16 +493,6 @@ function LedgerCloseStrip({
         {filters}
       </div>
     </section>
-  );
-}
-
-function hasOpenCloseQueue(closeSummary: LedgerCloseSummary) {
-  return (
-    Number(closeSummary.incomeReadyToPost) +
-      Number(closeSummary.billsReadyToPost) +
-      Number(closeSummary.pettyCashReadyToPost) +
-      Number(closeSummary.accountingUnlinkedCount) >
-    0
   );
 }
 

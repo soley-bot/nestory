@@ -49,13 +49,9 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(
       container.querySelector('[data-slot="workspace-split-view"]'),
     ).not.toBeNull();
-    const closeStrip = screen.getByText("July 2026").closest("section");
-    expect(closeStrip?.className).not.toContain("overflow-x-auto");
-    expect(within(closeStrip!).queryByText("Clear")).toBeNull();
-    expect(
-      within(closeStrip!).getByText("All review checks clear"),
-    ).not.toBeNull();
-    expect(within(closeStrip!).getByText("Visible net")).not.toBeNull();
+    const summaryStrip = screen.getByText("Visible net").closest("section");
+    expect(summaryStrip?.className).not.toContain("overflow-x-auto");
+    expect(within(summaryStrip!).queryByText("Clear")).toBeNull();
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-[13px]");
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
@@ -244,18 +240,6 @@ function renderLedger(
   return render(
     <LedgerScreen
       canManageFinance={canManageFinance}
-      closeSummary={{
-        accountingUnlinkedCount: "0",
-        accountingUnlinkedHref: "/ledger",
-        billsReadyHref: "/bills-expenses",
-        billsReadyToPost: "0",
-        incomeReadyHref: "/rent-income",
-        incomeReadyToPost: "0",
-        month: "2026-07",
-        monthLabel: "July 2026",
-        pettyCashReadyHref: "/petty-cash",
-        pettyCashReadyToPost: "0",
-      }}
       entries={nextEntries}
       pagination={{
         from: nextEntries.length ? 1 : 0,

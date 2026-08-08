@@ -12,8 +12,6 @@ describe("resolveActivityEntityTarget", () => {
       "timeline_event",
       "ledger_entry",
       "financial_month",
-      "accounting_journal_entry",
-      "accounting_period",
       "finance_income_item",
       "finance_expense_item",
       "expense_submission",
@@ -211,8 +209,6 @@ describe("resolveActivityEntityTarget", () => {
   });
 
   it.each([
-    ["accounting_journal_entry", "Ledger", "/ledger"],
-    ["accounting_period", "Period lock", "/ledger"],
     ["organization", "Organization", "/settings?section=organization"],
     ["organization_branch", "Organization branch", "/settings?section=branches"],
     [

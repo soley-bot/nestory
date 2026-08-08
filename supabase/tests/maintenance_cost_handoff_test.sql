@@ -1281,8 +1281,7 @@ SELECT results_eq(
       submission.status,
       submission.reconciliation_source_id,
       expense.task_id,
-      submission.approved_ledger_entry_id IS NOT NULL,
-      submission.approved_journal_entry_id IS NOT NULL
+      submission.approved_ledger_entry_id IS NOT NULL
     FROM public.expense_submissions AS submission
     JOIN public.finance_expense_items AS expense
       ON expense.organization_id = submission.organization_id
@@ -1294,7 +1293,6 @@ SELECT results_eq(
       'approved'::text,
       funding_source_id,
       task_id,
-      true,
       true
     FROM maintenance_cost_state
   $$,
