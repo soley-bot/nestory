@@ -48,7 +48,7 @@ describe("buildPropertySummary", () => {
           code: "RIV",
           id: "property-1",
           name: "Riverside",
-          owner: "Legacy owner",
+          owner: "Former owner",
           property_type: "Apartment",
           status: "active",
         },
@@ -56,7 +56,7 @@ describe("buildPropertySummary", () => {
       }),
     ).toMatchObject({
       formValues: {
-        owner: "Legacy owner",
+        owner: "Former owner",
         ownerPersonId: "person-1",
       },
       hasActiveOwnerLink: true,

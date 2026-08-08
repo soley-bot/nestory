@@ -77,7 +77,7 @@ async function main() {
     await proveLeaseImportDoubleCommit(container);
 
     process.stdout.write(
-      "PASS TB-02 relationship and Lease-import concurrency: accepted relationship ranges, atomic restage-versus-commit claim locking, and duplicate commit replay serialized across two sessions.\n",
+      "PASS Lease relationship and Lease-import concurrency: accepted relationship ranges, atomic restage-versus-commit claim locking, and duplicate commit replay serialized across two sessions.\n",
     );
   } catch (error) {
     proofError = error;
@@ -89,7 +89,7 @@ async function main() {
       if (proofError) {
         proofError = new AggregateError(
           [proofError, cleanupError],
-          "TB-02 concurrency proof and cleanup both failed.",
+          "Lease relationship concurrency proof and cleanup both failed.",
         );
       } else {
         proofError = cleanupError;
@@ -347,7 +347,7 @@ async function proveAtomicCommitFirstRestageRace(container) {
     "SELECT id::text "
       + "FROM public.import_runs "
       + "WHERE organization_id = '" + ids.organization + "'::uuid "
-      + "AND source_file_name = 'tb02-atomic-claim-race.csv';",
+      + "AND source_file_name = 'lease-relationship-atomic-claim-race.csv';",
   );
 
   const commit = startPsql(
@@ -390,7 +390,7 @@ async function proveAtomicCommitFirstRestageRace(container) {
       + "ON rows.organization_id = runs.organization_id "
       + "AND rows.import_run_id = runs.id "
       + "WHERE runs.organization_id = '" + ids.organization + "'::uuid "
-      + "AND runs.source_file_name = 'tb02-atomic-claim-race.csv';",
+      + "AND runs.source_file_name = 'lease-relationship-atomic-claim-race.csv';",
     "1:true:failed:failed:{}",
     "commit-first atomic claim keeps one immutable terminal snapshot",
   );
@@ -406,7 +406,7 @@ function atomicClaimRestageSql(marker) {
     "SELECT public.stage_import_run_v1(",
     "  '" + ids.organization + "'::uuid,",
     "  'leases',",
-    "  'tb02-atomic-claim-race.csv',",
+    "  'lease-relationship-atomic-claim-race.csv',",
     "  99::bigint,",
     "  'text/csv',",
     "  '[\"unit\"]'::jsonb,",
@@ -432,7 +432,7 @@ async function proveAtomicStageFirstCommitRace(container) {
     "SELECT id::text "
       + "FROM public.import_runs "
       + "WHERE organization_id = '" + ids.organization + "'::uuid "
-      + "AND source_file_name = 'tb02-atomic-stage-first.csv';",
+      + "AND source_file_name = 'lease-relationship-atomic-stage-first.csv';",
   );
 
   const restage = startPsql(
@@ -490,7 +490,7 @@ async function proveAtomicStageFirstCommitRace(container) {
       + "ON rows.organization_id = runs.organization_id "
       + "AND rows.import_run_id = runs.id "
       + "WHERE runs.organization_id = '" + ids.organization + "'::uuid "
-      + "AND runs.source_file_name = 'tb02-atomic-stage-first.csv';",
+      + "AND runs.source_file_name = 'lease-relationship-atomic-stage-first.csv';",
     "1:true:staged:1:1:warning:stage-first-new",
     "stage-first claim keeps one complete replacement snapshot",
   );
@@ -506,7 +506,7 @@ function atomicStageFirstRestageSql(marker) {
     "SELECT public.stage_import_run_v1(",
     "  '" + ids.organization + "'::uuid,",
     "  'leases',",
-    "  'tb02-atomic-stage-first.csv',",
+    "  'lease-relationship-atomic-stage-first.csv',",
     "  77::bigint,",
     "  'text/csv',",
     "  '[\"unit\"]'::jsonb,",
@@ -566,8 +566,8 @@ INSERT INTO auth.users (
   '${ids.admin}'::uuid,
   'authenticated',
   'authenticated',
-  'tb02-concurrency@example.test',
-  extensions.crypt('tb02-concurrency', extensions.gen_salt('bf')),
+  'lease-relationship-concurrency@example.test',
+  extensions.crypt('lease-relationship-concurrency', extensions.gen_salt('bf')),
   now(),
   '', '', '', '', '', '',
   '{"provider":"email","providers":["email"]}',
@@ -579,20 +579,20 @@ INSERT INTO auth.users (
 INSERT INTO public.organizations(id, name, slug)
 VALUES (
   '${ids.organization}'::uuid,
-  'TB-02 relationship concurrency',
-  'tb02-relationship-concurrency'
+  'Lease relationship concurrency',
+  'lease-relationship-concurrency'
 );
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
-VALUES ('${ids.organization}'::uuid, '${ids.admin}'::uuid, 'admin');
+VALUES ('${ids.organization}'::uuid, '${ids.admin}'::uuid, 'super_admin');
 
 INSERT INTO public.properties(
   id, organization_id, name, code, property_type, status
 ) VALUES (
   '${ids.property}'::uuid,
   '${ids.organization}'::uuid,
-  'TB-02 concurrency property',
-  'TB02-CONCURRENCY',
+  'Lease relationship concurrency property',
+  'LEASE-CONCURRENCY',
   'apartment',
   'active'
 );
@@ -605,7 +605,7 @@ INSERT INTO public.units(
   '${ids.relationshipUnit}'::uuid,
   '${ids.organization}'::uuid,
   '${ids.property}'::uuid,
-  'TB02-RELATIONSHIP',
+  'LEASE-RELATIONSHIP',
   'vacant',
   1000,
   'USD'
@@ -614,7 +614,7 @@ INSERT INTO public.units(
   '${ids.occupancyRaceUnit}'::uuid,
   '${ids.organization}'::uuid,
   '${ids.property}'::uuid,
-  'TB02-OCCUPANCY-RACE',
+  'LEASE-OCCUPANCY-RACE',
   'vacant',
   1000,
   'USD'
@@ -623,7 +623,7 @@ INSERT INTO public.units(
   '${ids.participantRaceUnit}'::uuid,
   '${ids.organization}'::uuid,
   '${ids.property}'::uuid,
-  'TB02-PARTICIPANT-RACE',
+  'LEASE-PARTICIPANT-RACE',
   'vacant',
   1000,
   'USD'
@@ -635,19 +635,19 @@ INSERT INTO public.people(
 (
   '${ids.tenantA}'::uuid,
   '${ids.organization}'::uuid,
-  'TB-02 tenant A',
+  'Lease relationship tenant A',
   'individual'
 ),
 (
   '${ids.tenantB}'::uuid,
   '${ids.organization}'::uuid,
-  'TB-02 tenant B',
+  'Lease relationship tenant B',
   'individual'
 ),
 (
   '${ids.occupant}'::uuid,
   '${ids.organization}'::uuid,
-  'TB-02 authorized occupant',
+  'Lease relationship authorized occupant',
   'individual'
 );
 
@@ -679,7 +679,7 @@ SELECT public.create_lease_with_relationships(
       "personId": "${ids.tenantA}",
       "lifecycle": "effective",
       "recordSource": "operator_confirmed",
-      "reason": "tb02_concurrency_fixture",
+      "reason": "lease-relationship_concurrency_fixture",
       "startedOn": {
         "date": "2027-01-01",
         "kind": "known",
@@ -694,7 +694,7 @@ SELECT public.create_lease_with_relationships(
     "occupancy": {
       "lifecycle": "occupied",
       "recordSource": "operator_confirmed",
-      "reason": "tb02_concurrency_fixture",
+      "reason": "lease-relationship_concurrency_fixture",
       "scheduledMoveIn": {
         "date": "2027-01-01",
         "kind": "known",
@@ -719,21 +719,17 @@ SELECT public.create_lease_with_relationships(
     "participants": []
   }
   $payload$::jsonb,
-  'tb02-concurrency-fixture'
+  'lease-relationship-concurrency-fixture'
 );
 RESET ROLE;
 SELECT set_config('app.people_leases_skip_sync', 'on', true);
+SET LOCAL session_replication_role = replica;
 INSERT INTO public.leases(
   id,
   organization_id,
   property_id,
   unit_id,
-  tenant_name,
   primary_tenant_person_id,
-  lease_start_date,
-  lease_end_date,
-  monthly_rent_amount,
-  monthly_rent_currency,
   status,
   created_by,
   updated_by
@@ -744,12 +740,7 @@ VALUES
   '${ids.organization}'::uuid,
   '${ids.property}'::uuid,
   '${ids.occupancyRaceUnit}'::uuid,
-  'TB-02 tenant A',
   '${ids.tenantA}'::uuid,
-  DATE '2028-01-01',
-  DATE '2028-12-31',
-  1000,
-  'USD',
   'draft',
   '${ids.admin}'::uuid,
   '${ids.admin}'::uuid
@@ -759,12 +750,7 @@ VALUES
   '${ids.organization}'::uuid,
   '${ids.property}'::uuid,
   '${ids.occupancyRaceUnit}'::uuid,
-  'TB-02 tenant B',
   '${ids.tenantB}'::uuid,
-  DATE '2028-01-01',
-  DATE '2028-12-31',
-  1000,
-  'USD',
   'draft',
   '${ids.admin}'::uuid,
   '${ids.admin}'::uuid
@@ -774,16 +760,12 @@ VALUES
   '${ids.organization}'::uuid,
   '${ids.property}'::uuid,
   '${ids.participantRaceUnit}'::uuid,
-  'TB-02 tenant B',
   '${ids.tenantB}'::uuid,
-  DATE '2027-01-01',
-  DATE '2027-12-31',
-  1000,
-  'USD',
   'draft',
   '${ids.admin}'::uuid,
   '${ids.admin}'::uuid
 );
+SET LOCAL session_replication_role = origin;
 
 SELECT set_config(
   'app.lease_history_write_context',
@@ -829,7 +811,7 @@ VALUES (
   'known',
   'confirmed',
   '${ids.admin}'::uuid,
-  'tb02_participant_cross_unit_fixture',
+  'lease-relationship_participant_cross_unit_fixture',
   '${ids.admin}'::uuid,
   '${ids.admin}'::uuid
 );
@@ -884,7 +866,7 @@ VALUES (
   'unknown',
   'unknown',
   '${ids.admin}'::uuid,
-  'tb02_participant_cross_unit_fixture',
+  'lease-relationship_participant_cross_unit_fixture',
   '${ids.admin}'::uuid,
   '${ids.admin}'::uuid
 );
@@ -911,7 +893,7 @@ VALUES (
   '${ids.organization}'::uuid,
   'leases',
   'staged',
-  'tb02-concurrency-double.csv',
+  'lease-relationship-concurrency-double.csv',
   1,
   1,
   0,
@@ -945,7 +927,7 @@ SET LOCAL ROLE authenticated;
 SELECT public.stage_import_run_v1(
   '${ids.organization}'::uuid,
   'leases',
-  'tb02-atomic-claim-race.csv',
+  'lease-relationship-atomic-claim-race.csv',
   42::bigint,
   'text/csv',
   '["unit"]'::jsonb,
@@ -963,7 +945,7 @@ SELECT public.stage_import_run_v1(
 SELECT public.stage_import_run_v1(
   '${ids.organization}'::uuid,
   'leases',
-  'tb02-atomic-stage-first.csv',
+  'lease-relationship-atomic-stage-first.csv',
   55::bigint,
   'text/csv',
   '["unit"]'::jsonb,
@@ -1029,7 +1011,7 @@ SELECT
   'known',
   'confirmed',
   '${ids.admin}'::uuid,
-  'tb02_party_concurrency',
+  'lease-relationship_party_concurrency',
   '${ids.admin}'::uuid,
   '${ids.admin}'::uuid
 FROM public.leases AS leases
@@ -1091,7 +1073,7 @@ SELECT
   'known',
   'confirmed',
   '${ids.admin}'::uuid,
-  'tb02_participant_concurrency',
+  'lease-relationship_participant_concurrency',
   '${ids.admin}'::uuid,
   '${ids.admin}'::uuid
 FROM public.lease_occupancies AS occupancies
@@ -1166,7 +1148,7 @@ SELECT
   'unknown',
   'unknown',
   '${ids.admin}'::uuid,
-  'tb02_occupancy_concurrency',
+  'lease-relationship_occupancy_concurrency',
   '${ids.admin}'::uuid,
   '${ids.admin}'::uuid
 FROM public.leases AS leases
@@ -1179,7 +1161,7 @@ ${commit ? "COMMIT;" : ""}
 
 function startPsql(container, sql, { holdOpen = false } = {}) {
   const applicationName =
-    `nestory-tb02-concurrency-${++processSequence}`;
+    `nestory-lease-relationship-concurrency-${++processSequence}`;
   const child = spawn(
     "docker",
     [
@@ -1353,6 +1335,16 @@ DELETE FROM app_private.financial_idempotency_requests
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
+ALTER TABLE public.financial_reconciliation_sources
+  DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
+DELETE FROM public.financial_reconciliation_sources
+WHERE organization_id = '${ids.organization}'::uuid;
+ALTER TABLE public.financial_reconciliation_sources
+  ENABLE TRIGGER enforce_financial_reconciliation_source_mutation;
+ALTER TABLE public.import_rows
+  DISABLE TRIGGER ab_guard_referenced_lease_import_row_provenance;
+ALTER TABLE public.import_runs
+  DISABLE TRIGGER ab_guard_referenced_lease_import_run_provenance;
 ALTER TABLE public.import_rows
   DISABLE TRIGGER zz_guard_atomic_import_row_write;
 ALTER TABLE public.import_runs
@@ -1363,6 +1355,10 @@ ALTER TABLE public.import_runs
   ENABLE TRIGGER zz_guard_atomic_import_run_write;
 ALTER TABLE public.import_rows
   ENABLE TRIGGER zz_guard_atomic_import_row_write;
+ALTER TABLE public.import_runs
+  ENABLE TRIGGER ab_guard_referenced_lease_import_run_provenance;
+ALTER TABLE public.import_rows
+  ENABLE TRIGGER ab_guard_referenced_lease_import_row_provenance;
 DELETE FROM auth.users
 WHERE id = '${ids.admin}'::uuid;
 COMMIT;
@@ -1378,7 +1374,7 @@ BEGIN
     FROM auth.users
     WHERE id = '${ids.admin}'::uuid
   ) THEN
-    RAISE EXCEPTION 'TB-02 concurrency fixtures remain after cleanup';
+    RAISE EXCEPTION 'Lease relationship concurrency fixtures remain after cleanup';
   END IF;
 END;
 $cleanup$;`,

@@ -77,7 +77,7 @@ describe("getAccessByPersonId", () => {
         },
         {
           branch_id: null,
-          email: "legacy@example.com",
+          email: "unlinked@example.com",
           expires_at: "2026-07-30T12:00:00.000Z",
           id: "invitation-unlinked",
           invited_at: "2026-07-22T12:00:00.000Z",
@@ -133,7 +133,7 @@ describe("getAccessByPersonId", () => {
           },
           {
             branch_id: null,
-            email: "legacy-member@example.com",
+            email: "unlinked-member@example.com",
             id: "membership-unlinked",
             person_id: null,
             role: "operations_member",

@@ -1053,11 +1053,11 @@ describe("AccessSettingsScreen", () => {
     ).toBeNull();
   });
 
-  it("links a legacy unlinked account through the guarded member update", async () => {
+  it("links an unlinked account through the guarded member update", async () => {
     const user = userEvent.setup();
-    const legacyMember = {
+    const unlinkedMember = {
       ...admin,
-      email: "legacy@example.com",
+      email: "unlinked@example.com",
       id: "99999999-9999-4999-8999-999999999999",
       branchId: branch.id,
       personId: null,
@@ -1067,11 +1067,11 @@ describe("AccessSettingsScreen", () => {
     render(
       <AccessSettingsScreen
         branches={[branch]}
-        members={[admin, legacyMember]}
+        members={[admin, unlinkedMember]}
         people={[person]}
       />,
     );
-    const member = getExpandedMember(legacyMember.id);
+    const member = getExpandedMember(unlinkedMember.id);
     expect(
       within(member).getAllByText("Not linked").length,
     ).toBeGreaterThan(0);
@@ -1088,7 +1088,7 @@ describe("AccessSettingsScreen", () => {
     expect(
       Object.fromEntries((updateAccess.mock.calls[0][1] as FormData).entries()),
     ).toMatchObject({
-      memberId: legacyMember.id,
+      memberId: unlinkedMember.id,
       personId: person.id,
     });
   });
@@ -1279,7 +1279,7 @@ describe("AccessSettingsScreen", () => {
   });
 
   // A modal Shadcn Sheet intentionally prevents editing a background member
-  // while the invitation drawer is open, so this legacy cross-modal scenario
+  // while the invitation drawer is open, so this cross-modal scenario
   // is no longer reachable through the UI.
   it.skip("turns a pending navigation into a dirty decision when another draft remains", async () => {
     let resolveAction: (value: {

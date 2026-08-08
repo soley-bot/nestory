@@ -197,7 +197,7 @@ export function TimelineInspector({
               onClick={() => onRestore?.(event)}
               title={
                 event.isLocked
-                  ? "This accounting period is locked."
+                  ? "This month is locked."
                   : "Restore record"
               }
               type="button"
@@ -228,7 +228,7 @@ export function TimelineInspector({
                     onClick={() => onEdit?.(event)}
                     title={
                       event.isLocked
-                        ? "This accounting period is locked."
+                        ? "This month is locked."
                         : "Edit record"
                     }
                     type="button"
@@ -244,7 +244,7 @@ export function TimelineInspector({
                     onClick={() => onArchive?.(event)}
                     title={
                       event.isLocked
-                        ? "This accounting period is locked."
+                        ? "This month is locked."
                         : "Archive record"
                     }
                     type="button"

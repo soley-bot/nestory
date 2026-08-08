@@ -46,7 +46,7 @@ BEGIN
 END;
 $$;
 
-CREATE TEMP TABLE lease_history_tb02_state (
+CREATE TEMP TABLE lease_relationship_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
   manager_id uuid NOT NULL DEFAULT gen_random_uuid(),
   member_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -72,9 +72,9 @@ CREATE TEMP TABLE lease_history_tb02_state (
   cancelled_result jsonb
 ) ON COMMIT DROP;
 
-INSERT INTO lease_history_tb02_state DEFAULT VALUES;
+INSERT INTO lease_relationship_state DEFAULT VALUES;
 
-GRANT SELECT, UPDATE ON lease_history_tb02_state
+GRANT SELECT, UPDATE ON lease_relationship_state
 TO authenticated, service_role;
 
 INSERT INTO auth.users (
@@ -102,7 +102,7 @@ SELECT
   'authenticated',
   'authenticated',
   fixture.label || '-' || left(fixture.user_id::text, 8) || '@example.test',
-  extensions.crypt('lease-history-tb02', extensions.gen_salt('bf')),
+  extensions.crypt('lease-history-lease-relationship', extensions.gen_salt('bf')),
   now(),
   '',
   '',
@@ -114,40 +114,40 @@ SELECT
   '{}',
   now(),
   now()
-FROM lease_history_tb02_state AS state
+FROM lease_relationship_state AS state
 CROSS JOIN LATERAL (
   VALUES
-    (state.admin_id, 'tb02-admin'),
-    (state.manager_id, 'tb02-manager'),
-    (state.member_id, 'tb02-member'),
-    (state.cross_admin_id, 'tb02-cross-admin')
+    (state.admin_id, 'lease-relationship-admin'),
+    (state.manager_id, 'lease-relationship-manager'),
+    (state.member_id, 'lease-relationship-member'),
+    (state.cross_admin_id, 'lease-relationship-cross-admin')
 ) AS fixture(user_id, label);
 
 INSERT INTO public.organizations(id, name, slug)
 SELECT
   organization_id,
-  'TB-02 relationship organization',
-  'tb02-' || left(organization_id::text, 8)
-FROM lease_history_tb02_state
+  'Lease relationship relationship organization',
+  'lease-relationship-' || left(organization_id::text, 8)
+FROM lease_relationship_state
 UNION ALL
 SELECT
   cross_organization_id,
-  'TB-02 cross organization',
-  'tb02-cross-' || left(cross_organization_id::text, 8)
-FROM lease_history_tb02_state;
+  'Lease relationship cross organization',
+  'lease-relationship-cross-' || left(cross_organization_id::text, 8)
+FROM lease_relationship_state;
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
 SELECT organization_id, admin_id, 'super_admin'
-FROM lease_history_tb02_state
+FROM lease_relationship_state
 UNION ALL
 SELECT organization_id, manager_id, 'finance_manager'
-FROM lease_history_tb02_state
+FROM lease_relationship_state
 UNION ALL
 SELECT organization_id, member_id, 'finance_member'
-FROM lease_history_tb02_state
+FROM lease_relationship_state
 UNION ALL
 SELECT cross_organization_id, cross_admin_id, 'super_admin'
-FROM lease_history_tb02_state;
+FROM lease_relationship_state;
 
 INSERT INTO public.properties(
   id, organization_id, name, code, property_type, status
@@ -155,20 +155,20 @@ INSERT INTO public.properties(
 SELECT
   property_id,
   organization_id,
-  'TB-02 property',
-  'TB02-' || left(property_id::text, 8),
+  'Lease relationship property',
+  'LEASE-' || left(property_id::text, 8),
   'apartment',
   'active'
-FROM lease_history_tb02_state
+FROM lease_relationship_state
 UNION ALL
 SELECT
   cross_property_id,
   cross_organization_id,
-  'TB-02 cross property',
-  'TB02-X-' || left(cross_property_id::text, 8),
+  'Lease relationship cross property',
+  'LEASE-X-' || left(cross_property_id::text, 8),
   'apartment',
   'active'
-FROM lease_history_tb02_state;
+FROM lease_relationship_state;
 
 INSERT INTO public.units(
   id,
@@ -187,14 +187,14 @@ SELECT
   'vacant',
   1000,
   'USD'
-FROM lease_history_tb02_state AS state
+FROM lease_relationship_state AS state
 CROSS JOIN LATERAL (
   VALUES
-    (state.planned_unit_id, 'TB02-01'),
-    (state.no_participant_unit_id, 'TB02-02'),
-    (state.cancelled_unit_id, 'TB02-03'),
-    (state.company_unit_id, 'TB02-04'),
-    (state.import_unit_id, 'TB02-05')
+    (state.planned_unit_id, 'LEASE-01'),
+    (state.no_participant_unit_id, 'LEASE-02'),
+    (state.cancelled_unit_id, 'LEASE-03'),
+    (state.company_unit_id, 'LEASE-04'),
+    (state.import_unit_id, 'LEASE-05')
 ) AS fixture(unit_id, unit_number);
 
 INSERT INTO public.units(
@@ -210,11 +210,11 @@ SELECT
   cross_unit_id,
   cross_organization_id,
   cross_property_id,
-  'TB02-X-01',
+  'LEASE-X-01',
   'vacant',
   1000,
   'USD'
-FROM lease_history_tb02_state;
+FROM lease_relationship_state;
 
 INSERT INTO public.people(
   id, organization_id, display_name, party_type
@@ -224,31 +224,31 @@ SELECT
   fixture.organization_id,
   fixture.display_name,
   fixture.party_type
-FROM lease_history_tb02_state AS state
+FROM lease_relationship_state AS state
 CROSS JOIN LATERAL (
   VALUES
     (
       state.tenant_id,
       state.organization_id,
-      'TB-02 tenant',
+      'Lease relationship tenant',
       'individual'
     ),
     (
       state.second_tenant_id,
       state.organization_id,
-      'TB-02 second tenant',
+      'Lease relationship second tenant',
       'individual'
     ),
     (
       state.company_id,
       state.organization_id,
-      'TB-02 company tenant',
+      'Lease relationship company tenant',
       'company'
     ),
     (
       state.cross_tenant_id,
       state.cross_organization_id,
-      'TB-02 cross tenant',
+      'Lease relationship cross tenant',
       'individual'
     )
 ) AS fixture(person_id, organization_id, display_name, party_type);
@@ -258,7 +258,7 @@ SELECT
   fixture.organization_id,
   fixture.person_id,
   'tenant'
-FROM lease_history_tb02_state AS state
+FROM lease_relationship_state AS state
 CROSS JOIN LATERAL (
   VALUES
     (state.organization_id, state.tenant_id),
@@ -269,12 +269,12 @@ CROSS JOIN LATERAL (
 
 SELECT set_config(
   'request.jwt.claim.sub',
-  (SELECT admin_id::text FROM lease_history_tb02_state),
+  (SELECT admin_id::text FROM lease_relationship_state),
   true
 );
 SET LOCAL ROLE authenticated;
 
-UPDATE lease_history_tb02_state AS state
+UPDATE lease_relationship_state AS state
 SET planned_result = public.create_lease_with_relationships(
   state.organization_id,
   state.property_id,
@@ -351,7 +351,7 @@ SET planned_result = public.create_lease_with_relationships(
       )
     )
   ),
-  'tb02-planned-create'
+  'lease-relationship-planned-create'
 );
 
 SELECT is(
@@ -360,7 +360,7 @@ SELECT is(
     FROM public.lease_parties AS parties
     WHERE parties.lease_id =
       (SELECT (planned_result ->> 'leaseId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
       AND parties.party_role = 'primary_tenant'
       AND parties.evidence_state = 'accepted'
   ),
@@ -373,7 +373,7 @@ SELECT is(
     FROM public.lease_occupancies AS occupancies
     WHERE occupancies.lease_id =
       (SELECT (planned_result ->> 'leaseId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
       AND occupancies.evidence_state = 'accepted'
   ),
   1,
@@ -385,7 +385,7 @@ SELECT is(
     FROM public.lease_occupancy_participants AS participants
     WHERE participants.lease_occupancy_id =
       (SELECT (planned_result ->> 'occupancyId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   1,
   'explicit planned Person participation is created once'
@@ -396,7 +396,7 @@ SELECT is(
     FROM public.lease_parties AS parties
     WHERE parties.id =
       (SELECT (planned_result ->> 'partyId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   DATE '2027-01-10',
   'term start does not silently confirm the party boundary'
@@ -407,7 +407,7 @@ SELECT is(
     FROM public.lease_occupancies AS occupancies
     WHERE occupancies.id =
       (SELECT (planned_result ->> 'occupancyId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   DATE '2027-01-11',
   'scheduled occupancy remains its own explicit fact'
@@ -418,7 +418,7 @@ SELECT is(
     FROM public.lease_occupancies AS occupancies
     WHERE occupancies.id =
       (SELECT (planned_result ->> 'occupancyId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   NULL::date,
   'omitted actual move-in stays NULL'
@@ -429,7 +429,7 @@ SELECT is(
     FROM public.lease_occupancies AS occupancies
     WHERE occupancies.id =
       (SELECT (planned_result ->> 'occupancyId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   NULL::date,
   'omitted actual move-out stays NULL'
@@ -443,7 +443,7 @@ SELECT is(
         SELECT jsonb_array_elements_text(
           planned_result -> 'participantIds'
         )::uuid
-        FROM lease_history_tb02_state
+        FROM lease_relationship_state
       )
   ),
   'planned',
@@ -462,7 +462,7 @@ SELECT ok(
         )
       )
     )
-    FROM lease_history_tb02_state AS state
+    FROM lease_relationship_state AS state
     JOIN public.activity_logs AS activity
       ON activity.organization_id = state.organization_id
       AND activity.action IN (
@@ -551,12 +551,12 @@ SELECT is(
         )
       )
     ),
-    'tb02-planned-create'
+    'lease-relationship-planned-create'
   ),
   state.planned_result,
   'same-payload retry returns the exact relationship IDs'
 )
-FROM lease_history_tb02_state AS state;
+FROM lease_relationship_state AS state;
 
 SELECT is(
   (
@@ -564,7 +564,7 @@ SELECT is(
     FROM public.lease_parties
     WHERE lease_id =
       (SELECT (planned_result ->> 'leaseId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   1,
   'same-payload retry does not duplicate the primary party'
@@ -575,7 +575,7 @@ SELECT is(
     FROM public.lease_occupancies
     WHERE lease_id =
       (SELECT (planned_result ->> 'leaseId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   1,
   'same-payload retry does not duplicate the occupancy'
@@ -639,16 +639,16 @@ SELECT is(
           ),
           'participants', '[]'::jsonb
         ),
-        'tb02-planned-create'
+        'lease-relationship-planned-create'
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '22023',
   'same key with a different relationship payload is rejected'
 );
 
-UPDATE lease_history_tb02_state AS state
+UPDATE lease_relationship_state AS state
 SET no_participant_result = public.create_lease_with_relationships(
   state.organization_id,
   state.property_id,
@@ -708,7 +708,7 @@ SET no_participant_result = public.create_lease_with_relationships(
     ),
     'participants', '[]'::jsonb
   ),
-  'tb02-no-participant'
+  'lease-relationship-no-participant'
 );
 
 SELECT is(
@@ -717,7 +717,7 @@ SELECT is(
     FROM public.lease_occupancy_participants AS participants
     WHERE participants.lease_occupancy_id =
       (SELECT (no_participant_result ->> 'occupancyId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   0,
   'party role plus Lease occupancy does not prove Person residence'
@@ -734,7 +734,7 @@ SELECT set_config(
   )::text,
   true
 )
-FROM lease_history_tb02_state;
+FROM lease_relationship_state;
 
 INSERT INTO public.import_runs(
   id,
@@ -754,14 +754,14 @@ SELECT
   organization_id,
   'leases',
   'staged',
-  'tb02-explicit-lease.csv',
+  'lease-relationship-explicit-lease.csv',
   1,
   1,
   encode(extensions.digest(import_run_id::text, 'sha256'), 'hex'),
   encode(extensions.digest('snapshot:' || import_run_id::text, 'sha256'), 'hex'),
   admin_id,
   admin_id
-FROM lease_history_tb02_state;
+FROM lease_relationship_state;
 
 INSERT INTO public.import_rows(
   id,
@@ -780,7 +780,7 @@ SELECT
   1,
   'ready',
   'Create Lease',
-  '{"source":"tb02"}'::jsonb,
+  '{"source":"lease-relationship"}'::jsonb,
   jsonb_build_object(
     'propertyId', property_id,
     'unitId', import_unit_id,
@@ -794,7 +794,7 @@ SELECT
     'depositAmount', '',
     'status', 'draft'
   )
-FROM lease_history_tb02_state;
+FROM lease_relationship_state;
 
 SELECT set_config('app.atomic_import_write_context', '', true);
 SET LOCAL ROLE authenticated;
@@ -807,14 +807,14 @@ SELECT lives_ok(
   ),
   'checked Lease import consumes the normalized relationship composition'
 )
-FROM lease_history_tb02_state;
+FROM lease_relationship_state;
 
 SELECT is(
   (
     SELECT rows.row_status
     FROM public.import_rows AS rows
     WHERE rows.id =
-      (SELECT import_row_id FROM lease_history_tb02_state)
+      (SELECT import_row_id FROM lease_relationship_state)
   ),
   'committed',
   'checked Lease import commits the normalized row'
@@ -826,7 +826,7 @@ SELECT ok(
       AND rows.result_lease_occupancy_id IS NOT NULL
     FROM public.import_rows AS rows
     WHERE rows.id =
-      (SELECT import_row_id FROM lease_history_tb02_state)
+      (SELECT import_row_id FROM lease_relationship_state)
   ),
   'checked Lease import returns exact Lease, party, and occupancy IDs'
 );
@@ -838,12 +838,12 @@ SELECT is(
       SELECT rows.result_lease_party_id
       FROM public.import_rows AS rows
       WHERE rows.id =
-        (SELECT import_row_id FROM lease_history_tb02_state)
+        (SELECT import_row_id FROM lease_relationship_state)
     )
       AND parties.evidence_state = 'accepted'
       AND parties.record_source = 'imported_explicit'
       AND parties.source_import_row_id =
-        (SELECT import_row_id FROM lease_history_tb02_state)
+        (SELECT import_row_id FROM lease_relationship_state)
   ),
   1,
   'checked Lease import creates one payload-bound accepted primary party'
@@ -856,12 +856,12 @@ SELECT is(
       SELECT rows.result_lease_occupancy_id
       FROM public.import_rows AS rows
       WHERE rows.id =
-        (SELECT import_row_id FROM lease_history_tb02_state)
+        (SELECT import_row_id FROM lease_relationship_state)
     )
       AND occupancies.evidence_state = 'accepted'
       AND occupancies.record_source = 'imported_explicit'
       AND occupancies.source_import_row_id =
-        (SELECT import_row_id FROM lease_history_tb02_state)
+        (SELECT import_row_id FROM lease_relationship_state)
       AND occupancies.actual_move_in_date IS NULL
       AND occupancies.actual_move_out_date IS NULL
   ),
@@ -876,14 +876,14 @@ SELECT is(
       SELECT rows.result_lease_occupancy_id
       FROM public.import_rows AS rows
       WHERE rows.id =
-        (SELECT import_row_id FROM lease_history_tb02_state)
+        (SELECT import_row_id FROM lease_relationship_state)
     )
   ),
   0,
   'Lease import does not infer participant presence from party and occupancy'
 );
 
-UPDATE lease_history_tb02_state AS state
+UPDATE lease_relationship_state AS state
 SET cancelled_result = public.create_lease_with_relationships(
   state.organization_id,
   state.property_id,
@@ -960,7 +960,7 @@ SET cancelled_result = public.create_lease_with_relationships(
       )
     )
   ),
-  'tb02-cancelled-create'
+  'lease-relationship-cancelled-create'
 );
 
 SELECT is(
@@ -969,7 +969,7 @@ SELECT is(
     FROM public.lease_parties AS parties
     WHERE parties.id =
       (SELECT (cancelled_result ->> 'partyId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   NULL::daterange,
   'cancelled-before-effective party does not count as responsibility'
@@ -983,7 +983,7 @@ SELECT is(
         SELECT jsonb_array_elements_text(
           cancelled_result -> 'participantIds'
         )::uuid
-        FROM lease_history_tb02_state
+        FROM lease_relationship_state
       )
   ),
   NULL::daterange,
@@ -996,7 +996,7 @@ SELECT ok(
     FROM public.lease_occupancies AS occupancies
     WHERE occupancies.id =
       (SELECT (cancelled_result ->> 'occupancyId')::uuid
-       FROM lease_history_tb02_state)
+       FROM lease_relationship_state)
   ),
   'cancelled reservation has no confirmed actual occupancy'
 );
@@ -1077,10 +1077,10 @@ SELECT is(
             )
           )
         ),
-        'tb02-company-participant'
+        'lease-relationship-company-participant'
       )
     ) ->> 'detail'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   'occupancy_participant_individual_required',
   'a company cannot be an occupancy participant'
@@ -1145,10 +1145,10 @@ SELECT is(
           ),
           'participants', '[]'::jsonb
         ),
-        'tb02-cross-org'
+        'lease-relationship-cross-org'
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '23503',
   'checked creation rejects cross-organization Unit links'
@@ -1156,7 +1156,7 @@ SELECT is(
 
 SELECT set_config(
   'request.jwt.claim.sub',
-  (SELECT manager_id::text FROM lease_history_tb02_state),
+  (SELECT manager_id::text FROM lease_relationship_state),
   true
 );
 SELECT is(
@@ -1175,10 +1175,10 @@ SELECT is(
         'upcoming',
         'draft',
         '{}'::jsonb,
-        'tb02-manager'
+        'lease-relationship-manager'
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '42501',
   'manager cannot create normalized Lease relationships'
@@ -1186,7 +1186,7 @@ SELECT is(
 
 SELECT set_config(
   'request.jwt.claim.sub',
-  (SELECT member_id::text FROM lease_history_tb02_state),
+  (SELECT member_id::text FROM lease_relationship_state),
   true
 );
 SELECT is(
@@ -1205,10 +1205,10 @@ SELECT is(
         'upcoming',
         'draft',
         '{}'::jsonb,
-        'tb02-member'
+        'lease-relationship-member'
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '42501',
   'member cannot create normalized Lease relationships'
@@ -1216,7 +1216,7 @@ SELECT is(
 
 SELECT set_config(
   'request.jwt.claim.sub',
-  (SELECT cross_admin_id::text FROM lease_history_tb02_state),
+  (SELECT cross_admin_id::text FROM lease_relationship_state),
   true
 );
 SELECT is(
@@ -1235,10 +1235,10 @@ SELECT is(
         'upcoming',
         'draft',
         '{}'::jsonb,
-        'tb02-cross-admin'
+        'lease-relationship-cross-admin'
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '42501',
   'an admin from another organization cannot use the target scope'
@@ -1246,7 +1246,7 @@ SELECT is(
 
 SELECT set_config(
   'request.jwt.claim.sub',
-  (SELECT admin_id::text FROM lease_history_tb02_state),
+  (SELECT admin_id::text FROM lease_relationship_state),
   true
 );
 SELECT is(
@@ -1258,7 +1258,7 @@ SELECT is(
         (planned_result ->> 'partyId')::uuid
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '42501',
   'direct authenticated Lease-party DML remains denied'
@@ -1272,7 +1272,7 @@ SELECT is(
         (planned_result ->> 'occupancyId')::uuid
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '42501',
   'direct authenticated Lease-occupancy DML remains denied'
@@ -1286,7 +1286,7 @@ SELECT is(
         (planned_result ->> 'occupancyId')::uuid
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '42501',
   'direct authenticated participant DML is denied'
@@ -1317,7 +1317,7 @@ SELECT is(
         'overlap test'
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '23P01',
   'accepted overlapping primary-party intervals are rejected'
@@ -1343,7 +1343,7 @@ SELECT is(
         'same Person-role overlap test'
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '23P01',
   'accepted overlapping Person-role intervals are rejected'
@@ -1375,7 +1375,7 @@ SELECT is(
         'actual overlap test'
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '23P01',
   'accepted actual occupancy cannot overlap an accepted reservation'
@@ -1393,7 +1393,7 @@ SELECT is(
         (planned_result ->> 'occupancyId')::uuid
       )
     ) ->> 'sqlstate'
-    FROM lease_history_tb02_state
+    FROM lease_relationship_state
   ),
   '42501',
   'service role cannot bypass participant mutation'

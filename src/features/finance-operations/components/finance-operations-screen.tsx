@@ -41,6 +41,8 @@ import {
   recoverLeaseRentPeriodAction,
   recoverRentGenerationExceptionAction,
   reverseExpenseAction,
+  reverseOwnerCollectionConfirmationAction,
+  reverseTenantInvoicePaymentAction,
   reviewExpenseAction,
   saveLeaseBillingAction,
   submitExpenseAction,
@@ -53,6 +55,7 @@ import type {
   OwnerInvoiceSummary,
   PropertyFinancePosition,
   RentGenerationException,
+  TenantInvoiceSettlement,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
@@ -78,6 +81,10 @@ type ModalState =
   | {
       mode: "expense-reversal";
       submission: ExpenseSubmissionSummary;
+    }
+  | {
+      invoice: TenantInvoiceSummary;
+      mode: "settlement-reversal";
     }
   | { mode: "withdrawal"; position: PropertyFinancePosition };
 
@@ -239,6 +246,11 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
             <ExpenseReversalForm
               onSuccess={onActionSuccess}
               submission={visibleModal.submission}
+            />
+          ) : visibleModal.mode === "settlement-reversal" ? (
+            <SettlementReversalForm
+              invoice={visibleModal.invoice}
+              onSuccess={onActionSuccess}
             />
           ) : (
             <WithdrawalForm
@@ -847,16 +859,43 @@ function RentView({
                       <StatusBadge status={invoice.paymentStatus} />
                     </Td>
                     <Td align="right">
-                      {invoice.balanceDue > 0 && canRecordPayments ? (
-                        <Button
-                          onClick={() =>
-                            openModal({ invoice, mode: "payment" })
-                          }
-                        >
-                          {invoice.collectionRoute === "through_ips"
-                            ? "Record payment"
-                            : "Confirm collected"}
-                        </Button>
+                      {canRecordPayments ? (
+                        <div className="flex justify-end gap-2">
+                          {invoice.balanceDue > 0 ? (
+                            <Button
+                              onClick={() =>
+                                openModal({ invoice, mode: "payment" })
+                              }
+                            >
+                              {invoice.collectionRoute === "through_ips"
+                                ? "Record payment"
+                                : "Confirm collected"}
+                            </Button>
+                          ) : null}
+                          {invoice.settlements.some(
+                            (settlement) => !settlement.isReversed,
+                          ) ? (
+                            <Button
+                              onClick={() =>
+                                openModal({
+                                  invoice,
+                                  mode: "settlement-reversal",
+                                })
+                              }
+                              variant="outline"
+                            >
+                              Correct
+                            </Button>
+                          ) : null}
+                          {invoice.balanceDue <= 0 &&
+                          !invoice.settlements.some(
+                            (settlement) => !settlement.isReversed,
+                          ) ? (
+                            <span className="self-center text-xs text-muted-foreground">
+                              Done
+                            </span>
+                          ) : null}
+                        </div>
                       ) : invoice.balanceDue <= 0 ? (
                         <span className="text-xs text-muted-foreground">
                           Done
@@ -2270,6 +2309,107 @@ function ExpenseReversalForm({
   );
 }
 
+function SettlementReversalForm({
+  invoice,
+  onSuccess,
+}: {
+  invoice: TenantInvoiceSummary;
+  onSuccess: (message: string) => void;
+}) {
+  const settlements = invoice.settlements.filter(
+    (settlement) => !settlement.isReversed,
+  );
+  const [settlementId, setSettlementId] = useState(settlements[0]?.id ?? "");
+  const [reason, setReason] = useState("");
+  const idempotencyKey = useStableActionId("settlement-reversal");
+  const action =
+    invoice.collectionRoute === "through_ips"
+      ? reverseTenantInvoicePaymentAction
+      : reverseOwnerCollectionConfirmationAction;
+  const [state, formAction] = useActionState(action, actionInitialState);
+  useSuccess(state, onSuccess);
+
+  if (settlements.length === 0) {
+    return (
+      <EmptyState
+        body="Every recorded settlement for this invoice is already reversed."
+        kind="empty"
+        title="No settlement to correct"
+      />
+    );
+  }
+
+  return (
+    <form action={formAction} className="space-y-4 p-4">
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <input name="reason" type="hidden" value={reason} />
+      <DefinitionRows
+        rows={[
+          ["Invoice", invoice.invoiceNumber],
+          ["Customer", invoice.recipientLabel],
+          [
+            "Collection route",
+            invoice.collectionRoute === "through_ips"
+              ? "Collected by IPS"
+              : "Collected by owner",
+          ],
+        ]}
+      />
+      <Field label="Settlement">
+        <SelectControl
+          ariaLabel="Settlement"
+          name="settlementId"
+          onValueChange={setSettlementId}
+          options={settlements.map((settlement) => ({
+            label: settlementOptionLabel(settlement),
+            value: settlement.id,
+          }))}
+          required
+          value={settlementId}
+        />
+      </Field>
+      <Field label="Reversal date">
+        <DatePickerField
+          defaultValue={getBusinessDateValue()}
+          name="reversalDate"
+          required
+        />
+      </Field>
+      <Field label="Reason">
+        <Input
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Explain the correction"
+          required
+          value={reason}
+        />
+      </Field>
+      <p className="text-xs text-muted-foreground">
+        The original stays in history. Nestory adds an equal opposite invoice,
+        property-account, and Ledger event.
+      </p>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton
+          disabled={!settlementId || reason.trim().length < 3}
+          label="Reverse settlement"
+        />
+      </FormFooter>
+    </form>
+  );
+}
+
+function settlementOptionLabel(settlement: TenantInvoiceSettlement) {
+  const reference = settlement.reference?.trim();
+  return [
+    formatDate(settlement.date),
+    formatMoneyDisplay(settlement.amount).primary,
+    reference || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function OwnerPaymentForm({
   invoice,
   onSuccess,
@@ -2387,6 +2527,7 @@ function getModalTitle(modal: ModalState) {
     return modal.decision === "approve" ? "Approve expense" : "Reject expense";
   }
   if (modal.mode === "expense-reversal") return "Reverse expense";
+  if (modal.mode === "settlement-reversal") return "Correct settlement";
   return "Owner withdrawal";
 }
 
@@ -2399,6 +2540,7 @@ function canRenderFinanceModal(
 ) {
   if (
     modal.mode === "payment" ||
+    modal.mode === "settlement-reversal" ||
     modal.mode === "owner-payment" ||
     modal.mode === "withdrawal"
   ) {

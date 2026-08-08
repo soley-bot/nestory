@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { evaluateAcceptedRangeRace } from "./lease-history-model-concurrency.mjs";
+import { evaluateAcceptedRangeRace } from "./lease-relationship-concurrency.mjs";
 
-describe("TB-02 accepted relationship concurrency result contract", () => {
+describe("Lease relationship accepted relationship concurrency result contract", () => {
   it("accepts exactly one committed contender and one exclusion rejection", () => {
     expect(
       evaluateAcceptedRangeRace(

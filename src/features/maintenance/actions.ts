@@ -918,10 +918,6 @@ function maintenanceActionErrorMessage(message: string) {
     return "Choose a document attached to this maintenance case.";
   }
 
-  if (message.includes("Direct maintenance cost posting is retired")) {
-    return "Submit the recorded cost to Finance for approval.";
-  }
-
   if (
     message.includes("violates row-level security") ||
     message.includes("Not authorized")

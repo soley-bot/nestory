@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
-import { CheckboxControl } from "@/components/ui/checkbox-control";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
@@ -350,7 +350,7 @@ function RoleCheckbox({
         "hover:bg-muted",
       )}
     >
-      <CheckboxControl
+      <Checkbox
         defaultChecked={defaultChecked}
         name="roles"
         value={role}

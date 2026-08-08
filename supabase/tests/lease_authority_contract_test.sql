@@ -110,11 +110,11 @@ SELECT has_function(
   'term correction preserves explicit lineage'
 );
 
-SELECT has_function(
+SELECT hasnt_function(
   'public',
   'terminate_authoritative_lease_term',
   ARRAY['uuid', 'uuid', 'uuid', 'date', 'text'],
-  'term termination has one checked command'
+  'the retired term-termination stub is absent'
 );
 
 SELECT has_function(

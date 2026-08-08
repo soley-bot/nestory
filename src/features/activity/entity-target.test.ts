@@ -32,7 +32,6 @@ describe("resolveActivityEntityTarget", () => {
       "organization_branch",
       "organization_invitation",
       "organization_membership",
-      "people_leases_backfill",
     ]);
   });
 
@@ -232,21 +231,6 @@ describe("resolveActivityEntityTarget", () => {
       entityLabel,
       focusMode: "module",
       href,
-    });
-  });
-
-  it("classifies people lease backfills as explicitly unavailable", () => {
-    const target = resolveActivityEntityTarget({
-      entityId: id,
-      entityType: "people_leases_backfill",
-      recordLabel: "Lease relationship backfill",
-    });
-
-    expect(target).toEqual({
-      actionLabel: "Source unavailable",
-      entityLabel: "People leases backfill",
-      focusMode: "unavailable",
-      recordLabel: "Lease relationship backfill",
     });
   });
 

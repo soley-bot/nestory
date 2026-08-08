@@ -604,8 +604,8 @@ function pettyCashErrorMessage(message: string) {
     return "That petty cash account already exists.";
   }
 
-  if (message.includes("Accounting period is locked")) {
-    return "The ledger period is locked. Unlock the period before posting.";
+  if (message.includes("Financial month is locked")) {
+    return "This month is locked. Unlock it before posting.";
   }
 
   if (message.includes("Only petty cash expenses")) {

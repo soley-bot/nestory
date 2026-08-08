@@ -44,12 +44,12 @@ SELECT has_column(
 );
 
 CREATE TEMP TABLE owner_account_state (
-  organization_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001',
-  admin_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000101',
-  through_lease_id uuid NOT NULL DEFAULT '30000000-0000-0000-0000-000000000001',
-  direct_lease_id uuid NOT NULL DEFAULT '30000000-0000-0000-0000-000000000002',
-  through_tenant_id uuid NOT NULL DEFAULT '80000000-0000-0000-0000-000000000001',
-  company_id uuid NOT NULL DEFAULT '80000000-0000-0000-0000-000000000007',
+  organization_id uuid NOT NULL,
+  admin_id uuid NOT NULL,
+  through_lease_id uuid NOT NULL,
+  direct_lease_id uuid NOT NULL,
+  through_tenant_id uuid NOT NULL,
+  direct_tenant_id uuid NOT NULL,
   through_invoice_id uuid,
   direct_invoice_id uuid,
   through_property_id uuid,
@@ -58,10 +58,63 @@ CREATE TEMP TABLE owner_account_state (
   source_id uuid,
   owner_expense_result jsonb,
   withdrawal_id uuid,
-  owner_payment_id uuid
+  owner_payment_id uuid,
+  baseline_rent_income numeric NOT NULL,
+  baseline_management_fee_expense numeric NOT NULL,
+  baseline_owner_expense numeric NOT NULL,
+  baseline_withdrawals numeric NOT NULL,
+  baseline_running_balance numeric NOT NULL,
+  baseline_cash_held_by_ips numeric NOT NULL,
+  baseline_owner_owes_ips numeric NOT NULL,
+  baseline_available_withdrawal numeric NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO owner_account_state DEFAULT VALUES;
+INSERT INTO owner_account_state (
+  organization_id,
+  admin_id,
+  through_lease_id,
+  direct_lease_id,
+  through_tenant_id,
+  direct_tenant_id,
+  through_property_id,
+  direct_property_id,
+  through_unit_id,
+  baseline_rent_income,
+  baseline_management_fee_expense,
+  baseline_owner_expense,
+  baseline_withdrawals,
+  baseline_running_balance,
+  baseline_cash_held_by_ips,
+  baseline_owner_owes_ips,
+  baseline_available_withdrawal
+)
+SELECT
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000101',
+  through_lease.id,
+  direct_lease.id,
+  '80000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000002',
+  through_lease.property_id,
+  direct_lease.property_id,
+  through_lease.unit_id,
+  position.rent_income,
+  position.management_fee_expense,
+  position.owner_expense,
+  position.withdrawals,
+  position.running_balance,
+  position.cash_held_by_ips,
+  position.owner_owes_ips,
+  position.available_withdrawal
+FROM public.current_leases AS through_lease
+JOIN public.current_leases AS direct_lease
+  ON direct_lease.organization_id = through_lease.organization_id
+ AND direct_lease.primary_tenant_person_id = '80000000-0000-0000-0000-000000000002'
+JOIN public.property_finance_positions AS position
+  ON position.organization_id = through_lease.organization_id
+ AND position.property_id = through_lease.property_id
+WHERE through_lease.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND through_lease.primary_tenant_person_id = '80000000-0000-0000-0000-000000000001';
 GRANT SELECT, UPDATE ON owner_account_state TO authenticated;
 
 SELECT set_config(
@@ -125,7 +178,7 @@ SELECT lives_ok(
     SELECT public.set_lease_billing_term(
       organization_id,
       through_lease_id,
-      (SELECT lease_start_date FROM public.current_leases WHERE id = through_lease_id),
+      (date_trunc('month', current_date) + interval '1 month')::date,
       'through_ips',
       'percentage',
       10,
@@ -135,7 +188,15 @@ SELECT lives_ok(
       through_tenant_id,
       NULL,
       NULL,
-      NULL,
+      (
+        SELECT id
+        FROM public.lease_billing_terms
+        WHERE organization_id = owner_account_state.organization_id
+          AND lease_id = owner_account_state.through_lease_id
+          AND archived_at IS NULL
+        ORDER BY effective_from DESC
+        LIMIT 1
+      ),
       'account-through-billing-0001'
     )
     FROM owner_account_state
@@ -146,21 +207,16 @@ SELECT lives_ok(
 SELECT lives_ok(
   $$
     UPDATE owner_account_state
-    SET through_invoice_id = (
-          SELECT id
-          FROM public.tenant_invoices
-          WHERE lease_id = through_lease_id
-          ORDER BY billing_period_start DESC
-          LIMIT 1
-        ),
-        through_property_id = (
-          SELECT property_id FROM public.leases WHERE id = through_lease_id
-        ),
-        through_unit_id = (
-          SELECT unit_id FROM public.leases WHERE id = through_lease_id
-        )
+    SET through_invoice_id = app_private.generate_lease_rent_invoice(
+      organization_id,
+      through_lease_id,
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      current_date,
+      'manual_recovery',
+      admin_id
+    )
   $$,
-  'billing activation creates the property management fee'
+  'selected-month generation creates the property rent and fee obligations'
 );
 
 SELECT lives_ok(
@@ -185,7 +241,7 @@ SELECT lives_ok(
     SELECT public.record_tenant_invoice_payment(
       organization_id,
       through_invoice_id,
-      780,
+      850,
       current_date,
       source_id,
       'Full rent',
@@ -197,7 +253,7 @@ SELECT lives_ok(
             WHERE invoice_id = through_invoice_id
               AND line_type = 'rent'
           ),
-          'amount', 780
+          'amount', 850
         )
       ),
       'account-through-payment-0001'
@@ -209,14 +265,22 @@ SELECT lives_ok(
 
 SELECT results_eq(
   $$
-    SELECT rent_income, management_fee_expense, owner_expense, withdrawals,
-           running_balance, cash_held_by_ips, owner_owes_ips, available_withdrawal
-    FROM public.property_finance_positions
-    WHERE property_id = (SELECT through_property_id FROM owner_account_state)
+    SELECT
+      position.rent_income - state.baseline_rent_income,
+      position.management_fee_expense - state.baseline_management_fee_expense,
+      position.owner_expense - state.baseline_owner_expense,
+      position.withdrawals - state.baseline_withdrawals,
+      position.running_balance - state.baseline_running_balance,
+      position.cash_held_by_ips - state.baseline_cash_held_by_ips,
+      position.owner_owes_ips - state.baseline_owner_owes_ips,
+      position.available_withdrawal - state.baseline_available_withdrawal
+    FROM public.property_finance_positions AS position
+    CROSS JOIN owner_account_state AS state
+    WHERE position.property_id = state.through_property_id
   $$,
   $$VALUES (
-    780.00::numeric, 78.00::numeric, 0.00::numeric, 0.00::numeric,
-    702.00::numeric, 702.00::numeric, 0.00::numeric, 702.00::numeric
+    850.00::numeric, 85.00::numeric, 0.00::numeric, 0.00::numeric,
+    765.00::numeric, 765.00::numeric, 0.00::numeric, 765.00::numeric
   )$$,
   'property position separates owner balance, IPS-held cash, and safe withdrawal'
 );
@@ -233,16 +297,21 @@ SELECT lives_ok(
       'account-withdrawal-0001'
     )
   $$,
-  'staff can withdraw only the remaining property cash'
+  'Super Admin can withdraw only the remaining property cash'
 );
 
 SELECT results_eq(
   $$
-    SELECT running_balance, cash_held_by_ips, owner_owes_ips, available_withdrawal
-    FROM public.property_finance_positions
-    WHERE property_id = (SELECT through_property_id FROM owner_account_state)
+    SELECT
+      position.running_balance - state.baseline_running_balance,
+      position.cash_held_by_ips - state.baseline_cash_held_by_ips,
+      position.owner_owes_ips - state.baseline_owner_owes_ips,
+      position.available_withdrawal - state.baseline_available_withdrawal
+    FROM public.property_finance_positions AS position
+    CROSS JOIN owner_account_state AS state
+    WHERE position.property_id = state.through_property_id
   $$,
-  $$VALUES (302.00::numeric, 302.00::numeric, 0.00::numeric, 302.00::numeric)$$,
+  $$VALUES (365.00::numeric, 365.00::numeric, 0.00::numeric, 365.00::numeric)$$,
   'withdrawal updates the property running balance and held cash together'
 );
 
@@ -298,7 +367,11 @@ SELECT throws_ok(
     SELECT public.record_property_withdrawal(
       organization_id,
       through_property_id,
-      303,
+      (
+        SELECT available_withdrawal + 1
+        FROM public.property_finance_positions
+        WHERE property_id = through_property_id
+      ),
       current_date,
       'Too much',
       'account-withdrawal-too-large'
@@ -315,17 +388,25 @@ SELECT lives_ok(
     SELECT public.set_lease_billing_term(
       organization_id,
       direct_lease_id,
-      (SELECT lease_start_date FROM public.current_leases WHERE id = direct_lease_id),
+      (date_trunc('month', current_date) + interval '1 month')::date,
       'direct_to_owner',
       'flat',
       65,
       true,
       true,
-      'company',
-      company_id,
+      'individual',
+      direct_tenant_id,
       NULL,
       NULL,
-      NULL,
+      (
+        SELECT id
+        FROM public.lease_billing_terms
+        WHERE organization_id = owner_account_state.organization_id
+          AND lease_id = owner_account_state.direct_lease_id
+          AND archived_at IS NULL
+        ORDER BY effective_from DESC
+        LIMIT 1
+      ),
       'account-direct-billing-0001'
     )
     FROM owner_account_state
@@ -336,18 +417,16 @@ SELECT lives_ok(
 SELECT lives_ok(
   $$
     UPDATE owner_account_state
-    SET direct_invoice_id = (
-          SELECT id
-          FROM public.tenant_invoices
-          WHERE lease_id = direct_lease_id
-          ORDER BY billing_period_start DESC
-          LIMIT 1
-        ),
-        direct_property_id = (
-          SELECT property_id FROM public.leases WHERE id = direct_lease_id
-        )
+    SET direct_invoice_id = app_private.generate_lease_rent_invoice(
+      organization_id,
+      direct_lease_id,
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      current_date,
+      'manual_recovery',
+      admin_id
+    )
   $$,
-  'direct-owner billing activation creates an owner fee amount due'
+  'direct-owner generation creates an owner fee amount due'
 );
 
 SELECT lives_ok(
@@ -355,7 +434,7 @@ SELECT lives_ok(
     SELECT public.confirm_owner_collected_rent(
       organization_id,
       direct_invoice_id,
-      640,
+      925,
       current_date,
       'Owner confirmed collection',
       jsonb_build_array(
@@ -366,7 +445,7 @@ SELECT lives_ok(
             WHERE invoice_id = direct_invoice_id
               AND line_type = 'rent'
           ),
-          'amount', 640
+          'amount', 925
         )
       ),
       'account-direct-confirm-0001'
@@ -398,11 +477,16 @@ SELECT ok(
 
 SELECT results_eq(
   $$
-    SELECT running_balance, cash_held_by_ips, owner_owes_ips, available_withdrawal
-    FROM public.property_finance_positions
-    WHERE property_id = (SELECT direct_property_id FROM owner_account_state)
+    SELECT
+      position.running_balance - state.baseline_running_balance,
+      position.cash_held_by_ips - state.baseline_cash_held_by_ips,
+      position.owner_owes_ips - state.baseline_owner_owes_ips,
+      position.available_withdrawal - state.baseline_available_withdrawal
+    FROM public.property_finance_positions AS position
+    CROSS JOIN owner_account_state AS state
+    WHERE position.property_id = state.direct_property_id
   $$,
-  $$VALUES (877.00::numeric, 302.00::numeric, 65.00::numeric, 302.00::numeric)$$,
+  $$VALUES (1225.00::numeric, 365.00::numeric, 65.00::numeric, 365.00::numeric)$$,
   'direct-owner collection adds owner income without adding to IPS-held cash'
 );
 
@@ -426,11 +510,15 @@ SELECT lives_ok(
 
 SELECT results_eq(
   $$
-    SELECT cash_held_by_ips, owner_owes_ips, available_withdrawal
-    FROM public.property_finance_positions
-    WHERE property_id = (SELECT direct_property_id FROM owner_account_state)
+    SELECT
+      position.cash_held_by_ips - state.baseline_cash_held_by_ips,
+      position.owner_owes_ips - state.baseline_owner_owes_ips,
+      position.available_withdrawal - state.baseline_available_withdrawal
+    FROM public.property_finance_positions AS position
+    CROSS JOIN owner_account_state AS state
+    WHERE position.property_id = state.direct_property_id
   $$,
-  $$VALUES (302.00::numeric, 0.00::numeric, 302.00::numeric)$$,
+  $$VALUES (365.00::numeric, 0.00::numeric, 365.00::numeric)$$,
   'owner payment settles IPS without pretending IPS holds owner rent cash'
 );
 

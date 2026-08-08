@@ -24,7 +24,6 @@ export const activityEntityTypes = [
   "organization_branch",
   "organization_invitation",
   "organization_membership",
-  "people_leases_backfill",
 ] as const;
 
 export type ActivityEntityType = (typeof activityEntityTypes)[number];
@@ -228,12 +227,6 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
     fallbackRecordLabel: "Organization membership",
     getHref: ({ entityId }) => buildHref("/users-roles", { memberId: entityId }),
     mode: "module",
-  },
-  people_leases_backfill: {
-    actionLabel: "Source unavailable",
-    entityLabel: "People leases backfill",
-    fallbackRecordLabel: "Lease relationship backfill",
-    mode: "unavailable",
   },
 };
 

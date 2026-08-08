@@ -108,7 +108,7 @@ export type PropertyCashPropertyFacts = PropertyCashTotals & {
    * Evidence contributing to the calculated facts. This can include
    * prior-period settlements for obligations due in the selected month and
    * earlier deposit events needed for the period-end held balance. It is not
-   * a current-period cash journal; consumers must use eventDate and
+   * a current-period cash-only list; consumers must use eventDate and
    * classification when selecting cash events.
    */
   sourceLines: PropertyCashSourceLine[];

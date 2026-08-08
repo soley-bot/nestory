@@ -521,7 +521,7 @@ VALUES (
 );
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
-VALUES ('${ids.organization}'::uuid, '${ids.admin}'::uuid, 'admin');
+VALUES ('${ids.organization}'::uuid, '${ids.admin}'::uuid, 'super_admin');
 
 INSERT INTO public.properties(
   id, organization_id, name, code, property_type, status
@@ -571,7 +571,7 @@ function checkedLeaseCreationSql(marker, { commit = false } = {}) {
 BEGIN;
 SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
 SET LOCAL ROLE authenticated;
-SELECT public.create_lease_with_authoritative_term(
+SELECT public.create_lease_with_relationships(
   '${ids.organization}'::uuid,
   '${ids.property}'::uuid,
   '${ids.unit}'::uuid,
@@ -586,7 +586,51 @@ SELECT public.create_lease_with_authoritative_term(
   NULL,
   NULL,
   'active',
-  'tb01-concurrency-create'
+  jsonb_build_object(
+    'primaryParty', jsonb_build_object(
+      'personId', '${ids.tenant}'::uuid,
+      'lifecycle', 'effective',
+      'recordSource', 'operator_confirmed',
+      'reason', 'new_lease_relationship_composition',
+      'startedOn', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      ),
+      'endedOn', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      )
+    ),
+    'occupancy', jsonb_build_object(
+      'lifecycle', 'occupied',
+      'recordSource', 'operator_confirmed',
+      'reason', 'new_lease_relationship_composition',
+      'scheduledMoveIn', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      ),
+      'scheduledMoveOut', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      ),
+      'actualMoveIn', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      ),
+      'actualMoveOut', jsonb_build_object(
+        'date', NULL,
+        'kind', 'unknown',
+        'confidence', 'unknown'
+      )
+    ),
+    'participants', '[]'::jsonb
+  ),
+  'lease-integrity-concurrency-create'
 );
 \\echo ${marker}
 ${commit ? "COMMIT;" : ""}
@@ -805,6 +849,12 @@ DELETE FROM app_private.financial_idempotency_requests
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
+ALTER TABLE public.financial_reconciliation_sources
+  DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
+DELETE FROM public.financial_reconciliation_sources
+WHERE organization_id = '${ids.organization}'::uuid;
+ALTER TABLE public.financial_reconciliation_sources
+  ENABLE TRIGGER enforce_financial_reconciliation_source_mutation;
 DELETE FROM public.organizations
 WHERE id = '${ids.organization}'::uuid;
 DELETE FROM auth.users

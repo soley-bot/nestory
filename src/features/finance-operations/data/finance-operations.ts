@@ -15,6 +15,7 @@ import type {
   PropertyFinancePosition,
   RentGenerationException,
   TenantInvoiceLine,
+  TenantInvoiceSettlement,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
 
@@ -32,6 +33,16 @@ type AccountEntryRow =
   Database["public"]["Views"]["property_account_entries"]["Row"];
 type ExpenseSubmissionRow =
   Database["public"]["Tables"]["expense_submissions"]["Row"];
+type InvoiceSettlementRow = {
+  amount: number;
+  date: string;
+  id: string;
+  invoiceId: string;
+  reference: string | null;
+  reversalOfId: string | null;
+  reversalReason: string | null;
+  route: TenantInvoiceSettlement["route"];
+};
 type FinancePropertyRow = {
   archived_at: string | null;
   code: string;
@@ -272,6 +283,19 @@ export async function getFinanceOperationsData(
     );
   }
 
+  const tenantInvoiceSettlementResult = await getTenantInvoiceSettlementRows(
+    supabase,
+    organizationId,
+    (tenantInvoicesResult.data ?? []).flatMap((invoice) =>
+      invoice.id ? [invoice.id] : [],
+    ),
+  );
+  if (tenantInvoiceSettlementResult.error) {
+    throw new Error(
+      `Could not load tenant invoice settlements: ${tenantInvoiceSettlementResult.error.message}`,
+    );
+  }
+
   const properties = propertiesResult.data ?? [];
   const units = unitsResult.data ?? [];
   const people = peopleResult.data ?? [];
@@ -302,6 +326,9 @@ export async function getFinanceOperationsData(
       invoice.id,
       invoice,
     ]),
+  );
+  const settlementsByInvoiceId = buildSettlementsByInvoiceId(
+    tenantInvoiceSettlementResult.data ?? [],
   );
   const linesByInvoiceId = new Map<string, TenantInvoiceLine[]>();
 
@@ -452,6 +479,7 @@ export async function getFinanceOperationsData(
         unitById,
         linesByInvoiceId,
         generationByInvoiceId,
+        settlementsByInvoiceId,
       ),
     ),
     unitOptions: units.flatMap((unit) => {
@@ -472,6 +500,99 @@ export async function getFinanceOperationsData(
       ];
     }),
   };
+}
+
+async function getTenantInvoiceSettlementRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  invoiceIds: string[],
+): Promise<DataPageResult<InvoiceSettlementRow>> {
+  const rows: InvoiceSettlementRow[] = [];
+
+  for (let index = 0; index < invoiceIds.length; index += 100) {
+    const invoiceIdBatch = invoiceIds.slice(index, index + 100);
+    const [paymentsResult, confirmationsResult] = await Promise.all([
+      supabase
+        .from("tenant_invoice_payments")
+        .select(
+          "id, invoice_id, received_date, amount, reference, reversal_of_id, reversal_reason",
+        )
+        .eq("organization_id", organizationId)
+        .in("invoice_id", invoiceIdBatch),
+      supabase
+        .from("owner_collection_confirmations")
+        .select(
+          "id, invoice_id, confirmed_date, amount, reference, reversal_of_id, reversal_reason",
+        )
+        .eq("organization_id", organizationId)
+        .in("invoice_id", invoiceIdBatch),
+    ]);
+
+    if (paymentsResult.error) {
+      return { data: null, error: paymentsResult.error };
+    }
+    if (confirmationsResult.error) {
+      return { data: null, error: confirmationsResult.error };
+    }
+
+    rows.push(
+      ...(paymentsResult.data ?? []).map((payment) => ({
+        amount: Number(payment.amount),
+        date: payment.received_date,
+        id: payment.id,
+        invoiceId: payment.invoice_id,
+        reference: payment.reference,
+        reversalOfId: payment.reversal_of_id,
+        reversalReason: payment.reversal_reason,
+        route: "through_ips" as const,
+      })),
+      ...(confirmationsResult.data ?? []).map((confirmation) => ({
+        amount: Number(confirmation.amount),
+        date: confirmation.confirmed_date,
+        id: confirmation.id,
+        invoiceId: confirmation.invoice_id,
+        reference: confirmation.reference,
+        reversalOfId: confirmation.reversal_of_id,
+        reversalReason: confirmation.reversal_reason,
+        route: "direct_to_owner" as const,
+      })),
+    );
+  }
+
+  return { data: rows, error: null };
+}
+
+function buildSettlementsByInvoiceId(
+  rows: InvoiceSettlementRow[],
+): Map<string, TenantInvoiceSettlement[]> {
+  const reversalByOriginalId = new Map(
+    rows.flatMap((row) =>
+      row.reversalOfId ? ([[row.reversalOfId, row]] as const) : [],
+    ),
+  );
+  const settlementsByInvoiceId = new Map<string, TenantInvoiceSettlement[]>();
+
+  for (const row of rows) {
+    if (row.reversalOfId) continue;
+    const reversal = reversalByOriginalId.get(row.id);
+    const settlements = settlementsByInvoiceId.get(row.invoiceId) ?? [];
+    settlements.push({
+      amount: row.amount,
+      date: row.date,
+      id: row.id,
+      isReversed: Boolean(reversal),
+      reference: row.reference,
+      reversalReason: reversal?.reversalReason ?? null,
+      route: row.route,
+    });
+    settlementsByInvoiceId.set(row.invoiceId, settlements);
+  }
+
+  for (const settlements of settlementsByInvoiceId.values()) {
+    settlements.sort((left, right) => right.date.localeCompare(left.date));
+  }
+
+  return settlementsByInvoiceId;
 }
 
 async function getUnresolvedRentGenerationExceptions(
@@ -716,6 +837,7 @@ function toTenantInvoice(
       is_prorated: boolean | null;
     }
   >,
+  settlementsByInvoiceId: Map<string, TenantInvoiceSettlement[]>,
 ): TenantInvoiceSummary[] {
   if (
     !row.id ||
@@ -759,6 +881,7 @@ function toTenantInvoice(
       propertyId: row.property_id,
       propertyLabel: propertyLabel(property),
       recipientLabel: row.recipient_label ?? "Unknown",
+      settlements: settlementsByInvoiceId.get(row.id) ?? [],
       totalAmount: Number(row.total_amount ?? 0),
       unitId: row.unit_id,
       unitLabel: unit ? unitLabel(unit, property) : "No unit",

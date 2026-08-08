@@ -12,8 +12,8 @@ import {
 import type { WorkspaceSearchResult } from "@/features/workspace-search/workspace-search.types";
 
 type TableName =
+  | "current_leases"
   | "documents"
-  | "leases"
   | "people"
   | "properties"
   | "tasks"
@@ -266,7 +266,7 @@ describe("searchWorkspace", () => {
           organization_id: "org-1",
         },
       ],
-      leases: [
+      current_leases: [
         {
           archived_at: null,
           id: "lease-1",
@@ -337,7 +337,14 @@ describe("searchWorkspace", () => {
     });
 
     expect(new Set(queries.map((query) => query.table))).toEqual(
-      new Set(["documents", "leases", "people", "properties", "tasks", "units"]),
+      new Set([
+        "current_leases",
+        "documents",
+        "people",
+        "properties",
+        "tasks",
+        "units",
+      ]),
     );
     expect(queries).not.toHaveLength(0);
     expect(queries.every((query) => query.limit !== undefined && query.limit! <= 20)).toBe(true);

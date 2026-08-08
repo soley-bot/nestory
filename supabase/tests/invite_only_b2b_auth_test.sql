@@ -157,7 +157,7 @@ INSERT INTO auth.users (
 VALUES
 (
   '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000701',
+  '97000000-0000-0000-0000-000000000001',
   'authenticated',
   'authenticated',
   'invitee@example.com',
@@ -169,7 +169,7 @@ VALUES
 ),
 (
   '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000702',
+  '97000000-0000-0000-0000-000000000002',
   'authenticated',
   'authenticated',
   'other@example.com',
@@ -181,7 +181,7 @@ VALUES
 ),
 (
   '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000703',
+  '97000000-0000-0000-0000-000000000003',
   'authenticated',
   'authenticated',
   'unverified@example.com',
@@ -193,7 +193,7 @@ VALUES
 ),
 (
   '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000704',
+  '97000000-0000-0000-0000-000000000004',
   'authenticated',
   'authenticated',
   'magic-manager@example.com',
@@ -205,7 +205,7 @@ VALUES
 ),
 (
   '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000705',
+  '97000000-0000-0000-0000-000000000005',
   'authenticated',
   'authenticated',
   'magic-admin@example.com',
@@ -217,7 +217,7 @@ VALUES
 ),
 (
   '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000706',
+  '97000000-0000-0000-0000-000000000006',
   'authenticated',
   'authenticated',
   'magic-member@example.com',
@@ -229,7 +229,7 @@ VALUES
 ),
 (
   '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000707',
+  '97000000-0000-0000-0000-000000000007',
   'authenticated',
   'authenticated',
   'brand-new@example.com',
@@ -271,6 +271,34 @@ BEGIN
   END;
 END;
 $$;
+
+INSERT INTO public.people (
+  id,
+  organization_id,
+  display_name,
+  party_type,
+  primary_email
+)
+VALUES (
+  '80300000-0000-0000-0000-000000000004',
+  '00000000-0000-0000-0000-000000000001',
+  'Invitation Operations Member',
+  'individual',
+  'invitee@example.com'
+);
+
+INSERT INTO public.person_roles (
+  organization_id,
+  person_id,
+  role,
+  status
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  '80300000-0000-0000-0000-000000000004',
+  'staff',
+  'active'
+);
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000501', true);
 SELECT throws_ok(
@@ -369,7 +397,7 @@ SELECT lives_ok(
   format(
     'SELECT public.mark_organization_invitation_sent(%L, %L, %L)',
     (SELECT brand_new_invitation_id FROM invitation_test_state),
-    '00000000-0000-0000-0000-000000000707',
+    '97000000-0000-0000-0000-000000000007',
     'invite'
   ),
   'brand-new Auth identities without a provider password hash still finalize delivery'
@@ -385,8 +413,8 @@ SELECT is(
 );
 UPDATE auth.users
 SET email_confirmed_at = now()
-WHERE id = '00000000-0000-0000-0000-000000000707';
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000707', true);
+WHERE id = '97000000-0000-0000-0000-000000000007';
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000007', true);
 SELECT is(
   (
     SELECT password_required
@@ -412,7 +440,7 @@ SELECT public.mark_organization_invitation_sent(
   NULL,
   'magic_link'
 );
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000704', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000004', true);
 SELECT is(
   (
     SELECT password_required
@@ -471,7 +499,7 @@ SELECT public.mark_organization_invitation_sent(
   'magic_link'
 );
 
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000705', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000005', true);
 SELECT is(
   (
     SELECT password_required
@@ -482,7 +510,7 @@ SELECT is(
   true,
   'Admin invitations use the same fail-closed credential rule'
 );
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000706', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000006', true);
 SELECT is(
   (
     SELECT password_required
@@ -502,7 +530,7 @@ SELECT throws_ok(
     password_hash_fingerprint,
     proof_method
   ) VALUES (
-    '00000000-0000-0000-0000-000000000702',
+    '97000000-0000-0000-0000-000000000002',
     '\x00'::bytea,
     'password_login'
   )$$,
@@ -516,7 +544,7 @@ SELECT set_config('request.jwt.claim.role', 'service_role', true);
 SET LOCAL ROLE service_role;
 SELECT lives_ok(
   $$SELECT public.record_auth_password_credential_proof(
-    '00000000-0000-0000-0000-000000000702',
+    '97000000-0000-0000-0000-000000000002',
     'password_login'
   )$$,
   'the trusted password-login boundary can establish proof'
@@ -526,12 +554,12 @@ SELECT is(
   (
     SELECT count(*)
     FROM app_private.auth_password_credential_proofs
-    WHERE auth_user_id = '00000000-0000-0000-0000-000000000702'
+    WHERE auth_user_id = '97000000-0000-0000-0000-000000000002'
   ),
   1::bigint,
   'positive proof stores one current password fingerprint'
 );
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000702', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000002', true);
 SELECT is(
   (
     SELECT password_required
@@ -554,12 +582,12 @@ SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SELECT public.mark_organization_invitation_sent(
   (SELECT invitation_id FROM invitation_test_state),
-  '00000000-0000-0000-0000-000000000701',
+  '97000000-0000-0000-0000-000000000001',
   'invite'
 );
 DELETE FROM app_private.invitation_password_challenges
 WHERE invitation_id = (SELECT invitation_id FROM invitation_test_state);
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000001', true);
 SELECT is(
   (
     SELECT password_required
@@ -580,7 +608,7 @@ SELECT is(
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SELECT public.mark_organization_invitation_sent(
   (SELECT invitation_id FROM invitation_test_state),
-  '00000000-0000-0000-0000-000000000701',
+  '97000000-0000-0000-0000-000000000001',
   'invite'
 );
 SELECT public.mark_organization_invitation_sent(
@@ -588,7 +616,7 @@ SELECT public.mark_organization_invitation_sent(
   NULL,
   'magic_link'
 );
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000001', true);
 SELECT is(
   (
     SELECT password_required
@@ -610,7 +638,7 @@ SELECT throws_ok(
 );
 UPDATE auth.users
 SET encrypted_password = NULL
-WHERE id = '00000000-0000-0000-0000-000000000701';
+WHERE id = '97000000-0000-0000-0000-000000000001';
 SELECT is(
   (
     SELECT password_required
@@ -644,14 +672,14 @@ SELECT is(
     SELECT count(*)
     FROM public.organization_members
     WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND user_id = '00000000-0000-0000-0000-000000000701'
+      AND user_id = '97000000-0000-0000-0000-000000000001'
   ),
   0::bigint,
   'passwordless acceptance attempts do not create membership'
 );
 UPDATE auth.users
 SET encrypted_password = extensions.crypt('123456789', extensions.gen_salt('bf'))
-WHERE id = '00000000-0000-0000-0000-000000000701';
+WHERE id = '97000000-0000-0000-0000-000000000001';
 SELECT is(
   (
     SELECT password_required
@@ -663,7 +691,7 @@ SELECT is(
   'an existing password identity skips password setup even when the invitation was resent by magic link'
 );
 
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000703', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000003', true);
 SELECT throws_ok(
   format(
     'SELECT public.accept_organization_invitation(%L)',
@@ -674,7 +702,7 @@ SELECT throws_ok(
   'unverified users cannot claim an invitation by spoofing user metadata'
 );
 
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000702', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000002', true);
 SELECT throws_ok(
   format(
     'SELECT public.accept_organization_invitation(%L)',
@@ -685,7 +713,7 @@ SELECT throws_ok(
   'acceptance rejects a mismatched signed-in account'
 );
 
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000001', true);
 UPDATE invitation_test_state
 SET member_id = public.accept_organization_invitation(invitation_id);
 SELECT ok(
@@ -703,7 +731,7 @@ SELECT is(
   'acceptance is idempotent'
 );
 SELECT is(
-  (SELECT count(*) FROM public.organization_members WHERE organization_id = '00000000-0000-0000-0000-000000000001' AND user_id = '00000000-0000-0000-0000-000000000701'),
+  (SELECT count(*) FROM public.organization_members WHERE organization_id = '00000000-0000-0000-0000-000000000001' AND user_id = '97000000-0000-0000-0000-000000000001'),
   1::bigint,
   'acceptance never duplicates membership'
 );
@@ -720,7 +748,7 @@ SELECT is(
   (
     SELECT count(*)
     FROM app_private.auth_password_credential_proofs
-    WHERE auth_user_id = '00000000-0000-0000-0000-000000000701'
+    WHERE auth_user_id = '97000000-0000-0000-0000-000000000001'
   ),
   1::bigint,
   'provider-password replacement becomes durable credential proof'
@@ -736,22 +764,34 @@ RESET ROLE;
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SELECT throws_ok(
-  $$SELECT public.update_organization_member_access(
+  format(
+    'SELECT public.update_organization_member_access(%L, %L, %L, %L, %L)',
     '00000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000201',
-    'operations_manager',
-    '80300000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000211'
-  )$$,
+    (
+      SELECT id
+      FROM public.organization_members
+      WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+        AND user_id = '00000000-0000-0000-0000-000000000101'
+    ),
+    'finance_manager',
+    NULL,
+    NULL
+  ),
   '55000',
   'The final Super Admin cannot be demoted',
   'final administrator demotion is rejected in SQL'
 );
 SELECT throws_ok(
-  $$SELECT public.remove_organization_member_access(
+  format(
+    'SELECT public.remove_organization_member_access(%L, %L)',
     '00000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000201'
-  )$$,
+    (
+      SELECT id
+      FROM public.organization_members
+      WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+        AND user_id = '00000000-0000-0000-0000-000000000101'
+    )
+  ),
   '55000',
   'The final Super Admin cannot be removed',
   'final administrator removal is rejected in SQL'
@@ -771,7 +811,7 @@ SELECT is(
   'membership removal immediately removes membership-based access'
 );
 
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000001', true);
 SET LOCAL ROLE authenticated;
 SELECT is(
   (SELECT count(*) FROM public.organizations WHERE id = '00000000-0000-0000-0000-000000000001'),
@@ -803,8 +843,8 @@ UPDATE public.organization_invitations
 SET expires_at = now() - interval '1 minute'
 WHERE id = (SELECT expired_invitation_id FROM invitation_test_state);
 
-UPDATE auth.users SET email = 'revoked@example.com' WHERE id = '00000000-0000-0000-0000-000000000702';
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000702', true);
+UPDATE auth.users SET email = 'revoked@example.com' WHERE id = '97000000-0000-0000-0000-000000000002';
+SELECT set_config('request.jwt.claim.sub', '97000000-0000-0000-0000-000000000002', true);
 SELECT throws_ok(
   format(
     'SELECT public.accept_organization_invitation(%L)',
@@ -814,7 +854,7 @@ SELECT throws_ok(
   'Invitation is not available',
   'revoked invitations cannot be accepted'
 );
-UPDATE auth.users SET email = 'expired@example.com' WHERE id = '00000000-0000-0000-0000-000000000702';
+UPDATE auth.users SET email = 'expired@example.com' WHERE id = '97000000-0000-0000-0000-000000000002';
 SELECT throws_ok(
   format(
     'SELECT public.accept_organization_invitation(%L)',

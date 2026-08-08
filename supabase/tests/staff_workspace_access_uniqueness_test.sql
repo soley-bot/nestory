@@ -49,13 +49,23 @@ SELECT
   now(), now()
 FROM (
   VALUES
+    ('00000000-0000-0000-0000-000000000301'::uuid, 'other-org-admin@example.com'),
     ('00000000-0000-0000-0000-000000000711'::uuid, 'duplicate-member@example.com'),
-    ('00000000-0000-0000-0000-000000000712'::uuid, 'legacy-one@example.com'),
-    ('00000000-0000-0000-0000-000000000713'::uuid, 'legacy-two@example.com'),
+    ('00000000-0000-0000-0000-000000000712'::uuid, 'unlinked-one@example.com'),
+    ('00000000-0000-0000-0000-000000000713'::uuid, 'unlinked-two@example.com'),
     ('00000000-0000-0000-0000-000000000714'::uuid, 'cross-org-member@example.com'),
     ('00000000-0000-0000-0000-000000000715'::uuid, 'accept-conflict@example.com'),
-    ('00000000-0000-0000-0000-000000000716'::uuid, 'linked-before-accept@example.com')
+    ('00000000-0000-0000-0000-000000000716'::uuid, 'linked-before-accept@example.com'),
+    ('00000000-0000-0000-0000-000000000718'::uuid, 'linked-access@example.com'),
+    ('00000000-0000-0000-0000-000000000719'::uuid, 'unlinked-access@example.com')
 ) AS fixture_users(user_id, email);
+
+INSERT INTO public.organizations (id, name, slug)
+VALUES (
+  '00000000-0000-0000-0000-000000000002',
+  'Access Boundary Organization',
+  'access-boundary-organization'
+);
 
 INSERT INTO public.people (
   id,
@@ -68,6 +78,16 @@ INSERT INTO public.people (
   updated_by
 )
 VALUES
+  (
+    '80300000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
+    'Linked Operations Member',
+    'Linked Operations Member',
+    'individual',
+    'linked-operations-member@example.com',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
   (
     '88300000-0000-0000-0000-000000000010',
     '00000000-0000-0000-0000-000000000001',
@@ -130,6 +150,14 @@ INSERT INTO public.person_roles (
 VALUES
   (
     '00000000-0000-0000-0000-000000000001',
+    '80300000-0000-0000-0000-000000000002',
+    'staff',
+    'active',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
     '88300000-0000-0000-0000-000000000010',
     'staff',
     'active',
@@ -187,6 +215,40 @@ VALUES (
   '00000000-0000-0000-0000-000000000301',
   '00000000-0000-0000-0000-000000000301'
 );
+
+INSERT INTO public.organization_members (
+  id,
+  organization_id,
+  user_id,
+  role,
+  person_id,
+  branch_id
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000302',
+    '00000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000301',
+    'super_admin',
+    NULL,
+    NULL
+  ),
+  (
+    '00000000-0000-0000-0000-000000000503',
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000718',
+    'operations_member',
+    '80300000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000211'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000603',
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000719',
+    'finance_member',
+    NULL,
+    NULL
+  );
 
 SELECT throws_ok(
   $$INSERT INTO public.organization_members (
@@ -340,7 +402,7 @@ SELECT throws_ok(
     '00000000-0000-0000-0000-000000000001',
     'replacement-invitation@example.com',
     'operations_manager',
-    '00000000-0000-0000-0000-000000000212',
+    '00000000-0000-0000-0000-000000000211',
     '88300000-0000-0000-0000-000000000011'
   )$$,
   '23505',
@@ -372,7 +434,7 @@ SET recoverable_invitation_id = public.create_organization_invitation(
   '00000000-0000-0000-0000-000000000001',
   'recoverable-expired@example.com',
   'operations_manager',
-  '00000000-0000-0000-0000-000000000212',
+  '00000000-0000-0000-0000-000000000211',
   '88300000-0000-0000-0000-000000000011'
 );
 UPDATE public.organization_invitations
@@ -436,14 +498,14 @@ SELECT is(
 SELECT lives_ok(
   $$SELECT public.create_organization_invitation(
       '00000000-0000-0000-0000-000000000001',
-      'legacy-invite-one@example.com',
+      'unlinked-invite-one@example.com',
       'finance_member',
       NULL,
       NULL
     );
     SELECT public.create_organization_invitation(
       '00000000-0000-0000-0000-000000000001',
-      'legacy-invite-two@example.com',
+      'unlinked-invite-two@example.com',
       'finance_member',
       NULL,
       NULL
@@ -456,7 +518,7 @@ SELECT is(
     FROM public.organization_invitations
     WHERE organization_id = '00000000-0000-0000-0000-000000000001'
       AND person_id IS NULL
-      AND email LIKE 'legacy-invite-%'
+      AND email LIKE 'unlinked-invite-%'
       AND status IN ('pending', 'send_failed')
   ),
   2::bigint,

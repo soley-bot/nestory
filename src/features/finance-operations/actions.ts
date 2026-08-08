@@ -67,6 +67,13 @@ const paymentSchema = invoiceSettlementSchema.extend({
   reconciliationSourceId: uuid,
 });
 
+const settlementReversalSchema = z.object({
+  idempotencyKey: z.string().min(8),
+  reason: z.string().trim().min(3).max(500),
+  reversalDate: date,
+  settlementId: uuid,
+});
+
 const expenseSchema = z.object({
   category: z.enum(["cleaning", "utility", "repairs_maintenance", "other"]),
   expenseDate: date,
@@ -291,6 +298,55 @@ export async function confirmOwnerCollectionAction(
   if (error) return actionError(error.message);
   revalidateFinance();
   return { message: "Owner collection confirmed.", status: "success" };
+}
+
+export async function reverseTenantInvoicePaymentAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = settlementReversalSchema.safeParse(
+    Object.fromEntries(formData),
+  );
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireFinanceReversalContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("reverse_tenant_invoice_payment", {
+    p_idempotency_key: parsed.data.idempotencyKey,
+    p_organization_id: context.organizationId,
+    p_payment_id: parsed.data.settlementId,
+    p_reason: parsed.data.reason,
+    p_reversal_date: parsed.data.reversalDate,
+  });
+  if (error) return actionError(error.message);
+  revalidateFinance();
+  return { message: "Tenant payment reversed.", status: "success" };
+}
+
+export async function reverseOwnerCollectionConfirmationAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = settlementReversalSchema.safeParse(
+    Object.fromEntries(formData),
+  );
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireFinanceReversalContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc(
+    "reverse_owner_collection_confirmation",
+    {
+      p_confirmation_id: parsed.data.settlementId,
+      p_idempotency_key: parsed.data.idempotencyKey,
+      p_organization_id: context.organizationId,
+      p_reason: parsed.data.reason,
+      p_reversal_date: parsed.data.reversalDate,
+    },
+  );
+  if (error) return actionError(error.message);
+  revalidateFinance();
+  return { message: "Owner collection reversed.", status: "success" };
 }
 
 export async function submitExpenseAction(

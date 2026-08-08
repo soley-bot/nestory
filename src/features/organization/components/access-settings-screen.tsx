@@ -967,7 +967,7 @@ function MemberAccessForm({
   const accountLabel = member.email ?? personLabel(member.personId, people);
   const linkedPerson = people.find((person) => person.id === member.personId);
   const selectablePeople = activeStaffOptions(people);
-  const linkingLegacyMember =
+  const linkingUnlinkedMember =
     !member.personId && Boolean(draft.values.personId);
 
   const saveAccess = () => {
@@ -1195,7 +1195,7 @@ function MemberAccessForm({
               }
               onDiscard={draft.discard}
               onSave={saveAccess}
-              saveLabel={linkingLegacyMember ? "Link staff record" : "Save access"}
+              saveLabel={linkingUnlinkedMember ? "Link staff record" : "Save access"}
               status={draft.status}
               statusMessage={draft.message}
             />

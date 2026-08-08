@@ -6,25 +6,51 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for invoice and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(19);
+SELECT plan(28);
 
 CREATE TEMP TABLE tenant_invoice_state (
-  organization_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001',
-  admin_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000101',
-  through_lease_id uuid NOT NULL DEFAULT '30000000-0000-0000-0000-000000000001',
-  direct_lease_id uuid NOT NULL DEFAULT '30000000-0000-0000-0000-000000000002',
-  through_tenant_id uuid NOT NULL DEFAULT '80000000-0000-0000-0000-000000000001',
-  company_id uuid NOT NULL DEFAULT '80000000-0000-0000-0000-000000000007',
+  organization_id uuid NOT NULL,
+  admin_id uuid NOT NULL,
+  through_lease_id uuid NOT NULL,
+  direct_lease_id uuid NOT NULL,
+  through_tenant_id uuid NOT NULL,
+  company_id uuid NOT NULL,
   through_billing_id uuid,
   direct_billing_id uuid,
   through_invoice_id uuid,
   direct_invoice_id uuid,
   source_id uuid,
   payment_id uuid,
-  confirmation_id uuid
+  reversal_payment_id uuid,
+  confirmation_id uuid,
+  reversal_confirmation_id uuid
 ) ON COMMIT DROP;
 
-INSERT INTO tenant_invoice_state DEFAULT VALUES;
+INSERT INTO tenant_invoice_state (
+  organization_id,
+  admin_id,
+  through_lease_id,
+  direct_lease_id,
+  through_tenant_id,
+  company_id
+)
+SELECT
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000101',
+  (
+    SELECT id
+    FROM public.current_leases
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND primary_tenant_person_id = '80000000-0000-0000-0000-000000000001'
+  ),
+  (
+    SELECT id
+    FROM public.current_leases
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND primary_tenant_person_id = '80000000-0000-0000-0000-000000000003'
+  ),
+  '80000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000003';
 GRANT SELECT, UPDATE ON tenant_invoice_state TO authenticated;
 
 SELECT set_config(
@@ -89,7 +115,7 @@ SELECT lives_ok(
     SET through_billing_id = public.set_lease_billing_term(
       organization_id,
       through_lease_id,
-      (SELECT lease_start_date FROM public.current_leases WHERE id = through_lease_id),
+      (date_trunc('month', current_date) + interval '1 month')::date,
       'through_ips',
       'percentage',
       10,
@@ -99,7 +125,15 @@ SELECT lives_ok(
       through_tenant_id,
       NULL,
       NULL,
-      NULL,
+      (
+        SELECT id
+        FROM public.lease_billing_terms
+        WHERE organization_id = tenant_invoice_state.organization_id
+          AND lease_id = tenant_invoice_state.through_lease_id
+          AND archived_at IS NULL
+        ORDER BY effective_from DESC
+        LIMIT 1
+      ),
       'invoice-through-billing-0001'
     )
   $$,
@@ -127,7 +161,7 @@ SELECT results_eq(
     FROM public.tenant_invoice_balances
     WHERE id = (SELECT through_invoice_id FROM tenant_invoice_state)
   $$,
-  $$VALUES ('through_ips'::text, 780.00::numeric, 'individual'::text, 'unpaid'::text)$$,
+  $$VALUES ('through_ips'::text, 850.00::numeric, 'individual'::text, 'unpaid'::text)$$,
   'generated invoice snapshots route, rent, recipient, and unpaid state'
 );
 
@@ -137,7 +171,7 @@ SELECT is(
     FROM public.management_fee_occurrences
     WHERE tenant_invoice_id = (SELECT through_invoice_id FROM tenant_invoice_state)
   ),
-  78.00::numeric,
+  85.00::numeric,
   'percentage management fee is recorded once as an internal occurrence'
 );
 
@@ -191,7 +225,7 @@ SELECT results_eq(
     FROM public.tenant_invoice_balances
     WHERE id = (SELECT through_invoice_id FROM tenant_invoice_state)
   $$,
-  $$VALUES (400.00::numeric, 0.00::numeric, 380.00::numeric, 'partly_paid'::text)$$,
+  $$VALUES (400.00::numeric, 0.00::numeric, 450.00::numeric, 'partly_paid'::text)$$,
   'partial IPS payment produces a clear partly-paid balance'
 );
 
@@ -207,28 +241,91 @@ SELECT is(
   'through-IPS payment creates exactly the linked cash receipts'
 );
 
-SELECT ok(
-  to_regprocedure('public.reverse_finance_receipt(uuid,uuid,date,text)') IS NULL,
-  'generic receipt reversal is absent'
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_tenant_invoice_payment(
+      organization_id,
+      payment_id,
+      current_date - 1,
+      'Incorrect payment',
+      'invoice-through-reverse-early'
+    )
+    FROM tenant_invoice_state
+  $$,
+  '22023',
+  'Reversal date cannot be before the payment date',
+  'a payment cannot be reversed into an earlier month or day'
 );
 
-SELECT ok(
-  to_regprocedure(
-    'public.reverse_finance_receipt_v2(uuid,uuid,date,uuid,text,text)'
-  ) IS NULL,
-  'generic atomic receipt reversal is absent'
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_tenant_invoice_payment(
+      organization_id,
+      payment_id,
+      current_date,
+      'Incorrect payment',
+      'invoice-through-reverse-manager'
+    )
+    FROM tenant_invoice_state
+  $$,
+  '42501',
+  'Not authorized',
+  'Finance Manager cannot reverse a tenant payment'
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM tenant_invoice_state),
+  true
+);
+RESET ROLE;
+
+SELECT lives_ok(
+  $$
+    UPDATE tenant_invoice_state
+    SET reversal_payment_id = public.reverse_tenant_invoice_payment(
+      organization_id,
+      payment_id,
+      current_date,
+      'Incorrect payment',
+      'invoice-through-reverse-0001'
+    )
+  $$,
+  'Super Admin can reverse the invoice payment through its domain command'
 );
 
-SELECT ok(
-  to_regprocedure('public.reverse_finance_receipt(uuid,uuid,date,text)') IS NULL,
-  'no generic reversal can diverge a generated tenant invoice'
-);
+SELECT is(
+  public.reverse_tenant_invoice_payment(
+    organization_id,
+    payment_id,
+    current_date,
+    'Incorrect payment',
+    'invoice-through-reverse-0001'
+  ),
+  reversal_payment_id,
+  'an exact tenant-payment reversal retry returns the first result'
+)
+FROM tenant_invoice_state;
 
-SELECT ok(
-  to_regprocedure(
-    'public.reverse_finance_receipt_v2(uuid,uuid,date,uuid,text,text)'
-  ) IS NULL,
-  'tenant-invoice payment state has no independent receipt reversal command'
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_tenant_invoice_payment(
+      organization_id,
+      payment_id,
+      current_date,
+      'Different reason',
+      'invoice-through-reverse-0001'
+    )
+    FROM tenant_invoice_state
+  $$,
+  '22023',
+  'Conflicting financial idempotency request',
+  'a changed tenant-payment reversal cannot reuse its key'
 );
 
 SELECT results_eq(
@@ -237,8 +334,33 @@ SELECT results_eq(
     FROM public.tenant_invoice_balances
     WHERE id = (SELECT through_invoice_id FROM tenant_invoice_state)
   $$,
-  $$VALUES (400.00::numeric, 380.00::numeric, 'partly_paid'::text)$$,
-  'retired direct reversals leave the tenant invoice payment state unchanged'
+  $$VALUES (0.00::numeric, 850.00::numeric, 'unpaid'::text)$$,
+  'the reversal restores the invoice balance without editing the payment'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      reversal_allocation.signed_amount,
+      reversal_ledger.amount,
+      reversal_ledger.reversal_of_ledger_entry_id = original_ledger.id,
+      original_payment.reversal_of_id IS NULL
+    FROM tenant_invoice_state AS state
+    JOIN public.tenant_invoice_payments AS original_payment
+      ON original_payment.id = state.payment_id
+    JOIN public.tenant_invoice_payment_allocations AS payment_allocation
+      ON payment_allocation.payment_id = state.reversal_payment_id
+    JOIN public.finance_receipt_allocations AS reversal_allocation
+      ON reversal_allocation.receipt_id = payment_allocation.finance_receipt_id
+    JOIN public.finance_receipt_allocations AS original_allocation
+      ON original_allocation.id = reversal_allocation.reversal_of_allocation_id
+    JOIN public.ledger_entries AS reversal_ledger
+      ON reversal_ledger.id = reversal_allocation.ledger_entry_id
+    JOIN public.ledger_entries AS original_ledger
+      ON original_ledger.id = original_allocation.ledger_entry_id
+  $$,
+  $$VALUES (-400.00::numeric, -400.00::numeric, true, true)$$,
+  'tenant reversal appends exact negative cash and Ledger evidence'
 );
 
 SELECT lives_ok(
@@ -247,7 +369,7 @@ SELECT lives_ok(
     SET direct_billing_id = public.set_lease_billing_term(
       organization_id,
       direct_lease_id,
-      (SELECT lease_start_date FROM public.current_leases WHERE id = direct_lease_id),
+      (date_trunc('month', current_date) + interval '1 month')::date,
       'direct_to_owner',
       'flat',
       65,
@@ -257,7 +379,15 @@ SELECT lives_ok(
       company_id,
       NULL,
       NULL,
-      NULL,
+      (
+        SELECT id
+        FROM public.lease_billing_terms
+        WHERE organization_id = tenant_invoice_state.organization_id
+          AND lease_id = tenant_invoice_state.direct_lease_id
+          AND archived_at IS NULL
+        ORDER BY effective_from DESC
+        LIMIT 1
+      ),
       'invoice-direct-billing-0001'
     )
   $$,
@@ -285,7 +415,7 @@ SELECT results_eq(
     FROM public.tenant_invoices
     WHERE id = (SELECT direct_invoice_id FROM tenant_invoice_state)
   $$,
-  $$VALUES ('Sokha Trading Co.'::text, 'direct_to_owner'::text, 1)$$,
+  $$VALUES ('Bright Mekong Trading'::text, 'direct_to_owner'::text, 1)$$,
   'company invoice keeps the company recipient and occupant reference separate'
 );
 
@@ -320,7 +450,7 @@ SELECT lives_ok(
       'invoice-direct-confirm-0001'
     )
   $$,
-  'staff can confirm the owner collected the full invoice'
+  'Super Admin can confirm the owner collected the full invoice'
 );
 
 SELECT results_eq(
@@ -329,7 +459,7 @@ SELECT results_eq(
     FROM public.tenant_invoice_balances
     WHERE id = (SELECT direct_invoice_id FROM tenant_invoice_state)
   $$,
-  $$VALUES (0.00::numeric, 640.00::numeric, 0.00::numeric, 'paid'::text)$$,
+  $$VALUES (0.00::numeric, 1450.00::numeric, 0.00::numeric, 'paid'::text)$$,
   'direct-owner confirmation settles the tenant balance without IPS cash'
 );
 
@@ -345,6 +475,132 @@ SELECT is(
   ),
   0,
   'direct-owner confirmation does not issue an IPS cash receipt'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE tenant_invoice_state
+    SET reversal_confirmation_id =
+      public.reverse_owner_collection_confirmation(
+        organization_id,
+        confirmation_id,
+        current_date,
+        'Owner confirmation corrected',
+        'invoice-owner-reverse-0001'
+      )
+  $$,
+  'Super Admin can reverse a direct-owner collection confirmation'
+);
+
+SELECT is(
+  public.reverse_owner_collection_confirmation(
+    organization_id,
+    confirmation_id,
+    current_date,
+    'Owner confirmation corrected',
+    'invoice-owner-reverse-0001'
+  ),
+  reversal_confirmation_id,
+  'an exact owner-confirmation reversal retry returns the first result'
+)
+FROM tenant_invoice_state;
+
+SELECT results_eq(
+  $$
+    SELECT collected_by_owner, balance_due, payment_status
+    FROM public.tenant_invoice_balances
+    WHERE id = (SELECT direct_invoice_id FROM tenant_invoice_state)
+  $$,
+  $$VALUES (0.00::numeric, 1450.00::numeric, 'unpaid'::text)$$,
+  'the direct-owner reversal restores the tenant invoice balance'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      reversal_allocation.signed_amount,
+      reversal_ledger.amount,
+      reversal_ledger.reversal_of_ledger_entry_id = original_ledger.id,
+      original_confirmation.reversal_of_id IS NULL
+    FROM tenant_invoice_state AS state
+    JOIN public.owner_collection_confirmations AS original_confirmation
+      ON original_confirmation.id = state.confirmation_id
+    JOIN public.owner_collection_confirmation_allocations AS reversal_allocation
+      ON reversal_allocation.confirmation_id = state.reversal_confirmation_id
+    JOIN public.owner_collection_confirmation_allocations AS original_allocation
+      ON original_allocation.id = reversal_allocation.reversal_of_allocation_id
+    JOIN public.ledger_entries AS reversal_ledger
+      ON reversal_ledger.id = reversal_allocation.ledger_entry_id
+    JOIN public.ledger_entries AS original_ledger
+      ON original_ledger.id = original_allocation.ledger_entry_id
+  $$,
+  $$VALUES (-1450.00::numeric, -1450.00::numeric, true, true)$$,
+  'owner reversal appends exact negative operational evidence'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      event.amount,
+      event.is_reversal,
+      event.reversal_source_id = original_allocation.id,
+      event.resolution_state
+    FROM tenant_invoice_state AS state
+    JOIN public.tenant_invoices AS invoice
+      ON invoice.id = state.direct_invoice_id
+    JOIN public.owner_collection_confirmation_allocations AS reversal_allocation
+      ON reversal_allocation.confirmation_id = state.reversal_confirmation_id
+    JOIN public.owner_collection_confirmation_allocations AS original_allocation
+      ON original_allocation.id = reversal_allocation.reversal_of_allocation_id
+    CROSS JOIN LATERAL public.get_property_cash_events_page(
+      state.organization_id,
+      invoice.property_id,
+      'USD',
+      date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+      NULL,
+      NULL,
+      NULL,
+      100
+    ) AS event
+    WHERE event.source_id = reversal_allocation.id
+  $$,
+  $$VALUES (-1450.00::numeric, true, true, 'resolved'::text)$$,
+  'property cash exposes the direct-owner reversal as a resolved opposite event'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      coalesce(sum(amount), 0)::numeric(14, 2),
+      coalesce(sum(balance_effect), 0)::numeric(14, 2)
+    FROM public.property_account_entries
+    WHERE source_id IN (
+      SELECT allocation.id
+      FROM public.tenant_invoice_payment_allocations AS allocation
+      WHERE allocation.payment_id IN (
+        (SELECT payment_id FROM tenant_invoice_state),
+        (SELECT reversal_payment_id FROM tenant_invoice_state)
+      )
+      UNION ALL
+      SELECT allocation.id
+      FROM public.owner_collection_confirmation_allocations AS allocation
+      WHERE allocation.confirmation_id IN (
+        (SELECT confirmation_id FROM tenant_invoice_state),
+        (SELECT reversal_confirmation_id FROM tenant_invoice_state)
+      )
+    )
+  $$,
+  $$VALUES (0.00::numeric, 0.00::numeric)$$,
+  'property account history retains original and opposite settlement events'
+);
+
+SELECT ok(
+  to_regprocedure('public.reverse_finance_receipt(uuid,uuid,date,text)') IS NULL
+    AND to_regprocedure(
+      'public.reverse_finance_receipt_v2(uuid,uuid,date,uuid,text,text)'
+    ) IS NULL,
+  'generic receipt reversals remain absent'
 );
 
 SELECT * FROM finish();

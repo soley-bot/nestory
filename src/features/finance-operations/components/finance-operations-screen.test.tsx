@@ -416,6 +416,63 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
+  it("offers an append-only settlement correction only to Super Admin", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.balanceDue = 0;
+    invoice.collectedByOwner = 640;
+    invoice.paymentStatus = "paid";
+    invoice.settlements = [
+      {
+        amount: 640,
+        date: "2026-08-08",
+        id: "confirmation-1",
+        isReversed: false,
+        reference: "Owner transfer",
+        reversalReason: null,
+        route: "direct_to_owner",
+      },
+    ];
+    input.tenantInvoices = [invoice];
+
+    const readOnly = render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Correct" })).toBeNull();
+    readOnly.unmount();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canManageFinance: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Correct" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Correct settlement" });
+    expect(
+      within(dialog).getByRole("combobox", { name: "Settlement" }),
+    ).not.toBeNull();
+    expect(
+      within(dialog).getByText(/original stays in history/i),
+    ).not.toBeNull();
+    expect(
+      (
+        within(dialog).getByRole("button", {
+          name: "Reverse settlement",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
   it("keeps owner cash, owner debt, and withdrawal availability separate", async () => {
     const user = userEvent.setup();
     const input = data();
@@ -590,6 +647,7 @@ function tenantInvoice(): FinanceOperationsData["tenantInvoices"][number] {
     propertyId: "property-1",
     propertyLabel: "HOME — Riverside Home",
     recipientLabel: "Sokha Trading Co.",
+    settlements: [],
     totalAmount: 640,
     unitId: "unit-1",
     unitLabel: "HOME — Unit 01",

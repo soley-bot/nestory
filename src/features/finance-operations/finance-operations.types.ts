@@ -43,6 +43,16 @@ export type TenantInvoiceLine = {
   lineType: string;
 };
 
+export type TenantInvoiceSettlement = {
+  amount: number;
+  date: string;
+  id: string;
+  isReversed: boolean;
+  reference: string | null;
+  reversalReason: string | null;
+  route: "direct_to_owner" | "through_ips";
+};
+
 export type TenantInvoiceSummary = {
   balanceDue: number;
   billingPeriodStart: string;
@@ -66,6 +76,7 @@ export type TenantInvoiceSummary = {
   propertyId: string;
   propertyLabel: string;
   recipientLabel: string;
+  settlements: TenantInvoiceSettlement[];
   totalAmount: number;
   unitId: string | null;
   unitLabel: string;

@@ -19,7 +19,7 @@
     "workspace:provision": "node scripts/workspace-provision.mjs",
     "leases:test-term-authority": "node scripts/lease-term-authority-concurrency.mjs",
     "leases:test-history-integrity": "node scripts/lease-history-integrity-concurrency.mjs",
-    "leases:test-history-model": "node scripts/lease-history-model-concurrency.mjs",
+    "leases:test-relationships": "node scripts/lease-relationship-concurrency.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "db:lint": "supabase db lint",

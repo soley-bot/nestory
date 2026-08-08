@@ -959,20 +959,20 @@ export type Database = {
           amount: number
           created_at: string
           created_by: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
-          economic_scope_snapshot: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          economic_scope_snapshot: string
           expense_item_id: string
-          expense_type_snapshot: string | null
+          expense_type_snapshot: string
           id: string
           ledger_entry_id: string | null
           organization_id: string
-          paid_date: string | null
+          paid_date: string
           payment_id: string
-          property_id: string | null
-          reconciliation_source_id: string | null
+          property_id: string
+          reconciliation_source_id: string
           reversal_of_allocation_id: string | null
-          settlement_contract_version: string | null
-          signed_amount: number | null
+          settlement_contract_version: string
+          signed_amount: number
           unit_id: string | null
           vendor_person_id_snapshot: string | null
         }
@@ -980,20 +980,20 @@ export type Database = {
           amount: number
           created_at?: string
           created_by?: string | null
-          currency?: Database["public"]["Enums"]["currency_code"] | null
-          economic_scope_snapshot?: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          economic_scope_snapshot: string
           expense_item_id: string
-          expense_type_snapshot?: string | null
+          expense_type_snapshot: string
           id?: string
           ledger_entry_id?: string | null
           organization_id: string
-          paid_date?: string | null
+          paid_date: string
           payment_id: string
-          property_id?: string | null
-          reconciliation_source_id?: string | null
+          property_id: string
+          reconciliation_source_id: string
           reversal_of_allocation_id?: string | null
-          settlement_contract_version?: string | null
-          signed_amount?: number | null
+          settlement_contract_version: string
+          signed_amount: number
           unit_id?: string | null
           vendor_person_id_snapshot?: string | null
         }
@@ -1001,20 +1001,20 @@ export type Database = {
           amount?: number
           created_at?: string
           created_by?: string | null
-          currency?: Database["public"]["Enums"]["currency_code"] | null
-          economic_scope_snapshot?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          economic_scope_snapshot?: string
           expense_item_id?: string
-          expense_type_snapshot?: string | null
+          expense_type_snapshot?: string
           id?: string
           ledger_entry_id?: string | null
           organization_id?: string
-          paid_date?: string | null
+          paid_date?: string
           payment_id?: string
-          property_id?: string | null
-          reconciliation_source_id?: string | null
+          property_id?: string
+          reconciliation_source_id?: string
           reversal_of_allocation_id?: string | null
-          settlement_contract_version?: string | null
-          signed_amount?: number | null
+          settlement_contract_version?: string
+          signed_amount?: number
           unit_id?: string | null
           vendor_person_id_snapshot?: string | null
         }
@@ -1228,7 +1228,7 @@ export type Database = {
           committed_at: string | null
           created_at: string
           created_by: string | null
-          currency: Database["public"]["Enums"]["currency_code"] | null
+          currency: Database["public"]["Enums"]["currency_code"]
           economic_class: string | null
           external_reference: string | null
           id: string
@@ -1246,17 +1246,17 @@ export type Database = {
           outstanding_balance_after: number | null
           payer_label_snapshot: string | null
           payer_person_id_snapshot: string | null
-          property_id: string | null
+          property_id: string
           receipt_id: string
-          received_date: string | null
-          reconciliation_source_id: string | null
+          received_date: string
+          reconciliation_source_id: string
           relationship_evidence_hash: string | null
           reversal_of_allocation_id: string | null
           settlement_activation_version: number | null
           settlement_basis: string | null
-          settlement_contract_version: string | null
+          settlement_contract_version: string
           settlement_sequence: number | null
-          signed_amount: number | null
+          signed_amount: number
           source_discriminator: string | null
           unit_id: string | null
         }
@@ -1270,7 +1270,7 @@ export type Database = {
           committed_at?: string | null
           created_at?: string
           created_by?: string | null
-          currency?: Database["public"]["Enums"]["currency_code"] | null
+          currency: Database["public"]["Enums"]["currency_code"]
           economic_class?: string | null
           external_reference?: string | null
           id?: string
@@ -1288,17 +1288,17 @@ export type Database = {
           outstanding_balance_after?: number | null
           payer_label_snapshot?: string | null
           payer_person_id_snapshot?: string | null
-          property_id?: string | null
+          property_id: string
           receipt_id: string
-          received_date?: string | null
-          reconciliation_source_id?: string | null
+          received_date: string
+          reconciliation_source_id: string
           relationship_evidence_hash?: string | null
           reversal_of_allocation_id?: string | null
           settlement_activation_version?: number | null
           settlement_basis?: string | null
-          settlement_contract_version?: string | null
+          settlement_contract_version: string
           settlement_sequence?: number | null
-          signed_amount?: number | null
+          signed_amount: number
           source_discriminator?: string | null
           unit_id?: string | null
         }
@@ -1312,7 +1312,7 @@ export type Database = {
           committed_at?: string | null
           created_at?: string
           created_by?: string | null
-          currency?: Database["public"]["Enums"]["currency_code"] | null
+          currency?: Database["public"]["Enums"]["currency_code"]
           economic_class?: string | null
           external_reference?: string | null
           id?: string
@@ -1330,17 +1330,17 @@ export type Database = {
           outstanding_balance_after?: number | null
           payer_label_snapshot?: string | null
           payer_person_id_snapshot?: string | null
-          property_id?: string | null
+          property_id?: string
           receipt_id?: string
-          received_date?: string | null
-          reconciliation_source_id?: string | null
+          received_date?: string
+          reconciliation_source_id?: string
           relationship_evidence_hash?: string | null
           reversal_of_allocation_id?: string | null
           settlement_activation_version?: number | null
           settlement_basis?: string | null
-          settlement_contract_version?: string | null
+          settlement_contract_version?: string
           settlement_sequence?: number | null
-          signed_amount?: number | null
+          signed_amount?: number
           source_discriminator?: string | null
           unit_id?: string | null
         }
@@ -1431,7 +1431,7 @@ export type Database = {
           reconciliation_source_id: string | null
           reference: string | null
           reversal_of_id: string | null
-          settlement_contract_version: string | null
+          settlement_contract_version: string
         }
         Insert: {
           amount: number
@@ -1446,7 +1446,7 @@ export type Database = {
           reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
-          settlement_contract_version?: string | null
+          settlement_contract_version: string
         }
         Update: {
           amount?: number
@@ -1461,7 +1461,7 @@ export type Database = {
           reconciliation_source_id?: string | null
           reference?: string | null
           reversal_of_id?: string | null
-          settlement_contract_version?: string | null
+          settlement_contract_version?: string
         }
         Relationships: [
           {
@@ -3666,6 +3666,7 @@ export type Database = {
           organization_id: string
           owner_person_id_snapshot: string | null
           property_id: string | null
+          reversal_of_allocation_id: string | null
           settlement_contract_version: string | null
           signed_amount: number | null
           tenant_person_id_snapshot: string | null
@@ -3689,6 +3690,7 @@ export type Database = {
           organization_id: string
           owner_person_id_snapshot?: string | null
           property_id?: string | null
+          reversal_of_allocation_id?: string | null
           settlement_contract_version?: string | null
           signed_amount?: number | null
           tenant_person_id_snapshot?: string | null
@@ -3712,6 +3714,7 @@ export type Database = {
           organization_id?: string
           owner_person_id_snapshot?: string | null
           property_id?: string | null
+          reversal_of_allocation_id?: string | null
           settlement_contract_version?: string | null
           signed_amount?: number | null
           tenant_person_id_snapshot?: string | null
@@ -3765,6 +3768,13 @@ export type Database = {
             columns: ["organization_id", "owner_person_id_snapshot"]
             isOneToOne: false
             referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_allocations_reversal_scope_fkey"
+            columns: ["organization_id", "reversal_of_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "owner_collection_confirmation_allocations"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -3838,6 +3848,8 @@ export type Database = {
           organization_id: string
           owner_person_id: string
           reference: string | null
+          reversal_of_id: string | null
+          reversal_reason: string | null
         }
         Insert: {
           amount: number
@@ -3851,6 +3863,8 @@ export type Database = {
           organization_id: string
           owner_person_id: string
           reference?: string | null
+          reversal_of_id?: string | null
+          reversal_reason?: string | null
         }
         Update: {
           amount?: number
@@ -3864,6 +3878,8 @@ export type Database = {
           organization_id?: string
           owner_person_id?: string
           reference?: string | null
+          reversal_of_id?: string | null
+          reversal_reason?: string | null
         }
         Relationships: [
           {
@@ -3892,6 +3908,13 @@ export type Database = {
             columns: ["organization_id", "owner_person_id"]
             isOneToOne: false
             referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_collection_confirmations_reversal_scope_fkey"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "owner_collection_confirmations"
             referencedColumns: ["organization_id", "id"]
           },
         ]
@@ -5507,6 +5530,8 @@ export type Database = {
           invoice_line_id: string
           organization_id: string
           payment_id: string
+          reversal_of_allocation_id: string | null
+          signed_amount: number | null
         }
         Insert: {
           allocation_order: number
@@ -5520,6 +5545,8 @@ export type Database = {
           invoice_line_id: string
           organization_id: string
           payment_id: string
+          reversal_of_allocation_id?: string | null
+          signed_amount?: number | null
         }
         Update: {
           allocation_order?: number
@@ -5533,6 +5560,8 @@ export type Database = {
           invoice_line_id?: string
           organization_id?: string
           payment_id?: string
+          reversal_of_allocation_id?: string | null
+          signed_amount?: number | null
         }
         Relationships: [
           {
@@ -5591,6 +5620,13 @@ export type Database = {
             referencedRelation: "finance_receipts"
             referencedColumns: ["organization_id", "id"]
           },
+          {
+            foreignKeyName: "tenant_invoice_payment_allocations_reversal_scope_fkey"
+            columns: ["organization_id", "reversal_of_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_payment_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
         ]
       }
       tenant_invoice_payments: {
@@ -5606,6 +5642,8 @@ export type Database = {
           received_date: string
           reconciliation_source_id: string
           reference: string | null
+          reversal_of_id: string | null
+          reversal_reason: string | null
         }
         Insert: {
           amount: number
@@ -5619,6 +5657,8 @@ export type Database = {
           received_date: string
           reconciliation_source_id: string
           reference?: string | null
+          reversal_of_id?: string | null
+          reversal_reason?: string | null
         }
         Update: {
           amount?: number
@@ -5632,6 +5672,8 @@ export type Database = {
           received_date?: string
           reconciliation_source_id?: string
           reference?: string | null
+          reversal_of_id?: string | null
+          reversal_reason?: string | null
         }
         Relationships: [
           {
@@ -5654,6 +5696,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_payments_reversal_scope_fkey"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_payments"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "tenant_invoice_payments_source_fkey"
@@ -7316,6 +7365,26 @@ export type Database = {
         }
         Returns: string
       }
+      reverse_owner_collection_confirmation: {
+        Args: {
+          p_confirmation_id: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_reversal_date: string
+        }
+        Returns: string
+      }
+      reverse_tenant_invoice_payment: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_payment_id: string
+          p_reason: string
+          p_reversal_date: string
+        }
+        Returns: string
+      }
       review_expense: {
         Args: {
           p_decision: string
@@ -7433,16 +7502,6 @@ export type Database = {
           p_task_id: string
         }
         Returns: Json
-      }
-      terminate_authoritative_lease_term: {
-        Args: {
-          p_effective_date: string
-          p_idempotency_key: string
-          p_lease_id: string
-          p_organization_id: string
-          p_term_id: string
-        }
-        Returns: string
       }
       update_document: {
         Args: {

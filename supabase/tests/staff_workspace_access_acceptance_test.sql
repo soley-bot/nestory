@@ -2,14 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(25);
-
-SELECT has_function(
-  'app_private',
-  'assert_staff_workspace_access_uniqueness',
-  ARRAY[]::text[],
-  'the migration exposes a private upgrade preflight assertion'
-);
+SELECT plan(23);
 
 INSERT INTO auth.users (
   instance_id,
@@ -46,6 +39,7 @@ FROM (
     ('00000000-0000-0000-0000-000000000731'::uuid, 'existing-unlinked@example.com'),
     ('00000000-0000-0000-0000-000000000732'::uuid, 'existing-same-linked@example.com'),
     ('00000000-0000-0000-0000-000000000733'::uuid, 'existing-different-linked@example.com'),
+    ('00000000-0000-0000-0000-000000000735'::uuid, 'access-update@example.com'),
     ('00000000-0000-0000-0000-000000000736'::uuid, 'accept-unrelated-unique@example.com')
 ) AS fixture_users(user_id, email);
 
@@ -120,6 +114,83 @@ FROM (
     ('88300000-0000-0000-0000-000000000037'::uuid)
 ) AS fixture_roles(person_id);
 
+INSERT INTO public.organization_branches (
+  id,
+  organization_id,
+  name,
+  code,
+  status,
+  created_by,
+  updated_by
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000212',
+  '00000000-0000-0000-0000-000000000001',
+  'Invitation Acceptance Branch',
+  'INV-ACCEPT',
+  'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.people (
+  id,
+  organization_id,
+  display_name,
+  legal_name,
+  party_type,
+  primary_email,
+  created_by,
+  updated_by
+)
+VALUES
+  (
+    '80300000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
+    'Final Admin Demotion Target',
+    'Final Admin Demotion Target',
+    'individual',
+    'admin-demotion-target@example.com',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '80300000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
+    'Access Update Target',
+    'Access Update Target',
+    'individual',
+    'access-update-target@example.com',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
+
+INSERT INTO public.person_roles (
+  organization_id,
+  person_id,
+  role,
+  status,
+  created_by,
+  updated_by
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '80300000-0000-0000-0000-000000000001',
+    'staff',
+    'active',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '80300000-0000-0000-0000-000000000002',
+    'staff',
+    'active',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
+
 INSERT INTO public.organization_members (
   id,
   organization_id,
@@ -152,6 +223,14 @@ VALUES
     'operations_member',
     '88300000-0000-0000-0000-000000000033',
     '00000000-0000-0000-0000-000000000211'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000503',
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000735',
+    'finance_member',
+    NULL,
+    NULL
   );
 
 INSERT INTO public.organization_invitations (
@@ -232,13 +311,6 @@ VALUES
     '00000000-0000-0000-0000-000000000101',
     now() + interval '1 hour'
   );
-
-SELECT throws_ok(
-  $$SELECT app_private.assert_staff_workspace_access_uniqueness()$$,
-  '23505',
-  'Cannot enforce Staff access uniqueness: linked memberships overlap live Staff invitations',
-  'upgrade preflight rejects member and live-invitation overlap for the same Staff record'
-);
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000731', true);
 SELECT lives_ok(
@@ -377,7 +449,8 @@ SELECT is(
     SELECT role || ':' || coalesce(person_id::text, 'null') || ':' ||
       coalesce(branch_id::text, 'null')
     FROM public.organization_members
-    WHERE id = '00000000-0000-0000-0000-000000000201'
+    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+      AND user_id = '00000000-0000-0000-0000-000000000101'
   ),
   'super_admin:null:null',
   'a rejected final-administrator acceptance preserves the active configuration'

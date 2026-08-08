@@ -886,7 +886,7 @@ function buildTimelineRiskIndicators({
   return [
     {
       description: isLocked
-        ? "This event belongs to a locked accounting period."
+        ? "This event belongs to a locked month."
         : "This event is open for operational correction.",
       id: "lock",
       label: isLocked ? "Period locked" : "Period open",
@@ -946,7 +946,7 @@ function buildTimelineNextAction({
 }): TimelineNextAction {
   if (isLocked) {
     return {
-      description: "Unlock the accounting period before changing this event.",
+      description: "Unlock the month before changing this event.",
       href: hrefs.ledger ?? hrefs.timeline,
       label: "Review lock",
       tone: "warning",

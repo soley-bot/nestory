@@ -66,7 +66,7 @@ describe("buildLeaseSummary", () => {
     expect(summary.depositLabel).toBe("No deposit recorded");
   });
 
-  it("surfaces exact term authority and rent readiness without compatibility inference", () => {
+  it("surfaces exact term authority and rent readiness without fallback inference", () => {
     const summary = buildLeaseSummary({
       lease,
       property,

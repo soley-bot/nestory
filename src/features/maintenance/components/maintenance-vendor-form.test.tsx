@@ -56,10 +56,10 @@ describe("maintenance vendor form", () => {
         recurrenceFrequency: "none",
         status: "pending",
         title: "Repair sink",
-        vendorPersonId: "legacy-vendor",
+        vendorPersonId: "inactive-vendor",
       },
       id: "task-1",
-      vendorLabel: "Legacy Plumbing",
+      vendorLabel: "Former Plumbing",
     } as MaintenanceCase;
 
     const vendorSelect = getMaintenanceVendorSelectOptions({
@@ -88,8 +88,8 @@ describe("maintenance vendor form", () => {
       options: [
         { label: "No vendor", value: "" },
         {
-          label: "Legacy Plumbing (historical/inactive)",
-          value: "legacy-vendor",
+          label: "Former Plumbing (historical/inactive)",
+          value: "inactive-vendor",
         },
         { label: "Active Vendor", value: "active-vendor" },
       ],

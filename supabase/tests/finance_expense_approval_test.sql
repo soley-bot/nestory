@@ -184,8 +184,8 @@ SELECT ok(
 SELECT ok(
   (
     SELECT
-      strpos(definition, 'lock_open_financial_month') > 0
-      AND strpos(definition, 'lock_open_financial_month')
+      strpos(definition, 'lock_open_property_financial_month') > 0
+      AND strpos(definition, 'lock_open_property_financial_month')
         < strpos(definition, 'owner_collection_v1')
       AND strpos(definition, 'owner_collection_v1')
         < strpos(definition, 'confirm_owner_collected_rent_internal')

@@ -97,7 +97,7 @@ describe("buildAccessByPersonId", () => {
     });
   });
 
-  it("selects an active membership deterministically if legacy data has duplicates", () => {
+  it("selects an active membership deterministically if data has duplicates", () => {
     const firstById = { ...membership, id: "membership-a", role: "operations_member" as const };
     const lastById = { ...membership, id: "membership-z", role: "super_admin" as const };
 
@@ -203,11 +203,11 @@ describe("buildAccessByPersonId", () => {
     });
   });
 
-  it("keeps legacy unlinked access records out of person status", () => {
+  it("keeps unlinked access records out of person status", () => {
     const result = buildAccessByPersonId(
       ["person-1"],
-      [{ ...membership, id: "legacy-member", personId: null }],
-      [{ ...invitation, id: "legacy-invite", personId: null }],
+      [{ ...membership, id: "unlinked-member", personId: null }],
+      [{ ...invitation, id: "unlinked-invite", personId: null }],
       now,
     );
 

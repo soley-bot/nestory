@@ -467,7 +467,7 @@ function revalidateTimelinePaths({
 }
 
 function timelineActionErrorMessage(message: string) {
-  if (message.includes("Accounting period is locked")) {
+  if (message.includes("Financial month is locked")) {
     return "This month is locked. Unlock it before changing this record.";
   }
 

@@ -45,7 +45,7 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckboxControl } from "@/components/ui/checkbox-control";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -2189,7 +2189,7 @@ function ChecklistEditor({ error, value }: { error?: string; value: string }) {
       <div className="mt-2 divide-y divide-border overflow-hidden rounded-md border border-border bg-card">
         {items.map((item, index) => (
           <div className="flex items-center gap-2 px-2.5 py-2" key={item.id}>
-            <CheckboxControl
+            <Checkbox
               aria-label={`Complete checklist item ${index + 1}`}
               checked={item.completed}
               onCheckedChange={(checked) =>
