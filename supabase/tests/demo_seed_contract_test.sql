@@ -2,17 +2,12 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(45);
-
-CREATE TEMP VIEW demo_seed_context AS
-SELECT lease_start_date + 300 AS reference_date
-FROM public.current_leases
-WHERE id = '30000000-0000-0000-0000-000000000001';
+SELECT no_plan();
 
 SELECT is(
   (SELECT count(*) FROM public.organizations),
-  2::bigint,
-  'the local seed has one populated organization and one empty demo workspace'
+  1::bigint,
+  'the fixture contains one coherent company'
 );
 
 SELECT is(
@@ -21,50 +16,100 @@ SELECT is(
     FROM auth.users
     WHERE email IN (
       'nestory@gmail.com',
+      'finance.manager@nestory.com',
+      'finance.member@nestory.com',
+      'operations.manager@nestory.com',
+      'operations.member@nestory.com'
+    )
+  ),
+  5::bigint,
+  'all five documented development logins exist'
+);
+
+SELECT is(
+  (
+    SELECT count(*)
+    FROM auth.users
+    WHERE email IN (
       'manager@nestory.com',
       'member@nestory.com',
       'demo@nestory.com'
     )
   ),
-  4::bigint,
-  'all four documented local logins are preserved'
+  0::bigint,
+  'deprecated fixture personas are absent'
+);
+
+SELECT results_eq(
+  $$
+    SELECT role, count(*)::integer
+    FROM public.organization_members
+    GROUP BY role
+    ORDER BY role
+  $$,
+  $$
+    VALUES
+      ('finance_manager'::text, 1),
+      ('finance_member'::text, 1),
+      ('operations_manager'::text, 1),
+      ('operations_member'::text, 1),
+      ('super_admin'::text, 1)
+  $$,
+  'the company has exactly one membership for each fixed role'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.organization_members
+    WHERE role IN ('super_admin', 'finance_manager', 'finance_member')
+      AND (person_id IS NOT NULL OR branch_id IS NOT NULL)
+  ),
+  'company-wide roles do not carry operational person or branch scope'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.organization_members AS membership
+    LEFT JOIN public.person_roles AS person_role
+      ON person_role.organization_id = membership.organization_id
+     AND person_role.person_id = membership.person_id
+     AND person_role.role = 'staff'
+     AND person_role.status = 'active'
+     AND person_role.archived_at IS NULL
+    WHERE membership.role IN ('operations_manager', 'operations_member')
+      AND (
+        membership.person_id IS NULL
+        OR membership.branch_id IS NULL
+        OR person_role.id IS NULL
+      )
+  ),
+  'Operations roles have active staff identities and a branch'
 );
 
 SELECT is(
-  (
-    SELECT count(*)
-    FROM public.properties
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-  ),
-  3::bigint,
-  'the visible sample portfolio has exactly three properties'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.units
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-  ),
-  18::bigint,
-  'the visible sample portfolio has exactly eighteen units'
-);
-
-SELECT is(
-  (
-    SELECT count(DISTINCT owners.person_id)
-    FROM public.property_owners AS owners
-    JOIN public.properties AS properties
-      ON properties.id = owners.property_id
-    WHERE owners.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND owners.archived_at IS NULL
-      AND owners.ended_on IS NULL
-      AND properties.archived_at IS NULL
-  ),
+  (SELECT count(*) FROM public.properties WHERE archived_at IS NULL),
   2::bigint,
-  'the visible sample portfolio has exactly two current owners'
+  'the sample portfolio has two active properties'
+);
+
+SELECT is(
+  (SELECT count(*) FROM public.units WHERE archived_at IS NULL),
+  5::bigint,
+  'the sample portfolio has five active units'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM public.people
+    WHERE display_name = 'Dara Chan' AND archived_at IS NULL
+  )
+  AND EXISTS (
+    SELECT 1 FROM public.people
+    WHERE display_name = 'Mara Sovan' AND archived_at IS NULL
+  ),
+  'route-smoke search records for Dara and Mara exist'
 );
 
 SELECT is(
@@ -73,551 +118,325 @@ SELECT is(
     FROM (
       SELECT owners.property_id
       FROM public.property_owners AS owners
-      JOIN public.properties AS properties
-        ON properties.id = owners.property_id
-      WHERE owners.organization_id = '00000000-0000-0000-0000-000000000001'
-        AND owners.archived_at IS NULL
+      WHERE owners.archived_at IS NULL
         AND owners.ended_on IS NULL
-        AND properties.archived_at IS NULL
       GROUP BY owners.property_id
       HAVING sum(owners.ownership_percent) = 100
         AND count(*) FILTER (WHERE owners.is_primary) = 1
     ) AS complete_ownership
   ),
+  2::bigint,
+  'each property has one complete current ownership record'
+);
+
+SELECT is(
+  (SELECT count(*) FROM public.leases WHERE archived_at IS NULL),
   3::bigint,
-  'each visible property has complete and unambiguous ownership'
+  'the fixture contains three current leases'
 );
 
 SELECT is(
   (
     SELECT count(*)
-    FROM public.organization_members
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+    FROM public.leases AS lease
+    WHERE lease.archived_at IS NULL
+      AND (
+        SELECT count(*)
+        FROM public.lease_terms AS term
+        WHERE term.organization_id = lease.organization_id
+          AND term.lease_id = lease.id
+          AND term.authority_kind = 'authoritative'
+          AND term.archived_at IS NULL
+      ) = 1
   ),
   3::bigint,
-  'the populated organization has admin, manager, and member access'
+  'every lease has one authoritative term'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.lease_terms
+    WHERE authority_kind <> 'authoritative'
+  ),
+  'the fixture contains no inferred lease authority'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*)::integer FROM public.lease_parties),
+      (SELECT count(*)::integer FROM public.lease_occupancies),
+      (SELECT count(*)::integer FROM public.lease_occupancy_participants)
+  $$,
+  $$VALUES (3, 3, 2)$$,
+  'lease parties, occupancy, and individual participation are explicit'
+);
+
+SELECT is(
+  (SELECT count(*) FROM public.lease_deposits WHERE archived_at IS NULL),
+  3::bigint,
+  'each lease carries its operational deposit record'
+);
+
+SELECT results_eq(
+  $$
+    SELECT collection_route, count(*)::integer
+    FROM public.lease_billing_terms
+    WHERE archived_at IS NULL
+    GROUP BY collection_route
+    ORDER BY collection_route
+  $$,
+  $$
+    VALUES
+      ('direct_to_owner'::text, 1),
+      ('through_ips'::text, 2)
+  $$,
+  'billing terms cover both supported collection routes'
 );
 
 SELECT is(
   (
     SELECT count(*)
-    FROM public.organization_members
-    WHERE organization_id = '00000000-0000-0000-0000-000000000002'
+    FROM public.rent_policy_versions
+    WHERE lifecycle = 'approved'
   ),
   1::bigint,
-  'the empty demo workspace keeps its admin login'
+  'one approved rent policy drives the fixture'
 );
 
 SELECT is(
   (
     SELECT count(*)
-    FROM public.leases
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-  ),
-  13::bigint,
-  'the visible portfolio has a compact thirteen-lease book'
-);
-
-SELECT is(
-  (
-    SELECT count(DISTINCT status)
-    FROM public.leases
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-      AND status IN ('active', 'notice_given', 'draft', 'ended')
-  ),
-  4::bigint,
-  'lease fixtures cover active, notice, upcoming draft, and ended states'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.leases AS leases
-    WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND leases.archived_at IS NULL
-      AND EXISTS (
-        SELECT 1
-        FROM public.lease_terms AS terms
-        WHERE terms.organization_id = leases.organization_id
-          AND terms.lease_id = leases.id
-          AND terms.archived_at IS NULL
-          AND terms.authority_kind = 'authoritative'
-      )
-  ),
-  13::bigint,
-  'every visible lease is backed by an authoritative term'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.current_leases AS leases
-    JOIN public.lease_terms AS terms
-      ON terms.organization_id = leases.organization_id
-     AND terms.id = leases.lease_term_id
-     AND terms.archived_at IS NULL
-     AND terms.authority_kind = 'authoritative'
-    WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND leases.archived_at IS NULL
-      AND (
-        leases.lease_start_date,
-        leases.lease_end_date,
-        leases.monthly_rent_amount,
-        leases.monthly_rent_currency
-      ) = (
-        terms.start_date,
-        terms.end_date,
-        terms.rent_amount,
-        terms.rent_currency
-      )
-  ),
-  13::bigint,
-  'lease projections agree with their authoritative terms'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.lease_occupancies
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-      AND status IN ('occupied', 'notice_given', 'reserved', 'vacated')
-  ),
-  13::bigint,
-  'each visible lease has a coherent occupancy state'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.finance_income_items
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-  ),
-  8::bigint,
-  'the demo book has eight normalized income items'
-);
-
-SELECT is(
-  (
-    SELECT count(DISTINCT status)
-    FROM public.finance_income_items
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-      AND status IN ('open', 'partially_received', 'posted')
+    FROM public.tenant_invoices
+    WHERE billing_period_start = date_trunc('month', current_date)::date
+      AND lifecycle = 'issued'
   ),
   3::bigint,
-  'income fixtures cover open, partial, and posted states'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.finance_receipts
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  ),
-  4::bigint,
-  'the demo book has four receipt events'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.finance_receipt_allocations
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  ),
-  4::bigint,
-  'every demo receipt is allocated'
+  'automatic generation created one current-month invoice per lease'
 );
 
 SELECT ok(
   NOT EXISTS (
     SELECT 1
-    FROM public.finance_receipts AS receipts
-    LEFT JOIN public.finance_receipt_allocations AS allocations
-      ON allocations.receipt_id = receipts.id
-    WHERE receipts.organization_id = '00000000-0000-0000-0000-000000000001'
-    GROUP BY receipts.id, receipts.amount
-    HAVING coalesce(sum(allocations.amount), 0) > receipts.amount
+    FROM public.tenant_invoices
+    WHERE lease_term_id IS NULL
+      OR rent_policy_version_id IS NULL
+      OR generation_source IS NULL
+      OR generated_at IS NULL
   ),
-  'receipt allocations never exceed their receipt'
+  'every rent invoice snapshots its term, policy, and generation source'
+);
+
+SELECT results_eq(
+  $$
+    SELECT collection_route, payment_status, count(*)::integer
+    FROM public.tenant_invoice_balances
+    GROUP BY collection_route, payment_status
+    ORDER BY collection_route, payment_status
+  $$,
+  $$
+    VALUES
+      ('direct_to_owner'::text, 'paid'::text, 1),
+      ('through_ips'::text, 'paid'::text, 1),
+      ('through_ips'::text, 'unpaid'::text, 1)
+  $$,
+  'rent balances include IPS-paid, owner-collected, and open obligations'
 );
 
 SELECT is(
-  (
-    SELECT count(*)
-    FROM public.finance_expense_items
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-  ),
-  6::bigint,
-  'the demo book has six normalized expense items'
+  (SELECT count(*) FROM public.management_fee_occurrences),
+  3::bigint,
+  'each generated invoice creates one management-fee occurrence'
 );
 
-SELECT is(
-  (
-    SELECT count(DISTINCT status)
-    FROM public.finance_expense_items
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-      AND status IN ('draft', 'approved', 'posted', 'paid')
-  ),
-  4::bigint,
-  'expense fixtures cover draft, approved, posted, and paid states'
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*)::integer FROM public.tenant_invoice_payments),
+      (SELECT count(*)::integer FROM public.owner_collection_confirmations)
+  $$,
+  $$VALUES (1, 1)$$,
+  'rent settlement uses one IPS payment and one owner confirmation'
 );
 
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.finance_payments
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  ),
-  2::bigint,
-  'the demo book has two payment events'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.finance_payment_allocations
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  ),
-  2::bigint,
-  'every demo payment is allocated'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.lease_deposit_events
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  ),
-  4::bigint,
-  'deposit fixtures include receipt and disposition events'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.petty_cash_accounts
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-  ),
-  1::bigint,
-  'the demo book has one active petty-cash account'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.petty_cash_entries
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-  ),
-  4::bigint,
-  'petty cash includes four representative entries'
+SELECT results_eq(
+  $$
+    SELECT source_type, status, count(*)::integer
+    FROM public.expense_submissions
+    GROUP BY source_type, status
+    ORDER BY source_type, status
+  $$,
+  $$
+    VALUES
+      ('general'::text, 'rejected'::text, 1),
+      ('general'::text, 'reversed'::text, 1),
+      ('maintenance_task'::text, 'approved'::text, 1)
+  $$,
+  'the Finance queue contains approved, rejected, and reversed outcomes'
 );
 
 SELECT ok(
-  (
-    SELECT count(DISTINCT status) >= 5
-    FROM public.tasks
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-  ),
-  'maintenance tasks retain a useful spread of workflow states'
-);
-
-SELECT ok(
-  (
-    SELECT count(*) >= 6
-    FROM public.tasks
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-      AND due_date BETWEEN
-        (SELECT reference_date FROM demo_seed_context) - 30
-        AND (SELECT reference_date FROM demo_seed_context) + 30
-  ),
-  'maintenance due dates stay useful around the reset date'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.documents
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  ),
-  0::bigint,
-  'documents are intentionally empty instead of pointing at broken objects'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.asset_photos
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  ),
-  0::bigint,
-  'asset photos are intentionally empty instead of pointing at broken objects'
-);
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.properties
-    WHERE organization_id = '00000000-0000-0000-0000-000000000002'
-  ),
-  0::bigint,
-  'the demo workspace remains truly empty'
-);
-
-SELECT ok(
-  NOT EXISTS (
+  EXISTS (
     SELECT 1
-    FROM public.finance_income_items AS income
-    WHERE income.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND income.status IN ('received', 'posted')
-      AND income.ledger_entry_id IS NULL
+    FROM public.expense_submissions AS submission
+    JOIN public.tasks AS task
+      ON task.organization_id = submission.organization_id
+     AND task.id = submission.source_id
+    WHERE submission.source_type = 'maintenance_task'
+      AND submission.status = 'approved'
+      AND task.title = 'Kitchen sink repair'
+      AND task.actual_cost_amount = submission.internal_cost_amount
+      AND submission.approved_ledger_entry_id IS NOT NULL
   ),
-  'settled income remains traceable to ledger rows'
+  'the approved maintenance cost retains exact task and Ledger identity'
 );
 
 SELECT ok(
-  NOT EXISTS (
+  EXISTS (
     SELECT 1
-    FROM public.leases AS leases
-    JOIN public.people AS people
-      ON people.organization_id = leases.organization_id
-     AND people.id = leases.primary_tenant_person_id
-    WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND leases.archived_at IS NULL
-      AND people.archived_at IS NOT NULL
+    FROM public.expense_submissions
+    WHERE status = 'rejected'
+      AND approved_finance_expense_item_id IS NULL
+      AND approved_payment_id IS NULL
+      AND approved_ledger_entry_id IS NULL
   ),
-  'visible leases never reference archived primary tenants'
+  'a rejected submission creates no financial effect'
 );
 
 SELECT ok(
-  NOT EXISTS (
+  EXISTS (
     SELECT 1
-    FROM public.leases AS leases
-    JOIN public.lease_terms AS terms
-      ON terms.organization_id = leases.organization_id
-     AND terms.lease_id = leases.id
-     AND terms.archived_at IS NULL
-     AND terms.authority_kind = 'authoritative'
-    JOIN public.lease_occupancies AS occupancies
-      ON occupancies.organization_id = leases.organization_id
-     AND occupancies.lease_id = leases.id
-     AND occupancies.archived_at IS NULL
-    WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND leases.archived_at IS NULL
-      AND leases.status = 'notice_given'
-      AND (
-        terms.notice_date IS NULL
-        OR terms.notice_date IS DISTINCT FROM occupancies.notice_date
-      )
+    FROM public.expense_submissions AS submission
+    JOIN public.ledger_entries AS original
+      ON original.id = submission.approved_ledger_entry_id
+    JOIN public.ledger_entries AS reversal
+      ON reversal.id = submission.reversal_ledger_entry_id
+     AND reversal.reversal_of_ledger_entry_id = original.id
+    WHERE submission.status = 'reversed'
+      AND original.direction = 'expense'
+      AND reversal.direction = 'income'
+      AND original.amount = reversal.amount
   ),
-  'notice dates agree across authoritative terms and occupancy state'
-);
-
-SELECT is(
-  (
-    SELECT count(DISTINCT requested_at)
-    FROM public.tenant_requests
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-  ),
-  12::bigint,
-  'tenant requests have a deterministic age spread'
-);
-
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1
-    FROM public.timeline_events AS timeline
-    JOIN public.current_leases AS leases
-      ON leases.organization_id = timeline.organization_id
-     AND leases.id = timeline.lease_id
-    WHERE timeline.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND timeline.event_type IN ('Lease Started', 'Tenant Move In')
-      AND timeline.event_date IS DISTINCT FROM leases.lease_start_date
-  ),
-  'lease lifecycle timeline events stay anchored to their lease start dates'
-);
-
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1
-    FROM public.finance_income_items AS income
-    JOIN public.ledger_entries AS ledger
-      ON ledger.id = income.ledger_entry_id
-    WHERE income.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND income.archived_at IS NULL
-      AND (
-        ledger.organization_id IS DISTINCT FROM income.organization_id
-        OR ledger.property_id IS DISTINCT FROM income.property_id
-        OR ledger.unit_id IS DISTINCT FROM income.unit_id
-        OR ledger.amount IS DISTINCT FROM income.amount_received
-        OR ledger.currency IS DISTINCT FROM income.currency
-        OR ledger.direction <> 'income'
-      )
-  ),
-  'linked income and ledger rows agree on scope, amount, currency, and direction'
-);
-
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1
-    FROM public.finance_income_items
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-      AND ledger_entry_id IS NOT NULL
-      AND status <> 'posted'
-  ),
-  'ledger-linked income is always marked posted'
-);
-
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1
-    FROM public.finance_income_items AS income
-    JOIN public.ledger_entries AS ledger
-      ON ledger.organization_id = income.organization_id
-     AND ledger.id = income.ledger_entry_id
-    WHERE income.organization_id =
-      '00000000-0000-0000-0000-000000000001'
-      AND income.archived_at IS NULL
-      AND income.received_date IS NOT NULL
-      AND ledger.transaction_date IS DISTINCT FROM income.received_date
-  ),
-  'linked income ledger dates preserve the receipt date'
-);
-
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1
-    FROM public.finance_expense_items AS expenses
-    JOIN public.tasks AS tasks
-      ON tasks.organization_id = expenses.organization_id
-     AND tasks.id = expenses.task_id
-    WHERE expenses.organization_id = '00000000-0000-0000-0000-000000000001'
-      AND expenses.archived_at IS NULL
-      AND expenses.property_id IS DISTINCT FROM tasks.property_id
-  ),
-  'task-linked expenses remain scoped to the task property'
-);
-
-CREATE TEMP VIEW visible_operational_records AS
-SELECT organization_id, description AS body
-FROM public.ledger_entries
-WHERE archived_at IS NULL
-UNION ALL
-SELECT organization_id, concat_ws(' ', title, description)
-FROM public.tasks
-WHERE archived_at IS NULL
-UNION ALL
-SELECT organization_id, concat_ws(' ', title, description)
-FROM public.tenant_requests
-WHERE archived_at IS NULL
-UNION ALL
-SELECT organization_id, concat_ws(' ', title, description)
-FROM public.timeline_events
-WHERE archived_at IS NULL;
-
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1
-    FROM visible_operational_records AS visible_records
-    JOIN public.properties AS archived_properties
-      ON archived_properties.organization_id = visible_records.organization_id
-     AND archived_properties.archived_at IS NOT NULL
-     AND visible_records.body ILIKE '%' || archived_properties.name || '%'
-    WHERE visible_records.organization_id =
-      '00000000-0000-0000-0000-000000000001'
-  ),
-  'visible operational rows never retain archived property names'
-);
-
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1
-    FROM visible_operational_records AS visible_records
-    JOIN public.units AS archived_units
-      ON archived_units.organization_id = visible_records.organization_id
-     AND archived_units.archived_at IS NOT NULL
-     AND visible_records.body ILIKE '%' || archived_units.unit_number || '%'
-    WHERE visible_records.organization_id =
-      '00000000-0000-0000-0000-000000000001'
-  ),
-  'visible operational rows never retain archived unit labels'
-);
-
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1
-    FROM public.ledger_entries AS ledger
-    JOIN public.lease_occupancies AS occupancies
-      ON occupancies.organization_id = ledger.organization_id
-     AND occupancies.unit_id = ledger.unit_id
-     AND occupancies.archived_at IS NULL
-    JOIN public.lease_terms AS terms
-      ON terms.organization_id = occupancies.organization_id
-     AND terms.lease_id = occupancies.lease_id
-     AND terms.authority_kind = 'authoritative'
-     AND terms.archived_at IS NULL
-    WHERE ledger.organization_id =
-      '00000000-0000-0000-0000-000000000001'
-      AND ledger.archived_at IS NULL
-      AND ledger.direction = 'income'
-      AND ledger.category IN ('Rent', 'Commercial rent')
-      AND ledger.amount IS DISTINCT FROM terms.rent_amount
-  ),
-  'current rent ledger rows match their authoritative lease rent'
+  'expense reversal is an exact append-only opposite Ledger event'
 );
 
 SELECT ok(
   NOT EXISTS (
     SELECT 1
     FROM public.ledger_entries
-    WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-      AND archived_at IS NULL
-      AND description ~* '\m(January|February|March|April|May|June|July|August|September|October|November|December)\M'
+    WHERE source_type IS NULL OR source_id IS NULL
   ),
-  'reference-dated ledger descriptions remain month-neutral'
+  'all Ledger rows have immutable operational source identity'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.ledger_entries
+    GROUP BY organization_id, source_type, source_id
+    HAVING count(*) > 1
+  ),
+  'one Ledger event exists per operational source'
+);
+
+SELECT results_eq(
+  $$
+    SELECT title, status, recurrence_frequency, actual_cost_amount
+    FROM public.tasks
+    ORDER BY title
+  $$,
+  $$
+    VALUES
+      ('Kitchen sink repair'::text, 'pending'::text, 'none'::text, 125.00::numeric),
+      ('Monthly roof tank check'::text, 'scheduled'::text, 'monthly'::text, NULL::numeric)
+  $$,
+  'maintenance fixtures cover an approved cost and recurrence metadata'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM public.petty_cash_entries AS entry
+    JOIN public.petty_cash_accounts AS account
+      ON account.id = entry.account_id
+    JOIN public.ledger_entries AS ledger
+      ON ledger.id = entry.ledger_entry_id
+     AND ledger.source_type = 'petty_cash_entry'
+     AND ledger.source_id = entry.id
+    WHERE account.account_number = 'PC-PP-01'
+      AND account.custodian_person_id =
+        '80000000-0000-0000-0000-000000000008'
+      AND entry.status = 'posted'
+      AND entry.out_amount = 35
+  ),
+  'posted petty cash is linked to its custodian and exact Ledger event'
 );
 
 SELECT is(
   (
-    SELECT new_values ->> 'due_date'
-    FROM public.activity_logs
-    WHERE id = '92000000-0000-0000-0000-000000000003'
+    SELECT count(*)
+    FROM public.financial_reconciliation_sources
+    WHERE code = 'OPS-USD'
+      AND scope_kind = 'organization_pooled'
+      AND archived_at IS NULL
   ),
-  (
-    SELECT due_date::text
-    FROM public.tasks
-    WHERE id = '91000000-0000-0000-0000-000000000003'
+  1::bigint,
+  'one active pooled source supports IPS and approved-cost cash flows'
+);
+
+SELECT is(
+  (SELECT count(*) FROM public.financial_month_locks),
+  0::bigint,
+  'the fixture starts with every financial month open'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000801',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.get_property_cash_events_page(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      'USD',
+      date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+      NULL,
+      NULL,
+      NULL,
+      100
+    ) AS event
+    WHERE event.resolution_state <> 'resolved'
   ),
-  'task activity snapshots retain the normalized due date'
+  'Finance reads only resolved canonical cash events for Central Residence'
 );
 
 SELECT ok(
-  (
-    SELECT
-      activity.new_values ->> 'notice_date' =
-        occupancies.notice_date::text
-      AND activity.new_values ->> 'scheduled_move_out_date' =
-        occupancies.scheduled_move_out_date::text
-    FROM public.activity_logs AS activity
-    JOIN public.lease_occupancies AS occupancies
-      ON occupancies.organization_id = activity.organization_id
-     AND occupancies.lease_id = activity.entity_id
-     AND occupancies.archived_at IS NULL
-    WHERE activity.id = '92000000-0000-0000-0000-000000000004'
+  EXISTS (
+    SELECT 1
+    FROM public.get_property_cash_events_page(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      'USD',
+      date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+      NULL,
+      NULL,
+      NULL,
+      100
+    ) AS event
+    WHERE event.is_reversal
   ),
-  'lease activity snapshots retain normalized notice and move-out dates'
+  'the canonical cash projection exposes the reportable reversal'
 );
+
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;

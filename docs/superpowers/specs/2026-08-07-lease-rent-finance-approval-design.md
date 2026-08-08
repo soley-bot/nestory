@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-07
 **Status:** Implemented locally; hosted migration, Cron enablement, deployment, and role invitation remain release checkpoints.
-**Supersedes:** The manual-rent-generation limitation and admin-only expense-entry portions of `PROJECT.md` and the relevant runtime-transition sections of `2026-07-30-ips-finance-workflow-simplification-design.md`.
+**Supersedes:** Manual rent generation and Super-Admin-only expense entry.
 
 ## Purpose
 
@@ -25,7 +25,9 @@ The work is one product flow delivered as three independently testable slices:
 2. **Finance roles and expense review:** five fixed roles, Finance submission, approval, rejection, reversal, and finance-data RLS.
 3. **Maintenance-cost handoff:** Operations submission into the same Finance review boundary.
 
-The slices share role helpers, audit conventions, idempotency, property-period locking, and source-linked projections. They do not introduce a generic workflow engine or generic financial-event table.
+The slices share role helpers, audit conventions, idempotency, financial-month
+locking, and source-linked projections. They do not introduce a generic
+workflow engine or generic financial-event table.
 
 ## Fixed role model
 
@@ -36,12 +38,6 @@ One organization membership has exactly one role in the first release:
 - `finance_member`
 - `operations_manager`
 - `operations_member`
-
-Existing memberships and pending invitations migrate as follows:
-
-- `admin` to `super_admin`
-- `manager` to `operations_manager`
-- `member` to `operations_member`
 
 Super Admin is organization-scoped. It is not a cross-customer platform administrator. Multiple simultaneous roles, custom roles, permission editors, amount thresholds, and team ACLs are deferred.
 
@@ -70,7 +66,8 @@ Navigation reflects capabilities, but authorization is repeated at the route/loa
 - The approved `rent_policy_versions` row provides the business timezone and applicable readiness policy.
 - `tenant_invoices` is the monthly rent occurrence for this operational product. A separate generic charge-occurrence table is not introduced.
 
-Compatibility rent columns on `leases` are never a generation source.
+`leases` does not duplicate term dates, rent amount, rent currency, frequency,
+or due day.
 
 ### Generation timing
 
@@ -109,7 +106,8 @@ Generation handles each lease independently so one bad lease does not abort the 
 
 Finance roles can read the exception queue. Super Admin can retry a selected row through the same checked generator. When a scheduler outage left no exception row, Super Admin can select one lease and one completed historical month from Rent; the action is idempotent for that lease-month and never fills adjacent months. Successful generation resolves any matching exception automatically.
 
-The generic income RPC rejects `income_type = 'rent'`. The legacy batch RPC/button is retired. No UI path can create independent manual rent obligations.
+No generic income or batch endpoint can create rent. No UI path can create an
+independent manual rent obligation.
 
 ## Human-entered expense approval
 
@@ -132,14 +130,18 @@ First-release submissions represent costs already paid by IPS. Unpaid vendor bil
 
 Finance Member or Super Admin submits a general expense. Submission validates scope, exact money, supported category, responsibility, recipient, document ownership, and period, then records evidence only.
 
-Submission creates no payment, owner charge, tenant charge, Ledger entry, journal, running-balance change, or cash effect.
+Submission creates no payment, owner charge, tenant charge, Ledger entry,
+running-balance change, or cash effect.
 
 ### Review
 
 Finance Manager or Super Admin may approve or reject a `submitted` row:
 
 - Rejection requires a reason and creates no financial effect.
-- Approval locks the submission and affected property/month, revalidates the snapshot, and atomically creates the paid-expense source, payment/allocation, owner-or-tenant effect, exact source-linked Ledger/journal projection, activity, and submission links.
+- Approval locks the submission and affected organization-month, revalidates
+  the snapshot, and atomically creates the paid-expense source,
+  payment/allocation, owner-or-tenant effect, exact source-linked Ledger event,
+  activity, and submission links.
 - Approval is payload-bound and idempotent. A partial failure rolls back the entire transaction.
 - A locked period rejects approval without changing the submission.
 
@@ -147,7 +149,10 @@ Finance Manager cannot create or edit a submission, change lease configuration, 
 
 ### Reversal
 
-Only Super Admin may reverse an approved submission. Reversal requires a reason and appends exact opposite evidence across the payment/allocation, Ledger/journal, owner invoice/cash allocation or tenant charge, and responsibility records. It never edits or archives the original financial evidence.
+Only Super Admin may reverse an approved submission. Reversal requires a reason
+and appends exact opposite evidence across the payment/allocation, Ledger,
+owner invoice/cash allocation or tenant charge, and responsibility records. It
+never edits or archives the original financial evidence.
 
 If a downstream customer settlement makes exact reversal unsafe, the action fails closed and identifies the required correction path.
 
@@ -192,9 +197,10 @@ Every new public table/function receives explicit grants because Data API grants
 - Finance Member lands in Finance work, sees finance records and `Add expense`, but no approval controls.
 - Operations Manager keeps Maintenance and receives cost submission/status controls.
 - Operations Member keeps assigned task execution and cannot submit cost.
-- Finance pages use capability-aware server contexts rather than `requireAdminContext`.
+- Finance pages use explicit capability-aware server contexts.
 
-The Finance queue distinguishes `Rent generation exceptions` from `Expenses awaiting approval`; neither is presented as a full accounting close.
+The Finance queue distinguishes `Rent generation exceptions` from `Expenses
+awaiting approval`; neither is presented as a period-close workflow.
 
 ## Error handling
 
@@ -204,7 +210,8 @@ The Finance queue distinguishes `Rent generation exceptions` from `Expenses awai
 - Expense approval/reversal is atomic; any failed downstream effect rolls back.
 - Rejected submissions preserve reviewer and reason.
 - Locked-period failures leave the source state unchanged.
-- Safe user messages omit raw UUIDs and accounting-kernel terminology; diagnostic identity remains in server/database logs.
+- Safe user messages omit raw UUIDs and implementation-specific Finance
+  terminology; diagnostic identity remains in server/database logs.
 
 ## Verification
 
@@ -217,7 +224,8 @@ The Finance queue distinguishes `Rent generation exceptions` from `Expenses awai
 - Rent generation across timezone/month boundaries, activation catch-up, missing setup, idempotent replay, alternate-key duplicate attempts, and concurrency.
 - Manual rent creation denial and exact invoice provenance snapshots.
 - No expense financial effect before approval.
-- Approval/rejection authorization, idempotency, atomic rollback, period locks, exact projections, and complete reversal.
+- Approval/rejection authorization, idempotency, atomic rollback, financial
+  month locks, exact projections, and complete reversal.
 - Maintenance submission uniqueness, rejection/resubmission, and task-linked approval.
 
 ### Application
@@ -230,13 +238,14 @@ The Finance queue distinguishes `Rent generation exceptions` from `Expenses awai
 
 ## Rollout
 
-1. Apply role/schema/RLS changes and generated types together so no intermediate role is overprivileged.
-2. Backfill existing memberships/invitations and verify final-Super-Admin protection.
+1. Apply the schema, RLS, application, and generated types together so no
+   intermediate role is overprivileged.
+2. Verify final-Super-Admin protection from the empty-development baseline.
 3. Enable the Cron extension and schedule only after the generator tests pass.
 4. Run a dry-run eligibility report before the first scheduled execution.
-5. Because automatic historical backfill is forbidden, first execution generates only the current period.
-6. Verify job runs and the exception queue before inviting non-admin staff.
-7. Update `PROJECT.md` to replace the manual-generation limitation and document the approved role/approval boundaries.
+5. Because automatic historical recovery is forbidden, first execution
+   generates only the current period.
+6. Verify job runs and the exception queue before inviting staff.
 
 Production migration, hosted Cron activation, user invitation, and deployment remain explicit release checkpoints; implementing the code does not silently perform them.
 

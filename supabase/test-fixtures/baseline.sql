@@ -1,12 +1,14 @@
--- Local realistic operations seed for Nestory.
--- Deterministic admin login plus a compact Cambodia property-management book:
--- named properties, varied units, real lease ranges, deposits, people roles,
--- vendors, staff, ledger/timeline records, and actionable maintenance work.
--- Logins for local Supabase:
--- - nestory@gmail.com / 123456789 -> seeded sample portfolio
--- - manager@nestory.com / 123456789 -> Central Operations maintenance manager
--- - member@nestory.com / 123456789 -> Central Operations field technician
--- - demo@nestory.com / 123456789 -> empty demo workspace
+-- Local-only operational fixture for Nestory.
+--
+-- The fixture deliberately creates one coherent company and exercises the
+-- current checked workflows instead of inserting derived Finance/Ledger rows.
+-- Every documented login uses the password 123456789.
+--
+-- - nestory@gmail.com                    -> Super Admin
+-- - finance.manager@nestory.com          -> Finance Manager
+-- - finance.member@nestory.com           -> Finance Member
+-- - operations.manager@nestory.com       -> Operations Manager
+-- - operations.member@nestory.com        -> Operations Member
 
 DO $$
 BEGIN
@@ -14,226 +16,131 @@ BEGIN
     IS DISTINCT FROM
       'super-secret-jwt-token-with-at-least-32-characters-long' THEN
     RAISE EXCEPTION
-      'supabase/seed.sql is local-only and refused this database';
+      'The operational fixture is local-only and refused this database';
   END IF;
 END;
 $$;
 
-SELECT set_config('app.people_leases_skip_sync', 'on', false);
+BEGIN;
 
-INSERT INTO auth.users (
-  instance_id,
-  id,
-  aud,
-  role,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  confirmation_token,
-  recovery_token,
-  email_change_token_new,
-  email_change,
-  email_change_token_current,
-  reauthentication_token,
-  raw_app_meta_data,
-  raw_user_meta_data,
-  created_at,
-  updated_at
-)
-VALUES (
-  '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000101',
-  'authenticated',
-  'authenticated',
+DO $$
+DECLARE
+  fixture_tables text;
+BEGIN
+  SELECT string_agg(
+    format('%I.%I', tables.schemaname, tables.tablename),
+    ', ' ORDER BY tables.schemaname, tables.tablename
+  )
+  INTO fixture_tables
+  FROM pg_catalog.pg_tables AS tables
+  WHERE tables.schemaname IN ('app_private', 'public')
+    AND NOT (
+      tables.schemaname = 'app_private'
+      AND tables.tablename LIKE '%\_capability' ESCAPE '\'
+    );
+
+  IF fixture_tables IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE ' || fixture_tables ||
+      ' RESTART IDENTITY CASCADE';
+  END IF;
+END;
+$$;
+
+DELETE FROM auth.identities
+WHERE user_id IN (
+  SELECT users.id
+  FROM auth.users AS users
+  WHERE users.email IN (
+    'nestory@gmail.com',
+    'finance.manager@nestory.com',
+    'finance.member@nestory.com',
+    'operations.manager@nestory.com',
+    'operations.member@nestory.com',
+    'manager@nestory.com',
+    'member@nestory.com',
+    'demo@nestory.com'
+  )
+  OR users.id IN (
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000501',
+    '00000000-0000-0000-0000-000000000601',
+    '00000000-0000-0000-0000-000000000701',
+    '00000000-0000-0000-0000-000000000801'
+  )
+);
+
+DELETE FROM auth.users
+WHERE email IN (
   'nestory@gmail.com',
-  extensions.crypt('123456789', extensions.gen_salt('bf')),
-  now(),
-  '',
-  '',
-  '',
-  '',
-  '',
-  '',
-  '{"provider": "email", "providers": ["email"]}'::jsonb,
-  '{"name": "Nestory Admin"}'::jsonb,
-  now(),
-  now()
-)
-ON CONFLICT (id) DO UPDATE
-SET
-  email = EXCLUDED.email,
-  encrypted_password = EXCLUDED.encrypted_password,
-  email_confirmed_at = EXCLUDED.email_confirmed_at,
-  confirmation_token = EXCLUDED.confirmation_token,
-  recovery_token = EXCLUDED.recovery_token,
-  email_change_token_new = EXCLUDED.email_change_token_new,
-  email_change = EXCLUDED.email_change,
-  email_change_token_current = EXCLUDED.email_change_token_current,
-  reauthentication_token = EXCLUDED.reauthentication_token,
-  raw_app_meta_data = EXCLUDED.raw_app_meta_data,
-  raw_user_meta_data = EXCLUDED.raw_user_meta_data,
-  updated_at = now();
-
-INSERT INTO auth.identities (
-  id,
-  provider_id,
-  user_id,
-  identity_data,
-  provider,
-  last_sign_in_at,
-  created_at,
-  updated_at
-)
-VALUES (
-  '00000000-0000-0000-0000-000000000102',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101',
-  jsonb_build_object(
-    'sub', '00000000-0000-0000-0000-000000000101',
-    'email', 'nestory@gmail.com',
-    'email_verified', true,
-    'phone_verified', false
-  ),
-  'email',
-  now(),
-  now(),
-  now()
-)
-ON CONFLICT (provider_id, provider) DO UPDATE
-SET
-  user_id = EXCLUDED.user_id,
-  identity_data = EXCLUDED.identity_data,
-  updated_at = now();
-
-INSERT INTO auth.users (
-  instance_id,
-  id,
-  aud,
-  role,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  confirmation_token,
-  recovery_token,
-  email_change_token_new,
-  email_change,
-  email_change_token_current,
-  reauthentication_token,
-  raw_app_meta_data,
-  raw_user_meta_data,
-  created_at,
-  updated_at
-)
-VALUES (
-  '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000301',
-  'authenticated',
-  'authenticated',
-  'demo@nestory.com',
-  extensions.crypt('123456789', extensions.gen_salt('bf')),
-  now(),
-  '',
-  '',
-  '',
-  '',
-  '',
-  '',
-  '{"provider": "email", "providers": ["email"]}'::jsonb,
-  '{"name": "Nestory Demo"}'::jsonb,
-  now(),
-  now()
-)
-ON CONFLICT (id) DO UPDATE
-SET
-  email = EXCLUDED.email,
-  encrypted_password = EXCLUDED.encrypted_password,
-  email_confirmed_at = EXCLUDED.email_confirmed_at,
-  confirmation_token = EXCLUDED.confirmation_token,
-  recovery_token = EXCLUDED.recovery_token,
-  email_change_token_new = EXCLUDED.email_change_token_new,
-  email_change = EXCLUDED.email_change,
-  email_change_token_current = EXCLUDED.email_change_token_current,
-  reauthentication_token = EXCLUDED.reauthentication_token,
-  raw_app_meta_data = EXCLUDED.raw_app_meta_data,
-  raw_user_meta_data = EXCLUDED.raw_user_meta_data,
-  updated_at = now();
-
-INSERT INTO auth.identities (
-  id,
-  provider_id,
-  user_id,
-  identity_data,
-  provider,
-  last_sign_in_at,
-  created_at,
-  updated_at
-)
-VALUES (
-  '00000000-0000-0000-0000-000000000302',
-  '00000000-0000-0000-0000-000000000301',
-  '00000000-0000-0000-0000-000000000301',
-  jsonb_build_object(
-    'sub', '00000000-0000-0000-0000-000000000301',
-    'email', 'demo@nestory.com',
-    'email_verified', true,
-    'phone_verified', false
-  ),
-  'email',
-  now(),
-  now(),
-  now()
-)
-ON CONFLICT (provider_id, provider) DO UPDATE
-SET
-  user_id = EXCLUDED.user_id,
-  identity_data = EXCLUDED.identity_data,
-  updated_at = now();
-
-INSERT INTO auth.users (
-  instance_id,
-  id,
-  aud,
-  role,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  confirmation_token,
-  recovery_token,
-  email_change_token_new,
-  email_change,
-  email_change_token_current,
-  reauthentication_token,
-  raw_app_meta_data,
-  raw_user_meta_data,
-  created_at,
-  updated_at
-)
-VALUES
-(
-  '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000501',
-  'authenticated',
-  'authenticated',
+  'finance.manager@nestory.com',
+  'finance.member@nestory.com',
+  'operations.manager@nestory.com',
+  'operations.member@nestory.com',
   'manager@nestory.com',
-  extensions.crypt('123456789', extensions.gen_salt('bf')),
-  now(),
-  '',
-  '',
-  '',
-  '',
-  '',
-  '',
-  '{"provider": "email", "providers": ["email"]}'::jsonb,
-  '{"name": "Sophal Touch"}'::jsonb,
-  now(),
-  now()
-),
-(
-  '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-000000000601',
-  'authenticated',
-  'authenticated',
   'member@nestory.com',
+  'demo@nestory.com'
+)
+OR id IN (
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000501',
+  '00000000-0000-0000-0000-000000000601',
+  '00000000-0000-0000-0000-000000000701',
+  '00000000-0000-0000-0000-000000000801'
+);
+
+WITH fixture_users(user_id, email, display_name) AS (
+  VALUES
+    (
+      '00000000-0000-0000-0000-000000000101'::uuid,
+      'nestory@gmail.com'::text,
+      'Nestory Super Admin'::text
+    ),
+    (
+      '00000000-0000-0000-0000-000000000701'::uuid,
+      'finance.manager@nestory.com'::text,
+      'Finance Manager'::text
+    ),
+    (
+      '00000000-0000-0000-0000-000000000801'::uuid,
+      'finance.member@nestory.com'::text,
+      'Finance Member'::text
+    ),
+    (
+      '00000000-0000-0000-0000-000000000501'::uuid,
+      'operations.manager@nestory.com'::text,
+      'Operations Manager'::text
+    ),
+    (
+      '00000000-0000-0000-0000-000000000601'::uuid,
+      'operations.member@nestory.com'::text,
+      'Operations Member'::text
+    )
+)
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  confirmation_token,
+  recovery_token,
+  email_change_token_new,
+  email_change,
+  email_change_token_current,
+  reauthentication_token,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+SELECT
+  '00000000-0000-0000-0000-000000000000',
+  fixture_users.user_id,
+  'authenticated',
+  'authenticated',
+  fixture_users.email,
   extensions.crypt('123456789', extensions.gen_salt('bf')),
   now(),
   '',
@@ -242,26 +149,40 @@ VALUES
   '',
   '',
   '',
-  '{"provider": "email", "providers": ["email"]}'::jsonb,
-  '{"name": "Pich Dara"}'::jsonb,
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  jsonb_build_object('name', fixture_users.display_name),
   now(),
   now()
-)
-ON CONFLICT (id) DO UPDATE
-SET
-  email = EXCLUDED.email,
-  encrypted_password = EXCLUDED.encrypted_password,
-  email_confirmed_at = EXCLUDED.email_confirmed_at,
-  confirmation_token = EXCLUDED.confirmation_token,
-  recovery_token = EXCLUDED.recovery_token,
-  email_change_token_new = EXCLUDED.email_change_token_new,
-  email_change = EXCLUDED.email_change,
-  email_change_token_current = EXCLUDED.email_change_token_current,
-  reauthentication_token = EXCLUDED.reauthentication_token,
-  raw_app_meta_data = EXCLUDED.raw_app_meta_data,
-  raw_user_meta_data = EXCLUDED.raw_user_meta_data,
-  updated_at = now();
+FROM fixture_users;
 
+WITH fixture_identities(identity_id, user_id, email) AS (
+  VALUES
+    (
+      '00000000-0000-0000-0000-000000000102'::uuid,
+      '00000000-0000-0000-0000-000000000101'::uuid,
+      'nestory@gmail.com'::text
+    ),
+    (
+      '00000000-0000-0000-0000-000000000702'::uuid,
+      '00000000-0000-0000-0000-000000000701'::uuid,
+      'finance.manager@nestory.com'::text
+    ),
+    (
+      '00000000-0000-0000-0000-000000000802'::uuid,
+      '00000000-0000-0000-0000-000000000801'::uuid,
+      'finance.member@nestory.com'::text
+    ),
+    (
+      '00000000-0000-0000-0000-000000000502'::uuid,
+      '00000000-0000-0000-0000-000000000501'::uuid,
+      'operations.manager@nestory.com'::text
+    ),
+    (
+      '00000000-0000-0000-0000-000000000602'::uuid,
+      '00000000-0000-0000-0000-000000000601'::uuid,
+      'operations.member@nestory.com'::text
+    )
+)
 INSERT INTO auth.identities (
   id,
   provider_id,
@@ -272,14 +193,13 @@ INSERT INTO auth.identities (
   created_at,
   updated_at
 )
-VALUES
-(
-  '00000000-0000-0000-0000-000000000502',
-  '00000000-0000-0000-0000-000000000501',
-  '00000000-0000-0000-0000-000000000501',
+SELECT
+  fixture_identities.identity_id,
+  fixture_identities.user_id::text,
+  fixture_identities.user_id,
   jsonb_build_object(
-    'sub', '00000000-0000-0000-0000-000000000501',
-    'email', 'manager@nestory.com',
+    'sub', fixture_identities.user_id,
+    'email', fixture_identities.email,
     'email_verified', true,
     'phone_verified', false
   ),
@@ -287,67 +207,21 @@ VALUES
   now(),
   now(),
   now()
-),
-(
-  '00000000-0000-0000-0000-000000000602',
-  '00000000-0000-0000-0000-000000000601',
-  '00000000-0000-0000-0000-000000000601',
-  jsonb_build_object(
-    'sub', '00000000-0000-0000-0000-000000000601',
-    'email', 'member@nestory.com',
-    'email_verified', true,
-    'phone_verified', false
-  ),
-  'email',
-  now(),
-  now(),
-  now()
+FROM fixture_identities;
+
+INSERT INTO public.organizations (
+  id,
+  name,
+  slug,
+  preferred_currency,
+  khr_per_usd
 )
-ON CONFLICT (provider_id, provider) DO UPDATE
-SET
-  user_id = EXCLUDED.user_id,
-  identity_data = EXCLUDED.identity_data,
-  updated_at = now();
-
-TRUNCATE
-  public.activity_logs,
-  public.documents,
-  public.petty_cash_entries,
-  public.petty_cash_periods,
-  public.petty_cash_accounts,
-  public.tasks,
-  public.tenant_requests,
-  public.lease_deposits,
-  public.lease_occupancies,
-  public.lease_terms,
-  public.lease_parties,
-  public.leases,
-  public.ledger_entries,
-  public.ledger_period_locks,
-  public.vendor_profiles,
-  public.property_owners,
-  public.person_contacts,
-  public.person_roles,
-  public.organization_members,
-  public.organization_teams,
-  public.organization_branches,
-  public.units,
-  public.properties,
-  public.people,
-  public.organizations
-RESTART IDENTITY CASCADE;
-
-INSERT INTO public.organizations (id, name, slug)
-VALUES
-(
+VALUES (
   '00000000-0000-0000-0000-000000000001',
-  'Sample Property Group',
-  'sample-property-group'
-),
-(
-  '00000000-0000-0000-0000-000000000002',
-  'Demo Workspace',
-  'demo-workspace'
+  'Nestory Sample Operations',
+  'nestory-sample-operations',
+  'USD',
+  4100
 );
 
 INSERT INTO public.organization_branches (
@@ -360,23 +234,12 @@ INSERT INTO public.organization_branches (
   created_by,
   updated_by
 )
-VALUES
-(
+VALUES (
   '00000000-0000-0000-0000-000000000211',
   '00000000-0000-0000-0000-000000000001',
-  'Central Operations',
-  'CENTRAL',
-  'Street 360, Boeung Keng Kang 1, Phnom Penh',
-  'active',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  '00000000-0000-0000-0000-000000000212',
-  '00000000-0000-0000-0000-000000000001',
-  'River And North Desk',
-  'RIVER',
-  'Street 315, Toul Kork, Phnom Penh',
+  'Phnom Penh Operations',
+  'PP-OPS',
+  'Boeung Keng Kang 1, Phnom Penh',
   'active',
   '00000000-0000-0000-0000-000000000101',
   '00000000-0000-0000-0000-000000000101'
@@ -388,7 +251,6 @@ INSERT INTO public.properties (
   name,
   code,
   property_type,
-  owner,
   address,
   status,
   acquisition_date,
@@ -397,90 +259,32 @@ INSERT INTO public.properties (
   updated_by
 )
 VALUES
-(
-  '10000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000001',
-  'Central Residence',
-  'CTR-RES-018',
-  'Residential apartment',
-  'Sokha Family Holdings',
-  'Street 360, Boeung Keng Kang 1, Phnom Penh',
-  'active',
-  '2021-03-18',
-  'Mid-rise residential building with long-stay tenants and shared rooftop water tanks.',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  '10000000-0000-0000-0000-000000000002',
-  '00000000-0000-0000-0000-000000000001',
-  'Northline Mixed Use',
-  'NTH-MU-006',
-  'Mixed use',
-  'Mekong Family Office',
-  'Street 315, Toul Kork, Phnom Penh',
-  'active',
-  '2020-08-01',
-  'Retail ground floor with apartments above; elevator and pump maintenance are recurring owner concerns.',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  '10000000-0000-0000-0000-000000000003',
-  '00000000-0000-0000-0000-000000000001',
-  'Street 178 Residence',
-  'ST178-RES-001',
-  'Residential apartment',
-  'Urban Key Assets',
-  'Street 178, Daun Penh, Phnom Penh',
-  'active',
-  '2019-11-15',
-  'Older walk-up near the riverside; keys, access control, and plumbing calls happen often.',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  '10000000-0000-0000-0000-000000000004',
-  '00000000-0000-0000-0000-000000000001',
-  'Bassac Garden Apartments',
-  'BSC-GDN-014',
-  'Serviced apartment',
-  'Bayon Living Co.',
-  'Street 29, Tonle Bassac, Phnom Penh',
-  'active',
-  '2022-02-10',
-  'Serviced apartment block with higher rent, housekeeping contracts, and scheduled AC cleaning.',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  '10000000-0000-0000-0000-000000000005',
-  '00000000-0000-0000-0000-000000000001',
-  'Toul Kork Heights',
-  'TKH-022',
-  'Condominium',
-  'Tonle Bassac Partners',
-  'Street 592, Toul Kork, Phnom Penh',
-  'active',
-  '2023-05-22',
-  'Condo-style units with family tenants, parking access, and predictable renewal cycles.',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  '10000000-0000-0000-0000-000000000006',
-  '00000000-0000-0000-0000-000000000001',
-  'Chroy Changvar River View',
-  'CCV-RVR-005',
-  'Residential apartment',
-  'Riverside Asset Trust',
-  'National Road 6A, Chroy Changvar, Phnom Penh',
-  'active',
-  '2021-12-01',
-  'River-view units with parking gate and common-area lighting maintenance.',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-);
+  (
+    '10000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
+    'Central Residence',
+    'CTR-RES',
+    'Residential apartment',
+    'Street 360, Boeung Keng Kang 1, Phnom Penh',
+    'active',
+    '2021-03-18',
+    'Long-stay apartments managed through the central operations team.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '10000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
+    'Riverside Shophouse',
+    'RIV-SHP',
+    'Mixed use',
+    'Sisowath Quay, Daun Penh, Phnom Penh',
+    'active',
+    '2022-09-01',
+    'Ground-floor retail with residential units above.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
 
 INSERT INTO public.units (
   id,
@@ -490,48 +294,50 @@ INSERT INTO public.units (
   floor,
   size_sqm,
   status,
-  current_rent_amount,
-  current_rent_currency,
   created_by,
   updated_by
 )
 VALUES
-('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '09A', '9', 64, 'occupied', 780, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '09B', '9', 52, 'occupied', 640, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '10A', '10', 72, 'occupied', 900, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '11B', '11', 56, 'occupied', 690, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '12A', '12', 80, 'vacant', 980, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'G01', 'G', 38, 'reserved', 520, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '02A', '2', 48, 'occupied', 620, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '02B', '2', 50, 'occupied', 650, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '03A', '3', 84, 'occupied', 1250, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '03B', '3', 92, 'occupied', 1380, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 'R01', 'G', 96, 'occupied', 2400, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '04A', '4', 46, 'maintenance', 590, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '01-01', '1', 44, 'occupied', 560, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '01-02', '1', 42, 'vacant', 540, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '02-01', '2', 58, 'occupied', 720, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '02-02', '2', 58, 'occupied', 720, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000017', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '03-01', '3', 70, 'occupied', 860, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '04-01', '4', 76, 'reserved', 930, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000019', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', 'A-1203', '12', 68, 'occupied', 1150, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', 'A-1204', '12', 68, 'occupied', 1180, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', 'B-0801', '8', 85, 'occupied', 1500, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', 'B-0802', '8', 86, 'occupied', 1520, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000023', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', 'C-0505', '5', 45, 'vacant', 850, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000024', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', 'C-0506', '5', 47, 'maintenance', 870, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000025', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', 'TK-5A', '5', 61, 'occupied', 760, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000026', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', 'TK-5B', '5', 61, 'occupied', 760, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000027', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', 'TK-6A', '6', 74, 'occupied', 940, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000028', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', 'TK-6B', '6', 74, 'occupied', 940, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000029', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', 'TK-7A', '7', 92, 'vacant', 1200, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000030', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', 'TK-7B', '7', 92, 'occupied', 1220, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000031', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 'RV-301', '3', 57, 'occupied', 880, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000032', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 'RV-302', '3', 57, 'occupied', 880, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000033', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 'RV-401', '4', 70, 'occupied', 1050, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000034', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 'RV-402', '4', 70, 'occupied', 1050, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000035', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 'RV-501', '5', 88, 'vacant', 1400, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('20000000-0000-0000-0000-000000000036', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 'RV-G01', 'G', 34, 'maintenance', 680, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
+  (
+    '20000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'A-01', '1', 54, 'vacant',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '20000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'A-02', '1', 58, 'vacant',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '20000000-0000-0000-0000-000000000003',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'A-03', '2', 62, 'vacant',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '20000000-0000-0000-0000-000000000004',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000002',
+    'R-01', 'Ground', 82, 'vacant',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '20000000-0000-0000-0000-000000000005',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000002',
+    'R-02', '2', 48, 'vacant',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
 
 INSERT INTO public.people (
   id,
@@ -546,94 +352,80 @@ INSERT INTO public.people (
   updated_by
 )
 VALUES
-('80000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Dara Sok', 'Dara Sok', 'individual', 'dara.sok@example.com', '+855 12 482 119', 'Primary tenant for Central Residence 09A.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Srey Mom Chan', 'Srey Mom Chan', 'individual', 'sreymom.chan@example.com', '+855 15 730 224', 'Pays by bank transfer; prefers Telegram for reminders.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'James Wilson', 'James Matthew Wilson', 'individual', 'james.wilson@example.com', '+855 89 246 810', 'Expat tenant; renewal review tracked before lease end.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Malis Seng', 'Malis Seng', 'individual', 'malis.seng@example.com', '+855 10 554 312', 'Notice given; move-out inspection planned near lease end.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'Nary Ouk', 'Nary Ouk', 'individual', 'nary.ouk@example.com', '+855 92 681 503', 'Tenant at Northline 02A.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', 'Kosal Vann', 'Kosal Vann', 'individual', 'kosal.vann@example.com', '+855 70 219 884', 'Keeps one parking space in the rear lot.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', 'Sokha Trading Co.', 'Sokha Trading Company Ltd.', 'company', 'admin@sokhatrading.example.com', '+855 23 901 118', 'Company lease for Northline 03A staff housing.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', 'Amina Rahman', 'Amina Rahman', 'individual', 'amina.rahman@example.com', '+855 96 782 4412', 'Tenant at Northline 03B; requests weekend service windows.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000001', 'Heng Pich', 'Heng Pich', 'individual', 'heng.pich@example.com', '+855 16 345 672', 'Street 178 tenant; uses front desk key pickup.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', 'Lina Mao', 'Lina Mao', 'individual', 'lina.mao@example.com', '+855 11 284 620', 'Recently renewed after rent review.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', 'Rithy Chea', 'Rithy Chea', 'individual', 'rithy.chea@example.com', '+855 81 670 235', 'Tenant at Street 178 02-02.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', 'Bopha Lim', 'Bopha Lim', 'individual', 'bopha.lim@example.com', '+855 99 441 729', 'Notice given; owner wants light refresh before relisting.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000001', 'Arun Meas', 'Arun Meas', 'individual', 'arun.meas@example.com', '+855 12 773 508', 'Bassac Garden A-1203 tenant.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000001', 'Claire Nguyen', 'Claire Nguyen', 'individual', 'claire.nguyen@example.com', '+855 87 909 345', 'Serviced apartment tenant; monthly housekeeping included.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000001', 'Vannak Sun', 'Vannak Sun', 'individual', 'vannak.sun@example.com', '+855 93 222 690', 'Bassac Garden B-0801 tenant with parking add-on.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000001', 'Sothea Kim', 'Sothea Kim', 'individual', 'sothea.kim@example.com', '+855 17 604 331', 'Bassac Garden B-0802 tenant.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000017', '00000000-0000-0000-0000-000000000001', 'Pidor Chen', 'Pidor Chen', 'individual', 'pidor.chen@example.com', '+855 86 455 119', 'Toul Kork Heights TK-5A tenant.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000001', 'Mekong Design Studio', 'Mekong Design Studio Co., Ltd.', 'company', 'ops@mekongdesign.example.com', '+855 23 880 642', 'Retail lease for Northline R01.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000019', '00000000-0000-0000-0000-000000000001', 'Nita Vann', 'Nita Vann', 'individual', 'nita.vann@example.com', '+855 61 772 019', 'Toul Kork Heights TK-5B tenant.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000001', 'Samnang Ly', 'Samnang Ly', 'individual', 'samnang.ly@example.com', '+855 98 376 221', 'Toul Kork Heights TK-6A tenant.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000001', 'Chenda Phan', 'Chenda Phan', 'individual', 'chenda.phan@example.com', '+855 66 802 117', 'Toul Kork Heights TK-6B tenant.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-000000000001', 'Tola Hem', 'Tola Hem', 'individual', 'tola.hem@example.com', '+855 97 640 118', 'Toul Kork Heights TK-7B tenant.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000023', '00000000-0000-0000-0000-000000000001', 'Kanya Ros', 'Kanya Ros', 'individual', 'kanya.ros@example.com', '+855 12 634 555', 'Chroy Changvar RV-301 tenant.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80000000-0000-0000-0000-000000000024', '00000000-0000-0000-0000-000000000001', 'David Lee', 'David Lee', 'individual', 'david.lee@example.com', '+855 95 331 420', 'Notice given at Chroy Changvar RV-402.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80100000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Sokha Family Holdings', 'Sokha Family Holdings Co., Ltd.', 'company', 'owners@sokhafamily.example.com', '+855 23 330 118', 'Owner of Central Residence.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80100000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Mekong Family Office', 'Mekong Family Office Ltd.', 'company', 'assets@mekongfamily.example.com', '+855 23 610 700', 'Owner of Northline Mixed Use.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80100000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Urban Key Assets', 'Urban Key Assets Co., Ltd.', 'company', 'office@urbankey.example.com', '+855 17 900 301', 'Owner of Street 178 Residence.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80100000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Bayon Living Co.', 'Bayon Living Company Ltd.', 'company', 'owner@bayonliving.example.com', '+855 23 455 880', 'Owner of Bassac Garden Apartments.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80100000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'Tonle Bassac Partners', 'Tonle Bassac Partners Ltd.', 'company', 'partners@tonlebassac.example.com', '+855 12 990 118', 'Owner of Toul Kork Heights.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80100000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', 'Riverside Asset Trust', 'Riverside Asset Trust', 'company', 'trust@riversideasset.example.com', '+855 23 701 884', 'Owner of Chroy Changvar River View.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80200000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Phnom Penh Plumbing Co.', 'Phnom Penh Plumbing Co., Ltd.', 'company', 'dispatch@ppplumbing.example.com', '+855 12 555 901', 'Preferred plumber for leaks, pumps, and drainage.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80200000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'CoolAir Service Cambodia', 'CoolAir Service Cambodia Co., Ltd.', 'company', 'service@coolair.example.com', '+855 17 502 900', 'Quarterly AC cleaning and emergency cooling calls.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80200000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'SecureLift Cambodia', 'SecureLift Cambodia Ltd.', 'company', 'support@securelift.example.com', '+855 23 884 770', 'Elevator servicing and emergency callbacks.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80200000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'BrightLine Electrical', 'BrightLine Electrical Co.', 'company', 'jobs@brightline.example.com', '+855 10 330 772', 'Electrical repairs and common-area lighting.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80200000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'Sokchea Locksmith', 'Sokchea Locksmith', 'company', 'keys@sokchealock.example.com', '+855 11 640 221', 'Lock changes, mailbox keys, and access control.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80200000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', 'Green Pest Control', 'Green Pest Control Cambodia', 'company', 'booking@greenpest.example.com', '+855 92 451 109', 'Monthly pest-control route for apartments.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80200000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', 'Mekong Cleaning Services', 'Mekong Cleaning Services Co.', 'company', 'ops@mekongclean.example.com', '+855 15 610 804', 'Housekeeping, move-out cleans, and common-area cleaning.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80200000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', 'Glass & Door Works', 'Glass and Door Works Co.', 'company', 'repair@glassdoorworks.example.com', '+855 96 255 803', 'Door closers, hinges, aluminum frames, and glass panels.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80300000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Mony Rath', 'Mony Rath', 'individual', 'mony.rath@example.com', '+855 12 700 410', 'Admin and owner reporting lead.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80300000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Sophal Touch', 'Sophal Touch', 'individual', 'sophal.touch@example.com', '+855 93 730 900', 'Maintenance coordinator for central portfolio.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Pich Dara', 'Pich Dara', 'individual', 'pich.dara@example.com', '+855 15 229 441', 'Field technician for inspections and vendor access.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80300000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'Sina Prak', 'Sina Prak', 'individual', 'sina.prak@example.com', '+855 70 812 664', 'Leasing desk and renewal follow-up.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('80300000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', 'Mara Chhim', 'Mara Chhim', 'individual', 'mara.chhim@example.com', '+855 10 884 200', 'Accounting assistant for rent receipts and owner statements.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
-
-INSERT INTO public.organization_members (
-  id,
-  organization_id,
-  user_id,
-  role,
-  person_id,
-  branch_id
-)
-VALUES
-(
-  '00000000-0000-0000-0000-000000000201',
-  '00000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000101',
-  'super_admin',
-  null,
-  null
-),
-(
-  '00000000-0000-0000-0000-000000000401',
-  '00000000-0000-0000-0000-000000000002',
-  '00000000-0000-0000-0000-000000000301',
-  'super_admin',
-  null,
-  null
-),
-(
-  '00000000-0000-0000-0000-000000000503',
-  '00000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000501',
-  'operations_manager',
-  '80300000-0000-0000-0000-000000000002',
-  '00000000-0000-0000-0000-000000000211'
-),
-(
-  '00000000-0000-0000-0000-000000000603',
-  '00000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000601',
-  'operations_member',
-  '80300000-0000-0000-0000-000000000003',
-  '00000000-0000-0000-0000-000000000211'
-);
+  (
+    '80000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000001',
+    'Dara Chan', 'Chan Dara', 'individual',
+    'dara.chan@example.test', '+855 12 555 101',
+    'Primary tenant at Central Residence.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '80000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
+    'Lina Heng', 'Heng Lina', 'individual',
+    'lina.heng@example.test', '+855 12 555 102',
+    'Tenant whose rent is collected directly by the owner.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '80000000-0000-0000-0000-000000000003',
+    '00000000-0000-0000-0000-000000000001',
+    'Bright Mekong Trading', 'Bright Mekong Trading Co., Ltd.', 'company',
+    'accounts@bright-mekong.example.test', '+855 23 555 103',
+    'Commercial tenant at Riverside Shophouse.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '80000000-0000-0000-0000-000000000004',
+    '00000000-0000-0000-0000-000000000001',
+    'Sokha Vannak', 'Sokha Vannak', 'individual',
+    'sokha.vannak@example.test', '+855 12 555 104',
+    'Owner of Central Residence.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '80000000-0000-0000-0000-000000000005',
+    '00000000-0000-0000-0000-000000000001',
+    'Chanthy Lim', 'Lim Chanthy', 'individual',
+    'chanthy.lim@example.test', '+855 12 555 105',
+    'Owner of Riverside Shophouse.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '80000000-0000-0000-0000-000000000006',
+    '00000000-0000-0000-0000-000000000001',
+    'Khmer Home Services', 'Khmer Home Services Co., Ltd.', 'company',
+    'dispatch@khmer-home.example.test', '+855 23 555 106',
+    'Preferred plumbing and appliance vendor.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '80000000-0000-0000-0000-000000000007',
+    '00000000-0000-0000-0000-000000000001',
+    'Mara Sovan', 'Mara Sovan', 'individual',
+    'mara.sovan@example.test', '+855 12 555 107',
+    'Operations Manager for the Phnom Penh branch.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '80000000-0000-0000-0000-000000000008',
+    '00000000-0000-0000-0000-000000000001',
+    'Vuthy Sok', 'Sok Vuthy', 'individual',
+    'vuthy.sok@example.test', '+855 12 555 108',
+    'Operations Member assigned to field work.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
 
 INSERT INTO public.person_roles (
-  id,
   organization_id,
   person_id,
   role,
@@ -642,86 +434,37 @@ INSERT INTO public.person_roles (
   updated_by
 )
 VALUES
-('81000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000001', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000002', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000003', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000004', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000005', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000006', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000007', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000008', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000009', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000010', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000011', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000012', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000013', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000014', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000015', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000016', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000017', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000017', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000018', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000019', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000019', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000020', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000021', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000022', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000023', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000023', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81000000-0000-0000-0000-000000000024', '00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000024', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81100000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '80100000-0000-0000-0000-000000000001', 'owner', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81100000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '80100000-0000-0000-0000-000000000002', 'owner', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81100000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '80100000-0000-0000-0000-000000000003', 'owner', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81100000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '80100000-0000-0000-0000-000000000004', 'owner', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81100000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '80100000-0000-0000-0000-000000000005', 'owner', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81100000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '80100000-0000-0000-0000-000000000006', 'owner', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81200000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000001', 'vendor', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81200000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000002', 'vendor', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81200000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000003', 'vendor', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81200000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000004', 'vendor', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81200000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000005', 'vendor', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81200000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000006', 'vendor', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81200000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000007', 'vendor', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81200000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000008', 'vendor', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81300000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '80300000-0000-0000-0000-000000000001', 'staff', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81300000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '80300000-0000-0000-0000-000000000002', 'staff', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '80300000-0000-0000-0000-000000000003', 'staff', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81300000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '80300000-0000-0000-0000-000000000004', 'staff', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('81300000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '80300000-0000-0000-0000-000000000005', 'staff', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
+  ('00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000001', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000002', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000003', 'tenant', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000004', 'owner', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000005', 'owner', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000006', 'vendor', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000007', 'staff', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '80000000-0000-0000-0000-000000000008', 'staff', 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
 
-WITH contact_seed AS (
-  SELECT
-    people.*,
-    row_number() OVER (ORDER BY people.id) AS contact_number
-  FROM public.people
-  WHERE people.organization_id = '00000000-0000-0000-0000-000000000001'
-)
-INSERT INTO public.person_contacts (
-  id,
+INSERT INTO public.vendor_profiles (
   organization_id,
   person_id,
-  contact_name,
-  contact_type,
-  email,
-  phone,
-  is_primary,
-  notes,
+  service_category,
+  service_area,
+  preferred,
+  status,
   created_by,
   updated_by
 )
-SELECT
-  ('82000000-0000-0000-0000-' || lpad(contact_number::text, 12, '0'))::uuid,
-  organization_id,
-  id,
-  NULL,
-  CASE WHEN party_type = 'company' THEN 'general' ELSE 'mobile' END,
-  primary_email,
-  primary_phone,
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000006',
+  'Plumbing and appliances',
+  'Phnom Penh',
   true,
-  'Primary operating contact from local seed.',
+  'active',
   '00000000-0000-0000-0000-000000000101',
   '00000000-0000-0000-0000-000000000101'
-FROM contact_seed;
+);
 
 INSERT INTO public.property_owners (
-  id,
   organization_id,
   property_id,
   person_id,
@@ -733,1793 +476,674 @@ INSERT INTO public.property_owners (
   updated_by
 )
 VALUES
-('83000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '80100000-0000-0000-0000-000000000001', 'Beneficial owner', 100, true, '2021-03-18', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('83000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '80100000-0000-0000-0000-000000000002', 'Asset owner', 100, true, '2020-08-01', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('83000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '80100000-0000-0000-0000-000000000003', 'Owner representative', 100, true, '2019-11-15', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('83000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '80100000-0000-0000-0000-000000000004', 'Owner', 100, true, '2022-02-10', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('83000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', '80100000-0000-0000-0000-000000000005', 'Investment partner', 100, true, '2023-05-22', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('83000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', '80100000-0000-0000-0000-000000000006', 'Trust owner', 100, true, '2021-12-01', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
-
-INSERT INTO public.vendor_profiles (
-  id,
-  organization_id,
-  person_id,
-  service_category,
-  service_area,
-  preferred,
-  status,
-  created_by,
-  updated_by
-)
-VALUES
-('84000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000001', 'Plumbing', 'Phnom Penh central districts', true, 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('84000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000002', 'AC service', 'BKK, Bassac, Toul Kork', true, 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('84000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000003', 'Elevator repair', 'Toul Kork and mixed-use assets', true, 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('84000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000004', 'Electrical', 'All properties', true, 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('84000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000005', 'Locksmith', 'Daun Penh and BKK', false, 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('84000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000006', 'Pest control', 'Monthly route', true, 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('84000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000007', 'Cleaning', 'Serviced apartment and move-out cleaning', true, 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('84000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000008', 'Doors and glass', 'All properties', false, 'active', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
-
-INSERT INTO public.leases (
-  id,
-  organization_id,
-  property_id,
-  unit_id,
-  tenant_name,
-  lease_start_date,
-  lease_end_date,
-  monthly_rent_amount,
-  monthly_rent_currency,
-  deposit_amount,
-  deposit_currency,
-  status,
-  primary_tenant_person_id,
-  created_by,
-  updated_by
-)
-VALUES
-('30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Dara Sok', '2025-08-01', '2026-07-31', 780, 'USD', 1560, 'USD', 'active', '80000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'Srey Mom Chan', '2026-02-01', '2027-01-31', 640, 'USD', 1280, 'USD', 'active', '80000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003', 'James Wilson', '2025-11-15', '2026-11-14', 900, 'USD', 1800, 'USD', 'active', '80000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000004', 'Malis Seng', '2025-07-01', '2026-07-31', 690, 'USD', 1380, 'USD', 'notice_given', '80000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000007', 'Nary Ouk', '2025-12-01', '2026-11-30', 620, 'USD', 1240, 'USD', 'active', '80000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000008', 'Kosal Vann', '2026-03-01', '2027-02-28', 650, 'USD', 1300, 'USD', 'active', '80000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000009', 'Sokha Trading Co.', '2025-09-01', '2026-08-31', 1250, 'USD', 2500, 'USD', 'active', '80000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000010', 'Amina Rahman', '2025-10-01', '2026-09-30', 1380, 'USD', 2760, 'USD', 'active', '80000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', 'Mekong Design Studio', '2025-04-01', '2027-03-31', 2400, 'USD', 7200, 'USD', 'active', '80000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000013', 'Heng Pich', '2025-06-01', '2026-11-30', 560, 'USD', 1120, 'USD', 'active', '80000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000015', 'Lina Mao', '2026-01-01', '2026-12-31', 720, 'USD', 1440, 'USD', 'active', '80000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000016', 'Rithy Chea', '2025-09-15', '2026-09-14', 720, 'USD', 1440, 'USD', 'active', '80000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000017', 'Bopha Lim', '2025-07-15', '2026-07-14', 860, 'USD', 1720, 'USD', 'notice_given', '80000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000019', 'Arun Meas', '2025-12-01', '2026-11-30', 1150, 'USD', 2300, 'USD', 'active', '80000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', 'Claire Nguyen', '2026-02-15', '2027-02-14', 1180, 'USD', 2360, 'USD', 'active', '80000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000021', 'Vannak Sun', '2025-05-01', '2026-10-31', 1500, 'USD', 3000, 'USD', 'active', '80000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000017', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000022', 'Sothea Kim', '2025-08-01', '2026-07-31', 1520, 'USD', 3040, 'USD', 'active', '80000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000025', 'Pidor Chen', '2026-01-15', '2027-01-14', 760, 'USD', 1520, 'USD', 'active', '80000000-0000-0000-0000-000000000017', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000019', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000026', 'Nita Vann', '2025-10-15', '2026-10-14', 760, 'USD', 1520, 'USD', 'active', '80000000-0000-0000-0000-000000000019', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000027', 'Samnang Ly', '2026-04-01', '2027-03-31', 940, 'USD', 1880, 'USD', 'active', '80000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000028', 'Chenda Phan', '2026-03-15', '2027-03-14', 940, 'USD', 1880, 'USD', 'active', '80000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000030', 'Tola Hem', '2025-07-01', '2026-12-31', 1220, 'USD', 2440, 'USD', 'active', '80000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000023', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000031', 'Kanya Ros', '2025-09-01', '2026-08-31', 880, 'USD', 1760, 'USD', 'active', '80000000-0000-0000-0000-000000000023', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('30000000-0000-0000-0000-000000000024', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000034', 'David Lee', '2025-06-01', '2026-07-31', 1050, 'USD', 2100, 'USD', 'notice_given', '80000000-0000-0000-0000-000000000024', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
-
-INSERT INTO public.lease_parties (
-  id,
-  organization_id,
-  lease_id,
-  person_id,
-  party_role,
-  is_primary,
-  started_on,
-  created_by,
-  updated_by
-)
-SELECT
-  ('85000000-0000-0000-0000-' || right(leases.id::text, 12))::uuid,
-  leases.organization_id,
-  leases.id,
-  leases.primary_tenant_person_id,
-  'primary_tenant',
-  true,
-  leases.lease_start_date,
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-FROM public.leases
-WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001';
-
-INSERT INTO public.lease_terms (
-  id,
-  organization_id,
-  lease_id,
-  term_sequence,
-  start_date,
-  end_date,
-  rent_amount,
-  rent_currency,
-  rent_due_day,
-  payment_frequency,
-  status,
-  notice_date,
-  created_by,
-  updated_by
-)
-SELECT
-  ('86000000-0000-0000-0000-' || right(id::text, 12))::uuid,
-  organization_id,
-  id,
-  1,
-  lease_start_date,
-  lease_end_date,
-  monthly_rent_amount,
-  monthly_rent_currency,
-  CASE WHEN monthly_rent_amount >= 2000 THEN 5 ELSE 1 END,
-  'monthly',
-  'active',
-  CASE WHEN status = 'notice_given' THEN date '2026-06-15' ELSE NULL END,
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-FROM public.leases
-WHERE organization_id = '00000000-0000-0000-0000-000000000001';
-
-INSERT INTO public.lease_occupancies (
-  id,
-  organization_id,
-  lease_id,
-  property_id,
-  unit_id,
-  status,
-  scheduled_move_in_date,
-  actual_move_in_date,
-  notice_date,
-  scheduled_move_out_date,
-  created_by,
-  updated_by
-)
-SELECT
-  ('87000000-0000-0000-0000-' || right(id::text, 12))::uuid,
-  organization_id,
-  id,
-  property_id,
-  unit_id,
-  CASE WHEN status = 'notice_given' THEN 'notice_given' ELSE 'occupied' END,
-  lease_start_date,
-  lease_start_date,
-  CASE WHEN status = 'notice_given' THEN date '2026-06-15' ELSE NULL END,
-  CASE WHEN status = 'notice_given' THEN lease_end_date ELSE NULL END,
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-FROM public.leases
-WHERE organization_id = '00000000-0000-0000-0000-000000000001';
-
-INSERT INTO public.lease_deposits (
-  id,
-  organization_id,
-  lease_id,
-  deposit_type,
-  amount,
-  currency,
-  status,
-  received_on,
-  notes,
-  created_by,
-  updated_by
-)
-SELECT
-  ('88000000-0000-0000-0000-' || right(id::text, 12))::uuid,
-  organization_id,
-  id,
-  'Security deposit',
-  deposit_amount,
-  deposit_currency,
-  'held',
-  lease_start_date,
-  'Held against lease obligations; amount follows local one-to-three-month deposit practice.',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-FROM public.leases
-WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  AND deposit_amount IS NOT NULL
-  AND deposit_currency IS NOT NULL;
-
-INSERT INTO public.ledger_entries (
-  id,
-  organization_id,
-  property_id,
-  unit_id,
-  transaction_date,
-  direction,
-  category,
-  amount,
-  currency,
-  description,
-  created_by,
-  updated_by
-)
-VALUES
-('40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '2026-07-01', 'income', 'Rent', 780, 'USD', 'July rent received for Central Residence 09A.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', '2026-07-01', 'income', 'Rent', 640, 'USD', 'July rent received for Central Residence 09B.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', '2026-07-05', 'income', 'Commercial rent', 2400, 'USD', 'July commercial rent for Northline R01.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000021', '2026-07-01', 'income', 'Rent', 1500, 'USD', 'July rent received for Bassac Garden B-0801.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000030', '2026-07-01', 'income', 'Rent', 1220, 'USD', 'July rent received for Toul Kork Heights TK-7B.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000031', '2026-07-01', 'income', 'Rent', 880, 'USD', 'July rent received for Chroy Changvar RV-301.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '2026-06-24', 'expense', 'Plumbing repair', 185, 'USD', 'Kitchen sink leak follow-up parts and labor estimate.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', '2026-06-27', 'expense', 'Elevator repair', 1180, 'USD', 'Elevator door operator diagnostic and emergency labor deposit.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', '2026-06-20', 'expense', 'AC service', 95, 'USD', 'Quarterly AC cleaning completed for Bassac Garden A-1204.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', NULL, '2026-06-28', 'expense', 'Electrical repair', 64, 'USD', 'Replaced common-area corridor lights at Chroy Changvar.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000105', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', NULL, '2026-06-30', 'expense', 'Housekeeping', 420, 'USD', 'Monthly common-area and serviced-apartment housekeeping invoice.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('40000000-0000-0000-0000-000000000106', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', NULL, '2026-06-30', 'expense', 'Security', 650, 'USD', 'June security contract for Toul Kork Heights.', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
-
-INSERT INTO public.timeline_events (
-  id,
-  organization_id,
-  property_id,
-  unit_id,
-  lease_id,
-  ledger_entry_id,
-  event_date,
-  event_type,
-  title,
-  description,
-  cost_amount,
-  cost_currency,
-  created_by,
-  updated_by
-)
-VALUES
-('50000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', NULL, '2025-08-01', 'Lease Started', 'Dara Sok lease started', 'Security deposit received and handover checklist completed for unit 09A.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('50000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', '30000000-0000-0000-0000-000000000009', NULL, '2025-04-01', 'Tenant Move In', 'Mekong Design Studio took over R01', 'Retail handover with meter readings and shopfront key set logged.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('50000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000017', '30000000-0000-0000-0000-000000000013', NULL, '2026-06-15', 'General Note', 'Move-out notice received', 'Bopha Lim gave notice and requested a final inspection during the final lease week.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('50000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000101', '2026-06-24', 'Repair', 'Kitchen sink leak follow-up', 'Plumber confirmed replacement trap and silicone reseal are required.', 185, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('50000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', '30000000-0000-0000-0000-000000000009', '40000000-0000-0000-0000-000000000102', '2026-06-27', 'Maintenance', 'Elevator door fault logged', 'SecureLift requested owner approval before replacing the door operator board.', 1180, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('50000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', '30000000-0000-0000-0000-000000000015', '40000000-0000-0000-0000-000000000103', '2026-06-20', 'Maintenance', 'Quarterly AC cleaning completed', 'Filter wash, drain flush, and temperature check completed.', 95, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('50000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', NULL, NULL, '40000000-0000-0000-0000-000000000104', '2026-06-28', 'Repair', 'Corridor light replacement completed', 'BrightLine replaced failed LED drivers on levels 3 and 4.', 64, 'USD', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('50000000-0000-0000-0000-000000000105', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', NULL, NULL, NULL, '2026-06-29', 'Inspection', 'Parking gate sensor inspection', 'Intermittent gate sensor fault confirmed at evening peak period.', NULL, NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
-
-INSERT INTO public.tenant_requests (
-  id,
-  organization_id,
-  property_id,
-  unit_id,
-  request_type,
-  title,
-  description,
-  category,
-  priority,
-  status,
-  requested_at,
-  requested_by_person_id,
-  created_by,
-  updated_by
-)
-VALUES
-('90000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'maintenance', 'Kitchen sink still leaking after first visit', 'Tenant reports water under the sink after the first reseal. Plumber needs access and photos before closing.', 'Plumbing', 'urgent', 'open', '2026-06-24 09:10:00+07', '80000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', 'maintenance', 'Elevator door reopens before closing', 'Retail tenant reports repeated door reopen events during morning deliveries.', 'Elevator repair', 'urgent', 'open', '2026-06-26 16:40:00+07', '80000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', 'maintenance', 'AC not cooling after afternoon peak', 'Tenant says the bedroom unit runs but does not cool below 27C after 3 PM.', 'AC service', 'high', 'open', '2026-07-01 08:20:00+07', '80000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000013', 'general', 'Key pickup and return for contractor access', 'Tenant authorized one key pickup for a bathroom caulking inspection.', 'Key and access', 'normal', 'in_review', '2026-06-30 17:00:00+07', '80000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003', 'maintenance', 'Low shower water pressure', 'Pressure drops after 8 PM and tenant asks for pump-room check.', 'Water pressure', 'normal', 'open', '2026-06-30 20:15:00+07', '80000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', NULL, 'maintenance', 'Monthly pest-control route', 'Preventive pest-control service for common areas and basement bins.', 'Pest control', 'low', 'open', '2026-06-28 10:00:00+07', NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', NULL, 'inspection', 'Fire extinguisher annual inspection', 'Annual tagged inspection for retail corridor and residential levels.', 'Fire safety', 'high', 'open', '2026-06-25 11:30:00+07', NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', NULL, 'maintenance', 'Lobby glass door closer slams shut', 'Front lobby closer needs adjustment before the weekend traffic increase.', 'Doors and glass', 'normal', 'open', '2026-06-30 13:20:00+07', NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000017', 'inspection', 'Move-out inspection for 03-01', 'Notice tenant requested final inspection and deposit review.', 'Move-out', 'normal', 'open', '2026-06-15 09:00:00+07', '80000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', NULL, 'maintenance', 'Common corridor lights failed', 'Level 3 and level 4 corridor lights flickered and failed after rain.', 'Electrical', 'normal', 'closed', '2026-06-27 18:05:00+07', NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', 'maintenance', 'Quarterly AC cleaning for A-1204', 'Scheduled cleaning after tenant reported weak airflow last month.', 'AC service', 'normal', 'closed', '2026-06-18 09:30:00+07', '80000000-0000-0000-0000-000000000014', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('90000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005', NULL, 'maintenance', 'Parking gate sensor intermittent', 'Residents report gate sensor fails when cars queue after 6 PM.', 'Access control', 'high', 'open', '2026-06-29 18:40:00+07', NULL, '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
-
--- Preserve the explicit legacy Ledger links in this compatibility fixture.
--- New runtime inserts remain blocked by guard_maintenance_cost_fields.
-SET session_replication_role = replica;
-
-INSERT INTO public.tasks (
-  id,
-  organization_id,
-  tenant_request_id,
-  property_id,
-  unit_id,
-  title,
-  description,
-  category,
-  priority,
-  status,
-  due_date,
-  due_time,
-  reminder_date,
-  reminder_time,
-  vendor_person_id,
-  cost_estimate_amount,
-  cost_estimate_currency,
-  actual_cost_amount,
-  actual_cost_currency,
-  checklist,
-  recurrence_frequency,
-  ledger_entry_id,
-  timeline_event_id,
-  completed_at,
-  branch_id,
-  assignee_person_id,
-  created_by,
-  updated_by
-)
-VALUES
-('91000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Kitchen sink leak follow-up', 'Return with replacement trap, confirm tenant access, and attach after photo before closing.', 'Plumbing', 'urgent', 'in_progress', '2026-06-24', '10:00', '2026-06-24', '09:30', '80200000-0000-0000-0000-000000000001', 185, 'USD', NULL, NULL, '[{"id":"access","label":"Confirm tenant access window","completed":true},{"id":"diagnose","label":"Inspect trap, supply lines, and cabinet floor","completed":true},{"id":"repair","label":"Replace failed trap and reseal joints","completed":false},{"id":"photo","label":"Attach after photo and tenant sign-off","completed":false}]'::jsonb, 'none', NULL, '50000000-0000-0000-0000-000000000101', NULL, '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000011', 'Elevator door operator approval', 'SecureLift quoted the door operator board. Hold work until owner approves high-cost repair.', 'Elevator repair', 'urgent', 'blocked', '2026-06-27', '14:00', '2026-06-26', '17:00', '80200000-0000-0000-0000-000000000003', 1250, 'USD', NULL, NULL, '[{"id":"quote","label":"Upload vendor quote","completed":true},{"id":"approval","label":"Get owner approval for high-cost repair","completed":false},{"id":"schedule","label":"Schedule shutdown window with retail tenant","completed":false},{"id":"test","label":"Run door-cycle test after repair","completed":false}]'::jsonb, 'none', NULL, '50000000-0000-0000-0000-000000000102', NULL, '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', 'Bedroom AC not cooling', 'CoolAir to test temperature drop, clean filter, and advise if gas top-up is needed.', 'AC service', 'high', 'scheduled', '2026-07-01', '15:00', '2026-07-01', '14:45', '80200000-0000-0000-0000-000000000002', 90, 'USD', NULL, NULL, '[{"id":"tenant","label":"Confirm tenant is home after 3 PM","completed":true},{"id":"filter","label":"Clean filter and drain line","completed":false},{"id":"temperature","label":"Record before and after temperature readings","completed":false},{"id":"note","label":"Update case with service recommendation","completed":false}]'::jsonb, 'none', NULL, NULL, NULL, '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000013', 'Contractor key pickup and return', 'Prepare key envelope, record pickup, and confirm return after bathroom caulking inspection.', 'Key and access', 'normal', 'pending', '2026-07-03', '10:30', '2026-07-02', '17:00', '80200000-0000-0000-0000-000000000005', 35, 'USD', NULL, NULL, '[{"id":"authorize","label":"Confirm tenant authorization message","completed":true},{"id":"pickup","label":"Record contractor pickup time","completed":false},{"id":"return","label":"Record key return and cabinet check","completed":false}]'::jsonb, 'none', NULL, NULL, NULL, '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003', 'Check evening water pressure drop', 'Visit during evening demand peak and inspect rooftop tank float valve.', 'Water pressure', 'normal', 'pending', '2026-07-05', '19:00', '2026-07-05', '17:00', '80200000-0000-0000-0000-000000000001', 120, 'USD', NULL, NULL, '[{"id":"tenant","label":"Confirm tenant will be home after 7 PM","completed":false},{"id":"pump","label":"Check pump pressure and rooftop tank valve","completed":false},{"id":"log","label":"Record pressure reading and next action","completed":false}]'::jsonb, 'none', NULL, NULL, NULL, '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000004', NULL, 'Monthly pest-control route', 'Treat basement bins, stairwells, and service corridors before the weekend.', 'Pest control', 'low', 'scheduled', '2026-07-08', '09:00', '2026-07-07', '16:00', '80200000-0000-0000-0000-000000000006', 140, 'USD', NULL, NULL, '[{"id":"notice","label":"Post common-area notice one day before service","completed":false},{"id":"service","label":"Complete basement and corridor treatment","completed":false},{"id":"invoice","label":"Attach vendor invoice","completed":false}]'::jsonb, 'monthly', NULL, NULL, NULL, '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000002', NULL, 'Fire extinguisher annual inspection', 'Walk all cabinets, record tag dates, and note replacements for owner approval.', 'Fire safety', 'high', 'scheduled', '2026-07-10', '11:00', '2026-07-09', '15:00', NULL, 210, 'USD', NULL, NULL, '[{"id":"cabinet","label":"Check every cabinet location against floor plan","completed":false},{"id":"tag","label":"Photograph tags and expiry dates","completed":false},{"id":"replace","label":"List extinguishers due for replacement","completed":false}]'::jsonb, 'annual', NULL, NULL, NULL, '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000006', NULL, 'Adjust lobby glass door closer', 'Door closer slams shut; vendor should adjust speed and inspect hinges.', 'Doors and glass', 'normal', 'in_progress', '2026-07-02', '09:30', '2026-07-01', '16:00', '80200000-0000-0000-0000-000000000008', 75, 'USD', NULL, NULL, '[{"id":"inspect","label":"Inspect closer arm and hinge alignment","completed":true},{"id":"adjust","label":"Adjust closing speed and latch speed","completed":false},{"id":"test","label":"Test door with manager present","completed":false}]'::jsonb, 'none', NULL, NULL, NULL, '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000017', 'Move-out inspection for 03-01', 'Prepare inspection checklist and estimate refresh work before relisting.', 'Move-out', 'normal', 'pending', '2026-07-15', '14:00', '2026-07-14', '16:00', '80200000-0000-0000-0000-000000000007', 160, 'USD', NULL, NULL, '[{"id":"schedule","label":"Confirm inspection appointment with tenant","completed":true},{"id":"meter","label":"Record electricity and water meter photos","completed":false},{"id":"condition","label":"Complete room-by-room condition checklist","completed":false},{"id":"deposit","label":"Send deposit recommendation to manager","completed":false}]'::jsonb, 'none', NULL, '50000000-0000-0000-0000-000000000003', NULL, '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000006', NULL, 'Replace common corridor lights', 'BrightLine replaced failed LED drivers on levels 3 and 4.', 'Electrical', 'normal', 'completed', '2026-06-28', '11:00', '2026-06-28', '10:00', '80200000-0000-0000-0000-000000000004', 70, 'USD', 64, 'USD', '[{"id":"isolate","label":"Isolate affected corridor circuits","completed":true},{"id":"replace","label":"Replace failed LED drivers","completed":true},{"id":"photo","label":"Attach completion photos","completed":true}]'::jsonb, 'none', '40000000-0000-0000-0000-000000000104', '50000000-0000-0000-0000-000000000104', '2026-06-28 13:20:00+07', '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000020', 'Quarterly AC cleaning for A-1204', 'Filter wash, drain flush, and cooling test completed.', 'AC service', 'normal', 'completed', '2026-06-20', '13:00', '2026-06-19', '17:00', '80200000-0000-0000-0000-000000000002', 95, 'USD', 95, 'USD', '[{"id":"access","label":"Confirm access with tenant","completed":true},{"id":"clean","label":"Clean filters and drain line","completed":true},{"id":"temperature","label":"Record temperature readings","completed":true},{"id":"invoice","label":"Attach invoice and close case","completed":true}]'::jsonb, 'quarterly', '40000000-0000-0000-0000-000000000103', '50000000-0000-0000-0000-000000000103', '2026-06-20 15:10:00+07', '00000000-0000-0000-0000-000000000211', '80300000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
-('91000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000005', NULL, 'Parking gate sensor fault', 'Sensor fails during evening queue. Need diagnostic before ordering replacement part.', 'Access control', 'high', 'blocked', '2026-07-04', '18:30', '2026-07-03', '16:00', '80200000-0000-0000-0000-000000000004', 280, 'USD', NULL, NULL, '[{"id":"diagnose","label":"Reproduce sensor failure during evening queue","completed":true},{"id":"quote","label":"Request replacement sensor quote","completed":false},{"id":"approval","label":"Get manager approval before ordering part","completed":false}]'::jsonb, 'none', NULL, '50000000-0000-0000-0000-000000000105', NULL, '00000000-0000-0000-0000-000000000212', '80300000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
-
-SET session_replication_role = origin;
-
-INSERT INTO public.activity_logs (
-  id,
-  organization_id,
-  actor_id,
-  entity_type,
-  entity_id,
-  action,
-  previous_values,
-  new_values,
-  created_at
-)
-VALUES
-('92000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000101', 'task', '91000000-0000-0000-0000-000000000001', 'assigned', NULL, '{"status":"in_progress","priority":"urgent"}'::jsonb, '2026-06-24 09:20:00+07'),
-('92000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000101', 'task', '91000000-0000-0000-0000-000000000002', 'blocked', NULL, '{"reason":"owner approval required","estimate":1250}'::jsonb, '2026-06-27 15:10:00+07'),
-('92000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000101', 'task', '91000000-0000-0000-0000-000000000003', 'scheduled', NULL, '{"due_date":"2026-07-01","vendor":"CoolAir Service Cambodia"}'::jsonb, '2026-07-01 08:45:00+07'),
-('92000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000101', 'lease', '30000000-0000-0000-0000-000000000004', 'notice_received', NULL, '{"notice_date":"2026-06-15","scheduled_move_out_date":"2026-07-31"}'::jsonb, '2026-06-15 10:15:00+07'),
-('92000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000101', 'task', '91000000-0000-0000-0000-000000000010', 'completed', NULL, '{"actual_cost":64,"currency":"USD"}'::jsonb, '2026-06-28 13:20:00+07'),
-('92000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000101', 'task', '91000000-0000-0000-0000-000000000011', 'completed', NULL, '{"actual_cost":95,"currency":"USD"}'::jsonb, '2026-06-20 15:10:00+07');
-
-INSERT INTO public.ledger_period_locks (
-  id,
-  organization_id,
-  period_start,
-  locked_at,
-  locked_by,
-  reason
-)
-VALUES
-('60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', '2026-04-01', '2026-05-06 09:00:00+07', '00000000-0000-0000-0000-000000000101', 'Earlier owner statements reviewed and locked.'),
-('60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', '2026-05-01', '2026-06-05 09:30:00+07', '00000000-0000-0000-0000-000000000101', 'Previous rent, maintenance, and service invoices reconciled.');
-
--- Normalize the visible sample book around a controlled reference date.
--- Properties 4-6 and their dependent rows remain archived compatibility
--- anchors for database tests that exercise cross-property accounting.
-UPDATE public.properties
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101'
-WHERE id IN (
-  '10000000-0000-0000-0000-000000000004',
-  '10000000-0000-0000-0000-000000000005',
-  '10000000-0000-0000-0000-000000000006'
-);
-
-UPDATE public.units
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101'
-WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  AND id >= '20000000-0000-0000-0000-000000000019'::uuid;
-
-UPDATE public.units
-SET status = CASE id
-  WHEN '20000000-0000-0000-0000-000000000001' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000002' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000003' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000004' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000005' THEN 'vacant'
-  WHEN '20000000-0000-0000-0000-000000000006' THEN 'vacant'
-  WHEN '20000000-0000-0000-0000-000000000007' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000008' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000009' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000010' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000011' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000012' THEN 'maintenance'
-  WHEN '20000000-0000-0000-0000-000000000013' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000014' THEN 'vacant'
-  WHEN '20000000-0000-0000-0000-000000000015' THEN 'occupied'
-  WHEN '20000000-0000-0000-0000-000000000016' THEN 'reserved'
-  WHEN '20000000-0000-0000-0000-000000000017' THEN 'vacant'
-  WHEN '20000000-0000-0000-0000-000000000018' THEN 'vacant'
-  ELSE status
-END
-WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  AND archived_at IS NULL;
-
-UPDATE public.property_owners
-SET
-  person_id = '80100000-0000-0000-0000-000000000002',
-  ownership_label = 'Mekong Family Office',
-  updated_by = '00000000-0000-0000-0000-000000000101'
-WHERE property_id = '10000000-0000-0000-0000-000000000003';
-
-UPDATE public.properties
-SET
-  owner = 'Mekong Family Office',
-  updated_by = '00000000-0000-0000-0000-000000000101'
-WHERE id = '10000000-0000-0000-0000-000000000003';
-
-UPDATE public.property_owners
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101',
-  ended_on = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )
-WHERE property_id IN (
-  '10000000-0000-0000-0000-000000000004',
-  '10000000-0000-0000-0000-000000000005',
-  '10000000-0000-0000-0000-000000000006'
-);
-
-UPDATE public.person_roles
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101'
-WHERE person_id IN (
-  '80100000-0000-0000-0000-000000000003',
-  '80100000-0000-0000-0000-000000000004',
-  '80100000-0000-0000-0000-000000000005',
-  '80100000-0000-0000-0000-000000000006',
-  '80000000-0000-0000-0000-000000000013',
-  '80000000-0000-0000-0000-000000000014',
-  '80000000-0000-0000-0000-000000000015',
-  '80000000-0000-0000-0000-000000000016',
-  '80000000-0000-0000-0000-000000000017',
-  '80000000-0000-0000-0000-000000000019',
-  '80000000-0000-0000-0000-000000000020',
-  '80000000-0000-0000-0000-000000000021',
-  '80000000-0000-0000-0000-000000000022',
-  '80000000-0000-0000-0000-000000000023',
-  '80000000-0000-0000-0000-000000000024'
-);
-
-UPDATE public.people
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101'
-WHERE id IN (
-  '80100000-0000-0000-0000-000000000003',
-  '80100000-0000-0000-0000-000000000004',
-  '80100000-0000-0000-0000-000000000005',
-  '80100000-0000-0000-0000-000000000006',
-  '80000000-0000-0000-0000-000000000013',
-  '80000000-0000-0000-0000-000000000014',
-  '80000000-0000-0000-0000-000000000015',
-  '80000000-0000-0000-0000-000000000016',
-  '80000000-0000-0000-0000-000000000017',
-  '80000000-0000-0000-0000-000000000019',
-  '80000000-0000-0000-0000-000000000020',
-  '80000000-0000-0000-0000-000000000021',
-  '80000000-0000-0000-0000-000000000022',
-  '80000000-0000-0000-0000-000000000023',
-  '80000000-0000-0000-0000-000000000024'
-);
-
-SELECT set_config(
-  'app.lease_term_projection_context',
-  'checked-v1',
-  false
-);
-
-WITH desired_leases (
-  id,
-  lease_status,
-  start_offset,
-  end_offset
-) AS (
-  VALUES
-    ('30000000-0000-0000-0000-000000000001'::uuid, 'active', -300, 65),
-    ('30000000-0000-0000-0000-000000000002'::uuid, 'active', -120, 245),
-    ('30000000-0000-0000-0000-000000000003'::uuid, 'active', -60, 305),
-    ('30000000-0000-0000-0000-000000000004'::uuid, 'notice_given', -330, 14),
-    ('30000000-0000-0000-0000-000000000005'::uuid, 'active', -200, 165),
-    ('30000000-0000-0000-0000-000000000006'::uuid, 'active', -30, 335),
-    ('30000000-0000-0000-0000-000000000007'::uuid, 'active', -250, 115),
-    ('30000000-0000-0000-0000-000000000008'::uuid, 'active', -180, 185),
-    ('30000000-0000-0000-0000-000000000009'::uuid, 'active', -400, 330),
-    ('30000000-0000-0000-0000-000000000010'::uuid, 'active', -90, 275),
-    ('30000000-0000-0000-0000-000000000011'::uuid, 'active', -210, 155),
-    ('30000000-0000-0000-0000-000000000012'::uuid, 'draft', 14, 379),
-    ('30000000-0000-0000-0000-000000000013'::uuid, 'ended', -380, -10)
-)
-UPDATE public.leases AS leases
-SET
-  lease_start_date = context.reference_date + desired.start_offset,
-  lease_end_date = context.reference_date + desired.end_offset,
-  status = desired.lease_status,
-  updated_by = '00000000-0000-0000-0000-000000000101'
-FROM desired_leases AS desired
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context
-WHERE leases.id = desired.id;
-
-SELECT set_config(
-  'app.lease_term_projection_context',
-  'off',
-  false
-);
-
-UPDATE public.leases
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101'
-WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-  AND id >= '30000000-0000-0000-0000-000000000014'::uuid;
-
-UPDATE public.lease_terms AS terms
-SET
-  start_date = leases.lease_start_date,
-  end_date = leases.lease_end_date,
-  rent_amount = leases.monthly_rent_amount,
-  rent_currency = leases.monthly_rent_currency,
-  status = CASE leases.status
-    WHEN 'draft' THEN 'upcoming'
-    WHEN 'ended' THEN 'expired'
-    ELSE 'active'
-  END,
-  notice_date = CASE
-    WHEN leases.status = 'notice_given' THEN context.reference_date - 20
-    ELSE NULL
-  END,
-  authority_kind = 'authoritative',
-  confirmed_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  confirmed_by = '00000000-0000-0000-0000-000000000101',
-  updated_by = '00000000-0000-0000-0000-000000000101'
-FROM public.leases AS leases
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context
-WHERE terms.lease_id = leases.id
-  AND leases.archived_at IS NULL;
-
-UPDATE public.lease_terms
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101'
-WHERE lease_id >= '30000000-0000-0000-0000-000000000014'::uuid;
-
-UPDATE public.lease_parties
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101'
-WHERE lease_id >= '30000000-0000-0000-0000-000000000014'::uuid;
-
-UPDATE public.lease_occupancies AS occupancies
-SET
-  status = CASE leases.status
-    WHEN 'notice_given' THEN 'notice_given'
-    WHEN 'draft' THEN 'reserved'
-    WHEN 'ended' THEN 'vacated'
-    ELSE 'occupied'
-  END,
-  scheduled_move_in_date = leases.lease_start_date,
-  actual_move_in_date = CASE
-    WHEN leases.status = 'draft' THEN NULL
-    ELSE leases.lease_start_date
-  END,
-  notice_date = CASE
-    WHEN leases.status = 'notice_given' THEN context.reference_date - 20
-    ELSE NULL
-  END,
-  scheduled_move_out_date = leases.lease_end_date,
-  actual_move_out_date = CASE
-    WHEN leases.status = 'ended' THEN leases.lease_end_date
-    ELSE NULL
-  END,
-  updated_by = '00000000-0000-0000-0000-000000000101'
-FROM public.leases AS leases
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context
-WHERE occupancies.lease_id = leases.id
-  AND leases.archived_at IS NULL;
-
-UPDATE public.lease_occupancies
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101'
-WHERE lease_id >= '30000000-0000-0000-0000-000000000014'::uuid;
-
-UPDATE public.lease_deposits AS deposits
-SET
-  status = CASE leases.status
-    WHEN 'ended' THEN 'returned'
-    WHEN 'draft' THEN 'pending'
-    ELSE 'held'
-  END,
-  received_on = CASE
-    WHEN leases.status = 'draft' THEN NULL
-    ELSE leases.lease_start_date
-  END,
-  returned_on = CASE
-    WHEN leases.status = 'ended' THEN leases.lease_end_date + 5
-    ELSE NULL
-  END,
-  updated_by = '00000000-0000-0000-0000-000000000101'
-FROM public.leases AS leases
-WHERE deposits.lease_id = leases.id
-  AND leases.archived_at IS NULL;
-
-UPDATE public.lease_deposits
-SET
-  archived_at = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  )::timestamptz,
-  archived_by = '00000000-0000-0000-0000-000000000101'
-WHERE lease_id >= '30000000-0000-0000-0000-000000000014'::uuid;
-
-WITH desired_requests (id, age_offset) AS (
-  VALUES
-    ('90000000-0000-0000-0000-000000000001'::uuid, 0),
-    ('90000000-0000-0000-0000-000000000002'::uuid, 1),
-    ('90000000-0000-0000-0000-000000000003'::uuid, 2),
-    ('90000000-0000-0000-0000-000000000004'::uuid, 3),
-    ('90000000-0000-0000-0000-000000000005'::uuid, 4),
-    ('90000000-0000-0000-0000-000000000006'::uuid, 5),
-    ('90000000-0000-0000-0000-000000000007'::uuid, 6),
-    ('90000000-0000-0000-0000-000000000008'::uuid, 7),
-    ('90000000-0000-0000-0000-000000000009'::uuid, 8),
-    ('90000000-0000-0000-0000-000000000010'::uuid, 9),
-    ('90000000-0000-0000-0000-000000000011'::uuid, 10),
-    ('90000000-0000-0000-0000-000000000012'::uuid, 11)
-)
-UPDATE public.tenant_requests AS requests
-SET
-  property_id = CASE requests.property_id
-    WHEN '10000000-0000-0000-0000-000000000004' THEN '10000000-0000-0000-0000-000000000002'::uuid
-    WHEN '10000000-0000-0000-0000-000000000005' THEN '10000000-0000-0000-0000-000000000003'::uuid
-    WHEN '10000000-0000-0000-0000-000000000006' THEN '10000000-0000-0000-0000-000000000001'::uuid
-    ELSE requests.property_id
-  END,
-  unit_id = CASE requests.unit_id
-    WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
-    ELSE requests.unit_id
-  END,
-  requested_by_person_id = CASE requests.requested_by_person_id
-    WHEN '80000000-0000-0000-0000-000000000014' THEN '80000000-0000-0000-0000-000000000006'::uuid
-    ELSE requests.requested_by_person_id
-  END,
-  title = CASE requests.id
-    WHEN '90000000-0000-0000-0000-000000000011'
-      THEN 'Quarterly AC cleaning for Northline 02B'
-    ELSE requests.title
-  END,
-  requested_at = context.reference_date::timestamptz
-    - interval '7 days'
-    - desired.age_offset * interval '1 day',
-  updated_by = '00000000-0000-0000-0000-000000000101'
-FROM desired_requests AS desired
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context
-WHERE requests.id = desired.id;
-
-WITH desired_tasks (id, due_offset, reminder_offset) AS (
-  VALUES
-    ('91000000-0000-0000-0000-000000000001'::uuid, -3, -4),
-    ('91000000-0000-0000-0000-000000000002'::uuid, -1, -2),
-    ('91000000-0000-0000-0000-000000000003'::uuid, 1, 0),
-    ('91000000-0000-0000-0000-000000000004'::uuid, 3, 2),
-    ('91000000-0000-0000-0000-000000000005'::uuid, 5, 4),
-    ('91000000-0000-0000-0000-000000000006'::uuid, 7, 6),
-    ('91000000-0000-0000-0000-000000000007'::uuid, 9, 8),
-    ('91000000-0000-0000-0000-000000000008'::uuid, 2, 1),
-    ('91000000-0000-0000-0000-000000000009'::uuid, 12, 11),
-    ('91000000-0000-0000-0000-000000000010'::uuid, -10, -11),
-    ('91000000-0000-0000-0000-000000000011'::uuid, -8, -9),
-    ('91000000-0000-0000-0000-000000000012'::uuid, 4, 3)
-)
-UPDATE public.tasks AS tasks
-SET
-  property_id = CASE tasks.property_id
-    WHEN '10000000-0000-0000-0000-000000000004' THEN '10000000-0000-0000-0000-000000000002'::uuid
-    WHEN '10000000-0000-0000-0000-000000000005' THEN '10000000-0000-0000-0000-000000000003'::uuid
-    WHEN '10000000-0000-0000-0000-000000000006' THEN '10000000-0000-0000-0000-000000000001'::uuid
-    ELSE tasks.property_id
-  END,
-  unit_id = CASE tasks.unit_id
-    WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
-    ELSE tasks.unit_id
-  END,
-  title = CASE tasks.id
-    WHEN '91000000-0000-0000-0000-000000000011'
-      THEN 'Quarterly AC cleaning for Northline 02B'
-    ELSE tasks.title
-  END,
-  due_date = context.reference_date + desired.due_offset,
-  reminder_date = context.reference_date + desired.reminder_offset,
-  completed_at = CASE
-    WHEN tasks.status = 'completed'
-      THEN (context.reference_date + desired.due_offset)::timestamptz
-        + interval '5 hours'
-    ELSE NULL
-  END,
-  updated_by = '00000000-0000-0000-0000-000000000101'
-FROM desired_tasks AS desired
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context
-WHERE tasks.id = desired.id;
-
-UPDATE public.ledger_entries
-SET
-  property_id = CASE property_id
-    WHEN '10000000-0000-0000-0000-000000000004' THEN '10000000-0000-0000-0000-000000000002'::uuid
-    WHEN '10000000-0000-0000-0000-000000000005' THEN '10000000-0000-0000-0000-000000000003'::uuid
-    WHEN '10000000-0000-0000-0000-000000000006' THEN '10000000-0000-0000-0000-000000000001'::uuid
-    ELSE property_id
-  END,
-  unit_id = CASE unit_id
-    WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
-    WHEN '20000000-0000-0000-0000-000000000021' THEN '20000000-0000-0000-0000-000000000009'::uuid
-    WHEN '20000000-0000-0000-0000-000000000030' THEN '20000000-0000-0000-0000-000000000015'::uuid
-    WHEN '20000000-0000-0000-0000-000000000031' THEN '20000000-0000-0000-0000-000000000003'::uuid
-    ELSE unit_id
-  END,
-  description = CASE id
-    WHEN '40000000-0000-0000-0000-000000000001'
-      THEN 'Rent received for Central Residence 09A.'
-    WHEN '40000000-0000-0000-0000-000000000002'
-      THEN 'Rent received for Central Residence 09B.'
-    WHEN '40000000-0000-0000-0000-000000000003'
-      THEN 'Commercial rent received for Northline R01.'
-    WHEN '40000000-0000-0000-0000-000000000004'
-      THEN 'Rent received for Northline unit 02B.'
-    WHEN '40000000-0000-0000-0000-000000000005'
-      THEN 'Rent received for Street 178 Residence 02-01.'
-    WHEN '40000000-0000-0000-0000-000000000006'
-      THEN 'Rent received for Central Residence 10A.'
-    WHEN '40000000-0000-0000-0000-000000000103'
-      THEN 'Quarterly AC cleaning completed for Northline 02B.'
-    WHEN '40000000-0000-0000-0000-000000000104'
-      THEN 'Replaced common-area corridor lights at Central Residence.'
-    WHEN '40000000-0000-0000-0000-000000000106'
-      THEN 'Security contract for Street 178 Residence.'
-    ELSE description
-  END,
-  amount = CASE id
-    WHEN '40000000-0000-0000-0000-000000000005' THEN 720
-    WHEN '40000000-0000-0000-0000-000000000006' THEN 900
-    ELSE amount
-  END,
-  transaction_date = coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) - CASE
-    WHEN direction = 'income' THEN 2
-    ELSE 6
-  END,
-  updated_by = '00000000-0000-0000-0000-000000000101';
-
-UPDATE public.ledger_entries
-SET
-  property_id = '10000000-0000-0000-0000-000000000002',
-  unit_id = '20000000-0000-0000-0000-000000000008',
-  amount = 650,
-  description = 'Monthly rent received for Northline unit 02B.',
-  updated_by = '00000000-0000-0000-0000-000000000101'
-WHERE id = '40000000-0000-0000-0000-000000000004';
-
-UPDATE public.timeline_events
-SET
-  property_id = CASE property_id
-    WHEN '10000000-0000-0000-0000-000000000004' THEN '10000000-0000-0000-0000-000000000002'::uuid
-    WHEN '10000000-0000-0000-0000-000000000005' THEN '10000000-0000-0000-0000-000000000003'::uuid
-    WHEN '10000000-0000-0000-0000-000000000006' THEN '10000000-0000-0000-0000-000000000001'::uuid
-    ELSE property_id
-  END,
-  unit_id = CASE unit_id
-    WHEN '20000000-0000-0000-0000-000000000020' THEN '20000000-0000-0000-0000-000000000008'::uuid
-    ELSE unit_id
-  END,
-  lease_id = CASE lease_id
-    WHEN '30000000-0000-0000-0000-000000000015' THEN '30000000-0000-0000-0000-000000000006'::uuid
-    ELSE lease_id
-  END,
-  event_date = CASE
-    WHEN timeline_events.lease_id IS NOT NULL
-      AND timeline_events.event_type IN ('Lease Started', 'Tenant Move In')
-      THEN (
-        SELECT leases.lease_start_date
-        FROM public.leases AS leases
-        WHERE leases.id = timeline_events.lease_id
-      )
-    ELSE coalesce(
-      nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-      current_date
-    ) - 5
-  END,
-  updated_by = '00000000-0000-0000-0000-000000000101';
-
-UPDATE public.activity_logs AS activity
-SET
-  created_at = context.reference_date::timestamptz - interval '4 days',
-  new_values = CASE activity.id
-    WHEN '92000000-0000-0000-0000-000000000003'
-      THEN jsonb_set(
-        activity.new_values,
-        '{due_date}',
-        to_jsonb((context.reference_date + 1)::text)
-      )
-    WHEN '92000000-0000-0000-0000-000000000004'
-      THEN activity.new_values || jsonb_build_object(
-        'notice_date',
-        (context.reference_date - 20)::text,
-        'scheduled_move_out_date',
-        (
-          SELECT occupancies.scheduled_move_out_date::text
-          FROM public.lease_occupancies AS occupancies
-          WHERE occupancies.organization_id = activity.organization_id
-            AND occupancies.lease_id = activity.entity_id
-            AND occupancies.archived_at IS NULL
-        )
-      )
-    ELSE activity.new_values
-  END
-FROM LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context;
-
-UPDATE public.ledger_period_locks
-SET
-  period_start = date_trunc(
-    'month',
-    context.reference_date - interval '2 months'
-  )::date,
-  locked_at = date_trunc(
-    'month',
-    context.reference_date - interval '1 month'
-  ) + interval '5 days 9 hours'
-FROM LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context
-WHERE ledger_period_locks.id =
-  '60000000-0000-0000-0000-000000000002';
-
-UPDATE public.ledger_period_locks
-SET
-  period_start = date_trunc(
-    'month',
-    context.reference_date - interval '3 months'
-  )::date,
-  locked_at = date_trunc(
-    'month',
-    context.reference_date - interval '2 months'
-  ) + interval '5 days 9 hours'
-FROM LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context
-WHERE ledger_period_locks.id =
-  '60000000-0000-0000-0000-000000000001';
-
-DO $seed_finance_income$
-BEGIN
-  PERFORM app_private.set_finance_settlement_context(true);
-  -- These stable demo IDs predate automatic rent generation and are referenced
-  -- throughout the fixture. Seed them through the same guarded context used by
-  -- the lease-derived generator so production callers still cannot create rent.
-  PERFORM set_config(
-    'app.rent_generation_context',
-    'lease-derived-v1',
-    true
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004',
+    'Sole owner', 100, true,
+    (date_trunc('month', current_date) - interval '2 years')::date,
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000002',
+    '80000000-0000-0000-0000-000000000005',
+    'Sole owner', 100, true,
+    (date_trunc('month', current_date) - interval '2 years')::date,
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
   );
 
-INSERT INTO public.finance_income_items (
-  id,
+INSERT INTO public.organization_members (
   organization_id,
-  property_id,
-  unit_id,
-  lease_id,
-  ledger_entry_id,
-  income_type,
-  payer_label,
-  due_date,
-  received_date,
-  amount_due,
-  amount_received,
-  currency,
-  status,
-  description,
-  reference,
-  created_by,
-  updated_by
-)
-SELECT
-  seeded.id,
-  '00000000-0000-0000-0000-000000000001',
-  seeded.property_id,
-  seeded.unit_id,
-  seeded.lease_id,
-  seeded.ledger_entry_id,
-  seeded.income_type,
-  seeded.payer_label,
-  date_trunc('month', context.reference_date)::date + seeded.due_offset,
-  CASE
-    WHEN seeded.received_offset IS NULL THEN NULL
-    ELSE context.reference_date + seeded.received_offset
-  END,
-  seeded.amount_due,
-  seeded.amount_received,
-  'USD',
-  seeded.status,
-  seeded.description,
-  seeded.reference,
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-FROM (
-  VALUES
-    (
-      'b7000000-0000-0000-0000-000000000001'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      '20000000-0000-0000-0000-000000000001'::uuid,
-      '30000000-0000-0000-0000-000000000001'::uuid,
-      '40000000-0000-0000-0000-000000000001'::uuid,
-      'rent',
-      'Dara Sok',
-      0,
-      -2,
-      780::numeric,
-      780::numeric,
-      'posted',
-      'Monthly rent for Central Residence 09A.',
-      'DEMO-RENT-09A'
-    ),
-    (
-      'b7000000-0000-0000-0000-000000000002'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      '20000000-0000-0000-0000-000000000002'::uuid,
-      '30000000-0000-0000-0000-000000000002'::uuid,
-      NULL::uuid,
-      'rent',
-      'Srey Mom Chan',
-      0,
-      -1,
-      640::numeric,
-      320::numeric,
-      'partially_received',
-      'Partial monthly rent awaiting the second transfer.',
-      'DEMO-RENT-09B'
-    ),
-    (
-      'b7000000-0000-0000-0000-000000000003'::uuid,
-      '10000000-0000-0000-0000-000000000002'::uuid,
-      '20000000-0000-0000-0000-000000000011'::uuid,
-      '30000000-0000-0000-0000-000000000009'::uuid,
-      '40000000-0000-0000-0000-000000000003'::uuid,
-      'rent',
-      'Mekong Design Studio',
-      4,
-      -3,
-      2400::numeric,
-      2400::numeric,
-      'posted',
-      'Commercial rent for Northline R01.',
-      'DEMO-RENT-R01'
-    ),
-    (
-      'b7000000-0000-0000-0000-000000000004'::uuid,
-      '10000000-0000-0000-0000-000000000003'::uuid,
-      '20000000-0000-0000-0000-000000000013'::uuid,
-      '30000000-0000-0000-0000-000000000010'::uuid,
-      NULL::uuid,
-      'rent',
-      'Heng Pich',
-      0,
-      NULL::integer,
-      560::numeric,
-      0::numeric,
-      'open',
-      'Current monthly rent for Street 178 unit 01-01.',
-      'DEMO-RENT-0101'
-    ),
-    (
-      'b7000000-0000-0000-0000-000000000005'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      '20000000-0000-0000-0000-000000000003'::uuid,
-      '30000000-0000-0000-0000-000000000003'::uuid,
-      NULL::uuid,
-      'utility_reimbursement',
-      'James Wilson',
-      8,
-      NULL::integer,
-      42::numeric,
-      0::numeric,
-      'open',
-      'Electricity reimbursement based on the latest meter reading.',
-      'DEMO-UTILITY-10A'
-    ),
-    (
-      'b7000000-0000-0000-0000-000000000006'::uuid,
-      '10000000-0000-0000-0000-000000000002'::uuid,
-      '20000000-0000-0000-0000-000000000009'::uuid,
-      '30000000-0000-0000-0000-000000000007'::uuid,
-      NULL::uuid,
-      'parking',
-      'Sokha Trading Co.',
-      10,
-      NULL::integer,
-      75::numeric,
-      0::numeric,
-      'open',
-      'Monthly parking add-on for the company lease.',
-      'DEMO-PARKING-03A'
-    ),
-    (
-      'b7000000-0000-0000-0000-000000000007'::uuid,
-      '10000000-0000-0000-0000-000000000002'::uuid,
-      '20000000-0000-0000-0000-000000000008'::uuid,
-      '30000000-0000-0000-0000-000000000006'::uuid,
-      '40000000-0000-0000-0000-000000000004'::uuid,
-      'rent',
-      'Kosal Vann',
-      0,
-      -2,
-      650::numeric,
-      650::numeric,
-      'posted',
-      'Monthly rent for Northline unit 02B.',
-      'DEMO-RENT-02B'
-    ),
-    (
-      'b7000000-0000-0000-0000-000000000008'::uuid,
-      '10000000-0000-0000-0000-000000000003'::uuid,
-      '20000000-0000-0000-0000-000000000015'::uuid,
-      '30000000-0000-0000-0000-000000000011'::uuid,
-      NULL::uuid,
-      'late_fee',
-      'Lina Mao',
-      12,
-      NULL::integer,
-      25::numeric,
-      0::numeric,
-      'open',
-      'Documented late fee awaiting payment.',
-      'DEMO-LATE-0201'
-    )
-) AS seeded (
-  id,
-  property_id,
-  unit_id,
-  lease_id,
-  ledger_entry_id,
-  income_type,
-  payer_label,
-  due_offset,
-  received_offset,
-  amount_due,
-  amount_received,
-  status,
-  description,
-  reference
-)
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context;
-
-  PERFORM app_private.set_finance_settlement_context(false);
-  PERFORM set_config('app.rent_generation_context', '', true);
-END;
-$seed_finance_income$;
-
-UPDATE public.ledger_entries AS ledger
-SET
-  transaction_date = income.received_date,
-  updated_by = '00000000-0000-0000-0000-000000000101'
-FROM public.finance_income_items AS income
-WHERE income.organization_id = ledger.organization_id
-  AND income.ledger_entry_id = ledger.id
-  AND income.received_date IS NOT NULL;
-
-INSERT INTO public.finance_receipts (
-  id,
-  organization_id,
-  property_id,
-  received_date,
-  amount,
-  currency,
-  payer_label,
-  reference,
-  created_by
-)
-SELECT
-  seeded.id,
-  '00000000-0000-0000-0000-000000000001',
-  seeded.property_id,
-  context.reference_date + seeded.received_offset,
-  seeded.amount,
-  'USD',
-  seeded.payer_label,
-  seeded.reference,
-  '00000000-0000-0000-0000-000000000101'
-FROM (
-  VALUES
-    (
-      'b8000000-0000-0000-0000-000000000001'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      -2,
-      780::numeric,
-      'Dara Sok',
-      'DEMO-RCPT-09A'
-    ),
-    (
-      'b8000000-0000-0000-0000-000000000002'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      -1,
-      320::numeric,
-      'Srey Mom Chan',
-      'DEMO-RCPT-09B-PART'
-    ),
-    (
-      'b8000000-0000-0000-0000-000000000003'::uuid,
-      '10000000-0000-0000-0000-000000000002'::uuid,
-      -3,
-      2400::numeric,
-      'Mekong Design Studio',
-      'DEMO-RCPT-R01'
-    ),
-    (
-      'b8000000-0000-0000-0000-000000000004'::uuid,
-      '10000000-0000-0000-0000-000000000002'::uuid,
-      -2,
-      650::numeric,
-      'Kosal Vann',
-      'DEMO-RCPT-02B'
-    )
-) AS seeded (
-  id,
-  property_id,
-  received_offset,
-  amount,
-  payer_label,
-  reference
-)
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context;
-
-INSERT INTO public.finance_receipt_allocations (
-  id,
-  organization_id,
-  receipt_id,
-  income_item_id,
-  amount,
-  created_by
+  user_id,
+  role,
+  person_id,
+  branch_id
 )
 VALUES
-(
-  'b8100000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000001',
-  'b8000000-0000-0000-0000-000000000001',
-  'b7000000-0000-0000-0000-000000000001',
-  780,
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  'b8100000-0000-0000-0000-000000000002',
-  '00000000-0000-0000-0000-000000000001',
-  'b8000000-0000-0000-0000-000000000002',
-  'b7000000-0000-0000-0000-000000000002',
-  320,
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  'b8100000-0000-0000-0000-000000000003',
-  '00000000-0000-0000-0000-000000000001',
-  'b8000000-0000-0000-0000-000000000003',
-  'b7000000-0000-0000-0000-000000000003',
-  2400,
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  'b8100000-0000-0000-0000-000000000004',
-  '00000000-0000-0000-0000-000000000001',
-  'b8000000-0000-0000-0000-000000000004',
-  'b7000000-0000-0000-0000-000000000007',
-  650,
-  '00000000-0000-0000-0000-000000000101'
-);
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000101',
+    'super_admin', NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000701',
+    'finance_manager', NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000801',
+    'finance_member', NULL, NULL
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000501',
+    'operations_manager',
+    '80000000-0000-0000-0000-000000000007',
+    '00000000-0000-0000-0000-000000000211'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000601',
+    'operations_member',
+    '80000000-0000-0000-0000-000000000008',
+    '00000000-0000-0000-0000-000000000211'
+  );
 
-INSERT INTO public.finance_expense_items (
+CREATE TEMP TABLE fixture_runtime (
+  organization_id uuid NOT NULL,
+  policy_id uuid,
+  source_id uuid,
+  through_lease_id uuid,
+  direct_lease_id uuid,
+  commercial_lease_id uuid,
+  through_billing_id uuid,
+  direct_billing_id uuid,
+  commercial_billing_id uuid,
+  through_invoice_id uuid,
+  direct_invoice_id uuid,
+  through_payment_id uuid,
+  direct_confirmation_id uuid,
+  reversed_submission_id uuid,
+  rejected_submission_id uuid,
+  maintenance_task_id uuid,
+  maintenance_submission_id uuid,
+  petty_cash_account_id uuid,
+  petty_cash_entry_id uuid
+) ON COMMIT DROP;
+
+INSERT INTO fixture_runtime (organization_id)
+VALUES ('00000000-0000-0000-0000-000000000001');
+
+GRANT SELECT, UPDATE ON fixture_runtime TO authenticated;
+
+CREATE FUNCTION pg_temp.active_lease_relationship_payload(
+  p_person_id uuid,
+  p_start_date date,
+  p_end_date date
+)
+RETURNS jsonb
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT jsonb_build_object(
+    'primaryParty', jsonb_build_object(
+      'personId', p_person_id,
+      'lifecycle', 'effective',
+      'recordSource', 'operator_confirmed',
+      'reason', 'signed_active_lease',
+      'startedOn', jsonb_build_object(
+        'date', p_start_date,
+        'kind', 'known',
+        'confidence', 'confirmed'
+      ),
+      'endedOn', jsonb_build_object(
+        'date', NULL,
+        'kind', 'open_current',
+        'confidence', 'confirmed'
+      )
+    ),
+    'occupancy', jsonb_build_object(
+      'lifecycle', 'occupied',
+      'recordSource', 'operator_confirmed',
+      'reason', 'confirmed_move_in',
+      'scheduledMoveIn', jsonb_build_object(
+        'date', p_start_date,
+        'kind', 'known',
+        'confidence', 'confirmed'
+      ),
+      'scheduledMoveOut', jsonb_build_object(
+        'date', p_end_date,
+        'kind', 'known',
+        'confidence', 'confirmed'
+      ),
+      'actualMoveIn', jsonb_build_object(
+        'date', p_start_date,
+        'kind', 'known',
+        'confidence', 'confirmed'
+      ),
+      'actualMoveOut', jsonb_build_object(
+        'date', NULL,
+        'kind', 'open_current',
+        'confidence', 'confirmed'
+      )
+    ),
+    'participants', jsonb_build_array(
+      jsonb_build_object(
+        'personId', p_person_id,
+        'lifecycle', 'present',
+        'recordSource', 'operator_confirmed',
+        'reason', 'confirmed_resident',
+        'startedOn', jsonb_build_object(
+          'date', p_start_date,
+          'kind', 'known',
+          'confidence', 'confirmed'
+        ),
+        'endedOn', jsonb_build_object(
+          'date', NULL,
+          'kind', 'open_current',
+          'confidence', 'confirmed'
+        )
+      )
+    )
+  );
+$$;
+
+UPDATE fixture_runtime
+SET policy_id = '90000000-0000-0000-0000-000000000001';
+
+INSERT INTO public.rent_policy_versions (
   id,
   organization_id,
-  property_id,
-  unit_id,
-  task_id,
-  vendor_person_id,
-  ledger_entry_id,
-  expense_type,
-  vendor_label,
-  invoice_date,
-  due_date,
-  paid_date,
-  amount,
-  currency,
-  category,
-  status,
-  description,
-  reference,
+  version_number,
+  effective_from,
+  supported_frequencies,
+  rent_calculation_timezone,
+  due_day_source,
+  policy_default_due_day,
+  short_month_due_day_rule,
+  lease_start_proration_rule,
+  lease_end_proration_rule,
+  notice_period_charging_rule,
+  mid_period_rent_change_rule,
+  concessions_support_state,
+  rent_free_support_state,
+  waivers_support_state,
+  lifecycle,
   created_by,
-  updated_by
+  updated_by,
+  approved_at,
+  approved_by
 )
 SELECT
-  seeded.id,
-  '00000000-0000-0000-0000-000000000001',
-  seeded.property_id,
-  seeded.unit_id,
-  seeded.task_id,
-  seeded.vendor_person_id,
-  seeded.ledger_entry_id,
-  seeded.expense_type,
-  seeded.vendor_label,
-  context.reference_date + seeded.invoice_offset,
-  context.reference_date + seeded.due_offset,
-  CASE
-    WHEN seeded.paid_offset IS NULL THEN NULL
-    ELSE context.reference_date + seeded.paid_offset
-  END,
-  seeded.amount,
-  'USD',
-  seeded.category,
-  seeded.status,
-  seeded.description,
-  seeded.reference,
+  runtime.policy_id,
+  runtime.organization_id,
+  1,
+  (date_trunc('month', current_date) - interval '1 year')::date,
+  ARRAY['monthly']::text[],
+  'Asia/Bangkok',
+  'term',
+  5,
+  'last_calendar_day',
+  'actual_days',
+  'actual_days',
+  'through_lease_end',
+  'next_full_period',
+  'unsupported',
+  'unsupported',
+  'unsupported',
+  'approved',
   '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101',
+  now(),
   '00000000-0000-0000-0000-000000000101'
-FROM (
-  VALUES
-    (
-      'b9000000-0000-0000-0000-000000000001'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      '20000000-0000-0000-0000-000000000001'::uuid,
-      '91000000-0000-0000-0000-000000000001'::uuid,
-      '80200000-0000-0000-0000-000000000001'::uuid,
-      '40000000-0000-0000-0000-000000000101'::uuid,
-      'vendor_bill',
-      'Phnom Penh Plumbing Co.',
-      -8,
-      -1,
-      -6,
-      185::numeric,
-      'Plumbing repair',
-      'paid',
-      'Replacement trap and labor for the kitchen sink repair.',
-      'DEMO-BILL-PLUMBING'
-    ),
-    (
-      'b9000000-0000-0000-0000-000000000002'::uuid,
-      '10000000-0000-0000-0000-000000000002'::uuid,
-      '20000000-0000-0000-0000-000000000011'::uuid,
-      '91000000-0000-0000-0000-000000000002'::uuid,
-      '80200000-0000-0000-0000-000000000003'::uuid,
-      NULL::uuid,
-      'vendor_bill',
-      'SecureLift Cambodia',
-      -2,
-      10,
-      NULL::integer,
-      1250::numeric,
-      'Elevator repair',
-      'approved',
-      'Approved quote awaiting the scheduled repair window.',
-      'DEMO-BILL-ELEVATOR'
-    ),
-    (
-      'b9000000-0000-0000-0000-000000000003'::uuid,
-      '10000000-0000-0000-0000-000000000002'::uuid,
-      '20000000-0000-0000-0000-000000000008'::uuid,
-      '91000000-0000-0000-0000-000000000011'::uuid,
-      '80200000-0000-0000-0000-000000000002'::uuid,
-      '40000000-0000-0000-0000-000000000103'::uuid,
-      'maintenance',
-      'CoolAir Service Cambodia',
-      -12,
-      -5,
-      NULL::integer,
-      95::numeric,
-      'AC service',
-      'posted',
-      'Quarterly AC cleaning completed and posted.',
-      'DEMO-BILL-AC'
-    ),
-    (
-      'b9000000-0000-0000-0000-000000000004'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      NULL::uuid,
-      '91000000-0000-0000-0000-000000000010'::uuid,
-      '80200000-0000-0000-0000-000000000004'::uuid,
-      '40000000-0000-0000-0000-000000000104'::uuid,
-      'vendor_bill',
-      'BrightLine Electrical',
-      -11,
-      -4,
-      -6,
-      64::numeric,
-      'Electrical repair',
-      'paid',
-      'Replacement LED drivers for common corridors.',
-      'DEMO-BILL-LIGHTS'
-    ),
-    (
-      'b9000000-0000-0000-0000-000000000005'::uuid,
-      '10000000-0000-0000-0000-000000000002'::uuid,
-      NULL::uuid,
-      '91000000-0000-0000-0000-000000000006'::uuid,
-      '80200000-0000-0000-0000-000000000006'::uuid,
-      NULL::uuid,
-      'supplies',
-      'Green Pest Control',
-      0,
-      14,
-      NULL::integer,
-      140::numeric,
-      'Pest control',
-      'draft',
-      'Draft recurring service bill pending route completion.',
-      'DEMO-BILL-PEST'
-    ),
-    (
-      'b9000000-0000-0000-0000-000000000006'::uuid,
-      '10000000-0000-0000-0000-000000000003'::uuid,
-      NULL::uuid,
-      '91000000-0000-0000-0000-000000000009'::uuid,
-      '80200000-0000-0000-0000-000000000007'::uuid,
-      NULL::uuid,
-      'maintenance',
-      'Mekong Cleaning Services',
-      1,
-      16,
-      NULL::integer,
-      160::numeric,
-      'Move-out',
-      'approved',
-      'Approved allowance for move-out cleaning and touch-up.',
-      'DEMO-BILL-MOVEOUT'
-    )
-) AS seeded (
-  id,
-  property_id,
-  unit_id,
-  task_id,
-  vendor_person_id,
-  ledger_entry_id,
-  expense_type,
-  vendor_label,
-  invoice_offset,
-  due_offset,
-  paid_offset,
-  amount,
-  category,
-  status,
-  description,
-  reference
-)
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context;
+FROM fixture_runtime AS runtime;
 
-INSERT INTO public.finance_payments (
-  id,
-  organization_id,
-  property_id,
-  paid_date,
-  amount,
-  currency,
-  payee_label,
-  reference,
-  created_by
-)
-SELECT
-  seeded.id,
-  '00000000-0000-0000-0000-000000000001',
-  seeded.property_id,
-  context.reference_date - 6,
-  seeded.amount,
-  'USD',
-  seeded.payee_label,
-  seeded.reference,
-  '00000000-0000-0000-0000-000000000101'
-FROM (
-  VALUES
-    (
-      'c7000000-0000-0000-0000-000000000001'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      185::numeric,
-      'Phnom Penh Plumbing Co.',
-      'DEMO-PMT-PLUMBING'
-    ),
-    (
-      'c7000000-0000-0000-0000-000000000002'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      64::numeric,
-      'BrightLine Electrical',
-      'DEMO-PMT-LIGHTS'
-    )
-) AS seeded (
-  id,
-  property_id,
-  amount,
-  payee_label,
-  reference
-)
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+SET LOCAL ROLE authenticated;
 
-INSERT INTO public.finance_payment_allocations (
-  id,
+UPDATE fixture_runtime
+SET through_lease_id = (
+  public.create_lease_with_relationships(
+    organization_id,
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000001',
+    (date_trunc('month', current_date) - interval '6 months')::date,
+    (date_trunc('month', current_date) + interval '18 months' - interval '1 day')::date,
+    850,
+    'USD',
+    5,
+    'monthly',
+    'active',
+    850,
+    'USD',
+    'active',
+    pg_temp.active_lease_relationship_payload(
+      '80000000-0000-0000-0000-000000000001',
+      (date_trunc('month', current_date) - interval '6 months')::date,
+      (date_trunc('month', current_date) + interval '18 months' - interval '1 day')::date
+    ),
+    'fixture-lease-through-ips'
+  ) ->> 'leaseId'
+)::uuid;
+
+UPDATE fixture_runtime
+SET direct_lease_id = (
+  public.create_lease_with_relationships(
+    organization_id,
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000002',
+    '80000000-0000-0000-0000-000000000002',
+    (date_trunc('month', current_date) - interval '4 months')::date,
+    (date_trunc('month', current_date) + interval '20 months' - interval '1 day')::date,
+    925,
+    'USD',
+    5,
+    'monthly',
+    'active',
+    925,
+    'USD',
+    'active',
+    pg_temp.active_lease_relationship_payload(
+      '80000000-0000-0000-0000-000000000002',
+      (date_trunc('month', current_date) - interval '4 months')::date,
+      (date_trunc('month', current_date) + interval '20 months' - interval '1 day')::date
+    ),
+    'fixture-lease-direct-owner'
+  ) ->> 'leaseId'
+)::uuid;
+
+UPDATE fixture_runtime
+SET commercial_lease_id = (
+  public.create_lease_with_relationships(
+    organization_id,
+    '10000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000004',
+    '80000000-0000-0000-0000-000000000003',
+    (date_trunc('month', current_date) - interval '8 months')::date,
+    (date_trunc('month', current_date) + interval '16 months' - interval '1 day')::date,
+    1450,
+    'USD',
+    5,
+    'monthly',
+    'active',
+    2900,
+    'USD',
+    'active',
+    jsonb_set(
+      pg_temp.active_lease_relationship_payload(
+        '80000000-0000-0000-0000-000000000003',
+        (date_trunc('month', current_date) - interval '8 months')::date,
+        (date_trunc('month', current_date) + interval '16 months' - interval '1 day')::date
+      ),
+      '{participants}',
+      '[]'::jsonb
+    ),
+    'fixture-lease-commercial'
+  ) ->> 'leaseId'
+)::uuid;
+
+UPDATE fixture_runtime
+SET through_billing_id = public.set_lease_billing_term(
   organization_id,
-  payment_id,
-  expense_item_id,
-  amount,
-  created_by
-)
-VALUES
-(
-  'c7100000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000001',
-  'c7000000-0000-0000-0000-000000000001',
-  'b9000000-0000-0000-0000-000000000001',
-  185,
-  '00000000-0000-0000-0000-000000000101'
-),
-(
-  'c7100000-0000-0000-0000-000000000002',
-  '00000000-0000-0000-0000-000000000001',
-  'c7000000-0000-0000-0000-000000000002',
-  'b9000000-0000-0000-0000-000000000004',
-  64,
-  '00000000-0000-0000-0000-000000000101'
+  through_lease_id,
+  (date_trunc('month', current_date) - interval '6 months')::date,
+  'through_ips',
+  'percentage',
+  10,
+  true,
+  true,
+  'individual',
+  '80000000-0000-0000-0000-000000000001',
+  NULL,
+  NULL,
+  NULL,
+  'fixture-billing-through-ips'
 );
 
-INSERT INTO public.lease_deposit_events (
-  id,
+UPDATE fixture_runtime
+SET direct_billing_id = public.set_lease_billing_term(
   organization_id,
-  property_id,
-  lease_deposit_id,
-  event_type,
-  event_date,
-  amount,
-  currency,
-  reference,
-  created_by
-)
-SELECT
-  seeded.id,
-  deposits.organization_id,
-  leases.property_id,
-  deposits.id,
-  seeded.event_type,
-  CASE seeded.event_type
-    WHEN 'received' THEN coalesce(deposits.received_on, leases.lease_start_date)
-    ELSE coalesce(deposits.returned_on, context.reference_date - 5)
-  END,
-  CASE
-    WHEN seeded.amount_override IS NULL THEN deposits.amount
-    ELSE seeded.amount_override
-  END,
-  deposits.currency,
-  seeded.reference,
-  '00000000-0000-0000-0000-000000000101'
-FROM (
-  VALUES
-    (
-      'c8000000-0000-0000-0000-000000000001'::uuid,
-      '88000000-0000-0000-0000-000000000002'::uuid,
-      'received',
-      NULL::numeric,
-      'DEMO-DEPOSIT-09B'
-    ),
-    (
-      'c8000000-0000-0000-0000-000000000002'::uuid,
-      '88000000-0000-0000-0000-000000000004'::uuid,
-      'received',
-      NULL::numeric,
-      'DEMO-DEPOSIT-11B'
-    ),
-    (
-      'c8000000-0000-0000-0000-000000000003'::uuid,
-      '88000000-0000-0000-0000-000000000004'::uuid,
-      'applied',
-      120::numeric,
-      'DEMO-DEPOSIT-11B-APPLIED'
-    ),
-    (
-      'c8000000-0000-0000-0000-000000000004'::uuid,
-      '88000000-0000-0000-0000-000000000013'::uuid,
-      'refunded',
-      NULL::numeric,
-      'DEMO-DEPOSIT-0301-REFUND'
-    )
-) AS seeded (
-  id,
-  deposit_id,
-  event_type,
-  amount_override,
-  reference
-)
-JOIN public.lease_deposits AS deposits
-  ON deposits.id = seeded.deposit_id
-JOIN public.leases AS leases
-  ON leases.id = deposits.lease_id
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context;
+  direct_lease_id,
+  (date_trunc('month', current_date) - interval '4 months')::date,
+  'direct_to_owner',
+  'flat',
+  60,
+  true,
+  true,
+  'individual',
+  '80000000-0000-0000-0000-000000000002',
+  NULL,
+  NULL,
+  NULL,
+  'fixture-billing-direct-owner'
+);
 
-UPDATE public.lease_deposits
-SET status = 'partially_returned'
-WHERE id = '88000000-0000-0000-0000-000000000004';
-
-INSERT INTO public.petty_cash_accounts (
-  id,
+UPDATE fixture_runtime
+SET commercial_billing_id = public.set_lease_billing_term(
   organization_id,
-  account_number,
-  name,
-  custodian_person_id,
-  currency,
-  float_amount,
-  status,
-  created_by,
-  updated_by
-)
-VALUES (
-  'c9000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000001',
-  'PC-CENTRAL-01',
-  'Central Operations Petty Cash',
-  '80300000-0000-0000-0000-000000000001',
+  commercial_lease_id,
+  (date_trunc('month', current_date) - interval '8 months')::date,
+  'through_ips',
+  'percentage',
+  8,
+  true,
+  true,
+  'company',
+  '80000000-0000-0000-0000-000000000003',
+  NULL,
+  NULL,
+  NULL,
+  'fixture-billing-commercial'
+);
+
+UPDATE fixture_runtime
+SET source_id = public.create_financial_reconciliation_source(
+  organization_id,
+  'OPS-USD',
+  'Operating bank account',
+  'bank',
+  'organization_pooled',
   'USD',
+  NULL,
+  '****4100'
+);
+
+RESET ROLE;
+SELECT app_private.run_due_rent_generation(now());
+SET LOCAL ROLE authenticated;
+
+UPDATE fixture_runtime AS runtime
+SET through_invoice_id = invoice.id
+FROM public.tenant_invoices AS invoice
+WHERE invoice.organization_id = runtime.organization_id
+  AND invoice.lease_id = runtime.through_lease_id
+  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+
+UPDATE fixture_runtime AS runtime
+SET direct_invoice_id = invoice.id
+FROM public.tenant_invoices AS invoice
+WHERE invoice.organization_id = runtime.organization_id
+  AND invoice.lease_id = runtime.direct_lease_id
+  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+
+UPDATE fixture_runtime AS runtime
+SET through_payment_id = public.record_tenant_invoice_payment(
+  runtime.organization_id,
+  runtime.through_invoice_id,
+  invoice.balance_due,
+  current_date,
+  runtime.source_id,
+  'Fixture bank transfer',
+  jsonb_build_array(
+    jsonb_build_object(
+      'lineId', line.id,
+      'amount', invoice.balance_due
+    )
+  ),
+  'fixture-rent-payment-through'
+)
+FROM public.tenant_invoice_balances AS invoice
+JOIN public.tenant_invoice_lines AS line
+  ON line.invoice_id = invoice.id
+ AND line.line_type = 'rent'
+WHERE invoice.id = runtime.through_invoice_id;
+
+UPDATE fixture_runtime AS runtime
+SET direct_confirmation_id = public.confirm_owner_collected_rent(
+  runtime.organization_id,
+  runtime.direct_invoice_id,
+  invoice.balance_due,
+  current_date,
+  'Fixture owner confirmation',
+  jsonb_build_array(
+    jsonb_build_object(
+      'lineId', line.id,
+      'amount', invoice.balance_due
+    )
+  ),
+  'fixture-rent-owner-confirmation'
+)
+FROM public.tenant_invoice_balances AS invoice
+JOIN public.tenant_invoice_lines AS line
+  ON line.invoice_id = invoice.id
+ AND line.line_type = 'rent'
+WHERE invoice.id = runtime.direct_invoice_id;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000801',
+  true
+);
+
+UPDATE fixture_runtime
+SET reversed_submission_id = (
+  public.submit_expense(
+    organization_id,
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    'general',
+    NULL,
+    'cleaning',
+    'Khmer Home Services',
+    current_date - 4,
+    85,
+    15,
+    'USD',
+    'owner',
+    NULL,
+    source_id,
+    NULL,
+    '80000000-0000-0000-0000-000000000006',
+    'KH-CLN-1001',
+    'fixture-expense-to-reverse'
+  ) ->> 'submission_id'
+)::uuid;
+
+UPDATE fixture_runtime
+SET rejected_submission_id = (
+  public.submit_expense(
+    organization_id,
+    '10000000-0000-0000-0000-000000000002',
+    '20000000-0000-0000-0000-000000000005',
+    'general',
+    NULL,
+    'utility',
+    'Riverside Water Service',
+    current_date - 3,
+    45,
+    0,
+    'USD',
+    'owner',
+    NULL,
+    source_id,
+    NULL,
+    NULL,
+    'RIV-WATER-DUPLICATE',
+    'fixture-expense-to-reject'
+  ) ->> 'submission_id'
+)::uuid;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+
+SELECT public.review_expense(
+  runtime.organization_id,
+  runtime.reversed_submission_id,
+  'approve',
+  'Receipt and property scope verified',
+  'fixture-expense-approval',
+  NULL
+)
+FROM fixture_runtime AS runtime;
+
+SELECT public.review_expense(
+  runtime.organization_id,
+  runtime.rejected_submission_id,
+  'reject',
+  'Duplicate vendor receipt',
+  'fixture-expense-rejection',
+  NULL
+)
+FROM fixture_runtime AS runtime;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+
+SELECT public.reverse_expense(
+  runtime.organization_id,
+  runtime.reversed_submission_id,
+  current_date,
+  'Vendor refunded the duplicated cleaning charge',
+  'fixture-expense-reversal'
+)
+FROM fixture_runtime AS runtime;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000501',
+  true
+);
+
+UPDATE fixture_runtime
+SET maintenance_task_id = public.create_maintenance_task(
+  organization_id,
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000002',
+  'Kitchen sink repair',
+  'Replace the leaking trap and test the cabinet for moisture.',
+  'Plumbing',
+  'high',
+  'pending',
+  current_date + 2,
+  '10:00',
+  current_date + 1,
+  '09:00',
+  '80000000-0000-0000-0000-000000000006',
+  140,
+  'USD',
+  '[{"label":"Inspect cabinet","done":true},{"label":"Replace trap","done":true},{"label":"Test drain","done":false}]'::jsonb,
+  'none',
+  '00000000-0000-0000-0000-000000000211',
+  '80000000-0000-0000-0000-000000000008'
+);
+
+SELECT public.update_maintenance_task(
+  runtime.maintenance_task_id,
+  runtime.organization_id,
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000002',
+  'Kitchen sink repair',
+  'Replace the leaking trap and test the cabinet for moisture.',
+  'Plumbing',
+  'high',
+  'pending',
+  current_date + 2,
+  '10:00',
+  current_date + 1,
+  '09:00',
+  '80000000-0000-0000-0000-000000000006',
+  140,
+  'USD',
+  125,
+  'USD',
+  '[{"label":"Inspect cabinet","done":true},{"label":"Replace trap","done":true},{"label":"Test drain","done":false}]'::jsonb,
+  'none',
+  '00000000-0000-0000-0000-000000000211',
+  '80000000-0000-0000-0000-000000000008'
+)
+FROM fixture_runtime AS runtime;
+
+UPDATE fixture_runtime
+SET maintenance_submission_id = (
+  public.submit_maintenance_cost(
+    organization_id,
+    maintenance_task_id,
+    current_date - 1,
+    NULL,
+    'KH-INV-1042',
+    'fixture-maintenance-cost'
+  ) ->> 'submission_id'
+)::uuid;
+
+SELECT public.create_maintenance_task(
+  runtime.organization_id,
+  '10000000-0000-0000-0000-000000000002',
+  '20000000-0000-0000-0000-000000000004',
+  'Monthly roof tank check',
+  'Record the inspection result; recurrence is schedule metadata only.',
+  'Preventive maintenance',
+  'normal',
+  'scheduled',
+  current_date + 7,
+  '08:30',
+  current_date + 6,
+  '09:00',
+  '80000000-0000-0000-0000-000000000006',
+  30,
+  'USD',
+  '[{"label":"Check float valve","done":false},{"label":"Photograph water level","done":false}]'::jsonb,
+  'monthly',
+  '00000000-0000-0000-0000-000000000211',
+  '80000000-0000-0000-0000-000000000008'
+)
+FROM fixture_runtime AS runtime;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+
+SELECT public.review_expense(
+  runtime.organization_id,
+  runtime.maintenance_submission_id,
+  'approve',
+  'Maintenance invoice and work record verified',
+  'fixture-maintenance-approval',
+  runtime.source_id
+)
+FROM fixture_runtime AS runtime;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+
+UPDATE fixture_runtime
+SET petty_cash_account_id = public.create_petty_cash_account(
+  organization_id,
+  'PC-PP-01',
+  'Phnom Penh field cash',
   300,
-  'active',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
+  '80000000-0000-0000-0000-000000000008'
 );
 
-INSERT INTO public.petty_cash_periods (
-  id,
-  organization_id,
-  account_id,
-  period_start,
-  opening_balance_amount,
-  advance_amount,
-  status,
-  notes,
-  created_by,
-  updated_by
+UPDATE fixture_runtime AS runtime
+SET petty_cash_entry_id = public.create_petty_cash_entry(
+  p_organization_id => runtime.organization_id,
+  p_account_id => runtime.petty_cash_account_id,
+  p_period_id => period.id,
+  p_property_id => '10000000-0000-0000-0000-000000000001',
+  p_unit_id => '20000000-0000-0000-0000-000000000002',
+  p_invoice_date => current_date - 1,
+  p_clear_date => current_date - 1,
+  p_entry_kind => 'expense',
+  p_status => 'cleared',
+  p_category => 'REPAIR-SUPPLIES',
+  p_supplier => 'Khmer Home Services',
+  p_description => 'Kitchen repair consumables',
+  p_amount => 35,
+  p_counterparty_person_id => '80000000-0000-0000-0000-000000000006',
+  p_receipt_reference => 'PC-0001',
+  p_remark => 'Trap, seal tape, and cleaning materials'
 )
-SELECT
-  'c9100000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000001',
-  'c9000000-0000-0000-0000-000000000001',
-  date_trunc('month', reference_date)::date,
-  120,
-  180,
-  'open',
-  'Current operating period with a representative cash float.',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-FROM LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context;
+FROM public.petty_cash_periods AS period
+WHERE period.organization_id = runtime.organization_id
+  AND period.account_id = runtime.petty_cash_account_id
+  AND period.period_start = date_trunc('month', current_date)::date;
 
-INSERT INTO public.petty_cash_entries (
-  id,
-  organization_id,
-  account_id,
-  period_id,
-  property_id,
-  unit_id,
-  ledger_entry_id,
-  invoice_date,
-  clear_date,
-  entry_kind,
-  status,
-  category,
-  supplier,
-  description,
-  receipt_reference,
-  out_amount,
-  in_amount,
-  currency,
-  remark,
-  created_by,
-  updated_by
+SELECT public.post_petty_cash_entry(
+  runtime.organization_id,
+  runtime.petty_cash_entry_id
 )
-SELECT
-  seeded.id,
-  '00000000-0000-0000-0000-000000000001',
-  'c9000000-0000-0000-0000-000000000001',
-  'c9100000-0000-0000-0000-000000000001',
-  seeded.property_id,
-  seeded.unit_id,
-  seeded.ledger_entry_id,
-  context.reference_date + seeded.invoice_offset,
-  CASE
-    WHEN seeded.status IN ('cleared', 'posted')
-      THEN context.reference_date + seeded.invoice_offset
-    ELSE NULL
-  END,
-  seeded.entry_kind,
-  seeded.status,
-  seeded.category,
-  seeded.supplier,
-  seeded.description,
-  seeded.receipt_reference,
-  seeded.out_amount,
-  seeded.in_amount,
-  'USD',
-  seeded.remark,
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-FROM (
-  VALUES
-    (
-      'c9200000-0000-0000-0000-000000000001'::uuid,
-      NULL::uuid,
-      NULL::uuid,
-      NULL::uuid,
-      -15,
-      'advance',
-      'cleared',
-      'Float',
-      'Central Operations',
-      'Monthly cash-float top-up.',
-      'PC-ADVANCE',
-      0::numeric,
-      180::numeric,
-      'Opening advance for the current period.'
-    ),
-    (
-      'c9200000-0000-0000-0000-000000000002'::uuid,
-      '10000000-0000-0000-0000-000000000001'::uuid,
-      '20000000-0000-0000-0000-000000000001'::uuid,
-      NULL::uuid,
-      -7,
-      'expense',
-      'cleared',
-      'Repair supplies',
-      'HomeFix BKK',
-      'Plumber tape, sealant, and cabinet drying cloths.',
-      'PC-2401',
-      18.50::numeric,
-      0::numeric,
-      'Receipt verified by the custodian.'
-    ),
-    (
-      'c9200000-0000-0000-0000-000000000003'::uuid,
-      '10000000-0000-0000-0000-000000000002'::uuid,
-      NULL::uuid,
-      NULL::uuid,
-      -4,
-      'expense',
-      'posted',
-      'Transport',
-      'PassApp',
-      'Technician transport for the elevator inspection.',
-      'PC-2402',
-      12::numeric,
-      0::numeric,
-      'Posted after manager review.'
-    ),
-    (
-      'c9200000-0000-0000-0000-000000000004'::uuid,
-      '10000000-0000-0000-0000-000000000003'::uuid,
-      NULL::uuid,
-      NULL::uuid,
-      0,
-      'expense',
-      'draft',
-      'Cleaning supplies',
-      'Lucky Supermarket',
-      'Move-out inspection cleaning supplies.',
-      'PC-2403',
-      26.75::numeric,
-      0::numeric,
-      'Draft entry awaiting receipt review.'
-    )
-) AS seeded (
-  id,
-  property_id,
-  unit_id,
-  ledger_entry_id,
-  invoice_offset,
-  entry_kind,
-  status,
-  category,
-  supplier,
-  description,
-  receipt_reference,
-  out_amount,
-  in_amount,
-  remark
-)
-CROSS JOIN LATERAL (
-  SELECT coalesce(
-    nullif(current_setting('app.demo_seed_reference_date', true), '')::date,
-    current_date
-  ) AS reference_date
-) AS context;
+FROM fixture_runtime AS runtime;
 
-SELECT set_config('app.people_leases_skip_sync', 'off', false);
-SELECT app_private.backfill_accounting_journals();
+RESET ROLE;
+
+COMMIT;

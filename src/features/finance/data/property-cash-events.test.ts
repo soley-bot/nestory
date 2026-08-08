@@ -85,7 +85,7 @@ const scope = {
 };
 
 describe("property cash event adapter", () => {
-  it("normalizes exact signed movements without accounting compatibility fields", () => {
+  it("normalizes exact signed movements without retired projection fields", () => {
     const sourceId = "44444444-4444-4444-8444-444444444444";
     const normalized = normalizePropertyCashEvent(
       row(sourceId, {

@@ -1351,13 +1351,7 @@ DELETE FROM public.activity_logs
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM app_private.financial_idempotency_requests
 WHERE organization_id = '${ids.organization}'::uuid;
-ALTER TABLE public.property_reporting_periods
-  DISABLE TRIGGER enforce_property_period_mutation_context;
-DELETE FROM public.property_reporting_periods
-WHERE organization_id = '${ids.organization}'::uuid;
-ALTER TABLE public.property_reporting_periods
-  ENABLE TRIGGER enforce_property_period_mutation_context;
-DELETE FROM public.ledger_period_locks
+DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
 ALTER TABLE public.import_rows
   DISABLE TRIGGER zz_guard_atomic_import_row_write;

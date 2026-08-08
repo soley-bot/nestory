@@ -491,16 +491,10 @@ BEGIN;
 SELECT set_config('app.people_leases_skip_sync', 'on', true);
 DELETE FROM public.activity_logs
 WHERE organization_id = '${ids.organization}'::uuid;
-DELETE FROM public.ledger_period_locks
-WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM app_private.financial_idempotency_requests
 WHERE organization_id = '${ids.organization}'::uuid;
-ALTER TABLE public.property_reporting_periods
-  DISABLE TRIGGER enforce_property_period_mutation_context;
-DELETE FROM public.property_reporting_periods
+DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
-ALTER TABLE public.property_reporting_periods
-  ENABLE TRIGGER enforce_property_period_mutation_context;
 ALTER TABLE public.financial_reconciliation_sources
   DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
 DELETE FROM public.financial_reconciliation_sources

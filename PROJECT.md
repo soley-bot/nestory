@@ -1,466 +1,352 @@
 # Nestory Project
 
-Nestory is an invite-only property operations system. It gives a property
-management team one reliable operating record for properties, units, people,
-leases, money, maintenance, documents, and history.
+Nestory is invite-only property operations software for a property-management
+company. It gives one team a dependable record of properties, units, people,
+leases, rent, paid costs, maintenance, documents, and operational history.
 
-This is the repository's single canonical project document. It records durable
-product boundaries and engineering rules, not roadmap history. Current code,
-Supabase migrations, generated types, tests, CI, and merged Git history outrank
-this file when they disagree with it.
-
-## Working Agreement
-
-- Inspect the current checkout before making product or release claims.
-- Update this file in the same change when a durable product boundary changes.
-- Keep dated evidence, rollout notes, and implementation history out of this
-  file. Git and executable artifacts own that history.
-- Treat documents under `docs/implementation` and `docs/superpowers/specs` as
-  scoped historical or implementation references. Reconcile them with current
-  code before reuse.
-- Read the matching local guide under `node_modules/next/dist/docs/` before
-  changing Next.js behavior. This repository uses Next.js 16.2.9 App Router and
-  newer conventions.
+This is the repository's durable product contract. Runtime code, database
+contracts, generated types, tests, and merged Git history take precedence when
+they disagree with it. Update this file in the same change whenever a durable
+product boundary changes.
 
 ## Product Boundary
 
-Nestory is operational property-management software centered on property and
-unit records. It is not a generic ERP, a management-company general ledger, or
-a public self-service workspace builder.
+Nestory is not a full accounting system, an ERP, or a public workspace builder.
+It owns the operational facts needed to run managed properties and report
+traceable property cash activity.
 
 The implemented product includes:
 
-- A public product page and persisted information-request intake; the operating
-  workspace itself remains invite-only.
-- Invite-only authentication, organization membership, roles, and workspace
-  access.
-- Overview and attention surfaces for portfolio, leasing,
-  maintenance, and record readiness.
-- Property and unit records with linked leases, money, maintenance, documents,
-  photos, and timeline history.
-- People records for tenants, owners, vendors, and staff.
-- Lease terms, parties, occupancy evidence, deposits, approved rent policy,
-  lease billing, and automatic current-month rent generation.
-- Rent invoices and collections, paid-expense submission and Finance review,
-  owner charges and payments, withdrawals, operational Ledger history, a
-  monthly Ledger lock, and petty cash.
-- Maintenance cases, assigned tasks, work orders, inspections, recurrence
-  metadata, scheduling, best-effort browser reminders, completion review, and
-  an Operations-to-Finance actual-cost handoff.
-- Private documents and photos.
-- Staged CSV imports for properties, units, people, and leases.
-- Monthly Owner Activity and traceable Unit Profit and Loss reporting, with
-  statement families blocked where their authority remains incomplete.
-- Organization settings, branches, teams, invitations, and access management.
+- A public product page and persisted information-request intake. The operating
+  workspace remains invite-only.
+- Five fixed company roles with organization, branch, and assigned-person
+  boundaries.
+- Properties, units, people, ownership, vendors, staff, private documents,
+  photos, and activity history.
+- Authoritative lease terms, parties, occupancy evidence, deposits, billing
+  terms, and an approved rent policy.
+- Automatic current-month rent invoices, typed generation exceptions, and an
+  explicit selected-month recovery action for completed historical months.
+- Rent collected through the company or confirmed as collected directly by an
+  owner.
+- Paid-expense evidence submission, Finance review, owner or tenant effects,
+  exact reversal, owner payments, withdrawals, and petty cash.
+- Maintenance requests, branch coordination, assigned work, completion review,
+  and an Operations-to-Finance cost handoff.
+- Staged imports for properties, units, people, and leases.
+- Monthly Owner Activity and Unit Profit and Loss reports with PDF and Excel
+  exports.
+- A read-only operational Ledger and a narrow financial month lock.
 
-The executable route inventory is `config/ui-route-coverage.json`. Route files
-under `src/app` and that manifest are authoritative; do not preserve route
-counts or exhaustive route lists in documentation.
+The executable route contract is
+`config/ui-route-coverage.json`. Route files under `src/app` and that manifest
+are the authority for public and protected destinations.
 
-## Current Limitations
+## Authoritative Data Flow
 
-These are intentional truth boundaries, not invitations to synthesize data:
+### Lease to rent to report
 
-- Automatic rent generation requires an eligible authoritative lease term,
-  effective billing configuration, and approved rent policy. A failed lease
-  month remains visible as a typed exception for Super Admin recovery; the
-  system never fabricates missing setup or silently creates historical rent.
-- Existing-lease party, occupancy, and resident transitions remain fail-closed
-  until their impact and correction workflows are implemented.
-- Owner Statement publication remains outside the public report catalog until
-  authoritative opening and closing owner balances exist.
-- A separate Management Fee Statement remains outside the public report catalog
-  until owner-recognition authority exists. Legacy allocations and estimates
-  are not substitutes.
-- Human-entered costs represent expenses already paid by the company. Unpaid
-  vendor bills, accounts-payable scheduling, bank reconciliation, and approval
-  chains beyond submit/review are outside the current boundary.
-- Operations Manager or Super Admin can submit a recorded maintenance cost to
-  Finance. Submission has no financial effect; Finance Manager or Super Admin
-  must approve it before the official expense, payment, customer effect, and
-  internal projections exist. Maintenance does not post directly to Ledger or
-  hand a cost into petty cash.
-- Recurrence on maintenance tasks is metadata and filtering only. The system
-  does not create future task instances. Reminder delivery is browser-only,
-  best effort, and not a durable background notification service.
-- Petty cash rolls forward a calculated closing balance but does not capture a
-  separate physical cash count or resolve a counted-versus-calculated variance.
-- The accounting schema is retained as a compatibility kernel behind current
-  workflows. It is not a user-facing payroll, overhead, tax, company P&L,
-  general-ledger, or ERP module.
-- There is no full period-close workflow. The visible control is a narrow
-  organization-month Ledger lock used to stop operational financial changes;
-  internal property-period and journal guards are compatibility controls, not
-  a customer-facing accounting close.
-- The database currency enum currently supports USD.
+1. Super Admin creates a lease with one authoritative `lease_terms` record and
+   explicit party and occupancy evidence.
+2. An effective `lease_billing_terms` record defines recipient, collection
+   route, proration inputs, and management fee.
+3. An approved `rent_policy_versions` record supplies the business timezone and
+   generation rules.
+4. Activation catch-up or the hourly scheduled runner creates exactly one rent
+   obligation and tenant invoice for an eligible lease-month. A failed lease is
+   isolated in `rent_generation_exceptions`.
+5. A checked tenant payment allocation or direct-owner confirmation records
+   settlement. Generating an invoice alone does not claim cash was received.
+6. The settlement creates one immutable, source-linked operational Ledger event.
+7. `get_property_cash_events_page` derives resolved property cash events from
+   those operational sources. Unit Profit and Loss consumes only resolved,
+   correctly scoped events.
+
+There is no independent manual rent writer. Historical recovery creates only
+the selected completed month and never fills adjacent months automatically.
+
+### Paid expense to approval to reversal
+
+1. Finance Member or Super Admin submits amount, currency, property scope,
+   vendor, responsibility, paid-from source, and evidence to
+   `expense_submissions`.
+2. Submission is evidence only. It creates no payment, customer charge, Ledger
+   event, owner balance, or report effect.
+3. Finance Manager or Super Admin approves or rejects the immutable snapshot.
+4. Approval atomically creates the paid expense, payment/allocation, owner or
+   tenant effect, activity, and one exact source-linked Ledger event.
+5. Rejection records the reviewer and reason without a financial effect.
+6. Only Super Admin may reverse an approved expense. Reversal appends exact
+   opposite payment, customer, and Ledger evidence; it does not rewrite the
+   original transaction.
+
+Every money mutation is exact-decimal, organization-scoped, payload-idempotent,
+and serialized against the affected financial month. Unsafe correction after
+downstream settlement fails closed.
+
+### Maintenance to Finance
+
+1. Operations Manager coordinates branch work and records vendor, actual cost,
+   currency, date, and evidence on the maintenance task.
+2. `submit_maintenance_cost` snapshots the task cost into the same Finance
+   review queue. It has no financial effect at submission.
+3. Finance Manager or Super Admin validates the evidence, chooses the paid-from
+   source, and approves or rejects it.
+4. Approval uses the same atomic paid-expense flow. Later increases are explicit
+   adjustment submissions linked to the approved history.
+
+Operational task completion and Finance approval are independent states.
+Maintenance never posts directly to the Ledger and never silently converts a
+task cost into petty cash.
+
+## Roles And Authorization
+
+One organization membership has exactly one role:
+
+| Capability | Super Admin | Finance Manager | Finance Member | Operations Manager | Operations Member |
+| --- | --- | --- | --- | --- | --- |
+| Organization and access settings | Manage | No | No | No | No |
+| Lease and rent configuration | Manage | Read | Read | Scoped context only | Assigned context only |
+| Finance, invoices, Ledger, petty cash | Read and manage allowed actions | Read and review | Read and submit expenses | No | No |
+| Approve or reject paid costs | Yes | Yes | No | No | No |
+| Reverse approved expense | Yes | No | No | No | No |
+| Submit maintenance cost | Yes | No | No | Yes, within branch | No |
+| Coordinate maintenance | Yes | No | No | Yes, within branch | Assigned work only |
+
+Super Admin and both Finance roles are organization-scoped. Operations roles
+must link to an active Staff person and one branch; Operations Member access is
+further limited to assigned work. Multiple simultaneous roles, custom
+permissions, amount thresholds, and team ACLs are not implemented.
+
+Use capability-specific server contexts for protected routes and actions.
+Navigation and hidden controls are usability boundaries, not authorization:
+server actions, checked RPCs, grants, and RLS repeat every capability check.
+
+Workspace access is invitation-based:
+
+- Supabase Auth owns identity, verified email, password, recovery, session, and
+  JWT state.
+- Nestory owns invitation intent, membership, role, branch scope, Staff linkage,
+  acceptance, revocation, and activity history.
+- A People role never grants application access by itself.
+- Unlinked authenticated users go to `/no-access`.
+- Final-Super-Admin protection and role-shape checks are database invariants.
+- Public signup and public organization provisioning are absent.
+
+Invitation acceptance must have positive proof of the identity's current
+password or require a replacement password. Never inspect, log, fixture, or
+expose password hashes or fingerprints.
+
+## Financial Model
+
+Nestory distinguishes obligations from dated settlement:
+
+- `finance_income_items`, tenant invoices, owner invoices, and approved expense
+  records describe what is owed or charged.
+- Receipts, payments, allocations, owner confirmations, deposit events,
+  withdrawals, and reversal rows describe dated activity.
+- Cash reporting uses settlement dates. Invoice and expense dates remain the
+  obligation context.
+- Security deposits and owner funding do not become property operating income.
+- Management fees are explicit operational occurrences, not inferred report
+  plug values.
+- Ledger rows are immutable projections of checked operational sources. They
+  cannot be created, edited, posted, or archived manually.
+
+The Ledger is not a second source of truth. Reports must trace each row to the
+underlying allocation, payment, confirmation, withdrawal, deposit, expense
+approval, reversal, or petty-cash source.
+
+`financial_month_locks` is the only financial time gate. Super Admin may lock
+or unlock one organization-month to pause operational financial mutations.
+This is not period close: Nestory has no accounting books, chart of accounts,
+journals, trial balance, close revisions, or financial-statement publication
+workflow.
+
+## Lease Authority
+
+`leases` owns lease identity, property/unit links, primary tenant, deposit
+summary, and lifecycle. `lease_terms` alone owns rent amount, currency,
+frequency, due day, and effective dates.
+
+- Checked lease creation records the authoritative term, primary party,
+  occupancy, and resident participation atomically.
+- Lease responsibility, named party, physical occupancy, and resident
+  participation are distinct facts with their own source, confidence, dates,
+  actor, reason, and correction lineage.
+- Accepted effective ranges cannot overlap where the database contract forbids
+  it.
+- Material term changes supersede history; they do not rewrite it.
+- Approved rent-policy versions are complete and immutable.
+- Lease readiness fails closed when term, billing, recipient, policy, or date
+  authority is missing or conflicting.
+
+## Imports, Documents, And Reports
+
+Imports are staged and server-owned. PostgreSQL creates the run identity,
+normalizes rows, computes deterministic claims, and commits only safe ready
+rows through checked RPCs. Invalid or ambiguous rows remain visible and are
+never silently imported.
+
+Documents and photos use private Storage buckets plus organization-scoped
+metadata. Upload, link, archive, and evidence access must remain rollback-safe.
+Documents referenced by expense history are immutable evidence.
+
+The report catalog contains only:
+
+- Monthly Owner Activity
+- Unit Profit and Loss
+
+Reports use the canonical property-cash projection, preserve reversal signs,
+and link back to operational sources. PDF and Excel are the only report export
+formats. Owner Statement publication, a separate Management Fee Statement,
+and any balance that requires invented opening authority remain unavailable.
+
+## Deliberate Limitations
+
+- The database currency enum currently supports USD only.
+- Human-entered expenses are costs the company already paid. Unpaid vendor
+  bills, accounts-payable scheduling, bank reconciliation, payroll, tax,
+  treasury, and multi-stage approvals are outside scope.
+- Recurrence is task metadata and filtering only. It does not create future
+  task instances.
+- Reminders are browser-only, best effort, and active only while the relevant
+  page is open. They are not a durable notification service.
+- Petty cash rolls forward calculated balances but does not reconcile a
+  physical cash count variance.
+- Current party/occupancy correction paths are deliberately narrow and fail
+  closed when safe downstream correction is not implemented.
+- Owner Statement publication is blocked until authoritative opening and
+  closing owner balances exist.
+- There is no automatic historical rent backfill.
+
+Unavailable authority must remain visible as a blocked state or typed
+exception. Never invent a balance, settlement, allocation, owner, resident, or
+reconciliation source merely to populate a screen or export.
+
+## Data And Mutation Rules
+
+- Every business record is organization-scoped and RLS-protected.
+- Data routes use server pages and feature-owned loaders.
+- Mutations use server actions with Zod validation and checked RPCs for material
+  history, money, lease, import, document, access, assignment, archive, and
+  activity changes.
+- Direct browser writes never replace an RPC-owned workflow.
+- Direct table DML is revoked for protected financial and history records.
+- Public and anonymous function execution is revoked unless explicitly needed.
+- Archive/restore is the normal record lifecycle. Hard deletion requires an
+  explicit product decision.
+- Preserve source identity, evidence, activity, correction or reversal lineage,
+  and idempotency across every material write.
+- Store money in exact database numeric values with explicit currency. Do not
+  use JavaScript floating point as business-money authority.
+- Keep business dates separate from audit timestamps.
+- Financial mutations take shared locks in one deterministic order: financial
+  month before customer or owner settlement scope, then affected source rows.
+- Person selectors validate active role and organization eligibility while
+  preserving historical linked labels.
+- Revalidate every affected route after a successful mutation.
+
+Secrets from `.env.local`, `.env.docker`, `.vercel`, and `supabase/.temp` must
+never enter source, documentation, logs, screenshots, or chat.
+
+## Interface Contract
+
+Authenticated Nestory is quiet, dense operating software:
+
+- One visible workspace title/action composition and one dominant work surface.
+- Persistent primary search with advanced URL-backed filters disclosed as
+  needed.
+- Unframed desktop tables and lists with semantic headers, captions, keyboard
+  operation, and accessible selection state.
+- Cards only for genuinely discrete objects or decisions.
+- Shared drawers for focused create/edit/archive/upload work and quick views for
+  row inspection.
+- Explicit record links for durable navigation; no raw UUIDs as operator labels.
+- Capability-aware navigation and action visibility for all five roles.
+- Clear loading, empty, filtered-empty, permission, blocked, error, saving, and
+  success states.
+- Consequential actions identify the affected record, scope, and result.
+- Shared primitives from `src/components/ui` own visible form controls.
+
+Dialogs and drawers trap focus, close with Escape, announce their controls, and
+return focus to the opener. Verify keyboard use and 200% zoom without
+document-level horizontal overflow. Serious accessibility failures block UI
+readiness.
 
 ## Technology And Repository Shape
 
 - Next.js 16.2.9 App Router and React 19
-- TypeScript and Tailwind CSS 4
-- Supabase Auth, Postgres, Row Level Security, RPCs, and private Storage
-- Zod validation
-- Vitest, Playwright, Testing Library, ESLint, and TypeScript checks
+- TypeScript, Tailwind CSS 4, and Zod 4
+- Supabase Auth, PostgreSQL, RLS, RPCs, private Storage, and Cron
+- Vitest, Testing Library, Playwright, ESLint, TypeScript, and pgTAP
 - Node.js 24 for local, CI, and container consistency
 
 Repository ownership:
 
-- `src/app`: server pages, layouts, route handlers, and route composition
-- `src/features/<feature>`: feature actions, loaders, filters, types,
-  components, and tests
-- `src/components/ui`: shared visible UI primitives
+- `src/app`: pages, layouts, route handlers, and route composition
+- `src/features/<feature>`: feature actions, data, components, types, and tests
+- `src/components/ui`: shared visible primitives
 - `src/components/layout`: authenticated shell and navigation
-- `src/lib`: small cross-feature infrastructure, auth, and Supabase helpers
-- `supabase/migrations`: append-only database history
-- `supabase/tests`: database contracts and security checks
+- `src/lib`: small cross-feature infrastructure and authorization helpers
+- `supabase/migrations`: empty-database-reproducible schema and runtime setup
+- `supabase/tests`: behavior, authorization, security, and retirement contracts
+- `supabase/test-fixtures/baseline.sql`: local-only five-role operating fixture
 - `src/types/database.generated.ts`: generated public database types
-- `scripts`: provisioning, verification, fixture, diagnostic, and concurrency
-  tools
-- `config/ui-route-coverage.json`: executable route and UI-state contract
+- `scripts`: local verification, fixture, smoke, and concurrency tools
+- `config/ui-route-coverage.json`: executable route/UI-state contract
 
-Avoid generic utility dumping grounds and premature cross-feature abstractions.
-Keep behavior in its owning feature until reuse is demonstrated.
-
-## Authentication And Access
-
-Workspace access is invite-only. Public signup and public organization
-provisioning are disabled.
-
-- Supabase Auth owns identities, verified email, passwords, recovery, sessions,
-  and JWTs.
-- Nestory owns invitation intent, organization membership, access level,
-  branch scope, staff linkage, acceptance, revocation, and audit history.
-- One membership has exactly one supported role: `super_admin`,
-  `finance_manager`, `finance_member`, `operations_manager`, or
-  `operations_member`.
-- Super Admin and both Finance roles are organization-scoped. Operations roles
-  require an active Staff identity and branch scope. Multiple simultaneous
-  roles, custom permissions, amount thresholds, and team ACLs are not
-  implemented.
-- An active Staff record is the operational person identity. Workspace Access
-  is a separate sign-in grant linked to Staff; a People role never grants
-  software access by itself.
-- Organization scope is resolved from the signed-in user and, where
-  configured, the organization host. Localhost and reserved hosts use fallback
-  membership resolution.
-- Unlinked authenticated users go to `/no-access`. Only the server-only
-  provisioning command may create an organization and its pending first
-  Super Admin invitation.
-- Never create an active membership before the matching verified identity
-  explicitly accepts its invitation.
-- Final-Super-Admin protection, invitation state, staff linkage, role, and
-  scope must remain enforced in checked SQL boundaries.
-
-Use capability-specific server contexts for protected surfaces and actions;
-`requireAdminContext` is only a compatibility alias for Super Admin code.
-Super Admin configures leases, rent, access, and recovery. Finance Member reads
-Finance and submits paid-expense evidence. Finance Manager reads Finance and
-approves or rejects it. Operations Manager coordinates branch maintenance and
-submits recorded cost. Operations Member executes only work assigned through
-the linked Staff identity and exact branch scope. Navigation is not an
-authorization boundary: actions, RPCs, RLS, and grants repeat the capability
-check.
-
-Invitation acceptance must fail closed unless Nestory has positive proof for
-the identity's current password or the user creates a replacement password.
-Identity existence or a provider hash alone is not password proof. Never read,
-print, store in fixtures, or expose Auth password hashes or fingerprints during
-verification. Safe evidence is limited to invitation and membership state plus
-proof method and timestamp presence.
-
-Secrets from `.env.local`, `.env.docker`, `.vercel`, and `supabase/.temp` must
-never enter source files, documentation, logs, screenshots, or chat.
-
-## Data And Mutation Rules
-
-- Every business record must remain organization-scoped and protected by RLS.
-- Data-loaded routes use server pages and feature-owned loaders.
-- Mutations live in server actions with Zod validation.
-- Important writes use checked Supabase RPCs, especially history, money,
-  leases, imports, documents, access, archive/restore, assignments, and
-  activity.
-- Do not replace an RPC-backed workflow with direct browser writes.
-- Revalidate every affected route after a successful mutation.
-- Archive and restore are the default lifecycle. Hard delete is exceptional
-  and must be explicitly authorized.
-- Preserve activity evidence, correction or reversal lineage, linked-record
-  identity, and idempotency across material writes.
-- Store money in exact database numeric fields with an explicit currency code.
-  Do not use JavaScript floating-point values as business-money authority.
-- Keep business dates separate from audit timestamps.
-- Schema changes use append-only migrations unless a destructive local reset is
-  explicitly requested.
-- Keep private business documents and photos in the private
-  `nestory-documents` and `nestory-photos` buckets with database metadata and
-  rollback-safe upload behavior.
-- Person selectors must enforce active role and organization eligibility at an
-  authoritative query or RPC boundary while preserving historical linked
-  values.
-
-## Lease And Rent Authority
-
-`lease_terms` is the rent-term authority. Dates and rent values duplicated on
-`leases` are compatibility projections and must not write back into term
-history.
-
-- New checked leases atomically create or adopt the authoritative term, primary
-  party, occupancy, and participant identities.
-- Lease responsibility, unit occupancy, and named-person residence are
-  different facts. Keep their evidence, lifecycle, effective range, source,
-  confidence, correction lineage, actor, time, and reason distinct.
-- Unresolved legacy relationship rows remain non-authoritative until a checked
-  promotion workflow exists.
-- Accepted effective ranges must not overlap where the database contract
-  forbids overlap.
-- Term changes require explicit due day, payment frequency, amount, currency,
-  effective dates, organization scope, idempotency, activity history, and
-  property-period authority.
-- Preserve historical identity through supersession; never rewrite material
-  history in place.
-- Rent policy uses normalized, effective-dated versions. Incomplete rules may
-  exist only as drafts; approved versions are complete and immutable.
-- Compatibility rent fields alone never make a lease ready for automatic rent
-  generation.
-- Eligible current-month rent is generated from the effective lease term,
-  billing term, and approved rent policy. Activation catch-up and the scheduled
-  generator share one idempotent private implementation; manual independent
-  rent creation is retired.
-- Generated rent is an official obligation and invoice, not cash. Cash and
-  owner-property effects begin only with a checked tenant payment allocation or
-  direct-owner collection confirmation.
-
-## Financial Authority
-
-Finance distinguishes obligations from dated settlement events:
-
-- Income and expense items record what is owed.
-- Receipts, payments, allocations, deposit events, and exact reversals record
-  dated settlement activity.
-- Cash reporting uses receipt and payment dates. Obligation dates belong to
-  invoice, charge, and future accrual contexts.
-- Property operating income excludes security deposits and owner
-  contributions.
-- Unit Profit and Loss consumes resolved, unit-linked property cash effects,
-  preserves reversal signs, and excludes property-level, deposit,
-  owner-funding, company-fee, and unresolved effects.
-- A general paid expense is submitted by Finance Member or Super Admin as
-  immutable evidence with no financial effect. Finance Manager or Super Admin
-  approves or rejects it; approval atomically creates the official expense,
-  payment/allocation, owner-or-tenant effect, and exact internal projections.
-  Only Super Admin may append an exact reversal.
-- A maintenance cost uses the same review boundary, but Operations supplies the
-  task, vendor, amount, date, and evidence while Finance chooses the verified
-  paid-from source at approval. Maintenance completion and Finance approval are
-  independent states.
-
-Checked finance transactions must preserve organization and property scope,
-source identity, reconciliation identity, payload-bound idempotency, balanced
-journal compatibility, activity history, exact Ledger projection identity,
-and every affected property-period lock. Take shared locks in deterministic
-order and fail closed on closed or changed periods.
-
-Reserved receipt-allocation Ledger rows are derived Rent and Income evidence,
-not editable manual rows. Their lifecycle follows the source receipt or exact
-reversal. Compatibility journals and accounts may remain internally, but must
-not leak into a product-facing management-company accounting model.
-
-When financial authority is incomplete, label the workflow unavailable or the
-evidence unresolved. Never estimate a publishable owner balance, management
-fee, settlement, allocation, or reconciliation identity merely to populate a
-screen or export.
-
-Finance uses the configured organization name in operator-facing collection
-labels. Short money actions use focused modals; multi-step lease billing setup
-and longer conditional expense forms use right-side drawers. Internal funding,
-markup, and responsibility details remain recorded without exposing internal
-accounting terminology to tenants.
-
-## Imports And Reports
-
-CSV import supports properties, units or rent roll, people, and leases.
-
-- Preserve template download, automatic or saved header mapping, staged row
-  validation, review downloads, and one safe ready-row commit flow.
-- The server owns import identity. Staging computes deterministic raw and
-  semantic claims in PostgreSQL and inserts the run, rows, and counts
-  atomically.
-- Reuse an identical clean staged snapshot; replace only a clean staged run
-  whose reference-derived semantics changed.
-- Committing, terminal, legacy non-atomic, and provenance-linked runs fail
-  closed rather than replaying or silently mutating history.
-- Commits remain RPC-backed, organization-scoped, idempotent, and audited.
-- Invalid or ambiguous records are visible and excluded; they are never
-  silently imported.
-
-The public report catalog is limited to Monthly Owner Activity and Monthly Unit
-Profit and Loss. Owner Activity mirrors the property account categories for
-rent, management fees, owner-responsible property costs, withdrawals, and net
-change. Retired statement families have no public routes; their checked data
-compatibility code stays internal until replacement authority is approved.
-Reports remain traceable to source records and scoped period/property context.
-PDF and Excel are the public export formats; the retained CSV compatibility
-endpoint must remain auth-gated and formula-safe. Do not add report families or
-infer blocked balances without an approved product and data-authority change.
-
-## Interface Contract
-
-Authenticated Nestory is quiet, neutral, dense operating software.
-
-- Give each workspace one visible title-and-action composition, with title,
-  context, local navigation, and actions kept on one readable line when width
-  permits. Use no more than one secondary controls row below it.
-- Keep primary search visible. Disclose advanced URL-backed filters instead of
-  giving every filter permanent visual weight.
-- Give each workspace one dominant work surface. Desktop tables and row lists
-  stay unframed while retaining captions, headers, row semantics, keyboard
-  behavior, and accessible selection state.
-- Reserve cards for genuinely discrete objects, states, or actions; do not use
-  decorative card shells to divide one continuous operating surface.
-- Use compact headers, tables, list selectors, badges, quick views, side
-  drawers, and explicit record links.
-- Keep primary records and common actions early in the viewport.
-- Desktop workspaces should use the remaining viewport height and internal
-  scrolling instead of small document-level scrollbars.
-- Do not reserve a persistent side inspector beside operational tables. Row
-  click or Enter opens a focus-managed quick view; an explicit record link
-  reaches a real detail route. Double-click may be a pointer shortcut only when
-  that detail route exists.
-- Use the shared side drawer for create, edit, archive, restore, upload, and
-  other focused record work.
-- Keep one global `Search or jump` surface. Entity results stay server-scoped
-  and must not expose raw UUIDs as operator labels.
-- Settings uses header-level Workspace and Workspace Access navigation followed
-  by a two-zone layout: one uncontained section rail and one labelled content
-  region. It has one shared save/discard/status area. Configuration is a
-  read-only registry catalog until persistence, approval, and effective-dating
-  authority are implemented.
-- Label ordinary actions directly. Explain risk, consequence, permission,
-  unfamiliar domain meaning, and handoffs where needed.
-- Consequential actions show the affected record, scope, and effect before
-  submission, then a specific result.
-- Shared loading, empty, filtered-empty, error/retry, permission, blocked,
-  draft, saving, and success states must be explicit.
-- Long labels and descriptions wrap or truncate deliberately. Raw UUIDs remain
-  out of ordinary operator views.
-- Use primitives from `src/components/ui` for visible form controls.
-- Treat 1440 x 900 and 1280 x 800 as the laptop-first visual checks, and verify
-  authenticated workspace reflow and keyboard access at 200% browser zoom.
-
-Dialogs and drawers trap focus, close with Escape, expose an announced close
-control, and return focus to the opener. Keyboard use, focus, disabled states,
-heading order, announcements, and 200% zoom must work at desktop, tablet, and
-mobile widths without document-level horizontal overflow. Icon-only controls
-need accessible names. Serious or critical accessibility failures block UI
-readiness.
+Keep behavior in its owning feature until reuse is demonstrated. Do not build a
+generic workflow engine or general-purpose financial event layer.
 
 ## Local Development
 
-Install dependencies with Node.js 24:
+Use Node.js 24:
 
 ```powershell
 npm ci
 npm run supabase:start
+npm run db:reset
+npm run db:test:fixture
 npm run dev
 ```
 
-The default app runs directly against the local Supabase CLI stack. Use only
-disposable local fixture accounts and keys. Public signup remains disabled.
+Normal local resets contain no business records. `npm run db:test:fixture`
+loads the guarded disposable five-role fixture documented at the top of
+`supabase/test-fixtures/baseline.sql`.
 
-Useful commands:
+Useful checks:
 
 ```powershell
-npm run lint
-npx tsc --noEmit
-npm run test:all
-npm run build
-npm run db:reset
-npm run db:reset:demo -- --reference-date 2030-01-15
 npm run db:lint
 npm run db:types
 npx supabase test db --local supabase/tests
-npm run test:ui-coverage
-npm run test:ui-copy
-```
-
-For the Docker production-runtime path, copy `.env.docker.example` to the
-ignored `.env.docker`, replace its placeholders with disposable local values,
-then run:
-
-```powershell
-npx supabase start
-docker compose --env-file .env.docker up --build -d
-docker compose --env-file .env.docker ps
-docker compose --env-file .env.docker logs -f app
-```
-
-Stop without deleting volumes:
-
-```powershell
-docker compose --env-file .env.docker down
-npx supabase stop
-```
-
-Do not add `-v` unless deleting local Docker data is explicitly intended.
-
-## Verification
-
-Use the smallest check that proves a change, then expand with blast radius.
-
-Standard application gate:
-
-```powershell
-npm run lint
 npx tsc --noEmit
+npm run lint
 npm run test:all
-npm run build
 npm run test:ui-coverage
 npm run test:ui-copy
+npm run build
 ```
 
-Database changes also require the applicable local Supabase reset, lint,
-generated-type comparison, pgTAP suite, and concurrency harnesses from
-`package.json`. Never run a destructive reset against a hosted project.
+Never run a destructive database reset against a hosted project. Do not use
+`docker compose down -v` unless deleting local Docker data is explicitly
+intended.
 
-Authenticated UI, auth, layout, drawers, uploads, imports, maintenance, and
-report-export changes require a real local browser smoke. Available runners
-include:
+## Verification And Release Boundary
 
-```powershell
-npm run test:ui-redesign
-npm run test:ui-a11y
-npm run test:properties-flow
-npm run test:maintenance-mobile
-```
+Use the smallest check that proves a change, then expand according to blast
+radius. Database work requires an empty local reset, fixture load, generated
+types, schema lint, pgTAP, and the applicable concurrency harnesses. Auth,
+layout, upload, import, maintenance, and report changes also require a real
+local browser smoke with disposable credentials.
 
-Browser runners use explicit loopback `BASE_URL` and disposable local
-credentials supplied through the current PowerShell session. Prefer read-only
-smokes unless the test owns cleanup. Invitation changes require the complete
-invite, password-proof or replacement, acceptance, workspace continuation,
-sign-out, and password-login lifecycle—not merely one successful redirect.
+Local success does not prove hosted readiness. A release claim must separately
+verify exact Git SHA and divergence, CI for that SHA, linked Supabase migration
+parity and lint, deployment SHA/alias/runtime health, protected-route behavior,
+and backup expectations. Hosted migration, Cron activation, user invitation,
+deployment, and production smoke always require explicit authorization.
 
-Production readiness is never inferred from local success or a generic green
-badge. Recompute and report:
-
-- Worktree, branch, exact HEAD, upstream SHA, divergence, and clean/dirty state
-- Exact-head CI status and failed or skipped jobs
-- Linked Supabase migration dry run, schema lint, and migration parity
-- Vercel deployment filtered to the expected Git SHA, Ready state, aliases,
-  public/protected route behavior, and recent runtime errors
-- Backup/restore readiness when the release gate requires it
-
-If the Vercel CLI is unavailable, install it with `npm i -g vercel` before
-using `vercel env pull`, `vercel deploy`, or `vercel logs`.
-
-## Handoff
-
-Every completed change reports:
-
-- Files and user-visible behavior changed
-- Checks passed, failed, and not run, including the reason
-- Known limitations or placeholders that remain
-- Branch, commit, upstream parity, and deployment state when Git or production
-  work was requested
-
-Never stretch CI, preview, fixture, or local-browser evidence into claims about
-an unverified hosted database, production alias, external integration, or
-physical device.
+Every handoff reports changed behavior, passed and failed checks, checks not
+run, remaining limitations, exact branch/commit state, and hosted state when it
+was in scope.
