@@ -26,7 +26,6 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/features/leases/actions", () => ({
   archiveLeaseAction: async () => ({}),
   createLeaseAction: async () => ({}),
-  generateMonthlyRentAction: async () => ({}),
   recordLeaseDepositEventAction: async () => ({}),
   restoreLeaseAction: async () => ({}),
   reverseLeaseDepositEventAction: async () => ({}),
@@ -97,6 +96,8 @@ describe("LeaseScreen redesign contract", () => {
     ).not.toBeNull();
     expect(screen.queryByRole("region", { name: "Lease summary" })).toBeNull();
     expect(screen.queryByText("This page")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Generate rent" })).toBeNull();
+    expect(screen.getByText(/rent is generated automatically/i)).not.toBeNull();
 
     const tableFrame = container.querySelector<HTMLElement>(
       '[data-slot="register-table-frame"]',
@@ -409,7 +410,7 @@ describe("LeaseScreen redesign contract", () => {
     expect(within(filteredState!).getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/leases");
     filtered.unmount();
 
-    renderLeases({ canCreate: false, canGenerateRent: false, leases: [] });
+    renderLeases({ canCreate: false, leases: [] });
     expect(screen.getByText("No leases yet")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Add lease" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Generate rent" })).toBeNull();
@@ -449,13 +450,11 @@ describe("LeaseScreen redesign contract", () => {
 
 function renderLeases({
   canCreate = true,
-  canGenerateRent = true,
   leases: nextLeases = leases,
   pagination,
   viewQuery = defaultViewQuery,
 }: {
   canCreate?: boolean;
-  canGenerateRent?: boolean;
   leases?: typeof leases;
   pagination?: {
     from: number;
@@ -470,7 +469,6 @@ function renderLeases({
   return render(
     <LeaseScreen
       canCreate={canCreate}
-      canGenerateRent={canGenerateRent}
       leases={nextLeases}
       pagination={pagination ?? {
           from: nextLeases.length > 0 ? 1 : 0,

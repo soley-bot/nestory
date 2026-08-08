@@ -45,11 +45,18 @@ export type TenantInvoiceLine = {
 
 export type TenantInvoiceSummary = {
   balanceDue: number;
+  billingPeriodStart: string;
   collectedByOwner: number;
   collectionRoute: "direct_to_owner" | "through_ips";
   dueDate: string;
+  generationSource:
+    | "activation_catch_up"
+    | "manual_recovery"
+    | "scheduled"
+    | null;
   id: string;
   invoiceNumber: string;
+  isProrated: boolean | null;
   issueDate: string;
   leaseId: string;
   lines: TenantInvoiceLine[];
@@ -62,6 +69,17 @@ export type TenantInvoiceSummary = {
   totalAmount: number;
   unitId: string | null;
   unitLabel: string;
+};
+
+export type RentGenerationException = {
+  attemptCount: number;
+  billingPeriodStart: string;
+  code: string;
+  id: string;
+  lastAttemptAt: string;
+  leaseId: string;
+  message: string;
+  propertyId: string;
 };
 
 export type OwnerInvoiceSummary = {
@@ -133,6 +151,7 @@ export type FinanceOperationsData = {
   positions: PropertyFinancePosition[];
   propertyOptions: FinanceOption[];
   reconciliationSources: FinanceOption[];
+  rentGenerationExceptions: RentGenerationException[];
   tenantInvoices: TenantInvoiceSummary[];
   unitOptions: FinanceOption[];
 };

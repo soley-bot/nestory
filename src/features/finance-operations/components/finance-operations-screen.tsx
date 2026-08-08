@@ -34,11 +34,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   confirmOwnerCollectionAction,
-  generateTenantInvoiceAction,
   recordIpsExpenseAction,
   recordOwnerPaymentAction,
   recordTenantInvoicePaymentAction,
   recordWithdrawalAction,
+  recoverRentGenerationExceptionAction,
   saveLeaseBillingAction,
 } from "@/features/finance-operations/actions";
 import type {
@@ -47,6 +47,7 @@ import type {
   FinanceOperationsData,
   OwnerInvoiceSummary,
   PropertyFinancePosition,
+  RentGenerationException,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
@@ -58,7 +59,6 @@ export type FinanceOperationsView =
   "account" | "balances" | "expenses" | "rent" | "work";
 
 type ModalState =
-  | { lease: FinanceLease; mode: "generate" }
   | {
       canChooseAnother?: boolean;
       invoice?: TenantInvoiceSummary;
@@ -76,12 +76,19 @@ type DrawerState =
     };
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
+  canConfigureRent?: boolean;
+  canRecoverRent?: boolean;
   organizationName: string;
   selectedPropertyId?: string | null;
   view: FinanceOperationsView;
 };
 
 const actionInitialState: FinanceOperationsActionState = {};
+const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  timeZone: "UTC",
+  year: "numeric",
+});
 
 export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
   const organizationName = props.organizationName.trim() || "our company";
@@ -156,12 +163,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
 
       {modal ? (
         <Modal onClose={closeModal} open title={getModalTitle(modal)}>
-          {modal.mode === "generate" ? (
-            <GenerateInvoiceForm
-              lease={modal.lease}
-              onSuccess={onActionSuccess}
-            />
-          ) : modal.mode === "payment" ? (
+          {modal.mode === "payment" ? (
             modal.invoice ? (
               <SettleInvoiceForm
                 invoice={modal.invoice}
@@ -205,10 +207,13 @@ function getScreen(
   openModal: (modal: ModalState) => void,
   openDrawer: (drawer: DrawerState) => void,
 ) {
+  const canConfigureRent = props.canConfigureRent !== false;
+  const canRecoverRent = props.canRecoverRent !== false;
+
   if (props.view === "rent") {
     return {
       activeRoute: "/rent-income" as const,
-      actions: (
+      actions: canConfigureRent ? (
         <>
           <Button
             onClick={() => openModal({ mode: "payment" })}
@@ -224,9 +229,10 @@ function getScreen(
             <Plus size={15} /> Add charge
           </Button>
         </>
-      ),
+      ) : undefined,
       body: (
         <RentView
+          canRecordPayments={canConfigureRent}
           invoices={props.tenantInvoices}
           openModal={openModal}
           organizationName={props.organizationName}
@@ -317,17 +323,20 @@ function getScreen(
 
   return {
     activeRoute: "/finance" as const,
-    actions: (
+    actions: canConfigureRent ? (
       <Button onClick={() => openModal({ mode: "payment" })} variant="primary">
         <WalletCards size={15} /> Record payment
       </Button>
-    ),
+    ) : undefined,
     body: (
       <FinanceWorkView
+        canConfigureRent={canConfigureRent}
+        canRecoverRent={canRecoverRent}
         leases={props.leases}
         openDrawer={openDrawer}
         openModal={openModal}
         ownerInvoices={props.ownerInvoices}
+        rentGenerationExceptions={props.rentGenerationExceptions}
         tenantInvoices={props.tenantInvoices}
       />
     ),
@@ -339,29 +348,31 @@ function getScreen(
 }
 
 function FinanceWorkView({
+  canConfigureRent,
+  canRecoverRent,
   leases,
   openDrawer,
   openModal,
   ownerInvoices,
+  rentGenerationExceptions,
   tenantInvoices,
 }: {
+  canConfigureRent: boolean;
+  canRecoverRent: boolean;
   leases: FinanceLease[];
   openDrawer: (drawer: DrawerState) => void;
   openModal: (modal: ModalState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
+  rentGenerationExceptions: RentGenerationException[];
   tenantInvoices: TenantInvoiceSummary[];
 }) {
   const leasesNeedingSetup = leases.filter((lease) => !lease.billing);
-  const readyWithoutInvoice = leases.filter(
-    (lease) =>
-      lease.billing &&
-      !tenantInvoices.some((invoice) => invoice.leaseId === lease.id),
-  );
+  const leaseById = new Map(leases.map((lease) => [lease.id, lease]));
   const tenantDue = tenantInvoices.filter((invoice) => invoice.balanceDue > 0);
   const ownerDue = ownerInvoices.filter((invoice) => invoice.balanceDue > 0);
   const workCount =
     leasesNeedingSetup.length +
-    readyWithoutInvoice.length +
+    rentGenerationExceptions.length +
     tenantDue.length +
     ownerDue.length;
 
@@ -371,6 +382,7 @@ function FinanceWorkView({
         variant="cards"
         items={[
           { label: "Needs setup", value: leasesNeedingSetup.length },
+          { label: "Rent exceptions", value: rentGenerationExceptions.length },
           { label: "Tenant balances", value: tenantDue.length },
           { label: "Owner balances", value: ownerDue.length },
         ]}
@@ -414,38 +426,27 @@ function FinanceWorkView({
                     <Td>—</Td>
                     <Td>Before invoicing</Td>
                     <Td align="right">
-                      <Button
-                        onClick={() => openDrawer({ lease, mode: "billing" })}
-                      >
-                        Set up
-                      </Button>
+                      {canConfigureRent ? (
+                        <Button
+                          onClick={() => openDrawer({ lease, mode: "billing" })}
+                        >
+                          Set up
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Super Admin setup
+                        </span>
+                      )}
                     </Td>
                   </tr>
                 ))}
-                {readyWithoutInvoice.map((lease) => (
-                  <tr
-                    className="border-b border-border"
-                    key={`invoice-${lease.id}`}
-                  >
-                    <Td>
-                      <p className="font-medium">Create rent invoice</p>
-                      <p className="text-xs text-muted-foreground">
-                        {lease.tenantLabel} · {lease.unitLabel}
-                      </p>
-                    </Td>
-                    <Td>{lease.propertyLabel}</Td>
-                    <Td>
-                      <Money amount={lease.monthlyRent} />
-                    </Td>
-                    <Td>This month</Td>
-                    <Td align="right">
-                      <Button
-                        onClick={() => openModal({ lease, mode: "generate" })}
-                      >
-                        Create
-                      </Button>
-                    </Td>
-                  </tr>
+                {rentGenerationExceptions.map((exception) => (
+                  <RentGenerationExceptionRow
+                    canRecover={canRecoverRent}
+                    exception={exception}
+                    key={`rent-exception-${exception.id}`}
+                    lease={leaseById.get(exception.leaseId) ?? null}
+                  />
                 ))}
                 {tenantDue.map((invoice) => (
                   <tr
@@ -468,13 +469,19 @@ function FinanceWorkView({
                     </Td>
                     <Td>{formatDate(invoice.dueDate)}</Td>
                     <Td align="right">
-                      <Button
-                        onClick={() => openModal({ invoice, mode: "payment" })}
-                      >
-                        {invoice.collectionRoute === "through_ips"
-                          ? "Record"
-                          : "Confirm"}
-                      </Button>
+                      {canConfigureRent ? (
+                        <Button
+                          onClick={() => openModal({ invoice, mode: "payment" })}
+                        >
+                          {invoice.collectionRoute === "through_ips"
+                            ? "Record"
+                            : "Confirm"}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Read only
+                        </span>
+                      )}
                     </Td>
                   </tr>
                 ))}
@@ -495,13 +502,19 @@ function FinanceWorkView({
                     </Td>
                     <Td>{formatDate(invoice.dueDate)}</Td>
                     <Td align="right">
-                      <Button
-                        onClick={() =>
-                          openModal({ invoice, mode: "owner-payment" })
-                        }
-                      >
-                        Record
-                      </Button>
+                      {canConfigureRent ? (
+                        <Button
+                          onClick={() =>
+                            openModal({ invoice, mode: "owner-payment" })
+                          }
+                        >
+                          Record
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Read only
+                        </span>
+                      )}
                     </Td>
                   </tr>
                 ))}
@@ -514,11 +527,90 @@ function FinanceWorkView({
   );
 }
 
+function RentGenerationExceptionRow({
+  canRecover,
+  exception,
+  lease,
+}: {
+  canRecover: boolean;
+  exception: RentGenerationException;
+  lease: FinanceLease | null;
+}) {
+  const monthLabel = formatLeaseMonth(exception.billingPeriodStart);
+
+  return (
+    <tr className="border-b border-border">
+      <Td>
+        <p className="font-medium">Rent generation needs attention</p>
+        <p className="text-xs text-muted-foreground">{exception.message}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {exception.attemptCount}{" "}
+          {exception.attemptCount === 1 ? "attempt" : "attempts"}
+        </p>
+      </Td>
+      <Td>{lease?.propertyLabel ?? "Property unavailable"}</Td>
+      <Td>{lease ? <Money amount={lease.monthlyRent} /> : "—"}</Td>
+      <Td>{monthLabel}</Td>
+      <Td align="right">
+        {canRecover ? (
+          <RentGenerationRetry
+            exceptionId={exception.id}
+            monthLabel={monthLabel}
+          />
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            Super Admin retry
+          </span>
+        )}
+      </Td>
+    </tr>
+  );
+}
+
+function RentGenerationRetry({
+  exceptionId,
+  monthLabel,
+}: {
+  exceptionId: string;
+  monthLabel: string;
+}) {
+  const [state, action, pending] = useActionState(
+    recoverRentGenerationExceptionAction,
+    actionInitialState,
+  );
+
+  return (
+    <form action={action} className="space-y-1">
+      <input name="exceptionId" type="hidden" value={exceptionId} />
+      <Button
+        aria-label={`Retry rent for ${monthLabel}`}
+        disabled={pending}
+        type="submit"
+      >
+        {pending ? "Retrying..." : "Retry"}
+      </Button>
+      {state.message ? (
+        <p
+          className={cn(
+            "max-w-48 text-xs",
+            state.status === "error" ? "text-destructive" : "text-success",
+          )}
+          role="status"
+        >
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 function RentView({
+  canRecordPayments,
   invoices,
   openModal,
   organizationName,
 }: {
+  canRecordPayments: boolean;
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
   organizationName: string;
@@ -544,7 +636,7 @@ function RentView({
       >
         {invoices.length === 0 ? (
           <EmptyState
-            body="Set up an active lease, then create its first rent invoice."
+            body="Rent invoices are generated automatically when the lease, billing, and rent policy setup is ready."
             className="flex-1"
             kind="empty"
             title="No rent invoices"
@@ -572,6 +664,17 @@ function RentView({
                       <p className="text-xs text-muted-foreground">
                         Due {formatDate(invoice.dueDate)}
                       </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatLeaseMonth(invoice.billingPeriodStart)} lease month
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <Badge tone="neutral">
+                          {getRentGenerationLabel(invoice.generationSource)}
+                        </Badge>
+                        {invoice.isProrated ? (
+                          <Badge tone="accent">Prorated</Badge>
+                        ) : null}
+                      </div>
                     </Td>
                     <Td>
                       <p>{invoice.recipientLabel}</p>
@@ -602,7 +705,7 @@ function RentView({
                       <StatusBadge status={invoice.paymentStatus} />
                     </Td>
                     <Td align="right">
-                      {invoice.balanceDue > 0 ? (
+                      {invoice.balanceDue > 0 && canRecordPayments ? (
                         <Button
                           onClick={() =>
                             openModal({ invoice, mode: "payment" })
@@ -612,9 +715,13 @@ function RentView({
                             ? "Record payment"
                             : "Confirm collected"}
                         </Button>
-                      ) : (
+                      ) : invoice.balanceDue <= 0 ? (
                         <span className="text-xs text-muted-foreground">
                           Done
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Read only
                         </span>
                       )}
                     </Td>
@@ -1217,53 +1324,6 @@ function BillingSetupForm({
   );
 }
 
-function GenerateInvoiceForm({
-  lease,
-  onSuccess,
-}: {
-  lease: FinanceLease;
-  onSuccess: (message: string) => void;
-}) {
-  const idempotencyKey = useStableActionId("invoice");
-  const [state, action] = useActionState(
-    generateTenantInvoiceAction,
-    actionInitialState,
-  );
-  const today = getBusinessDateValue();
-  useSuccess(state, onSuccess);
-  return (
-    <form action={action} className="space-y-4 p-4">
-      <DefinitionRows
-        rows={[
-          ["Lease", `${lease.tenantLabel} · ${lease.unitLabel}`],
-          ["Property", lease.propertyLabel],
-          ["Rent", formatMoneyDisplay(lease.monthlyRent).primary],
-        ]}
-      />
-      <input name="leaseId" type="hidden" value={lease.id} />
-      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Billing month">
-          <Input
-            defaultValue={`${today.slice(0, 7)}-01`}
-            name="billingPeriodStart"
-            required
-            type="date"
-          />
-        </Field>
-        <Field label="Issue date">
-          <DatePickerField defaultValue={today} name="issueDate" required />
-        </Field>
-      </div>
-      <ActionMessage state={state} />
-      <FormFooter>
-        <span />
-        <SubmitButton label="Create invoice" />
-      </FormFooter>
-    </form>
-  );
-}
-
 function PaymentChooser({
   invoices,
   onChoose,
@@ -1761,7 +1821,6 @@ function WithdrawalForm({
 }
 
 function getModalTitle(modal: ModalState) {
-  if (modal.mode === "generate") return "Create rent invoice";
   if (modal.mode === "payment")
     return !modal.invoice || modal.invoice.collectionRoute === "through_ips"
       ? "Record payment"
@@ -1791,6 +1850,21 @@ function categoryLabel(category: string) {
   return category === "repairs_maintenance"
     ? "Repairs and Maintenance"
     : category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+function formatLeaseMonth(value: string) {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? value : leaseMonthFormatter.format(date);
+}
+
+function getRentGenerationLabel(
+  source: TenantInvoiceSummary["generationSource"],
+) {
+  if (source === "manual_recovery") return "Recovered by Super Admin";
+  if (source === "scheduled" || source === "activation_catch_up") {
+    return "Generated automatically";
+  }
+  return "Legacy invoice";
 }
 
 function CompactTotals({

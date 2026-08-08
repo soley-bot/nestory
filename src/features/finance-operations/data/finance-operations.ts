@@ -13,6 +13,7 @@ import type {
   OwnerInvoiceSummary,
   PropertyAccountEntry,
   PropertyFinancePosition,
+  RentGenerationException,
   TenantInvoiceLine,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
@@ -39,6 +40,8 @@ export async function getFinanceOperationsData(
     leasesResult,
     billingResult,
     tenantInvoicesResult,
+    tenantInvoiceGenerationResult,
+    rentGenerationExceptionsResult,
     tenantLinesResult,
     incomeResult,
     ownerInvoicesResult,
@@ -94,6 +97,23 @@ export async function getFinanceOperationsData(
       .order("due_date", { ascending: false })
       .limit(250),
     supabase
+      .from("tenant_invoices")
+      .select(
+        "id, billing_period_start, generation_source, is_prorated",
+      )
+      .eq("organization_id", organizationId)
+      .order("billing_period_start", { ascending: false })
+      .limit(250),
+    supabase
+      .from("rent_generation_exceptions")
+      .select(
+        "id, property_id, lease_id, billing_period_start, error_code, safe_message, attempt_count, last_attempt_at",
+      )
+      .eq("organization_id", organizationId)
+      .is("resolved_at", null)
+      .order("last_attempt_at", { ascending: false })
+      .limit(250),
+    supabase
       .from("tenant_invoice_lines")
       .select(
         "id, invoice_id, income_item_id, line_type, customer_label, amount, sort_order",
@@ -142,6 +162,8 @@ export async function getFinanceOperationsData(
     leasesResult,
     billingResult,
     tenantInvoicesResult,
+    tenantInvoiceGenerationResult,
+    rentGenerationExceptionsResult,
     tenantLinesResult,
     incomeResult,
     ownerInvoicesResult,
@@ -180,6 +202,12 @@ export async function getFinanceOperationsData(
   );
   const incomeById = new Map(
     (incomeResult.data ?? []).map((income) => [income.id, income]),
+  );
+  const generationByInvoiceId = new Map(
+    (tenantInvoiceGenerationResult.data ?? []).map((invoice) => [
+      invoice.id,
+      invoice,
+    ]),
   );
   const linesByInvoiceId = new Map<string, TenantInvoiceLine[]>();
 
@@ -280,12 +308,25 @@ export async function getFinanceOperationsData(
       label: `${source.code} · ${source.display_name}`,
       propertyId: source.property_id,
     })),
+    rentGenerationExceptions: (rentGenerationExceptionsResult.data ?? []).map(
+      (exception) => ({
+        attemptCount: exception.attempt_count,
+        billingPeriodStart: exception.billing_period_start,
+        code: exception.error_code,
+        id: exception.id,
+        lastAttemptAt: exception.last_attempt_at,
+        leaseId: exception.lease_id,
+        message: exception.safe_message,
+        propertyId: exception.property_id,
+      } satisfies RentGenerationException),
+    ),
     tenantInvoices: (tenantInvoicesResult.data ?? []).flatMap((row) =>
       toTenantInvoice(
         row as TenantInvoiceBalanceRow,
         propertyById,
         unitById,
         linesByInvoiceId,
+        generationByInvoiceId,
       ),
     ),
     unitOptions: units.flatMap((unit) => {
@@ -345,6 +386,15 @@ function toTenantInvoice(
   properties: Map<string, { code: string; id: string; name: string }>,
   units: Map<string, { id: string; property_id: string; unit_number: string }>,
   linesByInvoiceId: Map<string, TenantInvoiceLine[]>,
+  generationByInvoiceId: Map<
+    string,
+    {
+      billing_period_start: string;
+      generation_source: string | null;
+      id: string;
+      is_prorated: boolean | null;
+    }
+  >,
 ): TenantInvoiceSummary[] {
   if (
     !row.id ||
@@ -358,15 +408,26 @@ function toTenantInvoice(
   const property = properties.get(row.property_id);
   if (!property) return [];
   const unit = row.unit_id ? units.get(row.unit_id) : null;
+  const generation = generationByInvoiceId.get(row.id);
   return [
     {
       balanceDue: Number(row.balance_due ?? 0),
+      billingPeriodStart:
+        generation?.billing_period_start ??
+        row.billing_period_start ??
+        row.issue_date,
       collectedByOwner: Number(row.collected_by_owner ?? 0),
       collectionRoute: row.collection_route as
         "direct_to_owner" | "through_ips",
       dueDate: row.due_date,
+      generationSource: isRentGenerationSource(
+        generation?.generation_source,
+      )
+        ? generation.generation_source
+        : null,
       id: row.id,
       invoiceNumber: row.invoice_number,
+      isProrated: generation?.is_prorated ?? null,
       issueDate: row.issue_date,
       leaseId: row.lease_id,
       lines: linesByInvoiceId.get(row.id) ?? [],
@@ -382,6 +443,16 @@ function toTenantInvoice(
       unitLabel: unit ? unitLabel(unit, property) : "No unit",
     },
   ];
+}
+
+function isRentGenerationSource(
+  value: string | null | undefined,
+): value is NonNullable<TenantInvoiceSummary["generationSource"]> {
+  return (
+    value === "activation_catch_up" ||
+    value === "manual_recovery" ||
+    value === "scheduled"
+  );
 }
 
 function toOwnerInvoice(

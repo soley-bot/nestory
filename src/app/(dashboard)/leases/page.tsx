@@ -1,14 +1,14 @@
 import { LeaseScreen } from "@/features/leases/components/lease-screen";
 import { getLeasesScreenData } from "@/features/leases/data/leases";
 import { parseLeaseSearchParams } from "@/features/leases/lease.filters";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireLeaseConfigurationContext } from "@/lib/auth/context";
 
 type LeasesPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function LeasesPage({ searchParams }: LeasesPageProps) {
-  const context = await requireAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const params = await searchParams;
   const viewQuery = parseLeaseSearchParams(params);
   const { leases, pagination, propertyOptions, tenantOptions, unitOptions } =

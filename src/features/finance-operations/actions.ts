@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdminContext } from "@/lib/auth/context";
+import {
+  requireAdminContext,
+  requireLeaseConfigurationContext,
+} from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { Json } from "@/types/database";
 import type { FinanceOperationsActionState } from "@/features/finance-operations/finance-operations.types";
@@ -41,12 +44,7 @@ const billingSchema = z.object({
   ),
 });
 
-const generateInvoiceSchema = z.object({
-  billingPeriodStart: date,
-  idempotencyKey: z.string().min(8),
-  issueDate: date,
-  leaseId: uuid,
-});
+const recoverRentSchema = z.object({ exceptionId: uuid });
 
 const invoiceSettlementSchema = z.object({
   amount,
@@ -113,7 +111,7 @@ export async function saveLeaseBillingAction(
   });
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("set_lease_billing_term", {
     p_billing_recipient_kind: parsed.data.billingRecipientKind,
@@ -138,24 +136,41 @@ export async function saveLeaseBillingAction(
   return { message: "Lease billing is active.", status: "success" };
 }
 
-export async function generateTenantInvoiceAction(
+export async function recoverRentGenerationExceptionAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = generateInvoiceSchema.safeParse(Object.fromEntries(formData));
+  const parsed = recoverRentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("generate_tenant_rent_invoice", {
-    p_billing_period_start: parsed.data.billingPeriodStart,
-    p_idempotency_key: parsed.data.idempotencyKey,
-    p_issue_date: parsed.data.issueDate,
-    p_lease_id: parsed.data.leaseId,
-    p_organization_id: context.organizationId,
-  });
-  if (error) return actionError(error.message);
+  const { data, error } = await supabase.rpc(
+    "recover_rent_generation_exception",
+    {
+      p_exception_id: parsed.data.exceptionId,
+      p_organization_id: context.organizationId,
+    },
+  );
+  if (error) {
+    return {
+      message: "We could not retry this rent month. Review its setup and try again.",
+      status: "error",
+    };
+  }
+
+  const result = asActionResult(data);
+  if (result?.status === "failed") {
+    return {
+      message:
+        typeof result.message === "string"
+          ? result.message
+          : "Review the lease rent setup and try again.",
+      status: "error",
+    };
+  }
+
   revalidateFinance();
-  return { message: "Rent invoice created.", status: "success" };
+  return { message: "Rent generation retried.", status: "success" };
 }
 
 export async function recordTenantInvoicePaymentAction(
@@ -331,4 +346,12 @@ function revalidateFinance() {
   ]) {
     revalidatePath(path);
   }
+}
+
+function asActionResult(
+  value: Json | null,
+): Record<string, Json | undefined> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, Json | undefined>)
+    : null;
 }

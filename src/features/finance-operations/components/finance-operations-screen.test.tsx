@@ -30,6 +30,81 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("shows automatic-rent exceptions without restoring a manual invoice path", () => {
+    const input = data();
+    input.leases[0].billing = billing();
+    input.rentGenerationExceptions = [
+      {
+        attemptCount: 2,
+        billingPeriodStart: "2026-09-01",
+        code: "billing_recipient_invalid",
+        id: "exception-1",
+        lastAttemptAt: "2026-09-01T01:00:00Z",
+        leaseId: "lease-1",
+        message: "Select an active billing recipient for the lease.",
+        propertyId: "property-1",
+      },
+    ];
+
+    const readOnly = render(
+      <FinanceOperationsScreen
+        {...input}
+        canConfigureRent={false}
+        canRecoverRent={false}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    expect(screen.getByText("Rent generation needs attention")).not.toBeNull();
+    expect(
+      screen.getByText("Select an active billing recipient for the lease."),
+    ).not.toBeNull();
+    expect(screen.getByText("Sep 2026")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+    expect(screen.queryByText("Create rent invoice")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create" })).toBeNull();
+    readOnly.unmount();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        canConfigureRent
+        canRecoverRent
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Retry rent for Sep 2026" }),
+    ).not.toBeNull();
+  });
+
+  it("labels invoice provenance as operational lease context", () => {
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.billingPeriodStart = "2026-08-01";
+    invoice.generationSource = "scheduled";
+    invoice.isProrated = true;
+    input.tenantInvoices = [invoice];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        canConfigureRent={false}
+        canRecoverRent={false}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+
+    expect(screen.getByText("Generated automatically")).not.toBeNull();
+    expect(screen.getByText("Aug 2026 lease month")).not.toBeNull();
+    expect(screen.getByText("Prorated")).not.toBeNull();
+    expect(screen.queryByText(/journal|month close|uuid/i)).toBeNull();
+  });
+
   it("starts from a compact finance work queue and opens the four-step lease setup", () => {
     render(
       <FinanceOperationsScreen
@@ -301,6 +376,7 @@ function data(): FinanceOperationsData {
     reconciliationSources: [
       { id: "source-1", label: "BANK · Operating", propertyId: "property-1" },
     ],
+    rentGenerationExceptions: [],
     tenantInvoices: [],
     unitOptions: [
       { id: "unit-1", label: "HOME — Unit 01", propertyId: "property-1" },
@@ -311,11 +387,14 @@ function data(): FinanceOperationsData {
 function tenantInvoice(): FinanceOperationsData["tenantInvoices"][number] {
   return {
     balanceDue: 640,
+    billingPeriodStart: "2026-08-01",
     collectedByOwner: 0,
     collectionRoute: "direct_to_owner",
     dueDate: "2026-08-05",
     id: "invoice-1",
+    generationSource: "scheduled",
     invoiceNumber: "INV-202608-001",
+    isProrated: false,
     issueDate: "2026-08-01",
     leaseId: "lease-1",
     lines: [
@@ -336,5 +415,21 @@ function tenantInvoice(): FinanceOperationsData["tenantInvoices"][number] {
     totalAmount: 640,
     unitId: "unit-1",
     unitLabel: "HOME — Unit 01",
+  };
+}
+
+function billing(): NonNullable<FinanceOperationsData["leases"][number]["billing"]> {
+  return {
+    billingRecipientKind: "individual",
+    billingRecipientPersonId: "person-tenant",
+    chargeManagementFeeWhenActive: true,
+    collectionRoute: "through_ips",
+    effectiveFrom: "2026-08-01",
+    finalPeriodProratedAmount: null,
+    firstPeriodProratedAmount: null,
+    fullManagementFeeDuringProration: true,
+    id: "billing-1",
+    managementFeeMode: "percentage",
+    managementFeeValue: 10,
   };
 }

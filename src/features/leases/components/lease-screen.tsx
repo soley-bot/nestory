@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Plus } from "lucide-react";
@@ -23,10 +23,6 @@ import {
   ArchiveLeasePanel,
   RestoreLeasePanel,
 } from "@/features/leases/components/lease-drawer-panels";
-import {
-  generateMonthlyRentAction,
-  type LeaseActionState,
-} from "@/features/leases/actions";
 import { LeaseFilters } from "@/features/leases/components/lease-filters";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import { LeaseInspector } from "@/features/leases/components/lease-inspector";
@@ -45,8 +41,6 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   year: "numeric",
 });
-const rentGenerationInitialState: LeaseActionState = {};
-
 type LeaseCreateInitialValues = Partial<
   Pick<LeaseFormValues, "propertyId" | "tenantPersonId" | "unitId">
 >;
@@ -65,7 +59,6 @@ type DrawerState =
 
 type LeaseScreenProps = {
   canCreate?: boolean;
-  canGenerateRent?: boolean;
   initialLeaseId?: string;
   leases: LeaseSummary[];
   pagination: LeasePagination;
@@ -77,7 +70,6 @@ type LeaseScreenProps = {
 
 export function LeaseScreen({
   canCreate = true,
-  canGenerateRent = true,
   initialLeaseId,
   leases,
   pagination,
@@ -117,10 +109,6 @@ export function LeaseScreen({
       (!canCreate || searchParams.get("action") !== "create"),
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [rentState, generateRent, generatingRent] = useActionState(
-    generateMonthlyRentAction,
-    rentGenerationInitialState,
-  );
   const focusedLease = initialLeaseId
     ? leases.find((lease) => lease.id === initialLeaseId) ?? null
     : null;
@@ -187,14 +175,6 @@ export function LeaseScreen({
     });
   }, [canCreate, createInitialValues, createIntent, pathname, router, searchParams]);
 
-  useEffect(() => {
-    if (rentState.status === "success" || rentState.status === "error") {
-      queueMicrotask(() => {
-        setStatusMessage(rentState.message ?? null);
-      });
-    }
-  }, [rentState.message, rentState.status]);
-
   const hasFilters = hasActiveLeaseFilters(viewQuery);
   const leaseList = (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
@@ -251,13 +231,13 @@ export function LeaseScreen({
     <WorkspacePage
       actions={
         <div className="flex flex-wrap gap-2">
-            {canGenerateRent ? (
-              <form action={generateRent}>
-                <Button disabled={generatingRent} type="submit">
-                  {generatingRent ? "Generating..." : "Generate rent"}
-                </Button>
-              </form>
-            ) : null}
+            <div
+              className="inline-flex min-h-8 items-center gap-1.5 text-xs text-muted-foreground"
+              role="status"
+            >
+              <CheckCircle2 className="text-success" size={14} />
+              Rent is generated automatically
+            </div>
             {canCreate ? (
               <Button
                 onClick={() => openLeaseAction({ mode: "create" })}

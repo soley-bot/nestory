@@ -6,7 +6,6 @@ import { requireAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   getLeaseMutationErrorMessage,
-  getMonthlyRentGenerationErrorMessage,
   parseFutureRentTermInput,
   parseIdempotencyKey,
 } from "@/features/leases/lease-action-input";
@@ -493,41 +492,6 @@ export async function restoreLeaseAction(
 
   return {
     message: "Lease restored.",
-    status: "success",
-  };
-}
-
-export async function generateMonthlyRentAction(
-  _state: LeaseActionState,
-): Promise<LeaseActionState> {
-  void _state;
-
-  const context = await requireAdminContext();
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("generate_monthly_rent_income_items", {
-    p_organization_id: context.organizationId,
-  });
-
-  if (error) {
-    return {
-      message: getMonthlyRentGenerationErrorMessage(error),
-      status: "error",
-    };
-  }
-
-  revalidatePath("/leases");
-  revalidatePath("/rent-income");
-  revalidatePath("/ledger");
-  revalidatePath("/overview");
-  revalidatePath("/reports");
-
-  const count = Number(data ?? 0);
-
-  return {
-    message:
-      count === 0
-        ? "Rent charges are already generated for this month."
-        : `${count} rent charge${count === 1 ? "" : "s"} generated for this month.`,
     status: "success",
   };
 }
