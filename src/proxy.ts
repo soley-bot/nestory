@@ -18,7 +18,6 @@ const PUBLIC_ROUTES = new Set([
   AUTH_SESSION_ROUTE,
   "/forgot-password",
   "/request",
-  "/signup",
   "/update-password",
   ...AUTH_ROUTES,
 ]);

@@ -33,7 +33,7 @@ export function ErrorState({
       </div>
       <div aria-atomic="true" aria-live="assertive" role="alert">
         <h2 className="font-semibold text-foreground">{title}</h2>
-        <p className="mt-1 max-w-xl leading-5 text-foreground-muted">{message}</p>
+        <p className="mt-1 max-w-xl leading-5 text-muted-foreground">{message}</p>
       </div>
       {onRetry ? (
         <Button className="mt-4" onClick={onRetry}>

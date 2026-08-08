@@ -53,7 +53,7 @@ export function ArchivePropertyPanel({
           <p className="text-sm font-semibold">Archive confirmation</p>
         </div>
         <PropertyPanelSummary property={property} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           This hides the property from active operational views. Active units must
           be archived first, so unit history does not lose its parent context.
         </p>
@@ -63,7 +63,7 @@ export function ArchivePropertyPanel({
               Archive or move active units before archiving this property.
             </p>
             <Link
-              className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted"
+              className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
               href={`/units?propertyId=${property.id}`}
             >
               Review active units
@@ -110,7 +110,7 @@ export function RestorePropertyPanel({
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>
         <PropertyPanelSummary property={property} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           Restoring makes this property visible in active property workflows again.
         </p>
         <PanelMessage state={state} />
@@ -154,7 +154,7 @@ function getArchiveFlowState({
 
 function PropertyPanelSummary({ property }: { property: PropertySummary }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
+    <div className="rounded-md border border-border bg-muted px-3 py-3">
       <p className="text-sm font-medium">{property.name}</p>
       <p className="mt-1 text-sm text-muted-foreground">
         {property.code} / {property.type}
@@ -173,7 +173,7 @@ function PanelMessage({ state }: { state: PropertyActionState }) {
 
   return (
     <p
-      className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+      className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
       role={state.status === "error" ? "alert" : "status"}
     >
       {message}
@@ -204,7 +204,7 @@ function PanelFooter({
           className="w-full sm:w-auto"
           disabled={pending || disabled}
           type="submit"
-          variant="primary"
+          variant="default"
         >
           {icon}
           {confirmLabel}

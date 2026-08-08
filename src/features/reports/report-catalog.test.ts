@@ -9,7 +9,7 @@ import {
 describe("report catalog", () => {
   it("keeps two useful reports in the visible workspace", () => {
     expect(reportKindValues).toEqual([
-      "owner-activity",
+      "monthly-owner-activity",
       "unit-profit-loss",
     ]);
     expect(reportCatalog.map(({ title }) => title)).toEqual([
@@ -31,8 +31,8 @@ describe("buildReportBuilderHref", () => {
     expect(buildReportBuilderHref("unit-profit-loss", query)).toBe(
       "/reports/unit-profit-loss?month=2026-07&propertyId=property-1&unitId=unit-1",
     );
-    expect(buildReportBuilderHref("owner-activity", query)).toBe(
-      "/reports/owner-activity?month=2026-07&propertyId=property-1",
+    expect(buildReportBuilderHref("monthly-owner-activity", query)).toBe(
+      "/reports/monthly-owner-activity?month=2026-07&propertyId=property-1",
     );
   });
 });

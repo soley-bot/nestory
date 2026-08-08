@@ -110,8 +110,8 @@ export function FileDropzoneField(props: FileDropzoneFieldProps) {
           },
           role: "button",
           className: cn(
-            "flex min-h-24 w-full cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-control-border bg-surface px-3 py-4 text-center text-sm transition-colors hover:border-accent hover:bg-surface-muted/60",
-            isDragActive && "border-accent bg-accent-soft/40",
+            "flex min-h-24 w-full cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-input bg-card px-3 py-4 text-center text-sm transition-colors hover:border-accent hover:bg-muted/60",
+            isDragActive && "border-accent bg-accent/40",
             className,
           ),
         })}

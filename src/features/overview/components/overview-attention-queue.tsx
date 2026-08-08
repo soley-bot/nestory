@@ -20,7 +20,7 @@ export function OverviewAttentionQueue({
         <h2 className="text-sm font-semibold text-foreground" id="overview-attention-heading">
           Needs attention
         </h2>
-        <p className="mr-auto text-sm text-foreground-muted">No operating checks need attention.</p>
+        <p className="mr-auto text-sm text-muted-foreground">No operating checks need attention.</p>
         <Link className="text-xs font-medium text-foreground underline-offset-2 hover:underline" href="/timeline">
           Open timeline
         </Link>
@@ -39,13 +39,13 @@ export function OverviewAttentionQueue({
         <h2 className="text-sm font-semibold text-foreground" id="overview-attention-heading">
           Needs attention
         </h2>
-        <p className="text-xs text-foreground-muted">
+        <p className="text-xs text-muted-foreground">
           {items.length} operating {items.length === 1 ? "queue needs" : "queues need"} review.
         </p>
       </div>
       <Badge tone="warning">{items.length} queues</Badge>
       <Link
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-foreground hover:bg-surface-muted"
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground hover:bg-muted"
         href={`/overview/attention?month=${month}`}
       >
         Review queues

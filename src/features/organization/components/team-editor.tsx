@@ -135,11 +135,11 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
                 key={team.id}
               >
                 <span className="truncate font-medium">{team.name}</span>
-                <span className="truncate text-foreground-muted">
+                <span className="truncate text-muted-foreground">
                   {branches.find((branch) => branch.id === team.branchId)?.code ??
                     "All branches"}
                 </span>
-                <span className="truncate text-foreground-muted">
+                <span className="truncate text-muted-foreground">
                   {staff.find((person) => person.id === team.managerPersonId)?.label ??
                     "No manager"}
                 </span>

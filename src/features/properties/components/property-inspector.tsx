@@ -42,7 +42,7 @@ export function PropertyInspector({
       : 0;
 
   return (
-    <div className="bg-surface">
+    <div className="bg-card">
       <div className="border-b border-border p-4 pr-14">
         <div className="flex min-w-0 items-start gap-3">
           <PropertyPreviewPhoto property={property} />
@@ -52,7 +52,7 @@ export function PropertyInspector({
                 <h2 className="truncate text-base font-semibold" title={property.name}>
                   {property.name}
                 </h2>
-                <p className="mt-1 truncate text-sm text-foreground-muted">
+                <p className="mt-1 truncate text-sm text-muted-foreground">
                   {property.code} · {property.type}
                 </p>
               </div>
@@ -68,7 +68,7 @@ export function PropertyInspector({
       <div className="space-y-4 p-4">
         <section aria-labelledby="property-preview-at-a-glance">
           <h3
-            className="text-xs font-semibold uppercase tracking-[0.06em] text-foreground-muted"
+            className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground"
             id="property-preview-at-a-glance"
           >
             At a glance
@@ -89,12 +89,12 @@ export function PropertyInspector({
 
         <section
           aria-labelledby="property-preview-next-action"
-          className="rounded-md border border-border bg-surface-muted/60 p-3"
+          className="rounded-md border border-border bg-muted/60 p-3"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h3
-                className="text-xs font-semibold uppercase tracking-[0.06em] text-foreground-muted"
+                className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground"
                 id="property-preview-next-action"
               >
                 Next action
@@ -103,7 +103,7 @@ export function PropertyInspector({
             </div>
             <Badge tone={action.tone}>{action.badge}</Badge>
           </div>
-          <p className="mt-2 text-xs leading-5 text-foreground-muted">
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
             {action.description}
           </p>
         </section>
@@ -111,7 +111,7 @@ export function PropertyInspector({
         <div className="grid grid-cols-2 gap-2">
           <Link
             aria-label={`Open ${property.name}`}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-brand-solid bg-brand-solid px-3 text-sm font-semibold text-brand-on-solid outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-primary bg-primary px-3 text-sm font-semibold text-primary-foreground outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
             href={`/properties/${property.id}`}
             prefetch={false}
           >
@@ -123,7 +123,7 @@ export function PropertyInspector({
               aria-label={`Restore ${property.name}`}
               className="h-9"
               onClick={() => onRestoreProperty(property)}
-              variant="primary"
+              variant="default"
             >
               <RotateCcw size={15} />
               Restore
@@ -142,7 +142,7 @@ export function PropertyInspector({
 
         <section aria-labelledby="property-preview-related-records">
           <h3
-            className="text-xs font-semibold uppercase tracking-[0.06em] text-foreground-muted"
+            className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground"
             id="property-preview-related-records"
           >
             Related records
@@ -178,7 +178,7 @@ export function PropertyInspector({
             <Popover.Trigger asChild>
               <button
                 aria-label={`More actions for ${property.name}`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 type="button"
               >
                 <Ellipsis size={16} />
@@ -188,7 +188,7 @@ export function PropertyInspector({
             <Popover.Portal>
               <Popover.Content
                 align="start"
-                className="z-[110] w-44 rounded-md border border-border bg-surface p-1.5 text-sm shadow-lg"
+                className="z-[110] w-44 rounded-md border border-border bg-card p-1.5 text-sm shadow-lg"
                 side="top"
                 sideOffset={6}
               >
@@ -217,7 +217,7 @@ export function PropertyInspector({
 
 function PropertyPreviewPhoto({ property }: { property: PropertySummary }) {
   const className =
-    "flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-surface-muted text-sm font-semibold text-foreground-muted";
+    "flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-sm font-semibold text-muted-foreground";
 
   if (property.thumbnailUrl) {
     return (
@@ -261,16 +261,16 @@ function PreviewLink({
 }) {
   return (
     <Link
-      className="flex min-w-0 items-center gap-2 rounded-md border border-border px-3 py-2 text-left outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+      className="flex min-w-0 items-center gap-2 rounded-md border border-border px-3 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
       href={href}
     >
-      <span className="text-foreground-muted">{icon}</span>
+      <span className="text-muted-foreground">{icon}</span>
       <span className="min-w-0">
         <span className="block truncate text-sm font-semibold text-foreground">
           {label}
         </span>
         {meta ? (
-          <span className="block truncate text-xs text-foreground-muted">{meta}</span>
+          <span className="block truncate text-xs text-muted-foreground">{meta}</span>
         ) : null}
       </span>
     </Link>
@@ -292,7 +292,7 @@ function PreviewMenuButton({
     <Popover.Close asChild>
       <button
         className={cn(
-          "flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+          "flex h-8 w-full items-center gap-2 rounded px-2 text-left text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
           danger && "text-danger hover:text-danger",
         )}
         onClick={onClick}
@@ -377,7 +377,7 @@ function Detail({
         wide && "col-span-2",
       )}
     >
-      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-foreground-muted">
+      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-1 break-words font-medium">{children ?? value}</dd>

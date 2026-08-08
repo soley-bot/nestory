@@ -52,7 +52,7 @@ export function OverviewOccupancyBars({
 
         return (
           <Link
-            className="group block min-w-0 rounded-md border border-transparent px-2 py-2 transition-colors hover:border-border hover:bg-surface-muted"
+            className="group block min-w-0 rounded-md border border-transparent px-2 py-2 transition-colors hover:border-border hover:bg-muted"
             href={point.href}
             key={point.label}
             prefetch={false}
@@ -81,11 +81,11 @@ export function OverviewOccupancyBars({
                   style={{ width: `${Math.max(openPercent, point.unoccupiedUnits > 0 ? 5 : 0)}%` }}
                 />
               </div>
-              <span className="text-right text-xs text-foreground-muted tabular-nums">
+              <span className="text-right text-xs text-muted-foreground tabular-nums">
                 {point.unoccupiedUnits}/{point.totalUnits} open
               </span>
             </div>
-            <p className="mt-1 text-xs text-foreground-subtle tabular-nums">
+            <p className="mt-1 text-xs text-muted-foreground tabular-nums">
               {point.occupiedUnits}/{point.totalUnits} occupied
             </p>
           </Link>
@@ -123,13 +123,13 @@ export function OverviewLedgerAreaChart({
             axisLine={false}
             dataKey="label"
             tickLine={false}
-            tick={{ fill: "var(--foreground-subtle)", fontSize: 11 }}
+            tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
           />
           <YAxis
             axisLine={false}
             tickFormatter={(value) => formatCompactMoney(Number(value), currency)}
             tickLine={false}
-            tick={{ fill: "var(--foreground-subtle)", fontSize: 11 }}
+            tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
             width={44}
           />
           <Tooltip
@@ -212,14 +212,14 @@ export function OverviewMetricAreaChart({
             axisLine={false}
             dataKey="label"
             tickLine={false}
-            tick={{ fill: "var(--foreground-subtle)", fontSize: 11 }}
+            tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
           />
           <YAxis
             axisLine={false}
             domain={[scaleMin, scaleMax]}
             tickFormatter={(value) => formatValue(Number(value))}
             tickLine={false}
-            tick={{ fill: "var(--foreground-subtle)", fontSize: 11 }}
+            tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
             width={38}
           />
           <Tooltip
@@ -280,7 +280,7 @@ export function OverviewLeaseEndingDonut({
               nameKey="label"
               outerRadius={58}
               paddingAngle={2}
-              stroke="var(--surface)"
+              stroke="var(--card)"
               strokeWidth={2}
             >
               {data.map((point) => (
@@ -292,7 +292,7 @@ export function OverviewLeaseEndingDonut({
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-lg font-semibold tabular-nums">{total}</span>
-          <span className="text-xs text-foreground-subtle">endings</span>
+          <span className="text-xs text-muted-foreground">endings</span>
         </div>
       </div>
       <ul className="min-w-0 space-y-2">
@@ -306,7 +306,7 @@ export function OverviewLeaseEndingDonut({
                 className="size-2 shrink-0 rounded-full"
                 style={{ background: point.color }}
               />
-              <span className="truncate text-foreground-muted">{point.label}</span>
+              <span className="truncate text-muted-foreground">{point.label}</span>
             </span>
             <span className="shrink-0 font-semibold tabular-nums">{point.count}</span>
           </li>
@@ -327,7 +327,7 @@ function OverviewTooltip({
   }
 
   return (
-    <div className="rounded-md border border-border bg-surface px-2.5 py-2 text-xs shadow-sm">
+    <div className="rounded-md border border-border bg-card px-2.5 py-2 text-xs shadow-sm">
       {label ? <p className="mb-1 font-medium text-foreground">{label}</p> : null}
       <div className="space-y-1">
         {payload.map((entry) => {
@@ -335,7 +335,7 @@ function OverviewTooltip({
           const name = String(entry.name ?? entry.dataKey ?? "Value");
           return (
             <p
-              className="flex items-center justify-between gap-3 text-foreground-muted"
+              className="flex items-center justify-between gap-3 text-muted-foreground"
               key={name}
             >
               <span>{name}</span>

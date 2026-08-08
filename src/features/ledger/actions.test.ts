@@ -2,14 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
-  requireAdminContext: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
-  requireAdminContext: mocks.requireAdminContext,
   requireSuperAdminContext: mocks.requireSuperAdminContext,
 }));
 vi.mock("@/lib/db/server", () => ({
@@ -21,7 +19,6 @@ import { setLedgerPeriodLockAction } from "@/features/ledger/actions";
 describe("financial month lock action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireAdminContext.mockResolvedValue({ organizationId: "org-old" });
     mocks.requireSuperAdminContext.mockResolvedValue({ organizationId: "org-1" });
     mocks.rpc.mockResolvedValue({ data: "lock-1", error: null });
   });
@@ -38,7 +35,6 @@ describe("financial month lock action", () => {
     });
 
     expect(mocks.requireSuperAdminContext).toHaveBeenCalledOnce();
-    expect(mocks.requireAdminContext).not.toHaveBeenCalled();
     expect(mocks.rpc).toHaveBeenCalledWith("set_financial_month_lock", {
       p_locked: true,
       p_month_start: "2026-08-01",

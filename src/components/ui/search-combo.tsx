@@ -54,11 +54,11 @@ export function SearchCombo({
       onSubmit={onSubmit}
     >
       <div className="relative min-w-0 flex-1">
-        <div className="flex min-w-0 overflow-hidden rounded-md border border-control-border bg-surface shadow-sm focus-within:border-accent focus-within:ring-2 focus-within:ring-focus-ring">
+        <div className="flex min-w-0 overflow-hidden rounded-md border border-input bg-card shadow-sm focus-within:border-accent focus-within:ring-2 focus-within:ring-ring">
           {hasScope ? (
             <SelectControl
               ariaLabel={`${ariaLabel} scope`}
-              className="h-8 w-[118px] rounded-none border-0 border-r border-border bg-surface-muted px-2 shadow-none focus:border-transparent focus:ring-0 sm:w-[132px]"
+              className="h-8 w-[118px] rounded-none border-0 border-r border-border bg-muted px-2 shadow-none focus:border-transparent focus:ring-0 sm:w-[132px]"
               onValueChange={onScopeChange}
               options={scopeOptions}
               value={scopeValue}
@@ -84,10 +84,10 @@ export function SearchCombo({
         </label>
         </div>
         {hasSuggestions ? (
-          <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-md border border-border bg-surface p-1 shadow-lg">
+          <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 overflow-hidden rounded-md border border-border bg-card p-1 shadow-lg">
             {suggestions.map((suggestion) => (
               <button
-                className="flex min-h-10 w-full min-w-0 items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none"
+                className="flex min-h-10 w-full min-w-0 items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
                 key={suggestion.id}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {

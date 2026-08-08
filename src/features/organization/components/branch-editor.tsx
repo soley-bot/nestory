@@ -131,11 +131,11 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
                 <span className="font-medium">{branch.code}</span>
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{branch.name}</span>
-                  <span className="block truncate text-foreground-muted">
+                  <span className="block truncate text-muted-foreground">
                     {branch.address ?? "No address"}
                   </span>
                 </span>
-                <span className="text-xs font-medium uppercase text-foreground-muted">
+                <span className="text-xs font-medium uppercase text-muted-foreground">
                   {branch.status}
                 </span>
               </div>

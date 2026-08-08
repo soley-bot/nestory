@@ -23,7 +23,7 @@ type Property = {
   name: string;
 };
 
-export async function getOwnerActivityReport({
+export async function getMonthlyOwnerActivityReport({
   organizationId,
   viewQuery,
 }: {
@@ -52,7 +52,7 @@ export async function getOwnerActivityReport({
   const properties = (propertiesResult.data ?? []) as Property[];
   const propertyIds = properties.map(({ id }) => id);
   if (propertyIds.length === 0) {
-    return buildOwnerActivityReport({
+    return buildMonthlyOwnerActivityReport({
       entries: [],
       ownerNames: new Map(),
       period,
@@ -120,7 +120,7 @@ export async function getOwnerActivityReport({
     ]),
   );
 
-  return buildOwnerActivityReport({
+  return buildMonthlyOwnerActivityReport({
     entries: (entriesResult.data ?? []) as AccountEntry[],
     ownerNames,
     period,
@@ -129,7 +129,7 @@ export async function getOwnerActivityReport({
   });
 }
 
-export function buildOwnerActivityReport({
+export function buildMonthlyOwnerActivityReport({
   entries,
   ownerNames,
   period,
@@ -175,7 +175,7 @@ export function buildOwnerActivityReport({
           withdrawals: formatMoney(withdrawals, "USD"),
         },
         href: `/properties/${property.id}/account`,
-        id: `owner-activity:${property.id}:${viewQuery.month}`,
+        id: `monthly-owner-activity:${property.id}:${viewQuery.month}`,
         propertyId: property.id,
         sourceCount: propertyEntries.length,
         sourceLinks: [],
@@ -209,9 +209,9 @@ export function buildOwnerActivityReport({
     emptyDescription:
       "Record rent, a property cost, a management fee, or a withdrawal to see it here.",
     emptyTitle: "No owner activity this month",
-    exportFilenameBase: "owner-activity",
+    exportFilenameBase: "monthly-owner-activity",
     generatedAt: new Date().toISOString(),
-    kind: "owner-activity",
+    kind: "monthly-owner-activity",
     periodLabel: `${formatDate(period.start)} - ${formatDate(period.end)}`,
     rows,
     scopeLabel: scopeProperty

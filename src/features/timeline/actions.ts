@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Constants } from "@/types/database";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type TimelineFieldErrors = {
@@ -96,7 +96,7 @@ export async function createTimelineEventAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = createTimelineEventSchema.safeParse({
     costAmount: readString(formData, "costAmount"),
     description: readString(formData, "description"),
@@ -150,7 +150,7 @@ export async function updateTimelineEventAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEventId = timelineEventIdSchema.safeParse(
     readString(formData, "eventId"),
   );
@@ -220,7 +220,7 @@ export async function archiveTimelineEventAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEventId = timelineEventIdSchema.safeParse(
     readString(formData, "eventId"),
   );
@@ -265,7 +265,7 @@ export async function restoreTimelineEventAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEventId = timelineEventIdSchema.safeParse(
     readString(formData, "eventId"),
   );
@@ -310,7 +310,7 @@ export async function attachTimelineDocumentAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEventId = timelineEventIdSchema.safeParse(
     readString(formData, "eventId"),
   );

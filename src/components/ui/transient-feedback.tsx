@@ -31,7 +31,7 @@ export function TransientFeedback({
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-[70] flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 rounded-md border border-success/30 bg-surface-raised p-3 text-sm shadow-xl print:hidden"
+      className="fixed bottom-4 right-4 z-[70] flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 rounded-md border border-success/30 bg-popover p-3 text-sm shadow-xl print:hidden"
       data-slot="transient-feedback"
       role="status"
     >
@@ -44,7 +44,7 @@ export function TransientFeedback({
         <p className="font-medium text-foreground">{message}</p>
         {action ? (
           <Link
-            className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
             href={action.href}
             prefetch={false}
           >
@@ -54,7 +54,7 @@ export function TransientFeedback({
       </div>
       <button
         aria-label="Dismiss notification"
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         onClick={onDismiss}
         type="button"
       >

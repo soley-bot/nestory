@@ -102,24 +102,10 @@ export async function getWorkspaceMembershipForUser(
     query = query.eq("organizations.slug", membershipOptions.organizationSlug);
   }
 
-  let { data, error } = await query
+  const { data, error } = await query
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-
-  if (error && !membershipOptions.organizationSlug) {
-    const legacyResult = await supabase
-      .from("organization_members")
-      .select("organization_id, role, person_id, branch_id, created_at, organizations(name, slug)")
-      .eq("user_id", userId)
-      .in("role", [...WORKSPACE_ROLES])
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    data = legacyResult.data;
-    error = legacyResult.error;
-  }
 
   if (error || !data) {
     return null;
@@ -185,9 +171,6 @@ export const requireSuperAdminContext = cache(async () =>
     role: context.role as "super_admin",
   })),
 );
-
-/** @deprecated Use the capability-specific context for new code. */
-export const requireAdminContext = requireSuperAdminContext;
 
 export const requireLeaseConfigurationContext = cache(async () =>
   requireCapability("canConfigureLeases").then((context) => ({

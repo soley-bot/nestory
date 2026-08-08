@@ -3,7 +3,7 @@ import { getPropertySummaries } from "@/features/properties/data/properties";
 import { getUnitDetail } from "@/features/units/data/units";
 import { parseUnitDetailQuery } from "@/features/units/unit-detail-route";
 import type { UnitPropertyOption } from "@/features/units/unit.types";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import UnitNotFound from "./not-found";
 
@@ -15,7 +15,7 @@ type UnitPageProps = {
 export default async function UnitPage({ params, searchParams }: UnitPageProps) {
   const [{ unitId }, rawSearchParams] = await Promise.all([params, searchParams]);
   const { section, sourceTaskId } = parseUnitDetailQuery(rawSearchParams);
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const [unit, properties] = await Promise.all([
     getUnitDetail(context.organizationId, unitId),
     getPropertySummaries(context.organizationId),

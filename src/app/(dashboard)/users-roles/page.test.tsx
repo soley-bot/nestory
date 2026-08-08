@@ -2,13 +2,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getAccessSettingsData, requireAdminContext, screenSpy } = vi.hoisted(() => ({
+const { getAccessSettingsData, requireSuperAdminContext, screenSpy } = vi.hoisted(() => ({
   getAccessSettingsData: vi.fn(),
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
   screenSpy: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/context", () => ({ requireAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
 vi.mock("@/features/organization/data", () => ({ getAccessSettingsData }));
 vi.mock("@/features/organization/components/access-settings-screen", () => ({
   AccessSettingsScreen: (props: Record<string, unknown> & { header?: ReactNode }) => {
@@ -27,9 +27,9 @@ import UsersRolesPage from "@/app/(dashboard)/users-roles/page";
 describe("UsersRolesPage", () => {
   beforeEach(() => {
     getAccessSettingsData.mockReset();
-    requireAdminContext.mockReset();
+    requireSuperAdminContext.mockReset();
     screenSpy.mockReset();
-    requireAdminContext.mockResolvedValue({
+    requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
       role: "super_admin",
       userId: "user-1",
@@ -44,7 +44,7 @@ describe("UsersRolesPage", () => {
 
     expect(html).toContain("Access workspace");
     expect(html).toContain("Workspace Access");
-    expect(requireAdminContext).toHaveBeenCalledOnce();
+    expect(requireSuperAdminContext).toHaveBeenCalledOnce();
     expect(getAccessSettingsData).toHaveBeenCalledWith("organization-1");
     expect(screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -65,7 +65,7 @@ describe("UsersRolesPage", () => {
     expect(html).toMatch(
       /<header[^>]*>[\s\S]*aria-label="Settings sections"[\s\S]*<\/header>/,
     );
-    expect(requireAdminContext).toHaveBeenCalledOnce();
+    expect(requireSuperAdminContext).toHaveBeenCalledOnce();
   });
 
   it("prefills only a current Staff record with its authoritative primary email", async () => {

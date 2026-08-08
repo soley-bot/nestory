@@ -46,7 +46,7 @@ describe("PeopleScreenSkeleton", () => {
       expect(card.classList.contains("rounded-md")).toBe(true);
       expect(card.classList.contains("border")).toBe(true);
       expect(card.classList.contains("border-border")).toBe(true);
-      expect(card.classList.contains("bg-surface")).toBe(true);
+      expect(card.classList.contains("bg-card")).toBe(true);
     }
     expect(headerAction).toBeTruthy();
     expect(headerAction?.classList.contains("rounded-md")).toBe(true);

@@ -106,7 +106,7 @@ export function MaintenanceReminderNotifications({
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[min(360px,calc(100vw-2rem))] rounded-md border border-border bg-surface p-2 shadow-lg print:hidden">
+    <div className="fixed bottom-4 right-4 z-50 w-[min(360px,calc(100vw-2rem))] rounded-md border border-border bg-card p-2 shadow-lg print:hidden">
       <div className="flex items-start gap-2 px-2 py-1.5">
         <Bell
           className={dueCount > 0 ? "text-danger" : "text-warning"}
@@ -126,7 +126,7 @@ export function MaintenanceReminderNotifications({
         </div>
         <button
           aria-label="Dismiss reminders"
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           onClick={() => setDismissedKey(activeReminderKey)}
           title="Dismiss reminders"
           type="button"
@@ -137,7 +137,7 @@ export function MaintenanceReminderNotifications({
       <div className="mt-1 flex flex-wrap gap-1.5">
         {permission === "default" ? (
           <button
-            className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-[12px] font-medium transition-colors hover:bg-surface-muted"
+            className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[12px] font-medium transition-colors hover:bg-muted"
             onClick={enableNotifications}
             type="button"
           >
@@ -150,12 +150,12 @@ export function MaintenanceReminderNotifications({
           </span>
         ) : null}
         {permission === "denied" || permission === "unsupported" ? (
-          <span className="inline-flex h-8 items-center rounded-md border border-border bg-surface-muted px-2.5 text-[12px] font-medium text-muted-foreground">
+          <span className="inline-flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-[12px] font-medium text-muted-foreground">
             Browser alerts off
           </span>
         ) : null}
         <Link
-          className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-[12px] font-medium transition-colors hover:bg-surface-muted"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[12px] font-medium transition-colors hover:bg-muted"
           href="/maintenance?review=reminders"
           prefetch={false}
         >

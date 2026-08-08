@@ -4,18 +4,18 @@ const {
   adminInvite,
   adminOtp,
   revalidatePath,
-  requireAdminContext,
+  requireSuperAdminContext,
   rpc,
 } = vi.hoisted(() => ({
   adminInvite: vi.fn(),
   adminOtp: vi.fn(),
   revalidatePath: vi.fn(),
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/auth/context", () => ({ requireAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({ rpc }),
 }));
@@ -44,9 +44,9 @@ describe("organization invitation actions", () => {
     adminInvite.mockReset();
     adminOtp.mockReset();
     revalidatePath.mockReset();
-    requireAdminContext.mockReset();
+    requireSuperAdminContext.mockReset();
     rpc.mockReset();
-    requireAdminContext.mockResolvedValue({
+    requireSuperAdminContext.mockResolvedValue({
       organizationId: "22222222-2222-4222-8222-222222222222",
       userId: "33333333-3333-4333-8333-333333333333",
     });

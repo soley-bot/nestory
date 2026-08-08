@@ -16,7 +16,7 @@ describe("report search params", () => {
     expect(query).toMatchObject({
       ownerPersonId: "all",
       propertyId: "all",
-      report: "owner-activity",
+      report: "monthly-owner-activity",
       status: "all",
       unitId: "all",
     });

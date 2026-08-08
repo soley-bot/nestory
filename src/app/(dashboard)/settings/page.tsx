@@ -3,14 +3,14 @@ import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { OrganizationSettingsScreen } from "@/features/organization/components/organization-settings-screen";
 import type { SettingsSection } from "@/features/organization/components/settings-workspace";
 import { getOrganizationSettingsData } from "@/features/organization/data";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 
 type SettingsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const params = await searchParams;
   const data = await getOrganizationSettingsData(context.organizationId);
 

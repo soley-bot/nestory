@@ -22,8 +22,8 @@ export function OverviewMonthPicker({ query }: { query: OverviewViewQuery }) {
         <button
           aria-label={`Change reporting month, currently ${monthLabel}`}
           className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
-            open && "bg-surface-muted",
+            "inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+            open && "bg-muted",
           )}
           type="button"
         >
@@ -34,13 +34,13 @@ export function OverviewMonthPicker({ query }: { query: OverviewViewQuery }) {
       <Popover.Portal>
         <Popover.Content
           align="start"
-          className="z-[80] w-[300px] rounded-md border border-border bg-surface p-3 shadow-lg"
+          className="z-[80] w-[300px] rounded-md border border-border bg-card p-3 shadow-lg"
           sideOffset={6}
         >
           <div className="flex items-center justify-between gap-2">
             <button
               aria-label="Previous year"
-              className="flex size-8 items-center justify-center rounded-md text-foreground-muted outline-none hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setVisibleYear((year) => year - 1)}
               type="button"
             >
@@ -49,7 +49,7 @@ export function OverviewMonthPicker({ query }: { query: OverviewViewQuery }) {
             <p className="text-sm font-semibold">{visibleYear}</p>
             <button
               aria-label="Next year"
-              className="flex size-8 items-center justify-center rounded-md text-foreground-muted outline-none hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setVisibleYear((year) => year + 1)}
               type="button"
             >

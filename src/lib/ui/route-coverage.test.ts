@@ -17,9 +17,6 @@ const validPhases = new Set([2, 3, 4, 5, 6]);
 const validRoles = new Set([
   "public",
   "unlinked",
-  "admin",
-  "staff",
-  "maintenance",
   "super_admin",
   "finance_manager",
   "finance_member",
@@ -32,7 +29,6 @@ const validSurfaces = new Set([
   "workspace",
   "detail",
   "settings",
-  "redirect",
 ]);
 const validStates = new Set([
   "loading",
@@ -85,11 +81,7 @@ describe("UI route coverage contract", () => {
       expect(contract.roles.every((role) => validRoles.has(role))).toBe(true);
       expect(contract.states.every((state) => validStates.has(state))).toBe(true);
 
-      if (contract.surface === "redirect") {
-        expect(contract.states).toEqual([]);
-      } else {
-        expect(contract.states.length).toBeGreaterThan(0);
-      }
+      expect(contract.states.length).toBeGreaterThan(0);
     }
   });
 
@@ -124,7 +116,13 @@ describe("UI route coverage contract", () => {
 
   it("models the workspace entry as a linked-persona recovery surface", () => {
     expect(getUiRouteContract("/workspace")).toMatchObject({
-      roles: ["admin", "staff", "maintenance"],
+      roles: [
+        "super_admin",
+        "finance_manager",
+        "finance_member",
+        "operations_manager",
+        "operations_member",
+      ],
       states: ["populated", "permission-blocked"],
       surface: "workspace",
     });
@@ -132,17 +130,22 @@ describe("UI route coverage contract", () => {
 
   it("maps fixture personas to real base workspace roles", () => {
     expect(uiPersonaWorkspaceRoles).toEqual({
-      admin: ["super_admin"],
       finance_manager: ["finance_manager"],
       finance_member: ["finance_member"],
-      maintenance: ["operations_member"],
       operations_manager: ["operations_manager"],
       operations_member: ["operations_member"],
       public: [],
-      staff: ["operations_manager", "operations_member"],
       super_admin: ["super_admin"],
       unlinked: [],
     });
+  });
+
+  it("contains no redirect-only aliases", () => {
+    expect(
+      routeCoverageJson.every(
+        (route) => (route as { surface: string }).surface !== "redirect",
+      ),
+    ).toBe(true);
   });
 
   it("records the fixed-role access matrix for Finance and Operations routes", () => {

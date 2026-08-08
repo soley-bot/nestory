@@ -44,7 +44,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
               ? `${attentionCount} issues to review`
               : "all clear"
           }`}
-          className="flex h-8 max-w-full items-center gap-2 rounded-md px-2 text-left text-xs outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="flex h-8 max-w-full items-center gap-2 rounded-md px-2 text-left text-xs outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
           type="button"
         >
           <UsersRound
@@ -70,7 +70,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
         <Popover.Content
           align="start"
           aria-label="People overview"
-          className="z-50 w-[min(440px,calc(100vw-2rem))] rounded-md border border-border bg-surface p-3 shadow-lg outline-none"
+          className="z-50 w-[min(440px,calc(100vw-2rem))] rounded-md border border-border bg-card p-3 shadow-lg outline-none"
           role="dialog"
           sideOffset={6}
         >
@@ -86,7 +86,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
           <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-3">
             {metrics.map((metric) => (
               <Link
-                className="min-w-0 bg-surface px-3 py-2.5 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+                className="min-w-0 bg-card px-3 py-2.5 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 href={metric.href}
                 key={metric.label}
                 prefetch={false}
@@ -107,7 +107,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
             </p>
             {insights.attentionQueues.map((queue) => (
               <Link
-                className="flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 text-xs outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 text-xs outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={queue.href}
                 key={queue.id}
                 prefetch={false}

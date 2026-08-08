@@ -1,7 +1,7 @@
 import type { ReportKind } from "@/features/reports/reports.types";
 
 export const reportKindValues = [
-  "owner-activity",
+  "monthly-owner-activity",
   "unit-profit-loss",
 ] as const satisfies readonly ReportKind[];
 
@@ -18,7 +18,7 @@ const reportDefinitions: ReportCatalogItem[] = [
   {
     description:
       "Rent, management fees, property costs, withdrawals, and net movement for the selected month.",
-    kind: "owner-activity",
+    kind: "monthly-owner-activity",
     tabLabel: "Owner activity",
     title: "Owner activity",
   },

@@ -31,8 +31,8 @@ export function RecentChangesPopover({
           aria-haspopup="dialog"
           aria-label="Recent changes"
           className={cn(
-            "relative inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-muted-foreground shadow-sm transition-colors hover:bg-surface-muted hover:text-foreground",
-            open && "bg-surface-muted text-foreground",
+            "relative inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground",
+            open && "bg-muted text-foreground",
           )}
           onClick={() => setOpen((current) => !current)}
           title="Recent changes"
@@ -57,7 +57,7 @@ export function RecentChangesPopover({
       <Popover.Portal>
         <Popover.Content
           align="end"
-          className="z-[80] w-[calc(100vw-2rem)] max-w-[360px] overflow-hidden rounded-md border border-border bg-surface shadow-lg"
+          className="z-[80] w-[calc(100vw-2rem)] max-w-[360px] overflow-hidden rounded-md border border-border bg-card shadow-lg"
           collisionPadding={16}
           sideOffset={6}
         >
@@ -80,7 +80,7 @@ export function RecentChangesPopover({
               {visibleChanges.map((change) => (
                 <li key={change.id}>
                   <button
-                    className="flex w-full flex-col gap-2 px-3 py-2.5 text-left transition-colors hover:bg-surface-muted"
+                    className="flex w-full flex-col gap-2 px-3 py-2.5 text-left transition-colors hover:bg-muted"
                     disabled={!onSelectChange}
                     onClick={() => {
                       setOpen(false);

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  requireAdminContext,
+  requireSuperAdminContext,
   requireFinanceReviewContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
@@ -9,7 +9,7 @@ const {
   revalidatePath,
   rpc,
 } = vi.hoisted(() => ({
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
   requireFinanceReviewContext: vi.fn(),
   requireFinanceReversalContext: vi.fn(),
   requireFinanceSubmissionContext: vi.fn(),
@@ -20,7 +20,7 @@ const {
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
-  requireAdminContext,
+  requireSuperAdminContext,
   requireFinanceReviewContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
@@ -47,7 +47,7 @@ const submissionId = "00000000-0000-4000-8000-000000000005";
 
 describe("rent generation recovery action", () => {
   beforeEach(() => {
-    requireAdminContext.mockReset();
+    requireSuperAdminContext.mockReset();
     requireFinanceReviewContext.mockReset();
     requireFinanceReversalContext.mockReset();
     requireFinanceSubmissionContext.mockReset();
@@ -75,7 +75,7 @@ describe("rent generation recovery action", () => {
       status: "success",
     });
     expect(requireLeaseConfigurationContext).toHaveBeenCalledOnce();
-    expect(requireAdminContext).not.toHaveBeenCalled();
+    expect(requireSuperAdminContext).not.toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith("recover_rent_generation_exception", {
       p_exception_id: exceptionId,
       p_organization_id: organizationId,

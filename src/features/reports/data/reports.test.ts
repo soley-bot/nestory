@@ -31,9 +31,9 @@ function reportWithRows(rowCount: number): TrustedReport {
     description: "Owner activity",
     emptyDescription: "No rows",
     emptyTitle: "No rows",
-    exportFilenameBase: "owner-activity",
+    exportFilenameBase: "monthly-owner-activity",
     generatedAt: "2026-08-04T00:00:00.000Z",
-    kind: "owner-activity",
+    kind: "monthly-owner-activity",
     periodLabel: "01 Aug 2026 - 31 Aug 2026",
     rows: Array.from({ length: rowCount }, (_, index) => ({
       cells: { property: `Property ${index + 1}` },

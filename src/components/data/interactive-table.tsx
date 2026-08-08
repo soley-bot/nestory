@@ -4,10 +4,10 @@ import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const previewRowClassName =
-  "cursor-pointer border-t border-border transition-colors hover:bg-surface-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
+  "cursor-pointer border-t border-border transition-colors hover:bg-muted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
 
 export const selectedPreviewRowClassName =
-  "bg-surface-muted shadow-[inset_3px_0_0_var(--accent)]";
+  "bg-muted shadow-[inset_3px_0_0_var(--accent)]";
 
 type RecordLinkProps = Omit<
   ComponentProps<typeof Link>,
@@ -31,7 +31,7 @@ export function RecordLink({
     <Link
       {...props}
       className={cn(
-        "-mx-1 inline-flex max-w-full items-center gap-1 rounded-sm px-1 py-0.5 font-medium text-accent outline-offset-1 transition-colors hover:bg-accent-soft hover:text-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
+        "-mx-1 inline-flex max-w-full items-center gap-1 rounded-sm px-1 py-0.5 font-medium text-accent outline-offset-1 transition-colors hover:bg-accent hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
         className,
       )}
       onClick={(event) => {

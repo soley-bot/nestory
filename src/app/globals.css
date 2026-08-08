@@ -6,15 +6,6 @@
 
 :root {
   color-scheme: light;
-  --brand-deep: #135e4b;
-  --brand-mid: #4cb572;
-  --brand-light: #a1d8b5;
-  --brand-mist: #ccdcdb;
-  --surface-canvas: #f3f5f4;
-  --surface-work: #fafbf9;
-  --surface-raised: #ffffff;
-  --state-selected: #e2ebe7;
-  --state-selected-strong: #135e4b;
   --state-attention: #b7791f;
   --state-attention-foreground: #885817;
   --state-attention-soft: #fff4d5;
@@ -22,33 +13,20 @@
   --state-danger-soft: #ffefef;
   --state-success: #237a3e;
   --state-success-soft: #eaf7ec;
-  --focus-ring: #135e4b;
-  --record-spine: var(--state-selected-strong);
-  --border-neutral: #d7ddda;
-  --control-border: #77817d;
+  --record-spine: var(--primary);
   --type-body: 14px;
   --type-table: 13px;
   --type-table-header: 11px;
-  --foreground-muted: #52605c;
-  --foreground-subtle: #5d6a66;
-  --surface: var(--surface-work);
-  --surface-muted: var(--surface-canvas);
   --border: oklch(0.922 0 0);
   --muted: oklch(0.97 0 0);
   --accent: oklch(0.97 0 0);
-  --accent-strong: var(--state-selected-strong);
-  --accent-soft: var(--state-selected);
-  --brand-solid: var(--brand-deep);
-  --brand-on-solid: #ffffff;
-  --brand-text: var(--brand-deep);
-  --brand-soft: var(--state-selected);
   --danger: var(--state-danger);
   --danger-soft: var(--state-danger-soft);
   --warning: var(--state-attention-foreground);
   --warning-soft: var(--state-attention-soft);
   --success: var(--state-success);
   --success-soft: var(--state-success-soft);
-  --chart-accent: var(--state-selected-strong);
+  --chart-accent: var(--primary);
   --chart-neutral: #9ca3af;
   --chart-track: #e5e9e7;
   --background: oklch(1 0 0);
@@ -84,15 +62,6 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --brand-deep: #135e4b;
-  --brand-mid: #4cb572;
-  --brand-light: #a1d8b5;
-  --brand-mist: #ccdcdb;
-  --surface-canvas: #111314;
-  --surface-work: #17191a;
-  --surface-raised: #202324;
-  --state-selected: #1b332a;
-  --state-selected-strong: #a1d8b5;
   --state-attention: #d6a85f;
   --state-attention-foreground: #d6a85f;
   --state-attention-soft: #332414;
@@ -100,35 +69,13 @@
   --state-danger-soft: #381b20;
   --state-success: #86d49b;
   --state-success-soft: #173522;
-  --focus-ring: #a1d8b5;
-  --record-spine: var(--state-selected-strong);
-  --border-neutral: #343839;
-  --control-border: #7e8883;
-  --type-body: 14px;
-  --type-table: 13px;
-  --type-table-header: 11px;
-  --background: var(--surface-canvas);
-  --foreground: #eef0ef;
-  --foreground-muted: #b8bdba;
-  --foreground-subtle: #a1a7a4;
-  --surface: var(--surface-work);
-  --surface-muted: var(--surface-canvas);
-  --border: var(--border-neutral);
-  --muted: var(--foreground-subtle);
-  --accent: var(--state-selected-strong);
-  --accent-strong: var(--state-selected-strong);
-  --accent-soft: var(--state-selected);
-  --brand-solid: var(--brand-mid);
-  --brand-on-solid: #111314;
-  --brand-text: var(--brand-light);
-  --brand-soft: var(--state-selected);
   --danger: var(--state-danger);
   --danger-soft: var(--state-danger-soft);
   --warning: var(--state-attention-foreground);
   --warning-soft: var(--state-attention-soft);
   --success: var(--state-success);
   --success-soft: var(--state-success-soft);
-  --chart-accent: var(--brand-mid);
+  --chart-accent: var(--primary);
   --chart-neutral: #858b88;
   --chart-track: #2b2f30;
 }
@@ -233,14 +180,12 @@
 [data-theme="dark"] .auth-photo-page {
   --background: #111314;
   --foreground: #eef0ef;
-  --foreground-muted: #b7bcba;
-  --foreground-subtle: #a1a7a4;
-  --surface: #1b1e1f;
-  --surface-muted: #141617;
+  --muted-foreground: #b7bcba;
+  --card: #1b1e1f;
+  --muted: #141617;
   --border: #363b3c;
-  --muted: #a1a7a4;
   --accent: #a1d8b5;
-  --focus-ring: #a1d8b5;
+  --ring: #a1d8b5;
   --auth-page-fg: #eef0ef;
   --auth-page-muted: rgb(238 240 239 / 78%);
   --auth-page-subtle: rgb(238 240 239 / 72%);
@@ -259,26 +204,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-foreground-muted: var(--foreground-muted);
-  --color-foreground-subtle: var(--foreground-subtle);
-  --color-surface-canvas: var(--surface-canvas);
-  --color-surface-work: var(--surface-work);
-  --color-surface-raised: var(--surface-raised);
-  --color-border-neutral: var(--border-neutral);
-  --color-control-border: var(--control-border);
-  --color-surface: var(--surface);
-  --color-surface-muted: var(--surface-muted);
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
-  --color-accent-strong: var(--accent-strong);
-  --color-accent-soft: var(--accent-soft);
-  --color-brand-solid: var(--brand-solid);
-  --color-brand-on-solid: var(--brand-on-solid);
-  --color-brand-text: var(--brand-text);
-  --color-brand-soft: var(--brand-soft);
-  --color-state-selected: var(--state-selected);
-  --color-state-selected-strong: var(--state-selected-strong);
   --color-state-attention: var(--state-attention);
   --color-state-attention-foreground: var(--state-attention-foreground);
   --color-state-attention-soft: var(--state-attention-soft);
@@ -286,7 +214,6 @@
   --color-state-danger-soft: var(--state-danger-soft);
   --color-state-success: var(--state-success);
   --color-state-success-soft: var(--state-success-soft);
-  --color-focus-ring: var(--focus-ring);
   --color-record-spine: var(--record-spine);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
@@ -544,27 +471,4 @@ textarea {
   html {
     @apply font-sans;
   }
-}
-
-/* Compatibility aliases while feature surfaces move onto Shadcn primitives. */
-:root,
-[data-theme="dark"] {
-  --surface-canvas: var(--background);
-  --surface-work: var(--card);
-  --surface-raised: var(--popover);
-  --surface: var(--card);
-  --surface-muted: var(--muted);
-  --foreground-muted: var(--muted-foreground);
-  --foreground-subtle: var(--muted-foreground);
-  --border-neutral: var(--border);
-  --control-border: var(--input);
-  --focus-ring: var(--ring);
-  --accent-strong: var(--primary);
-  --accent-soft: var(--accent);
-  --brand-solid: var(--primary);
-  --brand-on-solid: var(--primary-foreground);
-  --brand-text: var(--foreground);
-  --brand-soft: var(--accent);
-  --state-selected: var(--accent);
-  --state-selected-strong: var(--primary);
 }

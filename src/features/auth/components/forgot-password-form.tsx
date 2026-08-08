@@ -50,7 +50,7 @@ export function ForgotPasswordForm() {
         ) : null}
       </label>
 
-      <Button className="h-11 w-full" disabled={pending} type="submit" variant="primary">
+      <Button className="h-11 w-full" disabled={pending} type="submit" variant="default">
         {pending ? "Sending..." : "Send recovery link"}
       </Button>
     </form>

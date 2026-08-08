@@ -45,7 +45,7 @@ export function PeopleTable({
         )}
       >
         {people.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
+          <p className="rounded-md border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
             {emptyMessage}
           </p>
         ) : null}
@@ -134,7 +134,7 @@ export function PeopleTable({
                     <td className="px-2.5 py-2">
                       <div className="min-w-0">
                         <Link
-                          className="block truncate rounded-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                          className="block truncate rounded-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           href={`/people/${person.id}`}
                           onClick={(event) => event.stopPropagation()}
                           prefetch={false}
@@ -209,12 +209,12 @@ function PersonCard({
   return (
     <article
       className={cn(
-        "group min-w-0 overflow-hidden rounded-md border border-border bg-surface text-sm transition-colors hover:border-record-spine",
+        "group min-w-0 overflow-hidden rounded-md border border-border bg-card text-sm transition-colors hover:border-record-spine",
         person.isArchived && "text-muted-foreground",
       )}
     >
       <div className="flex items-start gap-3 border-b border-border px-3.5 py-3.5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted text-muted-foreground">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
           {person.partyType === "company" ? (
             <Building2 size={18} />
           ) : (
@@ -225,7 +225,7 @@ function PersonCard({
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
               <Link
-                className="block truncate rounded-sm text-sm font-semibold leading-5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="block truncate rounded-sm text-sm font-semibold leading-5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 href={`/people/${person.id}`}
                 prefetch={false}
                 title={person.displayName}
@@ -265,7 +265,7 @@ function PersonCard({
           </div>
         ) : null}
         <Link
-          className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
           href={`/people/${person.id}`}
           prefetch={false}
         >

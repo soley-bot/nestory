@@ -76,14 +76,14 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     href: "/properties",
     icon: Building2,
     label: "Properties",
-    routes: ["/properties", "/units", "/property-dashboard"],
+    routes: ["/properties", "/units"],
   },
   {
     id: "people",
     href: "/people",
     icon: UsersRound,
     label: "People",
-    routes: ["/people", "/tenants", "/owners", "/vendors", "/staff", "/team"],
+    routes: ["/people", "/tenants", "/owners", "/vendors", "/staff"],
   },
   {
     id: "finance",
@@ -111,8 +111,6 @@ const ADMIN_GLOBAL_DESTINATIONS = [
       "/work-orders",
       "/inspections",
       "/recurring-tasks",
-      "/schedule",
-      "/maintenance-dashboard",
     ],
   },
   {
@@ -176,7 +174,6 @@ function getGlobalDestinations(
         "/work-orders",
         "/inspections",
         "/recurring-tasks",
-        "/schedule",
       ],
     },
   ];

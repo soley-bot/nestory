@@ -45,7 +45,7 @@ export function ArchivePersonPanel({
           <p className="text-sm font-semibold">Archive confirmation</p>
         </div>
         <PersonPanelSummary person={person} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           Open Lease roles must be ended or cancelled through a checked
           relationship transition first. Archiving preserves linked ownership,
           vendor, document, and activity history.
@@ -89,7 +89,7 @@ export function RestorePersonPanel({
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>
         <PersonPanelSummary person={person} />
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           Restoring makes this person visible in normal operational views again.
         </p>
         <PanelMessage state={state} />
@@ -107,7 +107,7 @@ export function RestorePersonPanel({
 
 function PersonPanelSummary({ person }: { person: PeopleSummary }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
+    <div className="rounded-md border border-border bg-muted px-3 py-3">
       <p className="text-sm font-medium">{person.displayName}</p>
       <p className="mt-1 text-sm text-muted-foreground">
         {person.partyTypeLabel} / {person.roleLabel}
@@ -124,7 +124,7 @@ function PanelMessage({ state }: { state: PeopleActionState }) {
 
   return (
     <p
-      className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+      className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
       role={state.status === "error" ? "alert" : "status"}
     >
       {state.message}
@@ -153,7 +153,7 @@ function PanelFooter({
           className="w-full sm:w-auto"
           disabled={pending}
           type="submit"
-          variant="primary"
+          variant="default"
         >
           {icon}
           {confirmLabel}

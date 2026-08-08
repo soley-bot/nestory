@@ -51,7 +51,7 @@ function DocumentListItem({ document }: { document: LinkedDocument }) {
     return (
       <a
         aria-label={`Open ${document.fileName}`}
-        className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+        className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
         href={document.url}
         rel="noreferrer"
         target="_blank"

@@ -177,20 +177,20 @@ export function LeaseScreen({
 
   const hasFilters = hasActiveLeaseFilters(viewQuery);
   const leaseList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
       {leases.length === 0 ? (
         <EmptyState
           action={
             hasFilters ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
                 scroll={false}
               >
                 Clear filters
               </Link>
             ) : canConfigure ? (
-              <Button onClick={() => openLeaseAction({ mode: "create" })} variant="primary">
+              <Button onClick={() => openLeaseAction({ mode: "create" })} variant="default">
                 <Plus size={15} />
                 Add lease
               </Button>
@@ -242,7 +242,7 @@ export function LeaseScreen({
             {canConfigure ? (
               <Button
                 onClick={() => openLeaseAction({ mode: "create" })}
-                variant="primary"
+                variant="default"
               >
                 <Plus size={15} />
                 Add lease
@@ -482,10 +482,10 @@ function LeaseReviewStrip({
         className="grid min-w-0 gap-x-4 gap-y-1 text-[13px] sm:grid-cols-[minmax(0,auto)_minmax(0,1fr)] sm:items-baseline [&>div]:mt-0 [&>h3]:truncate"
         summary={
           <div className="flex min-w-0 flex-col gap-1 text-xs sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-            <span className="min-w-0 text-foreground-subtle">
+            <span className="min-w-0 text-muted-foreground">
               {context.description}
             </span>
-            <span className="shrink-0 text-foreground-muted">
+            <span className="shrink-0 text-muted-foreground">
               {context.nextStep}
             </span>
           </div>

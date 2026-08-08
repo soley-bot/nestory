@@ -63,12 +63,12 @@ export function LeaseInspector({
     lease.terms.length,
   ].join(":");
   const iconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring";
   const primaryIconButtonClassName =
-    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-sm text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
+    "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
-    <div className="bg-surface">
+    <div className="bg-card">
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -263,7 +263,7 @@ export function LeaseInspector({
               {canConfigure ? (
                 <form action={recordDepositEvent} className="grid grid-cols-2 gap-2">
                 <input name="leaseDepositId" type="hidden" value={deposit.id} />
-                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                <label className="grid gap-1 text-xs font-medium text-muted-foreground">
                   <span>Event type</span>
                   <SelectControl
                     ariaLabel="Deposit event type"
@@ -271,7 +271,7 @@ export function LeaseInspector({
                     options={[{label:"Receipt",value:"received"},{label:"Application",value:"applied"},{label:"Retention",value:"retained"},{label:"Refund",value:"refunded"}]}
                   />
                 </label>
-                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                <label className="grid gap-1 text-xs font-medium text-muted-foreground">
                   <span>Event date</span>
                   <DatePickerField
                     ariaLabel="Deposit event date"
@@ -279,11 +279,11 @@ export function LeaseInspector({
                     defaultValue={getBusinessDateValue()}
                   />
                 </label>
-                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                <label className="grid gap-1 text-xs font-medium text-muted-foreground">
                   <span>Amount</span>
                   <NumberInput name="amount" required />
                 </label>
-                <label className="grid gap-1 text-xs font-medium text-foreground-muted">
+                <label className="grid gap-1 text-xs font-medium text-muted-foreground">
                   <span>Reference</span>
                   <Input name="reference" />
                 </label>
@@ -380,7 +380,7 @@ export function LeaseInspector({
           <div className="grid grid-cols-2 gap-2">
             <Link
               aria-label={`Open timeline filtered to ${lease.tenantName}`}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               href={lease.hrefs.timeline}
               title="Open lease timeline"
             >
@@ -389,7 +389,7 @@ export function LeaseInspector({
             </Link>
             <Link
               aria-label={`Open ledger filtered to ${lease.tenantName}`}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               href={lease.hrefs.ledger}
               title="Open lease ledger"
             >
@@ -440,7 +440,7 @@ function AttentionNote({
   label: string;
 }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted/70 px-3 py-2.5">
+    <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate text-sm font-semibold">{item?.label ?? label}</p>
         <div className="flex shrink-0 items-center gap-2">
@@ -450,7 +450,7 @@ function AttentionNote({
           {item || !href ? null : (
             <Link
               aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface text-accent transition-colors hover:bg-surface-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
               href={href}
               prefetch={false}
               title="Open action"

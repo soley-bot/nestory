@@ -42,7 +42,7 @@ export function UpdatePasswordForm() {
         name="passwordConfirm"
       />
 
-      <Button className="h-11 w-full" disabled={pending} type="submit" variant="primary">
+      <Button className="h-11 w-full" disabled={pending} type="submit" variant="default">
         {pending ? "Updating..." : "Update password"}
       </Button>
     </form>

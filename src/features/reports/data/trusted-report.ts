@@ -6,7 +6,7 @@ import {
   type CurrencyCode,
 } from "@/lib/money/format";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
-import { getOwnerActivityReport } from "@/features/reports/data/owner-activity-report";
+import { getMonthlyOwnerActivityReport } from "@/features/reports/data/monthly-owner-activity-report";
 import { resolvePropertyCashEventHref } from "@/features/finance/data/property-cash-events.links";
 import { iteratePropertyCashEvents } from "@/features/finance/data/property-cash-events";
 import type {
@@ -36,7 +36,7 @@ import type {
 } from "@/features/reports/reports.types";
 
 export const REPORT_OPTIONS: Array<{ label: string; value: ReportKind }> = [
-  { label: "Owner activity", value: "owner-activity" },
+  { label: "Owner activity", value: "monthly-owner-activity" },
   { label: "Monthly Unit Profit & Loss", value: "unit-profit-loss" },
 ];
 
@@ -224,7 +224,7 @@ const trustedReportSourceRequirements = {
     "units",
   ),
   "missing-data": requiresReportSources("documents", "leases", "owners", "units"),
-  "owner-activity": requiresReportSources(),
+  "monthly-owner-activity": requiresReportSources(),
   "people-readiness": requiresReportSources(),
   "property-performance": requiresReportSources(
     "ledgerEntries",
@@ -250,8 +250,8 @@ export async function getTrustedReport({
   organizationId: string;
   viewQuery: ReportsViewQuery;
 }): Promise<TrustedReport> {
-  if (viewQuery.report === "owner-activity") {
-    return getOwnerActivityReport({ organizationId, viewQuery });
+  if (viewQuery.report === "monthly-owner-activity") {
+    return getMonthlyOwnerActivityReport({ organizationId, viewQuery });
   }
 
   if (viewQuery.report === "people-readiness") {

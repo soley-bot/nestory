@@ -321,7 +321,7 @@ function LockedRoleField({
       name="roles"
       required
     >
-      <div className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm font-medium">
+      <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium">
         {formatRole(role)}
       </div>
       {submittedRoles.map((submittedRole) => (
@@ -346,8 +346,8 @@ function RoleCheckbox({
   return (
     <label
       className={cn(
-        "flex min-h-9 cursor-pointer items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm transition-colors",
-        "hover:bg-surface-muted",
+        "flex min-h-9 cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-3 text-sm transition-colors",
+        "hover:bg-muted",
       )}
     >
       <CheckboxControl

@@ -47,7 +47,7 @@ const manifest = JSON.parse(
 const routes = manifest
   .filter((entry) => !routeFilter || entry.route === routeFilter)
   .map((entry) => ({
-    expectedAccess: entry.smoke.expectedAccess.admin,
+    expectedAccess: entry.smoke.expectedAccess.super_admin,
     expectedFinalPath: entry.smoke.expectedFinalPath ?? null,
     manifestRoute: entry.route,
     path: entry.smoke.path,
@@ -96,7 +96,7 @@ await mkdir(artifactRoot, { recursive: true });
 await mkdir(runDirectory);
 
 const browser = await chromium.launch({ headless: true });
-const context = await createReadOnlyContext(browser, "admin");
+const context = await createReadOnlyContext(browser, "super_admin");
 
 try {
   await authenticate(context, { email, password });
@@ -156,7 +156,8 @@ try {
         await captureRoute({
           axeEnabled,
           errors: activeErrors,
-          expectedAccess: maintenanceEntry.smoke.expectedAccess.admin,
+          expectedAccess:
+            maintenanceEntry.smoke.expectedAccess.super_admin,
           expectedFinalPath: null,
           manifestRoute: maintenanceEntry.route,
           page,
@@ -182,8 +183,10 @@ try {
   }
 
   for (const fixture of [
-    { email: "manager@nestory.com", role: "manager" },
-    { email: "member@nestory.com", role: "member" },
+    { email: "finance.manager@nestory.com", role: "finance_manager" },
+    { email: "finance.member@nestory.com", role: "finance_member" },
+    { email: "operations.manager@nestory.com", role: "operations_manager" },
+    { email: "operations.member@nestory.com", role: "operations_member" },
   ]) {
     roleAudits.push(
       ...(await auditRole({
@@ -364,7 +367,7 @@ async function authenticate(browserContext, credentials) {
 
     const finalPath = new URL(page.url()).pathname;
 
-    if (["/login", "/setup", "/no-access"].includes(finalPath)) {
+    if (["/login", "/no-access"].includes(finalPath)) {
       throw new Error(`E2E account cannot access a workspace: ${page.url()}`);
     }
   } finally {
@@ -1034,10 +1037,6 @@ function getAccessResult({
     return "login-required";
   }
 
-  if (finalPath === "/setup") {
-    return "setup-required";
-  }
-
   if (finalPath === "/no-access") {
     return "permission-blocked";
   }
@@ -1175,24 +1174,24 @@ function renderEvidenceDocument(summary) {
     "",
     "## Verdict",
     "",
-    `- ${summary.results.length} admin route/viewport captures completed across ${viewportSummary}.`,
+    `- ${summary.results.length} Super Admin route/viewport captures completed across ${viewportSummary}.`,
     `- ${summary.maintenanceBoardResults.length} supplemental Maintenance board viewport captures completed in the same read-only run.`,
-    `- ${summary.roleAudits.length} manager, member, and anonymous access checks matched the manifest.`,
+    `- ${summary.roleAudits.length} Finance, Operations, and anonymous access checks matched the manifest.`,
     `- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: ${failureCount}.`,
     "- Local fixture evidence only; this is not hosted production certification.",
     "",
     "## Route matrix",
     "",
-    "| Manifest route | Smoke path | Admin final path | Manager | Member | Anonymous | States | Viewports / a11y | Query / redirect | Limitation |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| Manifest route | Smoke path | Super Admin final path | Finance Manager | Finance Member | Operations Manager | Operations Member | Anonymous | States | Viewports / a11y | Query | Limitation |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   ];
 
   for (const entry of manifest) {
-    const adminResults = summary.results.filter(
+    const superAdminResults = summary.results.filter(
       (result) => result.manifestRoute === entry.route,
     );
-    const adminFinalPaths = [
-      ...new Set(adminResults.map((result) => result.finalPath)),
+    const superAdminFinalPaths = [
+      ...new Set(superAdminResults.map((result) => result.finalPath)),
     ].join("<br>");
     const audits = Object.fromEntries(
       summary.roleAudits
@@ -1202,12 +1201,15 @@ function renderEvidenceDocument(summary) {
           `${audit.accessResult} (expected ${audit.expectedAccess})`,
         ]),
     );
-    const viewportPass = formatViewportPass(adminResults, summary.viewports);
+    const viewportPass = formatViewportPass(
+      superAdminResults,
+      summary.viewports,
+    );
     const limitation = entry.smoke.limitations.join(" ") || "None";
 
     lines.push(`<!-- route-evidence:${entry.route} -->`);
     lines.push(
-      `| ${escapeTable(entry.route)} | ${escapeTable(entry.smoke.path)} | ${escapeTable(adminFinalPaths)} | ${escapeTable(audits.manager)} | ${escapeTable(audits.member)} | ${escapeTable(audits.anonymous)} | ${escapeTable(entry.states.join(", ") || "redirect only")} | ${viewportPass} | ${escapeTable(entry.smoke.queryContract)} | ${escapeTable(limitation)} |`,
+      `| ${escapeTable(entry.route)} | ${escapeTable(entry.smoke.path)} | ${escapeTable(superAdminFinalPaths)} | ${escapeTable(audits.finance_manager)} | ${escapeTable(audits.finance_member)} | ${escapeTable(audits.operations_manager)} | ${escapeTable(audits.operations_member)} | ${escapeTable(audits.anonymous)} | ${escapeTable(entry.states.join(", "))} | ${viewportPass} | ${escapeTable(entry.smoke.queryContract)} | ${escapeTable(limitation)} |`,
     );
   }
 
@@ -1217,9 +1219,9 @@ function renderEvidenceDocument(summary) {
     "",
     "- Command search, focus trap, keyboard traversal, and property/unit/person result safety: `src/components/layout/workspace-command-palette.test.tsx`.",
     "- Property filter, selected record, inspector, detail, and retained query behavior: `src/features/properties/components/property-screen.test.tsx` and the route matrix query checks.",
-    "- People lens aliases, person detail, and related leases: `src/features/people/components/people-screen.test.tsx` and `src/features/people/components/person-detail-screen.test.tsx`.",
+    "- People lenses, person detail, and related leases: `src/features/people/components/people-screen.test.tsx` and `src/features/people/components/person-detail-screen.test.tsx`.",
     "- Rent, expense, ledger totals and drilldowns: finance workspace component tests plus the populated browser captures.",
-    "- Maintenance list, board, calendar, checklist, and capability-correct actions: `src/features/maintenance/components/maintenance-workspace-ui.test.tsx` and manager/member role audits.",
+    "- Maintenance list, board, calendar, checklist, and capability-correct actions: `src/features/maintenance/components/maintenance-workspace-ui.test.tsx` and Operations role audits.",
     "- Timeline scope routes and linked records: timeline route tests and the four timeline captures.",
     "- Three required report tabs with PDF and Excel export: report screen tests and `/reports/unit-profit-loss` capture.",
     "- Settings draft, discard, save, and error: settings workspace tests and shared workflow feedback contracts.",
@@ -1234,7 +1236,7 @@ function renderEvidenceDocument(summary) {
     "",
     "## Known limitation",
     "",
-    "The retained browser fixtures cover linked admin, manager, and member accounts. Unlinked-account setup/no-access presentation is covered by auth and system-state contracts; no disposable unlinked browser account is retained. Owner: Product/QA. Follow-up: add an ephemeral unlinked fixture when the local auth harness supports automatic teardown.",
+    "The retained browser fixtures cover all five linked workspace roles. Unlinked-account no-access presentation is covered by auth and system-state contracts; no disposable unlinked browser account is retained. Owner: Product/QA. Follow-up: add an ephemeral unlinked fixture when the local auth harness supports automatic teardown.",
   );
 
   return `${lines.join("\n")}\n`;

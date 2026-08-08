@@ -17,7 +17,7 @@ const datePattern = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}$/;
 
 type ReportSearchParams = Record<string, SearchParamValue>;
 
-export const DEFAULT_REPORT_KIND: ReportKind = "owner-activity";
+export const DEFAULT_REPORT_KIND: ReportKind = "monthly-owner-activity";
 export const DEFAULT_REPORT_STATUS: ReportStatusFilter = "all";
 
 export function parseReportSearchParams(
@@ -58,7 +58,7 @@ export function getReportMonthRange(month: string) {
 function parseReportKind(value: string | string[] | undefined): ReportKind {
   const candidate = getFirstSearchParam(value);
 
-  return candidate === "owner-activity" ||
+  return candidate === "monthly-owner-activity" ||
     candidate === "unit-profit-loss"
     ? candidate
     : DEFAULT_REPORT_KIND;

@@ -209,7 +209,7 @@ function OrganizationIdentity({
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-3 py-2.5">
-      <dt className="text-foreground-muted">{label}</dt>
+      <dt className="text-muted-foreground">{label}</dt>
       <dd className="min-w-0 break-words text-right font-medium text-foreground">
         {value}
       </dd>

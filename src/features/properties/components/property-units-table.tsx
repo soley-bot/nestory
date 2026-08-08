@@ -16,7 +16,7 @@ export function PropertyUnitsTable({
         {units.map((unit) => (
           <article
             className={cn(
-              "rounded-md border border-border bg-surface p-4 text-sm",
+              "rounded-md border border-border bg-card p-4 text-sm",
               unit.isArchived && "text-muted-foreground",
             )}
             key={unit.id}
@@ -52,7 +52,7 @@ export function PropertyUnitsTable({
               <col className="w-[24%]" />
               <col className="w-[26%]" />
             </colgroup>
-            <thead className="bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground">
+            <thead className="bg-muted text-[11px] uppercase tracking-[0] text-muted-foreground">
               <tr>
                 <th className="px-3 py-2.5 font-semibold">Unit</th>
                 <th className="px-2 py-2.5 font-semibold">Floor</th>

@@ -42,7 +42,7 @@ export function MaintenanceWorkflowPanel({
   const workflow = getMaintenanceWorkflowState(maintenanceCase, actor);
 
   return (
-    <section className="space-y-3 rounded-md border border-border bg-surface-muted/50 p-3">
+    <section className="space-y-3 rounded-md border border-border bg-muted/50 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">Workflow</p>
@@ -63,7 +63,7 @@ export function MaintenanceWorkflowPanel({
         </p>
       ) : null}
       {workflow.latestReviewInstruction ? (
-        <div className="rounded-md border border-border bg-surface px-3 py-2 text-sm">
+        <div className="rounded-md border border-border bg-card px-3 py-2 text-sm">
           <p className="font-medium">Latest review instruction</p>
           <p className="mt-1 leading-5 text-muted-foreground">{workflow.latestReviewInstruction}</p>
         </div>
@@ -132,7 +132,7 @@ function MaintenanceCostHandoffPanel({
       </div>
 
       {submission?.reviewReason ? (
-        <div className="rounded-md border border-border bg-surface px-3 py-2 text-sm">
+        <div className="rounded-md border border-border bg-card px-3 py-2 text-sm">
           <p className="font-medium">
             {submission.status === "rejected"
               ? "Finance return reason"
@@ -150,7 +150,7 @@ function MaintenanceCostHandoffPanel({
           continue independently.
         </p>
       ) : (
-        <form action={action} className="space-y-3 rounded-md border border-border bg-surface p-3">
+        <form action={action} className="space-y-3 rounded-md border border-border bg-card p-3">
           {isApprovedAdjustment ? (
             <p className="text-xs leading-5 text-muted-foreground">
               Approved history stays unchanged. Update the recorded total in
@@ -221,7 +221,7 @@ function MaintenanceCostHandoffPanel({
               !maintenanceCase.vendorPersonId
             }
             type="submit"
-            variant="primary"
+            variant="default"
           >
             <Send size={14} />{" "}
             {isApprovedAdjustment
@@ -314,7 +314,7 @@ function CoordinatedExecutionPanel({
       ) : null}
       {availableActions.includes("block") && availableActions.includes("complete") ? (
         <>
-          <form action={action} className="space-y-2 rounded-md border border-border bg-surface p-3">
+          <form action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
             <input name="taskId" type="hidden" value={maintenanceCase.id} />
             <input name="coordinatedAction" type="hidden" value="block" />
             <label className="block text-sm font-medium" htmlFor={`coordinated-block-${maintenanceCase.id}`}>
@@ -337,7 +337,7 @@ function CoordinatedExecutionPanel({
               <Pause size={14} /> Mark coordinated work blocked
             </Button>
           </form>
-          <form action={action} className="space-y-2 rounded-md border border-border bg-surface p-3">
+          <form action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
             <input name="taskId" type="hidden" value={maintenanceCase.id} />
             <input name="coordinatedAction" type="hidden" value="complete" />
             <label className="block text-sm font-medium" htmlFor={`coordinated-complete-${maintenanceCase.id}`}>
@@ -356,7 +356,7 @@ function CoordinatedExecutionPanel({
               summary="Completion closes the task and its request without posting a ledger effect."
               title="Complete coordinated work consequence"
             />
-            <Button disabled={pending} type="submit" variant="primary">
+            <Button disabled={pending} type="submit" variant="default">
               <CheckCircle2 size={14} /> Complete coordinated work
             </Button>
           </form>
@@ -432,7 +432,7 @@ function MemberExecutionPanel({
           {maintenanceCase.checklist.length === 0 ? (
             <p className="text-sm text-muted-foreground">No checklist items were assigned.</p>
           ) : maintenanceCase.checklist.map((item) => (
-            <form action={action} className="flex items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 py-2" key={item.id}>
+            <form action={action} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2" key={item.id}>
               <input name="taskId" type="hidden" value={maintenanceCase.id} />
               <input name="executionAction" type="hidden" value="set_checklist_item" />
               <input name="checklistItemId" type="hidden" value={item.id} />
@@ -447,7 +447,7 @@ function MemberExecutionPanel({
       ) : null}
       {maintenanceCase.status === "in_progress" ? (
         <>
-          <form action={action} className="space-y-2 rounded-md border border-border bg-surface p-3">
+          <form action={action} className="space-y-2 rounded-md border border-border bg-card p-3">
             <input name="taskId" type="hidden" value={maintenanceCase.id} />
             <input name="executionAction" type="hidden" value="block" />
             <label className="block text-sm font-medium" htmlFor={`blocked-${maintenanceCase.id}`}>Blocker</label>
@@ -518,7 +518,7 @@ function CompletionReviewPanel({
       <Textarea id={`review-${maintenanceCase.id}`} maxLength={500} minLength={3} name="reviewNote" placeholder="Optional for approval; required to return work." />
       {state.fieldErrors?.reviewNote?.[0] ? <p className="text-xs text-danger">{state.fieldErrors.reviewNote[0]}</p> : null}
       <div className="flex flex-wrap gap-2">
-        <Button disabled={pending} name="reviewAction" type="submit" value="approve" variant="primary"><CheckCircle2 size={14} /> Approve completion</Button>
+        <Button disabled={pending} name="reviewAction" type="submit" value="approve" variant="default"><CheckCircle2 size={14} /> Approve completion</Button>
         <Button disabled={pending} name="reviewAction" type="submit" value="reopen"><CornerUpLeft size={14} /> Return to assignee</Button>
       </div>
       {state.status === "error" && state.message ? <p className="text-sm text-danger" role="alert">{state.message}</p> : null}
@@ -538,7 +538,7 @@ function ExecutionButton({ action, actionName, children, disabled, primary, task
     <form action={action}>
       <input name="taskId" type="hidden" value={taskId} />
       <input name="executionAction" type="hidden" value={actionName} />
-      <Button disabled={disabled} type="submit" variant={primary ? "primary" : "secondary"}>{children}</Button>
+      <Button disabled={disabled} type="submit" variant={primary ? "default" : "secondary"}>{children}</Button>
     </form>
   );
 }
@@ -560,7 +560,7 @@ function CoordinatedButton({ action, actionName, children, disabled, taskId }: {
 }
 
 function WorkflowFact({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-md border border-border bg-surface px-2.5 py-2"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-0.5 text-sm font-medium">{value}</p></div>;
+  return <div className="rounded-md border border-border bg-card px-2.5 py-2"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-0.5 text-sm font-medium">{value}</p></div>;
 }
 
 function ActionConsequence({

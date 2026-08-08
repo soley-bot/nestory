@@ -117,7 +117,7 @@ export function PropertySetupScreen({
     <WorkspacePage
       actions={
         <Link
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           href="/properties"
         >
           <ArrowLeft size={14} />
@@ -136,7 +136,7 @@ export function PropertySetupScreen({
             onStepChange={(nextStep) => navigate(selection, nextStep)}
           />
 
-          <main className="min-w-0 rounded-lg border border-border bg-surface shadow-sm">
+          <main className="min-w-0 rounded-lg border border-border bg-card shadow-sm">
             <header className="border-b border-border px-4 py-4 sm:px-5">
               <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {steps[step - 1]?.label}
@@ -144,7 +144,7 @@ export function PropertySetupScreen({
               <h2 className="mt-1 text-lg font-semibold text-foreground">
                 {stepTitle(step)}
               </h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-foreground-muted">
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
                 {stepDescription(step)}
               </p>
             </header>
@@ -223,7 +223,7 @@ export function PropertySetupScreen({
             </div>
 
             {step < 5 ? (
-              <footer className="flex items-center justify-between gap-3 border-t border-border bg-surface-muted/45 px-4 py-3 sm:px-5">
+              <footer className="flex items-center justify-between gap-3 border-t border-border bg-muted/45 px-4 py-3 sm:px-5">
                 <Button
                   disabled={step === 1}
                   onClick={() => navigate(selection, (step - 1) as PropertySetupStep)}
@@ -235,7 +235,7 @@ export function PropertySetupScreen({
                 <Button
                   disabled={pending || highestStep <= step}
                   onClick={() => navigate(selection, (step + 1) as PropertySetupStep)}
-                  variant="primary"
+                  variant="default"
                 >
                   Continue
                   <ArrowRight size={14} />
@@ -273,7 +273,7 @@ function SetupRail({
   return (
     <nav
       aria-label="Property setup steps"
-      className="rounded-lg border border-border bg-surface p-2 shadow-sm lg:self-start"
+      className="rounded-lg border border-border bg-card p-2 shadow-sm lg:self-start"
     >
       <ol className="grid gap-1 sm:grid-cols-5 lg:grid-cols-1">
         {steps.map((item) => {
@@ -285,11 +285,11 @@ function SetupRail({
               <button
                 aria-current={item.step === currentStep ? "step" : undefined}
                 className={cn(
-                  "flex min-h-10 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus-ring",
+                  "flex min-h-10 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                   item.step === currentStep
-                    ? "bg-accent-soft text-foreground"
+                    ? "bg-accent text-foreground"
                     : available
-                      ? "text-foreground-muted hover:bg-surface-muted"
+                      ? "text-muted-foreground hover:bg-muted"
                       : "cursor-not-allowed text-muted-foreground/60",
                 )}
                 disabled={!available}
@@ -301,7 +301,7 @@ function SetupRail({
                     "grid size-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold",
                     completed
                       ? "border-success/40 bg-success-soft text-success"
-                      : "border-border bg-surface",
+                      : "border-border bg-card",
                   )}
                 >
                   {completed ? <Check size={13} /> : item.step}
@@ -379,7 +379,7 @@ function SelectRecordStep({
         />
       </label>
       {options.length === 0 ? (
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           {emptyCopy}
         </p>
       ) : null}
@@ -508,7 +508,7 @@ function ReviewStep({
         <SummaryLink href={`/leases?leaseId=${lease.id}`} label="Lease" value={lease.label} />
       </div>
       <Link
-        className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         href={`/rent-income?${rentParams.toString()}`}
       >
         <KeyRound size={15} />
@@ -521,7 +521,7 @@ function ReviewStep({
 function SummaryLink({ href, label, value }: { href: string; label: string; value: string }) {
   return (
     <Link
-      className="rounded-md border border-border bg-surface-muted/45 px-3 py-2.5 transition-colors hover:bg-surface-muted"
+      className="rounded-md border border-border bg-muted/45 px-3 py-2.5 transition-colors hover:bg-muted"
       href={href}
     >
       <span className="block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">

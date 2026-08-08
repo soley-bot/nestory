@@ -400,7 +400,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
     <>
       <button
         aria-label="Search or jump"
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         onClick={openFromTrigger}
         ref={triggerRef}
         type="button"
@@ -422,16 +422,16 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
               <section
                 aria-labelledby={dialogTitleId}
                 aria-modal="true"
-                className="flex max-h-[min(72vh,32rem)] w-full max-w-[38rem] flex-col overflow-hidden rounded-xl border border-border bg-surface-raised shadow-xl"
+                className="flex max-h-[min(72vh,32rem)] w-full max-w-[38rem] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-xl"
                 role="dialog"
               >
-                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-2.5 transition-shadow focus-within:border-accent focus-within:ring-2 focus-within:ring-focus-ring">
-                  <Search className="shrink-0 text-foreground-subtle" size={18} />
+                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-2.5 transition-shadow focus-within:border-accent focus-within:ring-2 focus-within:ring-ring">
+                  <Search className="shrink-0 text-muted-foreground" size={18} />
                   <h2 className="sr-only" id={dialogTitleId}>
                     Search or jump
                   </h2>
                   {isPageMode ? (
-                    <span className="shrink-0 rounded-md bg-surface-muted px-2 py-1 text-xs font-semibold text-foreground-muted">
+                    <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
                       Pages
                     </span>
                   ) : null}
@@ -442,7 +442,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                     aria-expanded="true"
                     aria-label="Search or jump"
                     autoComplete="off"
-                    className="h-10 min-w-0 flex-1 border-0 bg-transparent p-0 text-[15px] text-foreground outline-none placeholder:text-foreground-subtle"
+                    className="h-10 min-w-0 flex-1 border-0 bg-transparent p-0 text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
                     id={inputId}
                     onChange={(event) => {
                       const nextQuery = event.target.value;
@@ -474,7 +474,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                   />
                   <button
                     aria-label="Close search"
-                    className="grid h-8 shrink-0 place-items-center rounded-md px-2 text-foreground-subtle outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="grid h-8 shrink-0 place-items-center rounded-md px-2 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={closePalette}
                     ref={closeButtonRef}
                     type="button"
@@ -500,7 +500,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                         role="group"
                       >
                         <p
-                          className="px-2.5 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground-subtle"
+                          className="px-2.5 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
                           id={groupId}
                         >
                           {group.label}
@@ -582,7 +582,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                               ? statusMessage
                               : "Find a workspace record"}
                       </p>
-                      <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-foreground-subtle">
+                      <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
                         {searchState === "error"
                           ? "Check your connection and try again."
                           : isShortRecordQuery
@@ -595,11 +595,11 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                   ) : null}
                 </div>
 
-                <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-surface px-3.5 py-2">
+                <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-card px-3.5 py-2">
                   <p
                     aria-live={searchState === "error" ? "assertive" : "polite"}
                     className={cn(
-                      "text-xs text-foreground-subtle",
+                      "text-xs text-muted-foreground",
                       searchState === "error" && "text-danger",
                     )}
                     role="status"
@@ -608,7 +608,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                   </p>
                   <div
                     aria-hidden="true"
-                    className="hidden items-center gap-2 text-[11px] text-foreground-subtle sm:flex"
+                    className="hidden items-center gap-2 text-[11px] text-muted-foreground sm:flex"
                   >
                     <span><kbd className="font-medium">↑↓</kbd> Navigate</span>
                     <span><kbd className="font-medium">Enter</kbd> Open</span>

@@ -29,11 +29,11 @@ type EmptyStatePresentation = {
 const presentations: Record<EmptyStateKind, EmptyStatePresentation> = {
   empty: {
     icon: Inbox,
-    iconClassName: "bg-surface-muted text-foreground-muted",
+    iconClassName: "bg-muted text-muted-foreground",
   },
   filtered: {
     icon: SearchX,
-    iconClassName: "bg-surface-muted text-foreground-muted",
+    iconClassName: "bg-muted text-muted-foreground",
   },
   permission: {
     icon: LockKeyhole,
@@ -84,7 +84,7 @@ export function EmptyState({
         role={isError ? "alert" : "status"}
       >
         <h3 className="font-semibold text-foreground">{title}</h3>
-        <div className="mt-1 max-w-xl leading-5 text-foreground-muted">{body}</div>
+        <div className="mt-1 max-w-xl leading-5 text-muted-foreground">{body}</div>
       </div>
       {action || retry ? (
         <div className="mt-4 flex flex-wrap items-center gap-2">

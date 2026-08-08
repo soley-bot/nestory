@@ -70,7 +70,6 @@ const manifestIssues = manifest.flatMap((entry) => {
     "login-required",
     "permission-blocked",
     "redirected",
-    "setup-required",
   ]);
   const allowedQueryContracts = new Set([
     "not-applicable",
@@ -78,7 +77,14 @@ const manifestIssues = manifest.flatMap((entry) => {
     "redirect-normalized",
     "redirect-preserved",
   ]);
-  const expectedRoles = ["admin", "anonymous", "manager", "member"];
+  const expectedRoles = [
+    "super_admin",
+    "finance_manager",
+    "finance_member",
+    "operations_manager",
+    "operations_member",
+    "anonymous",
+  ];
 
   if (
     !entry.smoke?.path?.startsWith("/") ||

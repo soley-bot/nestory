@@ -4,16 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   getOrganizationSettingsData,
-  requireAdminContext,
+  requireSuperAdminContext,
   requireWorkspaceContext,
 } = vi.hoisted(() => ({
   getOrganizationSettingsData: vi.fn(),
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
   requireWorkspaceContext: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({
-  requireAdminContext,
+  requireSuperAdminContext,
   requireWorkspaceContext,
 }));
 
@@ -41,7 +41,7 @@ import SettingsPage from "@/app/(dashboard)/settings/page";
 describe("SettingsPage", () => {
   beforeEach(() => {
     getOrganizationSettingsData.mockReset();
-    requireAdminContext.mockReset();
+    requireSuperAdminContext.mockReset();
     requireWorkspaceContext.mockReset();
 
     const context = {
@@ -50,7 +50,7 @@ describe("SettingsPage", () => {
       role: "super_admin",
       userId: "user-1",
     };
-    requireAdminContext.mockResolvedValue(context);
+    requireSuperAdminContext.mockResolvedValue(context);
     requireWorkspaceContext.mockResolvedValue(context);
     getOrganizationSettingsData.mockResolvedValue({
       branches: [],
@@ -73,7 +73,7 @@ describe("SettingsPage", () => {
     );
 
     expect(html).toContain(`Organization settings: ${expected}`);
-    expect(requireAdminContext).toHaveBeenCalledOnce();
+    expect(requireSuperAdminContext).toHaveBeenCalledOnce();
     expect(requireWorkspaceContext).not.toHaveBeenCalled();
   });
 
@@ -88,6 +88,6 @@ describe("SettingsPage", () => {
     expect(html).toMatch(
       /<header[^>]*>[\s\S]*aria-label="Settings sections"[\s\S]*<\/header>/,
     );
-    expect(requireAdminContext).toHaveBeenCalledOnce();
+    expect(requireSuperAdminContext).toHaveBeenCalledOnce();
   });
 });

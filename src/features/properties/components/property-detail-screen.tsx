@@ -44,7 +44,7 @@ export function PropertyDetailScreen({
                 setStatusMessage(null);
                 setDrawer({ mode: "restore", property });
               }}
-              variant="primary"
+              variant="default"
             >
               <RotateCcw size={15} />
               Restore
@@ -52,7 +52,7 @@ export function PropertyDetailScreen({
           ) : (
             <>
               <Link
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-foreground px-2.5 text-sm font-medium text-background outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-foreground px-2.5 text-sm font-medium text-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 href={property.nextAction.href}
                 prefetch={false}
               >
@@ -99,7 +99,7 @@ export function PropertyDetailScreen({
       {statusMessage ? (
         <div className="px-4 pt-5 sm:px-6 lg:shrink-0 lg:px-6">
           <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
             role="status"
           >
             {statusMessage}

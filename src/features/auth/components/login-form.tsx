@@ -38,7 +38,7 @@ export function LoginForm() {
           aria-describedby={state.fieldErrors?.email?.length ? emailErrorId : undefined}
           aria-invalid={Boolean(state.fieldErrors?.email?.length)}
           autoComplete="email"
-          className="mt-2 box-border h-11 px-3 text-[15px] text-foreground placeholder:text-foreground-subtle"
+          className="mt-2 box-border h-11 px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
           name="email"
           placeholder="admin@example.com"
           type="email"
@@ -52,7 +52,7 @@ export function LoginForm() {
           aria-describedby={state.fieldErrors?.password?.length ? passwordErrorId : undefined}
           aria-invalid={Boolean(state.fieldErrors?.password?.length)}
           autoComplete="current-password"
-          className="mt-2 box-border h-11 px-3 text-[15px] text-foreground placeholder:text-foreground-subtle"
+          className="mt-2 box-border h-11 px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
           name="password"
           placeholder="Enter password"
           type="password"
@@ -62,7 +62,7 @@ export function LoginForm() {
 
       <div className="-mt-2 text-right">
         <Link
-          className="text-sm font-semibold text-foreground-muted transition-colors hover:text-foreground"
+          className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
           href="/forgot-password"
         >
           Forgot password?
@@ -70,10 +70,10 @@ export function LoginForm() {
       </div>
 
       <Button
-        className="box-border h-11 w-full border-foreground bg-foreground text-[12px] font-semibold uppercase tracking-[0.14em] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-70"
+        className="box-border h-11 w-full border-foreground bg-foreground text-[12px] font-semibold uppercase tracking-[0.14em] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:opacity-70"
         disabled={pending}
         type="submit"
-        variant="primary"
+        variant="default"
       >
         {pending ? "Signing in..." : "Sign in"}
       </Button>

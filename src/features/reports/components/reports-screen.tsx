@@ -47,7 +47,7 @@ export function ReportBuilderScreen({
   const visibleSummary = trustedReport.summary.slice(0, 4);
   const reportRowCount =
     trustedReport.totalRowCount ?? trustedReport.rows.length;
-  const showRecords = trustedReport.kind !== "owner-activity";
+  const showRecords = trustedReport.kind !== "monthly-owner-activity";
 
   return (
     <WorkspacePage
@@ -85,7 +85,7 @@ export function ReportBuilderScreen({
                     ? "Report unavailable"
                     : "Export unavailable"}
                 </p>
-                <p className="mt-0.5 text-foreground-muted">
+                <p className="mt-0.5 text-muted-foreground">
                   {validation.message}
                 </p>
               </div>
@@ -206,7 +206,7 @@ function ReportTabs({ viewQuery }: { viewQuery: ReportsViewQuery }) {
           <Link
             aria-current={viewQuery.report === report.kind ? "page" : undefined}
             className={cn(
-              "inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+              "inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
               viewQuery.report === report.kind
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground",
@@ -263,7 +263,7 @@ function ReportRow({
   return (
     <TableRow
       className={cn(
-        "align-top hover:bg-surface-muted/60",
+        "align-top hover:bg-muted/60",
         !isLast && "border-b border-border",
       )}
       data-tone={row.tone}
@@ -273,7 +273,7 @@ function ReportRow({
         return (
           <TableCell
             className={cn(
-              "px-3 py-2.5 leading-5 text-foreground-muted",
+              "px-3 py-2.5 leading-5 text-muted-foreground",
               column.align === "right" &&
                 "text-right font-medium tabular-nums text-foreground",
             )}
@@ -293,7 +293,7 @@ function ReportRow({
         );
       })}
       {showRecords ? (
-        <TableCell className="px-3 py-2.5 leading-5 text-foreground-muted">
+        <TableCell className="px-3 py-2.5 leading-5 text-muted-foreground">
           {row.sourceLinks.length === 0 && hiddenSourceCount === 0 ? (
             "—"
           ) : (

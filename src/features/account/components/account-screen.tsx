@@ -57,7 +57,7 @@ export function AccountScreen({
         ) : (
           <div className="mt-3 border-l-2 border-border py-1 pl-4">
             <p className="text-sm font-medium">No linked staff profile</p>
-            <p className="mt-1 text-sm text-foreground-muted">
+            <p className="mt-1 text-sm text-muted-foreground">
               An administrator can link this account.
             </p>
           </div>
@@ -84,11 +84,11 @@ export function AccountScreen({
           <AccountFact label="Organization" value={identity.organizationName} />
         </dl>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-          <p className="text-sm text-foreground-muted">
+          <p className="text-sm text-muted-foreground">
             Use secure email recovery to create or replace your password.
           </p>
           <Link
-            className="text-sm font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             href="/forgot-password"
           >
             Set or change password
@@ -108,7 +108,7 @@ export function AccountScreen({
           <ShieldCheck aria-hidden="true" size={15} />
           Access scope
         </h2>
-        <p className="mt-1 leading-5 text-foreground-muted">
+        <p className="mt-1 leading-5 text-muted-foreground">
           {roleEffect(identity.role)}
         </p>
         <dl className="mt-3 divide-y divide-border border-y border-border">
@@ -125,7 +125,7 @@ export function AccountScreen({
         {identity.role === "super_admin" ? (
           <div className="mt-3">
             <Link
-              className="font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href="/users-roles"
             >
               Workspace Access
@@ -149,7 +149,7 @@ export function AccountScreen({
         <div className="mt-3 max-w-xl border-l-2 border-danger bg-danger-soft px-4 py-3">
           <form action={signOutAction}>
             <button
-              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-danger/30 bg-surface px-3 text-[13px] font-medium text-danger outline-none hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-danger/30 bg-card px-3 text-[13px] font-medium text-danger outline-none hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-ring"
               type="submit"
             >
               <LogOut aria-hidden="true" size={14} />
@@ -165,7 +165,7 @@ export function AccountScreen({
 function AccountFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 py-2.5">
-      <dt className="text-[11px] font-medium uppercase tracking-[0.06em] text-foreground-muted">
+      <dt className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-1 truncate text-sm font-medium" title={value}>{value}</dd>
@@ -176,7 +176,7 @@ function AccountFact({ label, value }: { label: string; value: string }) {
 function AccessFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-3 py-2">
-      <dt className="text-foreground-muted">{label}</dt>
+      <dt className="text-muted-foreground">{label}</dt>
       <dd className="min-w-0 text-right font-medium text-foreground">{value}</dd>
     </div>
   );

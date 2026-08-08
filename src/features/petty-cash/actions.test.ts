@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
-  requireAdminContext: mocks.requireAdminContext,
+  requireSuperAdminContext: mocks.requireSuperAdminContext,
 }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({ rpc: mocks.rpc })),
@@ -31,7 +31,7 @@ const nextPropertyId = "66666666-6666-4666-8666-666666666666";
 describe("petty cash actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireAdminContext.mockResolvedValue({ organizationId: "org-1" });
+    mocks.requireSuperAdminContext.mockResolvedValue({ organizationId: "org-1" });
     mocks.rpc.mockResolvedValue({ data: null, error: null });
   });
 

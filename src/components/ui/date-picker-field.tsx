@@ -73,7 +73,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
             className={cn(
-              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-control-border bg-surface px-2.5 text-left text-sm shadow-sm outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring",
+              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-2.5 text-left text-sm shadow-sm outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring",
               className,
             )}
             type="button"
@@ -87,14 +87,14 @@ export function DatePickerField(props: DatePickerFieldProps) {
         <Popover.Portal container={portalContainer ?? undefined}>
           <Popover.Content
             align="start"
-            className="z-[80] w-[312px] rounded-md border border-border bg-surface p-3 shadow-lg"
+            className="z-[80] w-[312px] rounded-md border border-border bg-card p-3 shadow-lg"
             onEscapeKeyDown={(event) => event.stopPropagation()}
             sideOffset={4}
           >
             <div className="flex items-center justify-between gap-2">
               <button
                 aria-label="Previous month"
-                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() =>
                   setVisibleMonth((current) => addMonths(current, -1))
                 }
@@ -107,7 +107,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
               </p>
               <button
                 aria-label="Next month"
-                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() =>
                   setVisibleMonth((current) => addMonths(current, 1))
                 }
@@ -122,7 +122,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 caption_label: "sr-only",
                 day: "p-0 text-center align-middle",
                 day_button:
-                  "flex size-8 items-center justify-center rounded-md text-sm outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+                  "flex size-8 items-center justify-center rounded-md text-sm outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
                 disabled: "text-muted-foreground opacity-40",
                 month_caption: "sr-only",
                 month_grid: "mt-3 w-full border-separate border-spacing-1",
@@ -153,7 +153,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
 
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
               <button
-                className="rounded-md px-2 py-1 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="rounded-md px-2 py-1 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
                   setValue("");
                   setOpen(false);
@@ -163,7 +163,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 Clear
               </button>
               <button
-                className="rounded-md px-2 py-1 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="rounded-md px-2 py-1 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
                   const today = getBusinessDateValue();
                   setValue(today);

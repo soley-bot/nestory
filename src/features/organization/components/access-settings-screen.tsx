@@ -261,7 +261,7 @@ function AccessWorkspace({
           </div>
           <div className="flex items-center gap-3">
             <Link
-              className="text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href="/staff?action=create"
             >
               Add Staff
@@ -283,13 +283,13 @@ function AccessWorkspace({
                   <p className="truncate text-sm font-semibold">
                     {person.label}
                   </p>
-                  <p className="mt-1 truncate text-xs text-foreground-muted">
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
                     {person.primaryEmail ?? "No email recorded"}
                   </p>
                 </div>
                 <Link
                   aria-label={`Grant workspace access for ${person.label}`}
-                  className="shrink-0 text-[13px] font-medium text-accent-strong underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="shrink-0 text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   href={`/users-roles?personId=${person.id}`}
                   prefetch={false}
                 >
@@ -299,7 +299,7 @@ function AccessWorkspace({
             ))}
           </div>
         ) : (
-          <div className="px-3 py-4 text-sm text-foreground-muted">
+          <div className="px-3 py-4 text-sm text-muted-foreground">
             All active Staff have access.
           </div>
         )}
@@ -329,7 +329,7 @@ function AccessWorkspace({
             ))}
           </div>
         ) : (
-          <div className="px-3 py-4 text-sm text-foreground-muted">
+          <div className="px-3 py-4 text-sm text-muted-foreground">
             No pending invitations.
           </div>
         )}
@@ -557,7 +557,7 @@ function InviteUserForm({
               value={draft.values.personId}
             />
             <span
-              className="text-xs font-normal text-foreground-muted"
+              className="text-xs font-normal text-muted-foreground"
               id={staffHelpId}
             >
               The employee or contractor this login belongs to.
@@ -568,7 +568,7 @@ function InviteUserForm({
             <input
               aria-describedby={emailHelpId}
               aria-labelledby={emailLabelId}
-              className="h-8 w-full rounded-md border border-border bg-surface px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="h-8 w-full rounded-md border border-border bg-card px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring"
               id={emailId}
               disabled={draft.status === "saving"}
               onChange={(event) => draft.setField("email", event.target.value)}
@@ -578,7 +578,7 @@ function InviteUserForm({
               value={draft.values.email}
             />
             <span
-              className="text-xs font-normal text-foreground-muted"
+              className="text-xs font-normal text-muted-foreground"
               id={emailHelpId}
             >
               The address used to sign in and receive the invitation.
@@ -615,7 +615,7 @@ function InviteUserForm({
             options={branchOptions(branches)}
             value={draft.values.branchId}
           />
-          <p className="text-xs leading-5 text-foreground-muted sm:col-span-2">
+          <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">
             Workspace access controls sign-in permissions. It does not change
             the person&apos;s operational Staff role.
           </p>
@@ -791,7 +791,7 @@ function PendingInvitationRow({
             <Badge tone="warning">Archived Staff</Badge>
           ) : null}
         </div>
-        <p className="mt-1 text-xs text-foreground-muted">
+        <p className="mt-1 text-xs text-muted-foreground">
           {invitation.lastSentAt
             ? `Last sent ${formatAccessDate(invitation.lastSentAt)}`
             : "Not delivered yet"}
@@ -804,13 +804,13 @@ function PendingInvitationRow({
       </div>
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-foreground-muted">Access level</dt>
+          <dt className="text-xs text-muted-foreground">Access level</dt>
           <dd className="mt-1 font-medium">
             {formatWorkspaceAccessRole(invitation.role)}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-foreground-muted">Access scope</dt>
+          <dt className="text-xs text-muted-foreground">Access scope</dt>
           <dd className="mt-1 font-medium">
             {isOrganizationWideRole(invitation.role)
               ? "All branches"
@@ -818,7 +818,7 @@ function PendingInvitationRow({
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-foreground-muted">Linked staff record</dt>
+          <dt className="text-xs text-muted-foreground">Linked staff record</dt>
           <dd className="mt-1 font-medium">
             {isOrganizationWideRole(invitation.role)
               ? "Not required"
@@ -828,7 +828,7 @@ function PendingInvitationRow({
       </dl>
       <div className="flex flex-wrap items-center gap-2 xl:justify-end">
         <button
-          className="h-8 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-8 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
           disabled={status === "saving"}
           onClick={() => void runAction(resendOrganizationInvitationAction)}
           type="button"
@@ -849,7 +849,7 @@ function PendingInvitationRow({
           className={
             status === "error"
               ? "w-full text-xs text-danger"
-              : "w-full text-xs text-foreground-muted"
+              : "w-full text-xs text-muted-foreground"
           }
           role={status === "error" ? "alert" : undefined}
         >
@@ -864,7 +864,7 @@ function PendingInvitationRow({
             <p className="font-medium" id={revokeTitleId}>
               Revoke this invitation?
             </p>
-            <p className="mt-1 text-foreground-muted">
+            <p className="mt-1 text-muted-foreground">
               The invitation link will stop working immediately.
             </p>
             <div className="mt-3 flex justify-end gap-2">
@@ -1229,7 +1229,7 @@ function MemberAccessForm({
                 ? "Unlink this Staff record?"
                 : "Replace the linked Staff record?"}
             </p>
-            <p className="mt-1 text-foreground-muted">
+            <p className="mt-1 text-muted-foreground">
               {confirmingStaffChange === "unlink"
                 ? `Workspace access will remain, but it will no longer be tied to ${linkedPerson?.label ?? "this account"}'s Staff record.`
                 : "Workspace access will move to the newly selected Staff record without changing either Staff record."}
@@ -1270,7 +1270,7 @@ function MemberAccessForm({
             <p className="font-medium" id={removeTitleId}>
               Remove workspace access?
             </p>
-            <p className="mt-1 text-foreground-muted">
+            <p className="mt-1 text-muted-foreground">
               This account will lose workspace access immediately.
             </p>
             <div className="mt-3 flex justify-end gap-2">
@@ -1349,7 +1349,7 @@ function AccessSelect({
         value={value}
       />
       {description ? (
-        <span className="text-xs font-normal text-foreground-muted">
+        <span className="text-xs font-normal text-muted-foreground">
           {description}
         </span>
       ) : null}

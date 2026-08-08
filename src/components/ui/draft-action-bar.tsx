@@ -38,7 +38,7 @@ type StatusPresentation = {
 
 const statusPresentation: Record<DraftStatus, StatusPresentation> = {
   clean: {
-    className: "text-foreground-muted",
+    className: "text-muted-foreground",
     icon: Circle,
     message: "No changes",
   },
@@ -48,7 +48,7 @@ const statusPresentation: Record<DraftStatus, StatusPresentation> = {
     message: "Unsaved changes",
   },
   saving: {
-    className: "text-foreground-muted",
+    className: "text-muted-foreground",
     icon: LoaderCircle,
     message: "Saving changes",
   },
@@ -189,7 +189,7 @@ export function DraftActionBar({
   return (
     <div
       aria-busy={isPending ? "true" : "false"}
-      className="bg-surface-raised px-4 py-3 text-sm"
+      className="bg-popover px-4 py-3 text-sm"
       data-status={status}
       data-testid="draft-action-bar"
       ref={barRef}
@@ -219,7 +219,7 @@ export function DraftActionBar({
             </span>
             {disabledReason ? (
               <span
-                className="mt-1 block text-sm font-normal leading-5 text-foreground-muted"
+                className="mt-1 block text-sm font-normal leading-5 text-muted-foreground"
                 id={reasonId}
               >
                 {disabledReason}
@@ -275,7 +275,7 @@ export function DraftActionBar({
                 disabled={saveDisabled}
                 onClick={onSave}
                 type="button"
-                variant="primary"
+                variant="default"
               >
                 {saveLabel}
               </Button>

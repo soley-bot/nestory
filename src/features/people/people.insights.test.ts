@@ -3,7 +3,6 @@ import {
   buildPeopleTrustedReport,
   getPeopleInsights,
 } from "@/features/people/people.insights";
-import { buildTrustedReportCsv } from "@/features/reports/data/csv";
 import { buildTrustedReportPdf } from "@/features/reports/data/pdf";
 import type { PeopleSummary, PersonRoleValue } from "@/features/people/people.types";
 
@@ -173,7 +172,7 @@ describe("people insights", () => {
     },
   );
 
-  it("keeps central CSV headers, rows, sources, and PDF generation for People Readiness", () => {
+  it("keeps traceable sources and PDF generation for People Readiness", () => {
     const tenant = person({
       contact: true,
       documents: 2,
@@ -203,18 +202,11 @@ describe("people insights", () => {
       people: [tenant],
     });
 
-    const csv = buildTrustedReportCsv(report);
     const pdf = buildTrustedReportPdf({
       organizationName: "Demo Organization",
       report,
     });
 
-    expect(csv).toContain(
-      "Row,Title,Readiness,Roles,Contact,Linked context,Evidence,Next action,Source records,Source ids,Source links",
-    );
-    expect(csv).toContain(report.rows[0]!.id);
-    expect(csv).toContain(`/people/${report.rows[0]!.id}`);
-    expect(csv).toContain("lease-1");
     expect(report.rows[0]?.sourceLinks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -316,20 +308,6 @@ describe("people insights", () => {
       `/users-roles?personId=${active.id}&memberId=${membershipId}`,
     );
     expect(activeRow.sourceCount).toBe(2);
-
-    const csv = buildTrustedReportCsv(report);
-    expect(csv).toContain(
-      `person:${noAccess.displayName},${noAccess.id},/people/${noAccess.id}`,
-    );
-    expect(csv).not.toContain(
-      `person:${noAccess.displayName} | workspace-access:`,
-    );
-    expect(csv).toContain(
-      `person:${pending.displayName} | workspace-access:Invitation pending,${pending.id} | ${invitationId}`,
-    );
-    expect(csv).toContain(
-      `person:${active.displayName} | workspace-access:Operations Manager / All branches,${active.id} | ${membershipId}`,
-    );
 
     const pdfText = extractPdfCommandText(
       Buffer.from(

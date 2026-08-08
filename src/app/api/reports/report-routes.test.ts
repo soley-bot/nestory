@@ -1,9 +1,9 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GET as getCsv } from "@/app/api/reports/export/route";
 import { GET as getExcel } from "@/app/api/reports/excel/route";
 import { GET as getPdf } from "@/app/api/reports/pdf/route";
-import { getReportCsv } from "@/features/reports/data/csv";
 import { getReportExcel } from "@/features/reports/data/excel";
 import { getReportPdf } from "@/features/reports/data/pdf";
 import {
@@ -16,10 +16,6 @@ vi.mock("@/lib/auth/context", () => ({
   getCurrentUser: vi.fn(),
 }));
 
-vi.mock("@/features/reports/data/csv", () => ({
-  getReportCsv: vi.fn(),
-}));
-
 vi.mock("@/features/reports/data/excel", () => ({
   getReportExcel: vi.fn(),
 }));
@@ -29,7 +25,6 @@ vi.mock("@/features/reports/data/pdf", () => ({
 }));
 
 const handlers = [
-  ["CSV", getCsv, getReportCsv, "export"],
   ["Excel", getExcel, getReportExcel, "excel"],
   ["PDF", getPdf, getReportPdf, "pdf"],
 ] as const;
@@ -83,7 +78,7 @@ describe("report export routes", () => {
 
       const response = await handler(
         new Request(
-          `http://localhost/api/reports/${route}?report=owner-activity&month=2026-07`,
+          `http://localhost/api/reports/${route}?report=monthly-owner-activity&month=2026-07`,
         ),
       );
 
@@ -114,22 +109,10 @@ describe("report export routes", () => {
     ]);
   });
 
-  it("keeps CSV as an authenticated compatibility export", async () => {
-    vi.mocked(getReportCsv).mockResolvedValue({
-      body: "Property,Unit,Income,Expenses,Net income",
-      filename: "unit-profit-loss-2026-07-all-properties.csv",
-    });
-
-    const response = await getCsv(
-      new Request(
-        "http://localhost/api/reports/export?report=unit-profit-loss&month=2026-07",
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toBe(
-      "text/csv; charset=utf-8",
-    );
+  it("has no CSV export route", () => {
+    expect(
+      existsSync(join(process.cwd(), "src/app/api/reports/export/route.ts")),
+    ).toBe(false);
   });
 
   it("returns a PDF attachment", async () => {

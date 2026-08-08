@@ -32,7 +32,7 @@ export function WorkspaceAccessStatus({
       </div>
       <Link
         aria-label={`${presentation.actionLabel} for ${personName}`}
-        className="inline-flex h-7 items-center rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="inline-flex h-7 items-center rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
         href={presentation.href}
         prefetch={false}
       >

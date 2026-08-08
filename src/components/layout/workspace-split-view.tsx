@@ -42,12 +42,12 @@ export function WorkspaceSplitView({
 
   return (
     <div
-      className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden bg-surface-raised"
+      className="grid h-full min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden bg-popover"
       data-slot="workspace-split-view"
     >
       <section
         aria-label="Workspace content"
-        className="min-h-0 min-w-0 overflow-auto bg-surface outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+        className="min-h-0 min-w-0 overflow-auto bg-card outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         data-slot="workspace-main-surface"
         role="region"
         tabIndex={0}

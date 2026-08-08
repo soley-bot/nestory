@@ -11,7 +11,7 @@ export default function DashboardError({
   return (
     <main className="grid min-h-[60vh] place-items-center px-4 py-8 sm:px-6">
       <ErrorState
-        className="w-full max-w-xl rounded-md border border-border bg-surface"
+        className="w-full max-w-xl rounded-md border border-border bg-card"
         message="This workspace view could not be loaded. Your records were not changed."
         onRetry={reset}
         title="Workspace view unavailable"

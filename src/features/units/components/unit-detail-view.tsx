@@ -81,7 +81,7 @@ export function UnitDetailView({
         <div className="space-y-3">
           <section
             className={cn(
-              "rounded-md border border-border bg-surface p-4",
+              "rounded-md border border-border bg-card p-4",
               activeSection !== "overview" && "hidden",
             )}
             id="unit-overview"
@@ -143,7 +143,7 @@ export function UnitDetailView({
 
           <section
             className={cn(
-              "rounded-md border border-border bg-surface",
+              "rounded-md border border-border bg-card",
               activeSection !== "overview" && "hidden",
             )}
             id="unit-record-quality"
@@ -157,7 +157,7 @@ export function UnitDetailView({
               <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
                 {unit.healthIndicators.map((indicator) => (
                   <div
-                    className="rounded-md border border-border bg-surface-muted/60 p-3"
+                    className="rounded-md border border-border bg-muted/60 p-3"
                     key={indicator.id}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -195,7 +195,7 @@ export function UnitDetailView({
 
           <section
             className={cn(
-              "rounded-md border border-border bg-surface",
+              "rounded-md border border-border bg-card",
               activeSection !== "finance" && "hidden",
             )}
             id="unit-finance"
@@ -234,7 +234,7 @@ export function UnitDetailView({
 
           <section
             className={cn(
-              "rounded-md border border-border bg-surface",
+              "rounded-md border border-border bg-card",
               activeSection !== "lease" && "hidden",
             )}
             id="unit-lease"
@@ -260,7 +260,7 @@ export function UnitDetailView({
                     moneyValue={unit.activeLease.monthlyRentDisplay}
                   />
                 </dl>
-                <div className="rounded-md border border-border bg-surface-muted/60 p-3">
+                <div className="rounded-md border border-border bg-muted/60 p-3">
                   <div className="flex items-center gap-2">
                     <UserRound className="text-muted-foreground" size={15} />
                     <p className="text-sm font-semibold">People links</p>
@@ -273,7 +273,7 @@ export function UnitDetailView({
                     ) : (
                       unit.tenantLinks.map((person) => (
                         <Link
-                          className="block rounded-md border border-border bg-surface px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+                          className="block rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-muted"
                           href={person.href}
                           key={person.id}
                         >
@@ -309,7 +309,7 @@ export function UnitDetailView({
 
           <section
             className={cn(
-              "rounded-md border border-border bg-surface",
+              "rounded-md border border-border bg-card",
               activeSection !== "finance" && "hidden",
             )}
             id="unit-ledger"
@@ -335,7 +335,7 @@ export function UnitDetailView({
 
           <section
             className={cn(
-              "rounded-md border border-border bg-surface",
+              "rounded-md border border-border bg-card",
               activeSection !== "maintenance" && "hidden",
             )}
             id="unit-maintenance"
@@ -366,7 +366,7 @@ export function UnitDetailView({
 
           <section
             className={cn(
-              "rounded-md border border-border bg-surface",
+              "rounded-md border border-border bg-card",
               activeSection !== "timeline" && "hidden",
             )}
             id="unit-timeline"
@@ -392,7 +392,7 @@ export function UnitDetailView({
 
           <section
             className={cn(
-              "rounded-md border border-border bg-surface",
+              "rounded-md border border-border bg-card",
               activeSection !== "documents" && "hidden",
             )}
             id="unit-documents"
@@ -418,7 +418,7 @@ export function UnitDetailView({
 
           <section
             className={cn(
-              "rounded-md border border-border bg-surface",
+              "rounded-md border border-border bg-card",
               activeSection !== "reports" && "hidden",
             )}
             id="unit-reports"
@@ -428,7 +428,7 @@ export function UnitDetailView({
 
           <section
             className={cn(
-              "rounded-md border border-border bg-surface",
+              "rounded-md border border-border bg-card",
               activeSection !== "overview" && "hidden",
             )}
             id="unit-activity"
@@ -468,15 +468,15 @@ function UnitRecordNav({
   return (
     <nav
       aria-label="Unit record sections"
-      className="overflow-x-auto rounded-md border border-border bg-surface px-3 py-2"
+      className="overflow-x-auto rounded-md border border-border bg-card px-3 py-2"
     >
       <div className="flex min-w-max items-center gap-1.5" role="tablist">
         {unitRecordSections.map((item) => (
           <Link
             aria-selected={activeSection === item.id}
             className={cn(
-              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground",
-              activeSection === item.id && "bg-accent-soft text-foreground",
+              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              activeSection === item.id && "bg-accent text-foreground",
             )}
             href={buildUnitRecordHref({
               section: item.id,
@@ -513,7 +513,7 @@ function UnitReportsPanel({
       />
       <div className="p-4">
         <Link
-          className="group flex max-w-xl items-start justify-between gap-4 rounded-md border border-border bg-surface p-3 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="group flex max-w-xl items-start justify-between gap-4 rounded-md border border-border bg-card p-3 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
           href={buildUnitProfitLossHref(unit, reportMonth)}
           prefetch={false}
         >
@@ -560,7 +560,7 @@ function ActionLink({
 }) {
   return (
     <Link
-      className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium transition-colors hover:bg-surface-muted ${
+      className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium transition-colors hover:bg-muted ${
         strong ? "bg-foreground text-background hover:bg-foreground/90" : "text-foreground"
       }`}
       href={href}
@@ -622,7 +622,7 @@ function Metric({
   value: ReactNode;
 }) {
   return (
-    <div className="min-w-0 rounded-md border border-border bg-surface-muted/60 px-3 py-3">
+    <div className="min-w-0 rounded-md border border-border bg-muted/60 px-3 py-3">
       <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
@@ -634,7 +634,7 @@ function Metric({
 
 function CountDetail({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-border bg-surface-muted px-3 py-2 text-center">
+    <div className="rounded-md border border-border bg-muted px-3 py-2 text-center">
       <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
@@ -685,7 +685,7 @@ function EmptyRow({
 function TimelineRow({ event }: { event: UnitTimelineContext }) {
   return (
     <Link
-      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
       href={`/timeline?eventId=${event.id}&archiveState=all${
         event.unitId ? `&unitId=${event.unitId}` : ""
       }`}
@@ -712,7 +712,7 @@ function TimelineRow({ event }: { event: UnitTimelineContext }) {
 function LedgerRow({ entry }: { entry: UnitLedgerContext }) {
   return (
     <Link
-      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
       href={`/ledger?entryId=${entry.id}&archiveState=all`}
       prefetch={false}
     >
@@ -740,7 +740,7 @@ function MaintenanceRow({
 }) {
   return (
     <Link
-      className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+      className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
       href={maintenanceCase.href}
       prefetch={false}
     >
@@ -782,7 +782,7 @@ function DocumentRow({ document }: { document: UnitDocumentContext }) {
   if (document.url) {
     return (
       <a
-        className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+        className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
         href={document.url}
         rel="noreferrer"
         target="_blank"
@@ -795,7 +795,7 @@ function DocumentRow({ document }: { document: UnitDocumentContext }) {
   if (document.linkedRecordHref) {
     return (
       <Link
-        className="block px-4 py-3 text-sm transition-colors hover:bg-surface-muted"
+        className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
         href={document.linkedRecordHref}
         prefetch={false}
       >
@@ -819,14 +819,14 @@ function ActivityRow({ change }: { change: RecentChange }) {
 
   return change.href ? (
     <Link
-      className="block rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm transition-colors hover:bg-surface-muted"
+      className="block rounded-md border border-border bg-muted/60 px-3 py-2 text-sm transition-colors hover:bg-muted"
       href={change.href}
       prefetch={false}
     >
       {content}
     </Link>
   ) : (
-    <div className="rounded-md border border-border bg-surface-muted/60 px-3 py-2 text-sm">
+    <div className="rounded-md border border-border bg-muted/60 px-3 py-2 text-sm">
       {content}
     </div>
   );

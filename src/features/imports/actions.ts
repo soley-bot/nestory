@@ -13,7 +13,7 @@ import type {
   GenericImportPreviewRow,
   ImportType,
 } from "@/features/imports/import.types";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { Json } from "@/types/database";
 
@@ -132,7 +132,7 @@ export async function stageImportRunAction(
     };
   }
 
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const supabase = await createSupabaseServerClient();
   const importDb = supabase;
   const referenceData = await getImportReferenceData(context.organizationId);
@@ -225,7 +225,7 @@ export async function commitStagedImportRunAction(
     };
   }
 
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const supabase = await createSupabaseServerClient();
   const importDb = supabase;
   const runResult = await importDb

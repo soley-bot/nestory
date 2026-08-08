@@ -107,9 +107,9 @@ export function PeopleFilters({
               <Popover.Trigger asChild>
                 <button
                   className={cn(
-                    "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-muted data-[state=open]:border-foreground sm:flex-none",
+                    "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted data-[state=open]:border-foreground sm:flex-none",
                     hasAdvancedFilters &&
-                      "border-accent bg-accent-soft text-accent hover:bg-accent-soft",
+                      "border-accent bg-accent text-accent hover:bg-accent",
                   )}
                   type="button"
                 >
@@ -125,7 +125,7 @@ export function PeopleFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
-                  className="z-50 w-[min(calc(100vw-2rem),460px)] rounded-md border border-border bg-surface text-[13px] shadow-lg"
+                  className="z-50 w-[min(calc(100vw-2rem),460px)] rounded-md border border-border bg-card text-[13px] shadow-lg"
                   id="people-advanced-search"
                   side="bottom"
                   sideOffset={6}
@@ -139,7 +139,7 @@ export function PeopleFilters({
                       </div>
                       {hasAnyFilters ? (
                         <Link
-                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                           href={pathname}
                           scroll={false}
                         >
@@ -237,7 +237,7 @@ export function PeopleFilters({
                   <div className="flex items-center justify-end border-t border-border px-3 py-2">
                     <Popover.Close asChild>
                       <button
-                        className="inline-flex h-7 items-center rounded-md border border-border px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-muted"
+                        className="inline-flex h-7 items-center rounded-md border border-border px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
                         type="button"
                       >
                         Done
@@ -250,7 +250,7 @@ export function PeopleFilters({
             {hasAnyFilters ? (
               <Link
                 aria-label="Reset people filters"
-                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-surface px-2 text-accent transition-colors hover:bg-surface-muted hover:text-accent"
+                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-card px-2 text-accent transition-colors hover:bg-muted hover:text-accent"
                 href={pathname}
                 scroll={false}
                 title="Reset filters"
@@ -293,7 +293,7 @@ function FilterField({
   label: string;
 }) {
   return (
-    <div className="grid gap-1 text-xs font-medium text-foreground-muted">
+    <div className="grid gap-1 text-xs font-medium text-muted-foreground">
       <span>{label}</span>
       {children}
     </div>
@@ -310,7 +310,7 @@ function ViewModeToggle({
   return (
     <div
       aria-label="People view"
-      className="hidden h-8 rounded-md border border-border bg-surface-muted p-0.5 text-xs md:inline-flex"
+      className="hidden h-8 rounded-md border border-border bg-muted p-0.5 text-xs md:inline-flex"
       role="group"
     >
       <ViewModeButton
@@ -345,7 +345,7 @@ function ViewModeButton({
       aria-pressed={active}
       className={cn(
         "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
-        active && "bg-surface text-foreground shadow-sm",
+        active && "bg-card text-foreground shadow-sm",
       )}
       onClick={onClick}
       title={`${label} view`}

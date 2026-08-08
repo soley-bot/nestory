@@ -169,13 +169,13 @@ export function TimelineScreen({
       mode: "create",
     });
   const timelineList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
       {events.length === 0 ? (
         <EmptyState
           action={
             hasFilters ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
                 scroll={false}
               >
@@ -228,7 +228,7 @@ export function TimelineScreen({
               openTimelineAction({ change, mode: "activity" });
             }}
           />
-          <Button onClick={openCreate} variant="primary">
+          <Button onClick={openCreate} variant="default">
             <Plus size={15} />
             Add event
           </Button>
@@ -250,7 +250,7 @@ export function TimelineScreen({
         {statusMessage ? (
           <div className="shrink-0 px-4 pt-3 sm:px-6">
             <p
-              className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+              className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
               role="status"
             >
               {statusMessage}
@@ -430,7 +430,7 @@ function TimelineReviewStrip({
     >
       <p className="font-medium text-foreground">{context.suffix}</p>
       {context.detail ? (
-        <p className="text-xs text-foreground-muted">{context.detail}</p>
+        <p className="text-xs text-muted-foreground">{context.detail}</p>
       ) : null}
     </div>
   );
@@ -484,7 +484,7 @@ function ArchiveTimelineEventPanel({
           <Archive size={16} />
           <p className="text-sm font-semibold">Archive confirmation</p>
         </div>
-        <div className="rounded-md border border-border bg-surface-muted p-4">
+        <div className="rounded-md border border-border bg-muted p-4">
           <p className="text-sm font-medium text-foreground">{event.title}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {event.propertyCode}
@@ -493,7 +493,7 @@ function ArchiveTimelineEventPanel({
         </div>
         {state.message ? (
           <p
-            className="mt-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            className="mt-4 rounded-md border border-border bg-muted px-3 py-2 text-sm"
             role={state.status === "error" ? "alert" : "status"}
           >
             {state.message}
@@ -508,7 +508,7 @@ function ArchiveTimelineEventPanel({
           className="w-full sm:w-auto"
           disabled={pending}
           type="submit"
-          variant="primary"
+          variant="default"
         >
           {pending ? "Archiving..." : "Archive event"}
         </Button>
@@ -546,19 +546,19 @@ function RestoreTimelineEventPanel({
           <RotateCcw size={16} />
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>
-        <div className="rounded-md border border-border bg-surface-muted p-4">
+        <div className="rounded-md border border-border bg-muted p-4">
           <p className="text-sm font-medium text-foreground">{event.title}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {event.propertyCode}
             {event.unitNumber ? ` / Unit ${event.unitNumber}` : ""}
           </p>
         </div>
-        <p className="mt-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="mt-4 rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
           Restoring makes this record visible in normal timeline views again.
         </p>
         {state.message ? (
           <p
-            className="mt-4 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            className="mt-4 rounded-md border border-border bg-muted px-3 py-2 text-sm"
             role={state.status === "error" ? "alert" : "status"}
           >
             {state.message}
@@ -573,7 +573,7 @@ function RestoreTimelineEventPanel({
           className="w-full sm:w-auto"
           disabled={pending}
           type="submit"
-          variant="primary"
+          variant="default"
         >
           <RotateCcw size={15} />
           {pending ? "Restoring..." : "Restore event"}
@@ -608,7 +608,7 @@ function TimelineDocumentPanel({
     <form action={action} className="flex h-full flex-col">
       <input name="eventId" type="hidden" value={event.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
+        <div className="rounded-md border border-border bg-muted px-3 py-3">
           <p className="text-sm font-medium">{event.title}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {event.ledgerEntryId
@@ -635,7 +635,7 @@ function TimelineDocumentPanel({
 
         {state.message ? (
           <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
             role={state.status === "error" ? "alert" : "status"}
           >
             {state.message}
@@ -651,7 +651,7 @@ function TimelineDocumentPanel({
           className="w-full sm:w-auto"
           disabled={pending}
           type="submit"
-          variant="primary"
+          variant="default"
         >
           <Upload size={15} />
           {pending ? "Uploading..." : "Attach document"}

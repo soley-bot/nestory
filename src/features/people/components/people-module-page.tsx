@@ -7,7 +7,7 @@ import { getPeopleInsightsData } from "@/features/people/data/people-insights";
 import { getPeopleScreenData } from "@/features/people/data/people";
 import { parsePeopleSearchParams } from "@/features/people/people.filters";
 import type { PersonRoleValue } from "@/features/people/people.types";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 
 type PeopleModulePageProps = {
   config: PeopleModuleConfig;
@@ -41,7 +41,7 @@ export async function PeopleModulePageContent({
   config,
   searchParams,
 }: PeopleModulePageProps) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const params = await searchParams;
   const viewQuery = parsePeopleSearchParams(
     config.role ? { ...params, role: config.role } : params,

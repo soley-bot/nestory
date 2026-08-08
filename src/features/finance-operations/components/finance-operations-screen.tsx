@@ -162,7 +162,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
     >
       <div className="flex h-full min-h-0 flex-col">
         {statusMessage ? (
-          <div className="shrink-0 border-b border-border bg-surface px-4 py-2 sm:px-6">
+          <div className="shrink-0 border-b border-border bg-card px-4 py-2 sm:px-6">
             <p className="text-sm" role="status">
               {statusMessage}
             </p>
@@ -274,7 +274,7 @@ function getScreen(
           {props.canManageFinance ? (
             <Button
               onClick={() => openModal({ mode: "payment" })}
-              variant="primary"
+              variant="default"
             >
               <WalletCards size={15} /> Record payment
             </Button>
@@ -311,7 +311,7 @@ function getScreen(
       actions: props.canSubmitExpense ? (
         <Button
           onClick={() => openDrawer({ mode: "expense" })}
-          variant="primary"
+          variant="default"
         >
           <Plus size={15} /> Add expense
         </Button>
@@ -362,7 +362,7 @@ function getScreen(
         props.canManageFinance && position && position.availableWithdrawal > 0 ? (
           <Button
             onClick={() => openModal({ mode: "withdrawal", position })}
-            variant="primary"
+            variant="default"
           >
             Record withdrawal
           </Button>
@@ -392,7 +392,7 @@ function getScreen(
   return {
     activeRoute: "/finance" as const,
     actions: props.canManageFinance ? (
-      <Button onClick={() => openModal({ mode: "payment" })} variant="primary">
+      <Button onClick={() => openModal({ mode: "payment" })} variant="default">
         <WalletCards size={15} /> Record payment
       </Button>
     ) : undefined,
@@ -1080,7 +1080,7 @@ function ExpenseSubmissionTable({
                         })
                       }
                       size="sm"
-                      variant="primary"
+                      variant="default"
                     >
                       Approve
                     </Button>
@@ -1314,7 +1314,7 @@ function PropertyAccountView({
       />
     );
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface">
+    <div className="flex h-full min-h-0 flex-col bg-card">
       <CompactTotals
         items={[
           {
@@ -1624,7 +1624,7 @@ function BillingSetupForm({
           <Button
             disabled={step === 2 && !recipientId}
             onClick={() => setStep((current) => current + 1)}
-            variant="primary"
+            variant="default"
           >
             Continue <ChevronRight size={14} />
           </Button>
@@ -2503,7 +2503,7 @@ function CompactTotals({
 
   return (
     <div
-      className="grid shrink-0 divide-x divide-border border-b border-border bg-surface-muted/35"
+      className="grid shrink-0 divide-x divide-border border-b border-border bg-muted/35"
       style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
       {items.map((item) => (
@@ -2537,7 +2537,7 @@ function Th({
   return (
     <TableHead
       className={cn(
-        "border-b border-border bg-surface-muted/65 px-3 py-2 text-xs font-semibold text-muted-foreground",
+        "border-b border-border bg-muted/65 px-3 py-2 text-xs font-semibold text-muted-foreground",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -2637,7 +2637,7 @@ function SubmitButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button disabled={disabled || pending} type="submit" variant="primary">
+    <Button disabled={disabled || pending} type="submit" variant="default">
       {pending ? "Saving…" : label}
     </Button>
   );

@@ -4,7 +4,7 @@ import {
   getUnitsScreenData,
 } from "@/features/units/data/units";
 import { parseUnitSearchParams } from "@/features/units/unit.filters";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { getUuidSearchParam } from "@/lib/validation/search-params";
 
 type UnitsPageProps = {
@@ -12,7 +12,7 @@ type UnitsPageProps = {
 };
 
 export default async function UnitsPage({ searchParams }: UnitsPageProps) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const params = await searchParams;
   const viewQuery = parseUnitSearchParams(params);
   const [{ pagination, units }, propertyOptions] = await Promise.all([

@@ -31,8 +31,8 @@ export function DashboardPeriodPickerClient<TKey extends string = string>({
       <Popover.Trigger asChild>
         <button
           className={cn(
-            "inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-surface-muted",
-            open && "bg-surface-muted",
+            "inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted",
+            open && "bg-muted",
           )}
           type="button"
         >
@@ -43,14 +43,14 @@ export function DashboardPeriodPickerClient<TKey extends string = string>({
       <Popover.Portal>
         <Popover.Content
           align="end"
-          className="z-[80] w-52 overflow-hidden rounded-md border border-border bg-surface py-1 shadow-lg"
+          className="z-[80] w-52 overflow-hidden rounded-md border border-border bg-card py-1 shadow-lg"
           sideOffset={6}
         >
           {options.map((option) => (
             <Link
               className={cn(
-                "grid gap-0.5 px-3 py-2 text-left transition-colors hover:bg-surface-muted",
-                option.key === selectedPeriod ? "bg-surface-muted" : null,
+                "grid gap-0.5 px-3 py-2 text-left transition-colors hover:bg-muted",
+                option.key === selectedPeriod ? "bg-muted" : null,
               )}
               href={getDashboardPeriodHref(href, paramName, option.key)}
               key={option.key}
@@ -60,7 +60,7 @@ export function DashboardPeriodPickerClient<TKey extends string = string>({
               <span className="text-[13px] font-semibold text-foreground">
                 {option.label}
               </span>
-              <span className="text-[11px] text-foreground-subtle">
+              <span className="text-[11px] text-muted-foreground">
                 {option.helper}
               </span>
             </Link>

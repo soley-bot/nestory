@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -199,12 +199,10 @@ describe("entry experience contracts", () => {
     const loginForm = readSource(
       "src/features/auth/components/login-form.tsx",
     );
-    const signup = readSource("src/app/(auth)/signup/page.tsx");
     const shell = readSource("src/features/auth/components/auth-page-shell.tsx");
     const themeToggle = readSource(
       "src/components/theme-toggle.tsx",
     );
-    const setup = readSource("src/app/setup/page.tsx");
 
     expect(login).toContain('contextLabel="Property operations"');
     expect(login).toContain('contextTitle="See the full record."');
@@ -217,9 +215,10 @@ describe("entry experience contracts", () => {
     expect(login).not.toContain('switchHref="/signup"');
     expect(login).not.toContain("Create workspace");
     expect(loginForm).toContain('href="/forgot-password"');
-    expect(signup).toContain('redirect("/login")');
-    expect(setup).toContain('redirect("/no-access")');
-    expect(setup).not.toContain("SetupOrganizationForm");
+    expect(
+      existsSync(resolve("src/app/(auth)/signup/page.tsx")),
+    ).toBe(false);
+    expect(existsSync(resolve("src/app/setup/page.tsx"))).toBe(false);
   });
 
   it("associates auth validation with the affected fields", () => {

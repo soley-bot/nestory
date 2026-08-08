@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createDocumentAction } from "@/features/documents/actions";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type UnitFieldErrors = {
@@ -125,7 +125,7 @@ export async function createUnitAction(
   _state: UnitActionState,
   formData: FormData,
 ): Promise<UnitActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = unitMutationSchema.safeParse(readUnitMutationInput(formData));
 
   if (!parsed.success) {
@@ -190,7 +190,7 @@ export async function updateUnitAction(
   _state: UnitActionState,
   formData: FormData,
 ): Promise<UnitActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedUnitId = unitIdSchema.safeParse(readString(formData, "unitId"));
   const parsed = unitMutationSchema.safeParse(readUnitMutationInput(formData));
 
@@ -277,7 +277,7 @@ export async function archiveUnitAction(
   _state: UnitActionState,
   formData: FormData,
 ): Promise<UnitActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedUnitId = unitIdSchema.safeParse(readString(formData, "unitId"));
 
   if (!parsedUnitId.success) {
@@ -317,7 +317,7 @@ export async function restoreUnitAction(
   _state: UnitActionState,
   formData: FormData,
 ): Promise<UnitActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedUnitId = unitIdSchema.safeParse(readString(formData, "unitId"));
 
   if (!parsedUnitId.success) {

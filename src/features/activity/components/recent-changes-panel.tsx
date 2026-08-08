@@ -25,7 +25,7 @@ export function RecentChangesPanel({
   const hiddenChangeCount = Math.max(0, changes.length - visibleChanges.length);
 
   return (
-    <section className="rounded-md border border-border bg-surface">
+    <section className="rounded-md border border-border bg-card">
       <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-2">
           <History size={16} className="text-muted-foreground" />

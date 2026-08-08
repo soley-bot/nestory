@@ -167,7 +167,7 @@ function InboxSurface({
           ))}
         </SurfaceList>
       </section>
-      <aside className="rounded-md border border-border bg-surface">
+      <aside className="rounded-md border border-border bg-card">
         <div className="border-b border-border px-3 py-2">
           <p className="text-xs font-medium uppercase tracking-[0] text-muted-foreground">
             Needs triage
@@ -183,12 +183,12 @@ function InboxSurface({
           <div className="divide-y divide-border">
             {attentionCases.slice(0, 6).map((maintenanceCase) => (
               <div
-                className="flex items-start gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-surface-muted"
+                className="flex items-start gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
                 key={maintenanceCase.id}
               >
                 <div className="min-w-0 flex-1">
                   <Link
-                    className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                     href={maintenanceCase.hrefs.task}
                     prefetch={false}
                   >
@@ -205,7 +205,7 @@ function InboxSurface({
                 </div>
                 <button
                   aria-label={`Preview ${maintenanceCase.title}`}
-                  className="inline-flex size-7 shrink-0 items-center justify-center rounded border border-border outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded border border-border outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                   data-maintenance-record-trigger={maintenanceCase.id}
                   onClick={() => onSelect(maintenanceCase.id)}
                   type="button"
@@ -246,7 +246,7 @@ function AgendaSurface({
   }
 
   return (
-    <section className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-surface">
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border bg-card">
       <div className="flex flex-col gap-2 border-b border-border px-4 py-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-2">
           <CalendarNavLink href={monthLinks.today} label="Today">
@@ -356,7 +356,7 @@ function ChecklistSurface({
               onSelect={onSelect}
               selected={selectedTaskId === maintenanceCase.id}
             />
-            <div className="mt-3 rounded-md border border-border bg-surface-muted/60 px-3 py-2">
+            <div className="mt-3 rounded-md border border-border bg-muted/60 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold uppercase tracking-[0] text-muted-foreground">
                   Checklist
@@ -429,7 +429,7 @@ function RoutineSurface({
         <EmptySurface label={emptyLabel} />
       ) : (
         groups.map((group) => (
-          <div className="rounded-md border border-border bg-surface" key={group.key}>
+          <div className="rounded-md border border-border bg-card" key={group.key}>
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
               <p className="text-sm font-semibold">{group.label}</p>
               <Badge tone={group.tone}>{group.cases.length}</Badge>
@@ -475,7 +475,7 @@ function WorkloadSurface({
       ) : (
         <div className="grid gap-3 xl:grid-cols-3">
           {groups.map((group) => (
-            <div className="rounded-md border border-border bg-surface" key={group.key}>
+            <div className="rounded-md border border-border bg-card" key={group.key}>
               <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
                 <div>
                   <p className="text-sm font-semibold">{group.label}</p>
@@ -587,8 +587,8 @@ function CalendarDayCell({
   return (
     <div
       className={cn(
-        "relative min-h-0 bg-surface px-1.5 py-1",
-        !day.inMonth && "bg-surface-muted/50 text-muted-foreground",
+        "relative min-h-0 bg-card px-1.5 py-1",
+        !day.inMonth && "bg-muted/50 text-muted-foreground",
         showBottomBorder && "border-b border-border",
         showRightBorder && "border-r border-border",
       )}
@@ -596,7 +596,7 @@ function CalendarDayCell({
       {onCreateDate ? (
         <button
           aria-label={`Add scheduled item on ${formatCalendarPanelDate(day.date)}`}
-          className="absolute inset-0 z-0 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+          className="absolute inset-0 z-0 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           data-calendar-add-date={day.date}
           onClick={() => onCreateDate(day.date)}
           type="button"
@@ -625,7 +625,7 @@ function CalendarDayCell({
           <button
             aria-expanded={overflowExpanded}
             aria-haspopup="dialog"
-            className="block min-h-6 w-full rounded-sm px-1.5 py-1 text-left text-xs font-medium leading-4 text-muted-foreground hover:bg-surface-muted hover:text-foreground"
+            className="block min-h-6 w-full rounded-sm px-1.5 py-1 text-left text-xs font-medium leading-4 text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={(event) =>
               onActivateOverflow(dayCases.slice(3), event.currentTarget)
             }
@@ -657,7 +657,7 @@ function CalendarCaseButton({
       aria-haspopup="dialog"
       aria-label={`${maintenanceCase.title}, ${maintenanceCase.statusLabel}, ${maintenanceCase.priorityLabel}, ${maintenanceCase.propertyLabel}, ${maintenanceCase.assigneeLabel}, ${maintenanceCase.vendorLabel}`}
       className={cn(
-        "block min-h-6 w-full rounded px-1.5 py-1 text-left text-xs leading-4 transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+        "block min-h-6 w-full rounded px-1.5 py-1 text-left text-xs leading-4 transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         getCalendarCaseClassName(maintenanceCase),
       )}
       data-maintenance-record-trigger={maintenanceCase.id}
@@ -688,7 +688,7 @@ function CalendarEventPopover({
     <div
       aria-label={`${maintenanceCase.title} calendar event`}
       aria-modal="false"
-      className="absolute left-1/2 top-24 z-30 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-surface shadow-xl"
+      className="absolute left-1/2 top-24 z-30 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-card shadow-xl"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.preventDefault();
@@ -701,7 +701,7 @@ function CalendarEventPopover({
       <div className="flex justify-end px-2 pt-2">
         <button
           aria-label="Close event"
-          className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={onClose}
           ref={firstActionRef}
           type="button"
@@ -719,7 +719,7 @@ function CalendarEventPopover({
         <div className="min-w-0">
           <h3 className="break-words text-lg font-normal leading-6">
             <Link
-              className="inline-flex min-h-6 items-center rounded outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="inline-flex min-h-6 items-center rounded outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
               href={maintenanceCase.hrefs.task}
               prefetch={false}
             >
@@ -744,7 +744,7 @@ function CalendarEventPopover({
             <p className="text-muted-foreground">{maintenanceCase.vendorLabel}</p>
           </div>
           <button
-            className="mt-4 inline-flex h-8 items-center justify-center rounded-md border border-border bg-surface px-3 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="mt-4 inline-flex h-8 items-center justify-center rounded-md border border-border bg-card px-3 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
             onClick={onOpen}
             type="button"
           >
@@ -775,7 +775,7 @@ function CalendarOverflowPopover({
     <div
       aria-label={`${cases.length} more calendar events`}
       aria-modal="false"
-      className="absolute left-1/2 top-24 z-30 w-[min(460px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-surface shadow-xl"
+      className="absolute left-1/2 top-24 z-30 w-[min(460px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-border bg-card shadow-xl"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.preventDefault();
@@ -789,7 +789,7 @@ function CalendarOverflowPopover({
         <h3 className="text-sm font-semibold">More calendar events</h3>
         <button
           aria-label="Close events"
-          className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={onClose}
           type="button"
         >
@@ -804,7 +804,7 @@ function CalendarOverflowPopover({
           >
             <div className="min-w-0 flex-1">
               <Link
-                className="flex min-h-6 items-center truncate rounded font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="flex min-h-6 items-center truncate rounded font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                 href={maintenanceCase.hrefs.task}
                 prefetch={false}
                 ref={index === 0 ? firstActionRef : undefined}
@@ -817,7 +817,7 @@ function CalendarOverflowPopover({
             </div>
             <button
               aria-label={`Preview ${maintenanceCase.title}`}
-              className="inline-flex min-h-6 shrink-0 items-center gap-1 rounded-md border border-border bg-surface px-2 text-xs font-medium outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+              className="inline-flex min-h-6 shrink-0 items-center gap-1 rounded-md border border-border bg-card px-2 text-xs font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               data-maintenance-record-trigger={maintenanceCase.id}
               onClick={() => onOpen(maintenanceCase)}
               type="button"
@@ -845,7 +845,7 @@ function getCalendarCaseClassName(maintenanceCase: MaintenanceCase) {
     return "bg-success/15 text-success";
   }
 
-  return "bg-accent-soft text-foreground";
+  return "bg-accent text-foreground";
 }
 
 function getCalendarEventDotClassName(maintenanceCase: MaintenanceCase) {
@@ -876,7 +876,7 @@ function CalendarNavLink({
   return (
     <Link
       aria-label={label}
-      className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-border bg-background px-2 text-xs font-medium transition-colors hover:bg-surface-muted"
+      className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-border bg-background px-2 text-xs font-medium transition-colors hover:bg-muted"
       href={href}
       prefetch={false}
       title={label}
@@ -900,7 +900,7 @@ function CardHeader({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
-            className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="block truncate font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
             href={maintenanceCase.hrefs.task}
             prefetch={false}
             title={maintenanceCase.title}
@@ -916,7 +916,7 @@ function CardHeader({
           <button
             aria-label={`Preview ${maintenanceCase.title}`}
             aria-pressed={selected}
-            className="inline-flex h-7 items-center gap-1 rounded border border-border bg-surface px-2 text-xs font-medium outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="inline-flex h-7 items-center gap-1 rounded border border-border bg-card px-2 text-xs font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
             data-maintenance-record-trigger={maintenanceCase.id}
             onClick={() => onSelect(maintenanceCase.id)}
             type="button"
@@ -934,7 +934,7 @@ function CardHeader({
           {maintenanceCase.priorityLabel}
         </Badge>
       </div>
-      <div className="mt-2 grid gap-1 text-xs text-foreground-muted sm:grid-cols-2">
+      <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
         <span className="truncate">Assignee: {maintenanceCase.assigneeLabel}</span>
         <span className="truncate">Vendor: {maintenanceCase.vendorLabel}</span>
       </div>
@@ -964,7 +964,7 @@ function SectionTitle({
 
 function EmptySurface({ label }: { label: string }) {
   return (
-    <div className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
+    <div className="rounded-md border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
       {label}
     </div>
   );
@@ -972,8 +972,8 @@ function EmptySurface({ label }: { label: string }) {
 
 function cardClassName(selected: boolean) {
   return cn(
-    "block w-full rounded-md border border-border bg-surface px-3 py-3 text-left shadow-sm transition-colors hover:border-accent/40 hover:bg-surface-muted",
-    selected && "border-record-spine bg-state-selected",
+    "block w-full rounded-md border border-border bg-card px-3 py-3 text-left shadow-sm transition-colors hover:border-accent/40 hover:bg-muted",
+    selected && "border-record-spine bg-accent",
   );
 }
 

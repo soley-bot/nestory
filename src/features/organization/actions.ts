@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuthCallbackUrl } from "@/lib/auth/callback-url";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -72,7 +72,7 @@ export async function createBranchAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = branchSchema.safeParse({
     address: readString(formData, "address"),
     code: readString(formData, "code"),
@@ -103,7 +103,7 @@ export async function createTeamAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = teamSchema.safeParse({
     branchId: readString(formData, "branchId"),
     managerPersonId: readString(formData, "managerPersonId"),
@@ -134,7 +134,7 @@ export async function updateMemberAccessAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = memberSchema.safeParse({
     branchId: readString(formData, "branchId"),
     memberId: readString(formData, "memberId"),
@@ -172,7 +172,7 @@ export async function inviteOrganizationUserAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = userAccessSchema.safeParse({
     branchId: readString(formData, "branchId"),
     email: readString(formData, "email"),
@@ -270,7 +270,7 @@ export async function resendOrganizationInvitationAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  await requireAdminContext();
+  await requireSuperAdminContext();
   const parsed = invitationIdSchema.safeParse({
     invitationId: readString(formData, "invitationId"),
   });
@@ -315,7 +315,7 @@ export async function revokeOrganizationInvitationAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  await requireAdminContext();
+  await requireSuperAdminContext();
   const parsed = invitationIdSchema.safeParse({
     invitationId: readString(formData, "invitationId"),
   });
@@ -339,7 +339,7 @@ export async function removeMemberAccessAction(
   _state: OrganizationActionState,
   formData: FormData,
 ): Promise<OrganizationActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = memberIdSchema.safeParse({
     memberId: readString(formData, "memberId"),
   });

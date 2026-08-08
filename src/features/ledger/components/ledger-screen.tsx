@@ -144,13 +144,13 @@ export function LedgerScreen({
     viewQuery.sort !== "date_desc" ||
     viewQuery.unitId !== "all";
   const ledgerList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-surface">
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
       {entries.length === 0 ? (
         <EmptyState
           action={
             hasFilters ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href="/ledger"
                 scroll={false}
               >
@@ -226,7 +226,7 @@ export function LedgerScreen({
         {statusMessage ? (
           <div className="px-4 pt-5 sm:px-6 lg:px-6">
             <p
-              className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+              className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
               role="status"
             >
               {statusMessage}
@@ -350,15 +350,15 @@ function LedgerReviewStrip({
   propertyLabel?: string;
 }) {
   return (
-    <div className="border-b border-border bg-surface-muted/35 px-4 py-2 sm:px-6 lg:px-6">
+    <div className="border-b border-border bg-muted/35 px-4 py-2 sm:px-6 lg:px-6">
       <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="min-w-0 truncate font-medium text-foreground">
           {count} {count === 1 ? "entry" : "entries"} {context.countLabel}
           {propertyLabel ? ` in ${propertyLabel}` : ""}
         </p>
-        <p className="text-foreground-muted">{context.nextStep}</p>
+        <p className="text-muted-foreground">{context.nextStep}</p>
       </div>
-      <p className="mt-1 text-xs text-foreground-subtle">
+      <p className="mt-1 text-xs text-muted-foreground">
         {context.description}
       </p>
     </div>
@@ -539,7 +539,7 @@ function ReceiptPanel({
     <form action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <div className="rounded-md border border-border bg-surface-muted px-3 py-3">
+        <div className="rounded-md border border-border bg-muted px-3 py-3">
           <p className="text-sm font-medium">{entry.category}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {entry.relatedTimelineEvent
@@ -564,13 +564,13 @@ function ReceiptPanel({
           ) : null}
         </label>
 
-        <p className="rounded-md border border-border bg-surface-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
+        <p className="rounded-md border border-border bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
           Accepted files: PDF, JPG, PNG, and WebP up to 10 MB.
         </p>
 
         {state.message ? (
           <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
             role={state.status === "error" ? "alert" : "status"}
           >
             {state.message}
@@ -587,7 +587,7 @@ function ReceiptPanel({
             className="w-full sm:w-auto"
             disabled={pending}
             type="submit"
-            variant="primary"
+            variant="default"
           >
             <Upload size={15} />
             {pending ? "Uploading..." : "Attach receipt"}
@@ -673,7 +673,7 @@ function PeriodLockPanel({
 
         {state.message ? (
           <p
-            className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm"
+            className="rounded-md border border-border bg-muted px-3 py-2 text-sm"
             role={state.status === "error" ? "alert" : "status"}
           >
             {state.message}
@@ -719,7 +719,7 @@ function PeriodLockPanel({
             className="w-full sm:w-auto"
             disabled={pending}
             type="submit"
-            variant="primary"
+            variant="default"
           >
             <Lock size={15} />
             {pending ? "Updating..." : "Update month"}

@@ -40,7 +40,7 @@ describe("AccountScreen", () => {
     const sectionTags = html.match(/<section\b[^>]*>/g) ?? [];
     expect(sectionTags).toHaveLength(4);
     for (const sectionTag of sectionTags) {
-      expect(sectionTag).not.toMatch(/rounded-md|bg-surface(?:-raised)?|border border-border/);
+      expect(sectionTag).not.toMatch(/rounded-md|bg-card(?:-raised)?|border border-border/);
     }
   });
 

@@ -5,13 +5,13 @@ const {
   getPeopleInsightsData,
   getPeopleScreenData,
   parsePeopleSearchParams,
-  requireAdminContext,
+  requireSuperAdminContext,
 } = vi.hoisted(() => ({
   getAccessByPersonId: vi.fn(),
   getPeopleInsightsData: vi.fn(),
   getPeopleScreenData: vi.fn(),
   parsePeopleSearchParams: vi.fn(),
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
 }));
 
 vi.mock("@/features/organization/data", () => ({ getAccessByPersonId }));
@@ -20,7 +20,7 @@ vi.mock("@/features/people/data/people-insights", () => ({
 }));
 vi.mock("@/features/people/data/people", () => ({ getPeopleScreenData }));
 vi.mock("@/features/people/people.filters", () => ({ parsePeopleSearchParams }));
-vi.mock("@/lib/auth/context", () => ({ requireAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
 
 import { PeopleModulePageContent } from "./people-module-page";
 
@@ -30,9 +30,9 @@ describe("PeopleModulePageContent", () => {
     getPeopleInsightsData.mockReset();
     getPeopleScreenData.mockReset();
     parsePeopleSearchParams.mockReset();
-    requireAdminContext.mockReset();
+    requireSuperAdminContext.mockReset();
 
-    requireAdminContext.mockResolvedValue({ organizationId: "organization-1" });
+    requireSuperAdminContext.mockResolvedValue({ organizationId: "organization-1" });
     parsePeopleSearchParams.mockReturnValue({ personId: null });
     getAccessByPersonId.mockResolvedValue({});
   });

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildOwnerActivityReport } from "@/features/reports/data/owner-activity-report";
+import { buildMonthlyOwnerActivityReport } from "@/features/reports/data/monthly-owner-activity-report";
 import type { ReportsViewQuery } from "@/features/reports/reports.types";
 
 describe("owner activity report", () => {
   it("mirrors the property account categories operators use", () => {
-    const report = buildOwnerActivityReport({
+    const report = buildMonthlyOwnerActivityReport({
       entries: [
         entry("rent_income", 800, 800),
         entry("management_fee_expense", 80, -80),
@@ -20,7 +20,7 @@ describe("owner activity report", () => {
       viewQuery: query(),
     });
 
-    expect(report.kind).toBe("owner-activity");
+    expect(report.kind).toBe("monthly-owner-activity");
     expect(report.summary.map(({ label, value }) => [label, value])).toEqual([
       ["Rent", "USD 800.00"],
       ["Management fee", "USD 80.00"],
@@ -39,7 +39,7 @@ describe("owner activity report", () => {
   });
 
   it("does not fill the report with zero rows", () => {
-    const report = buildOwnerActivityReport({
+    const report = buildMonthlyOwnerActivityReport({
       entries: [],
       ownerNames: new Map([["property-1", "Maly Chen"]]),
       period: { end: "2026-08-31", start: "2026-08-01" },
@@ -71,7 +71,7 @@ function query(): ReportsViewQuery {
     peopleArchiveState: "active",
     peopleView: "relationship",
     propertyId: "all",
-    report: "owner-activity",
+    report: "monthly-owner-activity",
     status: "all",
     unitId: "all",
   };

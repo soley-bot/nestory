@@ -26,7 +26,7 @@ export function LeasesTable({
     <div className="h-full min-h-0">
       <div className="h-full min-h-[380px] space-y-3 overflow-auto pr-1 md:hidden">
         {leases.length === 0 ? (
-          <p className="rounded-md border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
+          <p className="rounded-md border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
             {getEmptyMessage(archiveState)}
           </p>
         ) : null}
@@ -55,7 +55,7 @@ export function LeasesTable({
               <col className="w-[19%]" />
               <col className="w-[14%]" />
             </colgroup>
-            <thead className="sticky top-0 z-10 bg-surface-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+            <thead className="sticky top-0 z-10 bg-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
                 <th className="px-2.5 py-2.5 font-semibold">Tenant</th>
                 <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
@@ -77,9 +77,9 @@ export function LeasesTable({
                 <tr
                   aria-selected={selectedLeaseId === lease.id}
                   className={cn(
-                    "cursor-pointer border-t border-border outline-none transition-colors hover:bg-surface-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring",
+                    "cursor-pointer border-t border-border outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                     selectedLeaseId === lease.id &&
-                      "bg-state-selected shadow-[inset_3px_0_0_var(--record-spine)]",
+                      "bg-accent shadow-[inset_3px_0_0_var(--record-spine)]",
                     lease.isArchived && "text-muted-foreground",
                   )}
                   key={lease.id}
@@ -146,7 +146,7 @@ export function LeasesTable({
 
 function RecordContextLinks({ lease }: { lease: LeaseSummary }) {
   const linkClassName =
-    "block truncate rounded-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-focus-ring";
+    "block truncate rounded-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <div className="min-w-0">
@@ -164,7 +164,7 @@ function RecordContextLinks({ lease }: { lease: LeaseSummary }) {
         <span className="block truncate font-medium">{lease.unitLabel}</span>
       )}
       <Link
-        className="mt-0.5 block truncate rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="mt-0.5 block truncate rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         href={`/properties/${lease.propertyId}`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
@@ -190,8 +190,8 @@ function LeaseCard({
   return (
     <article
       className={cn(
-        "min-w-0 rounded-md border border-border bg-surface p-3 text-sm transition-colors hover:border-record-spine",
-        selected && "border-record-spine bg-state-selected",
+        "min-w-0 rounded-md border border-border bg-card p-3 text-sm transition-colors hover:border-record-spine",
+        selected && "border-record-spine bg-accent",
         lease.isArchived && "text-muted-foreground",
       )}
       data-selected={selected ? "true" : "false"}
@@ -224,8 +224,8 @@ function LeaseCard({
         aria-label={`Preview lease for ${lease.tenantName}`}
         aria-pressed={selected}
         className={cn(
-          "mt-3 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
-          selected && "border-record-spine bg-state-selected",
+          "mt-3 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+          selected && "border-record-spine bg-accent",
         )}
         onClick={() => onSelectLease(lease.id)}
         type="button"

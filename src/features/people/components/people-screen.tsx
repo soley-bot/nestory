@@ -151,7 +151,7 @@ export function PeopleScreen({
           action={
             hasFilters ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
                 scroll={false}
               >
@@ -160,7 +160,7 @@ export function PeopleScreen({
             ) : canCreate ? (
               <Button
                 onClick={() => openPeopleAction({ mode: "create" })}
-                variant="primary"
+                variant="default"
               >
                 <Plus size={15} />
                 {addButtonLabel}
@@ -202,7 +202,7 @@ export function PeopleScreen({
           {canCreate ? (
             <Button
               onClick={() => openPeopleAction({ mode: "create" })}
-              variant="primary"
+              variant="default"
             >
               <Plus size={15} />
               {addButtonLabel}
@@ -350,7 +350,7 @@ function PeopleReviewStrip({
         <p className="min-w-0 truncate font-medium text-foreground">
           {count} {count === 1 ? "person" : "people"} {context.countLabel}
         </p>
-        <p className="text-foreground-muted">{context.nextStep}</p>
+        <p className="text-muted-foreground">{context.nextStep}</p>
       </div>
     </div>
   );

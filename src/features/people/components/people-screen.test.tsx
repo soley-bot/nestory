@@ -84,7 +84,7 @@ vi.mock("@/features/people/components/person-form", () => ({
 }));
 
 vi.mock("@/lib/auth/context", () => ({
-  requireAdminContext: async () => ({ organizationId: "organization-1" }),
+  requireSuperAdminContext: async () => ({ organizationId: "organization-1" }),
 }));
 
 const defaultViewQuery: PeopleViewQuery = {

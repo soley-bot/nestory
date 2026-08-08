@@ -164,13 +164,13 @@ export function PropertyScreen({
       {canCreate ? (
         <>
           <Link
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             href="/properties/setup"
           >
             <ListChecks size={15} />
             Set up property
           </Link>
-          <Button onClick={openCreateProperty} variant="primary">
+          <Button onClick={openCreateProperty} variant="default">
             <Plus size={15} />
             Add property
           </Button>
@@ -197,14 +197,14 @@ export function PropertyScreen({
           action={
             hasFilters ? (
               <Link
-                className="inline-flex h-8 items-center rounded-md border border-border bg-surface px-2.5 text-sm font-medium outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
                 scroll={false}
               >
                 Clear filters
               </Link>
             ) : canCreate ? (
-              <Button onClick={openCreateProperty} variant="primary">
+              <Button onClick={openCreateProperty} variant="default">
                 <Plus size={15} />
                 Add property
               </Button>
@@ -378,7 +378,7 @@ function PropertyReviewStrip({
         <p className="min-w-0 truncate font-medium text-foreground">
           {count} {count === 1 ? "property" : "properties"} {context.countLabel}
         </p>
-        <p className="text-foreground-muted">{context.nextStep}</p>
+        <p className="text-muted-foreground">{context.nextStep}</p>
       </div>
     </div>
   );

@@ -86,7 +86,7 @@ export function ImplicitSessionCompletion({
   return (
     <p
       aria-live="polite"
-      className="text-sm leading-6 text-foreground-muted"
+      className="text-sm leading-6 text-muted-foreground"
     >
       Verifying your secure link…
     </p>

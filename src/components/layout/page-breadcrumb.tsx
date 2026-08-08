@@ -19,12 +19,12 @@ export function PageBreadcrumb({
       {items.map((item) => (
         <span className="contents" key={`${item.href}:${item.label}`}>
           <Link
-            className="truncate text-foreground-muted underline-offset-2 hover:text-foreground hover:underline"
+            className="truncate text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             href={item.href}
           >
             {item.label}
           </Link>
-          <ChevronRight aria-hidden="true" className="shrink-0 text-foreground-subtle" size={13} />
+          <ChevronRight aria-hidden="true" className="shrink-0 text-muted-foreground" size={13} />
         </span>
       ))}
       <span aria-current="page" className="truncate font-medium text-foreground">

@@ -62,7 +62,7 @@ describe("Workspace command palette access", () => {
     renderPalette();
     const trigger = screen.getByRole("button", { name: "Search or jump" });
     expect(trigger.className).toContain("focus-visible:ring-2");
-    expect(trigger.className).toContain("focus-visible:ring-focus-ring");
+    expect(trigger.className).toContain("focus-visible:ring-ring");
 
     openPalette();
     const input = screen.getByRole("combobox", { name: "Search or jump" });
@@ -70,10 +70,10 @@ describe("Workspace command palette access", () => {
     const closeButton = screen.getByRole("button", { name: "Close search" });
 
     expect(inputFrame?.className).toContain("focus-within:ring-2");
-    expect(inputFrame?.className).toContain("focus-within:ring-focus-ring");
+    expect(inputFrame?.className).toContain("focus-within:ring-ring");
     expect(input.className).not.toContain("focus:ring-0");
     expect(closeButton.className).toContain("focus-visible:ring-2");
-    expect(closeButton.className).toContain("focus-visible:ring-focus-ring");
+    expect(closeButton.className).toContain("focus-visible:ring-ring");
   });
 
   it("opens with Ctrl+K or Cmd+K and opens from its single visible trigger", () => {

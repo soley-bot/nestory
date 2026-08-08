@@ -98,7 +98,7 @@ export function PhotoGallery({
   };
 
   return (
-    <section className="rounded-md border border-border bg-surface">
+    <section className="rounded-md border border-border bg-card">
       <div className="flex flex-col gap-2 border-b border-border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-2">
           <ImageIcon className="text-muted-foreground" size={16} />
@@ -112,7 +112,7 @@ export function PhotoGallery({
       <div className="grid gap-4 p-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <form
           action={formAction}
-          className="space-y-3 rounded-md border border-border bg-surface-muted/30 p-3"
+          className="space-y-3 rounded-md border border-border bg-muted/30 p-3"
           ref={formRef}
         >
           <div>
@@ -179,13 +179,13 @@ export function PhotoGallery({
             </p>
           ) : null}
 
-          <Button disabled={pending} type="submit" variant="primary">
+          <Button disabled={pending} type="submit" variant="default">
             <ImageIcon size={14} />
             {pending ? "Uploading..." : "Upload photo"}
           </Button>
         </form>
 
-        <section className="min-w-0 rounded-md border border-border bg-surface-muted/30 p-3">
+        <section className="min-w-0 rounded-md border border-border bg-muted/30 p-3">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold">Saved photos</h3>
             <span className="text-xs text-muted-foreground">
@@ -193,7 +193,7 @@ export function PhotoGallery({
             </span>
           </div>
           {photos.length === 0 ? (
-            <div className="flex min-h-56 items-center justify-center rounded-md border border-dashed border-border bg-surface-muted/50 p-4 text-center text-sm text-muted-foreground">
+            <div className="flex min-h-56 items-center justify-center rounded-md border border-dashed border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
               {emptyLabel}
             </div>
           ) : (
@@ -219,8 +219,8 @@ function SelectedPhotoPreview({
   preview: PhotoPreview;
 }) {
   return (
-    <article className="overflow-hidden rounded-md border border-accent/50 bg-surface">
-      <div className="relative h-40 bg-surface-muted sm:h-44">
+    <article className="overflow-hidden rounded-md border border-accent/50 bg-card">
+      <div className="relative h-40 bg-muted sm:h-44">
         <Image
           alt=""
           className="size-full object-cover"
@@ -234,7 +234,7 @@ function SelectedPhotoPreview({
         </div>
         <button
           aria-label="Clear selected photo"
-          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md border border-border bg-surface/95 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-md border border-border bg-card/95 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
           onClick={onClear}
           type="button"
         >
@@ -266,8 +266,8 @@ function SelectedPhotoPreview({
 
 function PhotoCard({ photo }: { photo: AssetPhoto }) {
   return (
-    <article className="overflow-hidden rounded-md border border-border bg-surface-muted/40">
-      <div className="relative aspect-[4/3] bg-surface-muted">
+    <article className="overflow-hidden rounded-md border border-border bg-muted/40">
+      <div className="relative aspect-[4/3] bg-muted">
         {photo.url ? (
           <Image
             alt={photo.caption || photo.fileName}

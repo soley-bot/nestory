@@ -5,9 +5,11 @@
     "phase": 2,
     "surface": "workspace",
     "roles": [
-      "admin",
-      "staff",
-      "maintenance"
+      "super_admin",
+      "finance_manager",
+      "finance_member",
+      "operations_manager",
+      "operations_member"
     ],
     "states": [
       "populated",
@@ -25,9 +27,11 @@
     "smoke": {
       "path": "/workspace",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -44,7 +48,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -97,9 +101,11 @@
     "smoke": {
       "path": "/properties?query=Central",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -120,7 +126,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -180,9 +186,11 @@
     "smoke": {
       "path": "/properties/setup?step=1",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -204,7 +212,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -257,9 +265,11 @@
     "smoke": {
       "path": "/units?query=09",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -280,7 +290,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -313,9 +323,11 @@
     "smoke": {
       "path": "/people?query=Dara",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -335,7 +347,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -388,9 +400,11 @@
     "smoke": {
       "path": "/owners?query=Sokha",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -411,7 +425,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -464,9 +478,11 @@
     "smoke": {
       "path": "/staff?query=Mara",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -487,7 +503,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -540,9 +556,11 @@
     "smoke": {
       "path": "/tenants?query=Dara",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -563,7 +581,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -616,9 +634,11 @@
     "smoke": {
       "path": "/vendors?query=Vendor",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -694,9 +714,11 @@
     "smoke": {
       "path": "/leases?query=Dara",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -772,9 +794,11 @@
     "smoke": {
       "path": "/rent-income?query=Central",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -850,9 +874,11 @@
     "smoke": {
       "path": "/bills-expenses?query=Repair",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -928,9 +954,11 @@
     "smoke": {
       "path": "/ledger?query=Central",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1006,9 +1034,11 @@
     "smoke": {
       "path": "/petty-cash",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1084,9 +1114,11 @@
     "smoke": {
       "path": "/maintenance?view=list&query=Kitchen",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1162,9 +1194,11 @@
     "smoke": {
       "path": "/tasks?query=Kitchen",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1240,9 +1274,11 @@
     "smoke": {
       "path": "/recurring-tasks",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1318,9 +1354,11 @@
     "smoke": {
       "path": "/inspections",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1396,9 +1434,11 @@
     "smoke": {
       "path": "/work-orders",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1419,7 +1459,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -1472,9 +1512,11 @@
     "smoke": {
       "path": "/timeline?query=Kitchen",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1495,7 +1537,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -1548,9 +1590,11 @@
     "smoke": {
       "path": "/financial-timeline?query=Central",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1571,7 +1615,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -1624,9 +1668,11 @@
     "smoke": {
       "path": "/maintenance-timeline?query=Kitchen",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1647,7 +1693,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -1700,9 +1746,11 @@
     "smoke": {
       "path": "/property-timeline?propertyId=10000000-0000-0000-0000-000000000001",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1723,7 +1771,7 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -1776,9 +1824,11 @@
     "smoke": {
       "path": "/documents?query=lease",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1797,23 +1847,37 @@
     "route": "/reports",
     "source": "src/app/(dashboard)/reports/page.tsx",
     "phase": 3,
-    "surface": "redirect",
+    "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
-    "states": [],
-    "evidence": {},
+    "states": [
+      "populated",
+      "permission-blocked"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/(dashboard)/reports/page.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/reports/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
     "smoke": {
       "path": "/reports",
       "expectedAccess": {
-        "admin": "redirected",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
-      "queryContract": "redirect-normalized",
+      "queryContract": "not-applicable",
       "workflowEvidence": [
-        "src/app/(dashboard)/reports/page.tsx"
+        "src/app/(dashboard)/reports/page.tsx",
+        "src/app/(dashboard)/reports/page.test.tsx"
       ],
       "limitations": []
     }
@@ -1824,7 +1888,7 @@
     "phase": 3,
     "surface": "detail",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -1862,9 +1926,11 @@
     "smoke": {
       "path": "/reports/unit-profit-loss?month=2026-07",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1879,38 +1945,12 @@
     }
   },
   {
-    "route": "/people-reports",
-    "source": "src/app/(dashboard)/people-reports/page.tsx",
-    "phase": 3,
-    "surface": "redirect",
-    "roles": [
-      "admin"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/people-reports?report=staff-access&archiveState=archived",
-      "expectedAccess": {
-        "admin": "redirected",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "redirect-normalized",
-      "workflowEvidence": [
-        "src/app/(dashboard)/people-reports/page.test.tsx"
-      ],
-      "limitations": [],
-      "expectedFinalPath": "/people"
-    }
-  },
-  {
     "route": "/settings",
     "source": "src/app/(dashboard)/settings/page.tsx",
     "phase": 4,
     "surface": "settings",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -1958,9 +1998,11 @@
     "smoke": {
       "path": "/settings",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1981,7 +2023,7 @@
     "phase": 4,
     "surface": "settings",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "populated",
@@ -2033,9 +2075,11 @@
     "smoke": {
       "path": "/settings/rent-policy",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -2053,7 +2097,7 @@
     "phase": 4,
     "surface": "settings",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -2103,9 +2147,11 @@
     "smoke": {
       "path": "/users-roles",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -2128,9 +2174,11 @@
     "phase": 4,
     "surface": "settings",
     "roles": [
-      "admin",
-      "staff",
-      "maintenance"
+      "super_admin",
+      "finance_manager",
+      "finance_member",
+      "operations_manager",
+      "operations_member"
     ],
     "states": [
       "loading",
@@ -2158,9 +2206,11 @@
     "smoke": {
       "path": "/account",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -2179,7 +2229,7 @@
     "phase": 4,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -2232,9 +2282,11 @@
     "smoke": {
       "path": "/import",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -2255,7 +2307,7 @@
     "phase": 5,
     "surface": "workspace",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -2293,9 +2345,11 @@
     "smoke": {
       "path": "/overview",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -2315,7 +2369,7 @@
     "phase": 5,
     "surface": "detail",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -2343,9 +2397,11 @@
     "smoke": {
       "path": "/overview/attention?month=2026-07",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -2364,7 +2420,7 @@
     "phase": 5,
     "surface": "detail",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -2417,9 +2473,11 @@
     "smoke": {
       "path": "/properties/10000000-0000-0000-0000-000000000001",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -2440,7 +2498,7 @@
     "phase": 5,
     "surface": "detail",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -2493,9 +2551,11 @@
     "smoke": {
       "path": "/units/20000000-0000-0000-0000-000000000001",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -2516,7 +2576,7 @@
     "phase": 5,
     "surface": "detail",
     "roles": [
-      "admin"
+      "super_admin"
     ],
     "states": [
       "loading",
@@ -2569,9 +2629,11 @@
     "smoke": {
       "path": "/people/80100000-0000-0000-0000-000000000001",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -2605,9 +2667,11 @@
     "smoke": {
       "path": "/",
       "expectedAccess": {
-        "admin": "redirected",
-        "manager": "redirected",
-        "member": "redirected",
+        "super_admin": "redirected",
+        "finance_manager": "redirected",
+        "finance_member": "redirected",
+        "operations_manager": "redirected",
+        "operations_member": "redirected",
         "anonymous": "accessible"
       },
       "queryContract": "not-applicable",
@@ -2658,9 +2722,11 @@
     "smoke": {
       "path": "/request?intent=demo",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "accessible"
       },
       "queryContract": "preserved",
@@ -2709,9 +2775,11 @@
     "smoke": {
       "path": "/login",
       "expectedAccess": {
-        "admin": "redirected",
-        "manager": "redirected",
-        "member": "redirected",
+        "super_admin": "redirected",
+        "finance_manager": "redirected",
+        "finance_member": "redirected",
+        "operations_manager": "redirected",
+        "operations_member": "redirected",
         "anonymous": "accessible"
       },
       "queryContract": "not-applicable",
@@ -2759,9 +2827,11 @@
     "smoke": {
       "path": "/forgot-password",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "accessible"
       },
       "queryContract": "not-applicable",
@@ -2808,9 +2878,11 @@
     "smoke": {
       "path": "/update-password",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "accessible"
       },
       "queryContract": "not-applicable",
@@ -2852,9 +2924,11 @@
     "smoke": {
       "path": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "accessible"
       },
       "queryContract": "preserved",
@@ -2909,9 +2983,11 @@
     "smoke": {
       "path": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "accessible"
       },
       "queryContract": "preserved",
@@ -2921,62 +2997,6 @@
       ],
       "limitations": [
         "A valid matching invitation and Supabase-authenticated email session are required for acceptance."
-      ]
-    }
-  },
-  {
-    "route": "/signup",
-    "source": "src/app/(auth)/signup/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
-    "roles": [
-      "public"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/signup",
-      "expectedAccess": {
-        "admin": "redirected",
-        "manager": "redirected",
-        "member": "redirected",
-        "anonymous": "login-required"
-      },
-      "queryContract": "not-applicable",
-      "workflowEvidence": [
-        "src/app/(auth)/signup/page.tsx",
-        "src/features/auth/auth-entry-routes.test.ts"
-      ],
-      "limitations": [
-        "Anonymous requests land on login; already-authenticated sessions continue through the auth proxy to workspace."
-      ]
-    }
-  },
-  {
-    "route": "/setup",
-    "source": "src/app/setup/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
-    "roles": [
-      "unlinked"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/setup",
-      "expectedAccess": {
-        "admin": "permission-blocked",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "not-applicable",
-      "workflowEvidence": [
-        "src/app/setup/page.tsx",
-        "src/app/setup/page.test.ts"
-      ],
-      "limitations": [
-        "The retired route redirects authenticated users to the no-access recovery page; anonymous users are intercepted by the auth proxy."
       ]
     }
   },
@@ -3000,9 +3020,11 @@
     "smoke": {
       "path": "/no-access",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "accessible",
-        "member": "accessible",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -3013,32 +3035,6 @@
       "limitations": [
         "Unlinked-account browser presentation is covered by unit and state contracts; the retained local fixtures represent linked roles."
       ]
-    }
-  },
-  {
-    "route": "/property-dashboard",
-    "source": "src/app/(dashboard)/property-dashboard/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
-    "roles": [
-      "admin"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/property-dashboard?query=HOME&tag=late&tag=open",
-      "expectedAccess": {
-        "admin": "redirected",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "redirect-preserved",
-      "workflowEvidence": [
-        "src/app/legacy-redirects.test.ts"
-      ],
-      "limitations": [],
-      "expectedFinalPath": "/overview?lens=records&query=HOME&tag=late&tag=open"
     }
   },
   {
@@ -3098,9 +3094,11 @@
     "smoke": {
       "path": "/finance",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -3109,86 +3107,6 @@
         "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
       "limitations": []
-    }
-  },
-  {
-    "route": "/maintenance-dashboard",
-    "source": "src/app/(dashboard)/maintenance-dashboard/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
-    "roles": [
-      "admin"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/maintenance-dashboard?query=HOME&tag=late&tag=open",
-      "expectedAccess": {
-        "admin": "redirected",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "redirect-preserved",
-      "workflowEvidence": [
-        "src/app/legacy-redirects.test.ts"
-      ],
-      "limitations": [],
-      "expectedFinalPath": "/overview?lens=maintenance&query=HOME&tag=late&tag=open"
-    }
-  },
-  {
-    "route": "/schedule",
-    "source": "src/app/(dashboard)/schedule/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
-    "roles": [
-      "admin",
-      "staff",
-      "maintenance"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/schedule?query=HOME&tag=late&tag=open",
-      "expectedAccess": {
-        "admin": "redirected",
-        "manager": "redirected",
-        "member": "redirected",
-        "anonymous": "login-required"
-      },
-      "queryContract": "redirect-preserved",
-      "workflowEvidence": [
-        "src/app/legacy-redirects.test.ts"
-      ],
-      "limitations": [],
-      "expectedFinalPath": "/maintenance?view=calendar&query=HOME&tag=late&tag=open"
-    }
-  },
-  {
-    "route": "/team",
-    "source": "src/app/(dashboard)/team/page.tsx",
-    "phase": 6,
-    "surface": "redirect",
-    "roles": [
-      "admin"
-    ],
-    "states": [],
-    "evidence": {},
-    "smoke": {
-      "path": "/team?query=HOME&tag=late&tag=open",
-      "expectedAccess": {
-        "admin": "redirected",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "redirect-preserved",
-      "workflowEvidence": [
-        "src/app/legacy-redirects.test.ts"
-      ],
-      "limitations": [],
-      "expectedFinalPath": "/staff?query=HOME&tag=late&tag=open"
     }
   },
   {
@@ -3248,9 +3166,11 @@
     "smoke": {
       "path": "/balances",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -3318,9 +3238,11 @@
     "smoke": {
       "path": "/properties/10000000-0000-0000-0000-000000000001/account",
       "expectedAccess": {
-        "admin": "accessible",
-        "manager": "permission-blocked",
-        "member": "permission-blocked",
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",

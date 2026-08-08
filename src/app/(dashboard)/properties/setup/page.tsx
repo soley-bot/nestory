@@ -2,7 +2,7 @@ import { PropertySetupScreen } from "@/features/property-setup/components/proper
 import { getPropertySetupData } from "@/features/property-setup/data/property-setup";
 import { normalizePropertySetupStep } from "@/features/property-setup/property-setup";
 import type { PropertySetupSelection } from "@/features/property-setup/property-setup.types";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { getFirstSearchParam, getUuidSearchParam } from "@/lib/validation/search-params";
 
 type PropertySetupPageProps = {
@@ -10,7 +10,7 @@ type PropertySetupPageProps = {
 };
 
 export default async function PropertySetupPage({ searchParams }: PropertySetupPageProps) {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const params = await searchParams;
   const requestedSelection: PropertySetupSelection = {
     leaseId: getUuidSearchParam(params.leaseId) ?? null,

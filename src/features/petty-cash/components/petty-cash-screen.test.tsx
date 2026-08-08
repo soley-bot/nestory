@@ -60,7 +60,7 @@ describe("PettyCashScreen finance workspace contract", () => {
     )!;
     expect(registerSurface.className).toContain("overflow-hidden");
     expect(registerSurface.className).not.toMatch(
-      /rounded-(?:md|lg)|border(?:\s|$)|bg-surface/,
+      /rounded-(?:md|lg)|border(?:\s|$)|bg-card/,
     );
     const rows = within(table).getAllByRole("row").slice(1);
     expect(
@@ -85,7 +85,7 @@ describe("PettyCashScreen finance workspace contract", () => {
       '[data-slot="cash-quick-view-body"]',
     )!;
     expect(quickViewBody.className).not.toMatch(
-      /rounded-(?:md|lg)|border(?:\s|$)|bg-surface/,
+      /rounded-(?:md|lg)|border(?:\s|$)|bg-card/,
     );
     expect(screen.queryByText(/select a row/i)).toBeNull();
   });

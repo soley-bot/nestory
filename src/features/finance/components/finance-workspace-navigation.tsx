@@ -52,7 +52,7 @@ export function FinanceWorkspaceNavigation({
 
 function navClass(active: boolean) {
   return cn(
-    "inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2.5 text-sm font-medium text-foreground-muted outline-none transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring",
-    active && "bg-accent-soft text-foreground",
+    "inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+    active && "bg-accent text-foreground",
   );
 }

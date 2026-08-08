@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   createSupabaseServerClient: vi.fn(),
   getImportReferenceData: vi.fn(),
   revalidatePath: vi.fn(),
-  requireAdminContext: vi.fn(),
+  requireSuperAdminContext: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -18,7 +18,7 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/auth/context", () => ({
-  requireAdminContext: mocks.requireAdminContext,
+  requireSuperAdminContext: mocks.requireSuperAdminContext,
 }));
 
 vi.mock("@/lib/db/server", () => ({
@@ -51,7 +51,7 @@ describe("commitStagedImportRunAction", () => {
       updated_count: 1,
     });
     const rpc = vi.fn();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({
@@ -85,7 +85,7 @@ describe("commitStagedImportRunAction", () => {
       updated_count: 0,
     });
     const rpc = vi.fn();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({
@@ -119,7 +119,7 @@ describe("commitStagedImportRunAction", () => {
       updated_count: 0,
     });
     const rpc = vi.fn();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({
@@ -186,7 +186,7 @@ describe("commitStagedImportRunAction", () => {
       data: null,
       error: { message: "Import run has already been committed" },
     });
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({ from, rpc });
@@ -252,7 +252,7 @@ describe("commitStagedImportRunAction", () => {
       data: null,
       error: { message: "Import run must be staged before commit" },
     });
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({ from, rpc });
@@ -297,7 +297,7 @@ describe("commitStagedImportRunAction", () => {
       throw new Error(`Unexpected table ${table}`);
     });
     const rpc = vi.fn();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({ from, rpc });
@@ -363,7 +363,7 @@ describe("commitStagedImportRunAction", () => {
       data: null,
       error: { message: "Incomplete staged import must be re-uploaded before commit" },
     });
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "organization-1",
     });
     mocks.createSupabaseServerClient.mockResolvedValue({ from, rpc });
@@ -386,7 +386,7 @@ describe("commitStagedImportRunAction", () => {
 describe("stageImportRunAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireAdminContext.mockResolvedValue({
+    mocks.requireSuperAdminContext.mockResolvedValue({
       organizationId: "11111111-1111-4111-8111-111111111111",
       userId: "22222222-2222-4222-8222-222222222222",
     });
