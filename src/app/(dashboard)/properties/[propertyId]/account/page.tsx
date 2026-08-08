@@ -21,6 +21,9 @@ export default async function PropertyAccountPage({
       {...data}
       canConfigureRent={context.capabilities.canConfigureLeases}
       canRecoverRent={context.capabilities.canConfigureLeases}
+      canReviewExpense={context.capabilities.canReviewExpense}
+      canReverseExpense={context.capabilities.canReverseExpense}
+      canSubmitExpense={context.capabilities.canSubmitExpense}
       organizationName={context.organizationName}
       selectedPropertyId={propertyId}
       view="account"

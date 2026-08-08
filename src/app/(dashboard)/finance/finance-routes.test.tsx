@@ -24,6 +24,7 @@ vi.mock(
 );
 
 import FinancePage from "@/app/(dashboard)/finance/page";
+import BillsExpensesPage from "@/app/(dashboard)/bills-expenses/page";
 import RentIncomePage from "@/app/(dashboard)/rent-income/page";
 
 describe("finance routes", () => {
@@ -38,13 +39,19 @@ describe("finance routes", () => {
   });
 
   it.each([
-    ["finance_manager", FinancePage, "work"],
-    ["finance_member", RentIncomePage, "rent"],
+    ["finance_manager", FinancePage, "work", true, false],
+    ["finance_member", RentIncomePage, "rent", false, true],
+    ["finance_member", BillsExpensesPage, "expenses", false, true],
   ] as const)(
-    "admits %s through finance context with read-only rent controls",
-    async (role, page, view) => {
+    "admits %s through Finance context with explicit capabilities",
+    async (role, page, view, canReviewExpense, canSubmitExpense) => {
       requireFinanceContext.mockResolvedValue({
-        capabilities: { canConfigureLeases: false },
+        capabilities: {
+          canConfigureLeases: false,
+          canReviewExpense,
+          canReverseExpense: false,
+          canSubmitExpense,
+        },
         organizationId: "organization-1",
         organizationName: "Nestory Test",
         role,
@@ -59,6 +66,9 @@ describe("finance routes", () => {
         expect.objectContaining({
           canConfigureRent: false,
           canRecoverRent: false,
+          canReviewExpense,
+          canReverseExpense: false,
+          canSubmitExpense,
           view,
         }),
       );
@@ -67,7 +77,12 @@ describe("finance routes", () => {
 
   it("passes Super Admin rent recovery authority explicitly", async () => {
     requireFinanceContext.mockResolvedValue({
-      capabilities: { canConfigureLeases: true },
+      capabilities: {
+        canConfigureLeases: true,
+        canReviewExpense: true,
+        canReverseExpense: true,
+        canSubmitExpense: true,
+      },
       organizationId: "organization-1",
       organizationName: "Nestory Test",
       role: "super_admin",
@@ -79,6 +94,9 @@ describe("finance routes", () => {
       expect.objectContaining({
         canConfigureRent: true,
         canRecoverRent: true,
+        canReviewExpense: true,
+        canReverseExpense: true,
+        canSubmitExpense: true,
       }),
     );
   });

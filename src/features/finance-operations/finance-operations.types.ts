@@ -116,6 +116,29 @@ export type FinanceExpenseSummary = {
   vendorLabel: string;
 };
 
+export type ExpenseSubmissionSummary = {
+  category: string;
+  customerTotal: number;
+  date: string;
+  fundingSourceLabel: string;
+  id: string;
+  internalCost: number;
+  internalMarkup: number;
+  propertyId: string;
+  propertyLabel: string;
+  reference: string | null;
+  responsibility: "owner" | "tenant";
+  reviewReason: string | null;
+  reversalReason: string | null;
+  sourceId: string | null;
+  sourceType: "general" | "maintenance_task";
+  status: "approved" | "rejected" | "reversed" | "submitted";
+  submittedAt: string;
+  unitId: string | null;
+  unitLabel: string;
+  vendorLabel: string;
+};
+
 export type PropertyFinancePosition = {
   availableWithdrawal: number;
   cashHeldByIps: number;
@@ -144,6 +167,7 @@ export type PropertyAccountEntry = {
 
 export type FinanceOperationsData = {
   accountEntries: PropertyAccountEntry[];
+  expenseSubmissions: ExpenseSubmissionSummary[];
   expenses: FinanceExpenseSummary[];
   leases: FinanceLease[];
   ownerInvoices: OwnerInvoiceSummary[];

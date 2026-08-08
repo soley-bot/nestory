@@ -49,6 +49,7 @@ describe("FinanceOperationsScreen", () => {
     const readOnly = render(
       <FinanceOperationsScreen
         {...input}
+        {...financeCapabilities()}
         canConfigureRent={false}
         canRecoverRent={false}
         organizationName="Sokha Property Services"
@@ -69,6 +70,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
+        {...financeCapabilities()}
         canConfigureRent
         canRecoverRent
         organizationName="Sokha Property Services"
@@ -92,6 +94,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
+        {...financeCapabilities()}
         canConfigureRent={false}
         canRecoverRent={false}
         organizationName="Sokha Property Services"
@@ -109,6 +112,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...data()}
+        {...financeCapabilities({ canConfigureRent: true })}
         organizationName="Sokha Property Services"
         view="work"
       />,
@@ -151,6 +155,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...data()}
+        {...financeCapabilities({ canSubmitExpense: true })}
         organizationName="Sokha Property Services"
         view="expenses"
       />,
@@ -177,6 +182,83 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByText("No open invoice")).not.toBeNull();
   });
 
+  it("lets Finance Members submit expenses without exposing review controls", () => {
+    const input = data();
+    input.expenseSubmissions = [expenseSubmission("submitted")];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canSubmitExpense: true })}
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Add expense" })).not.toBeNull();
+    expect(screen.getByText("Awaiting approval")).not.toBeNull();
+    expect(screen.getByText("Read only")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /approve sokha repairs/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /reject sokha repairs/i })).toBeNull();
+  });
+
+  it("lets Finance Managers approve or reject but not submit or reverse", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [expenseSubmission("submitted")];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canReviewExpense: true })}
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Add expense" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Approve Sokha Repairs" }),
+    ).not.toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Reject Sokha Repairs" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Reject expense" });
+    const rejectButton = within(dialog).getByRole("button", {
+      name: "Reject expense",
+    });
+    expect(rejectButton.hasAttribute("disabled")).toBe(true);
+    await user.type(
+      within(dialog).getByPlaceholderText("Required"),
+      "Receipt does not match",
+    );
+    expect(rejectButton.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("shows approved-expense reversal only to Super Admin", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [expenseSubmission("approved")];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({
+          canReviewExpense: true,
+          canReverseExpense: true,
+          canSubmitExpense: true,
+        })}
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
+    expect(
+      screen.getByRole("button", { name: "Reverse Sokha Repairs" }),
+    ).not.toBeNull();
+  });
+
   it("keeps invoice selection inside the record payment modal", () => {
     const input = data();
     const invoice = tenantInvoice();
@@ -186,6 +268,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
         organizationName="Sokha Property Services"
         view="rent"
       />,
@@ -231,6 +314,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
         organizationName="Sokha Property Services"
         view="rent"
       />,
@@ -258,6 +342,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
+        {...financeCapabilities()}
         organizationName="Sokha Property Services"
         view="balances"
       />,
@@ -285,6 +370,7 @@ describe("FinanceOperationsScreen", () => {
     const { container } = render(
       <FinanceOperationsScreen
         {...data()}
+        {...financeCapabilities()}
         organizationName="Sokha Property Services"
         view="balances"
       />,
@@ -309,6 +395,7 @@ describe("FinanceOperationsScreen", () => {
     const { container } = render(
       <FinanceOperationsScreen
         {...data()}
+        {...financeCapabilities()}
         organizationName="Sokha Property Services"
         view="balances"
       />,
@@ -332,6 +419,7 @@ describe("FinanceOperationsScreen", () => {
 function data(): FinanceOperationsData {
   return {
     accountEntries: [],
+    expenseSubmissions: [],
     expenses: [],
     leases: [
       {
@@ -418,6 +506,25 @@ function tenantInvoice(): FinanceOperationsData["tenantInvoices"][number] {
   };
 }
 
+function financeCapabilities(
+  overrides: Partial<{
+    canConfigureRent: boolean;
+    canRecoverRent: boolean;
+    canReviewExpense: boolean;
+    canReverseExpense: boolean;
+    canSubmitExpense: boolean;
+  }> = {},
+) {
+  return {
+    canConfigureRent: false,
+    canRecoverRent: false,
+    canReviewExpense: false,
+    canReverseExpense: false,
+    canSubmitExpense: false,
+    ...overrides,
+  };
+}
+
 function billing(): NonNullable<FinanceOperationsData["leases"][number]["billing"]> {
   return {
     billingRecipientKind: "individual",
@@ -431,5 +538,32 @@ function billing(): NonNullable<FinanceOperationsData["leases"][number]["billing
     id: "billing-1",
     managementFeeMode: "percentage",
     managementFeeValue: 10,
+  };
+}
+
+function expenseSubmission(
+  status: FinanceOperationsData["expenseSubmissions"][number]["status"],
+): FinanceOperationsData["expenseSubmissions"][number] {
+  return {
+    category: "repairs_maintenance",
+    customerTotal: 220,
+    date: "2026-08-08",
+    fundingSourceLabel: "BANK - Operating",
+    id: "expense-submission-1",
+    internalCost: 200,
+    internalMarkup: 20,
+    propertyId: "property-1",
+    propertyLabel: "HOME - Riverside Home",
+    reference: "Receipt 42",
+    responsibility: "owner",
+    reviewReason: null,
+    reversalReason: null,
+    sourceId: null,
+    sourceType: "general",
+    status,
+    submittedAt: "2026-08-08T08:00:00Z",
+    unitId: "unit-1",
+    unitLabel: "HOME - Unit 01",
+    vendorLabel: "Sokha Repairs",
   };
 }

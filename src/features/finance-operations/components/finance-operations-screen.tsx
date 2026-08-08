@@ -34,14 +34,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   confirmOwnerCollectionAction,
-  recordIpsExpenseAction,
   recordOwnerPaymentAction,
   recordTenantInvoicePaymentAction,
   recordWithdrawalAction,
   recoverRentGenerationExceptionAction,
+  reverseExpenseAction,
+  reviewExpenseAction,
   saveLeaseBillingAction,
+  submitExpenseAction,
 } from "@/features/finance-operations/actions";
 import type {
+  ExpenseSubmissionSummary,
   FinanceLease,
   FinanceOperationsActionState,
   FinanceOperationsData,
@@ -65,6 +68,15 @@ type ModalState =
       mode: "payment";
     }
   | { invoice: OwnerInvoiceSummary; mode: "owner-payment" }
+  | {
+      decision: "approve" | "reject";
+      mode: "expense-review";
+      submission: ExpenseSubmissionSummary;
+    }
+  | {
+      mode: "expense-reversal";
+      submission: ExpenseSubmissionSummary;
+    }
   | { mode: "withdrawal"; position: PropertyFinancePosition };
 
 type DrawerState =
@@ -76,8 +88,11 @@ type DrawerState =
     };
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
-  canConfigureRent?: boolean;
-  canRecoverRent?: boolean;
+  canConfigureRent: boolean;
+  canRecoverRent: boolean;
+  canReviewExpense: boolean;
+  canReverseExpense: boolean;
+  canSubmitExpense: boolean;
   organizationName: string;
   selectedPropertyId?: string | null;
   view: FinanceOperationsView;
@@ -155,6 +170,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
               invoices={props.tenantInvoices}
               onSuccess={onActionSuccess}
               propertyOptions={props.propertyOptions}
+              reconciliationSources={props.reconciliationSources}
               unitOptions={props.unitOptions}
             />
           )}
@@ -190,6 +206,17 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
               invoice={modal.invoice}
               onSuccess={onActionSuccess}
             />
+          ) : modal.mode === "expense-review" ? (
+            <ExpenseReviewForm
+              decision={modal.decision}
+              onSuccess={onActionSuccess}
+              submission={modal.submission}
+            />
+          ) : modal.mode === "expense-reversal" ? (
+            <ExpenseReversalForm
+              onSuccess={onActionSuccess}
+              submission={modal.submission}
+            />
           ) : (
             <WithdrawalForm
               onSuccess={onActionSuccess}
@@ -207,8 +234,8 @@ function getScreen(
   openModal: (modal: ModalState) => void,
   openDrawer: (drawer: DrawerState) => void,
 ) {
-  const canConfigureRent = props.canConfigureRent !== false;
-  const canRecoverRent = props.canRecoverRent !== false;
+  const canConfigureRent = props.canConfigureRent;
+  const canRecoverRent = props.canRecoverRent;
 
   if (props.view === "rent") {
     return {
@@ -248,16 +275,24 @@ function getScreen(
   if (props.view === "expenses") {
     return {
       activeRoute: "/bills-expenses" as const,
-      actions: (
+      actions: props.canSubmitExpense ? (
         <Button
           onClick={() => openDrawer({ mode: "expense" })}
           variant="primary"
         >
           <Plus size={15} /> Add expense
         </Button>
+      ) : undefined,
+      body: (
+        <ExpensesView
+          canReview={props.canReviewExpense}
+          canReverse={props.canReverseExpense}
+          legacyExpenses={props.expenses}
+          openModal={openModal}
+          submissions={props.expenseSubmissions}
+        />
       ),
-      body: <ExpensesView expenses={props.expenses} />,
-      context: `${props.expenses.length} expenses`,
+      context: `${props.expenseSubmissions.length} submissions`,
       contextHref: "/bills-expenses",
       title: "Expenses",
       toolbar: undefined,
@@ -737,20 +772,112 @@ function RentView({
 }
 
 function ExpensesView({
-  expenses,
+  canReview,
+  canReverse,
+  legacyExpenses,
+  openModal,
+  submissions,
 }: {
-  expenses: FinanceOperationsData["expenses"];
+  canReview: boolean;
+  canReverse: boolean;
+  legacyExpenses: FinanceOperationsData["expenses"];
+  openModal: (modal: ModalState) => void;
+  submissions: FinanceOperationsData["expenseSubmissions"];
 }) {
-  return expenses.length === 0 ? (
-    <EmptyState
-      body="Record a property cost and choose whether the owner or tenant is responsible."
-      className="h-full"
-      kind="empty"
-      title="No expenses"
-    />
-  ) : (
+  const [status, setStatus] = useState<ExpenseSubmissionSummary["status"]>(
+    "submitted",
+  );
+
+  if (submissions.length === 0 && legacyExpenses.length === 0) {
+    return (
+      <EmptyState
+        body="Submit a paid property cost for Finance review. Nothing affects balances until approval."
+        className="h-full"
+        kind="empty"
+        title="No expenses"
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-5 p-4 sm:p-6">
+      <Tabs
+        onValueChange={(value) =>
+          setStatus(value as ExpenseSubmissionSummary["status"])
+        }
+        value={status}
+      >
+        <TabsList aria-label="Expense status">
+          {(
+            ["submitted", "approved", "rejected", "reversed"] as const
+          ).map((value) => (
+            <TabsTrigger key={value} value={value}>
+              {expenseStatusLabel(value)} (
+              {submissions.filter((item) => item.status === value).length})
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {(["submitted", "approved", "rejected", "reversed"] as const).map(
+          (value) => (
+            <TabsContent key={value} value={value}>
+              <ExpenseSubmissionTable
+                canReview={canReview}
+                canReverse={canReverse}
+                openModal={openModal}
+                status={value}
+                submissions={submissions.filter(
+                  (submission) => submission.status === value,
+                )}
+              />
+            </TabsContent>
+          ),
+        )}
+      </Tabs>
+
+      {legacyExpenses.length > 0 ? (
+        <section className="space-y-2">
+          <div>
+            <h2 className="text-sm font-semibold">
+              Historical approved expenses
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Recorded before Finance approval was introduced.
+            </p>
+          </div>
+          <LegacyExpenseTable expenses={legacyExpenses} />
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function ExpenseSubmissionTable({
+  canReview,
+  canReverse,
+  openModal,
+  status,
+  submissions,
+}: {
+  canReview: boolean;
+  canReverse: boolean;
+  openModal: (modal: ModalState) => void;
+  status: ExpenseSubmissionSummary["status"];
+  submissions: ExpenseSubmissionSummary[];
+}) {
+  if (submissions.length === 0) {
+    return (
+      <EmptyState
+        body="There are no expenses in this status."
+        className="min-h-56"
+        kind="empty"
+        title={`No ${expenseStatusLabel(status).toLowerCase()} expenses`}
+      />
+    );
+  }
+
+  return (
     <TableFrame>
-      <Table className="min-w-[980px]">
+      <Table className="min-w-[1080px]">
         <thead>
           <tr>
             <Th>Date</Th>
@@ -760,6 +887,135 @@ function ExpensesView({
             <Th>Paid</Th>
             <Th>Billed</Th>
             <Th>Status</Th>
+            <Th>Action</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {submissions.map((submission) => (
+            <tr className="border-b border-border" key={submission.id}>
+              <Td>{formatDate(submission.date)}</Td>
+              <Td>
+                <p className="font-medium">
+                  {categoryLabel(submission.category)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {submission.vendorLabel}
+                </p>
+              </Td>
+              <Td>
+                <p>{submission.propertyLabel}</p>
+                <p className="text-xs text-muted-foreground">
+                  {submission.unitLabel}
+                </p>
+              </Td>
+              <Td>
+                <Badge
+                  tone={
+                    submission.responsibility === "owner"
+                      ? "accent"
+                      : "neutral"
+                  }
+                >
+                  {submission.responsibility === "owner"
+                    ? "Property owner"
+                    : "Tenant or company"}
+                </Badge>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {submission.fundingSourceLabel}
+                </p>
+              </Td>
+              <Td>
+                <Money amount={submission.internalCost} />
+              </Td>
+              <Td>
+                <Money amount={submission.customerTotal} />
+              </Td>
+              <Td>
+                <Badge tone={expenseStatusTone(submission.status)}>
+                  {expenseStatusLabel(submission.status)}
+                </Badge>
+                {submission.reviewReason || submission.reversalReason ? (
+                  <p className="mt-1 max-w-52 text-xs text-muted-foreground">
+                    {submission.reversalReason ?? submission.reviewReason}
+                  </p>
+                ) : null}
+              </Td>
+              <Td>
+                {submission.status === "submitted" && canReview ? (
+                  <div className="flex gap-2">
+                    <Button
+                      aria-label={`Approve ${submission.vendorLabel}`}
+                      onClick={() =>
+                        openModal({
+                          decision: "approve",
+                          mode: "expense-review",
+                          submission,
+                        })
+                      }
+                      size="sm"
+                      variant="primary"
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      aria-label={`Reject ${submission.vendorLabel}`}
+                      onClick={() =>
+                        openModal({
+                          decision: "reject",
+                          mode: "expense-review",
+                          submission,
+                        })
+                      }
+                      size="sm"
+                      variant="outline"
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                ) : submission.status === "approved" && canReverse ? (
+                  <Button
+                    aria-label={`Reverse ${submission.vendorLabel}`}
+                    onClick={() =>
+                      openModal({
+                        mode: "expense-reversal",
+                        submission,
+                      })
+                    }
+                    size="sm"
+                    variant="outline"
+                  >
+                    Reverse
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Read only
+                  </span>
+                )}
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </TableFrame>
+  );
+}
+
+function LegacyExpenseTable({
+  expenses,
+}: {
+  expenses: FinanceOperationsData["expenses"];
+}) {
+  return (
+    <TableFrame>
+      <Table className="min-w-[900px]">
+        <thead>
+          <tr>
+            <Th>Date</Th>
+            <Th>Expense</Th>
+            <Th>Property</Th>
+            <Th>Charged to</Th>
+            <Th>Paid</Th>
+            <Th>Billed</Th>
           </tr>
         </thead>
         <tbody>
@@ -779,35 +1035,15 @@ function ExpensesView({
                 </p>
               </Td>
               <Td>
-                <Badge
-                  tone={
-                    expense.responsibility === "owner" ? "accent" : "neutral"
-                  }
-                >
-                  {expense.responsibility === "owner"
-                    ? "Property owner"
-                    : "Tenant or company"}
-                </Badge>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {expense.responsibleLabel}
-                </p>
+                {expense.responsibility === "owner"
+                  ? "Property owner"
+                  : "Tenant or company"}
               </Td>
               <Td>
                 <Money amount={expense.internalCost} />
               </Td>
               <Td>
                 <Money amount={expense.customerTotal} />
-              </Td>
-              <Td>
-                {expense.responsibility === "tenant" ? (
-                  "Added to invoice"
-                ) : expense.ipsAdvanceAmount > 0 ? (
-                  <span className="text-warning">
-                    Owner owes <Money amount={expense.ipsAdvanceAmount} />
-                  </span>
-                ) : (
-                  "Deducted from owner funds"
-                )}
               </Td>
             </tr>
           ))}
@@ -1489,6 +1725,7 @@ function ExpenseForm({
   invoices,
   onSuccess,
   propertyOptions,
+  reconciliationSources,
   unitOptions,
 }: {
   initialInvoiceId?: string;
@@ -1496,6 +1733,7 @@ function ExpenseForm({
   invoices: TenantInvoiceSummary[];
   onSuccess: (message: string) => void;
   propertyOptions: FinanceOperationsData["propertyOptions"];
+  reconciliationSources: FinanceOperationsData["reconciliationSources"];
   unitOptions: FinanceOperationsData["unitOptions"];
 }) {
   const idempotencyKey = useStableActionId("expense");
@@ -1503,7 +1741,7 @@ function ExpenseForm({
     (invoice) => invoice.id === initialInvoiceId,
   );
   const [state, action] = useActionState(
-    recordIpsExpenseAction,
+    submitExpenseAction,
     actionInitialState,
   );
   const [propertyId, setPropertyId] = useState(
@@ -1516,6 +1754,13 @@ function ExpenseForm({
   const [markup, setMarkup] = useState("0");
   const [expenseDate, setExpenseDate] = useState(getBusinessDateValue());
   const [reference, setReference] = useState("");
+  const [reconciliationSourceId, setReconciliationSourceId] = useState(
+    reconciliationSources.find(
+      (source) =>
+        source.propertyId == null ||
+        source.propertyId === initialInvoice?.propertyId,
+    )?.id ?? "",
+  );
   const [responsibility, setResponsibility] = useState<"owner" | "tenant">(
     initialResponsibility ?? "owner",
   );
@@ -1526,6 +1771,10 @@ function ExpenseForm({
     responsibility === "tenant" ? "tenant" : "owner";
   const matchingInvoices = invoices.filter(
     (invoice) => invoice.propertyId === propertyId && invoice.balanceDue > 0,
+  );
+  const matchingSources = reconciliationSources.filter(
+    (source) =>
+      source.propertyId == null || source.propertyId === propertyId,
   );
   const effectiveMarkup = effectiveResponsibility === "tenant" ? markup : "0";
   const invoiceTotal = Number(cost || 0) + Number(effectiveMarkup || 0);
@@ -1540,6 +1789,11 @@ function ExpenseForm({
       <input name="internalMarkup" type="hidden" value={effectiveMarkup} />
       <input name="expenseDate" type="hidden" value={expenseDate} />
       <input name="reference" type="hidden" value={reference} />
+      <input
+        name="reconciliationSourceId"
+        type="hidden"
+        value={reconciliationSourceId}
+      />
       <input
         name="responsibility"
         type="hidden"
@@ -1558,6 +1812,12 @@ function ExpenseForm({
               setPropertyId(value);
               setUnitId("");
               setTenantInvoiceId("");
+              setReconciliationSourceId(
+                reconciliationSources.find(
+                  (source) =>
+                    source.propertyId == null || source.propertyId === value,
+                )?.id ?? "",
+              );
             }}
             options={propertyOptions.map((option) => ({
               label: option.label,
@@ -1613,6 +1873,21 @@ function ExpenseForm({
             onChange={(event) => setExpenseDate(event.target.value)}
             type="date"
             value={expenseDate}
+          />
+        </Field>
+        <Field label="Paid from">
+          <SelectControl
+            onValueChange={setReconciliationSourceId}
+            options={matchingSources.map((source) => ({
+              label: source.label,
+              value: source.id,
+            }))}
+            placeholder={
+              matchingSources.length > 0
+                ? "Choose funding source"
+                : "No funding source"
+            }
+            value={reconciliationSourceId}
           />
         </Field>
       </div>
@@ -1692,21 +1967,141 @@ function ExpenseForm({
           value={reference}
         />
       </Field>
+      <p className="text-xs text-muted-foreground">
+        This stays awaiting approval and does not affect balances until a
+        Finance Manager approves it.
+      </p>
       <ActionMessage state={state} />
       <FormFooter>
         <span />
         <SubmitButton
           disabled={
             !propertyId ||
+            !reconciliationSourceId ||
             !vendor ||
             Number(cost) <= 0 ||
             (effectiveResponsibility === "tenant" && !tenantInvoiceId)
           }
-          label={
-            effectiveResponsibility === "tenant"
-              ? "Add to invoice"
-              : "Save owner expense"
-          }
+          label="Submit for review"
+        />
+      </FormFooter>
+    </form>
+  );
+}
+
+function ExpenseReviewForm({
+  decision,
+  onSuccess,
+  submission,
+}: {
+  decision: "approve" | "reject";
+  onSuccess: (message: string) => void;
+  submission: ExpenseSubmissionSummary;
+}) {
+  const idempotencyKey = useStableActionId(`expense-${decision}`);
+  const [state, action] = useActionState(
+    reviewExpenseAction,
+    actionInitialState,
+  );
+  const [reason, setReason] = useState("");
+  useSuccess(state, onSuccess);
+
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <input name="decision" type="hidden" value={decision} />
+      <input name="submissionId" type="hidden" value={submission.id} />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <input name="reason" type="hidden" value={reason} />
+      <DefinitionRows
+        rows={[
+          ["Vendor", submission.vendorLabel],
+          ["Property", submission.propertyLabel],
+          ["Paid", formatMoneyDisplay(submission.internalCost).primary],
+          ["Charged", formatMoneyDisplay(submission.customerTotal).primary],
+          ["Paid from", submission.fundingSourceLabel],
+        ]}
+      />
+      <Field
+        label={decision === "reject" ? "Rejection reason" : "Review note"}
+      >
+        <Input
+          onChange={(event) => setReason(event.target.value)}
+          placeholder={decision === "reject" ? "Required" : "Optional"}
+          required={decision === "reject"}
+          value={reason}
+        />
+      </Field>
+      {decision === "approve" ? (
+        <p className="text-xs text-muted-foreground">
+          Approval records the paid cost, customer responsibility, and property
+          balance effect together.
+        </p>
+      ) : null}
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton
+          disabled={decision === "reject" && reason.trim().length < 3}
+          label={decision === "approve" ? "Approve expense" : "Reject expense"}
+        />
+      </FormFooter>
+    </form>
+  );
+}
+
+function ExpenseReversalForm({
+  onSuccess,
+  submission,
+}: {
+  onSuccess: (message: string) => void;
+  submission: ExpenseSubmissionSummary;
+}) {
+  const idempotencyKey = useStableActionId("expense-reversal");
+  const [state, action] = useActionState(
+    reverseExpenseAction,
+    actionInitialState,
+  );
+  const [reason, setReason] = useState("");
+  useSuccess(state, onSuccess);
+
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <input name="submissionId" type="hidden" value={submission.id} />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <input name="reason" type="hidden" value={reason} />
+      <DefinitionRows
+        rows={[
+          ["Vendor", submission.vendorLabel],
+          ["Property", submission.propertyLabel],
+          ["Paid", formatMoneyDisplay(submission.internalCost).primary],
+          ["Charged", formatMoneyDisplay(submission.customerTotal).primary],
+        ]}
+      />
+      <Field label="Reversal date">
+        <DatePickerField
+          defaultValue={getBusinessDateValue()}
+          name="reversalDate"
+          required
+        />
+      </Field>
+      <Field label="Reason">
+        <Input
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Required"
+          required
+          value={reason}
+        />
+      </Field>
+      <p className="text-xs text-muted-foreground">
+        Reversal keeps the original record and adds an opposite cash, balance,
+        and customer correction.
+      </p>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton
+          disabled={reason.trim().length < 3}
+          label="Reverse expense"
         />
       </FormFooter>
     </form>
@@ -1826,6 +2221,10 @@ function getModalTitle(modal: ModalState) {
       ? "Record payment"
       : "Confirm owner collection";
   if (modal.mode === "owner-payment") return "Owner payment";
+  if (modal.mode === "expense-review") {
+    return modal.decision === "approve" ? "Approve expense" : "Reject expense";
+  }
+  if (modal.mode === "expense-reversal") return "Reverse expense";
   return "Owner withdrawal";
 }
 function getDrawerTitle(drawer: DrawerState) {
@@ -1850,6 +2249,20 @@ function categoryLabel(category: string) {
   return category === "repairs_maintenance"
     ? "Repairs and Maintenance"
     : category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+function expenseStatusLabel(status: ExpenseSubmissionSummary["status"]) {
+  if (status === "submitted") return "Awaiting approval";
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function expenseStatusTone(
+  status: ExpenseSubmissionSummary["status"],
+): "danger" | "neutral" | "success" | "warning" {
+  if (status === "approved") return "success";
+  if (status === "rejected") return "danger";
+  if (status === "reversed") return "neutral";
+  return "warning";
 }
 
 function formatLeaseMonth(value: string) {

@@ -10,6 +10,9 @@ export default async function RentIncomePage() {
       {...data}
       canConfigureRent={context.capabilities.canConfigureLeases}
       canRecoverRent={context.capabilities.canConfigureLeases}
+      canReviewExpense={context.capabilities.canReviewExpense}
+      canReverseExpense={context.capabilities.canReverseExpense}
+      canSubmitExpense={context.capabilities.canSubmitExpense}
       organizationName={context.organizationName}
       view="rent"
     />

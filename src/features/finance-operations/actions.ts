@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   requireAdminContext,
+  requireFinanceReviewContext,
+  requireFinanceReversalContext,
+  requireFinanceSubmissionContext,
   requireLeaseConfigurationContext,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -65,11 +68,26 @@ const expenseSchema = z.object({
   internalCost: amount,
   internalMarkup: z.coerce.number().nonnegative(),
   propertyId: uuid,
+  reconciliationSourceId: uuid,
   reference: z.string().trim().max(160),
   responsibility: z.enum(["owner", "tenant"]),
   tenantInvoiceId: z.preprocess((value) => value || null, uuid.nullable()),
   unitId: z.preprocess((value) => value || null, uuid.nullable()),
   vendorLabel: z.string().trim().min(2).max(120),
+});
+
+const expenseReviewSchema = z.object({
+  decision: z.enum(["approve", "reject"]),
+  idempotencyKey: z.string().min(8),
+  reason: z.string().trim().max(500),
+  submissionId: uuid,
+});
+
+const expenseReversalSchema = z.object({
+  idempotencyKey: z.string().min(8),
+  reason: z.string().trim().min(3).max(500),
+  reversalDate: date,
+  submissionId: uuid,
 });
 
 const ownerPaymentSchema = z.object({
@@ -222,7 +240,7 @@ export async function confirmOwnerCollectionAction(
   return { message: "Owner collection confirmed.", status: "success" };
 }
 
-export async function recordIpsExpenseAction(
+export async function submitExpenseAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
@@ -231,9 +249,10 @@ export async function recordIpsExpenseAction(
   if (parsed.data.responsibility === "tenant" && !parsed.data.tenantInvoiceId) {
     return actionError("Choose the tenant invoice for this charge.");
   }
-  const context = await requireAdminContext();
+  const context = await requireFinanceSubmissionContext();
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("record_ips_paid_expense", {
+  const { error } = await supabase.rpc("submit_expense", {
+    p_currency: "USD",
     p_customer_category: parsed.data.category,
     p_expense_date: parsed.data.expenseDate,
     p_idempotency_key: parsed.data.idempotencyKey,
@@ -241,8 +260,11 @@ export async function recordIpsExpenseAction(
     p_internal_markup_amount: parsed.data.internalMarkup,
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
-    p_reference: parsed.data.reference,
+    p_reconciliation_source_id: parsed.data.reconciliationSourceId,
+    p_reference: parsed.data.reference || null,
     p_responsibility: parsed.data.responsibility,
+    p_source_id: null,
+    p_source_type: "general",
     p_supporting_document_id: null,
     p_tenant_invoice_id: parsed.data.tenantInvoiceId,
     p_unit_id: parsed.data.unitId,
@@ -251,7 +273,61 @@ export async function recordIpsExpenseAction(
   });
   if (error) return actionError(error.message);
   revalidateFinance();
-  return { message: "Expense recorded.", status: "success" };
+  return {
+    message: "Expense submitted for Finance review.",
+    status: "success",
+  };
+}
+
+export async function reviewExpenseAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = expenseReviewSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return validationError(parsed.error);
+  if (parsed.data.decision === "reject" && parsed.data.reason.length < 3) {
+    return actionError("Enter a rejection reason.");
+  }
+
+  const context = await requireFinanceReviewContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("review_expense", {
+    p_decision: parsed.data.decision,
+    p_idempotency_key: parsed.data.idempotencyKey,
+    p_organization_id: context.organizationId,
+    p_reason: parsed.data.reason || null,
+    p_submission_id: parsed.data.submissionId,
+  });
+  if (error) return expenseWorkflowError(error.message);
+  revalidateFinance();
+  return {
+    message:
+      parsed.data.decision === "approve"
+        ? "Expense approved and recorded."
+        : "Expense rejected.",
+    status: "success",
+  };
+}
+
+export async function reverseExpenseAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = expenseReversalSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireFinanceReversalContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("reverse_expense", {
+    p_idempotency_key: parsed.data.idempotencyKey,
+    p_organization_id: context.organizationId,
+    p_reason: parsed.data.reason,
+    p_reversal_date: parsed.data.reversalDate,
+    p_submission_id: parsed.data.submissionId,
+  });
+  if (error) return expenseWorkflowError(error.message);
+  revalidateFinance();
+  return { message: "Expense reversed.", status: "success" };
 }
 
 export async function recordOwnerPaymentAction(
@@ -346,6 +422,20 @@ function revalidateFinance() {
   ]) {
     revalidatePath(path);
   }
+}
+
+function expenseWorkflowError(message: string) {
+  if (message.includes("period is locked")) {
+    return actionError(
+      "This expense month is locked. Super Admin must reopen it before approval.",
+    );
+  }
+  if (message.includes("already settled this charge")) {
+    return actionError(
+      "This customer charge has already been settled. Use a separate correction.",
+    );
+  }
+  return actionError(message);
 }
 
 function asActionResult(

@@ -5,6 +5,7 @@ import {
 } from "@/lib/entity-option-labels";
 import type { Database } from "@/types/database";
 import type {
+  ExpenseSubmissionSummary,
   FinanceExpenseSummary,
   FinanceLease,
   FinanceOperationsData,
@@ -45,6 +46,7 @@ export async function getFinanceOperationsData(
     tenantLinesResult,
     incomeResult,
     ownerInvoicesResult,
+    expenseSubmissionsResult,
     responsibilitiesResult,
     expensesResult,
     positionsResult,
@@ -131,6 +133,14 @@ export async function getFinanceOperationsData(
       .order("due_date", { ascending: false })
       .limit(250),
     supabase
+      .from("expense_submissions")
+      .select(
+        "id, property_id, unit_id, source_type, source_id, customer_category, vendor_label, expense_date, internal_cost_amount, internal_markup_amount, customer_total_amount, responsibility, reconciliation_source_id, reference, status, submitted_at, review_reason, reversal_reason, approved_responsibility_id",
+      )
+      .eq("organization_id", organizationId)
+      .order("submitted_at", { ascending: false })
+      .limit(250),
+    supabase
       .from("ips_expense_responsibilities")
       .select("*")
       .eq("organization_id", organizationId)
@@ -167,6 +177,7 @@ export async function getFinanceOperationsData(
     tenantLinesResult,
     incomeResult,
     ownerInvoicesResult,
+    expenseSubmissionsResult,
     responsibilitiesResult,
     expensesResult,
     positionsResult,
@@ -231,12 +242,67 @@ export async function getFinanceOperationsData(
   const expenseById = new Map(
     (expensesResult.data ?? []).map((expense) => [expense.id, expense]),
   );
+  const sourceById = new Map(
+    (sourcesResult.data ?? []).map((source) => [
+      source.id,
+      `${source.code} · ${source.display_name}`,
+    ]),
+  );
+  const workflowResponsibilityIds = new Set(
+    (expenseSubmissionsResult.data ?? []).flatMap((submission) =>
+      submission.approved_responsibility_id
+        ? [submission.approved_responsibility_id]
+        : [],
+    ),
+  );
 
   return {
     accountEntries: (entriesResult.data ?? []).flatMap((row) =>
       toAccountEntry(row as AccountEntryRow),
     ),
+    expenseSubmissions: (expenseSubmissionsResult.data ?? []).flatMap(
+      (submission) => {
+        const property = propertyById.get(submission.property_id);
+        if (!property) return [];
+        const unit = submission.unit_id
+          ? unitById.get(submission.unit_id)
+          : null;
+        return [
+          {
+            category: submission.customer_category,
+            customerTotal: Number(submission.customer_total_amount),
+            date: submission.expense_date,
+            fundingSourceLabel:
+              sourceById.get(submission.reconciliation_source_id) ??
+              "Funding source unavailable",
+            id: submission.id,
+            internalCost: Number(submission.internal_cost_amount),
+            internalMarkup: Number(submission.internal_markup_amount),
+            propertyId: submission.property_id,
+            propertyLabel: propertyLabel(property),
+            reference: submission.reference,
+            responsibility: submission.responsibility as "owner" | "tenant",
+            reviewReason: submission.review_reason,
+            reversalReason: submission.reversal_reason,
+            sourceId: submission.source_id,
+            sourceType: submission.source_type as
+              | "general"
+              | "maintenance_task",
+            status: submission.status as
+              | "approved"
+              | "rejected"
+              | "reversed"
+              | "submitted",
+            submittedAt: submission.submitted_at,
+            unitId: submission.unit_id,
+            unitLabel: unit ? unitLabel(unit, property) : "All units",
+            vendorLabel: submission.vendor_label,
+          } satisfies ExpenseSubmissionSummary,
+        ];
+      },
+    ),
     expenses: (responsibilitiesResult.data ?? []).flatMap((responsibility) => {
+      if (workflowResponsibilityIds.has(responsibility.id)) return [];
       const expense = expenseById.get(responsibility.finance_expense_item_id);
       const property = propertyById.get(responsibility.property_id);
       if (!expense || !property) return [];
