@@ -1998,7 +1998,7 @@ SELECT set_config(
 
 SELECT lives_ok(
   $$
-    SELECT public.set_ledger_period_lock(
+    SELECT public.set_financial_month_lock(
       organization_id,
       '2026-08-01',
       true,
@@ -2053,7 +2053,7 @@ SELECT throws_ok(
     locked_submission_id
   ),
   '22023',
-  'Organization Ledger period is locked',
+  'Financial month is locked',
   'approval creates no partial effects in a locked period'
 )
 FROM expense_approval_state;

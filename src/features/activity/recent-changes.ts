@@ -28,7 +28,7 @@ const actionLabels: Record<string, string> = {
   document_replaced: "File replaced",
   lease_created: "Created",
   lease_updated: "Updated",
-  locked: "Period locked",
+  locked: "Month locked",
   maintenance_request_created: "Maintenance request created",
   maintenance_task_created: "Maintenance case created",
   maintenance_task_checklist_item_updated: "Checklist updated",
@@ -51,7 +51,7 @@ const actionLabels: Record<string, string> = {
   unit_created: "Created",
   unit_restored: "Restored",
   unit_updated: "Updated",
-  unlocked: "Period unlocked",
+  unlocked: "Month unlocked",
   updated: "Updated",
   updated_from_ledger: "Synced from ledger",
   voided: "Voided",
@@ -158,6 +158,8 @@ export function toRecentChange(log: ActivityLogSnapshot): RecentChange {
     entityId: log.entity_id,
     entityType: log.entity_type,
     periodStart:
+      getString(toRecord(log.new_values), "month_start") ??
+      getString(toRecord(log.previous_values), "month_start") ??
       getString(toRecord(log.new_values), "period_start") ??
       getString(toRecord(log.previous_values), "period_start"),
     recordLabel: getSnapshotRecordLabel(log),

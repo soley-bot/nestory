@@ -11,7 +11,7 @@ describe("resolveActivityEntityTarget", () => {
     expect(activityEntityTypes).toEqual([
       "timeline_event",
       "ledger_entry",
-      "ledger_period",
+      "financial_month",
       "accounting_journal_entry",
       "accounting_period",
       "finance_income_item",
@@ -109,11 +109,11 @@ describe("resolveActivityEntityTarget", () => {
     },
   );
 
-  it("builds a ledger-period month target from safe snapshot context", () => {
+  it("builds a financial-month target from safe snapshot context", () => {
     expect(
       resolveActivityEntityTarget({
         entityId: id,
-        entityType: "ledger_period",
+        entityType: "financial_month",
         periodStart: "2026-07-01",
         recordLabel: "July 2026",
       }),

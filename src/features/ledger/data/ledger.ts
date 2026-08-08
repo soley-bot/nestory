@@ -85,8 +85,9 @@ type DocumentRow = {
 
 type PeriodLockRow = {
   id: string;
+  is_locked: boolean;
   locked_at: string | null;
-  period_start: string;
+  month_start: string;
   reason: string | null;
 };
 
@@ -118,11 +119,11 @@ export async function getLedgerScreenData(
       .eq("organization_id", organizationId)
       .is("archived_at", null),
     supabase
-      .from("ledger_period_locks")
-      .select("id, period_start, locked_at, reason")
+      .from("financial_month_locks")
+      .select("id, month_start, is_locked, locked_at, reason")
       .eq("organization_id", organizationId)
-      .not("locked_at", "is", null)
-      .order("period_start", { ascending: false })
+      .eq("is_locked", true)
+      .order("month_start", { ascending: false })
       .limit(24),
     supabase
       .from("activity_logs")
@@ -130,7 +131,7 @@ export async function getLedgerScreenData(
         "id, entity_type, entity_id, action, previous_values, new_values, created_at",
       )
       .eq("organization_id", organizationId)
-      .in("entity_type", ["timeline_event", "ledger_entry", "ledger_period"])
+      .in("entity_type", ["timeline_event", "ledger_entry", "financial_month"])
       .order("created_at", { ascending: false })
       .limit(6),
   ]);
@@ -149,7 +150,7 @@ export async function getLedgerScreenData(
 
   if (periodLocksResult.error) {
     throw new Error(
-      `Could not load ledger period locks: ${periodLocksResult.error.message}`,
+      `Could not load financial month locks: ${periodLocksResult.error.message}`,
     );
   }
 
@@ -686,7 +687,7 @@ function toLedgerPeriodLocks(rows: PeriodLockRow[]): LedgerPeriodLock[] {
   return rows.map((row) => ({
     id: row.id,
     lockedAt: row.locked_at ?? undefined,
-    periodStart: row.period_start,
+    periodStart: row.month_start,
     reason: row.reason ?? undefined,
   }));
 }

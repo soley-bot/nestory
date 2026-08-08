@@ -1592,10 +1592,10 @@ SELECT throws_ok(
 );
 RESET ROLE;
 
-INSERT INTO public.ledger_period_locks(
-  organization_id, period_start, locked_at, locked_by
+INSERT INTO public.financial_month_locks(
+  organization_id, month_start, is_locked, locked_at, locked_by
 )
-SELECT organization_id, '2026-07-01', now(), admin_id
+SELECT organization_id, '2026-07-01', true, now(), admin_id
 FROM financial_authority_test_state;
 SELECT throws_ok(
   format(
@@ -1606,10 +1606,10 @@ SELECT throws_ok(
     '2026-07-15'
   ),
   '22023',
-  'Organization Ledger period is locked',
-  'organization Ledger lock remains an independent blocker'
+  'Financial month is locked',
+  'organization financial month lock remains an independent blocker'
 );
-DELETE FROM public.ledger_period_locks
+DELETE FROM public.financial_month_locks
 WHERE organization_id = (
   SELECT organization_id FROM financial_authority_test_state
 );

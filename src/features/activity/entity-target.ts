@@ -3,7 +3,7 @@ import { buildHref } from "@/lib/url/href";
 export const activityEntityTypes = [
   "timeline_event",
   "ledger_entry",
-  "ledger_period",
+  "financial_month",
   "accounting_journal_entry",
   "accounting_period",
   "finance_income_item",
@@ -85,12 +85,12 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
       buildHref("/ledger", { archiveState: "all", entryId: entityId }),
     mode: "exact",
   },
-  ledger_period: {
-    actionLabel: "Open Ledger period",
-    entityLabel: "Period lock",
-    fallbackRecordLabel: "Period lock",
+  financial_month: {
+    actionLabel: "Open locked month",
+    entityLabel: "Month lock",
+    fallbackRecordLabel: "Month lock",
     getHref: ({ periodStart }) =>
-      periodStart ? getLedgerPeriodHref(periodStart) : "/ledger",
+      periodStart ? getFinancialMonthHref(periodStart) : "/ledger",
     mode: "module",
   },
   finance_income_item: {
@@ -293,7 +293,7 @@ export function isActivityEntityType(value: string): value is ActivityEntityType
   return (activityEntityTypes as readonly string[]).includes(value);
 }
 
-function getLedgerPeriodHref(periodStart: string) {
+function getFinancialMonthHref(periodStart: string) {
   const monthStart = periodStart.slice(0, 10);
   const match = monthStart.match(/^(\d{4})-(\d{2})-01$/);
 

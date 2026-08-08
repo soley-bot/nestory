@@ -61,7 +61,7 @@ const TIMELINE_RECENT_ACTIVITY_ENTITY_TYPES: Record<TimelineScope, string[]> = {
   financial: [
     "timeline_event",
     "ledger_entry",
-    "ledger_period",
+    "financial_month",
     "finance_income_item",
     "finance_expense_item",
     "petty_cash_entry",
@@ -69,7 +69,7 @@ const TIMELINE_RECENT_ACTIVITY_ENTITY_TYPES: Record<TimelineScope, string[]> = {
   global: [
     "timeline_event",
     "ledger_entry",
-    "ledger_period",
+    "financial_month",
     "finance_income_item",
     "finance_expense_item",
     "petty_cash_entry",
@@ -84,7 +84,7 @@ const TIMELINE_RECENT_ACTIVITY_ENTITY_TYPES: Record<TimelineScope, string[]> = {
   property: [
     "timeline_event",
     "ledger_entry",
-    "ledger_period",
+    "financial_month",
     "document",
     "task",
     "tenant_request",
@@ -161,8 +161,9 @@ type TimelineEventRow = {
 
 type PeriodLockRow = {
   id: string;
+  is_locked: boolean;
   locked_at: string | null;
-  period_start: string;
+  month_start: string;
   reason: string | null;
 };
 
@@ -233,11 +234,11 @@ export async function getTimelineScreenData(
       .eq("organization_id", organizationId)
       .is("archived_at", null),
     supabase
-      .from("ledger_period_locks")
-      .select("id, period_start, locked_at, reason")
+      .from("financial_month_locks")
+      .select("id, month_start, is_locked, locked_at, reason")
       .eq("organization_id", organizationId)
-      .not("locked_at", "is", null)
-      .order("period_start", { ascending: false })
+      .eq("is_locked", true)
+      .order("month_start", { ascending: false })
       .limit(24),
     supabase
       .from("activity_logs")
@@ -282,7 +283,7 @@ export async function getTimelineScreenData(
 
   if (periodLocksResult.error) {
     throw new Error(
-      `Could not load timeline period locks: ${periodLocksResult.error.message}`,
+      `Could not load timeline month locks: ${periodLocksResult.error.message}`,
     );
   }
 
@@ -1000,7 +1001,7 @@ function isTimelineEventLocked(
 
   return periodLocks.some(
     (periodLock) =>
-      periodLock.period_start === periodStart && Boolean(periodLock.locked_at),
+      periodLock.month_start === periodStart && Boolean(periodLock.locked_at),
   );
 }
 

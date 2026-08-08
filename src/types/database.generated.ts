@@ -2030,6 +2030,56 @@ export type Database = {
           },
         ]
       }
+      financial_month_locks: {
+        Row: {
+          created_at: string
+          id: string
+          is_locked: boolean
+          locked_at: string
+          locked_by: string
+          month_start: string
+          organization_id: string
+          reason: string | null
+          unlocked_at: string | null
+          unlocked_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_locked?: boolean
+          locked_at?: string
+          locked_by: string
+          month_start: string
+          organization_id: string
+          reason?: string | null
+          unlocked_at?: string | null
+          unlocked_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_locked?: boolean
+          locked_at?: string
+          locked_by?: string
+          month_start?: string
+          organization_id?: string
+          reason?: string | null
+          unlocked_at?: string | null
+          unlocked_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_month_locks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_reconciliation_sources: {
         Row: {
           archived_at: string | null
@@ -8190,6 +8240,15 @@ export type Database = {
           p_status: string
         }
         Returns: undefined
+      }
+      set_financial_month_lock: {
+        Args: {
+          p_locked: boolean
+          p_month_start: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: string
       }
       set_lease_billing_term: {
         Args: {

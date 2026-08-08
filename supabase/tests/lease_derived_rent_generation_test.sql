@@ -929,9 +929,10 @@ SELECT results_eq(
   'one lease failure is isolated in a typed exception and repeated runs increment attempts'
 );
 
-INSERT INTO public.ledger_period_locks (
+INSERT INTO public.financial_month_locks (
   organization_id,
-  period_start,
+  month_start,
+  is_locked,
   locked_at,
   locked_by,
   reason
@@ -939,6 +940,7 @@ INSERT INTO public.ledger_period_locks (
 SELECT
   organization_id,
   '2026-10-01',
+  true,
   now(),
   super_admin_id,
   'Rent generation lock test'
@@ -1180,9 +1182,10 @@ SELECT set_config(
 
 RESET ROLE;
 
-INSERT INTO public.ledger_period_locks (
+INSERT INTO public.financial_month_locks (
   organization_id,
-  period_start,
+  month_start,
+  is_locked,
   locked_at,
   locked_by,
   reason
@@ -1190,6 +1193,7 @@ INSERT INTO public.ledger_period_locks (
 SELECT
   organization_id,
   '2026-08-01',
+  true,
   now(),
   super_admin_id,
   'Historical recovery must stay in the selected month'

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdminContext } from "@/lib/auth/context";
+import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { LedgerDirection } from "@/features/ledger/ledger.types";
 
@@ -103,7 +103,7 @@ export async function createLedgerEntryAction(
   _state: LedgerActionState,
   formData: FormData,
 ): Promise<LedgerActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = createLedgerEntrySchema.safeParse({
     amount: readString(formData, "amount"),
     category: readString(formData, "category"),
@@ -154,7 +154,7 @@ export async function updateLedgerEntryAction(
   _state: LedgerActionState,
   formData: FormData,
 ): Promise<LedgerActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEntryId = ledgerEntryIdSchema.safeParse(
     readString(formData, "entryId"),
   );
@@ -221,7 +221,7 @@ export async function archiveLedgerEntryAction(
   _state: LedgerActionState,
   formData: FormData,
 ): Promise<LedgerActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEntryId = ledgerEntryIdSchema.safeParse(
     readString(formData, "entryId"),
   );
@@ -266,7 +266,7 @@ export async function restoreLedgerEntryAction(
   _state: LedgerActionState,
   formData: FormData,
 ): Promise<LedgerActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEntryId = ledgerEntryIdSchema.safeParse(
     readString(formData, "entryId"),
   );
@@ -311,7 +311,7 @@ export async function setLedgerPeriodLockAction(
   _state: LedgerActionState,
   formData: FormData,
 ): Promise<LedgerActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsed = periodLockSchema.safeParse({
     lockState: readString(formData, "lockState"),
     periodStart: readString(formData, "periodStart"),
@@ -323,10 +323,10 @@ export async function setLedgerPeriodLockAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("set_ledger_period_lock", {
+  const { error } = await supabase.rpc("set_financial_month_lock", {
     p_locked: parsed.data.lockState === "locked",
+    p_month_start: `${parsed.data.periodStart}-01`,
     p_organization_id: context.organizationId,
-    p_period_start: `${parsed.data.periodStart}-01`,
     p_reason: parsed.data.reason,
   });
 
@@ -352,7 +352,7 @@ export async function attachLedgerReceiptAction(
   _state: LedgerActionState,
   formData: FormData,
 ): Promise<LedgerActionState> {
-  const context = await requireAdminContext();
+  const context = await requireSuperAdminContext();
   const parsedEntryId = ledgerEntryIdSchema.safeParse(
     readString(formData, "entryId"),
   );
