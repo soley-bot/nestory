@@ -523,7 +523,7 @@ async function getLeasePathContext(
   leaseId: string,
 ) {
   const { data } = await supabase
-    .from("leases")
+    .from("current_leases")
     .select("property_id, unit_id")
     .eq("id", leaseId)
     .eq("organization_id", organizationId)

@@ -9,18 +9,18 @@ SELECT has_column(
   'deposit events own their operational Ledger identity'
 );
 
-SELECT hasnt_function(
+SELECT has_function(
   'public',
-  'record_lease_deposit_event_operational_unchecked',
+  'record_lease_deposit_event',
   ARRAY['uuid', 'uuid', 'text', 'date', 'numeric', 'text'],
-  'deposit recording has no unchecked compatibility writer'
+  'deposit recording has one checked command'
 );
 
-SELECT hasnt_function(
+SELECT has_function(
   'public',
-  'reverse_lease_deposit_event_operational_unchecked',
+  'reverse_lease_deposit_event',
   ARRAY['uuid', 'uuid', 'date', 'text'],
-  'deposit reversal has no unchecked compatibility writer'
+  'deposit reversal has one checked command'
 );
 
 -- The workflow assertions build their own balance history.

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   fetchAllActionableRows,
-  isWorkflowOwnedResponsibility,
   mergeRowsById,
   toExpenseSubmissionSummary,
 } from "@/features/finance-operations/data/finance-operations";
@@ -48,22 +47,6 @@ describe("mergeRowsById", () => {
         [{ id: "invoice-1", status: "history" }],
       ),
     ).toEqual([{ id: "invoice-1", status: "open" }]);
-  });
-});
-
-describe("isWorkflowOwnedResponsibility", () => {
-  it("keeps approved workflow expenses out of legacy results after submission history is paged away", () => {
-    expect(
-      isWorkflowOwnedResponsibility({
-        idempotency_key:
-          "expense-approval:00000000-0000-4000-8000-000000000001",
-      }),
-    ).toBe(true);
-    expect(
-      isWorkflowOwnedResponsibility({
-        idempotency_key: "legacy-expense-request-001",
-      }),
-    ).toBe(false);
   });
 });
 

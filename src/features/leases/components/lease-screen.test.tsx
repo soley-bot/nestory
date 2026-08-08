@@ -602,7 +602,6 @@ function makeLease(
     terms: [
       {
         archived_at: null,
-        authority_kind: "authoritative",
         end_date: "2027-06-30",
         id: `${id}-term`,
         lease_id: id,

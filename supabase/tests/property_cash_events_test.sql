@@ -219,14 +219,14 @@ SELECT ok(
   ) NOT ILIKE '%legacy%'
   AND pg_get_function_result(
     'public.get_property_cash_events_page(uuid,uuid,currency_code,date,date,date,text,uuid,integer)'::regprocedure
-  ) NOT ILIKE '%compatibility%'
+  ) NOT ILIKE '%accounting_journal%'
   AND pg_get_function_result(
     'public.get_property_cash_events_page(uuid,uuid,currency_code,date,date,date,text,uuid,integer)'::regprocedure
   ) ILIKE '%resolution_state%'
   AND pg_get_function_result(
     'public.get_property_cash_events_page(uuid,uuid,currency_code,date,date,date,text,uuid,integer)'::regprocedure
   ) ILIKE '%ledger_entry_id%',
-  'the public contract exposes operational evidence without accounting compatibility fields'
+  'the public contract exposes operational evidence without journal fields'
 );
 
 SELECT set_config(

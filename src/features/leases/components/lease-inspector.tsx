@@ -55,18 +55,12 @@ export function LeaseInspector({
   const displayedTerm =
     lease.terms.find((term) => term.id === lease.rentReadiness.termId) ??
     lease.terms[0];
-  const activeAuthoritativeTerm = lease.terms.find(
-    (term) =>
-      term.authorityKind === "authoritative" && term.status === "active",
-  );
-  const authoritativeTerms = lease.terms.filter(
-    (term) => term.authorityKind === "authoritative",
-  );
+  const activeTerm = lease.terms.find((term) => term.status === "active");
   const scheduleIdempotencyKey = [
     scheduleIdempotencySeed,
     lease.id,
-    activeAuthoritativeTerm?.endDate ?? "no-active-term",
-    authoritativeTerms.length,
+    activeTerm?.endDate ?? "no-active-term",
+    lease.terms.length,
   ].join(":");
   const iconButtonClassName =
     "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2 text-sm font-medium text-foreground outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
@@ -128,10 +122,7 @@ export function LeaseInspector({
           </div>
           {displayedTerm ? (
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-              <Detail
-                label="Term authority"
-                value={displayedTerm.authorityLabel}
-              />
+              <Detail label="Term" value={displayedTerm.datesLabel} />
               <Detail label="Due" value={displayedTerm.dueLabel} />
               <Detail
                 label="Frequency"
@@ -150,7 +141,7 @@ export function LeaseInspector({
           ) : null}
         </section>
 
-        {canConfigure && activeAuthoritativeTerm && !lease.isArchived ? (
+        {canConfigure && activeTerm && !lease.isArchived ? (
           <section
             aria-label="Future rent term"
             className="rounded-md border border-border p-3"
@@ -163,13 +154,13 @@ export function LeaseInspector({
             <form
               action={scheduleFutureTerm}
               className="mt-3 grid gap-3"
-              key={`${lease.id}:${activeAuthoritativeTerm.id}`}
+              key={`${lease.id}:${activeTerm.id}`}
             >
               <input name="leaseId" type="hidden" value={lease.id} />
               <input
                 name="supersedesTermId"
                 type="hidden"
-                value={activeAuthoritativeTerm.id}
+                value={activeTerm.id}
               />
               <input
                 name="idempotencyKey"
@@ -196,7 +187,7 @@ export function LeaseInspector({
                 <label className="grid gap-1 text-xs font-medium">
                   <span>Rent amount</span>
                   <NumberInput
-                    defaultValue={activeAuthoritativeTerm.rentAmount}
+                    defaultValue={activeTerm.rentAmount}
                     min="0"
                     name="rentAmount"
                     required
@@ -206,7 +197,7 @@ export function LeaseInspector({
                   <span>Due day</span>
                   <NumberInput
                     defaultValue={
-                      activeAuthoritativeTerm.rentDueDay ?? undefined
+                      activeTerm.rentDueDay ?? undefined
                     }
                     max="31"
                     min="1"
@@ -220,7 +211,7 @@ export function LeaseInspector({
                 <SelectControl
                   ariaLabel="Future term payment frequency"
                   defaultValue={
-                    activeAuthoritativeTerm.paymentFrequency ?? "monthly"
+                    activeTerm.paymentFrequency ?? "monthly"
                   }
                   name="paymentFrequency"
                   options={[
@@ -249,11 +240,11 @@ export function LeaseInspector({
                 </p>
               ) : null}
             </form>
-            {authoritativeTerms.length > 1 ? (
+            {lease.terms.length > 1 ? (
               <div className="mt-3 border-t border-border pt-3">
                 <p className="text-xs font-medium">Term history</p>
                 <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                  {authoritativeTerms.map((term) => (
+                  {lease.terms.map((term) => (
                     <li key={term.id}>
                       {term.datesLabel} · {term.rentLabel} · {term.statusLabel}
                     </li>

@@ -380,7 +380,7 @@ async function enrichLeaseSummaries({
     supabase
       .from("lease_terms")
       .select(
-        "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, rent_due_day, payment_frequency, status, authority_kind, archived_at",
+        "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, rent_due_day, payment_frequency, status, archived_at",
       )
       .eq("organization_id", organizationId)
       .in("lease_id", detailLeaseIds)
@@ -804,7 +804,7 @@ function summaryToLeaseRow(lease: LeaseSummary): LeaseRow {
     lease_start_date: lease.formValues.leaseStartDate,
     monthly_rent_amount: lease.formValues.monthlyRentAmount,
     monthly_rent_currency: lease.formValues.monthlyRentCurrency,
-    primary_tenant_person_id: lease.formValues.tenantPersonId || null,
+    primary_tenant_person_id: lease.formValues.tenantPersonId,
     property_id: lease.propertyId,
     status: lease.statusValue,
     tenant_name: lease.tenantName,

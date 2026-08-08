@@ -6,7 +6,7 @@ SELECT plan(45);
 
 CREATE TEMP VIEW demo_seed_context AS
 SELECT lease_start_date + 300 AS reference_date
-FROM public.leases
+FROM public.current_leases
 WHERE id = '30000000-0000-0000-0000-000000000001';
 
 SELECT is(
@@ -153,10 +153,10 @@ SELECT is(
 SELECT is(
   (
     SELECT count(*)
-    FROM public.leases AS leases
+    FROM public.current_leases AS leases
     JOIN public.lease_terms AS terms
       ON terms.organization_id = leases.organization_id
-     AND terms.lease_id = leases.id
+     AND terms.id = leases.lease_term_id
      AND terms.archived_at IS NULL
      AND terms.authority_kind = 'authoritative'
     WHERE leases.organization_id = '00000000-0000-0000-0000-000000000001'
@@ -437,7 +437,7 @@ SELECT ok(
   NOT EXISTS (
     SELECT 1
     FROM public.timeline_events AS timeline
-    JOIN public.leases AS leases
+    JOIN public.current_leases AS leases
       ON leases.organization_id = timeline.organization_id
      AND leases.id = timeline.lease_id
     WHERE timeline.organization_id = '00000000-0000-0000-0000-000000000001'

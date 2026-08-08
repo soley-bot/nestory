@@ -14,7 +14,6 @@ import { buildHref } from "@/lib/url/href";
 export type MaintenanceHrefTask = {
   assignee_person_id: string | null;
   id: string;
-  ledger_entry_id: string | null;
   property_id: string;
   timeline_event_id: string | null;
   unit_id: string | null;
@@ -56,12 +55,6 @@ export function buildMaintenanceHrefs(
       taskId: task.id,
       unitId: task.unit_id ?? undefined,
     }),
-    ledger: task.ledger_entry_id
-      ? buildHref("/ledger", {
-          archiveState: "all",
-          entryId: task.ledger_entry_id,
-        })
-      : undefined,
     property: `/properties/${task.property_id}`,
     task: taskHref,
     timeline: task.timeline_event_id

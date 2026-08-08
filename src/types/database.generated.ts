@@ -9,418 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      accounting_accounts: {
-        Row: {
-          account_type: string
-          archived_at: string | null
-          archived_by: string | null
-          book_id: string
-          code: string
-          created_at: string
-          created_by: string | null
-          id: string
-          is_active: boolean
-          is_control_account: boolean
-          name: string
-          normal_balance: string
-          organization_id: string
-          system_code: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          account_type: string
-          archived_at?: string | null
-          archived_by?: string | null
-          book_id: string
-          code: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          is_control_account?: boolean
-          name: string
-          normal_balance: string
-          organization_id: string
-          system_code: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          account_type?: string
-          archived_at?: string | null
-          archived_by?: string | null
-          book_id?: string
-          code?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          is_control_account?: boolean
-          name?: string
-          normal_balance?: string
-          organization_id?: string
-          system_code?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "accounting_accounts_book_id_fkey"
-            columns: ["book_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_books"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_accounts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      accounting_books: {
-        Row: {
-          archived_at: string | null
-          archived_by: string | null
-          book_type: string
-          created_at: string
-          created_by: string | null
-          currency: Database["public"]["Enums"]["currency_code"]
-          id: string
-          is_default: boolean
-          name: string
-          organization_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          archived_at?: string | null
-          archived_by?: string | null
-          book_type: string
-          created_at?: string
-          created_by?: string | null
-          currency: Database["public"]["Enums"]["currency_code"]
-          id?: string
-          is_default?: boolean
-          name: string
-          organization_id: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          archived_at?: string | null
-          archived_by?: string | null
-          book_type?: string
-          created_at?: string
-          created_by?: string | null
-          currency?: Database["public"]["Enums"]["currency_code"]
-          id?: string
-          is_default?: boolean
-          name?: string
-          organization_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "accounting_books_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      accounting_journal_entries: {
-        Row: {
-          book_id: string
-          created_at: string
-          currency: Database["public"]["Enums"]["currency_code"]
-          description: string
-          entry_date: string
-          id: string
-          legacy_ledger_entry_id: string | null
-          organization_id: string
-          payload_hash: string
-          posted_at: string
-          posted_by: string | null
-          posting_key: string
-          reference: string | null
-          reversal_of_id: string | null
-          reversed_by_id: string | null
-          source_id: string
-          source_type: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          book_id: string
-          created_at?: string
-          currency: Database["public"]["Enums"]["currency_code"]
-          description: string
-          entry_date: string
-          id?: string
-          legacy_ledger_entry_id?: string | null
-          organization_id: string
-          payload_hash: string
-          posted_at?: string
-          posted_by?: string | null
-          posting_key: string
-          reference?: string | null
-          reversal_of_id?: string | null
-          reversed_by_id?: string | null
-          source_id: string
-          source_type: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          book_id?: string
-          created_at?: string
-          currency?: Database["public"]["Enums"]["currency_code"]
-          description?: string
-          entry_date?: string
-          id?: string
-          legacy_ledger_entry_id?: string | null
-          organization_id?: string
-          payload_hash?: string
-          posted_at?: string
-          posted_by?: string | null
-          posting_key?: string
-          reference?: string | null
-          reversal_of_id?: string | null
-          reversed_by_id?: string | null
-          source_id?: string
-          source_type?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "accounting_journal_entries_book_id_fkey"
-            columns: ["book_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_books"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_entries_legacy_ledger_entry_id_fkey"
-            columns: ["legacy_ledger_entry_id"]
-            isOneToOne: false
-            referencedRelation: "ledger_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_entries_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_entries_reversal_of_id_fkey"
-            columns: ["reversal_of_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_entries_reversed_by_id_fkey"
-            columns: ["reversed_by_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_journal_entries"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      accounting_journal_lines: {
-        Row: {
-          account_id: string
-          created_at: string
-          credit_amount: number
-          debit_amount: number
-          description: string | null
-          id: string
-          journal_entry_id: string
-          lease_id: string | null
-          line_number: number
-          organization_id: string
-          owner_person_id: string | null
-          property_id: string | null
-          tenant_person_id: string | null
-          unit_id: string | null
-          vendor_person_id: string | null
-        }
-        Insert: {
-          account_id: string
-          created_at?: string
-          credit_amount?: number
-          debit_amount?: number
-          description?: string | null
-          id?: string
-          journal_entry_id: string
-          lease_id?: string | null
-          line_number: number
-          organization_id: string
-          owner_person_id?: string | null
-          property_id?: string | null
-          tenant_person_id?: string | null
-          unit_id?: string | null
-          vendor_person_id?: string | null
-        }
-        Update: {
-          account_id?: string
-          created_at?: string
-          credit_amount?: number
-          debit_amount?: number
-          description?: string | null
-          id?: string
-          journal_entry_id?: string
-          lease_id?: string | null
-          line_number?: number
-          organization_id?: string
-          owner_person_id?: string | null
-          property_id?: string | null
-          tenant_person_id?: string | null
-          unit_id?: string | null
-          vendor_person_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "accounting_journal_lines_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_lines_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_lines_lease_id_fkey"
-            columns: ["lease_id"]
-            isOneToOne: false
-            referencedRelation: "leases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_lines_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_lines_owner_person_id_fkey"
-            columns: ["owner_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_lines_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_lines_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "property_finance_positions"
-            referencedColumns: ["property_id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_lines_tenant_person_id_fkey"
-            columns: ["tenant_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_lines_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "units"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_journal_lines_vendor_person_id_fkey"
-            columns: ["vendor_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      accounting_periods: {
-        Row: {
-          book_id: string
-          created_at: string
-          created_by: string | null
-          id: string
-          lock_reason: string | null
-          locked_at: string | null
-          locked_by: string | null
-          organization_id: string
-          period_start: string
-          status: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          book_id: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          lock_reason?: string | null
-          locked_at?: string | null
-          locked_by?: string | null
-          organization_id: string
-          period_start: string
-          status?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          book_id?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          lock_reason?: string | null
-          locked_at?: string | null
-          locked_by?: string | null
-          organization_id?: string
-          period_start?: string
-          status?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "accounting_periods_book_id_fkey"
-            columns: ["book_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_books"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "accounting_periods_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       activity_logs: {
         Row: {
           action: string
@@ -617,6 +205,13 @@ export type Database = {
             foreignKeyName: "documents_lease_id_fkey"
             columns: ["lease_id"]
             isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["id"]
           },
@@ -807,7 +402,6 @@ export type Database = {
         Row: {
           adjusts_submission_id: string | null
           approved_finance_expense_item_id: string | null
-          approved_journal_entry_id: string | null
           approved_ledger_entry_id: string | null
           approved_payment_allocation_id: string | null
           approved_payment_id: string | null
@@ -829,7 +423,6 @@ export type Database = {
           reference: string | null
           request_payload_hash: string
           responsibility: string
-          reversal_journal_entry_id: string | null
           reversal_ledger_entry_id: string | null
           reversal_payment_allocation_id: string | null
           reversal_payment_id: string | null
@@ -854,7 +447,6 @@ export type Database = {
         Insert: {
           adjusts_submission_id?: string | null
           approved_finance_expense_item_id?: string | null
-          approved_journal_entry_id?: string | null
           approved_ledger_entry_id?: string | null
           approved_payment_allocation_id?: string | null
           approved_payment_id?: string | null
@@ -876,7 +468,6 @@ export type Database = {
           reference?: string | null
           request_payload_hash: string
           responsibility: string
-          reversal_journal_entry_id?: string | null
           reversal_ledger_entry_id?: string | null
           reversal_payment_allocation_id?: string | null
           reversal_payment_id?: string | null
@@ -901,7 +492,6 @@ export type Database = {
         Update: {
           adjusts_submission_id?: string | null
           approved_finance_expense_item_id?: string | null
-          approved_journal_entry_id?: string | null
           approved_ledger_entry_id?: string | null
           approved_payment_allocation_id?: string | null
           approved_payment_id?: string | null
@@ -923,7 +513,6 @@ export type Database = {
           reference?: string | null
           request_payload_hash?: string
           responsibility?: string
-          reversal_journal_entry_id?: string | null
           reversal_ledger_entry_id?: string | null
           reversal_payment_allocation_id?: string | null
           reversal_payment_id?: string | null
@@ -966,13 +555,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "finance_expense_items"
             referencedColumns: ["organization_id", "id"]
-          },
-          {
-            foreignKeyName: "expense_submissions_journal_fkey"
-            columns: ["approved_journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_journal_entries"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "expense_submissions_ledger_fkey"
@@ -1036,13 +618,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "finance_payment_allocations"
             referencedColumns: ["organization_id", "id"]
-          },
-          {
-            foreignKeyName: "expense_submissions_reversal_journal_fkey"
-            columns: ["reversal_journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_journal_entries"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "expense_submissions_reversal_ledger_fkey"
@@ -1262,13 +837,7 @@ export type Database = {
           property_id: string
           received_date: string | null
           reference: string | null
-          remaining_balance_disposition: string | null
-          remaining_balance_disposition_hash: string | null
-          remaining_balance_disposition_version: number | null
           rent_billing_period_start: string | null
-          settlement_creation_hash: string | null
-          settlement_creation_provenance: string | null
-          settlement_creation_version: number | null
           status: string
           unit_id: string | null
           updated_at: string
@@ -1294,13 +863,7 @@ export type Database = {
           property_id: string
           received_date?: string | null
           reference?: string | null
-          remaining_balance_disposition?: string | null
-          remaining_balance_disposition_hash?: string | null
-          remaining_balance_disposition_version?: number | null
           rent_billing_period_start?: string | null
-          settlement_creation_hash?: string | null
-          settlement_creation_provenance?: string | null
-          settlement_creation_version?: number | null
           status?: string
           unit_id?: string | null
           updated_at?: string
@@ -1326,19 +889,20 @@ export type Database = {
           property_id?: string
           received_date?: string | null
           reference?: string | null
-          remaining_balance_disposition?: string | null
-          remaining_balance_disposition_hash?: string | null
-          remaining_balance_disposition_version?: number | null
           rent_billing_period_start?: string | null
-          settlement_creation_hash?: string | null
-          settlement_creation_provenance?: string | null
-          settlement_creation_version?: number | null
           status?: string
           unit_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "finance_income_items_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "finance_income_items_lease_id_fkey"
             columns: ["lease_id"]
@@ -1653,65 +1217,6 @@ export type Database = {
           },
         ]
       }
-      finance_receipt_allocation_journals: {
-        Row: {
-          allocation_id: string
-          book_id: string
-          created_at: string
-          created_by: string | null
-          id: string
-          journal_entry_id: string
-          organization_id: string
-        }
-        Insert: {
-          allocation_id: string
-          book_id: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          journal_entry_id: string
-          organization_id: string
-        }
-        Update: {
-          allocation_id?: string
-          book_id?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          journal_entry_id?: string
-          organization_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "finance_receipt_allocation_journals_allocation_fkey"
-            columns: ["organization_id", "allocation_id"]
-            isOneToOne: false
-            referencedRelation: "finance_receipt_allocations"
-            referencedColumns: ["organization_id", "id"]
-          },
-          {
-            foreignKeyName: "finance_receipt_allocation_journals_book_id_fkey"
-            columns: ["book_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_books"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "finance_receipt_allocation_journals_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: true
-            referencedRelation: "accounting_journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "finance_receipt_allocation_journals_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       finance_receipt_allocations: {
         Row: {
           amount: number
@@ -1742,7 +1247,6 @@ export type Database = {
           payer_label_snapshot: string | null
           payer_person_id_snapshot: string | null
           property_id: string | null
-          publication_source_class: string | null
           receipt_id: string
           received_date: string | null
           reconciliation_source_id: string | null
@@ -1785,7 +1289,6 @@ export type Database = {
           payer_label_snapshot?: string | null
           payer_person_id_snapshot?: string | null
           property_id?: string | null
-          publication_source_class?: string | null
           receipt_id: string
           received_date?: string | null
           reconciliation_source_id?: string | null
@@ -1828,7 +1331,6 @@ export type Database = {
           payer_label_snapshot?: string | null
           payer_person_id_snapshot?: string | null
           property_id?: string | null
-          publication_source_class?: string | null
           receipt_id?: string
           received_date?: string | null
           reconciliation_source_id?: string | null
@@ -2294,6 +1796,13 @@ export type Database = {
             foreignKeyName: "import_rows_result_lease_org_fk"
             columns: ["organization_id", "result_lease_id"]
             isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "import_rows_result_lease_org_fk"
+            columns: ["organization_id", "result_lease_id"]
+            isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["organization_id", "id"]
           },
@@ -2641,6 +2150,13 @@ export type Database = {
             foreignKeyName: "lease_billing_terms_lease_fkey"
             columns: ["organization_id", "lease_id"]
             isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_billing_terms_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["organization_id", "id"]
           },
@@ -2877,6 +2393,13 @@ export type Database = {
             foreignKeyName: "lease_deposits_lease_fk"
             columns: ["organization_id", "lease_id"]
             isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_deposits_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["organization_id", "id"]
           },
@@ -3020,6 +2543,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "lease_occupancies_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "lease_occupancies_lease_fk"
             columns: ["organization_id", "lease_id"]
@@ -3310,6 +2840,13 @@ export type Database = {
             foreignKeyName: "lease_parties_lease_fk"
             columns: ["organization_id", "lease_id"]
             isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_parties_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["organization_id", "id"]
           },
@@ -3431,6 +2968,13 @@ export type Database = {
             foreignKeyName: "lease_terms_lease_fk"
             columns: ["organization_id", "lease_id"]
             isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_terms_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["organization_id", "id"]
           },
@@ -3459,15 +3003,10 @@ export type Database = {
           deposit_amount: number | null
           deposit_currency: Database["public"]["Enums"]["currency_code"] | null
           id: string
-          lease_end_date: string
-          lease_start_date: string
-          monthly_rent_amount: number
-          monthly_rent_currency: Database["public"]["Enums"]["currency_code"]
           organization_id: string
-          primary_tenant_person_id: string | null
+          primary_tenant_person_id: string
           property_id: string
           status: string
-          tenant_name: string
           unit_id: string | null
           updated_at: string
           updated_by: string | null
@@ -3480,15 +3019,10 @@ export type Database = {
           deposit_amount?: number | null
           deposit_currency?: Database["public"]["Enums"]["currency_code"] | null
           id?: string
-          lease_end_date: string
-          lease_start_date: string
-          monthly_rent_amount: number
-          monthly_rent_currency?: Database["public"]["Enums"]["currency_code"]
           organization_id: string
-          primary_tenant_person_id?: string | null
+          primary_tenant_person_id: string
           property_id: string
           status?: string
-          tenant_name: string
           unit_id?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -3501,15 +3035,10 @@ export type Database = {
           deposit_amount?: number | null
           deposit_currency?: Database["public"]["Enums"]["currency_code"] | null
           id?: string
-          lease_end_date?: string
-          lease_start_date?: string
-          monthly_rent_amount?: number
-          monthly_rent_currency?: Database["public"]["Enums"]["currency_code"]
           organization_id?: string
-          primary_tenant_person_id?: string | null
+          primary_tenant_person_id?: string
           property_id?: string
           status?: string
-          tenant_name?: string
           unit_id?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -3554,7 +3083,6 @@ export type Database = {
       }
       ledger_entries: {
         Row: {
-          accounting_journal_entry_id: string | null
           amount: number
           archived_at: string | null
           archived_by: string | null
@@ -3576,7 +3104,6 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
-          accounting_journal_entry_id?: string | null
           amount: number
           archived_at?: string | null
           archived_by?: string | null
@@ -3598,7 +3125,6 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
-          accounting_journal_entry_id?: string | null
           amount?: number
           archived_at?: string | null
           archived_by?: string | null
@@ -3620,13 +3146,6 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "ledger_entries_accounting_journal_entry_id_fkey"
-            columns: ["accounting_journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "accounting_journal_entries"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "ledger_entries_organization_id_fkey"
             columns: ["organization_id"]
@@ -3660,47 +3179,6 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ledger_period_locks: {
-        Row: {
-          created_at: string
-          id: string
-          locked_at: string | null
-          locked_by: string | null
-          organization_id: string
-          period_start: string
-          reason: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          locked_at?: string | null
-          locked_by?: string | null
-          organization_id: string
-          period_start: string
-          reason?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          locked_at?: string | null
-          locked_by?: string | null
-          organization_id?: string
-          period_start?: string
-          reason?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ledger_period_locks_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -3774,6 +3252,13 @@ export type Database = {
             columns: ["organization_id", "tenant_invoice_id"]
             isOneToOne: true
             referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "management_fee_occurrences_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "current_leases"
             referencedColumns: ["organization_id", "id"]
           },
           {
@@ -4239,6 +3724,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "ledger_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_collection_allocations_org_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "owner_collection_allocations_org_lease_fkey"
@@ -5307,84 +4799,6 @@ export type Database = {
           },
         ]
       }
-      property_close_revisions: {
-        Row: {
-          calculation_contract_version: string
-          created_at: string
-          created_by: string | null
-          id: string
-          organization_id: string
-          owner_roster_hash: string | null
-          previous_revision_id: string | null
-          property_reporting_period_id: string
-          reason: string | null
-          reconciliation_manifest_hash: string | null
-          revision_kind: string
-          revision_number: number
-          source_manifest_hash: string | null
-        }
-        Insert: {
-          calculation_contract_version: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          organization_id: string
-          owner_roster_hash?: string | null
-          previous_revision_id?: string | null
-          property_reporting_period_id: string
-          reason?: string | null
-          reconciliation_manifest_hash?: string | null
-          revision_kind: string
-          revision_number: number
-          source_manifest_hash?: string | null
-        }
-        Update: {
-          calculation_contract_version?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          organization_id?: string
-          owner_roster_hash?: string | null
-          previous_revision_id?: string | null
-          property_reporting_period_id?: string
-          reason?: string | null
-          reconciliation_manifest_hash?: string | null
-          revision_kind?: string
-          revision_number?: number
-          source_manifest_hash?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "property_close_revisions_org_period_fkey"
-            columns: ["organization_id", "property_reporting_period_id"]
-            isOneToOne: false
-            referencedRelation: "property_reporting_periods"
-            referencedColumns: ["organization_id", "id"]
-          },
-          {
-            foreignKeyName: "property_close_revisions_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_close_revisions_previous_fkey"
-            columns: [
-              "organization_id",
-              "property_reporting_period_id",
-              "previous_revision_id",
-            ]
-            isOneToOne: false
-            referencedRelation: "property_close_revisions"
-            referencedColumns: [
-              "organization_id",
-              "property_reporting_period_id",
-              "id",
-            ]
-          },
-        ]
-      }
       property_owners: {
         Row: {
           archived_at: string | null
@@ -5465,81 +4879,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
-          },
-        ]
-      }
-      property_reporting_periods: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          currency: Database["public"]["Enums"]["currency_code"]
-          current_close_revision_id: string | null
-          id: string
-          lifecycle_status: string
-          organization_id: string
-          period_start: string
-          property_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          currency: Database["public"]["Enums"]["currency_code"]
-          current_close_revision_id?: string | null
-          id?: string
-          lifecycle_status?: string
-          organization_id: string
-          period_start: string
-          property_id: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          currency?: Database["public"]["Enums"]["currency_code"]
-          current_close_revision_id?: string | null
-          id?: string
-          lifecycle_status?: string
-          organization_id?: string
-          period_start?: string
-          property_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "property_reporting_periods_current_revision_fkey"
-            columns: ["organization_id", "id", "current_close_revision_id"]
-            isOneToOne: false
-            referencedRelation: "property_close_revisions"
-            referencedColumns: [
-              "organization_id",
-              "property_reporting_period_id",
-              "id",
-            ]
-          },
-          {
-            foreignKeyName: "property_reporting_periods_org_property_fkey"
-            columns: ["organization_id", "property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["organization_id", "id"]
-          },
-          {
-            foreignKeyName: "property_reporting_periods_org_property_fkey"
-            columns: ["organization_id", "property_id"]
-            isOneToOne: false
-            referencedRelation: "property_finance_positions"
-            referencedColumns: ["organization_id", "property_id"]
-          },
-          {
-            foreignKeyName: "property_reporting_periods_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -5740,6 +5079,13 @@ export type Database = {
             foreignKeyName: "rent_generation_exceptions_lease_fkey"
             columns: ["organization_id", "lease_id"]
             isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "rent_generation_exceptions_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["organization_id", "id"]
           },
@@ -5901,7 +5247,6 @@ export type Database = {
           due_date: string | null
           due_time: string | null
           id: string
-          ledger_entry_id: string | null
           organization_id: string
           priority: string
           property_id: string
@@ -5943,7 +5288,6 @@ export type Database = {
           due_date?: string | null
           due_time?: string | null
           id?: string
-          ledger_entry_id?: string | null
           organization_id: string
           priority?: string
           property_id: string
@@ -5985,7 +5329,6 @@ export type Database = {
           due_date?: string | null
           due_time?: string | null
           id?: string
-          ledger_entry_id?: string | null
           organization_id?: string
           priority?: string
           property_id?: string
@@ -6022,13 +5365,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organization_branches"
             referencedColumns: ["organization_id", "id"]
-          },
-          {
-            foreignKeyName: "tasks_ledger_entry_id_fkey"
-            columns: ["ledger_entry_id"]
-            isOneToOne: false
-            referencedRelation: "ledger_entries"
-            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "tasks_organization_id_fkey"
@@ -6443,6 +5779,13 @@ export type Database = {
             foreignKeyName: "tenant_invoices_lease_fkey"
             columns: ["organization_id", "lease_id"]
             isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["organization_id", "id"]
           },
@@ -6655,6 +5998,13 @@ export type Database = {
             foreignKeyName: "timeline_events_lease_id_fkey"
             columns: ["lease_id"]
             isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timeline_events_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["id"]
           },
@@ -6842,6 +6192,69 @@ export type Database = {
       }
     }
     Views: {
+      current_leases: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string | null
+          created_by: string | null
+          deposit_amount: number | null
+          deposit_currency: Database["public"]["Enums"]["currency_code"] | null
+          id: string | null
+          lease_end_date: string | null
+          lease_start_date: string | null
+          lease_term_id: string | null
+          monthly_rent_amount: number | null
+          monthly_rent_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          organization_id: string | null
+          primary_tenant_person_id: string | null
+          property_id: string | null
+          status: string | null
+          tenant_name: string | null
+          unit_id: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leases_primary_tenant_person_fk"
+            columns: ["organization_id", "primary_tenant_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "leases_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leases_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "leases_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       owner_invoice_balances: {
         Row: {
           balance_due: number | null
@@ -6980,6 +6393,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "lease_billing_terms"
             referencedColumns: ["organization_id", "lease_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "tenant_invoices_lease_fkey"
@@ -7125,25 +6545,13 @@ export type Database = {
         Args: { p_import_run_id: string; p_organization_id: string }
         Returns: Json
       }
-      commit_generic_import_run_legacy_unchecked: {
+      commit_generic_import_run_internal: {
         Args: { p_import_run_id: string; p_organization_id: string }
         Returns: Json
       }
       commit_unit_import_run: {
         Args: { p_import_run_id: string; p_organization_id: string }
         Returns: Json
-      }
-      confirm_legacy_lease_term: {
-        Args: {
-          p_idempotency_key: string
-          p_lease_id: string
-          p_legacy_term_id: string
-          p_organization_id: string
-          p_payment_frequency: string
-          p_rent_due_day: number
-          p_status: string
-        }
-        Returns: string
       }
       confirm_owner_collected_rent: {
         Args: {
@@ -7157,7 +6565,7 @@ export type Database = {
         }
         Returns: string
       }
-      confirm_owner_collected_rent_lease_derived_unchecked: {
+      confirm_owner_collected_rent_internal: {
         Args: {
           p_allocations: Json
           p_amount: number
@@ -7238,47 +6646,6 @@ export type Database = {
         }
         Returns: string
       }
-      create_finance_expense_item: {
-        Args: {
-          p_amount: number
-          p_category: string
-          p_company_loss_amount?: number
-          p_description: string
-          p_due_date: string
-          p_economic_scope?: string
-          p_expense_type: string
-          p_invoice_date: string
-          p_organization_id: string
-          p_owner_bill_status?: string
-          p_owner_reimbursable_amount?: number
-          p_owner_reimbursed_amount?: number
-          p_property_id: string
-          p_reference: string
-          p_task_id: string
-          p_unit_id: string
-          p_vendor_label: string
-          p_vendor_person_id: string
-        }
-        Returns: string
-      }
-      create_finance_income_item: {
-        Args: {
-          p_amount_due: number
-          p_amount_received: number
-          p_description: string
-          p_due_date: string
-          p_income_type: string
-          p_lease_id: string
-          p_organization_id: string
-          p_payer_label: string
-          p_payer_person_id?: string
-          p_property_id: string
-          p_received_date: string
-          p_reference: string
-          p_unit_id: string
-        }
-        Returns: string
-      }
       create_financial_reconciliation_source: {
         Args: {
           p_code: string
@@ -7289,42 +6656,6 @@ export type Database = {
           p_property_id?: string
           p_scope_kind: string
           p_source_kind: string
-        }
-        Returns: string
-      }
-      create_lease: {
-        Args: {
-          p_deposit_amount: number
-          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
-          p_lease_end_date: string
-          p_lease_start_date: string
-          p_monthly_rent_amount: number
-          p_monthly_rent_currency: Database["public"]["Enums"]["currency_code"]
-          p_organization_id: string
-          p_primary_tenant_person_id: string
-          p_property_id: string
-          p_status: string
-          p_unit_id: string
-        }
-        Returns: string
-      }
-      create_lease_with_authoritative_term: {
-        Args: {
-          p_deposit_amount: number
-          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
-          p_idempotency_key: string
-          p_lease_end_date: string
-          p_lease_start_date: string
-          p_lease_status: string
-          p_organization_id: string
-          p_payment_frequency: string
-          p_primary_tenant_person_id: string
-          p_property_id: string
-          p_rent_amount: number
-          p_rent_currency: Database["public"]["Enums"]["currency_code"]
-          p_rent_due_day: number
-          p_term_status: string
-          p_unit_id: string
         }
         Returns: string
       }
@@ -7521,24 +6852,6 @@ export type Database = {
         }
         Returns: string
       }
-      generate_monthly_rent_income_items: {
-        Args: { p_month?: string; p_organization_id: string }
-        Returns: number
-      }
-      generate_monthly_rent_income_items_legacy_unchecked: {
-        Args: { p_month?: string; p_organization_id: string }
-        Returns: number
-      }
-      generate_tenant_rent_invoice: {
-        Args: {
-          p_billing_period_start: string
-          p_idempotency_key: string
-          p_issue_date: string
-          p_lease_id: string
-          p_organization_id: string
-        }
-        Returns: string
-      }
       get_expense_submission_evidence: {
         Args: { p_organization_id: string; p_submission_ids: string[] }
         Returns: {
@@ -7589,16 +6902,6 @@ export type Database = {
           unposted_total: number
         }[]
       }
-      get_finance_income_owner_state_v1: {
-        Args: {
-          p_action_date?: string
-          p_organization_id: string
-          p_requested_action?: string
-          p_source_id: string
-          p_source_type: string
-        }
-        Returns: Json
-      }
       get_finance_income_workflow_summary: {
         Args: {
           p_due_before: string
@@ -7616,50 +6919,6 @@ export type Database = {
           receivable_total: number
           received_total: number
           unposted_count: number
-        }[]
-      }
-      get_finance_inventory_page: {
-        Args: {
-          p_after_key?: string
-          p_currency: Database["public"]["Enums"]["currency_code"]
-          p_issue_codes?: string[]
-          p_limit?: number
-          p_organization_id: string
-          p_period_end: string
-          p_period_start: string
-          p_property_id: string
-          p_section: string
-          p_source_types?: string[]
-        }
-        Returns: {
-          contract_version: string
-          payload: Json
-          section: string
-          stable_key: string
-        }[]
-      }
-      get_finance_payment_drilldown: {
-        Args: {
-          p_expense_type?: string
-          p_limit?: number
-          p_offset?: number
-          p_organization_id: string
-          p_paid_before: string
-          p_paid_from: string
-          p_property_id?: string
-          p_query?: string
-          p_status?: string
-          p_unit_id?: string
-        }
-        Returns: {
-          allocation_amount: number
-          expense: Json
-          paid_date: string
-          payment_id: string
-          payment_reference: string
-          reversal_of_id: string
-          scoped_amount: number
-          total_count: number
         }[]
       }
       get_leases_with_effective_rent: {
@@ -7819,45 +7078,6 @@ export type Database = {
         }
         Returns: string
       }
-      post_accounting_journal: {
-        Args: {
-          p_book_id: string
-          p_currency: Database["public"]["Enums"]["currency_code"]
-          p_description: string
-          p_entry_date: string
-          p_lines: Json
-          p_organization_id: string
-          p_posting_key: string
-          p_reference: string
-          p_source_id: string
-          p_source_type: string
-        }
-        Returns: string
-      }
-      post_finance_expense_item: {
-        Args: {
-          p_expense_item_id: string
-          p_organization_id: string
-          p_paid_date?: string
-        }
-        Returns: string
-      }
-      post_finance_expense_item_expense_approval_unchecked: {
-        Args: {
-          p_expense_item_id: string
-          p_organization_id: string
-          p_paid_date?: string
-        }
-        Returns: string
-      }
-      post_finance_income_item: {
-        Args: { p_income_item_id: string; p_organization_id: string }
-        Returns: string
-      }
-      post_finance_income_item_expense_approval_unchecked: {
-        Args: { p_income_item_id: string; p_organization_id: string }
-        Returns: string
-      }
       post_petty_cash_entry: {
         Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
@@ -7876,109 +7096,6 @@ export type Database = {
       record_auth_password_credential_proof: {
         Args: { p_auth_user_id: string; p_proof_method: string }
         Returns: string
-      }
-      record_finance_income_payment: {
-        Args: {
-          p_amount_received: number
-          p_income_item_id: string
-          p_organization_id: string
-          p_received_date: string
-          p_reference: string
-        }
-        Returns: undefined
-      }
-      record_finance_income_payment_expense_approval_unchecked: {
-        Args: {
-          p_amount_received: number
-          p_income_item_id: string
-          p_organization_id: string
-          p_received_date: string
-          p_reference: string
-        }
-        Returns: undefined
-      }
-      record_finance_payment: {
-        Args: {
-          p_amount: number
-          p_expense_item_id: string
-          p_organization_id: string
-          p_paid_date: string
-          p_reference?: string
-        }
-        Returns: string
-      }
-      record_finance_payment_expense_approval_unchecked: {
-        Args: {
-          p_amount: number
-          p_expense_item_id: string
-          p_organization_id: string
-          p_paid_date: string
-          p_reference?: string
-        }
-        Returns: string
-      }
-      record_finance_receipt: {
-        Args: {
-          p_amount: number
-          p_income_item_id: string
-          p_organization_id: string
-          p_received_date: string
-          p_reference?: string
-        }
-        Returns: string
-      }
-      record_finance_receipt_expense_approval_unchecked: {
-        Args: {
-          p_amount: number
-          p_income_item_id: string
-          p_organization_id: string
-          p_received_date: string
-          p_reference?: string
-        }
-        Returns: string
-      }
-      record_finance_receipt_v2: {
-        Args: {
-          p_amount: number
-          p_idempotency_key: string
-          p_income_item_id: string
-          p_organization_id: string
-          p_received_date: string
-          p_reconciliation_source_id: string
-          p_reference: string
-        }
-        Returns: Json
-      }
-      record_finance_receipt_v2_expense_approval_unchecked: {
-        Args: {
-          p_amount: number
-          p_idempotency_key: string
-          p_income_item_id: string
-          p_organization_id: string
-          p_received_date: string
-          p_reconciliation_source_id: string
-          p_reference: string
-        }
-        Returns: Json
-      }
-      record_ips_paid_expense: {
-        Args: {
-          p_customer_category: string
-          p_expense_date: string
-          p_idempotency_key: string
-          p_internal_cost_amount: number
-          p_internal_markup_amount: number
-          p_organization_id: string
-          p_property_id: string
-          p_reference: string
-          p_responsibility: string
-          p_supporting_document_id: string
-          p_tenant_invoice_id: string
-          p_unit_id: string
-          p_vendor_label: string
-          p_vendor_person_id: string
-        }
-        Returns: Json
       }
       record_lease_deposit_event: {
         Args: {
@@ -8026,7 +7143,7 @@ export type Database = {
         }
         Returns: string
       }
-      record_tenant_invoice_payment_lease_derived_unchecked: {
+      record_tenant_invoice_payment_internal: {
         Args: {
           p_allocations: Json
           p_amount: number
@@ -8180,15 +7297,6 @@ export type Database = {
         Args: { p_organization_id: string; p_unit_id: string }
         Returns: string
       }
-      reverse_accounting_journal: {
-        Args: {
-          p_journal_id: string
-          p_organization_id: string
-          p_reason: string
-          p_reversal_date: string
-        }
-        Returns: string
-      }
       reverse_expense: {
         Args: {
           p_idempotency_key: string
@@ -8196,64 +7304,6 @@ export type Database = {
           p_reason: string
           p_reversal_date: string
           p_submission_id: string
-        }
-        Returns: Json
-      }
-      reverse_finance_payment: {
-        Args: {
-          p_organization_id: string
-          p_payment_id: string
-          p_reference?: string
-          p_reversal_date: string
-        }
-        Returns: string
-      }
-      reverse_finance_payment_expense_approval_unchecked: {
-        Args: {
-          p_organization_id: string
-          p_payment_id: string
-          p_reference?: string
-          p_reversal_date: string
-        }
-        Returns: string
-      }
-      reverse_finance_receipt: {
-        Args: {
-          p_organization_id: string
-          p_receipt_id: string
-          p_reference?: string
-          p_reversal_date: string
-        }
-        Returns: string
-      }
-      reverse_finance_receipt_expense_approval_unchecked: {
-        Args: {
-          p_organization_id: string
-          p_receipt_id: string
-          p_reference?: string
-          p_reversal_date: string
-        }
-        Returns: string
-      }
-      reverse_finance_receipt_v2: {
-        Args: {
-          p_idempotency_key: string
-          p_organization_id: string
-          p_reason: string
-          p_receipt_id: string
-          p_reconciliation_source_id: string
-          p_reversal_date: string
-        }
-        Returns: Json
-      }
-      reverse_finance_receipt_v2_expense_approval_unchecked: {
-        Args: {
-          p_idempotency_key: string
-          p_organization_id: string
-          p_reason: string
-          p_receipt_id: string
-          p_reconciliation_source_id: string
-          p_reversal_date: string
         }
         Returns: Json
       }
@@ -8305,35 +7355,9 @@ export type Database = {
         }
         Returns: string
       }
-      set_accounting_period_lock: {
-        Args: {
-          p_book_id: string
-          p_locked: boolean
-          p_organization_id: string
-          p_period_start: string
-          p_reason: string
-        }
-        Returns: undefined
-      }
       set_asset_photo_cover: {
         Args: { p_organization_id: string; p_photo_id: string }
         Returns: string
-      }
-      set_finance_expense_status: {
-        Args: {
-          p_expense_item_id: string
-          p_organization_id: string
-          p_status: string
-        }
-        Returns: undefined
-      }
-      set_finance_expense_status_expense_approval_unchecked: {
-        Args: {
-          p_expense_item_id: string
-          p_organization_id: string
-          p_status: string
-        }
-        Returns: undefined
       }
       set_financial_month_lock: {
         Args: {
@@ -8360,15 +7384,6 @@ export type Database = {
           p_management_fee_value: number
           p_organization_id: string
           p_supersedes_billing_term_id: string
-        }
-        Returns: string
-      }
-      set_ledger_period_lock: {
-        Args: {
-          p_locked: boolean
-          p_organization_id: string
-          p_period_start: string
-          p_reason: string
         }
         Returns: string
       }
@@ -8454,23 +7469,6 @@ export type Database = {
         }
         Returns: string
       }
-      update_lease: {
-        Args: {
-          p_deposit_amount: number
-          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
-          p_lease_end_date: string
-          p_lease_id: string
-          p_lease_start_date: string
-          p_monthly_rent_amount: number
-          p_monthly_rent_currency: Database["public"]["Enums"]["currency_code"]
-          p_organization_id: string
-          p_primary_tenant_person_id: string
-          p_property_id: string
-          p_status: string
-          p_unit_id: string
-        }
-        Returns: string
-      }
       update_lease_with_authoritative_term: {
         Args: {
           p_deposit_amount: number
@@ -8505,7 +7503,6 @@ export type Database = {
           p_description: string
           p_due_date: string
           p_due_time: string
-          p_link_actual_cost_to_ledger: boolean
           p_organization_id: string
           p_priority: string
           p_property_id: string
@@ -8633,14 +7630,6 @@ export type Database = {
           p_unit_number: string
         }
         Returns: string
-      }
-      void_finance_income_item: {
-        Args: { p_income_item_id: string; p_organization_id: string }
-        Returns: undefined
-      }
-      void_finance_income_item_expense_approval_unchecked: {
-        Args: { p_income_item_id: string; p_organization_id: string }
-        Returns: undefined
       }
       void_petty_cash_entry: {
         Args: {

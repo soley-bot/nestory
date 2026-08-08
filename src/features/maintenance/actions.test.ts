@@ -52,13 +52,12 @@ describe("maintenance action capabilities", () => {
     maybeSingle.mockResolvedValue({ data: null, error: null });
   });
 
-  it("never lets a manager request an official ledger posting", async () => {
+  it("updates maintenance details without a direct Ledger command", async () => {
     requireOperationsExecutionContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
       role: "operations_manager",
     });
     const formData = validMaintenanceForm();
-    formData.set("linkActualCostToLedger", "on");
 
     const result = await updateMaintenanceCaseAction({}, formData);
 
@@ -68,29 +67,12 @@ describe("maintenance action capabilities", () => {
       "update_maintenance_task",
       expect.objectContaining({
         p_actual_cost_amount: 125.5,
-        p_link_actual_cost_to_ledger: false,
       }),
     );
     expect(rpc).toHaveBeenCalledTimes(1);
-  });
-
-  it("retires direct Ledger posting for Super Admin too", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "super_admin",
-    });
-    const formData = validMaintenanceForm();
-    formData.set("linkActualCostToLedger", "on");
-
-    const result = await updateMaintenanceCaseAction({}, formData);
-
-    expect(result.status).toBe("success");
-    expect(rpc).toHaveBeenNthCalledWith(
-      1,
-      "update_maintenance_task",
-      expect.objectContaining({ p_link_actual_cost_to_ledger: false }),
+    expect(rpc.mock.calls[0]?.[1]).not.toHaveProperty(
+      "p_link_actual_cost_to_ledger",
     );
-    expect(rpc).toHaveBeenCalledTimes(1);
   });
 
   it("submits the recorded cost to Finance through operations authority", async () => {

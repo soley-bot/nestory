@@ -86,7 +86,7 @@ SELECT ok(
       'authenticated', 'public.import_runs', 'snapshot_hash', 'INSERT,UPDATE'
     )
     AND has_table_privilege('authenticated', 'public.import_runs', 'DELETE'),
-  'authenticated retains legacy run writes except database-owned hash columns'
+  'authenticated retains scoped run writes except database-owned hash columns'
 );
 
 SELECT ok(
@@ -106,7 +106,7 @@ SELECT ok(
       'authenticated', 'public.import_rows', 'result_lease_occupancy_id', 'INSERT,UPDATE'
     )
     AND has_table_privilege('authenticated', 'public.import_rows', 'DELETE'),
-  'authenticated retains scoped legacy row writes for trigger-level compatibility'
+  'authenticated retains scoped row writes behind the staging guards'
 );
 
 SELECT set_config(

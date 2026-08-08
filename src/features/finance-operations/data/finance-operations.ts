@@ -6,7 +6,6 @@ import {
 import type { Database } from "@/types/database";
 import type {
   ExpenseSubmissionSummary,
-  FinanceExpenseSummary,
   FinanceLease,
   FinanceOperationsData,
   FinanceOption,
@@ -88,15 +87,6 @@ export function mergeRowsById<T extends { id: string | null }>(
   }
 
   return [...rowsById.values()];
-}
-
-export function isWorkflowOwnedResponsibility(
-  responsibility: Pick<
-    Database["public"]["Tables"]["ips_expense_responsibilities"]["Row"],
-    "idempotency_key"
-  >,
-): boolean {
-  return responsibility.idempotency_key.startsWith("expense-approval:");
 }
 
 export function toExpenseSubmissionSummary(
@@ -181,8 +171,6 @@ export async function getFinanceOperationsData(
     tenantLinesResult,
     ownerInvoicesResult,
     expenseSubmissionsResult,
-    responsibilitiesResult,
-    expensesResult,
     positionsResult,
     entriesResult,
     sourcesResult,
@@ -210,7 +198,7 @@ export async function getFinanceOperationsData(
       .is("ended_on", null)
       .is("archived_at", null),
     supabase
-      .from("leases")
+      .from("current_leases")
       .select(
         "id, property_id, unit_id, primary_tenant_person_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount",
       )
@@ -234,16 +222,6 @@ export async function getFinanceOperationsData(
       .order("sort_order"),
     getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
     getExpenseSubmissionRows(supabase, organizationId),
-    supabase
-      .from("ips_expense_responsibilities")
-      .select("*")
-      .eq("organization_id", organizationId)
-      .order("created_at", { ascending: false })
-      .limit(250),
-    supabase
-      .from("finance_expense_items")
-      .select("id, unit_id, invoice_date, vendor_label")
-      .eq("organization_id", organizationId),
     supabase
       .from("property_finance_positions")
       .select("*")
@@ -269,8 +247,6 @@ export async function getFinanceOperationsData(
     tenantLinesResult,
     ownerInvoicesResult,
     expenseSubmissionsResult,
-    responsibilitiesResult,
-    expensesResult,
     positionsResult,
     entriesResult,
     sourcesResult,
@@ -349,9 +325,6 @@ export async function getFinanceOperationsData(
     linesByInvoiceId.set(line.invoice_id, invoiceLines);
   }
 
-  const expenseById = new Map(
-    (expensesResult.data ?? []).map((expense) => [expense.id, expense]),
-  );
   const sourceById = new Map(
     (sourcesResult.data ?? []).map((source) => [
       source.id,
@@ -409,34 +382,6 @@ export async function getFinanceOperationsData(
           evidenceBySubmissionId,
         ),
     ),
-    expenses: (responsibilitiesResult.data ?? []).flatMap((responsibility) => {
-      if (isWorkflowOwnedResponsibility(responsibility)) return [];
-      const expense = expenseById.get(responsibility.finance_expense_item_id);
-      const property = propertyById.get(responsibility.property_id);
-      if (!expense || !property) return [];
-      const unit = expense.unit_id ? unitById.get(expense.unit_id) : null;
-      return [
-        {
-          category: responsibility.customer_category,
-          customerLabel: responsibility.customer_label,
-          customerTotal: Number(responsibility.customer_total_amount),
-          date: expense.invoice_date,
-          heldCashAmount: Number(responsibility.held_cash_amount),
-          id: responsibility.id,
-          internalCost: Number(responsibility.internal_cost_amount),
-          internalMarkup: Number(responsibility.internal_markup_amount),
-          ipsAdvanceAmount: Number(responsibility.ips_advance_amount),
-          propertyId: property.id,
-          propertyLabel: propertyLabel(property),
-          responsibility: responsibility.responsibility as "owner" | "tenant",
-          responsibleLabel:
-            personById.get(responsibility.responsible_person_id) ?? "Unknown",
-          unitId: expense.unit_id,
-          unitLabel: unit ? unitLabel(unit, property) : "All units",
-          vendorLabel: expense.vendor_label,
-        } satisfies FinanceExpenseSummary,
-      ];
-    }),
     leases: (leasesResult.data ?? []).flatMap((lease) => {
       const property = propertyById.get(lease.property_id);
       if (!property) return [];

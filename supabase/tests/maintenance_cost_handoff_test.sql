@@ -83,12 +83,10 @@ CREATE TEMP TABLE maintenance_cost_state (
   task_id uuid NOT NULL DEFAULT 'c6000000-0000-0000-0000-000000000001',
   rejected_task_id uuid NOT NULL DEFAULT 'c6000000-0000-0000-0000-000000000002',
   other_branch_task_id uuid NOT NULL DEFAULT 'c6000000-0000-0000-0000-000000000003',
-  direct_link_task_id uuid NOT NULL DEFAULT 'c6000000-0000-0000-0000-000000000004',
   document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000001',
   other_branch_document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000002',
   forged_document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000004',
   blocked_forged_document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000005',
-  cross_ledger_entry_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000003',
   funding_source_id uuid NOT NULL DEFAULT 'c9000000-0000-0000-0000-000000000001',
   submission_id uuid,
   forged_submission_id uuid,
@@ -405,29 +403,6 @@ SELECT
   super_admin_id
 FROM maintenance_cost_state;
 
-INSERT INTO public.ledger_entries (
-  id,
-  organization_id,
-  property_id,
-  transaction_date,
-  direction,
-  category,
-  amount,
-  currency,
-  description
-)
-SELECT
-  cross_ledger_entry_id,
-  cross_organization_id,
-  cross_property_id,
-  '2026-08-08',
-  'expense',
-  'Legacy maintenance',
-  40,
-  'USD',
-  'Cross-organization legacy Ledger entry'
-FROM maintenance_cost_state;
-
 INSERT INTO public.documents (
   id,
   organization_id,
@@ -469,7 +444,7 @@ SELECT
   super_admin_id
 FROM maintenance_cost_state;
 
--- Represent a legacy forged document row so both read projections can prove
+-- Represent a forged document row so both read projections can prove
 -- that an organization prefix mismatch never grants storage access.
 SET LOCAL session_replication_role = replica;
 INSERT INTO public.documents (
@@ -519,7 +494,6 @@ FROM maintenance_cost_state;
 CREATE OR REPLACE FUNCTION pg_temp.update_maintenance_cost(
   p_task_id uuid,
   p_actual_cost numeric,
-  p_link_to_ledger boolean DEFAULT false,
   p_unit_id uuid DEFAULT NULL
 )
 RETURNS uuid
@@ -555,7 +529,6 @@ BEGIN
     target.actual_cost_currency,
     target.checklist,
     target.recurrence_frequency,
-    p_link_to_ledger,
     target.branch_id,
     target.assignee_person_id
   );
@@ -646,7 +619,7 @@ SELECT throws_ok(
   $$,
   '23503',
   'Supporting receipt does not belong to property',
-  'legacy forged document metadata cannot enter the expense approval workflow'
+  'forged document metadata cannot enter the expense approval workflow'
 );
 
 RESET ROLE;
@@ -658,42 +631,11 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
-SELECT throws_ok(
-  $$
-    INSERT INTO public.tasks (
-      id,
-      organization_id,
-      tenant_request_id,
-      property_id,
-      unit_id,
-      branch_id,
-      title,
-      category,
-      priority,
-      status,
-      ledger_entry_id,
-      created_by,
-      updated_by
-    )
-    SELECT
-      direct_link_task_id,
-      organization_id,
-      request_id,
-      property_id,
-      unit_id,
-      branch_id,
-      'Attempted direct Ledger link',
-      'Repairs',
-      'normal',
-      'pending',
-      cross_ledger_entry_id,
-      operations_manager_id,
-      operations_manager_id
-    FROM maintenance_cost_state
-  $$,
-  '22023',
-  'Direct maintenance cost posting is retired; submit the cost to Finance',
-  'Operations cannot attach a guessed cross-organization Ledger entry during task creation'
+SELECT hasnt_column(
+  'public',
+  'tasks',
+  'ledger_entry_id',
+  'Operations cannot attach any direct Ledger entry to a maintenance task'
 );
 
 SELECT results_eq(
@@ -1007,8 +949,7 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$SELECT pg_temp.update_maintenance_cost(
     'c6000000-0000-0000-0000-000000000001',
-    130,
-    false
+    130
   )$$,
   '22023',
   'Submitted maintenance cost fields are locked',
@@ -1041,15 +982,11 @@ SELECT set_config(
   true
 );
 
-SELECT throws_ok(
-  $$SELECT pg_temp.update_maintenance_cost(
-    'c6000000-0000-0000-0000-000000000002',
-    80,
-    true
-  )$$,
-  '22023',
-  'Direct maintenance cost posting is retired; submit the cost to Finance',
-  'the old direct Ledger switch is retired'
+SELECT ok(
+  to_regprocedure(
+    'public.update_maintenance_task(uuid,uuid,uuid,uuid,text,text,text,text,text,date,time without time zone,date,time without time zone,uuid,numeric,public.currency_code,numeric,public.currency_code,jsonb,text,boolean,uuid,uuid)'
+  ) IS NULL,
+  'the maintenance update API has no direct Ledger switch'
 );
 
 SELECT throws_ok(
@@ -1312,7 +1249,6 @@ SELECT throws_ok(
   $$SELECT pg_temp.update_maintenance_cost(
     'c6000000-0000-0000-0000-000000000001',
     125.50,
-    false,
     (SELECT alternate_unit_id FROM maintenance_cost_state)
   )$$,
   '22023',
@@ -1348,86 +1284,20 @@ SELECT set_config(
 
 RESET ROLE;
 
--- Seed a pre-migration historical row without weakening the runtime trigger.
-SET LOCAL session_replication_role = replica;
-INSERT INTO public.tasks (
-  id,
-  organization_id,
-  tenant_request_id,
-  property_id,
-  unit_id,
-  branch_id,
-  assignee_person_id,
-  title,
-  category,
-  priority,
-  status,
-  vendor_person_id,
-  actual_cost_amount,
-  actual_cost_currency,
-  ledger_entry_id,
-  created_by,
-  updated_by
-)
-SELECT
-  'c6000000-0000-0000-0000-000000000004',
-  organization_id,
-  request_id,
-  property_id,
-  unit_id,
-  branch_id,
-  operations_member_person_id,
-  'Legacy posted repair',
-  'Repairs',
-  'normal',
-  'completed',
-  vendor_id,
-  125.50,
-  'USD'::public.currency_code,
-  (
-    SELECT approved_ledger_entry_id
-    FROM public.expense_submissions
-    WHERE id = state.submission_id
-  ),
-  super_admin_id,
-  super_admin_id
-FROM maintenance_cost_state AS state;
-SET LOCAL session_replication_role = origin;
-
-SELECT set_config(
-  'request.jwt.claim.sub',
-  (SELECT operations_manager_id::text FROM maintenance_cost_state),
-  true
-);
-SET LOCAL ROLE authenticated;
-
-SELECT throws_ok(
-  $$
-    SELECT public.submit_maintenance_cost(
-      organization_id,
-      'c6000000-0000-0000-0000-000000000004',
-      '2026-08-09',
-      NULL,
-      'Legacy paid repair',
-      'maintenance-legacy-posted-0001'
-    )
-    FROM maintenance_cost_state
-  $$,
-  '22023',
-  'Historical Ledger-linked maintenance cost requires Super Admin reconciliation before Finance submission',
-  'a historical Ledger-linked task cannot create a second Finance effect'
+SELECT hasnt_column(
+  'public',
+  'tasks',
+  'ledger_entry_id',
+  'maintenance work and financial projection identities are separate'
 );
 
-RESET ROLE;
-
-SELECT is(
-  (
-    SELECT count(*)
-    FROM public.expense_submissions
-    WHERE source_id = 'c6000000-0000-0000-0000-000000000004'
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.ledger_entries
+    WHERE source_type = 'maintenance_task'
   ),
-  0::bigint,
-  'the blocked legacy task creates no expense submission'
+  'maintenance tasks cannot become direct Ledger sources'
 );
 
 SELECT set_config(
@@ -1440,8 +1310,7 @@ SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   $$SELECT pg_temp.update_maintenance_cost(
     'c6000000-0000-0000-0000-000000000001',
-    150,
-    false
+    150
   )$$,
   'Operations can record a later increased maintenance total after approval'
 );
@@ -1600,12 +1469,13 @@ SELECT results_eq(
 
 SELECT is(
   (
-    SELECT ledger_entry_id
-    FROM public.tasks
-    WHERE id = (SELECT task_id FROM maintenance_cost_state)
+    SELECT count(*)::bigint
+    FROM public.ledger_entries
+    WHERE source_type = 'maintenance_task'
+      AND source_id = (SELECT task_id FROM maintenance_cost_state)
   ),
-  NULL::uuid,
-  'maintenance task no longer receives a direct Ledger link'
+  0::bigint,
+  'maintenance task never receives a direct Ledger event'
 );
 
 RESET ROLE;
@@ -1686,8 +1556,7 @@ SELECT set_config(
 SELECT lives_ok(
   $$SELECT pg_temp.update_maintenance_cost(
     'c6000000-0000-0000-0000-000000000002',
-    75,
-    false
+    75
   )$$,
   'Operations can correct cost after Finance rejection'
 );

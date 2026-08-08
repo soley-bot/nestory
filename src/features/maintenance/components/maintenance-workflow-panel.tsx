@@ -101,13 +101,12 @@ function MaintenanceCostHandoffPanel({
     initialState,
   );
   const submission = maintenanceCase.costSubmission;
-  const isLegacyPosted = Boolean(maintenanceCase.ledgerEntryId) && !submission;
   const idempotencyKey = useMemo(
     () =>
       `maintenance-cost-${submission?.id ?? "initial"}-${globalThis.crypto.randomUUID()}`,
     [submission?.id],
   );
-  const isLocked = submission?.status === "submitted" || isLegacyPosted;
+  const isLocked = submission?.status === "submitted";
   const isApprovedAdjustment = submission?.status === "approved";
 
   useEffect(() => {
@@ -128,9 +127,7 @@ function MaintenanceCostHandoffPanel({
           </p>
         </div>
         <Badge tone={maintenanceCostStatusTone(submission?.status)}>
-          {isLegacyPosted
-            ? "Historical Ledger cost"
-            : maintenanceCostStatusLabel(submission?.status)}
+          {maintenanceCostStatusLabel(submission?.status)}
         </Badge>
       </div>
 
@@ -149,9 +146,8 @@ function MaintenanceCostHandoffPanel({
 
       {isLocked ? (
         <p className="text-xs leading-5 text-muted-foreground">
-          {isLegacyPosted
-            ? "This task already has a historical Ledger-linked cost. Super Admin must reconcile it before it can enter the Finance approval workflow."
-            : "The submitted amount and vendor are locked. Operational completion can continue independently."}
+          The submitted amount and vendor are locked. Operational completion can
+          continue independently.
         </p>
       ) : (
         <form action={action} className="space-y-3 rounded-md border border-border bg-surface p-3">

@@ -303,7 +303,7 @@ export async function getTimelineScreenData(
   const [leasesResult, ledgerResult, documentsResult] = await Promise.all([
     leaseIds.length > 0
       ? supabase
-          .from("leases")
+          .from("current_leases")
           .select("id, tenant_name, archived_at")
           .eq("organization_id", organizationId)
           .in("id", leaseIds)
@@ -762,7 +762,7 @@ async function getTimelineSearchMatches({
         .ilike("unit_number", searchPattern)
         .limit(100),
       supabase
-        .from("leases")
+        .from("current_leases")
         .select("id")
         .eq("organization_id", organizationId)
         .ilike("tenant_name", searchPattern)

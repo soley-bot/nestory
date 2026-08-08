@@ -224,7 +224,7 @@ SELECT lives_ok(
         'finance_member',
         NULL
       )$$,
-  'multiple legacy memberships without Staff links remain valid'
+  'multiple pre-existing memberships without Staff links remain valid'
 );
 SELECT is(
   (
@@ -237,7 +237,7 @@ SELECT is(
       AND person_id IS NULL
   ),
   2::bigint,
-  'legacy unlinked memberships remain unmodified'
+  'pre-existing unlinked memberships remain unmodified'
 );
 
 SELECT lives_ok(
@@ -460,7 +460,7 @@ SELECT is(
       AND status IN ('pending', 'send_failed')
   ),
   2::bigint,
-  'legacy unlinked invitations are not collapsed by Staff uniqueness'
+  'pre-existing unlinked invitations are not collapsed by Staff uniqueness'
 );
 
 SELECT throws_ok(

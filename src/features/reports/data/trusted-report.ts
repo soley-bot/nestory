@@ -79,7 +79,6 @@ type LeaseRow = {
 
 type ReportLeaseTermRow = {
   archived_at: string | null;
-  authority_kind: string;
   end_date: string;
   id: string;
   lease_id: string;
@@ -126,7 +125,6 @@ type MaintenanceTaskRow = {
   due_date: string | null;
   due_time: string | null;
   id: string;
-  ledger_entry_id: string | null;
   priority: string;
   property_id: string;
   recurrence_frequency: string;
@@ -216,7 +214,6 @@ type ReportContext = Omit<TrustedReportInput, "propertyCashEvents"> & {
 };
 
 const activeLeaseStatuses = new Set(["active", "notice_given"]);
-const repairEventTypes = new Set(["Maintenance", "Repair", "Renovation"]);
 const trustedReportSourceRequirements = {
   "income-expense": requiresReportSources("ledgerEntries", "units"),
   "lease-expiry": requiresReportSources("leases", "units"),
@@ -528,9 +525,11 @@ function buildUnitPerformanceReport(context: ReportContext): TrustedReport {
     const documents = context.documentsByUnitId.get(unit.id) ?? [];
     const incomeUsd = sumLedgerUsd(ledger.filter(isIncome), context);
     const expenseUsd = sumLedgerUsd(ledger.filter(isExpense), context, true);
-    const maintenanceUsd =
-      sumLedgerUsd(ledger.filter(isMaintenanceLedger), context, true) +
-      sumTimelineCostUsd(timeline.filter(isMaintenanceTimeline), context);
+    const maintenanceUsd = sumLedgerUsd(
+      ledger.filter(isMaintenanceLedger),
+      context,
+      true,
+    );
     const noiUsd = incomeUsd - expenseUsd;
     const sources = compactSources([
       property && propertySource(property),
@@ -746,9 +745,11 @@ function buildPropertyPerformanceReport(context: ReportContext): TrustedReport {
     const timeline = context.timelineByPropertyId.get(property.id) ?? [];
     const incomeUsd = sumLedgerUsd(ledger.filter(isIncome), context);
     const expenseUsd = sumLedgerUsd(ledger.filter(isExpense), context, true);
-    const maintenanceUsd =
-      sumLedgerUsd(ledger.filter(isMaintenanceLedger), context, true) +
-      sumTimelineCostUsd(timeline.filter(isMaintenanceTimeline), context);
+    const maintenanceUsd = sumLedgerUsd(
+      ledger.filter(isMaintenanceLedger),
+      context,
+      true,
+    );
     const occupancy =
       units.length === 0
         ? "No units"
@@ -1010,18 +1011,9 @@ function buildVacancyRiskReport(context: ReportContext): TrustedReport {
 }
 
 function buildMaintenanceCostReport(context: ReportContext): TrustedReport {
-  const linkedLedgerIds = new Set(
-    context.maintenanceTasks.flatMap((task) => task.ledger_entry_id ?? []),
-  );
-  const linkedTimelineIds = new Set(
-    context.maintenanceTasks.flatMap((task) => task.timeline_event_id ?? []),
-  );
   const taskRows = context.maintenanceTasks.map((task) => {
     const property = context.propertiesById.get(task.property_id);
     const unit = task.unit_id ? context.unitsById.get(task.unit_id) : undefined;
-    const linkedLedger = task.ledger_entry_id
-      ? context.ledgerEntries.find((entry) => entry.id === task.ledger_entry_id)
-      : undefined;
     const linkedTimeline = task.timeline_event_id
       ? context.timelineEvents.find((event) => event.id === task.timeline_event_id)
       : undefined;
@@ -1051,88 +1043,16 @@ function buildMaintenanceCostReport(context: ReportContext): TrustedReport {
         property && propertySource(property),
         unit && unitSource(unit),
         maintenanceTaskSource(task),
-        linkedLedger && ledgerSource(linkedLedger),
         linkedTimeline && timelineSource(linkedTimeline),
       ]),
       title: task.title,
       tone: getMaintenanceTaskTone(task, context.periodEnd),
     });
   });
-  const ledgerRows = context.ledgerEntries
-    .filter((entry) => isMaintenanceLedger(entry) && !linkedLedgerIds.has(entry.id))
-    .map((entry) => {
-    const property = context.propertiesById.get(entry.property_id);
-    const unit = entry.unit_id ? context.unitsById.get(entry.unit_id) : undefined;
-
-    return reportRow({
-      cells: {
-        amount: formatMoney(entry.amount, entry.currency),
-        date: formatDate(entry.transaction_date),
-        property: propertyLabel(property),
-        source: "Ledger",
-        summary: `${normalizeCategory(entry.category)} / ${entry.description ?? "-"}`,
-        unit: unit ? unitLabel(unit) : "Property-level",
-      },
-      href: `/ledger?archiveState=all&entryId=${entry.id}`,
-      id: `ledger-${entry.id}`,
-      sources: compactSources([
-        property && propertySource(property),
-        unit && unitSource(unit),
-        ledgerSource(entry),
-      ]),
-      title: normalizeCategory(entry.category),
-      tone: "warning",
-    });
-    });
-  const timelineRows = context.timelineEvents
-    .filter(
-      (event) => isMaintenanceTimeline(event) && !linkedTimelineIds.has(event.id),
-    )
-    .map((event) => {
-      const property = context.propertiesById.get(event.property_id);
-      const unit = event.unit_id ? context.unitsById.get(event.unit_id) : undefined;
-
-      return reportRow({
-        cells: {
-          amount:
-            event.cost_amount !== null && event.cost_currency
-              ? formatMoney(event.cost_amount, event.cost_currency)
-              : "No cost recorded",
-          date: formatDate(event.event_date),
-          property: propertyLabel(property),
-          source: "Timeline",
-          summary: `${event.event_type} / ${event.title}`,
-          unit: unit ? unitLabel(unit) : "Property-level",
-        },
-        href: `/timeline?archiveState=all&eventId=${event.id}`,
-        id: `timeline-${event.id}`,
-        sources: compactSources([
-          property && propertySource(property),
-          unit && unitSource(unit),
-          timelineSource(event),
-        ]),
-        title: event.title,
-        tone: event.cost_amount === null ? "warning" : "neutral",
-      });
-    });
-  const rows = [...taskRows, ...ledgerRows, ...timelineRows].toSorted((first, second) =>
+  const rows = taskRows.toSorted((first, second) =>
     first.cells.date.localeCompare(second.cells.date),
   );
-  const totalActualUsd =
-    sumMaintenanceTaskActualUsd(context.maintenanceTasks) +
-    sumLedgerUsd(
-      context.ledgerEntries.filter(
-        (entry) => isMaintenanceLedger(entry) && !linkedLedgerIds.has(entry.id),
-      ),
-      context,
-      true,
-    ) +
-    sumTimelineCostUsd(
-      context.timelineEvents.filter(
-        (event) => isMaintenanceTimeline(event) && !linkedTimelineIds.has(event.id),
-      ),
-      context,
-    );
+  const totalActualUsd = sumMaintenanceTaskActualUsd(context.maintenanceTasks);
   const totalEstimateUsd = sumMaintenanceTaskEstimateUsd(context.maintenanceTasks);
   const openTasks = context.maintenanceTasks.filter((task) =>
     isOpenMaintenanceTask(task.status),
@@ -1150,8 +1070,8 @@ function buildMaintenanceCostReport(context: ReportContext): TrustedReport {
       column("amount", "Amount", "right"),
     ],
     description:
-      "Maintenance case report with category, status, property/unit, actual costs, estimates, and legacy ledger/timeline cost fallbacks.",
-    emptyDescription: "No maintenance cases or legacy maintenance cost rows exist for this period.",
+      "Maintenance case report with category, status, property/unit, recorded costs, and estimates.",
+    emptyDescription: "No maintenance cases exist for this period.",
     emptyTitle: "No maintenance records",
     exportFilenameBase: "maintenance-cost",
     kind: "maintenance-cost",
@@ -1162,7 +1082,7 @@ function buildMaintenanceCostReport(context: ReportContext): TrustedReport {
       metric(
         "Actual cost",
         moneyFromUsd(totalActualUsd, context),
-        "Actual case cost plus unlinked legacy ledger/timeline costs",
+        "Recorded maintenance case costs",
         rows.length,
       ),
       metric(
@@ -1173,7 +1093,7 @@ function buildMaintenanceCostReport(context: ReportContext): TrustedReport {
       ),
     ],
     title: "Maintenance Cost",
-    totalsTraceLabel: `Maintenance report traces to ${taskRows.length} cases, ${ledgerRows.length} unlinked ledger rows, and ${timelineRows.length} unlinked timeline rows.`,
+    totalsTraceLabel: `Maintenance report traces to ${taskRows.length} maintenance cases.`,
   });
 }
 
@@ -1782,17 +1702,6 @@ function isMaintenanceLedger(entry: LedgerRow) {
   );
 }
 
-function isMaintenanceTimeline(event: TimelineRow) {
-  const value = `${event.event_type} ${event.title} ${event.description ?? ""}`.toLowerCase();
-
-  return (
-    repairEventTypes.has(event.event_type) ||
-    value.includes("maintenance") ||
-    value.includes("repair") ||
-    value.includes("renovation")
-  );
-}
-
 function isOpenMaintenanceTask(status: string) {
   const normalized = normalizeValue(status);
 
@@ -1854,21 +1763,6 @@ function sumLedgerUsd(
     const signedAmount = absolute ? Math.abs(amount) : isExpense(entry) ? -amount : amount;
 
     return total + signedAmount;
-  }, 0);
-}
-
-function sumTimelineCostUsd(
-  events: TimelineRow[],
-  _context?: unknown,
-) {
-  void _context;
-
-  return events.reduce((total, event) => {
-    if (event.cost_amount === null || !event.cost_currency) {
-      return total;
-    }
-
-    return total + Math.abs(toUsd(event.cost_amount, event.cost_currency));
   }, 0);
 }
 
@@ -2062,7 +1956,7 @@ async function loadReportLeases(
   propertyIds: string[],
 ) {
   const result = await supabase
-    .from("leases")
+    .from("current_leases")
     .select(reportLeaseSelect, { count: "exact" })
     .eq("organization_id", organizationId)
     .in("property_id", propertyIds)
@@ -2088,12 +1982,11 @@ async function loadReportLeaseTerms(
   const result = await supabase
     .from("lease_terms")
     .select(
-      "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, authority_kind, archived_at",
+      "id, lease_id, term_sequence, start_date, end_date, rent_amount, rent_currency, status, archived_at",
       { count: "exact" },
     )
     .eq("organization_id", organizationId)
     .in("lease_id", leaseIds)
-    .eq("authority_kind", "authoritative")
     .in("status", ["active", "upcoming"])
     .is("archived_at", null)
     .lte("start_date", effectiveDate)
@@ -2102,11 +1995,11 @@ async function loadReportLeaseTerms(
 
   if (result.error) {
     throw new Error(
-      `Could not load authoritative report lease terms: ${result.error.message}`,
+      `Could not load report lease terms: ${result.error.message}`,
     );
   }
 
-  assertCompleteReportSource("report authoritative lease terms", result);
+  assertCompleteReportSource("report lease terms", result);
 
   return result.data ?? [];
 }
@@ -2125,7 +2018,6 @@ function projectEffectiveLeaseRent(
   for (const term of terms) {
     if (
       term.archived_at ||
-      term.authority_kind !== "authoritative" ||
       !["active", "upcoming"].includes(term.status) ||
       term.start_date > effectiveDate ||
       term.end_date < effectiveDate
@@ -2258,7 +2150,7 @@ async function loadReportMaintenanceTasks(
   const result = await supabase
     .from("tasks")
     .select(
-      "id, property_id, unit_id, title, category, priority, status, due_date, due_time, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, recurrence_frequency, ledger_entry_id, timeline_event_id, created_at",
+      "id, property_id, unit_id, title, category, priority, status, due_date, due_time, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, recurrence_frequency, timeline_event_id, created_at",
       { count: "exact" },
     )
     .eq("organization_id", organizationId)

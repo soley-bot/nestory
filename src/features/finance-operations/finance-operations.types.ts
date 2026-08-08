@@ -97,25 +97,6 @@ export type OwnerInvoiceSummary = {
   totalAmount: number;
 };
 
-export type FinanceExpenseSummary = {
-  category: string;
-  customerLabel: string;
-  customerTotal: number;
-  date: string;
-  heldCashAmount: number;
-  id: string;
-  internalCost: number;
-  internalMarkup: number;
-  ipsAdvanceAmount: number;
-  propertyId: string;
-  propertyLabel: string;
-  responsibility: "owner" | "tenant";
-  responsibleLabel: string;
-  unitId: string | null;
-  unitLabel: string;
-  vendorLabel: string;
-};
-
 export type ExpenseSubmissionSummary = {
   adjustsSubmissionId?: string | null;
   category: string;
@@ -178,7 +159,6 @@ export type PropertyAccountEntry = {
 export type FinanceOperationsData = {
   accountEntries: PropertyAccountEntry[];
   expenseSubmissions: ExpenseSubmissionSummary[];
-  expenses: FinanceExpenseSummary[];
   leases: FinanceLease[];
   ownerInvoices: OwnerInvoiceSummary[];
   peopleOptions: FinanceOption[];

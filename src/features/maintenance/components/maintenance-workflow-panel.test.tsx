@@ -158,28 +158,6 @@ describe("MaintenanceInspector role-safe workflow", () => {
     ).toBeNull();
   });
 
-  it("blocks a legacy Ledger-linked cost from being submitted twice", () => {
-    render(
-      <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
-        capabilities={getMaintenanceCapabilities("operations_manager")}
-        maintenanceCase={{
-          ...makeCase(),
-          actualCostAmount: 125.5,
-          actualCostLabel: "USD 125.50",
-          ledgerEntryId: "ledger-legacy-1",
-        }}
-        onStatusMessage={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText("Historical Ledger cost")).toBeTruthy();
-    expect(screen.getByText(/Super Admin must reconcile/)).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Submit cost to Finance" }),
-    ).toBeNull();
-  });
-
   it("reopens an approved cost for an explicit append-only adjustment", () => {
     const baseCase = {
       ...makeCase(),

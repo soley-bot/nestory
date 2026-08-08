@@ -308,7 +308,7 @@ describe("commitStagedImportRunAction", () => {
 
     expect(result).toEqual({
       message:
-        "This legacy or incomplete import cannot be resumed. Re-upload the CSV to create a fresh atomic run.",
+        "This incomplete import cannot be resumed. Re-upload the CSV to create a fresh run.",
       runId: "75aa9d2c-ae7f-40a0-b384-45970cdfa16a",
       runStatus: "staged",
       status: "error",
@@ -316,7 +316,7 @@ describe("commitStagedImportRunAction", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("surfaces the legacy re-upload requirement when Past Imports resumes a complete legacy run", async () => {
+  it("surfaces the re-upload requirement when Past Imports resumes an incomplete run", async () => {
     const selectedRuns = [
       {
         created_count: 0,
@@ -361,7 +361,7 @@ describe("commitStagedImportRunAction", () => {
     });
     const rpc = vi.fn().mockResolvedValue({
       data: null,
-      error: { message: "Legacy staged import must be re-uploaded before commit" },
+      error: { message: "Incomplete staged import must be re-uploaded before commit" },
     });
     mocks.requireAdminContext.mockResolvedValue({
       organizationId: "organization-1",
@@ -374,7 +374,7 @@ describe("commitStagedImportRunAction", () => {
 
     expect(result).toEqual({
       message:
-        "This legacy staged import cannot be resumed. Re-upload the CSV to create a fresh atomic run.",
+        "This staged import cannot be resumed. Re-upload the CSV to create a fresh run.",
       runId: "75aa9d2c-ae7f-40a0-b384-45970cdfa16a",
       runStatus: "staged",
       status: "error",

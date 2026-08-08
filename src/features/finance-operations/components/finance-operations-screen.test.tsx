@@ -511,7 +511,6 @@ function data(): FinanceOperationsData {
   return {
     accountEntries: [],
     expenseSubmissions: [],
-    expenses: [],
     leases: [
       {
         billing: null,

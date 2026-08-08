@@ -2,11 +2,11 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
--- This exercises the retained internal compatibility kernel. Data API execute
--- privileges for these retired writers are asserted separately.
+-- This exercises the checked owner-account boundary. Data API execute
+-- privileges for account and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(26);
+SELECT plan(24);
 
 SELECT has_column(
   'public',
@@ -22,18 +22,18 @@ SELECT has_column(
   'owner-collected rent allocations own their operational Ledger identity'
 );
 
-SELECT hasnt_function(
+SELECT has_function(
   'public',
-  'record_owner_invoice_payment_operational_unchecked',
+  'record_owner_invoice_payment',
   ARRAY['uuid', 'uuid', 'numeric', 'date', 'text', 'text'],
-  'owner payments have no unchecked compatibility writer'
+  'owner payments have one checked command'
 );
 
-SELECT hasnt_function(
+SELECT has_function(
   'public',
-  'record_property_withdrawal_operational_unchecked',
+  'record_property_withdrawal',
   ARRAY['uuid', 'uuid', 'numeric', 'date', 'text', 'text'],
-  'withdrawals have no unchecked compatibility writer'
+  'withdrawals have one checked command'
 );
 
 SELECT has_column(
@@ -71,12 +71,61 @@ SELECT set_config(
 );
 RESET ROLE;
 
+INSERT INTO public.rent_policy_versions (
+  organization_id,
+  version_number,
+  effective_from,
+  supported_frequencies,
+  rent_calculation_timezone,
+  due_day_source,
+  policy_default_due_day,
+  short_month_due_day_rule,
+  lease_start_proration_rule,
+  lease_end_proration_rule,
+  notice_period_charging_rule,
+  mid_period_rent_change_rule,
+  concessions_support_state,
+  rent_free_support_state,
+  waivers_support_state,
+  lifecycle,
+  created_by,
+  updated_by,
+  approved_at,
+  approved_by
+)
+SELECT
+  organization_id,
+  coalesce((
+    SELECT max(policy.version_number) + 1
+    FROM public.rent_policy_versions AS policy
+    WHERE policy.organization_id = owner_account_state.organization_id
+  ), 1),
+  date_trunc('month', current_date)::date,
+  ARRAY['monthly']::text[],
+  'Asia/Bangkok',
+  'policy_default',
+  1,
+  'last_calendar_day',
+  'actual_days',
+  'actual_days',
+  'through_lease_end',
+  'prorate_actual_days',
+  'unsupported',
+  'unsupported',
+  'unsupported',
+  'approved',
+  admin_id,
+  admin_id,
+  now(),
+  admin_id
+FROM owner_account_state;
+
 SELECT lives_ok(
   $$
     SELECT public.set_lease_billing_term(
       organization_id,
       through_lease_id,
-      (SELECT lease_start_date FROM public.leases WHERE id = through_lease_id),
+      (SELECT lease_start_date FROM public.current_leases WHERE id = through_lease_id),
       'through_ips',
       'percentage',
       10,
@@ -97,12 +146,12 @@ SELECT lives_ok(
 SELECT lives_ok(
   $$
     UPDATE owner_account_state
-    SET through_invoice_id = public.generate_tenant_rent_invoice(
-          organization_id,
-          through_lease_id,
-          (date_trunc('month', current_date) + interval '1 month')::date,
-          current_date,
-          'account-through-invoice-0001'
+    SET through_invoice_id = (
+          SELECT id
+          FROM public.tenant_invoices
+          WHERE lease_id = through_lease_id
+          ORDER BY billing_period_start DESC
+          LIMIT 1
         ),
         through_property_id = (
           SELECT property_id FROM public.leases WHERE id = through_lease_id
@@ -111,7 +160,7 @@ SELECT lives_ok(
           SELECT unit_id FROM public.leases WHERE id = through_lease_id
         )
   $$,
-  'rent invoice creates the property management fee'
+  'billing activation creates the property management fee'
 );
 
 SELECT lives_ok(
@@ -140,7 +189,17 @@ SELECT lives_ok(
       current_date,
       source_id,
       'Full rent',
-      NULL,
+      jsonb_build_array(
+        jsonb_build_object(
+          'lineId', (
+            SELECT id
+            FROM public.tenant_invoice_lines
+            WHERE invoice_id = through_invoice_id
+              AND line_type = 'rent'
+          ),
+          'amount', 780
+        )
+      ),
       'account-through-payment-0001'
     )
     FROM owner_account_state
@@ -165,42 +224,6 @@ SELECT results_eq(
 SELECT lives_ok(
   $$
     UPDATE owner_account_state
-    SET owner_expense_result = public.record_ips_paid_expense(
-      organization_id,
-      through_property_id,
-      through_unit_id,
-      'repairs_maintenance',
-      'Repair Co.',
-      current_date,
-      180,
-      20,
-      'owner',
-      NULL,
-      NULL,
-      NULL,
-      'Repair and service fee',
-      'account-owner-expense-0001'
-    )
-  $$,
-  'owner expense uses held rent cash before creating owner debt'
-);
-
-SELECT results_eq(
-  $$
-    SELECT held_cash_amount, ips_advance_amount
-    FROM public.ips_expense_responsibilities
-    WHERE id = (
-      SELECT (owner_expense_result->>'responsibility_id')::uuid
-      FROM owner_account_state
-    )
-  $$,
-  $$VALUES (200.00::numeric, 0.00::numeric)$$,
-  'sufficient held cash fully covers the owner expense and markup'
-);
-
-SELECT lives_ok(
-  $$
-    UPDATE owner_account_state
     SET withdrawal_id = public.record_property_withdrawal(
       organization_id,
       through_property_id,
@@ -219,7 +242,7 @@ SELECT results_eq(
     FROM public.property_finance_positions
     WHERE property_id = (SELECT through_property_id FROM owner_account_state)
   $$,
-  $$VALUES (102.00::numeric, 102.00::numeric, 0.00::numeric, 102.00::numeric)$$,
+  $$VALUES (302.00::numeric, 302.00::numeric, 0.00::numeric, 302.00::numeric)$$,
   'withdrawal updates the property running balance and held cash together'
 );
 
@@ -275,7 +298,7 @@ SELECT throws_ok(
     SELECT public.record_property_withdrawal(
       organization_id,
       through_property_id,
-      103,
+      303,
       current_date,
       'Too much',
       'account-withdrawal-too-large'
@@ -292,7 +315,7 @@ SELECT lives_ok(
     SELECT public.set_lease_billing_term(
       organization_id,
       direct_lease_id,
-      (SELECT lease_start_date FROM public.leases WHERE id = direct_lease_id),
+      (SELECT lease_start_date FROM public.current_leases WHERE id = direct_lease_id),
       'direct_to_owner',
       'flat',
       65,
@@ -313,18 +336,18 @@ SELECT lives_ok(
 SELECT lives_ok(
   $$
     UPDATE owner_account_state
-    SET direct_invoice_id = public.generate_tenant_rent_invoice(
-          organization_id,
-          direct_lease_id,
-          (date_trunc('month', current_date) + interval '1 month')::date,
-          current_date,
-          'account-direct-invoice-0001'
+    SET direct_invoice_id = (
+          SELECT id
+          FROM public.tenant_invoices
+          WHERE lease_id = direct_lease_id
+          ORDER BY billing_period_start DESC
+          LIMIT 1
         ),
         direct_property_id = (
           SELECT property_id FROM public.leases WHERE id = direct_lease_id
         )
   $$,
-  'direct-owner invoice creates an owner fee amount due'
+  'direct-owner billing activation creates an owner fee amount due'
 );
 
 SELECT lives_ok(
@@ -335,7 +358,17 @@ SELECT lives_ok(
       640,
       current_date,
       'Owner confirmed collection',
-      NULL,
+      jsonb_build_array(
+        jsonb_build_object(
+          'lineId', (
+            SELECT id
+            FROM public.tenant_invoice_lines
+            WHERE invoice_id = direct_invoice_id
+              AND line_type = 'rent'
+          ),
+          'amount', 640
+        )
+      ),
       'account-direct-confirm-0001'
     )
     FROM owner_account_state
@@ -369,7 +402,7 @@ SELECT results_eq(
     FROM public.property_finance_positions
     WHERE property_id = (SELECT direct_property_id FROM owner_account_state)
   $$,
-  $$VALUES (677.00::numeric, 102.00::numeric, 65.00::numeric, 102.00::numeric)$$,
+  $$VALUES (877.00::numeric, 302.00::numeric, 65.00::numeric, 302.00::numeric)$$,
   'direct-owner collection adds owner income without adding to IPS-held cash'
 );
 
@@ -397,7 +430,7 @@ SELECT results_eq(
     FROM public.property_finance_positions
     WHERE property_id = (SELECT direct_property_id FROM owner_account_state)
   $$,
-  $$VALUES (102.00::numeric, 0.00::numeric, 102.00::numeric)$$,
+  $$VALUES (302.00::numeric, 0.00::numeric, 302.00::numeric)$$,
   'owner payment settles IPS without pretending IPS holds owner rent cash'
 );
 

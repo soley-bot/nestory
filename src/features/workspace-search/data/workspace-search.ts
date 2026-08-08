@@ -280,7 +280,7 @@ async function searchLeases(
   pattern: string,
 ): Promise<WorkspaceSearchCandidate[]> {
   const result = await client
-    .from("leases")
+    .from("current_leases")
     .select("id, organization_id, tenant_name, status")
     .eq("organization_id", organizationId)
     .is("archived_at", null)

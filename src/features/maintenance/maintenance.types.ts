@@ -176,7 +176,6 @@ export type MaintenanceCase = {
   isOverdue: boolean;
   isReminderDue: boolean;
   isUpcoming: boolean;
-  ledgerEntryId?: string;
   latestReviewInstruction?: string;
   priority: MaintenancePriority;
   priorityLabel: string;

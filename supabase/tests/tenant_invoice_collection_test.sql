@@ -21,9 +21,9 @@ SELECT has_column('public', 'tenant_invoice_lines', 'internal_markup_amount', 'i
 
 SELECT has_function(
   'public',
-  'generate_tenant_rent_invoice',
-  ARRAY['uuid', 'uuid', 'date', 'date', 'text'],
-  'one checked command generates a monthly lease invoice'
+  'recover_lease_rent_period',
+  ARRAY['uuid', 'uuid', 'date'],
+  'one checked command recovers one selected Lease month'
 );
 
 SELECT has_function(

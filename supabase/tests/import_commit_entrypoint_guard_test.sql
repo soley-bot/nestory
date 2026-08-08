@@ -205,8 +205,8 @@ SELECT throws_ok(
     'a7020000-0000-4000-8000-000000000001'
   )$$,
   '23514',
-  'Legacy staged import must be re-uploaded before commit',
-  'Unit commit rejects non-atomic legacy staging'
+  'Incomplete staged import must be re-uploaded before commit',
+  'Unit commit rejects incomplete staging'
 );
 
 SELECT is(
@@ -222,8 +222,8 @@ SELECT throws_ok(
     'a7020000-0000-4000-8000-000000000001'
   )$$,
   '23514',
-  'Legacy staged import must be re-uploaded before commit',
-  'generic commit rejects non-atomic legacy staging'
+  'Incomplete staged import must be re-uploaded before commit',
+  'generic commit rejects incomplete staging'
 );
 
 SELECT is(

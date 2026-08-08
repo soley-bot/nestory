@@ -32,7 +32,7 @@ const lease = {
 };
 
 describe("buildLeaseSummary", () => {
-  it("preserves tenant_name compatibility and formats operational labels", () => {
+  it("uses the projected tenant name and formats operational labels", () => {
     const summary = buildLeaseSummary({
       lease,
       property,
@@ -51,7 +51,7 @@ describe("buildLeaseSummary", () => {
     });
   });
 
-  it("uses legacy lease data when no normalized deposit row exists", () => {
+  it("shows no deposit when the lease has no deposit agreement", () => {
     const summary = buildLeaseSummary({
       lease: {
         ...lease,
@@ -83,7 +83,6 @@ describe("buildLeaseSummary", () => {
       terms: [
         {
           archived_at: null,
-          authority_kind: "authoritative",
           end_date: "2027-01-31",
           id: "term-1",
           lease_id: "lease-1",
@@ -112,7 +111,7 @@ describe("buildLeaseSummary", () => {
       tone: "success",
     });
     expect(summary.terms[0]).toMatchObject({
-      authorityLabel: "Authoritative",
+      datesLabel: "01 Feb 2026 - 31 Jan 2027",
       dueLabel: "Day 10",
       paymentFrequencyLabel: "Monthly",
     });
@@ -125,7 +124,6 @@ describe("buildLeaseSummary", () => {
       terms: [
         {
           archived_at: null,
-          authority_kind: "authoritative",
           end_date: "2028-01-31",
           id: "term-upcoming",
           lease_id: "lease-1",
@@ -139,7 +137,6 @@ describe("buildLeaseSummary", () => {
         },
         {
           archived_at: null,
-          authority_kind: "authoritative",
           end_date: "2027-01-31",
           id: "term-active",
           lease_id: "lease-1",
@@ -165,7 +162,7 @@ describe("buildLeaseSummary", () => {
     });
   });
 
-  it("uses the resolver-selected term when compatibility economics are stale", () => {
+  it("uses the resolver-selected term for display and editing", () => {
     const summary = buildLeaseSummary({
       lease: {
         ...lease,
@@ -185,7 +182,6 @@ describe("buildLeaseSummary", () => {
       terms: [
         {
           archived_at: null,
-          authority_kind: "authoritative",
           end_date: "2026-07-31",
           id: "term-active",
           lease_id: "lease-1",
@@ -199,7 +195,6 @@ describe("buildLeaseSummary", () => {
         },
         {
           archived_at: null,
-          authority_kind: "authoritative",
           end_date: "2028-01-31",
           id: "term-upcoming",
           lease_id: "lease-1",
@@ -219,8 +214,8 @@ describe("buildLeaseSummary", () => {
       endDateLabel: "31 Jan 2028",
       rentLabel: "USD 925.00",
       rentUsd: 925,
-      startDateLabel: "01 Feb 2026",
-      termLabel: "01 Feb 2026 - 31 Jan 2028",
+      startDateLabel: "01 Aug 2026",
+      termLabel: "01 Aug 2026 - 31 Jan 2028",
     });
     expect(summary.formValues).toMatchObject({
       leaseEndDate: "2028-01-31",
@@ -229,41 +224,6 @@ describe("buildLeaseSummary", () => {
       paymentFrequency: "quarterly",
       rentDueDay: 15,
       termStatus: "upcoming",
-    });
-  });
-
-  it("does not infer editable authority fields or a blocked verdict for unchecked legacy data", () => {
-    const summary = buildLeaseSummary({
-      lease,
-      property,
-      terms: [
-        {
-          archived_at: null,
-          authority_kind: "legacy_inferred",
-          end_date: "2027-01-31",
-          id: "term-legacy",
-          lease_id: "lease-1",
-          payment_frequency: "monthly",
-          rent_amount: 850,
-          rent_currency: "USD",
-          rent_due_day: 1,
-          start_date: "2026-02-01",
-          status: "active",
-          term_sequence: 1,
-        },
-      ],
-      unit,
-    });
-
-    expect(summary.formValues).toMatchObject({
-      paymentFrequency: null,
-      rentDueDay: null,
-      termStatus: null,
-    });
-    expect(summary.rentReadiness).toMatchObject({
-      label: "Readiness not checked",
-      reasonCode: "readiness_not_checked",
-      tone: "neutral",
     });
   });
 

@@ -70,7 +70,6 @@ CREATE OR REPLACE FUNCTION pg_temp.call_update_maintenance_task(
   p_status text DEFAULT NULL,
   p_actual_cost_amount numeric DEFAULT NULL,
   p_actual_cost_currency public.currency_code DEFAULT NULL,
-  p_link_actual_cost_to_ledger boolean DEFAULT false,
   p_branch_id uuid DEFAULT NULL,
   p_assignee_person_id uuid DEFAULT NULL
 )
@@ -107,7 +106,6 @@ BEGIN
     coalesce(p_actual_cost_currency, target.actual_cost_currency),
     target.checklist,
     target.recurrence_frequency,
-    p_link_actual_cost_to_ledger,
     coalesce(p_branch_id, target.branch_id),
     coalesce(p_assignee_person_id, target.assignee_person_id)
   );
@@ -151,7 +149,6 @@ BEGIN
     target.actual_cost_currency,
     target.checklist,
     target.recurrence_frequency,
-    false,
     target.branch_id,
     target.assignee_person_id
   );
@@ -483,7 +480,7 @@ SELECT throws_ok(
 );
 
 SELECT lives_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000003', NULL, 84, 'USD', false)$$,
+  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000003', NULL, 84, 'USD')$$,
   'manager records operational actual cost without financial posting'
 );
 
@@ -491,18 +488,17 @@ SELECT ok(
   (
     SELECT actual_cost_amount = 84
       AND actual_cost_currency = 'USD'::public.currency_code
-      AND ledger_entry_id IS NULL
     FROM public.tasks
     WHERE id = '91000000-0000-0000-0000-000000000003'
   ),
-  'manager actual cost does not create or link an official ledger entry'
+  'manager records the operational actual cost without creating a financial effect'
 );
 
-SELECT throws_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000003', NULL, 85, 'USD', true)$$,
-  '22023',
-  'Direct maintenance cost posting is retired; submit the cost to Finance',
-  'manager ledger posting is explicitly rejected'
+SELECT hasnt_column(
+  'public',
+  'tasks',
+  'ledger_entry_id',
+  'maintenance tasks expose no direct Ledger link'
 );
 
 SELECT throws_ok(
@@ -551,7 +547,7 @@ SELECT lives_ok(
 );
 
 SELECT throws_matching(
-  $$INSERT INTO public.activity_logs (organization_id, actor_id, entity_type, entity_id, action) VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000501', 'task', '91000000-0000-0000-0000-000000000003', 'unchecked_manager_write')$$,
+  $$INSERT INTO public.activity_logs (organization_id, actor_id, entity_type, entity_id, action) VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000501', 'task', '91000000-0000-0000-0000-000000000003', 'unauthorized_manager_write')$$,
   'row-level security',
   'manager cannot write task activity outside the checked RPCs'
 );
@@ -630,7 +626,7 @@ SELECT is(
 );
 
 SELECT throws_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000008', NULL, 77, 'USD', false)$$,
+  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000008', NULL, 77, 'USD')$$,
   '42501',
   'Manager can only manage tasks in their branch',
   'operations manager cannot update another branch task'
@@ -668,7 +664,7 @@ SELECT throws_ok(
 
 SELECT lives_ok(
   $$SELECT public.execute_coordinated_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000009', 'start', NULL)$$,
-  'manager starts legacy unlinked work through coordinated controls'
+  'manager starts unlinked work through coordinated controls'
 );
 
 SELECT is(
@@ -741,9 +737,13 @@ SELECT ok(
 );
 
 SELECT is(
-  (SELECT ledger_entry_id FROM public.tasks WHERE id = '91000000-0000-0000-0000-000000000009'),
-  NULL::uuid,
-  'coordinated completion creates no official ledger effect'
+  (
+    SELECT count(*)::bigint
+    FROM public.ledger_entries
+    WHERE source_id = '91000000-0000-0000-0000-000000000009'
+  ),
+  0::bigint,
+  'coordinated completion creates no source-owned Ledger event'
 );
 
 SELECT ok(
@@ -992,7 +992,7 @@ WHERE organization_id = '00000000-0000-0000-0000-000000000001'
 SET LOCAL ROLE authenticated;
 
 SELECT throws_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000004', NULL, 10, 'USD', false)$$,
+  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000004', NULL, 10, 'USD')$$,
   '42501',
   'Not authorized',
   'member cannot record actual maintenance cost'
@@ -1152,21 +1152,21 @@ RESET ROLE;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 SET LOCAL ROLE authenticated;
 
-SELECT throws_ok(
-  $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000005', NULL, 130, 'USD', true)$$,
-  '22023',
-  'Direct maintenance cost posting is retired; submit the cost to Finance',
-  'Super Admin cannot bypass the Finance handoff with direct Ledger posting'
+SELECT ok(
+  to_regprocedure(
+    'public.update_maintenance_task(uuid,uuid,uuid,uuid,text,text,text,text,text,date,time without time zone,date,time without time zone,uuid,numeric,public.currency_code,numeric,public.currency_code,jsonb,text,boolean,uuid,uuid)'
+  ) IS NULL,
+  'the maintenance update API has no direct Ledger switch'
 );
 
 SELECT is(
   (
-    SELECT ledger_entry_id
-    FROM public.tasks
-    WHERE id = '91000000-0000-0000-0000-000000000005'
+    SELECT count(*)::bigint
+    FROM public.ledger_entries
+    WHERE source_id = '91000000-0000-0000-0000-000000000005'
   ),
-  NULL::uuid,
-  'rejected direct posting leaves the maintenance task without a Ledger effect'
+  0::bigint,
+  'maintenance edits leave finance authority with the approval workflow'
 );
 
 RESET ROLE;

@@ -528,7 +528,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       .eq("id", unit.property_id)
       .maybeSingle(),
     supabase
-      .from("leases")
+      .from("current_leases")
       .select(leaseSelect)
       .eq("organization_id", organizationId)
       .eq("unit_id", unit.id)
@@ -943,7 +943,7 @@ async function getLeaseRowsForUnits(
 ) {
   const rows = await queryUnitIdBatches(unitIds, async (batch) => {
     const result = await supabase
-      .from("leases")
+      .from("current_leases")
       .select(leaseSelect)
       .eq("organization_id", organizationId)
       .in("unit_id", batch)
@@ -1120,7 +1120,7 @@ function isOverdueMaintenanceTask(task: UnitMaintenanceRecord) {
 async function getActiveLeaseUnitIds(organizationId: string) {
   const supabase = await createSupabaseServerClient();
   const result = await supabase
-    .from("leases")
+    .from("current_leases")
     .select("unit_id")
     .eq("organization_id", organizationId)
     .in("status", [...ACTIVE_UNIT_LEASE_STATUSES])

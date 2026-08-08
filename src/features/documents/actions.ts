@@ -467,7 +467,7 @@ async function validateDocumentLink({
 
   if (leaseId) {
     const leaseResult = await supabase
-      .from("leases")
+      .from("current_leases")
       .select("id, property_id, unit_id")
       .eq("organization_id", organizationId)
       .eq("id", leaseId)

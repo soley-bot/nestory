@@ -432,7 +432,7 @@ async function getLeasesById(
   }
 
   const result = await supabase
-    .from("leases")
+    .from("current_leases")
     .select("id, tenant_name")
     .eq("organization_id", organizationId)
     .in("id", uniqueIds);

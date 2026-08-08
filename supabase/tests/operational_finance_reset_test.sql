@@ -101,39 +101,39 @@ SELECT ok(
 );
 
 SELECT ok(
-  NOT EXISTS (
+  EXISTS (
     SELECT 1
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
     WHERE namespace.nspname = 'public'
-      AND procedure.proname = 'confirm_legacy_lease_term'
+      AND procedure.proname = 'create_lease_with_relationships'
   ),
-  'legacy lease confirmation is absent'
+  'checked Lease creation remains available'
 );
 
 SELECT ok(
-  NOT EXISTS (
+  EXISTS (
     SELECT 1
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
-    WHERE namespace.nspname = 'public'
-      AND procedure.proname = 'generate_monthly_rent_income_items_legacy_unchecked'
+    WHERE namespace.nspname = 'app_private'
+      AND procedure.proname = 'run_due_rent_generation'
   ),
-  'legacy rent generation is absent'
+  'scheduled rent generation remains available internally'
 );
 
 SELECT ok(
-  NOT EXISTS (
+  EXISTS (
     SELECT 1
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
     WHERE namespace.nspname = 'public'
-      AND procedure.proname = 'commit_generic_import_run_legacy_unchecked'
+      AND procedure.proname = 'commit_generic_import_run'
   ),
-  'unchecked legacy import commit is absent'
+  'checked import commit remains available'
 );
 
 SELECT ok(

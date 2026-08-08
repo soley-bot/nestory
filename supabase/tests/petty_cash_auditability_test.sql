@@ -138,7 +138,7 @@ SELECT is(
     WHERE account.account_number = 'AUDIT-CASH-01'
   ),
   0::numeric,
-  'new account does not duplicate opening cash as a legacy period advance'
+  'new account does not duplicate opening cash as a period advance'
 );
 
 SELECT is(

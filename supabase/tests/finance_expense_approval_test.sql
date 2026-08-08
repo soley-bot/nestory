@@ -97,35 +97,23 @@ SELECT ok(
     ),
     'EXECUTE'
   ), false),
-  'legacy direct expense creation is retired from the Data API'
+  'direct expense creation is retired from the Data API'
 );
 SELECT ok(
-  coalesce(has_function_privilege(
-    'authenticated',
-    to_regprocedure('public.record_finance_payment(uuid,uuid,numeric,date,text)'),
-    'EXECUTE'
-  ), false),
-  'legacy payment recording remains available for historical expenses'
+  to_regprocedure('public.record_finance_payment(uuid,uuid,numeric,date,text)') IS NULL,
+  'generic expense payment recording is absent'
 );
 SELECT ok(
-  coalesce(has_function_privilege(
-    'authenticated',
-    to_regprocedure('public.reverse_finance_payment(uuid,uuid,date,text)'),
-    'EXECUTE'
-  ), false),
-  'legacy payment reversal remains available for historical payments'
+  to_regprocedure('public.reverse_finance_payment(uuid,uuid,date,text)') IS NULL,
+  'generic expense payment reversal is absent'
 );
 SELECT ok(
   to_regprocedure('public.post_finance_expense_item(uuid,uuid,date)') IS NULL,
-  'legacy direct expense posting is absent'
+  'direct expense posting is absent'
 );
 SELECT ok(
-  coalesce(has_function_privilege(
-    'authenticated',
-    to_regprocedure('public.set_finance_expense_status(uuid,uuid,text)'),
-    'EXECUTE'
-  ), false),
-  'legacy expense status remains available for historical expenses'
+  to_regprocedure('public.set_finance_expense_status(uuid,uuid,text)') IS NULL,
+  'generic expense status mutation is absent'
 );
 
 SELECT ok(
@@ -183,7 +171,7 @@ SELECT ok(
       AND strpos(definition, 'lock_open_property_financial_month')
         < strpos(definition, 'tenant_invoice_payment_v1')
       AND strpos(definition, 'tenant_invoice_payment_v1')
-        < strpos(definition, 'record_tenant_invoice_payment_lease_derived_unchecked')
+        < strpos(definition, 'record_tenant_invoice_payment_internal')
     FROM (
       SELECT pg_catalog.pg_get_functiondef(
         'public.record_tenant_invoice_payment(uuid,uuid,numeric,date,uuid,text,jsonb,text)'::regprocedure
@@ -200,7 +188,7 @@ SELECT ok(
       AND strpos(definition, 'lock_open_financial_month')
         < strpos(definition, 'owner_collection_v1')
       AND strpos(definition, 'owner_collection_v1')
-        < strpos(definition, 'confirm_owner_collected_rent_lease_derived_unchecked')
+        < strpos(definition, 'confirm_owner_collected_rent_internal')
     FROM (
       SELECT pg_catalog.pg_get_functiondef(
         'public.confirm_owner_collected_rent(uuid,uuid,numeric,date,text,jsonb,text)'::regprocedure
@@ -382,17 +370,14 @@ INSERT INTO public.units (
 SELECT unit_id, organization_id, property_id, 'EA-A1', 'vacant'
 FROM expense_approval_state;
 
+SET LOCAL session_replication_role = replica;
+
 INSERT INTO public.leases (
   id,
   organization_id,
   property_id,
   unit_id,
   primary_tenant_person_id,
-  tenant_name,
-  lease_start_date,
-  lease_end_date,
-  monthly_rent_amount,
-  monthly_rent_currency,
   status,
   created_by,
   updated_by
@@ -403,12 +388,44 @@ SELECT
   property_id,
   unit_id,
   tenant_id,
-  'Expense Tenant',
+  'draft',
+  super_admin_id,
+  super_admin_id
+FROM expense_approval_state;
+
+SET LOCAL session_replication_role = origin;
+
+INSERT INTO public.lease_terms (
+  organization_id,
+  lease_id,
+  term_sequence,
+  start_date,
+  end_date,
+  rent_amount,
+  rent_currency,
+  rent_due_day,
+  payment_frequency,
+  status,
+  authority_kind,
+  confirmed_at,
+  confirmed_by,
+  created_by,
+  updated_by
+)
+SELECT
+  organization_id,
+  lease_id,
+  1,
   '2026-08-01',
   '2027-07-31',
   1000,
   'USD',
-  'draft',
+  5,
+  'monthly',
+  'active',
+  'authoritative',
+  now(),
+  super_admin_id,
   super_admin_id,
   super_admin_id
 FROM expense_approval_state;
@@ -1043,54 +1060,24 @@ SELECT set_config(
   true
 );
 
-SELECT throws_ok(
-  $$
-    SELECT public.record_finance_payment(
-      organization_id,
-      (approval_result->>'finance_expense_item_id')::uuid,
-      1,
-      '2026-08-10',
-      'Bypass blocked'
-    )
-    FROM expense_approval_state
-  $$,
-  '42501',
-  'Approved expense must be changed through its submission workflow',
-  'legacy payment recording cannot mutate an approval-owned expense'
+SELECT ok(
+  to_regprocedure('public.record_finance_payment(uuid,uuid,numeric,date,text)') IS NULL,
+  'no generic payment command can mutate an approval-owned expense'
 );
 
-SELECT throws_ok(
-  $$
-    SELECT public.reverse_finance_payment(
-      organization_id,
-      (approval_result->>'payment_id')::uuid,
-      '2026-08-10',
-      'Bypass blocked'
-    )
-    FROM expense_approval_state
-  $$,
-  '42501',
-  'Approved expense must be changed through its submission workflow',
-  'legacy payment reversal cannot bypass reverse_expense'
+SELECT ok(
+  to_regprocedure('public.reverse_finance_payment(uuid,uuid,date,text)') IS NULL,
+  'no generic payment reversal can bypass reverse_expense'
 );
 
 SELECT ok(
   to_regprocedure('public.post_finance_expense_item(uuid,uuid,date)') IS NULL,
-  'legacy expense posting cannot create a second Ledger effect because it is absent'
+  'retired expense posting cannot create a second Ledger effect'
 );
 
-SELECT throws_ok(
-  $$
-    SELECT public.set_finance_expense_status(
-      (approval_result->>'finance_expense_item_id')::uuid,
-      organization_id,
-      'void'
-    )
-    FROM expense_approval_state
-  $$,
-  '42501',
-  'Approved expense must be changed through its submission workflow',
-  'legacy status mutation cannot void an approval-owned expense'
+SELECT ok(
+  to_regprocedure('public.set_finance_expense_status(uuid,uuid,text)') IS NULL,
+  'no generic status mutation can void an approval-owned expense'
 );
 
 SELECT set_config(
@@ -1687,25 +1674,16 @@ SELECT results_eq(
   'tenant-responsible cost is resolved company cash context and stays out of property NOI'
 );
 
-SELECT throws_ok(
-  format(
-    'SELECT public.void_finance_income_item(%L, %L)',
-    line.income_item_id,
-    state.organization_id
-  ),
-  '42501',
-  'Approved tenant charge must be changed through its tenant invoice',
-  'legacy void cannot mutate an approval-owned tenant charge'
-)
-FROM expense_approval_state AS state
-JOIN public.tenant_invoice_lines AS line
-  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+SELECT ok(
+  to_regprocedure('public.void_finance_income_item(uuid,uuid)') IS NULL,
+  'no generic void command can mutate an approval-owned tenant charge'
+);
 
 RESET ROLE;
 
 SELECT ok(
   to_regprocedure('public.post_finance_income_item(uuid,uuid)') IS NULL,
-  'legacy income posting cannot mutate an approval-owned tenant charge because it is absent'
+  'retired income posting cannot mutate an approval-owned tenant charge'
 );
 
 SELECT set_config(
@@ -1715,61 +1693,24 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
-SELECT throws_ok(
-  format(
-    $sql$
-      SELECT public.record_finance_income_payment(
-        %L, %L, 1, '2026-08-12', 'Bypass blocked'
-      )
-    $sql$,
-    line.income_item_id,
-    state.organization_id
-  ),
-  '42501',
-  'Approved tenant charge must be changed through its tenant invoice',
-  'legacy income payment cannot mutate an approval-owned tenant charge'
-)
-FROM expense_approval_state AS state
-JOIN public.tenant_invoice_lines AS line
-  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+SELECT ok(
+  to_regprocedure(
+    'public.record_finance_income_payment(uuid,uuid,numeric,date,text)'
+  ) IS NULL,
+  'no generic income payment can mutate an approval-owned tenant charge'
+);
 
-SELECT throws_ok(
-  format(
-    $sql$
-      SELECT public.record_finance_receipt(
-        %L, %L, 1, '2026-08-12', 'Bypass blocked'
-      )
-    $sql$,
-    state.organization_id,
-    line.income_item_id
-  ),
-  '42501',
-  'Approved tenant charge must be changed through its tenant invoice',
-  'legacy receipt cannot settle an approval-owned tenant charge'
-)
-FROM expense_approval_state AS state
-JOIN public.tenant_invoice_lines AS line
-  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+SELECT ok(
+  to_regprocedure('public.record_finance_receipt(uuid,uuid,numeric,date,text)') IS NULL,
+  'no generic receipt can settle an approval-owned tenant charge'
+);
 
-SELECT throws_ok(
-  format(
-    $sql$
-      SELECT public.record_finance_receipt_v2(
-        %L, %L, 1, '2026-08-12', %L, 'Bypass blocked',
-        'tenant-charge-bypass-0001'
-      )
-    $sql$,
-    state.organization_id,
-    line.income_item_id,
-    state.source_id
-  ),
-  '42501',
-  'Approved tenant charge must be changed through its tenant invoice',
-  'atomic receipt cannot settle an approval-owned tenant charge outside its invoice'
-)
-FROM expense_approval_state AS state
-JOIN public.tenant_invoice_lines AS line
-  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+SELECT ok(
+  to_regprocedure(
+    'public.record_finance_receipt_v2(uuid,uuid,numeric,date,uuid,text,text)'
+  ) IS NULL,
+  'atomic income settlement is private to the tenant-invoice workflow'
+);
 
 RESET ROLE;
 
@@ -1876,19 +1817,10 @@ FROM expense_approval_state AS state
 JOIN public.tenant_invoice_lines AS line
   ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
 
-SELECT throws_ok(
-  format(
-    'SELECT public.void_finance_income_item(%L, %L)',
-    line.income_item_id,
-    state.organization_id
-  ),
-  '42501',
-  'Approved tenant charge must be changed through its tenant invoice',
-  'the original tenant charge remains protected after append-only reversal'
-)
-FROM expense_approval_state AS state
-JOIN public.tenant_invoice_lines AS line
-  ON line.id = (state.tenant_approval_result->>'tenant_invoice_line_id')::uuid;
+SELECT ok(
+  to_regprocedure('public.void_finance_income_item(uuid,uuid)') IS NULL,
+  'the original tenant charge has no independent void command after reversal'
+);
 
 SELECT set_config(
   'request.jwt.claim.sub',

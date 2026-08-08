@@ -280,7 +280,6 @@ function makeTask(overrides: Record<string, unknown>) {
     due_date: null,
     due_time: null,
     id: "task",
-    ledger_entry_id: null,
     priority: "normal",
     property_id: "property",
     recurrence_frequency: "none",

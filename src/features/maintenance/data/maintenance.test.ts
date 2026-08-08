@@ -175,7 +175,6 @@ describe("maintenance route contracts", () => {
   it("opens document upload as maintenance evidence", () => {
     const task = {
       id: "task-1",
-      ledger_entry_id: null,
       property_id: "property-1",
       timeline_event_id: null,
       unit_id: "unit-1",
@@ -197,7 +196,6 @@ describe("maintenance route contracts", () => {
     const task = {
       assignee_person_id: "assignee-1",
       id: "task-1",
-      ledger_entry_id: "ledger-1",
       property_id: "property-1",
       timeline_event_id: "timeline-1",
       unit_id: "unit-1",

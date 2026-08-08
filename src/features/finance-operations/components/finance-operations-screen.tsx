@@ -320,7 +320,6 @@ function getScreen(
         <ExpensesView
           canReview={props.canReviewExpense}
           canReverse={props.canReverseExpense}
-          legacyExpenses={props.expenses}
           openModal={openModal}
           submissions={props.expenseSubmissions}
         />
@@ -882,13 +881,11 @@ function RentView({
 function ExpensesView({
   canReview,
   canReverse,
-  legacyExpenses,
   openModal,
   submissions,
 }: {
   canReview: boolean;
   canReverse: boolean;
-  legacyExpenses: FinanceOperationsData["expenses"];
   openModal: (modal: ModalState) => void;
   submissions: FinanceOperationsData["expenseSubmissions"];
 }) {
@@ -896,7 +893,7 @@ function ExpensesView({
     "submitted",
   );
 
-  if (submissions.length === 0 && legacyExpenses.length === 0) {
+  if (submissions.length === 0) {
     return (
       <EmptyState
         body="Submit a paid property cost for Finance review. Nothing affects balances until approval."
@@ -942,19 +939,6 @@ function ExpensesView({
         )}
       </Tabs>
 
-      {legacyExpenses.length > 0 ? (
-        <section className="space-y-2">
-          <div>
-            <h2 className="text-sm font-semibold">
-              Historical approved expenses
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Recorded before Finance approval was introduced.
-            </p>
-          </div>
-          <LegacyExpenseTable expenses={legacyExpenses} />
-        </section>
-      ) : null}
     </div>
   );
 }
@@ -1134,59 +1118,6 @@ function ExpenseSubmissionTable({
                     Read only
                   </span>
                 )}
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-    </TableFrame>
-  );
-}
-
-function LegacyExpenseTable({
-  expenses,
-}: {
-  expenses: FinanceOperationsData["expenses"];
-}) {
-  return (
-    <TableFrame>
-      <Table className="min-w-[900px]">
-        <thead>
-          <tr>
-            <Th>Date</Th>
-            <Th>Expense</Th>
-            <Th>Property</Th>
-            <Th>Charged to</Th>
-            <Th>Paid</Th>
-            <Th>Billed</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {expenses.map((expense) => (
-            <tr className="border-b border-border" key={expense.id}>
-              <Td>{formatDate(expense.date)}</Td>
-              <Td>
-                <p className="font-medium">{expense.customerLabel}</p>
-                <p className="text-xs text-muted-foreground">
-                  {expense.vendorLabel}
-                </p>
-              </Td>
-              <Td>
-                <p>{expense.propertyLabel}</p>
-                <p className="text-xs text-muted-foreground">
-                  {expense.unitLabel}
-                </p>
-              </Td>
-              <Td>
-                {expense.responsibility === "owner"
-                  ? "Property owner"
-                  : "Tenant or company"}
-              </Td>
-              <Td>
-                <Money amount={expense.internalCost} />
-              </Td>
-              <Td>
-                <Money amount={expense.customerTotal} />
               </Td>
             </tr>
           ))}
@@ -2541,7 +2472,7 @@ function getRentGenerationLabel(
   if (source === "scheduled" || source === "activation_catch_up") {
     return "Generated automatically";
   }
-  return "Legacy invoice";
+  return "Existing invoice";
 }
 
 function CompactTotals({

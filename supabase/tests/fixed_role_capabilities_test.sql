@@ -28,7 +28,7 @@ SELECT ok(
     FROM public.organization_members
     WHERE role IN ('admin', 'manager', 'member')
   ),
-  'the role migration leaves no legacy membership roles'
+  'the role migration leaves only the five product roles'
 );
 
 SELECT ok(
@@ -536,14 +536,12 @@ FROM fixed_role_state;
 SET LOCAL session_replication_role = replica;
 INSERT INTO public.leases (
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
-  tenant_name, lease_start_date, lease_end_date, monthly_rent_amount,
-  monthly_rent_currency, status, created_by, updated_by
+  status, created_by, updated_by
 )
 SELECT
   'fa000000-0000-0000-0000-000000000412', organization_id, property_id,
   'fa000000-0000-0000-0000-000000000410',
-  'fa000000-0000-0000-0000-000000000411', 'Finance lease tenant',
-  '2026-08-01', '2027-07-31', 900, 'USD', 'draft',
+  'fa000000-0000-0000-0000-000000000411', 'draft',
   super_admin_id, super_admin_id
 FROM fixed_role_state;
 SET LOCAL session_replication_role = origin;
@@ -596,23 +594,25 @@ FROM fixed_role_state;
 SET LOCAL session_replication_role = replica;
 INSERT INTO public.lease_parties (
   id, organization_id, lease_id, person_id, party_role, is_primary,
-  started_on, created_by, updated_by
+  started_on, started_on_kind, started_on_confidence, created_by, updated_by
 )
 SELECT
   'fa000000-0000-0000-0000-000000000416', organization_id,
   'fa000000-0000-0000-0000-000000000412',
   'fa000000-0000-0000-0000-000000000411', 'primary_tenant', true,
-  '2026-08-01', super_admin_id, super_admin_id
+  '2026-08-01', 'known', 'confirmed', super_admin_id, super_admin_id
 FROM fixed_role_state;
 
 INSERT INTO public.lease_occupancies (
   id, organization_id, lease_id, property_id, unit_id, status,
-  scheduled_move_in_date, created_by, updated_by
+  scheduled_move_in_date, scheduled_move_in_kind,
+  scheduled_move_in_confidence, created_by, updated_by
 )
 SELECT
   'fa000000-0000-0000-0000-000000000417', organization_id,
   'fa000000-0000-0000-0000-000000000412', property_id,
   'fa000000-0000-0000-0000-000000000410', 'reserved', '2026-08-01',
+  'known', 'confirmed',
   super_admin_id, super_admin_id
 FROM fixed_role_state;
 

@@ -1695,7 +1695,7 @@ export function MaintenanceForm({
   const compatibleStaff = staff.filter(
     (person) => (person.branchId ?? "") === branchId,
   );
-  const legacyAssignee =
+  const existingAssignee =
     maintenanceCase?.executionMode === "manager_coordinated" &&
     Boolean(defaults.assigneePersonId) &&
     !compatibleStaff.some((person) => person.id === defaults.assigneePersonId)
@@ -1841,12 +1841,12 @@ export function MaintenanceForm({
               onValueChange={setAssigneePersonId}
               options={[
                 { label: "Unassigned", value: "" },
-                ...(legacyAssignee
+                ...(existingAssignee
                   ? [
                       {
                         disabled: true,
-                        label: legacyAssignee.label,
-                        value: legacyAssignee.id,
+                        label: existingAssignee.label,
+                        value: existingAssignee.id,
                       },
                     ]
                   : []),
@@ -1857,7 +1857,7 @@ export function MaintenanceForm({
               ]}
               value={assigneePersonId}
             />
-            {legacyAssignee ? (
+            {existingAssignee ? (
               <p className="mt-1.5 text-xs text-muted-foreground">
                 This historical assignee has no executable Nestory member
                 identity. The task remains manager-coordinated until reassigned.

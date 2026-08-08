@@ -59,7 +59,7 @@ import {
 } from "@/lib/money/format";
 
 const taskSelect =
-  "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, blocked_reason, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, actual_cost_date, actual_cost_document_id, actual_cost_reference, checklist, recurrence_frequency, ledger_entry_id, timeline_event_id, completed_at, created_at, archived_at";
+  "id, tenant_request_id, property_id, unit_id, branch_id, assignee_person_id, title, description, category, priority, status, blocked_reason, due_date, due_time, reminder_date, reminder_time, vendor_person_id, cost_estimate_amount, cost_estimate_currency, actual_cost_amount, actual_cost_currency, actual_cost_date, actual_cost_document_id, actual_cost_reference, checklist, recurrence_frequency, timeline_event_id, completed_at, created_at, archived_at";
 const propertySelect = "id, code, name";
 const unitSelect = "id, property_id, unit_number";
 const personSelect = "id, organization_id, display_name, archived_at";
@@ -91,7 +91,6 @@ type MaintenanceTaskRow = {
   due_date: string | null;
   due_time: string | null;
   id: string;
-  ledger_entry_id: string | null;
   priority: string;
   property_id: string;
   recurrence_frequency: string;
@@ -1267,7 +1266,6 @@ function toMaintenanceCase({
     isUpcoming:
       progressState === "upcoming" ||
       progressState === "due_today",
-    ledgerEntryId: task.ledger_entry_id ?? undefined,
     priority,
     priorityLabel: formatStoredLabel(priority),
     priorityTone: getPriorityTone(priority),

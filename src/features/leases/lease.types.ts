@@ -105,8 +105,6 @@ export type LeaseLinkedPerson = {
 };
 
 export type LeaseTermContext = {
-  authorityKind: "authoritative" | "legacy_inferred";
-  authorityLabel: string;
   datesLabel: string;
   dueLabel: string;
   endDate: string;

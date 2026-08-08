@@ -2,8 +2,8 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
--- This exercises the retained internal compatibility kernel. Data API execute
--- privileges for the retired invoice writer are asserted separately.
+-- This exercises the checked tenant-collection boundary. Data API execute
+-- privileges for invoice and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
 SELECT plan(19);
@@ -34,13 +34,62 @@ SELECT set_config(
 );
 RESET ROLE;
 
+INSERT INTO public.rent_policy_versions (
+  organization_id,
+  version_number,
+  effective_from,
+  supported_frequencies,
+  rent_calculation_timezone,
+  due_day_source,
+  policy_default_due_day,
+  short_month_due_day_rule,
+  lease_start_proration_rule,
+  lease_end_proration_rule,
+  notice_period_charging_rule,
+  mid_period_rent_change_rule,
+  concessions_support_state,
+  rent_free_support_state,
+  waivers_support_state,
+  lifecycle,
+  created_by,
+  updated_by,
+  approved_at,
+  approved_by
+)
+SELECT
+  organization_id,
+  coalesce((
+    SELECT max(policy.version_number) + 1
+    FROM public.rent_policy_versions AS policy
+    WHERE policy.organization_id = tenant_invoice_state.organization_id
+  ), 1),
+  date_trunc('month', current_date)::date,
+  ARRAY['monthly']::text[],
+  'Asia/Bangkok',
+  'policy_default',
+  1,
+  'last_calendar_day',
+  'actual_days',
+  'actual_days',
+  'through_lease_end',
+  'prorate_actual_days',
+  'unsupported',
+  'unsupported',
+  'unsupported',
+  'approved',
+  admin_id,
+  admin_id,
+  now(),
+  admin_id
+FROM tenant_invoice_state;
+
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
     SET through_billing_id = public.set_lease_billing_term(
       organization_id,
       through_lease_id,
-      (SELECT lease_start_date FROM public.leases WHERE id = through_lease_id),
+      (SELECT lease_start_date FROM public.current_leases WHERE id = through_lease_id),
       'through_ips',
       'percentage',
       10,
@@ -60,12 +109,13 @@ SELECT lives_ok(
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
-    SET through_invoice_id = public.generate_tenant_rent_invoice(
+    SET through_invoice_id = app_private.generate_lease_rent_invoice(
       organization_id,
       through_lease_id,
       (date_trunc('month', current_date) + interval '1 month')::date,
       current_date,
-      'invoice-through-generate-0001'
+      'manual_recovery',
+      admin_id
     )
   $$,
   'monthly rent invoice generation uses authoritative lease billing'
@@ -118,7 +168,17 @@ SELECT lives_ok(
       current_date,
       source_id,
       'Bank transfer',
-      NULL,
+      jsonb_build_array(
+        jsonb_build_object(
+          'lineId', (
+            SELECT id
+            FROM public.tenant_invoice_lines
+            WHERE invoice_id = through_invoice_id
+              AND line_type = 'rent'
+          ),
+          'amount', 400
+        )
+      ),
       'invoice-through-payment-0001'
     )
   $$,
@@ -148,63 +208,27 @@ SELECT is(
 );
 
 SELECT ok(
-  coalesce(has_function_privilege(
-    'authenticated',
-    to_regprocedure('public.reverse_finance_receipt(uuid,uuid,date,text)'),
-    'EXECUTE'
-  ), false),
-  'legacy receipt reversal remains available for non-rent compatibility records'
+  to_regprocedure('public.reverse_finance_receipt(uuid,uuid,date,text)') IS NULL,
+  'generic receipt reversal is absent'
 );
 
 SELECT ok(
-  coalesce(has_function_privilege(
-    'authenticated',
-    to_regprocedure('public.reverse_finance_receipt_v2(uuid,uuid,date,uuid,text,text)'),
-    'EXECUTE'
-  ), false),
-  'atomic receipt reversal remains available for non-rent compatibility records'
+  to_regprocedure(
+    'public.reverse_finance_receipt_v2(uuid,uuid,date,uuid,text,text)'
+  ) IS NULL,
+  'generic atomic receipt reversal is absent'
 );
 
-SELECT throws_ok(
-  $$
-    SELECT public.reverse_finance_receipt(
-      (SELECT organization_id FROM tenant_invoice_state),
-      (
-        SELECT finance_receipt_id
-        FROM public.tenant_invoice_payment_allocations
-        WHERE payment_id = (SELECT payment_id FROM tenant_invoice_state)
-        ORDER BY allocation_order
-        LIMIT 1
-      ),
-      current_date,
-      'Direct invoice receipt reversal blocked'
-    )
-  $$,
-  '42501',
-  'Lease-derived rent must be settled through its tenant invoice',
-  'legacy reversal cannot diverge a generated tenant invoice'
+SELECT ok(
+  to_regprocedure('public.reverse_finance_receipt(uuid,uuid,date,text)') IS NULL,
+  'no generic reversal can diverge a generated tenant invoice'
 );
 
-SELECT throws_ok(
-  $$
-    SELECT public.reverse_finance_receipt_v2(
-      (SELECT organization_id FROM tenant_invoice_state),
-      (
-        SELECT finance_receipt_id
-        FROM public.tenant_invoice_payment_allocations
-        WHERE payment_id = (SELECT payment_id FROM tenant_invoice_state)
-        ORDER BY allocation_order
-        LIMIT 1
-      ),
-      current_date,
-      (SELECT source_id FROM tenant_invoice_state),
-      'Direct atomic invoice reversal blocked',
-      'invoice-direct-reversal-blocked'
-    )
-  $$,
-  '42501',
-  'Lease-derived rent must be settled through its tenant invoice',
-  'atomic reversal cannot bypass tenant-invoice payment state'
+SELECT ok(
+  to_regprocedure(
+    'public.reverse_finance_receipt_v2(uuid,uuid,date,uuid,text,text)'
+  ) IS NULL,
+  'tenant-invoice payment state has no independent receipt reversal command'
 );
 
 SELECT results_eq(
@@ -223,7 +247,7 @@ SELECT lives_ok(
     SET direct_billing_id = public.set_lease_billing_term(
       organization_id,
       direct_lease_id,
-      (SELECT lease_start_date FROM public.leases WHERE id = direct_lease_id),
+      (SELECT lease_start_date FROM public.current_leases WHERE id = direct_lease_id),
       'direct_to_owner',
       'flat',
       65,
@@ -243,12 +267,13 @@ SELECT lives_ok(
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
-    SET direct_invoice_id = public.generate_tenant_rent_invoice(
+    SET direct_invoice_id = app_private.generate_lease_rent_invoice(
       organization_id,
       direct_lease_id,
       (date_trunc('month', current_date) + interval '1 month')::date,
       current_date,
-      'invoice-direct-generate-0001'
+      'manual_recovery',
+      admin_id
     )
   $$,
   'company invoice is generated once for the lease and period'
@@ -277,7 +302,21 @@ SELECT lives_ok(
       ),
       current_date,
       'Owner confirmed transfer',
-      NULL,
+      jsonb_build_array(
+        jsonb_build_object(
+          'lineId', (
+            SELECT id
+            FROM public.tenant_invoice_lines
+            WHERE invoice_id = direct_invoice_id
+              AND line_type = 'rent'
+          ),
+          'amount', (
+            SELECT balance_due
+            FROM public.tenant_invoice_balances
+            WHERE id = direct_invoice_id
+          )
+        )
+      ),
       'invoice-direct-confirm-0001'
     )
   $$,
