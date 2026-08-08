@@ -4965,6 +4965,106 @@ export type Database = {
         }
         Relationships: []
       }
+      rent_generation_exceptions: {
+        Row: {
+          attempt_count: number
+          billing_period_start: string
+          created_at: string
+          error_code: string
+          first_attempt_at: string
+          generation_source: string
+          id: string
+          last_attempt_at: string
+          last_attempted_by: string | null
+          lease_id: string
+          organization_id: string
+          property_id: string
+          resolved_at: string | null
+          resolved_invoice_id: string | null
+          safe_message: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          billing_period_start: string
+          created_at?: string
+          error_code: string
+          first_attempt_at?: string
+          generation_source: string
+          id?: string
+          last_attempt_at?: string
+          last_attempted_by?: string | null
+          lease_id: string
+          organization_id: string
+          property_id: string
+          resolved_at?: string | null
+          resolved_invoice_id?: string | null
+          safe_message: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          billing_period_start?: string
+          created_at?: string
+          error_code?: string
+          first_attempt_at?: string
+          generation_source?: string
+          id?: string
+          last_attempt_at?: string
+          last_attempted_by?: string | null
+          lease_id?: string
+          organization_id?: string
+          property_id?: string
+          resolved_at?: string | null
+          resolved_invoice_id?: string | null
+          safe_message?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rent_generation_exceptions_invoice_fkey"
+            columns: ["organization_id", "resolved_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "rent_generation_exceptions_invoice_fkey"
+            columns: ["organization_id", "resolved_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "rent_generation_exceptions_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "rent_generation_exceptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rent_generation_exceptions_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "rent_generation_exceptions_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+        ]
+      }
       rent_policy_versions: {
         Row: {
           approved_at: string | null
@@ -5506,6 +5606,7 @@ export type Database = {
       }
       tenant_invoices: {
         Row: {
+          base_rent_amount: number | null
           billing_period_end: string
           billing_period_start: string
           billing_term_id: string
@@ -5514,23 +5615,32 @@ export type Database = {
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
           due_date: string
+          generated_at: string | null
+          generation_source: string | null
           id: string
           invoice_number: string
+          is_prorated: boolean | null
           issue_date: string
           lease_id: string
+          lease_term_id: string | null
           lifecycle: string
+          management_fee_amount: number | null
+          management_fee_mode: string | null
+          management_fee_value: number | null
           occupant_labels: string[]
           organization_id: string
           property_id: string
           recipient_kind: string
           recipient_label: string
           recipient_person_id: string
+          rent_policy_version_id: string | null
           total_amount: number
           unit_id: string | null
           voided_at: string | null
           voided_by: string | null
         }
         Insert: {
+          base_rent_amount?: number | null
           billing_period_end: string
           billing_period_start: string
           billing_term_id: string
@@ -5539,23 +5649,32 @@ export type Database = {
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
           due_date: string
+          generated_at?: string | null
+          generation_source?: string | null
           id?: string
           invoice_number: string
+          is_prorated?: boolean | null
           issue_date: string
           lease_id: string
+          lease_term_id?: string | null
           lifecycle?: string
+          management_fee_amount?: number | null
+          management_fee_mode?: string | null
+          management_fee_value?: number | null
           occupant_labels?: string[]
           organization_id: string
           property_id: string
           recipient_kind: string
           recipient_label: string
           recipient_person_id: string
+          rent_policy_version_id?: string | null
           total_amount: number
           unit_id?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
         Update: {
+          base_rent_amount?: number | null
           billing_period_end?: string
           billing_period_start?: string
           billing_term_id?: string
@@ -5564,17 +5683,25 @@ export type Database = {
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
           due_date?: string
+          generated_at?: string | null
+          generation_source?: string | null
           id?: string
           invoice_number?: string
+          is_prorated?: boolean | null
           issue_date?: string
           lease_id?: string
+          lease_term_id?: string | null
           lifecycle?: string
+          management_fee_amount?: number | null
+          management_fee_mode?: string | null
+          management_fee_value?: number | null
           occupant_labels?: string[]
           organization_id?: string
           property_id?: string
           recipient_kind?: string
           recipient_label?: string
           recipient_person_id?: string
+          rent_policy_version_id?: string | null
           total_amount?: number
           unit_id?: string | null
           voided_at?: string | null
@@ -5594,6 +5721,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "leases"
             referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_lease_term_fkey"
+            columns: ["organization_id", "lease_id", "lease_term_id"]
+            isOneToOne: false
+            referencedRelation: "lease_terms"
+            referencedColumns: ["organization_id", "lease_id", "id"]
           },
           {
             foreignKeyName: "tenant_invoices_organization_id_fkey"
@@ -5621,6 +5755,13 @@ export type Database = {
             columns: ["organization_id", "recipient_person_id"]
             isOneToOne: false
             referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoices_rent_policy_fkey"
+            columns: ["organization_id", "rent_policy_version_id"]
+            isOneToOne: false
+            referencedRelation: "rent_policy_versions"
             referencedColumns: ["organization_id", "id"]
           },
         ]
@@ -7036,6 +7177,10 @@ export type Database = {
           p_reference: string
         }
         Returns: string
+      }
+      recover_rent_generation_exception: {
+        Args: { p_exception_id: string; p_organization_id: string }
+        Returns: Json
       }
       refresh_organization_invitation: {
         Args: { p_invitation_id: string }
