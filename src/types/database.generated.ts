@@ -678,6 +678,407 @@ export type Database = {
           },
         ]
       }
+      expense_customer_adjustments: {
+        Row: {
+          adjustment_date: string
+          amount: number
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          id: string
+          organization_id: string
+          owner_invoice_id: string | null
+          property_id: string
+          reason: string
+          responsibility: string
+          responsibility_id: string
+          submission_id: string
+          tenant_income_item_id: string | null
+          tenant_invoice_id: string | null
+        }
+        Insert: {
+          adjustment_date: string
+          amount: number
+          created_at?: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          organization_id: string
+          owner_invoice_id?: string | null
+          property_id: string
+          reason: string
+          responsibility: string
+          responsibility_id: string
+          submission_id: string
+          tenant_income_item_id?: string | null
+          tenant_invoice_id?: string | null
+        }
+        Update: {
+          adjustment_date?: string
+          amount?: number
+          created_at?: string
+          created_by?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          id?: string
+          organization_id?: string
+          owner_invoice_id?: string | null
+          property_id?: string
+          reason?: string
+          responsibility?: string
+          responsibility_id?: string
+          submission_id?: string
+          tenant_income_item_id?: string | null
+          tenant_invoice_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_customer_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_customer_adjustments_owner_invoice_fkey"
+            columns: ["organization_id", "owner_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "owner_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_customer_adjustments_owner_invoice_fkey"
+            columns: ["organization_id", "owner_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "owner_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_customer_adjustments_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_customer_adjustments_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "expense_customer_adjustments_responsibility_fkey"
+            columns: ["organization_id", "responsibility_id"]
+            isOneToOne: false
+            referencedRelation: "ips_expense_responsibilities"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_customer_adjustments_submission_fkey"
+            columns: ["organization_id", "submission_id"]
+            isOneToOne: true
+            referencedRelation: "expense_submissions"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_customer_adjustments_tenant_income_fkey"
+            columns: ["organization_id", "tenant_income_item_id"]
+            isOneToOne: false
+            referencedRelation: "finance_income_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_customer_adjustments_tenant_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_customer_adjustments_tenant_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      expense_submissions: {
+        Row: {
+          approved_finance_expense_item_id: string | null
+          approved_journal_entry_id: string | null
+          approved_ledger_entry_id: string | null
+          approved_payment_allocation_id: string | null
+          approved_payment_id: string | null
+          approved_responsibility_id: string | null
+          created_at: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          customer_category: string
+          customer_total_amount: number | null
+          expense_date: string
+          id: string
+          idempotency_key: string
+          internal_cost_amount: number
+          internal_markup_amount: number
+          organization_id: string
+          property_id: string
+          reconciliation_source_id: string
+          reference: string | null
+          request_payload_hash: string
+          responsibility: string
+          reversal_journal_entry_id: string | null
+          reversal_ledger_entry_id: string | null
+          reversal_payment_allocation_id: string | null
+          reversal_payment_id: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_id: string | null
+          source_type: string
+          status: string
+          submitted_at: string
+          submitted_by: string
+          supporting_document_id: string | null
+          tenant_invoice_id: string | null
+          unit_id: string | null
+          updated_at: string
+          vendor_label: string
+          vendor_person_id: string | null
+        }
+        Insert: {
+          approved_finance_expense_item_id?: string | null
+          approved_journal_entry_id?: string | null
+          approved_ledger_entry_id?: string | null
+          approved_payment_allocation_id?: string | null
+          approved_payment_id?: string | null
+          approved_responsibility_id?: string | null
+          created_at?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          customer_category: string
+          customer_total_amount?: number | null
+          expense_date: string
+          id?: string
+          idempotency_key: string
+          internal_cost_amount: number
+          internal_markup_amount?: number
+          organization_id: string
+          property_id: string
+          reconciliation_source_id: string
+          reference?: string | null
+          request_payload_hash: string
+          responsibility: string
+          reversal_journal_entry_id?: string | null
+          reversal_ledger_entry_id?: string | null
+          reversal_payment_allocation_id?: string | null
+          reversal_payment_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id?: string | null
+          source_type?: string
+          status?: string
+          submitted_at?: string
+          submitted_by: string
+          supporting_document_id?: string | null
+          tenant_invoice_id?: string | null
+          unit_id?: string | null
+          updated_at?: string
+          vendor_label: string
+          vendor_person_id?: string | null
+        }
+        Update: {
+          approved_finance_expense_item_id?: string | null
+          approved_journal_entry_id?: string | null
+          approved_ledger_entry_id?: string | null
+          approved_payment_allocation_id?: string | null
+          approved_payment_id?: string | null
+          approved_responsibility_id?: string | null
+          created_at?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          customer_category?: string
+          customer_total_amount?: number | null
+          expense_date?: string
+          id?: string
+          idempotency_key?: string
+          internal_cost_amount?: number
+          internal_markup_amount?: number
+          organization_id?: string
+          property_id?: string
+          reconciliation_source_id?: string
+          reference?: string | null
+          request_payload_hash?: string
+          responsibility?: string
+          reversal_journal_entry_id?: string | null
+          reversal_ledger_entry_id?: string | null
+          reversal_payment_allocation_id?: string | null
+          reversal_payment_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id?: string | null
+          source_type?: string
+          status?: string
+          submitted_at?: string
+          submitted_by?: string
+          supporting_document_id?: string | null
+          tenant_invoice_id?: string | null
+          unit_id?: string | null
+          updated_at?: string
+          vendor_label?: string
+          vendor_person_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_submissions_document_fkey"
+            columns: ["supporting_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_expense_fkey"
+            columns: ["organization_id", "approved_finance_expense_item_id"]
+            isOneToOne: false
+            referencedRelation: "finance_expense_items"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_journal_fkey"
+            columns: ["approved_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_ledger_fkey"
+            columns: ["approved_ledger_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_payment_allocation_fkey"
+            columns: ["organization_id", "approved_payment_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "finance_payment_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_payment_fkey"
+            columns: ["organization_id", "approved_payment_id"]
+            isOneToOne: false
+            referencedRelation: "finance_payments"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_reconciliation_source_fkey"
+            columns: ["organization_id", "reconciliation_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reconciliation_sources"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_responsibility_fkey"
+            columns: ["organization_id", "approved_responsibility_id"]
+            isOneToOne: false
+            referencedRelation: "ips_expense_responsibilities"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_reversal_allocation_fkey"
+            columns: ["organization_id", "reversal_payment_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "finance_payment_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_reversal_journal_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_reversal_ledger_fkey"
+            columns: ["reversal_ledger_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ledger_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_reversal_payment_fkey"
+            columns: ["organization_id", "reversal_payment_id"]
+            isOneToOne: false
+            referencedRelation: "finance_payments"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_source_task_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_tenant_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_tenant_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_unit_fkey"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "expense_submissions_vendor_fkey"
+            columns: ["organization_id", "vendor_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       finance_expense_items: {
         Row: {
           amount: number
@@ -975,28 +1376,64 @@ export type Database = {
           amount: number
           created_at: string
           created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"] | null
+          economic_scope_snapshot: string | null
           expense_item_id: string
+          expense_type_snapshot: string | null
           id: string
+          ledger_entry_id: string | null
           organization_id: string
+          paid_date: string | null
           payment_id: string
+          property_id: string | null
+          reconciliation_source_id: string | null
+          reversal_of_allocation_id: string | null
+          settlement_contract_version: string | null
+          signed_amount: number | null
+          unit_id: string | null
+          vendor_person_id_snapshot: string | null
         }
         Insert: {
           amount: number
           created_at?: string
           created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"] | null
+          economic_scope_snapshot?: string | null
           expense_item_id: string
+          expense_type_snapshot?: string | null
           id?: string
+          ledger_entry_id?: string | null
           organization_id: string
+          paid_date?: string | null
           payment_id: string
+          property_id?: string | null
+          reconciliation_source_id?: string | null
+          reversal_of_allocation_id?: string | null
+          settlement_contract_version?: string | null
+          signed_amount?: number | null
+          unit_id?: string | null
+          vendor_person_id_snapshot?: string | null
         }
         Update: {
           amount?: number
           created_at?: string
           created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"] | null
+          economic_scope_snapshot?: string | null
           expense_item_id?: string
+          expense_type_snapshot?: string | null
           id?: string
+          ledger_entry_id?: string | null
           organization_id?: string
+          paid_date?: string | null
           payment_id?: string
+          property_id?: string | null
+          reconciliation_source_id?: string | null
+          reversal_of_allocation_id?: string | null
+          settlement_contract_version?: string | null
+          signed_amount?: number | null
+          unit_id?: string | null
+          vendor_person_id_snapshot?: string | null
         }
         Relationships: [
           {
@@ -1004,6 +1441,13 @@ export type Database = {
             columns: ["expense_item_id"]
             isOneToOne: false
             referencedRelation: "finance_expense_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_payment_allocations_ledger_fkey"
+            columns: ["ledger_entry_id"]
+            isOneToOne: true
+            referencedRelation: "ledger_entries"
             referencedColumns: ["id"]
           },
           {
@@ -1021,6 +1465,27 @@ export type Database = {
             referencedColumns: ["organization_id", "id"]
           },
           {
+            foreignKeyName: "finance_payment_allocations_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_payment_allocations_org_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "finance_payment_allocations_org_unit_fkey"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "finance_payment_allocations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1033,6 +1498,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "finance_payments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_payment_allocations_reconciliation_source_fkey"
+            columns: ["organization_id", "reconciliation_source_id"]
+            isOneToOne: false
+            referencedRelation: "financial_reconciliation_sources"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_payment_allocations_reversal_scope_fkey"
+            columns: ["organization_id", "reversal_of_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "finance_payment_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "finance_payment_allocations_vendor_fkey"
+            columns: ["organization_id", "vendor_person_id_snapshot"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -3518,6 +4004,7 @@ export type Database = {
           organization_id: string
           owner_invoice_line_id: string
           property_id: string
+          reversal_of_id: string | null
         }
         Insert: {
           allocation_date: string
@@ -3528,6 +4015,7 @@ export type Database = {
           organization_id: string
           owner_invoice_line_id: string
           property_id: string
+          reversal_of_id?: string | null
         }
         Update: {
           allocation_date?: string
@@ -3538,6 +4026,7 @@ export type Database = {
           organization_id?: string
           owner_invoice_line_id?: string
           property_id?: string
+          reversal_of_id?: string | null
         }
         Relationships: [
           {
@@ -3567,6 +4056,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_charge_cash_allocations_reversal_fkey"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "owner_charge_cash_allocations"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -7324,6 +7820,16 @@ export type Database = {
         }
         Returns: string
       }
+      reverse_expense: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_reversal_date: string
+          p_submission_id: string
+        }
+        Returns: Json
+      }
       reverse_finance_payment: {
         Args: {
           p_organization_id: string
@@ -7361,6 +7867,16 @@ export type Database = {
           p_reference?: string
         }
         Returns: string
+      }
+      review_expense: {
+        Args: {
+          p_decision: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_submission_id: string
+        }
+        Returns: Json
       }
       review_maintenance_task_completion: {
         Args: {
@@ -7450,6 +7966,29 @@ export type Database = {
           p_source_file_name: string
           p_source_file_size: number
           p_source_mime_type: string
+        }
+        Returns: Json
+      }
+      submit_expense: {
+        Args: {
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_customer_category: string
+          p_expense_date: string
+          p_idempotency_key: string
+          p_internal_cost_amount: number
+          p_internal_markup_amount: number
+          p_organization_id: string
+          p_property_id: string
+          p_reconciliation_source_id: string
+          p_reference: string
+          p_responsibility: string
+          p_source_id: string
+          p_source_type: string
+          p_supporting_document_id: string
+          p_tenant_invoice_id: string
+          p_unit_id: string
+          p_vendor_label: string
+          p_vendor_person_id: string
         }
         Returns: Json
       }

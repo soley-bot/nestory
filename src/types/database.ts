@@ -70,6 +70,39 @@ type RpcFunctionOverrides = {
       p_vendor_person_id: string | null;
     }
   >;
+  submit_expense: WithArgs<
+    "submit_expense",
+    {
+      p_currency: CurrencyCode;
+      p_customer_category: string;
+      p_expense_date: string;
+      p_idempotency_key: string;
+      p_internal_cost_amount: number;
+      p_internal_markup_amount: number;
+      p_organization_id: string;
+      p_property_id: string;
+      p_reconciliation_source_id: string;
+      p_reference: string | null;
+      p_responsibility: string;
+      p_source_id: string | null;
+      p_source_type: string;
+      p_supporting_document_id: string | null;
+      p_tenant_invoice_id: string | null;
+      p_unit_id: string | null;
+      p_vendor_label: string;
+      p_vendor_person_id: string | null;
+    }
+  >;
+  review_expense: WithArgs<
+    "review_expense",
+    {
+      p_decision: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_reason: string | null;
+      p_submission_id: string;
+    }
+  >;
   create_organization_invitation: WithArgs<
     "create_organization_invitation",
     {
