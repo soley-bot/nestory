@@ -39,18 +39,29 @@ describe("finance routes", () => {
   });
 
   it.each([
-    ["finance_manager", FinancePage, "work", true, false],
-    ["finance_member", RentIncomePage, "rent", false, true],
-    ["finance_member", BillsExpensesPage, "expenses", false, true],
+    ["finance_manager", FinancePage, "work", true, false, true, true],
+    ["finance_member", RentIncomePage, "rent", false, true, false, false],
+    ["finance_member", BillsExpensesPage, "expenses", false, true, false, false],
   ] as const)(
     "admits %s through Finance context with explicit capabilities",
-    async (role, page, view, canReviewExpense, canSubmitExpense) => {
+    async (
+      role,
+      page,
+      view,
+      canReviewExpense,
+      canSubmitExpense,
+      canOperateFinance,
+      canRetryCurrentRent,
+    ) => {
       requireFinanceContext.mockResolvedValue({
         capabilities: {
           canConfigureLeases: false,
+          canCorrectFinance: false,
           canManageFinanceOperations: false,
+          canOperateFinance,
           canReviewExpense,
           canReverseExpense: false,
+          canRetryCurrentRent,
           canSubmitExpense,
         },
         organizationId: "organization-1",
@@ -66,10 +77,13 @@ describe("finance routes", () => {
       expect(screenSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           canConfigureRent: false,
-          canManageFinance: false,
+          canCorrectFinance: false,
+          canRecordOwnerCash: canOperateFinance,
+          canRecordPayments: canOperateFinance,
           canRecoverRent: false,
           canReviewExpense,
           canReverseExpense: false,
+          canRetryCurrentRent,
           canSubmitExpense,
           view,
         }),
@@ -81,9 +95,12 @@ describe("finance routes", () => {
     requireFinanceContext.mockResolvedValue({
       capabilities: {
         canConfigureLeases: true,
+        canCorrectFinance: true,
         canManageFinanceOperations: true,
+        canOperateFinance: true,
         canReviewExpense: true,
         canReverseExpense: true,
+        canRetryCurrentRent: true,
         canSubmitExpense: true,
       },
       organizationId: "organization-1",
@@ -96,10 +113,13 @@ describe("finance routes", () => {
     expect(screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         canConfigureRent: true,
-        canManageFinance: true,
+        canCorrectFinance: true,
+        canRecordOwnerCash: true,
+        canRecordPayments: true,
         canRecoverRent: true,
         canReviewExpense: true,
         canReverseExpense: true,
+        canRetryCurrentRent: true,
         canSubmitExpense: true,
       }),
     );

@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(18);
+SELECT plan(21);
 
 SELECT has_function('app_private', 'can_operate_finance', ARRAY['uuid'], 'ordinary Finance operation predicate exists');
 SELECT has_function('app_private', 'can_manage_petty_cash', ARRAY['uuid'], 'Petty Cash operation predicate exists');
@@ -59,6 +59,35 @@ SELECT ok(
   AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_read_finance_reports(uuid)'), 'EXECUTE'), false)
   AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_correct_finance(uuid)'), 'EXECUTE'), false),
   'authenticated can execute every granular Finance predicate as a checked helper'
+);
+
+SELECT ok(
+  has_function_privilege('authenticated', 'public.record_tenant_invoice_payment(uuid,uuid,numeric,date,uuid,text,jsonb,text)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.confirm_owner_collected_rent(uuid,uuid,numeric,date,text,jsonb,text)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.record_owner_invoice_payment(uuid,uuid,numeric,date,text,text)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.record_property_withdrawal(uuid,uuid,numeric,date,text,text)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.recover_rent_generation_exception(uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.record_tenant_invoice_payment_internal(uuid,uuid,numeric,date,uuid,text,jsonb,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.confirm_owner_collected_rent_internal(uuid,uuid,numeric,date,text,jsonb,text)', 'EXECUTE')
+  AND (
+    SELECT count(*) = 7
+      AND bool_and(procedure.prosecdef)
+      AND bool_and(procedure.proconfig @> ARRAY['search_path=""'])
+      AND bool_and(procedure.prosrc LIKE '%app_private.can_operate_finance(p_organization_id)%')
+      AND bool_and(procedure.prosrc NOT LIKE '%app_private.is_org_admin(p_organization_id)%')
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    WHERE (namespace.nspname, procedure.proname) IN (
+      ('app_private', 'settle_income_item_internal'),
+      ('public', 'confirm_owner_collected_rent'),
+      ('public', 'confirm_owner_collected_rent_internal'),
+      ('public', 'record_owner_invoice_payment'),
+      ('public', 'record_property_withdrawal'),
+      ('public', 'record_tenant_invoice_payment'),
+      ('public', 'record_tenant_invoice_payment_internal')
+    )
+  ),
+  'authenticated reaches only the checked public Finance commands, never duplicated internals'
 );
 
 CREATE TEMP TABLE granular_authority_state (
@@ -200,6 +229,33 @@ SELECT pg_temp.checked_granular_authority_results_eq(
   $$,
   $$ VALUES (true, true, false, true, true, false, true, false) $$,
   'Finance Manager receives ordinary operation authority without configuration, unlock, or correction authority'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.record_tenant_invoice_payment(%L,%L,1,current_date,%L,%L,NULL,%L)',
+    '00000000-0000-0000-0000-000000000001',
+    gen_random_uuid(),
+    gen_random_uuid(),
+    'Cross organization attempt',
+    'cross-org-payment-1'
+  ),
+  '42501',
+  'Not authorized',
+  'Finance Manager cannot call an operation RPC across organizations'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.reverse_expense(%L,%L,current_date,%L,%L)',
+    (SELECT organization_id FROM granular_authority_state),
+    gen_random_uuid(),
+    'Unauthorized correction',
+    'manager-expense-reversal-1'
+  ),
+  '42501',
+  'Not authorized',
+  'Finance Manager cannot call the expense reversal RPC'
 );
 RESET ROLE;
 

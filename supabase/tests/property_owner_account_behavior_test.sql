@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for account and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(24);
+SELECT plan(28);
 
 SELECT has_column(
   'public',
@@ -116,6 +116,20 @@ JOIN public.property_finance_positions AS position
 WHERE through_lease.organization_id = '00000000-0000-0000-0000-000000000001'
   AND through_lease.primary_tenant_person_id = '80000000-0000-0000-0000-000000000001';
 GRANT SELECT, UPDATE ON owner_account_state TO authenticated;
+
+CREATE FUNCTION pg_temp.try_uuid(statement text) RETURNS uuid
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  result uuid;
+BEGIN
+  EXECUTE statement INTO result;
+  RETURN result;
+EXCEPTION WHEN insufficient_privilege THEN
+  RETURN NULL;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.try_uuid(text) TO authenticated;
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -285,6 +299,13 @@ SELECT results_eq(
   'property position separates owner balance, IPS-held cash, and safe withdrawal'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
     UPDATE owner_account_state
@@ -297,8 +318,40 @@ SELECT lives_ok(
       'account-withdrawal-0001'
     )
   $$,
-  'Super Admin can withdraw only the remaining property cash'
+  'Finance Manager can withdraw only valid available property cash'
 );
+
+SELECT is(
+  (SELECT created_by FROM public.property_withdrawals WHERE id = (SELECT withdrawal_id FROM owner_account_state)),
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  'property withdrawal records the Finance Manager actor'
+);
+
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'public.property_withdrawals', 'UPDATE'),
+  'Finance Manager cannot bypass the checked RPC with direct withdrawal DML'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM owner_account_state), true);
+RESET ROLE;
+
+UPDATE owner_account_state
+SET withdrawal_id = public.record_property_withdrawal(
+  organization_id,
+  through_property_id,
+  400,
+  current_date,
+  'Owner bank transfer',
+  'account-withdrawal-admin-fallback'
+)
+WHERE withdrawal_id IS NULL;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
 
 SELECT results_eq(
   $$
@@ -331,14 +384,13 @@ SELECT ok(
 
 SELECT results_eq(
   $$
-    SELECT public.record_property_withdrawal(
+    SELECT pg_temp.try_uuid(format(
+      'SELECT public.record_property_withdrawal(%L,%L,400,current_date,%L,%L)',
       organization_id,
       through_property_id,
-      400,
-      current_date,
       'Owner bank transfer',
       'account-withdrawal-0001'
-    )
+    ))
     FROM owner_account_state
   $$,
   $$SELECT withdrawal_id FROM owner_account_state$$,
@@ -382,6 +434,9 @@ SELECT throws_ok(
   'Withdrawal exceeds available property cash',
   'withdrawal cannot overdraw IPS-held property cash'
 );
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM owner_account_state), true);
+RESET ROLE;
 
 SELECT lives_ok(
   $$
@@ -490,6 +545,13 @@ SELECT results_eq(
   'direct-owner collection adds owner income without adding to IPS-held cash'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
     UPDATE owner_account_state
@@ -505,8 +567,27 @@ SELECT lives_ok(
       'account-owner-payment-0001'
     )
   $$,
-  'owner can pay IPS directly when no rent cash is held'
+  'Finance Manager can record an owner payment when no rent cash is held'
 );
+
+SELECT is(
+  (SELECT created_by FROM public.owner_payments WHERE id = (SELECT owner_payment_id FROM owner_account_state)),
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  'owner payment records the Finance Manager actor'
+);
+
+SELECT is(
+  pg_temp.try_uuid(format(
+    'SELECT public.record_owner_invoice_payment(%L,%L,65,current_date,%L,%L)',
+    organization_id,
+    (SELECT id FROM public.owner_invoice_balances WHERE property_id = direct_property_id ORDER BY issue_date DESC LIMIT 1),
+    'Owner paid management fee',
+    'account-owner-payment-0001'
+  )),
+  owner_payment_id,
+  'an exact Finance Manager owner-payment retry returns the original record'
+)
+FROM owner_account_state;
 
 SELECT results_eq(
   $$

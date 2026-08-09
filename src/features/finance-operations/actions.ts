@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
-  requireSuperAdminContext,
+  requireCurrentRentRetryContext,
+  requireFinanceOperationContext,
   requireFinanceReviewContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
@@ -187,7 +188,7 @@ export async function recoverRentGenerationExceptionAction(
 ): Promise<FinanceOperationsActionState> {
   const parsed = recoverRentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireLeaseConfigurationContext();
+  const context = await requireCurrentRentRetryContext();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc(
     "recover_rent_generation_exception",
@@ -257,7 +258,7 @@ export async function recordTenantInvoicePaymentAction(
 ): Promise<FinanceOperationsActionState> {
   const parsed = paymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireSuperAdminContext();
+  const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   const allocations = parseAllocations(formData);
   const { error } = await supabase.rpc("record_tenant_invoice_payment", {
@@ -283,7 +284,7 @@ export async function confirmOwnerCollectionAction(
     Object.fromEntries(formData),
   );
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireSuperAdminContext();
+  const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   const allocations = parseAllocations(formData);
   const { error } = await supabase.rpc("confirm_owner_collected_rent", {
@@ -446,7 +447,7 @@ export async function recordOwnerPaymentAction(
 ): Promise<FinanceOperationsActionState> {
   const parsed = ownerPaymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireSuperAdminContext();
+  const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("record_owner_invoice_payment", {
     p_amount: parsed.data.amount,
@@ -467,7 +468,7 @@ export async function recordWithdrawalAction(
 ): Promise<FinanceOperationsActionState> {
   const parsed = withdrawalSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireSuperAdminContext();
+  const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("record_property_withdrawal", {
     p_amount: parsed.data.amount,

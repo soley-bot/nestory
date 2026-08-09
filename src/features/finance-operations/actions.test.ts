@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  requireCurrentRentRetryContext,
+  requireFinanceOperationContext,
   requireSuperAdminContext,
   requireFinanceReviewContext,
   requireFinanceReversalContext,
@@ -9,6 +11,8 @@ const {
   revalidatePath,
   rpc,
 } = vi.hoisted(() => ({
+  requireCurrentRentRetryContext: vi.fn(),
+  requireFinanceOperationContext: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   requireFinanceReviewContext: vi.fn(),
   requireFinanceReversalContext: vi.fn(),
@@ -20,6 +24,8 @@ const {
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
+  requireCurrentRentRetryContext,
+  requireFinanceOperationContext,
   requireSuperAdminContext,
   requireFinanceReviewContext,
   requireFinanceReversalContext,
@@ -31,6 +37,10 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 import {
+  confirmOwnerCollectionAction,
+  recordOwnerPaymentAction,
+  recordTenantInvoicePaymentAction,
+  recordWithdrawalAction,
   recoverLeaseRentPeriodAction,
   recoverRentGenerationExceptionAction,
   reverseExpenseAction,
@@ -47,6 +57,8 @@ const submissionId = "00000000-0000-4000-8000-000000000005";
 
 describe("rent generation recovery action", () => {
   beforeEach(() => {
+    requireCurrentRentRetryContext.mockReset();
+    requireFinanceOperationContext.mockReset();
     requireSuperAdminContext.mockReset();
     requireFinanceReviewContext.mockReset();
     requireFinanceReversalContext.mockReset();
@@ -55,12 +67,14 @@ describe("rent generation recovery action", () => {
     revalidatePath.mockReset();
     rpc.mockReset();
     requireLeaseConfigurationContext.mockResolvedValue({ organizationId });
+    requireCurrentRentRetryContext.mockResolvedValue({ organizationId });
+    requireFinanceOperationContext.mockResolvedValue({ organizationId });
     requireFinanceSubmissionContext.mockResolvedValue({ organizationId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
   });
 
-  it("uses the lease-configuration context and retries only the selected exception", async () => {
+  it("uses the current-rent retry context and retries only the selected exception", async () => {
     rpc.mockResolvedValue({
       data: { invoiceId: "invoice-1", status: "generated" },
       error: null,
@@ -74,7 +88,8 @@ describe("rent generation recovery action", () => {
       message: "Rent generation retried.",
       status: "success",
     });
-    expect(requireLeaseConfigurationContext).toHaveBeenCalledOnce();
+    expect(requireCurrentRentRetryContext).toHaveBeenCalledOnce();
+    expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
     expect(requireSuperAdminContext).not.toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith("recover_rent_generation_exception", {
       p_exception_id: exceptionId,
@@ -137,7 +152,7 @@ describe("rent generation recovery action", () => {
       message: "Choose a historical rent month.",
       status: "error",
     });
-    expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
+    expect(requireCurrentRentRetryContext).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
 
@@ -151,6 +166,34 @@ describe("rent generation recovery action", () => {
     expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
+});
+
+describe("ordinary finance operation actions", () => {
+  beforeEach(() => {
+    requireFinanceOperationContext.mockReset();
+    requireSuperAdminContext.mockReset();
+    revalidatePath.mockReset();
+    rpc.mockReset();
+    requireFinanceOperationContext.mockResolvedValue({ organizationId });
+    rpc.mockResolvedValue({ data: "operation-id", error: null });
+  });
+
+  it.each([
+    [recordTenantInvoicePaymentAction, tenantPaymentForm(), "record_tenant_invoice_payment"],
+    [confirmOwnerCollectionAction, ownerCollectionForm(), "confirm_owner_collected_rent"],
+    [recordOwnerPaymentAction, ownerPaymentForm(), "record_owner_invoice_payment"],
+    [recordWithdrawalAction, withdrawalForm(), "record_property_withdrawal"],
+  ] as const)(
+    "uses operation authority for %s",
+    async (action, formData, rpcName) => {
+      await expect(action({}, formData)).resolves.toMatchObject({ status: "success" });
+      expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
+      expect(requireSuperAdminContext).not.toHaveBeenCalled();
+      expect(rpc).toHaveBeenCalledWith(rpcName, expect.objectContaining({
+        p_organization_id: organizationId,
+      }));
+    },
+  );
 });
 
 describe("expense approval actions", () => {
@@ -318,5 +361,41 @@ function expenseDecisionForm(decision: "approve" | "reject", reason: string) {
   formData.set("idempotencyKey", "expense-review-1");
   formData.set("reason", reason);
   formData.set("submissionId", submissionId);
+  return formData;
+}
+
+function tenantPaymentForm() {
+  const formData = ownerCollectionForm();
+  formData.set("reconciliationSourceId", sourceId);
+  return formData;
+}
+
+function ownerCollectionForm() {
+  const formData = new FormData();
+  formData.set("amount", "100");
+  formData.set("idempotencyKey", "finance-operation-1");
+  formData.set("invoiceId", exceptionId);
+  formData.set("reference", "Receipt 42");
+  formData.set("settlementDate", "2026-08-09");
+  return formData;
+}
+
+function ownerPaymentForm() {
+  const formData = new FormData();
+  formData.set("amount", "65");
+  formData.set("idempotencyKey", "owner-payment-1");
+  formData.set("ownerInvoiceId", submissionId);
+  formData.set("receivedDate", "2026-08-09");
+  formData.set("reference", "Owner transfer");
+  return formData;
+}
+
+function withdrawalForm() {
+  const formData = new FormData();
+  formData.set("amount", "50");
+  formData.set("idempotencyKey", "owner-withdrawal-1");
+  formData.set("propertyId", propertyId);
+  formData.set("reference", "Owner transfer");
+  formData.set("withdrawalDate", "2026-08-09");
   return formData;
 }

@@ -71,8 +71,9 @@ describe("FinanceOperationsScreen", () => {
       <FinanceOperationsScreen
         {...input}
         {...financeCapabilities()}
-        canConfigureRent
-        canRecoverRent
+        canConfigureRent={false}
+        canRecoverRent={false}
+        canRetryCurrentRent
         organizationName="Sokha Property Services"
         view="work"
       />,
@@ -356,7 +357,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
-        {...financeCapabilities({ canManageFinance: true })}
+        {...financeCapabilities({ canRecordPayments: true })}
         organizationName="Sokha Property Services"
         view="rent"
       />,
@@ -402,7 +403,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
-        {...financeCapabilities({ canManageFinance: true })}
+        {...financeCapabilities({ canRecordPayments: true })}
         organizationName="Sokha Property Services"
         view="rent"
       />,
@@ -416,7 +417,7 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
-  it("offers an append-only settlement correction only to Super Admin", async () => {
+  it("keeps append-only settlement correction separate from ordinary payment authority", async () => {
     const user = userEvent.setup();
     const input = data();
     const invoice = tenantInvoice();
@@ -450,7 +451,18 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
-        {...financeCapabilities({ canManageFinance: true })}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Correct" })).toBeNull();
+    readOnly.unmount();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canCorrectFinance: true })}
         organizationName="Sokha Property Services"
         view="rent"
       />,
@@ -512,6 +524,17 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByRole("button", { name: "More" })).toBeNull();
     await user.click(screen.getByRole("tab", { name: "Tenants & companies" }));
     expect(screen.getByText("Partly paid")).not.toBeNull();
+
+    cleanup();
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordOwnerCash: true })}
+        organizationName="Sokha Property Services"
+        view="balances"
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Withdrawal" })).not.toBeNull();
   });
 
   it("keeps the dominant finance table unframed while retaining row separators", () => {
@@ -657,19 +680,25 @@ function tenantInvoice(): FinanceOperationsData["tenantInvoices"][number] {
 function financeCapabilities(
   overrides: Partial<{
     canConfigureRent: boolean;
-    canManageFinance: boolean;
+    canCorrectFinance: boolean;
+    canRecordOwnerCash: boolean;
+    canRecordPayments: boolean;
     canRecoverRent: boolean;
     canReviewExpense: boolean;
     canReverseExpense: boolean;
+    canRetryCurrentRent: boolean;
     canSubmitExpense: boolean;
   }> = {},
 ) {
   return {
     canConfigureRent: false,
-    canManageFinance: false,
+    canCorrectFinance: false,
+    canRecordOwnerCash: false,
+    canRecordPayments: false,
     canRecoverRent: false,
     canReviewExpense: false,
     canReverseExpense: false,
+    canRetryCurrentRent: false,
     canSubmitExpense: false,
     ...overrides,
   };

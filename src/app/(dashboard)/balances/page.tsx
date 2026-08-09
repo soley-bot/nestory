@@ -9,10 +9,13 @@ export default async function BalancesPage() {
     <FinanceOperationsScreen
       {...data}
       canConfigureRent={context.capabilities.canConfigureLeases}
-      canManageFinance={context.capabilities.canManageFinanceOperations}
+      canCorrectFinance={context.capabilities.canCorrectFinance}
+      canRecordOwnerCash={context.capabilities.canOperateFinance}
+      canRecordPayments={context.capabilities.canOperateFinance}
       canRecoverRent={context.capabilities.canConfigureLeases}
       canReviewExpense={context.capabilities.canReviewExpense}
       canReverseExpense={context.capabilities.canReverseExpense}
+      canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
       organizationName={context.organizationName}
       view="balances"

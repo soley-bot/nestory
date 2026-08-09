@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for invoice and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(28);
+SELECT plan(32);
 
 CREATE TEMP TABLE tenant_invoice_state (
   organization_id uuid NOT NULL,
@@ -52,6 +52,20 @@ SELECT
   '80000000-0000-0000-0000-000000000001',
   '80000000-0000-0000-0000-000000000003';
 GRANT SELECT, UPDATE ON tenant_invoice_state TO authenticated;
+
+CREATE FUNCTION pg_temp.try_uuid(statement text) RETURNS uuid
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  result uuid;
+BEGIN
+  EXECUTE statement INTO result;
+  RETURN result;
+EXCEPTION WHEN insufficient_privilege THEN
+  RETURN NULL;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.try_uuid(text) TO authenticated;
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -192,6 +206,13 @@ SELECT lives_ok(
   'an IPS collection source can be selected'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
@@ -216,8 +237,51 @@ SELECT lives_ok(
       'invoice-through-payment-0001'
     )
   $$,
-  'partial IPS payment defaults to rent-first allocation'
+  'Finance Manager can record one append-only IPS tenant payment'
 );
+
+SELECT is(
+  (SELECT created_by FROM public.tenant_invoice_payments WHERE id = (SELECT payment_id FROM tenant_invoice_state)),
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  'tenant payment records the Finance Manager actor'
+);
+
+SELECT is(
+  pg_temp.try_uuid(format(
+    'SELECT public.record_tenant_invoice_payment(%L,%L,400,current_date,%L,%L,%L::jsonb,%L)',
+    organization_id,
+    through_invoice_id,
+    source_id,
+    'Bank transfer',
+    jsonb_build_array(jsonb_build_object(
+      'lineId', (SELECT id FROM public.tenant_invoice_lines WHERE invoice_id = through_invoice_id AND line_type = 'rent'),
+      'amount', 400
+    ))::text,
+    'invoice-through-payment-0001'
+  )),
+  payment_id,
+  'an exact Finance Manager tenant-payment retry returns the original record'
+)
+FROM tenant_invoice_state;
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
+RESET ROLE;
+
+UPDATE tenant_invoice_state
+SET payment_id = public.record_tenant_invoice_payment(
+  organization_id,
+  through_invoice_id,
+  400,
+  current_date,
+  source_id,
+  'Bank transfer',
+  jsonb_build_array(jsonb_build_object(
+    'lineId', (SELECT id FROM public.tenant_invoice_lines WHERE invoice_id = through_invoice_id AND line_type = 'rent'),
+    'amount', 400
+  )),
+  'invoice-through-payment-admin-fallback'
+)
+WHERE payment_id IS NULL;
 
 SELECT results_eq(
   $$
@@ -419,6 +483,13 @@ SELECT results_eq(
   'company invoice keeps the company recipient and occupant reference separate'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
@@ -450,8 +521,49 @@ SELECT lives_ok(
       'invoice-direct-confirm-0001'
     )
   $$,
-  'Super Admin can confirm the owner collected the full invoice'
+  'Finance Manager can confirm the owner collected the full invoice'
 );
+
+SELECT is(
+  (SELECT created_by FROM public.owner_collection_confirmations WHERE id = (SELECT confirmation_id FROM tenant_invoice_state)),
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  'owner collection confirmation records the Finance Manager actor'
+);
+
+SELECT is(
+  pg_temp.try_uuid(format(
+    'SELECT public.confirm_owner_collected_rent(%L,%L,1450.00::numeric(14,2),current_date,%L,%L::jsonb,%L)',
+    organization_id,
+    direct_invoice_id,
+    'Owner confirmed transfer',
+    jsonb_build_array(jsonb_build_object(
+      'lineId', (SELECT id FROM public.tenant_invoice_lines WHERE invoice_id = direct_invoice_id AND line_type = 'rent'),
+      'amount', 1450.00::numeric(14,2)
+    ))::text,
+    'invoice-direct-confirm-0001'
+  )),
+  confirmation_id,
+  'an exact Finance Manager owner-collection retry returns the original record'
+)
+FROM tenant_invoice_state;
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
+RESET ROLE;
+
+UPDATE tenant_invoice_state
+SET confirmation_id = public.confirm_owner_collected_rent(
+  organization_id,
+  direct_invoice_id,
+  1450,
+  current_date,
+  'Owner confirmed transfer',
+  jsonb_build_array(jsonb_build_object(
+    'lineId', (SELECT id FROM public.tenant_invoice_lines WHERE invoice_id = direct_invoice_id AND line_type = 'rent'),
+    'amount', 1450
+  )),
+  'invoice-direct-confirm-admin-fallback'
+)
+WHERE confirmation_id IS NULL;
 
 SELECT results_eq(
   $$

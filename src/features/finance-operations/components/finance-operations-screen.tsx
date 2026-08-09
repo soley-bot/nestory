@@ -99,10 +99,13 @@ type DrawerState =
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
   canConfigureRent: boolean;
-  canManageFinance: boolean;
+  canCorrectFinance: boolean;
+  canRecordOwnerCash: boolean;
+  canRecordPayments: boolean;
   canRecoverRent: boolean;
   canReviewExpense: boolean;
   canReverseExpense: boolean;
+  canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
   organizationName: string;
   selectedPropertyId?: string | null;
@@ -276,14 +279,14 @@ function getScreen(
     return {
       activeRoute: "/rent-income" as const,
       actions:
-        props.canManageFinance || props.canSubmitExpense || canRecoverRent ? (
+        props.canRecordPayments || props.canSubmitExpense || canRecoverRent ? (
         <>
           {canRecoverRent ? (
             <Button onClick={() => openDrawer({ mode: "rent-recovery" })}>
               Recover missed month
             </Button>
           ) : null}
-          {props.canManageFinance ? (
+          {props.canRecordPayments ? (
             <Button
               onClick={() => openModal({ mode: "payment" })}
               variant="default"
@@ -304,7 +307,8 @@ function getScreen(
         ) : undefined,
       body: (
         <RentView
-          canRecordPayments={props.canManageFinance}
+          canCorrectFinance={props.canCorrectFinance}
+          canRecordPayments={props.canRecordPayments}
           invoices={props.tenantInvoices}
           openModal={openModal}
           organizationName={props.organizationName}
@@ -349,7 +353,7 @@ function getScreen(
       actions: undefined,
       body: (
         <BalancesView
-          canManageFinance={props.canManageFinance}
+          canRecordOwnerCash={props.canRecordOwnerCash}
           invoices={props.tenantInvoices}
           openModal={openModal}
           ownerInvoices={props.ownerInvoices}
@@ -371,7 +375,7 @@ function getScreen(
     return {
       activeRoute: "/balances" as const,
       actions:
-        props.canManageFinance && position && position.availableWithdrawal > 0 ? (
+        props.canRecordOwnerCash && position && position.availableWithdrawal > 0 ? (
           <Button
             onClick={() => openModal({ mode: "withdrawal", position })}
             variant="default"
@@ -403,7 +407,7 @@ function getScreen(
 
   return {
     activeRoute: "/finance" as const,
-    actions: props.canManageFinance ? (
+    actions: props.canRecordPayments ? (
       <Button onClick={() => openModal({ mode: "payment" })} variant="default">
         <WalletCards size={15} /> Record payment
       </Button>
@@ -411,8 +415,9 @@ function getScreen(
     body: (
       <FinanceWorkView
         canConfigureRent={canConfigureRent}
-        canManageFinance={props.canManageFinance}
-        canRecoverRent={canRecoverRent}
+        canRecordOwnerCash={props.canRecordOwnerCash}
+        canRecordPayments={props.canRecordPayments}
+        canRetryCurrentRent={props.canRetryCurrentRent}
         leases={props.leases}
         openDrawer={openDrawer}
         openModal={openModal}
@@ -430,8 +435,9 @@ function getScreen(
 
 function FinanceWorkView({
   canConfigureRent,
-  canManageFinance,
-  canRecoverRent,
+  canRecordOwnerCash,
+  canRecordPayments,
+  canRetryCurrentRent,
   leases,
   openDrawer,
   openModal,
@@ -440,8 +446,9 @@ function FinanceWorkView({
   tenantInvoices,
 }: {
   canConfigureRent: boolean;
-  canManageFinance: boolean;
-  canRecoverRent: boolean;
+  canRecordOwnerCash: boolean;
+  canRecordPayments: boolean;
+  canRetryCurrentRent: boolean;
   leases: FinanceLease[];
   openDrawer: (drawer: DrawerState) => void;
   openModal: (modal: ModalState) => void;
@@ -529,7 +536,7 @@ function FinanceWorkView({
                 ))}
                 {rentGenerationExceptions.map((exception) => (
                   <RentGenerationExceptionRow
-                    canRecover={canRecoverRent}
+                    canRecover={canRetryCurrentRent}
                     exception={exception}
                     key={`rent-exception-${exception.id}`}
                     lease={leaseById.get(exception.leaseId) ?? null}
@@ -556,7 +563,7 @@ function FinanceWorkView({
                     </Td>
                     <Td>{formatDate(invoice.dueDate)}</Td>
                     <Td align="right">
-                      {canManageFinance ? (
+                      {canRecordPayments ? (
                         <Button
                           onClick={() => openModal({ invoice, mode: "payment" })}
                         >
@@ -589,7 +596,7 @@ function FinanceWorkView({
                     </Td>
                     <Td>{formatDate(invoice.dueDate)}</Td>
                     <Td align="right">
-                      {canManageFinance ? (
+                      {canRecordOwnerCash ? (
                         <Button
                           onClick={() =>
                             openModal({ invoice, mode: "owner-payment" })
@@ -759,11 +766,13 @@ function HistoricalRentRecoveryForm({
 }
 
 function RentView({
+  canCorrectFinance,
   canRecordPayments,
   invoices,
   openModal,
   organizationName,
 }: {
+  canCorrectFinance: boolean;
   canRecordPayments: boolean;
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
@@ -859,9 +868,9 @@ function RentView({
                       <StatusBadge status={invoice.paymentStatus} />
                     </Td>
                     <Td align="right">
-                      {canRecordPayments ? (
+                      {canRecordPayments || canCorrectFinance ? (
                         <div className="flex justify-end gap-2">
-                          {invoice.balanceDue > 0 ? (
+                          {canRecordPayments && invoice.balanceDue > 0 ? (
                             <Button
                               onClick={() =>
                                 openModal({ invoice, mode: "payment" })
@@ -872,7 +881,7 @@ function RentView({
                                 : "Confirm collected"}
                             </Button>
                           ) : null}
-                          {invoice.settlements.some(
+                          {canCorrectFinance && invoice.settlements.some(
                             (settlement) => !settlement.isReversed,
                           ) ? (
                             <Button
@@ -1167,13 +1176,13 @@ function ExpenseSubmissionTable({
 }
 
 function BalancesView({
-  canManageFinance,
+  canRecordOwnerCash,
   invoices,
   openModal,
   ownerInvoices,
   positions,
 }: {
-  canManageFinance: boolean;
+  canRecordOwnerCash: boolean;
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
@@ -1266,7 +1275,7 @@ function BalancesView({
                     </Td>
                     <Td align="right">
                       <div className="flex justify-end gap-1">
-                        {canManageFinance && ownerInvoice ? (
+                        {canRecordOwnerCash && ownerInvoice ? (
                           <Button
                             onClick={() =>
                               openModal({
@@ -1278,7 +1287,7 @@ function BalancesView({
                             Owner payment
                           </Button>
                         ) : null}
-                        {canManageFinance && position.availableWithdrawal > 0 ? (
+                        {canRecordOwnerCash && position.availableWithdrawal > 0 ? (
                           <Button
                             onClick={() =>
                               openModal({ mode: "withdrawal", position })
@@ -2535,16 +2544,19 @@ function canRenderFinanceModal(
   modal: ModalState,
   capabilities: Pick<
     FinanceOperationsScreenProps,
-    "canManageFinance" | "canReviewExpense" | "canReverseExpense"
+    | "canCorrectFinance"
+    | "canRecordOwnerCash"
+    | "canRecordPayments"
+    | "canReviewExpense"
+    | "canReverseExpense"
   >,
 ) {
-  if (
-    modal.mode === "payment" ||
-    modal.mode === "settlement-reversal" ||
-    modal.mode === "owner-payment" ||
-    modal.mode === "withdrawal"
-  ) {
-    return capabilities.canManageFinance;
+  if (modal.mode === "payment") return capabilities.canRecordPayments;
+  if (modal.mode === "settlement-reversal") {
+    return capabilities.canCorrectFinance;
+  }
+  if (modal.mode === "owner-payment" || modal.mode === "withdrawal") {
+    return capabilities.canRecordOwnerCash;
   }
 
   if (modal.mode === "expense-review") {

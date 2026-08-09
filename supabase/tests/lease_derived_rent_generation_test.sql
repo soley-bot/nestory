@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(78);
+SELECT plan(80);
 
 SELECT has_column(
   'public',
@@ -257,6 +257,18 @@ CREATE TEMP TABLE lease_rent_state (
 
 INSERT INTO lease_rent_state DEFAULT VALUES;
 GRANT SELECT ON lease_rent_state TO authenticated;
+
+CREATE FUNCTION pg_temp.try_rent_recovery(organization_id uuid, exception_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN public.recover_rent_generation_exception(organization_id, exception_id) ->> 'status';
+EXCEPTION WHEN insufficient_privilege THEN
+  RETURN NULL;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.try_rent_recovery(uuid, uuid) TO authenticated;
 
 INSERT INTO auth.users (
   instance_id,
@@ -1074,6 +1086,36 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
+SELECT lives_ok(
+  format(
+    'SELECT public.recover_rent_generation_exception(%L, %L)',
+    (SELECT organization_id FROM lease_rent_state),
+    (
+      SELECT id
+      FROM public.rent_generation_exceptions
+      WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
+        AND billing_period_start = date_trunc('month', current_date)::date
+    )
+  ),
+  'Finance Manager can retry the current rent exception'
+);
+
+SELECT results_eq(
+  $$
+    SELECT pg_temp.try_rent_recovery(
+      (SELECT organization_id FROM lease_rent_state),
+      (
+        SELECT id
+        FROM public.rent_generation_exceptions
+        WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
+          AND billing_period_start = date_trunc('month', current_date)::date
+      )
+    )
+  $$,
+  $$ VALUES ('failed'::text) $$,
+  'an exact Finance Manager current-rent retry remains fail-closed while the current month is locked'
+);
+
 SELECT is(
   (
     SELECT count(*)::integer
@@ -1098,7 +1140,7 @@ SELECT throws_ok(
   ),
   '42501',
   'Not authorized',
-  'Finance Manager cannot recover rent generation'
+  'Finance Manager cannot retry a non-current rent exception by guessed identity'
 );
 
 SELECT throws_ok(
