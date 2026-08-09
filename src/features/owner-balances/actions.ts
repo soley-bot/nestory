@@ -32,8 +32,42 @@ const reason = z.string().trim().min(3).max(500);
 const optionalUuid = z.preprocess(emptyToNull, uuid.nullable());
 const optionalReference = z.preprocess(
   emptyToNull,
-  z.string().trim().min(1).max(240).nullable(),
+  z.string().trim().min(3).max(240).nullable(),
 );
+
+const uniqueEntryIds = z.array(uuid).superRefine((entryIds, context) => {
+  if (new Set(entryIds).size !== entryIds.length) {
+    context.addIssue({ code: "custom", message: "Entry identifiers must be unique." });
+  }
+});
+const initialSubmitResultSchema = z
+  .object({
+    entry_ids: uniqueEntryIds.length(0).optional(),
+    request_id: uuid,
+    request_kind: z.literal("initial").optional(),
+    resubmission_of_request_id: uuid.nullable(),
+    status: z.literal("submitted"),
+  })
+  .strict();
+const correctionSubmitResultSchema = z
+  .object({
+    correction_of_entry_id: uuid,
+    entry_ids: uniqueEntryIds.length(0).optional(),
+    request_id: uuid,
+    request_kind: z.literal("correction").optional(),
+    resubmission_of_request_id: uuid.nullable(),
+    status: z.literal("submitted"),
+  })
+  .strict();
+const reviewResultSchema = z
+  .object({
+    decision: z.enum(["approve", "reject"]).optional(),
+    entry_ids: uniqueEntryIds,
+    request_id: uuid,
+    request_kind: z.enum(["initial", "correction"]).optional(),
+    status: z.enum(["approved", "rejected"]),
+  })
+  .strict();
 
 const initialSchema = z
   .object({
@@ -115,7 +149,10 @@ export async function submitOwnerOpeningBalanceAction(
     });
     if (error) return databaseError(error);
 
-    const result = parseRpcResult(data);
+    const result = parseInitialSubmitResult(
+      data,
+      parsed.data.resubmissionOfRequestId,
+    );
     if (!result) return unexpectedResponse();
     revalidatePath("/balances");
     return {
@@ -158,7 +195,10 @@ export async function submitOwnerOpeningBalanceCorrectionAction(
     );
     if (error) return databaseError(error);
 
-    const result = parseRpcResult(data);
+    const result = parseCorrectionSubmitResult(data, {
+      correctionOfEntryId: parsed.data.entryId,
+      resubmissionOfRequestId: parsed.data.resubmissionOfRequestId,
+    });
     if (!result) return unexpectedResponse();
     revalidatePath("/balances");
     return {
@@ -191,8 +231,29 @@ export async function reviewOwnerOpeningBalanceAction(
     });
     if (error) return databaseError(error);
 
-    const result = parseRpcResult(data);
+    const result = parseReviewResult(data, {
+      decision: parsed.data.decision,
+      requestId: parsed.data.requestId,
+    });
     if (!result) return unexpectedResponse();
+    if (parsed.data.decision === "approve") {
+      const requestResult = await supabase
+        .from("owner_opening_balance_requests")
+        .select("request_kind")
+        .eq("organization_id", context.organizationId)
+        .eq("id", parsed.data.requestId)
+        .single();
+      if (requestResult.error) return databaseError(requestResult.error);
+      const requestKind = requestResult.data?.request_kind;
+      if (requestKind !== "initial" && requestKind !== "correction") {
+        return unexpectedResponse();
+      }
+      if (result.requestKind && result.requestKind !== requestKind) {
+        return unexpectedResponse();
+      }
+      const expectedEntryCount = requestKind === "initial" ? 1 : 2;
+      if (result.entryIds.length !== expectedEntryCount) return unexpectedResponse();
+    }
     revalidatePath("/balances");
     return {
       entryIds: result.entryIds,
@@ -232,20 +293,60 @@ function validationError(error: z.ZodError): OwnerBalanceActionState {
   };
 }
 
-function parseRpcResult(data: unknown): {
+function parseInitialSubmitResult(
+  data: unknown,
+  expectedPredecessorId: string | null,
+): {
   requestId: string;
   entryIds: string[];
 } | null {
-  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const record = data as Record<string, unknown>;
-  if (typeof record.request_id !== "string" || !uuid.safeParse(record.request_id).success) {
+  const parsed = initialSubmitResultSchema.safeParse(data);
+  if (
+    !parsed.success ||
+    parsed.data.resubmission_of_request_id !== expectedPredecessorId
+  ) {
     return null;
   }
-  const entryIds = record.entry_ids ?? [];
-  if (!Array.isArray(entryIds) || entryIds.some((id) => !uuid.safeParse(id).success)) {
+  return { entryIds: parsed.data.entry_ids ?? [], requestId: parsed.data.request_id };
+}
+
+function parseCorrectionSubmitResult(
+  data: unknown,
+  expected: {
+    correctionOfEntryId: string;
+    resubmissionOfRequestId: string | null;
+  },
+): { requestId: string; entryIds: string[] } | null {
+  const parsed = correctionSubmitResultSchema.safeParse(data);
+  if (
+    !parsed.success ||
+    parsed.data.correction_of_entry_id !== expected.correctionOfEntryId ||
+    parsed.data.resubmission_of_request_id !== expected.resubmissionOfRequestId
+  ) {
     return null;
   }
-  return { entryIds: entryIds as string[], requestId: record.request_id };
+  return { entryIds: parsed.data.entry_ids ?? [], requestId: parsed.data.request_id };
+}
+
+function parseReviewResult(
+  data: unknown,
+  expected: { decision: "approve" | "reject"; requestId: string },
+): { requestId: string; entryIds: string[]; requestKind?: "initial" | "correction" } | null {
+  const parsed = reviewResultSchema.safeParse(data);
+  if (
+    !parsed.success ||
+    parsed.data.request_id !== expected.requestId ||
+    parsed.data.status !== (expected.decision === "approve" ? "approved" : "rejected") ||
+    (parsed.data.decision !== undefined && parsed.data.decision !== expected.decision) ||
+    (expected.decision === "reject" && parsed.data.entry_ids.length !== 0)
+  ) {
+    return null;
+  }
+  return {
+    entryIds: parsed.data.entry_ids,
+    requestId: parsed.data.request_id,
+    requestKind: parsed.data.request_kind,
+  };
 }
 
 function unexpectedResponse(): OwnerBalanceActionState {

@@ -90,6 +90,20 @@ const KNOWN_SELECT = [
   "latest_entry_at",
 ].join(",");
 
+const READINESS_SELECT = [
+  "organization_id",
+  "property_id",
+  "boundary_date",
+  "next_boundary_date",
+  "issue_code",
+  "active_owner_count",
+  "ownership_percent_total_text:ownership_percent_total::text",
+  "ownership_roster_hash",
+  "property_owner_ids",
+  "canonical_roster",
+  "setup_path",
+].join(",");
+
 type RawRequest = {
   id: string;
   organization_id: string;
@@ -169,7 +183,7 @@ type RawReadiness = {
   issue_code: string;
   next_boundary_date: string | null;
   organization_id: string;
-  ownership_percent_total: string;
+  ownership_percent_total_text: string;
   ownership_roster_hash: string | null;
   property_id: string;
   property_owner_ids: string[];
@@ -198,11 +212,18 @@ export async function getOpeningBalanceAuthorityData(
     .select(KNOWN_SELECT)
     .eq("organization_id", context.organizationId)
     .eq("effective_date", scope.effectiveDate);
+  let readinessQuery = supabase
+    .rpc("get_owner_roster_readiness", {
+      p_cutover_date: scope.effectiveDate,
+      p_organization_id: context.organizationId,
+    })
+    .select(READINESS_SELECT);
 
   if (scope.propertyId) {
     requestQuery = requestQuery.eq("property_id", scope.propertyId);
     entryQuery = entryQuery.eq("property_id", scope.propertyId);
     knownQuery = knownQuery.eq("property_id", scope.propertyId);
+    readinessQuery = readinessQuery.eq("property_id", scope.propertyId);
   }
   if (scope.ownerPersonId) {
     requestQuery = requestQuery.eq("owner_person_id", scope.ownerPersonId);
@@ -223,10 +244,7 @@ export async function getOpeningBalanceAuthorityData(
       ascending: true,
     }),
     knownQuery.order("property_id", { ascending: true }),
-    supabase.rpc("get_owner_roster_readiness", {
-      p_cutover_date: scope.effectiveDate,
-      p_organization_id: context.organizationId,
-    }),
+    readinessQuery,
   ]);
 
   assertQuerySucceeded(requestResult.error);
@@ -453,7 +471,9 @@ function mapReadiness(row: RawReadiness): OwnerRosterReadinessRecord {
     issueCode: row.issue_code,
     nextBoundaryDate: row.next_boundary_date,
     organizationId: row.organization_id,
-    ownershipPercentTotal: canonicalizeOwnershipPercent(row.ownership_percent_total),
+    ownershipPercentTotal: canonicalizeOwnershipPercent(
+      row.ownership_percent_total_text,
+    ),
     ownershipRosterHash: row.ownership_roster_hash,
     propertyId: row.property_id,
     propertyOwnerIds: [...row.property_owner_ids].sort(compareText),

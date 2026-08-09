@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  from: vi.fn(),
   requireCorrection: vi.fn(),
   requireReview: vi.fn(),
   requireSubmission: vi.fn(),
@@ -15,7 +16,10 @@ vi.mock("@/lib/auth/context", () => ({
   requireOwnerOpeningBalanceSubmissionContext: mocks.requireSubmission,
 }));
 vi.mock("@/lib/db/server", () => ({
-  createSupabaseServerClient: vi.fn(async () => ({ rpc: mocks.rpc })),
+  createSupabaseServerClient: vi.fn(async () => ({
+    from: mocks.from,
+    rpc: mocks.rpc,
+  })),
 }));
 
 import {
@@ -44,8 +48,13 @@ describe("owner opening balance actions", () => {
     });
     mocks.requireCorrection.mockResolvedValue({ organizationId });
     mocks.requireReview.mockResolvedValue({ organizationId, userId: ownerPersonId });
+    mocks.from.mockReturnValue(requestKindQuery("initial"));
     mocks.rpc.mockResolvedValue({
-      data: { request_id: requestId, status: "submitted" },
+      data: {
+        request_id: requestId,
+        resubmission_of_request_id: null,
+        status: "submitted",
+      },
       error: null,
     });
   });
@@ -86,6 +95,14 @@ describe("owner opening balance actions", () => {
     const form = initialForm();
     form.set("resubmissionOfRequestId", predecessorId);
     form.set("idempotencyKey", "stable-resubmit-key");
+    mocks.rpc.mockResolvedValue({
+      data: {
+        request_id: requestId,
+        resubmission_of_request_id: predecessorId,
+        status: "submitted",
+      },
+      error: null,
+    });
 
     await submitOwnerOpeningBalanceAction({}, form);
 
@@ -101,6 +118,15 @@ describe("owner opening balance actions", () => {
   it("submits a correction amount as canonical text and never accepts a client authority key", async () => {
     const form = correctionForm();
     form.set("replacementAmount", "0");
+    mocks.rpc.mockResolvedValue({
+      data: {
+        correction_of_entry_id: entryId,
+        request_id: requestId,
+        resubmission_of_request_id: null,
+        status: "submitted",
+      },
+      error: null,
+    });
 
     await expect(
       submitOwnerOpeningBalanceCorrectionAction({}, form),
@@ -123,6 +149,7 @@ describe("owner opening balance actions", () => {
   });
 
   it("reviews through the independent-review context and returns exact entry IDs", async () => {
+    mocks.from.mockReturnValue(requestKindQuery("correction"));
     mocks.rpc.mockResolvedValue({
       data: {
         entry_ids: [reversalId, replacementId],
@@ -149,6 +176,21 @@ describe("owner opening balance actions", () => {
     });
   });
 
+  it("accepts exactly one entry for an approved initial request", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        entry_ids: [entryId],
+        request_id: requestId,
+        status: "approved",
+      },
+      error: null,
+    });
+
+    await expect(
+      reviewOwnerOpeningBalanceAction({}, reviewForm("approve")),
+    ).resolves.toMatchObject({ entryIds: [entryId], status: "success" });
+  });
+
   it("requires a rejection reason and does not call the review context", async () => {
     const form = reviewForm("reject");
 
@@ -158,6 +200,22 @@ describe("owner opening balance actions", () => {
     });
     expect(mocks.requireReview).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("accepts a rejection result only when it has no entries", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { entry_ids: [], request_id: requestId, status: "rejected" },
+      error: null,
+    });
+    const form = reviewForm("reject");
+    form.set("reviewReason", "Evidence needs reconciliation");
+
+    await expect(reviewOwnerOpeningBalanceAction({}, form)).resolves.toEqual({
+      entryIds: [],
+      message: "Opening balance rejected.",
+      requestId,
+      status: "success",
+    });
   });
 
   it.each([
@@ -192,6 +250,139 @@ describe("owner opening balance actions", () => {
       status: "error",
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(["a", "ab"])(
+    "rejects an initial source reference shorter than three characters: %j",
+    async (sourceReference) => {
+      const form = initialForm();
+      form.set("sourceReference", sourceReference);
+
+      await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+        errorCode: "validation",
+        status: "error",
+      });
+      expect(mocks.requireSubmission).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["a", "ab"])(
+    "rejects a correction source reference shorter than three characters: %j",
+    async (sourceReference) => {
+      const form = correctionForm();
+      form.set("sourceReference", sourceReference);
+
+      await expect(
+        submitOwnerOpeningBalanceCorrectionAction({}, form),
+      ).resolves.toMatchObject({ errorCode: "validation", status: "error" });
+      expect(mocks.requireCorrection).not.toHaveBeenCalled();
+    },
+  );
+
+  it("accepts a three-character source reference for both submission kinds", async () => {
+    const initial = initialForm();
+    initial.set("sourceReference", "abc");
+    await expect(submitOwnerOpeningBalanceAction({}, initial)).resolves.toMatchObject({
+      status: "success",
+    });
+
+    mocks.rpc.mockResolvedValue({
+      data: {
+        correction_of_entry_id: entryId,
+        request_id: requestId,
+        resubmission_of_request_id: null,
+        status: "submitted",
+      },
+      error: null,
+    });
+    const correction = correctionForm();
+    correction.set("sourceReference", "abc");
+    await expect(
+      submitOwnerOpeningBalanceCorrectionAction({}, correction),
+    ).resolves.toMatchObject({ status: "success" });
+  });
+
+  it.each([
+    [{ request_id: requestId }, initialForm()],
+    [
+      {
+        request_id: requestId,
+        resubmission_of_request_id: null,
+        status: "approved",
+      },
+      initialForm(),
+    ],
+    [
+      {
+        request_id: requestId,
+        resubmission_of_request_id: predecessorId,
+        status: "submitted",
+      },
+      initialForm(),
+    ],
+  ])("rejects a malformed or semantically mismatched initial result", async (data, form) => {
+    mocks.rpc.mockResolvedValue({ data, error: null });
+
+    await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+      errorCode: "unexpected_response",
+      status: "error",
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a correction result for a different target", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        correction_of_entry_id: predecessorId,
+        request_id: requestId,
+        resubmission_of_request_id: null,
+        status: "submitted",
+      },
+      error: null,
+    });
+
+    await expect(
+      submitOwnerOpeningBalanceCorrectionAction({}, correctionForm()),
+    ).resolves.toMatchObject({
+      errorCode: "unexpected_response",
+      status: "error",
+    });
+  });
+
+  it.each([
+    ["initial", [entryId, replacementId]],
+    ["correction", [reversalId, reversalId]],
+  ])(
+    "rejects invalid approved %s entry cardinality or identity",
+    async (requestKind, entryIds) => {
+      mocks.from.mockReturnValue(requestKindQuery(requestKind));
+      mocks.rpc.mockResolvedValue({
+        data: { entry_ids: entryIds, request_id: requestId, status: "approved" },
+        error: null,
+      });
+
+      await expect(
+        reviewOwnerOpeningBalanceAction({}, reviewForm("approve")),
+      ).resolves.toMatchObject({
+        errorCode: "unexpected_response",
+        status: "error",
+      });
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects a rejection result that contains an entry", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { entry_ids: [entryId], request_id: requestId, status: "rejected" },
+      error: null,
+    });
+    const form = reviewForm("reject");
+    form.set("reviewReason", "Evidence needs reconciliation");
+
+    await expect(reviewOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+      errorCode: "unexpected_response",
+      status: "error",
+    });
   });
 
   it.each([
@@ -249,4 +440,14 @@ function reviewForm(decision: "approve" | "reject") {
   form.set("reviewReason", "");
   form.set("idempotencyKey", "review-request-key");
   return form;
+}
+
+function requestKindQuery(requestKind: string) {
+  const result = { data: { request_kind: requestKind }, error: null };
+  const builder = {
+    eq: vi.fn(() => builder),
+    select: vi.fn(() => builder),
+    single: vi.fn(async () => result),
+  };
+  return builder;
 }

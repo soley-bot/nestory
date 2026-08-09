@@ -35,7 +35,7 @@ describe("opening balance authority loader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireReadContext.mockResolvedValue({ organizationId });
-    mocks.rpc.mockResolvedValue({
+    mocks.rpc.mockReturnValue(query({
       data: [
         {
           active_owner_count: 1,
@@ -44,7 +44,7 @@ describe("opening balance authority loader", () => {
           issue_code: "owner_share_total_not_100",
           next_boundary_date: null,
           organization_id: organizationId,
-          ownership_percent_total: "90.000",
+          ownership_percent_total_text: "90.000",
           ownership_roster_hash: null,
           property_id: propertyId,
           property_owner_ids: [propertyOwnerId],
@@ -52,7 +52,7 @@ describe("opening balance authority loader", () => {
         },
       ],
       error: null,
-    });
+    }));
     const results = rowResults();
     mocks.from.mockImplementation((table: string) => {
       if (!(table in results)) throw new Error(`Unexpected table ${table}`);
@@ -139,6 +139,34 @@ describe("opening balance authority loader", () => {
       expect(builder.eq).toHaveBeenCalledWith("owner_person_id", ownerId);
       expect(builder.eq).toHaveBeenCalledWith("currency", "USD");
     }
+    const readinessBuilder = mocks.rpc.mock.results[0]?.value;
+    expect(readinessBuilder.select).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "ownership_percent_total_text:ownership_percent_total::text",
+      ),
+    );
+    expect(readinessBuilder.eq).toHaveBeenCalledWith("property_id", propertyId);
+  });
+
+  it("maps readiness percentages as exact cast text on both sides of 100", async () => {
+    mocks.rpc.mockReturnValue(
+      query({
+        data: [
+          readiness("99.999", propertyId),
+          readiness("100.001", "00000000-0000-4000-8000-000000000099"),
+        ],
+        error: null,
+      }),
+    );
+
+    const result = await getOpeningBalanceAuthorityData({
+      effectiveDate: "2026-08-01",
+    });
+
+    expect(result.readiness.map((row) => row.ownershipPercentTotal)).toEqual([
+      "99.999",
+      "100.001",
+    ]);
   });
 
   it("fails closed if a client result ever contains a cross-organization row", async () => {
@@ -319,4 +347,20 @@ function query(result: { data: unknown; error: unknown }) {
     then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
   };
   return builder;
+}
+
+function readiness(ownershipPercentTotal: string, scopedPropertyId: string) {
+  return {
+    active_owner_count: 1,
+    boundary_date: "2026-08-01",
+    canonical_roster: null,
+    issue_code: "owner_share_total_not_100",
+    next_boundary_date: null,
+    organization_id: organizationId,
+    ownership_percent_total_text: ownershipPercentTotal,
+    ownership_roster_hash: null,
+    property_id: scopedPropertyId,
+    property_owner_ids: [propertyOwnerId],
+    setup_path: `/properties/${scopedPropertyId}`,
+  };
 }
