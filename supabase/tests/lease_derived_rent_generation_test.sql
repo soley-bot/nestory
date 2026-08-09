@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(82);
+SELECT plan(86);
 
 SELECT has_column(
   'public',
@@ -253,10 +253,30 @@ CREATE TEMP TABLE lease_rent_state (
   recovery_billing_id uuid NOT NULL DEFAULT 'a7000000-0000-0000-0000-000000000003',
   policy_id uuid NOT NULL DEFAULT 'a8000000-0000-0000-0000-000000000001',
   source_id uuid,
+  current_business_date date,
+  current_period_start date,
+  non_current_period_start date,
   current_retry_result jsonb
 ) ON COMMIT DROP;
 
 INSERT INTO lease_rent_state DEFAULT VALUES;
+
+UPDATE lease_rent_state
+SET current_business_date = app_private.rent_business_date(
+      organization_id,
+      pg_catalog.now()
+    ),
+    current_period_start = pg_catalog.date_trunc(
+      'month',
+      app_private.rent_business_date(organization_id, pg_catalog.now())
+    )::date,
+    non_current_period_start = (
+      pg_catalog.date_trunc(
+        'month',
+        app_private.rent_business_date(organization_id, pg_catalog.now())
+      ) + interval '1 month'
+    )::date;
+
 GRANT SELECT, UPDATE ON lease_rent_state TO authenticated;
 
 INSERT INTO auth.users (
@@ -1039,7 +1059,7 @@ INSERT INTO public.financial_month_locks (
 )
 SELECT
   organization_id,
-  date_trunc('month', current_date)::date,
+  current_period_start,
   true,
   now(),
   super_admin_id,
@@ -1106,7 +1126,7 @@ SELECT lives_ok(
         SELECT id
         FROM public.rent_generation_exceptions
         WHERE lease_id = lease_rent_state.blocked_lease_id
-          AND billing_period_start = date_trunc('month', current_date)::date
+          AND billing_period_start = lease_rent_state.current_period_start
       )
     )
   $$,
@@ -1129,7 +1149,7 @@ SELECT results_eq(
         SELECT count(*)::integer
         FROM public.tenant_invoices
         WHERE lease_id = state.blocked_lease_id
-          AND billing_period_start = date_trunc('month', current_date)::date
+          AND billing_period_start = state.current_period_start
       ),
       exception.resolved_at IS NULL,
       exception.resolved_invoice_id IS NULL,
@@ -1138,7 +1158,7 @@ SELECT results_eq(
         SELECT count(*)::integer
         FROM public.finance_income_items
         WHERE lease_id = state.blocked_lease_id
-          AND rent_billing_period_start = date_trunc('month', current_date)::date
+          AND rent_billing_period_start = state.current_period_start
       ),
       (
         SELECT count(*)::integer
@@ -1147,13 +1167,13 @@ SELECT results_eq(
           ON invoice.organization_id = fee.organization_id
          AND invoice.id = fee.tenant_invoice_id
         WHERE invoice.lease_id = state.blocked_lease_id
-          AND invoice.billing_period_start = date_trunc('month', current_date)::date
+          AND invoice.billing_period_start = state.current_period_start
       )
     FROM lease_rent_state AS state
     JOIN public.rent_generation_exceptions AS exception
       ON exception.organization_id = state.organization_id
      AND exception.lease_id = state.blocked_lease_id
-     AND exception.billing_period_start = date_trunc('month', current_date)::date
+     AND exception.billing_period_start = state.current_period_start
   $$,
   $$ VALUES (0, true, true, true, 0, 0) $$,
   'the locked-current-month retry records the manager but creates no invoice, resolution, income, or fee effect'
@@ -1169,7 +1189,7 @@ SELECT results_eq(
           SELECT id
           FROM public.rent_generation_exceptions
           WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
-            AND billing_period_start = date_trunc('month', current_date)::date
+            AND billing_period_start = (SELECT current_period_start FROM lease_rent_state)
         )
       ) AS result
     ) AS replay
@@ -1178,12 +1198,141 @@ SELECT results_eq(
   'an exact locked-current-month retry remains a safe typed failure'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM lease_rent_state),
+  true
+);
+RESET ROLE;
+
+DELETE FROM public.financial_month_locks
+WHERE organization_id = (SELECT organization_id FROM lease_rent_state)
+  AND month_start = (SELECT current_period_start FROM lease_rent_state);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_manager_id::text FROM lease_rent_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    UPDATE lease_rent_state
+    SET current_retry_result = public.recover_rent_generation_exception(
+      organization_id,
+      (
+        SELECT id
+        FROM public.rent_generation_exceptions
+        WHERE lease_id = lease_rent_state.blocked_lease_id
+          AND billing_period_start = lease_rent_state.current_period_start
+      )
+    )
+  $$,
+  'Finance Manager can resolve a valid unlocked current-business-month exception'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM lease_rent_state),
+  true
+);
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      state.current_retry_result ->> 'status',
+      exception.resolved_at IS NOT NULL,
+      exception.resolved_invoice_id::text = state.current_retry_result ->> 'invoiceId',
+      exception.last_attempted_by = state.finance_manager_id
+    FROM lease_rent_state AS state
+    JOIN public.rent_generation_exceptions AS exception
+      ON exception.organization_id = state.organization_id
+     AND exception.lease_id = state.blocked_lease_id
+     AND exception.billing_period_start = state.current_period_start
+  $$,
+  $$ VALUES ('generated'::text, true, true, true) $$,
+  'successful current retry resolves the exception under the requesting Finance Manager'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      (
+        SELECT count(*)::integer
+        FROM public.tenant_invoices
+        WHERE lease_id = state.blocked_lease_id
+          AND billing_period_start = state.current_period_start
+      ),
+      (
+        SELECT count(*)::integer
+        FROM public.finance_income_items
+        WHERE lease_id = state.blocked_lease_id
+          AND rent_billing_period_start = state.current_period_start
+      ),
+      (
+        SELECT count(*)::integer
+        FROM public.management_fee_occurrences AS fee
+        JOIN public.tenant_invoices AS invoice
+          ON invoice.organization_id = fee.organization_id
+         AND invoice.id = fee.tenant_invoice_id
+        WHERE invoice.lease_id = state.blocked_lease_id
+          AND invoice.billing_period_start = state.current_period_start
+      )
+    FROM lease_rent_state AS state
+  $$,
+  $$ VALUES (1, 1, 1) $$,
+  'successful current retry creates exactly one invoice, income item, and management fee'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      invoice.created_by = state.finance_manager_id,
+      invoice.issue_date = state.current_business_date,
+      income.created_by = state.finance_manager_id,
+      line.created_by = state.finance_manager_id,
+      fee.created_by = state.finance_manager_id,
+      activity.actor_id = state.finance_manager_id
+    FROM lease_rent_state AS state
+    JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.lease_id = state.blocked_lease_id
+     AND invoice.billing_period_start = state.current_period_start
+    JOIN public.tenant_invoice_lines AS line
+      ON line.organization_id = invoice.organization_id
+     AND line.invoice_id = invoice.id
+     AND line.line_type = 'rent'
+    JOIN public.finance_income_items AS income
+      ON income.organization_id = line.organization_id
+     AND income.id = line.income_item_id
+    JOIN public.management_fee_occurrences AS fee
+      ON fee.organization_id = invoice.organization_id
+     AND fee.tenant_invoice_id = invoice.id
+    JOIN public.activity_logs AS activity
+      ON activity.organization_id = invoice.organization_id
+     AND activity.entity_type = 'tenant_invoice'
+     AND activity.entity_id = invoice.id
+     AND activity.action = 'lease_rent_generated'
+  $$,
+  $$ VALUES (true, true, true, true, true, true) $$,
+  'current-business invoice, income, line, fee, and activity provenance all name the real Finance Manager'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_manager_id::text FROM lease_rent_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT ok(
   EXISTS (
     SELECT 1
     FROM public.rent_generation_exceptions
     WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
-      AND billing_period_start <> date_trunc('month', current_date)::date
+      AND billing_period_start = (SELECT non_current_period_start FROM lease_rent_state)
   ),
   'Finance Manager can read a non-current rent exception in the queue'
 );
@@ -1196,9 +1345,7 @@ SELECT throws_ok(
       SELECT id
       FROM public.rent_generation_exceptions
       WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
-        AND billing_period_start <> date_trunc('month', current_date)::date
-      ORDER BY billing_period_start
-      LIMIT 1
+        AND billing_period_start = (SELECT non_current_period_start FROM lease_rent_state)
     )
   ),
   '42501',

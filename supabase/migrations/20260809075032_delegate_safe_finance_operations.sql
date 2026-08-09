@@ -1,7 +1,7 @@
 -- Delegate only append-only, capacity-checked Finance operations. The function
 -- definitions are carried forward from the immediately preceding schema; the
--- checked organization predicate and completed-settlement replay preflights
--- are the only body changes made here.
+-- checked organization predicate, completed-settlement replay preflights, and
+-- the exact current-exception retry actor path are the only body changes here.
 DO $delegate_safe_finance_operations$
 DECLARE
   v_definition text;
@@ -135,6 +135,168 @@ BEGIN
 END;
 $delegate_safe_finance_operations$;
 
+CREATE OR REPLACE FUNCTION app_private.is_checked_current_rent_retry_generation(
+  p_organization_id uuid,
+  p_lease_id uuid,
+  p_billing_period_start date,
+  p_issue_date date,
+  p_generation_source text,
+  p_actor_id uuid
+) RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT p_actor_id IS NOT NULL
+    AND p_actor_id = (SELECT auth.uid())
+    AND app_private.can_retry_current_rent(p_organization_id)
+    AND p_generation_source = 'manual_recovery'
+    AND p_issue_date = app_private.rent_business_date(
+      p_organization_id,
+      pg_catalog.now()
+    )
+    AND p_billing_period_start = pg_catalog.date_trunc(
+      'month',
+      app_private.rent_business_date(p_organization_id, pg_catalog.now())
+    )::date
+    AND EXISTS (
+      SELECT 1
+      FROM public.rent_generation_exceptions AS exception
+      WHERE exception.organization_id = p_organization_id
+        AND exception.lease_id = p_lease_id
+        AND exception.billing_period_start = p_billing_period_start
+        AND exception.resolved_at IS NULL
+    );
+$$;
+
+COMMENT ON FUNCTION app_private.is_checked_current_rent_retry_generation(uuid, uuid, date, date, text, uuid)
+IS 'Fail-closed actor, operation, current-business-period, and unresolved-exception predicate used only by checked current-rent retry generation.';
+
+REVOKE ALL ON FUNCTION app_private.is_checked_current_rent_retry_generation(uuid, uuid, date, date, text, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_private.is_checked_current_rent_retry_generation(uuid, uuid, date, date, text, uuid) FROM anon;
+REVOKE ALL ON FUNCTION app_private.is_checked_current_rent_retry_generation(uuid, uuid, date, date, text, uuid) FROM authenticated;
+
+DO $delegate_checked_current_rent_generation$
+DECLARE
+  v_definition text;
+  v_original_guard constant text := $original_super_admin_guard$  IF p_actor_id IS NULL
+    OR NOT EXISTS (
+      SELECT 1
+      FROM public.organization_members AS membership
+      WHERE membership.organization_id = p_organization_id
+        AND membership.user_id = p_actor_id
+        AND membership.role = 'super_admin'
+    ) THEN
+    RAISE EXCEPTION 'A Super Admin is required for automatic rent generation'
+      USING ERRCODE = '42501';
+  END IF;$original_super_admin_guard$;
+  v_checked_guard constant text := $checked_current_retry_guard$  IF p_actor_id IS NULL
+    OR NOT (
+      EXISTS (
+        SELECT 1
+        FROM public.organization_members AS membership
+        WHERE membership.organization_id = p_organization_id
+          AND membership.user_id = p_actor_id
+          AND membership.role = 'super_admin'
+      )
+      OR app_private.is_checked_current_rent_retry_generation(
+        p_organization_id,
+        p_lease_id,
+        p_billing_period_start,
+        p_issue_date,
+        p_generation_source,
+        p_actor_id
+      )
+    ) THEN
+    RAISE EXCEPTION 'A Super Admin is required for automatic rent generation'
+      USING ERRCODE = '42501';
+  END IF;$checked_current_retry_guard$;
+BEGIN
+  SELECT pg_catalog.pg_get_functiondef(
+    'app_private.generate_lease_rent_invoice(uuid,uuid,date,date,text,uuid)'::regprocedure
+  )
+  INTO STRICT v_definition;
+
+  v_definition := pg_catalog.replace(v_definition, pg_catalog.chr(13), '');
+
+  IF (
+    pg_catalog.length(v_definition)
+    - pg_catalog.length(pg_catalog.replace(v_definition, v_original_guard, ''))
+  ) / pg_catalog.length(v_original_guard) <> 1 THEN
+    RAISE EXCEPTION 'Expected exactly one rent-generation actor guard';
+  END IF;
+
+  v_definition := pg_catalog.replace(
+    v_definition,
+    v_original_guard,
+    v_checked_guard
+  );
+
+  EXECUTE v_definition;
+END;
+$delegate_checked_current_rent_generation$;
+
+CREATE OR REPLACE FUNCTION app_private.try_generate_current_rent_retry(
+  p_organization_id uuid,
+  p_exception_id uuid,
+  p_actor_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_business_date date;
+  v_exception public.rent_generation_exceptions%ROWTYPE;
+BEGIN
+  IF p_actor_id IS NULL
+    OR p_actor_id IS DISTINCT FROM (SELECT auth.uid())
+    OR NOT app_private.can_retry_current_rent(p_organization_id) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  v_business_date := app_private.rent_business_date(
+    p_organization_id,
+    pg_catalog.now()
+  );
+
+  SELECT exception.*
+  INTO v_exception
+  FROM public.rent_generation_exceptions AS exception
+  WHERE exception.organization_id = p_organization_id
+    AND exception.id = p_exception_id
+    AND exception.resolved_at IS NULL
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Rent generation exception not found'
+      USING ERRCODE = '23503';
+  END IF;
+
+  IF v_exception.billing_period_start
+    <> pg_catalog.date_trunc('month', v_business_date)::date THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  RETURN app_private.try_generate_lease_rent_invoice(
+    p_organization_id,
+    v_exception.lease_id,
+    v_exception.billing_period_start,
+    v_business_date,
+    'manual_recovery',
+    p_actor_id
+  );
+END;
+$$;
+
+COMMENT ON FUNCTION app_private.try_generate_current_rent_retry(uuid, uuid, uuid)
+IS 'Private checked generator for one unresolved current-business-month exception attributed to the authenticated retry actor.';
+
+REVOKE ALL ON FUNCTION app_private.try_generate_current_rent_retry(uuid, uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_private.try_generate_current_rent_retry(uuid, uuid, uuid) FROM anon;
+REVOKE ALL ON FUNCTION app_private.try_generate_current_rent_retry(uuid, uuid, uuid) FROM authenticated;
+
 CREATE OR REPLACE FUNCTION public.recover_rent_generation_exception(
   p_organization_id uuid,
   p_exception_id uuid
@@ -145,10 +307,8 @@ SET search_path = ''
 AS $$
 DECLARE
   v_actor_id uuid := (SELECT auth.uid());
-  v_generation_actor_id uuid;
   v_exception public.rent_generation_exceptions%ROWTYPE;
   v_business_date date;
-  v_result jsonb;
 BEGIN
   IF v_actor_id IS NULL
     OR NOT app_private.can_retry_current_rent(p_organization_id) THEN
@@ -178,31 +338,22 @@ BEGIN
     RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
   END IF;
 
-  SELECT membership.user_id
-  INTO v_generation_actor_id
-  FROM public.organization_members AS membership
-  WHERE membership.organization_id = p_organization_id
-    AND membership.role = 'super_admin'
-  ORDER BY membership.created_at, membership.id
-  LIMIT 1;
+  IF app_private.is_super_admin(p_organization_id) THEN
+    RETURN app_private.try_generate_lease_rent_invoice(
+      p_organization_id,
+      v_exception.lease_id,
+      v_exception.billing_period_start,
+      v_business_date,
+      'manual_recovery',
+      v_actor_id
+    );
+  END IF;
 
-  v_result := app_private.try_generate_lease_rent_invoice(
+  RETURN app_private.try_generate_current_rent_retry(
     p_organization_id,
-    v_exception.lease_id,
-    v_exception.billing_period_start,
-    v_business_date,
-    'manual_recovery',
-    v_generation_actor_id
+    p_exception_id,
+    v_actor_id
   );
-
-  -- Invoice generation retains the established Super Admin authority actor,
-  -- while the exception audit records the Finance Manager who requested retry.
-  UPDATE public.rent_generation_exceptions AS exception
-  SET last_attempted_by = v_actor_id
-  WHERE exception.organization_id = p_organization_id
-    AND exception.id = p_exception_id;
-
-  RETURN v_result;
 END;
 $$;
 
