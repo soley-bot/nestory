@@ -3547,30 +3547,39 @@ export type Database = {
       }
       organizations: {
         Row: {
+          accent_preset: string
+          accent_seed: string | null
           created_at: string
           id: string
           khr_per_usd: number
           name: string
           preferred_currency: Database["public"]["Enums"]["currency_code"]
           slug: string
+          theme_mode: string
           updated_at: string
         }
         Insert: {
+          accent_preset?: string
+          accent_seed?: string | null
           created_at?: string
           id?: string
           khr_per_usd?: number
           name: string
           preferred_currency?: Database["public"]["Enums"]["currency_code"]
           slug: string
+          theme_mode?: string
           updated_at?: string
         }
         Update: {
+          accent_preset?: string
+          accent_seed?: string | null
           created_at?: string
           id?: string
           khr_per_usd?: number
           name?: string
           preferred_currency?: Database["public"]["Enums"]["currency_code"]
           slug?: string
+          theme_mode?: string
           updated_at?: string
         }
         Relationships: []
@@ -7573,6 +7582,15 @@ export type Database = {
           p_title: string
           p_unit_id: string
           p_vendor_person_id: string
+        }
+        Returns: string
+      }
+      update_organization_appearance: {
+        Args: {
+          p_accent_preset: string
+          p_accent_seed: string
+          p_organization_id: string
+          p_theme_mode: string
         }
         Returns: string
       }

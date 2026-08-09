@@ -47,6 +47,15 @@ type WithArgs<Name extends keyof GeneratedFunctions, Args> = Omit<
 };
 
 type RpcFunctionOverrides = {
+  update_organization_appearance: WithArgs<
+    "update_organization_appearance",
+    {
+      p_accent_preset: string;
+      p_accent_seed: string | null;
+      p_organization_id: string;
+      p_theme_mode: string;
+    }
+  >;
   set_lease_billing_term: WithArgs<
     "set_lease_billing_term",
     {
