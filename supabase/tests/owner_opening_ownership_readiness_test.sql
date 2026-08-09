@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(39);
+SELECT plan(60);
 
 SELECT has_column(
   'public',
@@ -158,10 +158,10 @@ SELECT hasnt_function(
   'the legacy create-property overload cannot bypass explicit ownership facts'
 );
 
-SELECT hasnt_function(
+SELECT has_function(
   'public', 'update_property',
   ARRAY['uuid', 'uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'date', 'text', 'uuid'],
-  'the legacy update-property overload cannot bypass explicit ownership facts'
+  'the checked import-compatibility update overload preserves existing ownership'
 );
 
 SELECT has_function(
@@ -179,7 +179,7 @@ SELECT has_function(
   'update_property',
   ARRAY[
     'uuid', 'uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'date',
-    'text', 'uuid', 'date', 'numeric'
+    'text', 'uuid', 'date', 'numeric', 'text'
   ],
   'property updates accept explicit ownership authority'
 );
@@ -274,13 +274,13 @@ SELECT throws_ok(
 
 SELECT throws_ok(
   $$SELECT * FROM app_private.validate_owner_roster_on_date('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', '2026-08-01')$$,
-  '23514', 'owner_roster_share_total_invalid: expected 100.000, got 99.999',
+  '23514', 'owner_share_total_not_100: expected 100.000, got 99.999',
   'a 99.999 roster is not opening-authority ready'
 );
 
 SELECT throws_ok(
   $$SELECT * FROM app_private.validate_owner_roster_on_date('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000003', '2026-08-01')$$,
-  '23514', 'owner_roster_share_total_invalid: expected 100.000, got 100.001',
+  '23514', 'owner_share_total_not_100: expected 100.000, got 100.001',
   'a 100.001 roster is not opening-authority ready'
 );
 
@@ -341,8 +341,222 @@ SELECT throws_ok(
 
 SELECT throws_ok(
   $$SELECT * FROM app_private.validate_owner_roster_on_date('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000005', '2026-08-01')$$,
-  '23514', 'owner_roster_inactive_owner',
+  '23514', 'owner_person_inactive',
   'an inactive owner cannot support opening authority'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'property_owners'
+      AND cmd IN ('ALL', 'INSERT', 'UPDATE', 'DELETE')
+  ),
+  'property ownership has no direct-write RLS policy'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1 FROM unnest(ARRAY['INSERT','UPDATE','DELETE','TRUNCATE']) AS privilege
+    WHERE has_table_privilege('anon', 'public.property_owners', privilege)
+  ),
+  'anon has no direct property-owner DML privilege'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1 FROM unnest(ARRAY['INSERT','UPDATE','DELETE','TRUNCATE']) AS privilege
+    WHERE has_table_privilege('authenticated', 'public.property_owners', privilege)
+  ),
+  'authenticated has no direct property-owner DML privilege'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1 FROM unnest(ARRAY['INSERT','UPDATE','DELETE','TRUNCATE']) AS privilege
+    WHERE has_table_privilege('service_role', 'public.property_owners', privilege)
+  ),
+  'service_role has no direct property-owner DML privilege'
+);
+
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, raw_app_meta_data,
+  raw_user_meta_data, created_at, updated_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  'a0000000-0000-4000-8000-000000000099',
+  'authenticated', 'authenticated', 'owner-readiness-admin@example.test',
+  extensions.crypt('owner-readiness', extensions.gen_salt('bf')), now(),
+  '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{}', now(), now()
+);
+
+INSERT INTO public.organization_members (organization_id, user_id, role)
+VALUES (
+  'a0000000-0000-0000-0000-000000000001',
+  'a0000000-0000-4000-8000-000000000099',
+  'super_admin'
+);
+
+INSERT INTO public.organizations (id, name, slug)
+VALUES ('a0000000-0000-0000-0000-000000000098', 'Other owner org', 'other-owner-org');
+INSERT INTO public.properties (id, organization_id, name, code, property_type)
+VALUES ('b0000000-0000-0000-0000-000000000098', 'a0000000-0000-0000-0000-000000000098', 'Other property', 'OTHER-OWN', 'Apartment');
+INSERT INTO public.people (id, organization_id, display_name)
+VALUES ('10000000-0000-0000-0000-000000000098', 'a0000000-0000-0000-0000-000000000098', 'Other owner');
+INSERT INTO public.person_roles (organization_id, person_id, role, status)
+VALUES ('a0000000-0000-0000-0000-000000000098', '10000000-0000-0000-0000-000000000098', 'owner', 'active');
+INSERT INTO public.property_owners (organization_id, property_id, person_id, ownership_percent, started_on)
+VALUES ('a0000000-0000-0000-0000-000000000098', 'b0000000-0000-0000-0000-000000000098', '10000000-0000-0000-0000-000000000098', 100.000, '2026-01-01');
+
+SELECT set_config('request.jwt.claim.sub', 'a0000000-0000-4000-8000-000000000099', true);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$SELECT public.create_property(
+    'a0000000-0000-0000-0000-000000000001', 'Checked owner write', 'OWN-CHECKED',
+    'Apartment', NULL, NULL, 'active', NULL, NULL,
+    '10000000-0000-0000-0000-000000000002', '2026-08-01', 100.000
+  )$$,
+  'the checked SECURITY DEFINER property RPC remains the ownership write boundary'
+);
+
+SELECT is(
+  (SELECT setup_path FROM public.get_owner_roster_readiness(
+    'a0000000-0000-0000-0000-000000000001', '2026-08-01'
+  ) WHERE property_id = 'b0000000-0000-0000-0000-000000000002' LIMIT 1),
+  '/properties/b0000000-0000-0000-0000-000000000002',
+  'readiness remediation links to the working property detail edit surface'
+);
+
+SELECT is(
+  (SELECT organization_id FROM public.get_owner_roster_readiness(
+    'a0000000-0000-0000-0000-000000000001', '2026-08-01'
+  ) WHERE property_id = 'b0000000-0000-0000-0000-000000000002' LIMIT 1),
+  'a0000000-0000-0000-0000-000000000001'::uuid,
+  'readiness remediation returns the explicit organization scope'
+);
+
+SELECT ok(
+  (SELECT canonical_roster IS NULL AND ownership_roster_hash IS NULL
+   FROM public.get_owner_roster_readiness(
+     'a0000000-0000-0000-0000-000000000001', '2026-08-01'
+   ) WHERE property_id = 'b0000000-0000-0000-0000-000000000002' LIMIT 1),
+  'readiness issue rows expose nullable canonical authority and roster hash fields'
+);
+
+SELECT ok(
+  (SELECT count(*) > 0 FROM public.property_owners WHERE organization_id = 'a0000000-0000-0000-0000-000000000001'),
+  'a Finance-readable authenticated member retains scoped owner-roster SELECT'
+);
+
+SELECT is(
+  (SELECT count(*)::integer FROM public.property_owners WHERE organization_id = 'a0000000-0000-0000-0000-000000000098'),
+  0,
+  'owner-roster SELECT does not cross the organization RLS boundary'
+);
+
+SELECT throws_ok(
+  $$INSERT INTO public.property_owners (organization_id, property_id, person_id, ownership_percent, started_on)
+    VALUES ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 1, '2027-01-01')$$,
+  '42501', 'permission denied for table property_owners',
+  'authenticated direct owner INSERT is denied before RLS can delegate a write'
+);
+
+RESET ROLE;
+
+SET LOCAL ROLE service_role;
+SELECT throws_ok(
+  $$UPDATE public.property_owners SET ownership_percent = 1 WHERE id = '00000000-0000-0000-0000-000000000010'$$,
+  '42501', 'permission denied for table property_owners',
+  'service-role direct owner UPDATE is denied by ACL'
+);
+RESET ROLE;
+
+SET LOCAL ROLE anon;
+SELECT throws_ok(
+  $$DELETE FROM public.property_owners WHERE id = '00000000-0000-0000-0000-000000000010'$$,
+  '42501', 'permission denied for table property_owners',
+  'anonymous direct owner DELETE is denied by ACL'
+);
+RESET ROLE;
+
+SELECT is(
+  (SELECT issue_code FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+   WHERE property_id = 'b0000000-0000-0000-0000-000000000002' AND boundary_date = '2026-08-01'),
+  'owner_share_total_not_100',
+  'the preflight emits the exact not-100 issue name'
+);
+
+SELECT ok(
+  (SELECT canonical_roster IS NULL AND ownership_roster_hash IS NULL
+   FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+   WHERE property_id = 'b0000000-0000-0000-0000-000000000002' AND boundary_date = '2026-08-01'),
+  'an invalid-total issue never carries canonical authority or a roster hash'
+);
+
+SELECT is(
+  (SELECT property_owner_ids FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+   WHERE property_id = 'b0000000-0000-0000-0000-000000000002' AND boundary_date = '2026-08-01'),
+  ARRAY['00000000-0000-0000-0000-000000000010'::uuid],
+  'issue rows carry sorted property-owner IDs'
+);
+
+SELECT is(
+  (SELECT issue_code FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+   WHERE property_id = 'b0000000-0000-0000-0000-000000000005' AND boundary_date = '2026-08-01'),
+  'owner_person_inactive',
+  'the preflight emits the exact inactive-person issue name'
+);
+
+SELECT is(
+  (SELECT issue_code FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+   WHERE property_id = 'b0000000-0000-0000-0000-000000000004'),
+  'owner_roster_missing',
+  'the preflight emits one missing-roster issue row'
+);
+
+SELECT is(
+  (SELECT next_boundary_date FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+   WHERE property_id = 'b0000000-0000-0000-0000-000000000001'
+     AND boundary_date = '2026-01-01'),
+  '2026-06-01'::date,
+  'every interval row identifies its next boundary'
+);
+
+SELECT is(
+  (SELECT count(*)::integer FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+   WHERE property_id = 'b0000000-0000-0000-0000-000000000002'),
+  2,
+  'a global invalid-total condition is not repeated beyond its boundary rows'
+);
+
+ALTER TABLE public.property_owners
+  DROP CONSTRAINT property_owners_unarchived_person_effective_range_excl;
+
+INSERT INTO public.property_owners (
+  id, organization_id, property_id, person_id, ownership_percent, started_on
+) VALUES (
+  '00000000-0000-0000-0000-000000000099',
+  'a0000000-0000-0000-0000-000000000001',
+  'b0000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  10.000, '2026-07-01'
+);
+
+SELECT is(
+  (SELECT jsonb_build_object(
+    'issues', array_agg(issue_code ORDER BY issue_code),
+    'allAuthorityNull', bool_and(canonical_roster IS NULL AND ownership_roster_hash IS NULL)
+  )
+  FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+  WHERE property_id = 'b0000000-0000-0000-0000-000000000001'
+    AND boundary_date = '2026-08-01'),
+  jsonb_build_object(
+    'issues', ARRAY['owner_interval_overlap', 'owner_share_total_not_100'],
+    'allAuthorityNull', true
+  ),
+  'overlap and invalid-total conditions produce separate exact issue rows with no authority hash'
 );
 
 SELECT * FROM finish();

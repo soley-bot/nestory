@@ -57,10 +57,15 @@ type RpcFunctionOverrides = {
     "get_owner_roster_readiness",
     {
       active_owner_count: number;
-      effective_date: string;
-      issue_codes: string[];
+      boundary_date: string;
+      canonical_roster: string | null;
+      issue_code: string;
+      next_boundary_date: string | null;
+      organization_id: string;
       ownership_percent_total: string;
+      ownership_roster_hash: string | null;
       property_id: string;
+      property_owner_ids: string[];
       setup_path: string;
     }[]
   >;
@@ -525,6 +530,7 @@ type RpcFunctionOverrides = {
       p_notes: string | null;
       p_organization_id: string;
       p_owner: string | null;
+      p_owner_mode: "replace";
       p_owner_ownership_percent: string | null;
       p_owner_person_id?: string | null;
       p_owner_started_on: string | null;

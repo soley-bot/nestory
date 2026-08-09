@@ -69,6 +69,8 @@ export function PropertyForm({
   const [selectedOwnerPersonId, setSelectedOwnerPersonId] = useState(
     defaults.ownerPersonId ?? "",
   );
+  const [ownershipFactsCleared, setOwnershipFactsCleared] = useState(false);
+  const [ownershipFactsKey, setOwnershipFactsKey] = useState(0);
   const [photoPreview, setPhotoPreview] = useState<PhotoPreview | null>(null);
   const [dropzoneKey, setDropzoneKey] = useState(0);
   const openPhotoPickerRef = useRef<(() => void) | null>(null);
@@ -114,6 +116,13 @@ export function PropertyForm({
   };
   const changePhotoPreview = () => {
     openPhotoPickerRef.current?.();
+  };
+  const changeOwnerPerson = (nextOwnerPersonId: string) => {
+    if (nextOwnerPersonId !== selectedOwnerPersonId) {
+      setOwnershipFactsCleared(true);
+      setOwnershipFactsKey((key) => key + 1);
+    }
+    setSelectedOwnerPersonId(nextOwnerPersonId);
   };
 
   return (
@@ -219,7 +228,7 @@ export function PropertyForm({
               context="Property owner"
               defaultValue={defaults.ownerPersonId ?? ""}
               name="ownerPersonId"
-              onValueChange={setSelectedOwnerPersonId}
+              onValueChange={changeOwnerPerson}
               options={ownerOptions}
               placeholder="Choose owner"
               preservedOption={
@@ -273,7 +282,8 @@ export function PropertyForm({
           >
             <DatePickerField
               ariaLabel="Ownership start date"
-              defaultValue={defaults.ownerStartedOn ?? ""}
+              defaultValue={ownershipFactsCleared ? "" : defaults.ownerStartedOn ?? ""}
+              key={`ownership-start-${ownershipFactsKey}`}
               name="ownerStartedOn"
               required={Boolean(selectedOwnerPersonId)}
             />
@@ -287,9 +297,10 @@ export function PropertyForm({
           >
             <Input
               aria-label="Ownership share (%)"
-              defaultValue={defaults.ownershipPercent ?? ""}
+              defaultValue={ownershipFactsCleared ? "" : defaults.ownershipPercent ?? ""}
               inputMode="decimal"
               maxLength={7}
+              key={`ownership-share-${ownershipFactsKey}`}
               name="ownershipPercent"
               required={Boolean(selectedOwnerPersonId)}
               type="text"

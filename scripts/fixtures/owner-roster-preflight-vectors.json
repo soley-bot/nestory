@@ -1,5 +1,24 @@
 {
-  "contractVersion": "owner_roster_preflight_v1",
+  "contractVersion": "owner_roster_preflight_v2",
+  "databaseSeed": {
+    "organization": {
+      "id": "a1000000-0000-0000-0000-000000000001",
+      "name": "Owner roster shared vectors",
+      "slug": "owner-roster-shared-vectors"
+    },
+    "properties": [
+      { "id": "b1000000-0000-0000-0000-000000000001", "name": "Invalid total vector", "code": "VEC-1" },
+      { "id": "b1000000-0000-0000-0000-000000000002", "name": "Ready vector", "code": "VEC-2" }
+    ],
+    "people": [
+      { "id": "11000000-0000-0000-0000-000000000001", "name": "Vector owner one" },
+      { "id": "12000000-0000-0000-0000-000000000001", "name": "Vector owner two" }
+    ],
+    "owners": [
+      { "id": "01000000-0000-0000-0000-000000000001", "propertyId": "b1000000-0000-0000-0000-000000000001", "personId": "11000000-0000-0000-0000-000000000001", "share": "99.999", "startedOn": "2026-01-01" },
+      { "id": "02000000-0000-0000-0000-000000000001", "propertyId": "b1000000-0000-0000-0000-000000000002", "personId": "12000000-0000-0000-0000-000000000001", "share": "100.000", "startedOn": "2026-01-01" }
+    ]
+  },
   "rosters": [
     {
       "name": "same-day transfer uses the successor roster",
@@ -36,5 +55,56 @@
       "canonicalRoster": "00000000-0000-0000-0000-000000000010|10000000-0000-0000-0000-000000000010|100.000|2026-01-01|",
       "rosterHash": "7a32af7c10ef88fb996f2274627868e2378c245e77b7a6befb85870ad2e64e17"
     }
-  ]
+  ],
+  "normalizedRows": [
+    {
+      "organizationId": "a1000000-0000-0000-0000-000000000001",
+      "propertyId": "b1000000-0000-0000-0000-000000000001",
+      "boundaryDate": "2026-01-01",
+      "nextBoundaryDate": "2026-08-01",
+      "issueCode": "owner_share_total_not_100",
+      "propertyOwnerIds": ["01000000-0000-0000-0000-000000000001"],
+      "activeOwnerCount": 1,
+      "ownershipPercentTotal": "99.999",
+      "canonicalRoster": null,
+      "ownershipRosterHash": null
+    },
+    {
+      "organizationId": "a1000000-0000-0000-0000-000000000001",
+      "propertyId": "b1000000-0000-0000-0000-000000000002",
+      "boundaryDate": "2026-01-01",
+      "nextBoundaryDate": "2026-08-01",
+      "issueCode": null,
+      "propertyOwnerIds": ["02000000-0000-0000-0000-000000000001"],
+      "activeOwnerCount": 1,
+      "ownershipPercentTotal": "100.000",
+      "canonicalRoster": "02000000-0000-0000-0000-000000000001|12000000-0000-0000-0000-000000000001|100.000|2026-01-01|",
+      "ownershipRosterHash": "3e6f2bfdf8e44607e77dc53c93838e5c819fcc10aaecd8cc807df01603396c01"
+    },
+    {
+      "organizationId": "a1000000-0000-0000-0000-000000000001",
+      "propertyId": "b1000000-0000-0000-0000-000000000001",
+      "boundaryDate": "2026-08-01",
+      "nextBoundaryDate": null,
+      "issueCode": "owner_share_total_not_100",
+      "propertyOwnerIds": ["01000000-0000-0000-0000-000000000001"],
+      "activeOwnerCount": 1,
+      "ownershipPercentTotal": "99.999",
+      "canonicalRoster": null,
+      "ownershipRosterHash": null
+    },
+    {
+      "organizationId": "a1000000-0000-0000-0000-000000000001",
+      "propertyId": "b1000000-0000-0000-0000-000000000002",
+      "boundaryDate": "2026-08-01",
+      "nextBoundaryDate": null,
+      "issueCode": null,
+      "propertyOwnerIds": ["02000000-0000-0000-0000-000000000001"],
+      "activeOwnerCount": 1,
+      "ownershipPercentTotal": "100.000",
+      "canonicalRoster": "02000000-0000-0000-0000-000000000001|12000000-0000-0000-0000-000000000001|100.000|2026-01-01|",
+      "ownershipRosterHash": "3e6f2bfdf8e44607e77dc53c93838e5c819fcc10aaecd8cc807df01603396c01"
+    }
+  ],
+  "reportHash": "44be8a5eb35ed615cc1f6f6636d1d48e31386849c16ed79aa8519c7485f34829"
 }

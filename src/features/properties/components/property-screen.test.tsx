@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PropertyScreen } from "@/features/properties/components/property-screen";
+import { PropertyForm } from "@/features/properties/components/property-form";
 import { buildPropertySummary } from "@/features/properties/data/property-summary";
 import type { PropertyViewQuery } from "@/features/properties/property.types";
 
@@ -64,6 +65,39 @@ afterEach(() => {
 });
 
 describe("PropertyScreen redesign contract", () => {
+  it("preserves ownership facts for the same owner and clears them when identity changes", () => {
+    const currentOwnerId = "11111111-1111-4111-8111-111111111111";
+    const replacementOwnerId = "22222222-2222-4222-8222-222222222222";
+    const property = makeProperty("property-edit", "EDIT", "Edit property");
+    property.formValues.ownerPersonId = currentOwnerId;
+
+    render(
+      <PropertyForm
+        mode="edit"
+        onClose={vi.fn()}
+        ownerOptions={[
+          { archived: false, description: "Current", id: currentOwnerId, label: "Current Owner", roles: ["owner"] },
+          { archived: false, description: "Replacement", id: replacementOwnerId, label: "Replacement Owner", roles: ["owner"] },
+        ]}
+        property={property}
+      />,
+    );
+
+    const start = document.querySelector<HTMLInputElement>('input[name="ownerStartedOn"]')!;
+    const share = screen.getByRole("textbox", { name: /Ownership share/ }) as HTMLInputElement;
+    expect(start.value).toBe("2026-01-01");
+    expect(share.value).toBe("100.000");
+
+    fireEvent.focus(screen.getByRole("combobox", { name: "Property owner" }));
+    fireEvent.click(screen.getByRole("option", { name: /Replacement Owner/ }));
+
+    const replacementStart = document.querySelector<HTMLInputElement>('input[name="ownerStartedOn"]')!;
+    const replacementShare = screen.getByRole("textbox", { name: /Ownership share/ }) as HTMLInputElement;
+    expect(replacementStart.value).toBe("");
+    expect(replacementShare.value).toBe("");
+    expect(replacementStart.required).toBe(true);
+    expect(replacementShare.required).toBe(true);
+  });
   it("renders one page heading and keeps the primary actions in the header", () => {
     const pageTools = document.createElement("div");
     pageTools.id = "workspace-page-tools";
