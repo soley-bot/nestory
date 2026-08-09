@@ -8,6 +8,10 @@ const workspacePage = fs.readFileSync(
   path.join(root, "src/components/layout/workspace-page.tsx"),
   "utf8",
 );
+const organizationTheme = fs.readFileSync(
+  path.join(root, "src/lib/theme/organization-theme.ts"),
+  "utf8",
+);
 const components = JSON.parse(
   fs.readFileSync(path.join(root, "components.json"), "utf8"),
 ) as { style?: string; tailwind?: { cssVariables?: boolean } };
@@ -74,5 +78,22 @@ describe("Shadcn theme contract", () => {
     expect(globals).toContain("--muted-foreground: #aeb7b3");
     expect(workspacePage).toContain("bg-background");
     expect(workspacePage).not.toContain("bg-muted/30");
+  });
+
+  it("keeps organization accents separate from semantic state colors", () => {
+    expect(organizationTheme).toContain('"--org-accent-seed"');
+    for (const token of [
+      "--state-success",
+      "--state-attention",
+      "--state-danger",
+    ]) {
+      const declarations = globals
+        .split("\n")
+        .filter((line) => line.includes(`${token}:`));
+      expect(declarations.length).toBeGreaterThan(0);
+      expect(declarations.every((line) => !line.includes("--org-accent"))).toBe(
+        true,
+      );
+    }
   });
 });

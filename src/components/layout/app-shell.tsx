@@ -51,6 +51,7 @@ import {
 import { signOutAction } from "@/features/auth/actions";
 import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
 import type { WorkspaceRole } from "@/lib/auth/context";
+import type { OrganizationTheme } from "@/lib/theme/organization-theme";
 import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
 
 type GlobalDestination = {
@@ -147,8 +148,10 @@ const FINANCE_GLOBAL_DESTINATIONS = ADMIN_GLOBAL_DESTINATIONS.filter(
 
 type AppShellProps = {
   children: React.ReactNode;
+  organizationId?: string;
   organizationName?: string;
   role?: WorkspaceRole;
+  theme?: OrganizationTheme;
   userEmail?: string;
 };
 
@@ -188,8 +191,10 @@ function destinationMatchesPath(
 
 export function AppShell({
   children,
+  organizationId,
   organizationName = "Nestory workspace",
   role = "super_admin",
+  theme,
   userEmail,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -359,7 +364,9 @@ export function AppShell({
                 id="workspace-page-tools"
               />
               <WorkspaceCommandPalette role={role} />
-              {role === "super_admin" ? <ThemeToggle /> : null}
+              {role === "super_admin" && organizationId && theme ? (
+                <ThemeToggle organizationId={organizationId} theme={theme} />
+              ) : null}
             </div>
           </header>
           <div

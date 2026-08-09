@@ -22,7 +22,7 @@ export function ThemeRuntime({
 }: ThemeRuntimeProps) {
   useLayoutEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => applyTheme(organizationId, theme, media.matches);
+    const apply = () => applyOrganizationTheme(organizationId, theme, media.matches);
     apply();
     if (theme.mode !== "system") return undefined;
     media.addEventListener("change", apply);
@@ -71,7 +71,7 @@ export function getThemeBootstrapScript(
   })();`;
 }
 
-function applyTheme(
+export function applyOrganizationTheme(
   organizationId: string,
   theme: OrganizationTheme,
   prefersDark: boolean,

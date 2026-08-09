@@ -26,11 +26,15 @@ export type OrganizationThemeStyle = CSSProperties &
     | "--org-accent-seed"
     | "--org-accent-soft"
     | "--org-accent-hover"
+    | "--accent"
+    | "--accent-foreground"
     | "--primary"
     | "--primary-foreground"
     | "--ring"
     | "--sidebar-primary"
-    | "--sidebar-primary-foreground",
+    | "--sidebar-primary-foreground"
+    | "--sidebar-accent"
+    | "--sidebar-accent-foreground",
     string
   >;
 
@@ -108,16 +112,22 @@ export function getOrganizationThemeStyle(
   const background = dark ? "#101313" : "#FFFFFF";
   const foreground = chooseReadableForeground(seed, dark ? "#101313" : "#FFFFFF");
   const ring = ensureContrast(seed, background, 3);
+  const soft = `color-mix(in oklch, ${seed} ${dark ? "18%" : "10%"}, ${background})`;
+  const surfaceForeground = dark ? "#F1F4F2" : "#171A19";
 
   return {
     "--org-accent-seed": seed,
-    "--org-accent-soft": `color-mix(in oklch, ${seed} ${dark ? "18%" : "10%"}, ${background})`,
+    "--org-accent-soft": soft,
     "--org-accent-hover": `color-mix(in oklch, ${seed} 86%, ${foreground})`,
+    "--accent": soft,
+    "--accent-foreground": surfaceForeground,
     "--primary": seed,
     "--primary-foreground": foreground,
     "--ring": ring,
     "--sidebar-primary": seed,
     "--sidebar-primary-foreground": foreground,
+    "--sidebar-accent": soft,
+    "--sidebar-accent-foreground": surfaceForeground,
   };
 }
 

@@ -17,8 +17,10 @@ export default async function DashboardLayout({
       theme={context.theme}
     >
       <AppShell
+        organizationId={context.organizationId}
         organizationName={context.organizationName}
         role={context.role}
+        theme={context.theme}
         userEmail={context.userEmail}
       >
         {children}

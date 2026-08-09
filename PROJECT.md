@@ -271,6 +271,11 @@ Authenticated Nestory is quiet, neutral, dense operating software:
   UUIDs remain out of ordinary operator labels.
 - Settings uses header-level Workspace and Workspace Access navigation followed
   by a compact muted section rail and one labelled content region.
+- Organization appearance is Super-Admin-managed and defaults to a neutral
+  black-and-white theme shared by every workspace member.
+- Organization accents affect actions, selection, links, and focus only. They
+  never recolor structural surfaces or semantic success, warning, danger,
+  finance, maintenance, or record states.
 - Navigation and action visibility remain capability-aware for all five roles.
 - Loading, empty, filtered-empty, permission, blocked, error, draft, saving, and
   success states are explicit.

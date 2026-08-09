@@ -46,6 +46,23 @@ describe("AppShell Shadcn dashboard block", () => {
     );
   });
 
+  it("shows organization theme control only to the Super Admin", () => {
+    const theme = { accentPreset: "neutral" as const, accentSeed: null, mode: "system" as const };
+    const { rerender } = render(
+      <AppShell organizationId="org-1" role="super_admin" theme={theme}>
+        <div>Workspace content</div>
+      </AppShell>,
+    );
+    expect(screen.getByRole("button", { name: "Toggle color theme" })).toBeTruthy();
+
+    rerender(
+      <AppShell organizationId="org-1" role="finance_manager" theme={theme}>
+        <div>Workspace content</div>
+      </AppShell>,
+    );
+    expect(screen.queryByRole("button", { name: "Toggle color theme" })).toBeNull();
+  });
+
   it("marks the matching destination active", () => {
     navigation.pathname = "/people/person-1";
     render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
