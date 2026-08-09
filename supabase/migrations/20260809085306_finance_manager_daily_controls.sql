@@ -11,6 +11,7 @@ BEGIN
     'public.post_petty_cash_entry(uuid,uuid)'::regprocedure
   ] LOOP
     SELECT pg_get_functiondef(v_function) INTO v_definition;
+    v_definition := replace(v_definition, E'\r\n', E'\n');
     v_anchor_count := (
       length(v_definition) - length(replace(v_definition, v_anchor, ''))
     ) / length(v_anchor);
@@ -31,18 +32,19 @@ DO $migration$
 DECLARE
   v_definition text;
   v_anchor constant text := 'IF NOT app_private.is_org_admin(p_organization_id) THEN';
-  v_replacement constant text := $replacement$IF (
+  v_replacement text := replace($replacement$IF (
     p_locked
     AND NOT app_private.can_lock_financial_month(p_organization_id)
   ) OR (
     NOT p_locked
     AND NOT app_private.can_unlock_financial_month(p_organization_id)
-  ) THEN$replacement$;
+  ) THEN$replacement$, E'\r\n', E'\n');
   v_anchor_count integer;
   v_function constant regprocedure :=
     'public.set_financial_month_lock(uuid,date,boolean,text)'::regprocedure;
 BEGIN
   SELECT pg_get_functiondef(v_function) INTO v_definition;
+  v_definition := replace(v_definition, E'\r\n', E'\n');
   v_anchor_count := (
     length(v_definition) - length(replace(v_definition, v_anchor, ''))
   ) / length(v_anchor);

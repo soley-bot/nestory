@@ -3,8 +3,8 @@
 DO $migration$
 DECLARE
   v_definition text;
-  v_anchor constant text := $anchor$  INSERT INTO public.financial_month_locks ($anchor$;
-  v_replacement constant text := $replacement$  IF p_locked
+  v_anchor text := replace($anchor$  INSERT INTO public.financial_month_locks ($anchor$, E'\r\n', E'\n');
+  v_replacement text := replace($replacement$  IF p_locked
     AND NOT app_private.is_super_admin(p_organization_id) THEN
     IF v_reason IS NULL THEN
       RAISE EXCEPTION 'Finance Manager lock reason is required'
@@ -32,12 +32,13 @@ DECLARE
     END IF;
   END IF;
 
-  INSERT INTO public.financial_month_locks ($replacement$;
+  INSERT INTO public.financial_month_locks ($replacement$, E'\r\n', E'\n');
   v_anchor_count integer;
   v_function constant regprocedure :=
     'public.set_financial_month_lock(uuid,date,boolean,text)'::regprocedure;
 BEGIN
   SELECT pg_get_functiondef(v_function) INTO v_definition;
+  v_definition := replace(v_definition, E'\r\n', E'\n');
   v_anchor_count := (
     length(v_definition) - length(replace(v_definition, v_anchor, ''))
   ) / length(v_anchor);
@@ -58,8 +59,8 @@ $migration$;
 DO $migration$
 DECLARE
   v_definition text;
-  v_anchor constant text := $anchor$  IF app_private.is_super_admin(p_organization_id) THEN$anchor$;
-  v_replacement constant text := $replacement$  IF NOT app_private.is_super_admin(p_organization_id)
+  v_anchor text := replace($anchor$  IF app_private.is_super_admin(p_organization_id) THEN$anchor$, E'\r\n', E'\n');
+  v_replacement text := replace($replacement$  IF NOT app_private.is_super_admin(p_organization_id)
     AND v_exception.resolved_at IS NOT NULL THEN
     RETURN jsonb_build_object(
       'status', 'already_generated',
@@ -68,12 +69,13 @@ DECLARE
     );
   END IF;
 
-  IF app_private.is_super_admin(p_organization_id) THEN$replacement$;
+  IF app_private.is_super_admin(p_organization_id) THEN$replacement$, E'\r\n', E'\n');
   v_anchor_count integer;
   v_function constant regprocedure :=
     'public.recover_rent_generation_exception(uuid,uuid)'::regprocedure;
 BEGIN
   SELECT pg_get_functiondef(v_function) INTO v_definition;
+  v_definition := replace(v_definition, E'\r\n', E'\n');
   v_anchor_count := (
     length(v_definition) - length(replace(v_definition, v_anchor, ''))
   ) / length(v_anchor);
@@ -95,18 +97,16 @@ $migration$;
 DO $migration$
 DECLARE
   v_definition text;
-  v_signature_anchor constant text := $anchor$p_company_loss_amount numeric DEFAULT 0)
- RETURNS uuid$anchor$;
-  v_signature_replacement constant text := $replacement$p_company_loss_amount numeric DEFAULT 0, p_idempotency_key text DEFAULT NULL::text)
- RETURNS uuid$replacement$;
-  v_declare_anchor constant text := $anchor$  cash_out_amount numeric := 0;$anchor$;
-  v_declare_replacement constant text := $replacement$  cash_out_amount numeric := 0;
+  v_signature_anchor text := replace($anchor$p_company_loss_amount numeric DEFAULT 0)
+ RETURNS uuid$anchor$, E'\r\n', E'\n');
+  v_signature_replacement text := replace($replacement$p_company_loss_amount numeric DEFAULT 0, p_idempotency_key text DEFAULT NULL::text)
+ RETURNS uuid$replacement$, E'\r\n', E'\n');
+  v_declare_anchor text := replace($anchor$  cash_out_amount numeric := 0;$anchor$, E'\r\n', E'\n');
+  v_declare_replacement text := replace($replacement$  cash_out_amount numeric := 0;
   v_payload jsonb;
-  v_claim record;$replacement$;
-  v_authorization_anchor constant text := $anchor$  IF NOT EXISTS (
-    SELECT 1
-    FROM public.petty_cash_accounts$anchor$;
-  v_authorization_replacement constant text := $replacement$  v_payload := jsonb_build_object(
+  v_claim record;$replacement$, E'\r\n', E'\n');
+  v_authorization_anchor constant text := E'  IF NOT EXISTS (\n    SELECT 1\n    FROM public.petty_cash_accounts';
+  v_authorization_replacement text := replace($replacement$  v_payload := jsonb_build_object(
     'accountId', p_account_id,
     'periodId', p_period_id,
     'propertyId', p_property_id,
@@ -145,10 +145,9 @@ DECLARE
 
   IF NOT EXISTS (
     SELECT 1
-    FROM public.petty_cash_accounts$replacement$;
-  v_return_anchor constant text := $anchor$  RETURN new_entry_id;
-END;$anchor$;
-  v_return_replacement constant text := $replacement$  PERFORM app_private.complete_financial_idempotency(
+    FROM public.petty_cash_accounts$replacement$, E'\r\n', E'\n');
+  v_return_anchor constant text := E'  RETURN new_entry_id;\nEND;';
+  v_return_replacement text := replace($replacement$  PERFORM app_private.complete_financial_idempotency(
     v_claim.request_id,
     p_organization_id,
     actor_id,
@@ -156,7 +155,7 @@ END;$anchor$;
   );
 
   RETURN new_entry_id;
-END;$replacement$;
+END;$replacement$, E'\r\n', E'\n');
   v_anchor_count integer;
   v_old_function constant regprocedure :=
     'public.create_petty_cash_entry(uuid,uuid,uuid,uuid,uuid,date,date,text,text,text,text,text,numeric,uuid,text,text,text,text,numeric,numeric,numeric)'::regprocedure;

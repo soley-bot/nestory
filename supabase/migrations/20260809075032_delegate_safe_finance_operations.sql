@@ -21,6 +21,7 @@ BEGIN
   LOOP
     SELECT pg_catalog.pg_get_functiondef(v_target)
     INTO STRICT v_definition;
+    v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
 
     IF (
       pg_catalog.length(v_definition)
@@ -57,7 +58,7 @@ BEGIN
       v_definition := pg_catalog.replace(
         v_definition,
         '  SELECT balance.balance_due',
-        $early_tenant_payment_replay$
+        pg_catalog.replace($early_tenant_payment_replay$
   v_payload := pg_catalog.jsonb_build_object(
     'invoiceId', p_invoice_id,
     'amount', p_amount,
@@ -81,7 +82,7 @@ BEGIN
     RETURN (v_claim.result_ids ->> 'paymentId')::uuid;
   END IF;
 
-  SELECT balance.balance_due$early_tenant_payment_replay$
+  SELECT balance.balance_due$early_tenant_payment_replay$, E'\r\n', E'\n')
       );
     END IF;
 
@@ -104,7 +105,7 @@ BEGIN
       v_definition := pg_catalog.replace(
         v_definition,
         '  SELECT balance.balance_due',
-        $early_owner_collection_replay$
+        pg_catalog.replace($early_owner_collection_replay$
   v_payload := pg_catalog.jsonb_build_object(
     'invoiceId', p_invoice_id,
     'amount', p_amount,
@@ -127,7 +128,7 @@ BEGIN
     RETURN (v_claim.result_ids ->> 'confirmationId')::uuid;
   END IF;
 
-  SELECT balance.balance_due$early_owner_collection_replay$
+  SELECT balance.balance_due$early_owner_collection_replay$, E'\r\n', E'\n')
       );
     END IF;
     EXECUTE v_definition;
@@ -180,7 +181,7 @@ REVOKE ALL ON FUNCTION app_private.is_checked_current_rent_retry_generation(uuid
 DO $delegate_checked_current_rent_generation$
 DECLARE
   v_definition text;
-  v_original_guard constant text := $original_super_admin_guard$  IF p_actor_id IS NULL
+  v_original_guard text := pg_catalog.replace($original_super_admin_guard$  IF p_actor_id IS NULL
     OR NOT EXISTS (
       SELECT 1
       FROM public.organization_members AS membership
@@ -190,8 +191,8 @@ DECLARE
     ) THEN
     RAISE EXCEPTION 'A Super Admin is required for automatic rent generation'
       USING ERRCODE = '42501';
-  END IF;$original_super_admin_guard$;
-  v_checked_guard constant text := $checked_current_retry_guard$  IF p_actor_id IS NULL
+  END IF;$original_super_admin_guard$, E'\r\n', E'\n');
+  v_checked_guard text := pg_catalog.replace($checked_current_retry_guard$  IF p_actor_id IS NULL
     OR NOT (
       EXISTS (
         SELECT 1
@@ -211,7 +212,7 @@ DECLARE
     ) THEN
     RAISE EXCEPTION 'A Super Admin is required for automatic rent generation'
       USING ERRCODE = '42501';
-  END IF;$checked_current_retry_guard$;
+  END IF;$checked_current_retry_guard$, E'\r\n', E'\n');
 BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'app_private.generate_lease_rent_invoice(uuid,uuid,date,date,text,uuid)'::regprocedure
