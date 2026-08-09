@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(53);
+SELECT plan(67);
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -962,6 +962,102 @@ SELECT ok(
     'EXECUTE'
   ),
   'authenticated role can reach the update RPC subject to authorization checks'
+);
+
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+
+SELECT lives_ok(
+  $$SELECT public.create_petty_cash_entry(
+    p_organization_id => '00000000-0000-0000-0000-000000000001',
+    p_account_id => (SELECT id FROM public.petty_cash_accounts WHERE account_number = 'AUDIT-CASH-01'),
+    p_period_id => (SELECT period.id FROM public.petty_cash_periods AS period JOIN public.petty_cash_accounts AS account ON account.id = period.account_id WHERE account.account_number = 'AUDIT-CASH-01' AND period.status = 'open'),
+    p_property_id => '10000000-0000-0000-0000-000000000001',
+    p_unit_id => NULL,
+    p_invoice_date => current_date,
+    p_clear_date => current_date,
+    p_entry_kind => 'expense',
+    p_status => 'cleared',
+    p_category => 'FM-DAILY-CASH',
+    p_supplier => 'Finance Manager vendor',
+    p_description => 'Finance Manager daily paid cost',
+    p_amount => 10
+  )$$,
+  'Finance Manager can create a row in an existing active account and open period'
+);
+
+SELECT is(
+  (SELECT created_by FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH'),
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  'Finance Manager remains the created-by actor'
+);
+
+SELECT lives_ok(
+  $$SELECT public.post_petty_cash_entry(
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT id FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH')
+  )$$,
+  'Finance Manager can post the created row'
+);
+
+SELECT is(
+  public.post_petty_cash_entry(
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT id FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH')
+  ),
+  (SELECT ledger_entry_id FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH'),
+  'Finance Manager posting retry is idempotent'
+);
+
+SELECT is(
+  (SELECT created_by FROM public.ledger_entries WHERE id = (SELECT ledger_entry_id FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH')),
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  'Finance Manager remains the posting actor'
+);
+
+SELECT throws_ok(
+  $$SELECT public.create_petty_cash_account('00000000-0000-0000-0000-000000000001','FM-DENIED','Denied account',100,NULL)$$,
+  '42501', 'Not authorized', 'Finance Manager cannot create a petty cash account'
+);
+
+SELECT throws_ok(
+  $$SELECT public.update_petty_cash_entry('00000000-0000-0000-0000-000000000001',(SELECT id FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH'),NULL,NULL,current_date,NULL,'expense','draft','DENIED','Vendor','Denied edit',10,NULL,NULL,NULL,NULL,'property_expense',0,0,0)$$,
+  '42501', 'Not authorized', 'Finance Manager cannot update a petty cash row'
+);
+
+SELECT throws_ok(
+  $$SELECT public.void_petty_cash_entry('00000000-0000-0000-0000-000000000001',(SELECT id FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH'),'Denied void')$$,
+  '42501', 'Not authorized', 'Finance Manager cannot void a petty cash row'
+);
+
+SELECT throws_ok(
+  $$SELECT public.open_next_petty_cash_period('00000000-0000-0000-0000-000000000001',(SELECT id FROM public.petty_cash_accounts WHERE account_number = 'AUDIT-CASH-01'),(SELECT id FROM public.petty_cash_periods WHERE account_id = (SELECT id FROM public.petty_cash_accounts WHERE account_number = 'AUDIT-CASH-01') AND status = 'open'),NULL)$$,
+  '42501', 'Not authorized', 'Finance Manager cannot roll a petty cash period forward'
+);
+
+SELECT throws_ok(
+  $$SELECT public.create_petty_cash_entry('00000000-0000-0000-0000-000000000002',NULL,NULL,NULL,NULL,current_date,NULL,'expense','draft','DENIED','Vendor','Cross organization',10)$$,
+  '42501', 'Not authorized', 'Finance Manager cannot create a row across organizations'
+);
+
+SELECT throws_ok(
+  $$SELECT public.create_financial_reconciliation_source('00000000-0000-0000-0000-000000000001','FM-DENIED','Denied source','bank','organization_pooled','USD',NULL,NULL)$$,
+  '42501', 'Not authorized', 'Finance Manager cannot create a reconciliation source'
+);
+
+SELECT throws_ok(
+  $$SELECT public.archive_financial_reconciliation_source('00000000-0000-0000-0000-000000000001',(SELECT id FROM public.financial_reconciliation_sources WHERE organization_id = '00000000-0000-0000-0000-000000000001' LIMIT 1))$$,
+  '42501', 'Not authorized', 'Finance Manager cannot archive a reconciliation source'
+);
+
+SELECT throws_ok(
+  $$SELECT public.update_financial_reconciliation_source_label('00000000-0000-0000-0000-000000000001',(SELECT id FROM public.financial_reconciliation_sources WHERE organization_id = '00000000-0000-0000-0000-000000000001' LIMIT 1),'Denied rename',NULL)$$,
+  '42501', 'Not authorized', 'Finance Manager cannot relabel a reconciliation source'
+);
+
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000801', true);
+SELECT throws_ok(
+  $$SELECT public.create_petty_cash_entry('00000000-0000-0000-0000-000000000001',NULL,NULL,NULL,NULL,current_date,NULL,'expense','draft','DENIED','Vendor','Finance Member denied',10)$$,
+  '42501', 'Not authorized', 'Finance Member cannot create a petty cash row'
 );
 
 SELECT * FROM finish();

@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(22);
+SELECT plan(23);
 
 SELECT has_function('app_private', 'can_operate_finance', ARRAY['uuid'], 'ordinary Finance operation predicate exists');
 SELECT has_function('app_private', 'can_manage_petty_cash', ARRAY['uuid'], 'Petty Cash operation predicate exists');
@@ -109,6 +109,35 @@ SELECT ok(
     WHERE has_table_privilege('authenticated', source_table.table_name, checked_privilege.privilege_name)
   ),
   'authenticated cannot bypass checked settlement and owner-cash RPCs with direct source-table DML'
+);
+
+SELECT ok(
+  (
+    SELECT procedure.prosrc LIKE '%app_private.can_manage_petty_cash(p_organization_id)%'
+      AND procedure.prosrc NOT LIKE '%app_private.is_org_admin(p_organization_id)%'
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    WHERE namespace.nspname = 'public'
+      AND procedure.proname = 'create_petty_cash_entry'
+  )
+  AND (
+    SELECT procedure.prosrc LIKE '%app_private.can_manage_petty_cash(p_organization_id)%'
+      AND procedure.prosrc NOT LIKE '%app_private.is_org_admin(p_organization_id)%'
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    WHERE namespace.nspname = 'public'
+      AND procedure.proname = 'post_petty_cash_entry'
+  )
+  AND (
+    SELECT procedure.prosrc LIKE '%app_private.can_lock_financial_month(p_organization_id)%'
+      AND procedure.prosrc LIKE '%app_private.can_unlock_financial_month(p_organization_id)%'
+      AND procedure.prosrc NOT LIKE '%app_private.is_org_admin(p_organization_id)%'
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    WHERE namespace.nspname = 'public'
+      AND procedure.proname = 'set_financial_month_lock'
+  ),
+  'daily Finance commands consume only their operation-specific predicates'
 );
 
 CREATE TEMP TABLE granular_authority_state (

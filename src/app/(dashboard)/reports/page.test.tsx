@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
-  requireSuperAdminContext: vi.fn(),
+  requireFinanceReportContext: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => auth);
@@ -20,7 +20,7 @@ afterEach(cleanup);
 
 describe("ReportsPage", () => {
   it("renders the two supported report builders as canonical links", async () => {
-    auth.requireSuperAdminContext.mockResolvedValue({
+    auth.requireFinanceReportContext.mockResolvedValue({
       organizationName: "Nestory",
     });
 
@@ -34,6 +34,7 @@ describe("ReportsPage", () => {
         "href",
       ),
     ).toBe("/reports/unit-profit-loss");
-    expect(auth.requireSuperAdminContext).toHaveBeenCalledOnce();
+    expect(auth.requireFinanceReportContext).toHaveBeenCalledOnce();
+    expect(screen.queryByText(/Owner Statement/i)).toBeNull();
   });
 });

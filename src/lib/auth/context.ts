@@ -91,6 +91,18 @@ export async function getAdminMembershipForUser(
   return membership?.role === "super_admin" ? membership : null;
 }
 
+export async function getFinanceReportMembershipForUser(
+  userId: string,
+  client?: SupabaseServerClient,
+  options?: WorkspaceMembershipOptions,
+): Promise<WorkspaceMembership | null> {
+  const membership = await getWorkspaceMembershipForUser(userId, client, options);
+
+  return membership && getWorkspaceCapabilities(membership.role).canReadFinanceReports
+    ? membership
+    : null;
+}
+
 export async function getWorkspaceMembershipForUser(
   userId: string,
   client?: SupabaseServerClient,

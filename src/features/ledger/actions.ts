@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import {
+  requireFinancialMonthLockContext,
+  requireFinancialMonthUnlockContext,
+  requireSuperAdminContext,
+} from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type LedgerFieldErrors = {
@@ -58,7 +62,6 @@ export async function setLedgerPeriodLockAction(
   _state: LedgerActionState,
   formData: FormData,
 ): Promise<LedgerActionState> {
-  const context = await requireSuperAdminContext();
   const parsed = periodLockSchema.safeParse({
     lockState: readString(formData, "lockState"),
     periodStart: readString(formData, "periodStart"),
@@ -68,6 +71,10 @@ export async function setLedgerPeriodLockAction(
   if (!parsed.success) {
     return invalidFormState(parsed.error);
   }
+
+  const context = parsed.data.lockState === "locked"
+    ? await requireFinancialMonthLockContext()
+    : await requireFinancialMonthUnlockContext();
 
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("set_financial_month_lock", {

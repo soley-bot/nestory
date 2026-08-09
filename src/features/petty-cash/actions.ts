@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import {
+  requireFinancePettyCashContext,
+  requireSuperAdminContext,
+} from "@/lib/auth/context";
 
 type PettyCashFieldErrors = {
   accountNumber?: string[];
@@ -334,7 +337,7 @@ export async function createPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireFinancePettyCashContext();
   const parsed = parseEntryFormData(formData);
 
   if (!parsed.success) {
@@ -568,7 +571,7 @@ export async function postPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireFinancePettyCashContext();
   const parsedEntryId = entryIdSchema.safeParse(readString(formData, "entryId"));
 
   if (!parsedEntryId.success) {

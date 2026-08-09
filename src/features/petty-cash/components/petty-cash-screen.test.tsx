@@ -312,6 +312,23 @@ describe("PettyCashScreen finance workspace contract", () => {
     }
   });
 
+  it("lets a Finance Manager add and post rows without exposing structural or correction commands", async () => {
+    const user = userEvent.setup();
+    renderPettyCash({ canManageFinance: false, canManagePettyCash: true });
+
+    expect(screen.getByRole("button", { name: "Add cash row" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Add account" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open next month" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
+    const inspector = screen.getByRole("dialog", {
+      name: "Cleaning cash quick view",
+    });
+    expect(within(inspector).getByRole("button", { name: "Post to ledger" })).not.toBeNull();
+    expect(within(inspector).queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(within(inspector).queryByRole("button", { name: "Void" })).toBeNull();
+  });
+
   it("opens the authoritative focused row and clears back to its account", () => {
     renderPettyCash({ focusedEntryId: "cash-2" });
 
@@ -443,6 +460,7 @@ const entries: PettyCashEntry[] = [
 function renderPettyCash({
   accounts = [account],
   canManageFinance = true,
+  canManagePettyCash = canManageFinance,
   counterpartyOptions = [],
   entries: nextEntries = entries,
   period: nextPeriod = period,
@@ -453,6 +471,7 @@ function renderPettyCash({
 }: {
   accounts?: PettyCashAccount[];
   canManageFinance?: boolean;
+  canManagePettyCash?: boolean;
   counterpartyOptions?: PersonSelectOption[];
   entries?: PettyCashEntry[];
   period?: PettyCashPeriod | null;
@@ -465,6 +484,7 @@ function renderPettyCash({
     <PettyCashScreen
       accounts={accounts}
       canManageFinance={canManageFinance}
+      canManagePettyCash={canManagePettyCash}
       counterpartyOptions={counterpartyOptions}
       entries={nextEntries}
       focusedEntryId={focusedEntryId}

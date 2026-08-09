@@ -7,13 +7,13 @@ import { GET as getPdf } from "@/app/api/reports/pdf/route";
 import { getReportExcel } from "@/features/reports/data/excel";
 import { getReportPdf } from "@/features/reports/data/pdf";
 import {
-  getAdminMembershipForUser,
   getCurrentUser,
+  getFinanceReportMembershipForUser,
 } from "@/lib/auth/context";
 
 vi.mock("@/lib/auth/context", () => ({
-  getAdminMembershipForUser: vi.fn(),
   getCurrentUser: vi.fn(),
+  getFinanceReportMembershipForUser: vi.fn(),
 }));
 
 vi.mock("@/features/reports/data/excel", () => ({
@@ -35,7 +35,7 @@ describe("report export routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1" } as never);
-    vi.mocked(getAdminMembershipForUser).mockResolvedValue({
+    vi.mocked(getFinanceReportMembershipForUser).mockResolvedValue({
       organizationId: "organization-1",
       organizationName: "Demo Org",
     } as never);
@@ -53,8 +53,8 @@ describe("report export routes", () => {
     expect(response.status).toBe(401);
   });
 
-  it.each(handlers)("returns 403 for non-admin %s export", async (_, handler, __, route) => {
-    vi.mocked(getAdminMembershipForUser).mockResolvedValueOnce(null);
+  it.each(handlers)("returns 403 without report capability for %s export", async (_, handler, __, route) => {
+    vi.mocked(getFinanceReportMembershipForUser).mockResolvedValueOnce(null);
 
     const response = await handler(
       new Request(
@@ -63,6 +63,21 @@ describe("report export routes", () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it.each(handlers)("authorizes Finance Manager %s exports through the report-capability helper", async (_, handler, loader, route) => {
+    vi.mocked(loader).mockResolvedValueOnce(
+      route === "pdf"
+        ? { body: new Uint8Array([37, 80, 68, 70]), filename: "report.pdf" }
+        : { body: new Uint8Array([80, 75, 3, 4]), filename: "report.xlsx" } as never,
+    );
+
+    const response = await handler(new Request(
+      `http://localhost/api/reports/${route}?report=unit-profit-loss&month=2026-07`,
+    ));
+
+    expect(response.status).toBe(200);
+    expect(getFinanceReportMembershipForUser).toHaveBeenCalledWith("user-1");
   });
 
   it.each(handlers)(

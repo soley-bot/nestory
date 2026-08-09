@@ -58,7 +58,9 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type LedgerScreenProps = {
+  canLockFinancialMonth?: boolean;
   canManageFinance?: boolean;
+  canUnlockFinancialMonth?: boolean;
   entries: LedgerEntry[];
   initialEntryId?: string;
   pagination: LedgerPaginationMeta;
@@ -71,6 +73,8 @@ type LedgerScreenProps = {
 
 export function LedgerScreen({
   canManageFinance = true,
+  canLockFinancialMonth = canManageFinance,
+  canUnlockFinancialMonth = canManageFinance,
   entries,
   initialEntryId,
   pagination,
@@ -203,7 +207,7 @@ export function LedgerScreen({
               openLedgerAction({ change, mode: "activity" });
             }}
           />
-          {canManageFinance ? (
+          {canLockFinancialMonth ? (
             <>
               <Button
                 onClick={() => openLedgerAction({ mode: "period-lock" })}
@@ -268,7 +272,9 @@ export function LedgerScreen({
         </div>
 
         {drawerState &&
-        (canManageFinance || drawerState.mode === "activity") ? (
+        (canManageFinance ||
+          (canLockFinancialMonth && drawerState.mode === "period-lock") ||
+          drawerState.mode === "activity") ? (
           <SideDrawer
             description={getLedgerDrawerDescription(drawerState)}
             onClose={() => setDrawerState(null)}
@@ -283,6 +289,7 @@ export function LedgerScreen({
               />
             ) : drawerState.mode === "period-lock" ? (
               <PeriodLockPanel
+                canUnlockFinancialMonth={canUnlockFinancialMonth}
                 onClose={() => setDrawerState(null)}
                 onSuccess={setStatusMessage}
                 periodLocks={periodLocks}
@@ -599,10 +606,12 @@ function ReceiptPanel({
 }
 
 function PeriodLockPanel({
+  canUnlockFinancialMonth,
   onClose,
   onSuccess,
   periodLocks,
 }: {
+  canUnlockFinancialMonth: boolean;
   onClose: () => void;
   onSuccess: (message: string) => void;
   periodLocks: LedgerPeriodLock[];
@@ -651,7 +660,9 @@ function PeriodLockPanel({
               name="lockState"
               options={[
                 { label: "Lock", value: "locked" },
-                { label: "Unlock", value: "unlocked" },
+                ...(canUnlockFinancialMonth
+                  ? [{ label: "Unlock", value: "unlocked" }]
+                  : []),
               ]}
             />
           </label>

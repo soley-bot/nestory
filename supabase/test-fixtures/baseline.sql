@@ -1068,18 +1068,48 @@ BEGIN
 END;
 $$;
 
+SELECT public.set_lease_billing_term(
+  runtime.organization_id,
+  runtime.garden_exception_lease_id,
+  (date_trunc('month', current_date) - interval '2 months')::date,
+  'through_ips',
+  'percentage',
+  5,
+  true,
+  true,
+  'individual',
+  '80000000-0000-0000-0000-000000000011',
+  NULL,
+  NULL,
+  NULL,
+  'fixture-billing-garden-exception-retry'
+)
+FROM fixture_runtime AS runtime;
+
+RESET ROLE;
+
+UPDATE public.rent_generation_exceptions AS exception
+SET resolved_at = NULL,
+    resolved_invoice_id = NULL,
+    last_attempted_by = NULL,
+    updated_at = now()
+FROM fixture_runtime AS runtime
+WHERE exception.id = runtime.garden_exception_id;
+
+SET LOCAL ROLE authenticated;
+
 UPDATE fixture_runtime AS runtime
 SET through_payment_id = public.record_tenant_invoice_payment(
   runtime.organization_id,
   runtime.through_invoice_id,
-  invoice.balance_due,
+  invoice.balance_due - 25,
   current_date,
   runtime.source_id,
   'Fixture bank transfer',
   jsonb_build_array(
     jsonb_build_object(
       'lineId', line.id,
-      'amount', invoice.balance_due
+      'amount', invoice.balance_due - 25
     )
   ),
   'fixture-rent-payment-through'
@@ -1094,13 +1124,13 @@ UPDATE fixture_runtime AS runtime
 SET direct_confirmation_id = public.confirm_owner_collected_rent(
   runtime.organization_id,
   runtime.direct_invoice_id,
-  invoice.balance_due,
+  invoice.balance_due - 25,
   current_date,
   'Fixture owner confirmation',
   jsonb_build_array(
     jsonb_build_object(
       'lineId', line.id,
-      'amount', invoice.balance_due
+      'amount', invoice.balance_due - 25
     )
   ),
   'fixture-rent-owner-confirmation'

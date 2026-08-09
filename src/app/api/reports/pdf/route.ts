@@ -1,8 +1,8 @@
 import { getReportPdf } from "@/features/reports/data/pdf";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
 import {
-  getAdminMembershipForUser,
   getCurrentUser,
+  getFinanceReportMembershipForUser,
 } from "@/lib/auth/context";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const membership = await getAdminMembershipForUser(user.id);
+  const membership = await getFinanceReportMembershipForUser(user.id);
 
   if (!membership) {
     return new Response("Forbidden", { status: 403 });

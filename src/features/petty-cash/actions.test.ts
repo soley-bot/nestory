@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
+  requireFinancePettyCashContext: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
+  requireFinancePettyCashContext: mocks.requireFinancePettyCashContext,
   requireSuperAdminContext: mocks.requireSuperAdminContext,
 }));
 vi.mock("@/lib/db/server", () => ({
@@ -17,6 +19,8 @@ vi.mock("@/lib/db/server", () => ({
 import {
   createPettyCashAccountAction,
   createPettyCashEntryAction,
+  openNextPettyCashPeriodAction,
+  postPettyCashEntryAction,
   updatePettyCashEntryAction,
   voidPettyCashEntryAction,
 } from "@/features/petty-cash/actions";
@@ -31,6 +35,9 @@ const nextPropertyId = "66666666-6666-4666-8666-666666666666";
 describe("petty cash actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.requireFinancePettyCashContext.mockResolvedValue({
+      organizationId: "org-1",
+    });
     mocks.requireSuperAdminContext.mockResolvedValue({ organizationId: "org-1" });
     mocks.rpc.mockResolvedValue({ data: null, error: null });
   });
@@ -69,6 +76,52 @@ describe("petty cash actions", () => {
       }),
     );
     expect(result.status).toBe("success");
+    expect(mocks.requireFinancePettyCashContext).toHaveBeenCalledOnce();
+    expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
+  });
+
+  it("lets Finance authority post an existing entry without structural authority", async () => {
+    const formData = new FormData();
+    formData.set("entryId", entryId);
+
+    await expect(postPettyCashEntryAction({}, formData)).resolves.toEqual({
+      message: "Petty cash expense posted to ledger.",
+      status: "success",
+    });
+
+    expect(mocks.requireFinancePettyCashContext).toHaveBeenCalledOnce();
+    expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("post_petty_cash_entry", {
+      p_entry_id: entryId,
+      p_organization_id: "org-1",
+    });
+  });
+
+  it("retains Super Admin authority for account, correction, void, and rollover commands", async () => {
+    const accountForm = new FormData();
+    accountForm.set("accountNumber", "pm-cash-02");
+    accountForm.set("name", "Front desk cash");
+    accountForm.set("floatAmount", "500");
+    accountForm.set("custodianPersonId", personId);
+    await createPettyCashAccountAction({}, accountForm);
+
+    const updateForm = makeEntryFormData();
+    updateForm.set("entryId", entryId);
+    await updatePettyCashEntryAction({}, updateForm);
+
+    const voidForm = new FormData();
+    voidForm.set("entryId", entryId);
+    voidForm.set("voidReason", "Duplicate receipt");
+    await voidPettyCashEntryAction({}, voidForm);
+
+    const rolloverForm = new FormData();
+    rolloverForm.set("accountId", accountId);
+    rolloverForm.set("periodId", periodId);
+    rolloverForm.set("advanceAmount", "100");
+    await openNextPettyCashPeriodAction({}, rolloverForm);
+
+    expect(mocks.requireSuperAdminContext).toHaveBeenCalledTimes(4);
+    expect(mocks.requireFinancePettyCashContext).not.toHaveBeenCalled();
   });
 
   it("requires and sends a transaction-time external party name", async () => {

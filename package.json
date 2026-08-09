@@ -15,6 +15,7 @@
     "test:ui-redesign": "node scripts/smoke-ui-redesign.mjs",
     "test:maintenance-mobile": "node scripts/smoke-maintenance-mobile.mjs",
     "test:fixture-roles": "node scripts/smoke-fixture-role-journeys.mjs",
+    "test:fixture-finance-manager-day": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/smoke-fixture-finance-manager-day.mjs",
     "test:properties-flow": "node scripts/smoke-properties-flow.mjs",
     "report:unit-profit-loss:compare": "node scripts/generate-unit-profit-loss-comparison.mjs",
     "workspace:provision": "node scripts/workspace-provision.mjs",
@@ -26,7 +27,7 @@
     "db:lint": "supabase db lint",
     "db:reset": "supabase db reset --local --no-seed",
     "db:test:fixture": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/load-test-fixture.mjs",
-    "test:demo-tools": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/hosted-demo-cutover-plan.node-test.mjs scripts/load-test-fixture.node-test.mjs scripts/smoke-fixture-role-journeys.node-test.mjs scripts/target-org-dump.node-test.mjs scripts/unit-profit-loss-comparison.node-test.mjs",
+    "test:demo-tools": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/hosted-demo-cutover-plan.node-test.mjs scripts/load-test-fixture.node-test.mjs scripts/smoke-fixture-finance-manager-day.node-test.mjs scripts/smoke-fixture-role-journeys.node-test.mjs scripts/target-org-dump.node-test.mjs scripts/unit-profit-loss-comparison.node-test.mjs",
     "demo:cutover:plan": "node scripts/hosted-demo-cutover-plan.mjs",
     "db:types": "supabase gen types --local --schema public > src/types/database.generated.ts && node -e \"const fs=require('fs');const p='src/types/database.generated.ts';fs.writeFileSync(p,fs.readFileSync(p,'utf8').trimEnd()+'\\n');\""
   },

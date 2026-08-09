@@ -200,7 +200,7 @@ SELECT results_eq(
   $$
     VALUES
       ('direct_to_owner'::text, 1),
-      ('through_ips'::text, 3)
+      ('through_ips'::text, 4)
   $$,
   'billing terms cover both supported collection routes'
 );
@@ -222,7 +222,7 @@ SELECT is(
     WHERE billing_period_start = date_trunc('month', current_date)::date
       AND lifecycle = 'issued'
   ),
-  4::bigint,
+  5::bigint,
   'automatic generation created current-month invoices for configured leases'
 );
 
@@ -247,9 +247,9 @@ SELECT results_eq(
   $$,
   $$
     VALUES
-      ('direct_to_owner'::text, 'paid'::text, 1),
-      ('through_ips'::text, 'paid'::text, 1),
-      ('through_ips'::text, 'unpaid'::text, 2)
+      ('direct_to_owner'::text, 'partly_paid'::text, 1),
+      ('through_ips'::text, 'partly_paid'::text, 1),
+      ('through_ips'::text, 'unpaid'::text, 3)
   $$,
   'rent balances include IPS-paid, owner-collected, and open obligations'
 );
@@ -273,7 +273,7 @@ SELECT is(
 
 SELECT is(
   (SELECT count(*) FROM public.management_fee_occurrences),
-  4::bigint,
+  5::bigint,
   'each generated invoice creates one management-fee occurrence'
 );
 

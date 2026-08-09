@@ -86,6 +86,7 @@ type DrawerState =
 type PettyCashScreenProps = {
   accounts: PettyCashAccount[];
   canManageFinance?: boolean;
+  canManagePettyCash?: boolean;
   counterpartyOptions: PersonSelectOption[];
   entries: PettyCashEntry[];
   focusedEntryId?: string;
@@ -102,6 +103,7 @@ type PettyCashScreenProps = {
 export function PettyCashScreen({
   accounts,
   canManageFinance = true,
+  canManagePettyCash = canManageFinance,
   counterpartyOptions,
   entries,
   focusedEntryId,
@@ -133,7 +135,7 @@ export function PettyCashScreen({
     (hasFocusedEntry ? null : entries[0]) ??
     null;
   const canAddEntry =
-    canManageFinance &&
+    canManagePettyCash &&
     selectedAccount?.status === "active" &&
     period?.status === "open";
 
@@ -197,6 +199,7 @@ export function PettyCashScreen({
       <PettyCashInspector
         account={selectedAccount}
         canManageFinance={canManageFinance}
+        canManagePettyCash={canManagePettyCash}
         entry={selectedEntry}
         onEdit={(entry) => openDrawer({ entry, mode: "edit" })}
         onPost={(entry) => openDrawer({ entry, mode: "post" })}
@@ -208,27 +211,31 @@ export function PettyCashScreen({
   return (
     <WorkspacePage
       actions={
-        !schemaStatus.isReady || !canManageFinance ? undefined : (
+        !schemaStatus.isReady || (!canManageFinance && !canManagePettyCash) ? undefined : (
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => openDrawer({ mode: "account" })}>
-              <Wallet size={15} />
-              Add account
-            </Button>
+            {canManageFinance ? (
+              <Button onClick={() => openDrawer({ mode: "account" })}>
+                <Wallet size={15} />
+                Add account
+              </Button>
+            ) : null}
             {selectedAccount?.status === "active" && period ? (
               <>
-                <Button
-                  onClick={() =>
-                    openDrawer({
-                      account: selectedAccount,
-                      mode: "rollover",
-                      period,
-                      summary,
-                    })
-                  }
-                >
-                  <CalendarPlus size={15} />
-                  Open next month
-                </Button>
+                {canManageFinance ? (
+                  <Button
+                    onClick={() =>
+                      openDrawer({
+                        account: selectedAccount,
+                        mode: "rollover",
+                        period,
+                        summary,
+                      })
+                    }
+                  >
+                    <CalendarPlus size={15} />
+                    Open next month
+                  </Button>
+                ) : null}
                 {canAddEntry ? (
                   <Button
                     onClick={() => openDrawer({ mode: "entry" })}
@@ -330,7 +337,10 @@ export function PettyCashScreen({
           )}
         </div>
 
-        {canManageFinance && drawerState ? (
+        {drawerState &&
+        (canManageFinance ||
+          (canManagePettyCash &&
+            (drawerState.mode === "entry" || drawerState.mode === "post"))) ? (
           <SideDrawer
             description={getDrawerDescription(drawerState)}
             onClose={() => setDrawerState(null)}
@@ -685,6 +695,7 @@ function PettyCashTable({
 function PettyCashInspector({
   account,
   canManageFinance,
+  canManagePettyCash,
   entry,
   onEdit,
   onPost,
@@ -693,6 +704,7 @@ function PettyCashInspector({
 }: {
   account: PettyCashAccount;
   canManageFinance: boolean;
+  canManagePettyCash: boolean;
   entry: PettyCashEntry | null;
   onEdit: (entry: PettyCashEntry) => void;
   onPost: (entry: PettyCashEntry) => void;
@@ -708,7 +720,7 @@ function PettyCashInspector({
   }
 
   const canPost =
-    canManageFinance &&
+    canManagePettyCash &&
     !entry.archivedAt &&
     account.status === "active" &&
     entry.entryKind === "expense" &&
