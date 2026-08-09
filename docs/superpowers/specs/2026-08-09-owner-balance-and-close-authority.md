@@ -124,12 +124,18 @@ For Tracks 2-4, `canCloseOwnerMonth`, `canReopenOwnerMonth`, and
 ## Exact Database Contract
 
 All tables below live in `public`, have RLS enabled, grant `SELECT` to
-`authenticated` only through organization-scoped Finance read policies, revoke
-authenticated `INSERT`, `UPDATE`, `DELETE`, and `TRUNCATE`, and reserve all writes
-for checked RPCs. Every public RPC is `SECURITY DEFINER SET search_path TO ''`,
-checks `auth.uid()`, organization membership and its exact capability, revokes
-`PUBLIC`, and grants execute only to `authenticated`. Private helpers are never
-executable by `authenticated`.
+`authenticated` only through organization-scoped Finance read policies, and
+reserve all writes for checked RPCs. Each opening-authority migration explicitly
+revokes `INSERT`, `UPDATE`, `DELETE`, and `TRUNCATE` from `PUBLIC`, `anon`,
+`authenticated`, and `service_role`; it also revokes `SELECT` from `PUBLIC`,
+`anon`, and `service_role`. Track 2 has no named `service_role` consumer, so it
+receives no opening-table privilege. A later named worker must obtain the minimum
+separate grant in its own reviewed migration, never an inherited broad grant.
+Every public RPC is `SECURITY DEFINER SET search_path TO ''`, checks `auth.uid()`,
+organization membership and its exact capability, revokes execute from
+`PUBLIC`, `anon`, and `service_role`, and grants execute only to `authenticated`.
+Private helpers revoke execute from all application roles and are never directly
+executable by `authenticated` or `service_role`.
 
 ### Shared enums and checks
 
@@ -187,7 +193,7 @@ point MUST NOT cross an authoritative owner-balance action or loader boundary.
 | `source_reference` | `text` | Optional trimmed 3-240 characters |
 | `supporting_document_id` | `uuid` | Optional FK to `documents`, delete restrict |
 | `evidence_sha256` | `text` | Required lowercase 64-hex hash of the submitted source snapshot/file bytes |
-| `payload_hash` | `text` | Required lowercase 64-hex canonical request fingerprint |
+| `payload_hash` | `text` | Required lowercase 64-hex fingerprint of canonical public RPC arguments; operation and authenticated actor complete the idempotency identity |
 | `submitted_at` / `submitted_by` | `timestamptz` / `uuid` | Required and immutable |
 | `reviewed_at` / `reviewed_by` | `timestamptz` / `uuid` | Null while submitted; both required after approve/reject |
 | `review_reason` | `text` | Required trimmed 3-500 characters on reject; optional nonblank note on approve |
@@ -215,8 +221,9 @@ Table invariants:
   indexes enforce both under concurrency;
 - `property_owner_id`, `ownership_percent_snapshot`, and
   `ownership_roster_hash` are copied from the successful Track 2.0 date
-  validator and are part of `payload_hash`; the client cannot supply an
-  arbitrary share or roster hash.
+  validator as a separate immutable server-authority snapshot. They are never
+  public RPC arguments and never enter `payload_hash`; the client cannot supply
+  an arbitrary share or roster hash.
 
 Required database enforcement includes:
 
@@ -233,6 +240,12 @@ Required database enforcement includes:
 - partial unique submitted-correction index on `correction_of_entry_id`;
 - trigger/RPC validation for same-key rejected predecessor and latest-chain
   lineage, which cannot be expressed by a row check alone.
+
+pgTAP asserts the complete table ACL matrix: `authenticated` has only `SELECT`;
+`anon` and `service_role` have no table privilege; and none of `anon`,
+`authenticated`, or `service_role` has `INSERT`, `UPDATE`, `DELETE`, or
+`TRUNCATE`. Direct calls to every private helper and public-RPC execution by
+`anon`/`service_role` are denied.
 
 Concurrency tests use two database sessions and barriers, not sequential calls,
 to prove only one pending initial per authority key, one pending correction per
@@ -493,11 +506,42 @@ app_private.validate_owner_roster_on_date(
 ```
 
 The validator checks property/organization scope, excludes archived rows,
-requires at least one row, validates every half-open interval/share, asserts the
-sum is exactly `100.000`, sorts canonical roster input by `property_owner_id`,
-and computes one lowercase SHA-256 over exact UUID/date/share strings. Every
-returned row carries that same whole-roster hash. It never defaults, normalizes,
-or rounds a missing share.
+requires at least one row, validates every half-open interval/share, and asserts
+the sum is exactly `100.000`. The roster hash input is UTF-8 bytes of rows sorted
+by lowercase hyphenated `property_owner_id`, each serialized exactly as
+`property_owner_id|owner_person_id|ownership_percent(three decimals)|started_on(YYYY-MM-DD)|ended_on(YYYY-MM-DD or empty)` and joined with a single LF, with
+no trailing LF. UUIDs are lowercase hyphenated text; dates are ISO text; shares
+are fixed three-decimal strings. One lowercase SHA-256 of those bytes is copied
+to every returned row. It never defaults, normalizes, or rounds a missing share.
+
+Task 2.0 also ships a read-only legacy preflight query and report command. For
+each property it evaluates every interval beginning at an ownership `started_on`
+or non-null `ended_on`, plus an explicitly supplied candidate cutover date. It
+reports source row IDs and typed issues for null dates/shares, invalid or empty
+intervals, same-person overlap, inactive owner persons, an empty roster, and
+each interval whose exact active-share total differs from `100.000`. It prints
+the canonical roster serialization/hash when valid, a deterministic issue JSON
+hash, and never writes or proposes a sole-owner default.
+
+The query contract is
+`app_private.owner_roster_legacy_preflight(p_cutover_date date)`, a `STABLE`,
+non-`SECURITY DEFINER`, non-Data-API function callable only by the migration
+owner. It returns one row per property/boundary/issue with `organization_id`,
+`property_id`, `boundary_date`, nullable `next_boundary_date`, `issue_code`,
+sorted `property_owner_ids uuid[]`, `active_owner_count`,
+`ownership_percent_total numeric(9,3)`, nullable canonical serialization, and
+nullable `ownership_roster_hash`. The command is
+`node scripts/report-owner-roster-preflight.mjs --target local --cutover
+YYYY-MM-DD --out <path>`; any later hosted target requires the explicit hosted
+read approval and named project. JSON rows are sorted by organization, property,
+boundary, issue, and owner IDs before their lowercase SHA-256 report hash.
+
+The hosted ownership migration is gated on a separately approved read-only
+preflight against the named project, followed by an operator-approved remediation
+manifest for every issue. The migration may proceed only when a rerun is clean
+and its report hash is recorded. Neither Task 2.0 nor any later migration may
+silently backfill legacy `started_on`, `ended_on`, or `ownership_percent`; a
+non-clean hosted preflight blocks hosted migration application.
 
 A checked Finance-readable remediation RPC/view exposes typed issues without
 writing ownership:
@@ -559,7 +603,7 @@ checked fingerprint workflow. The migration MUST NOT populate a content hash
 from file name, path, size, ETag, Storage metadata, or an unverified client
 claim.
 
-The checked document upload/update path accepts `p_content_sha256`, and the
+The checked document create/fingerprint path accepts `p_content_sha256`, and the
 server action computes SHA-256 from the exact file bytes before upload. Opening
 submission requires:
 
@@ -575,11 +619,27 @@ application upload boundary. A local integration test that actually uploads an
 object must download/read it and compare the bytes to `content_sha256`; a
 metadata-only fixture must use reference evidence instead.
 
-`content_sha256` is insert-only except through the existing checked full-file
-replacement path. A replacement must supply a new storage path, file name,
-MIME type, byte size, and content hash together; it is denied when any financial
-evidence reference locks the document. A metadata-only update cannot change the
-hash. Direct table updates remain denied.
+`content_sha256` is immutable once non-null. A checked one-time legacy
+fingerprint may change null to the hash of bytes actually downloaded and read;
+after that, neither metadata RPC nor direct DML can change or clear it. Replacing
+file bytes always creates a new document row and object; it never mutates a
+fingerprinted row. A financially referenced document is additionally locked
+against archive/delete and retains its row and bytes permanently.
+
+Task 2.2A must replace or harden every legacy `create_document` and
+`update_document` signature so no executable overload can omit the hash or
+replace fingerprinted bytes. Creation with bytes requires the checked hash;
+update is metadata-only and preserves storage identity, size, and hash. Old
+overloads are dropped or have execute revoked before the new grant is made.
+Existing direct `documents` grants are narrowed: revoke `INSERT`, `UPDATE`,
+`DELETE`, and `TRUNCATE` from `PUBLIC`, `anon`, `authenticated`, and
+`service_role`; no Track 2 `service_role` document writer exists. Preserve only
+the existing organization-scoped authenticated read path. Storage update/delete
+policies call the fingerprint/financial lock so a fingerprinted object's bytes
+cannot be replaced or removed and a financially referenced document cannot be
+archived or deleted. pgTAP and action tests enumerate legacy overloads, ACLs,
+null-to-hash once-only behavior, hash immutability, new-row replacement, and
+referenced-row retention.
 
 For a supporting document, the checked submit RPC verifies:
 
@@ -616,28 +676,61 @@ reopen, and publication command is payload-idempotent. Reuse
 `app_private.complete_financial_idempotency`; do not create a second request
 table.
 
-Canonical payloads use normalized UUID text, enum values, ISO dates, canonical
-two-decimal amount strings, trimmed reason/reference text, evidence/document
-hashes, `property_owner_id`, explicit share, roster hash, resubmission identity,
-and sorted arrays. An exact completed replay returns original result IDs even if
-the effective month was locked after the first success. Reusing a key with a
-different actor or payload fails `22023` and creates no effect.
+Canonical payload hashes contain only the public arguments of that RPC:
+normalized UUID text, enum values, ISO dates, canonical two-decimal amount
+strings, trimmed reason/reference text, evidence/document arguments,
+resubmission/correction identities, and sorted public arrays. Operation name and
+authenticated actor are separate parts of the existing financial-idempotency
+identity. Server-resolved `property_owner_id`, share, roster hash, document
+metadata, current roster, and month-lock state never enter the payload hash.
+They are validated and stored only for a first execution. An exact completed
+replay returns original result IDs even if the roster/document state later
+changes or the effective month is later locked. Reusing a key with a different
+actor or public payload fails `22023` and creates no effect.
 
-Each RPC first authorizes organization/role and canonicalizes enough immutable
-identity to call `app_private.get_financial_idempotency_replay`. A completed
-exact replay returns immediately before any open-month assertion. A conflict
-fails immediately. A missing or pending replay continues through serialization.
+Each RPC first authenticates and authorizes organization scope, canonicalizes
+its public arguments, and calls `app_private.get_financial_idempotency_replay`.
+A completed exact replay returns the original IDs immediately, before ownership
+roster validation, document existence/content-hash revalidation, current-target
+resolution, or any open-month assertion. A conflict fails immediately. A
+missing or pending replay continues through mutable authority validation and
+serialization.
+
+Task 2.2B creates this private lock helper and no caller duplicates its keys:
+
+```sql
+app_private.lock_owner_opening_property_month(
+  p_organization_id uuid,
+  p_property_id uuid,
+  p_currency public.currency_code,
+  p_effective_date date
+) returns void
+```
+
+It first calls the existing non-open-checking
+`app_private.lock_property_financial_month` with the same arguments, then takes
+`pg_advisory_xact_lock(hashtextextended(concat_ws(':',
+'owner_opening_property_month_v1', p_organization_id::text,
+p_property_id::text, p_currency::text,
+date_trunc('month', p_effective_date)::date::text), 0))`. The helper is owned by
+`postgres`, has `SET search_path TO ''`, and revokes execute from `PUBLIC`,
+`anon`, `authenticated`, and `service_role`.
 
 The mandatory new-request lock order is:
 
 1. completed-replay/conflict lookup using the canonical payload;
-2. organization-month advisory serialization lock;
-3. property/currency/month advisory lock;
-4. open-month assertion when the decision can create or replace authority;
-5. owner/authority-key advisory lock;
-6. financial idempotency claim;
-7. request/source/domain rows in stable UUID order;
-8. Track 3/4 projection, roll-forward, or close rows only in those later tracks.
+2. `lock_owner_opening_property_month`, whose internal order is the existing
+   `financial_month_v1` organization-month key first and
+   `owner_opening_property_month_v1`
+   second;
+3. open-month assertion when the decision can create or replace authority;
+4. `pg_advisory_xact_lock(hashtextextended(concat_ws(':',
+   'owner_opening_authority_v1', organization_id::text, property_id::text,
+   owner_person_id::text, currency::text, effective_date::text,
+   component::text), 0))`;
+5. financial idempotency claim;
+6. request/source/domain rows in stable UUID order;
+7. Track 3/4 projection, roll-forward, or close rows only in those later tracks.
 
 Initial submit, correction submit, and approval require the effective month to
 be open. Rejection is serialized on the same organization/property/month keys
@@ -741,8 +834,9 @@ Create one feature boundary under `src/features/owner-balances`:
 - `data/opening-balances.ts` maps database decimal strings without `Number`;
 - `components/opening-balance-screen.tsx` renders the submission/review queue,
   component completeness, evidence links, and blocked ownership states;
-- `src/types/database.ts` must override generated numeric RPC arguments/results
-  so authoritative owner-opening amounts are decimal `string`; generated
+- after each public RPC signature exists and generated types are refreshed,
+  `src/types/database.ts` must override numeric RPC arguments/results so
+  authoritative owner-opening amounts are decimal `string`; generated
   `number` types must not be accepted at the action/data boundary;
 - `components/owner-balance-ledger.tsx`, existing balance projection changes,
   event allocation, roll-forward, and withdrawal availability are Track 3 only.
@@ -796,7 +890,9 @@ table DML, or a Super Admin impersonation actor.
 Create a CLI-generated `owner_opening_ownership_readiness` migration and focused
 pgTAP. Add the half-open range, unarchived overlap exclusion, explicit positive
 share constraints, exact-100.000 date validator, canonical roster hash, and
-Finance-readable remediation surface. Replace the current primary-owner sync
+Finance-readable remediation surface. Add the deterministic read-only legacy
+preflight query/command, issue/report hashes, and hosted clean-report/remediation
+gate. Replace the current primary-owner sync
 writer/action/form so start/share are explicit and never prefilled. Correct
 fixture ownership explicitly; never infer sole-owner `100.000`. No
 opening-balance table exists in this task.
@@ -808,48 +904,65 @@ component type and request table with exact authority/ownership/evidence
 snapshots, `resubmission_of_request_id`, request/status pairing, partial unique
 submitted-request indexes, composite scope keys, and required constraints.
 Add failing-then-green structure and concurrency pgTAP. No public mutation RPC
-or approved entry table exists yet.
+or approved entry table exists yet. Explicitly assert that `authenticated` has
+read only, while `anon` and `service_role` have no table access and all three
+application roles lack every table mutation privilege.
 
 ### Task 2.1B: Approved entry schema, capabilities, and immutable access
 
 Create a CLI-generated `owner_opening_balance_entry_authority` migration. Add
 the signed entry table, initial/reversal/replacement uniqueness, including a
 reversible `0.00` authority-bearing row, immutable guards, explicit capabilities
-and contexts, RLS/read policy, direct-DML denial, and generated plus
-`src/types/database.ts` string-decimal overrides. No public workflow RPC exists.
+and contexts, RLS/read policy, complete anon/authenticated/service-role ACL and
+direct-DML denial, and generated schema types. Do not add handwritten RPC
+overrides before the RPC signatures exist. No public workflow RPC exists.
 
 ### Task 2.2A: Verifiable document fingerprint and evidence lock
 
 Create a CLI-generated `owner_opening_evidence_fingerprints` migration. Add
-nullable checked `documents.content_sha256`, byte-hashing upload/update plumbing,
-opening-evidence category/scope/object/hash equality, generalized evidence lock,
-and honest Storage limitations. Prove existing null-hash documents are
-ineligible and reference-only evidence does not invent Storage.
+nullable checked `documents.content_sha256`, exact-byte hashing create/one-time
+legacy fingerprint plumbing, hash and byte immutability, new-row-only file
+replacement, opening-evidence category/scope/object/hash equality, generalized
+evidence lock, narrowed direct document grants, and honest Storage limitations.
+Drop/revoke every bypassing legacy `create_document`/`update_document` overload.
+Prove existing null-hash documents are ineligible, old signatures/direct grants
+cannot bypass hashing, and reference-only evidence does not invent Storage.
 
 ### Task 2.2B: Submit, reject, and resubmit workflow
 
 Create a CLI-generated `owner_opening_submit_reject_resubmit` migration. Add
-initial/correction submission and rejection paths, roster snapshot resolution,
-resubmission lineage, completed replay before open check, open-month submit,
-serialized locked-month rejection, payload idempotency, activity, five-role/
-cross-org/direct-DML tests, and concurrent one-pending-request proof. No approval
-or entry creation exists yet.
+the private ordered property/currency/month lock helper, initial submission and
+rejection/resubmission paths, roster snapshot resolution separate from public
+payload identity, completed replay before roster/document/open checks,
+open-month submit, serialized locked-month rejection, payload idempotency,
+activity, five-role/cross-org/direct-DML tests, and concurrent one-pending-request
+proof. Generate types after the RPC names exist, then add only the required
+decimal-string overrides in `src/types/database.ts`. No correction submission,
+approval, or entry creation exists yet. Two-session pgTAP must prove same
+organization/month calls serialize on the existing first key, same property
+scope shares the second key, distinct property/currency/month inputs produce
+distinct second-key hashes, and different organization/month scopes can proceed
+independently.
 
 ### Task 2.2C: Approval and append-only correction authority
 
 Create a CLI-generated `owner_opening_approval_correction` migration. Complete
-the review approval branch, independent actor, open-month requirement, exact
-entry creation, current unreversed opening/replacement correction including
-`0.00`, reversal plus replacement, completed locked-month replay, concurrency,
-and stale-target denial. Rejection behavior from 2.2B must remain possible while
-locked.
+the initial review approval branch first so an authority-bearing entry exists;
+then add correction submission and correction approval. Enforce independent
+actors, open-month requirements, exact entry creation, current unreversed
+opening/replacement correction including `0.00`, reversal plus replacement,
+completed replay before mutable roster/document/target/open checks, concurrency,
+and stale-target denial. Regenerate types after all signatures exist and extend
+the decimal-string overrides. Rejection behavior from 2.2B must remain possible
+while locked.
 
 ### Task 2.3A: Exact-decimal application boundary and loaders
 
 Implement canonical string money, Zod validation without numeric coercion,
-capability-specific server actions, RPC string overrides in
-`src/types/database.ts`, request/entry/readiness loaders, unknown/known-zero
-mapping, and action/data tests. No existing balance projection, allocation,
+capability-specific server actions, consume and verify the generated RPC names
+and `src/types/database.ts` string overrides created with Tasks 2.2B/2.2C,
+request/entry/readiness loaders, unknown/known-zero mapping, and action/data
+tests. No existing balance projection, allocation,
 roll-forward, withdrawal capacity, close, or report code changes.
 
 ### Task 2.3B: Opening authority and evidence UI
@@ -910,13 +1023,21 @@ Acceptance must prove at least:
 - exact amount scale and string typing, canonical idempotency replay/conflict,
   concurrent pending submission/approval/correction, and no JavaScript numeric
   coercion;
+- exact public-argument-only replay identity, with an original-ID replay after
+  both a roster change and month lock and no new request/entry or mutable-state
+  validation; different public argument, operation, key, or actor must conflict
+  or authorize independently as specified;
 - half-open transfer-date ownership, same-person overlap exclusion, missing/
   zero/negative percentage, exact total below/above `100.000`, deterministic
   `property_owner_id`/share/roster hash snapshots, and no sole-owner default;
 - missing evidence/object, wrong organization/property document, archive,
   null/mismatched `documents.content_sha256`, actual uploaded-byte hash equality,
-  replacement/delete lock, honest reference-only hash limits, and upload cleanup
-  after failed submit;
+  legacy RPC/direct-grant bypass denial, once-only null fingerprint, immutable
+  non-null hash/bytes, new-row replacement, replacement/delete lock, honest
+  reference-only hash limits, and upload cleanup after failed submit;
+- read-only legacy ownership preflight coverage at every interval boundary and
+  supplied cutover date, deterministic roster/report hashes, zero-write proof,
+  no silent backfill, and a blocking hosted remediation gate;
 - initial approve/reject, self-review denial, duplicate authority, known zero,
   unknown, new submit/approve/correction denial while locked, locked-month reject,
   completed replay after lock, rejected resubmission lineage and concurrency,
@@ -941,8 +1062,8 @@ Acceptance must prove at least:
 - No migration filename invented by hand; use the Supabase CLI and record the
   generated filename in each report.
 - No direct authenticated table write, broad `TO authenticated` authorization,
-  public executable private helper, user-metadata authorization, or RLS-bypassing
-  view.
+  direct `service_role` opening-authority write, public executable private
+  helper, user-metadata authorization, or RLS-bypassing view.
 - No fake document or Storage object, evidence deletion, mutation of an approved
   request/entry, or rewrite of a closed revision/publication.
 - No `documents.content_sha256` fabricated from path/name/size/ETag/metadata and

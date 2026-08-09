@@ -265,6 +265,8 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
 - Create: `supabase/tests/owner_opening_balance_authority_test.sql`
 - Create: `supabase/tests/owner_opening_balance_workflow_test.sql`
 - Create: `supabase/tests/owner_opening_balance_reconciliation_test.sql`
+- Create: `scripts/report-owner-roster-preflight.mjs` and its deterministic
+  read-only issue/report-hash fixture
 - Create: `src/features/owner-balances/owner-balance.types.ts`
 - Create: `src/features/owner-balances/owner-balance.money.ts`
 - Create: `src/features/owner-balances/actions.ts`
@@ -280,7 +282,8 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
 - Create: `scripts/smoke-fixture-owner-opening-balances.mjs`
 - Create: `scripts/smoke-fixture-owner-opening-balances.node-test.mjs`
 - Modify: `src/types/database.generated.ts`
-- Modify: `src/types/database.ts` with explicit decimal-string RPC overrides
+- Modify only after each public RPC signature exists: `src/types/database.ts`
+  with explicit decimal-string RPC overrides
 
 **Interfaces:**
 
@@ -292,10 +295,14 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
 - Produces an exact half-open opening-ownership snapshot containing
   `property_owner_id`, explicit positive share, and whole-roster hash; one owner
   is never silently defaulted to `100.000`.
+- Produces a zero-write legacy ownership preflight covering every roster interval
+  and supplied cutover date; hosted application is blocked until an approved
+  remediation manifest and clean rerun hash exist.
 - Produces checked submit, approve/reject, and correction-request RPCs with
   exact-decimal strings, evidence SHA/document/reference, independent reviewer,
-  rejected-request resubmission lineage, payload fingerprint/idempotency,
-  completed replay before an open-month check, and append-only
+  rejected-request resubmission lineage, public-argument-only payload
+  fingerprint/idempotency with the server roster snapshot kept separate,
+  completed replay before mutable roster/document/month checks, and append-only
   reversal/replacement lineage including correction from an authoritative
   `0.00` entry.
 - Produces explicit unknown versus known-zero states and a four-component
@@ -307,7 +314,9 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
 - [ ] **Task 2.0 — opening-ownership readiness:** enforce half-open ranges,
   unarchived same-owner overlap exclusion, explicit shares `> 0` summing exactly
   `100.000` on the requested date, deterministic date validator/roster hash, and
-  Finance-readable remediation. Replace the carried-forward primary-owner
+  Finance-readable remediation. Add the deterministic zero-write legacy
+  preflight and hosted clean-report/remediation gate with no silent backfill.
+  Replace the carried-forward primary-owner
   writer/action/form so effective start/share are explicit and never prefilled.
   Explicitly correct fixture data; never backfill a sole owner to `100.000`.
   Commit and obtain fresh review before opening schema work.
@@ -317,24 +326,33 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
   and concurrent pending-request uniqueness. Commit and obtain fresh review.
 - [ ] **Task 2.1B — entry schema and access:** create immutable signed entries,
   initial/reversal/replacement constraints including `0.00`, explicit
-  capabilities, RLS/grants/direct-DML denial, and generated plus handwritten
-  decimal-string types. Commit and obtain fresh review before workflow RPCs.
+  capabilities, RLS, explicit anon/authenticated/service-role ACLs, and
+  direct-DML denial. Generate schema types only; handwritten RPC overrides wait
+  for real signatures. Commit and obtain fresh review before workflow RPCs.
 - [ ] **Task 2.2A — document fingerprint/evidence lock:** add checked nullable
-  `documents.content_sha256`, exact upload-byte hashing, submitted hash equality,
-  scope/object/category/archive checks, generalized immutable evidence, and
-  honest reference-only/Storage limitations. Commit and obtain fresh review.
-- [ ] **Task 2.2B — submit/reject/resubmit:** implement initial/correction
-  submission, locked-month-capable serialized rejection, rejected-request chain,
-  roster snapshots, completed replay before open checks, open-month submission,
-  idempotency/activity, five-role/cross-org/direct-DML, and real concurrent
-  pending/resubmission tests. Commit and obtain fresh review.
-- [ ] **Task 2.2C — approve/correct:** implement independent approval, exact
-  opening entry creation, current unreversed authority-bearing entry correction
-  including `0.00`, reversal+replacement, open-month new work, completed replay
-  after lock, stale-target and concurrent approval/reversal denial. Commit and
-  obtain fresh review.
+  `documents.content_sha256`, exact upload-byte hashing, null-to-hash once-only
+  fingerprinting, immutable fingerprinted bytes/hash, new-row file replacement,
+  scope/object/category/archive checks, generalized immutable evidence, narrowed
+  direct document grants, and removal/revocation of bypassing legacy document
+  RPC overloads. Commit and obtain fresh review.
+- [ ] **Task 2.2B — initial submit/reject/resubmit:** implement initial
+  submission only, plus a private ordered property/currency/month lock,
+  locked-month-capable serialized rejection, rejected-request chain, immutable
+  server roster snapshots separate from public replay payload, completed replay
+  before roster/document/open checks, idempotency/activity, ACL, and real
+  concurrent pending/resubmission tests. Regenerate types after RPC creation and
+  add matching string overrides. No correction submission or approval yet.
+- [ ] **Task 2.2C — initial approve/correction submit+approve:** implement
+  independent initial approval and exact
+  opening entry creation first, then correction submission and approval
+  against the current unreversed authority-bearing entry including `0.00`,
+  reversal+replacement, open-month new work, completed replay before mutable
+  checks after roster change/month lock, stale-target and concurrent denial.
+  Regenerate types and extend string overrides after signatures exist. Commit
+  and obtain fresh review.
 - [ ] **Task 2.3A — exact-decimal application/data:** add decimal-string
-  validation/actions/loaders and `src/types/database.ts` overrides with no
+  validation/actions/loaders and consume/verify the already generated
+  `src/types/database.ts` overrides with no
   `Number`, `parseFloat`, or numeric coercion. Preserve existing balance
   projections unchanged. Commit and obtain fresh review.
 - [ ] **Task 2.3B — opening/evidence UI:** add the separately labelled opening
@@ -350,7 +368,9 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
   wrong role/org, ownership overlap/incomplete allocation, no sole-owner default,
   new locked-month submit/approve/correct, locked-month reject and completed
   replay, stale correction, idempotency/concurrency conflict, document hash
-  mismatch, and fake-Storage denial. Commit, fresh
+  mismatch, legacy document RPC/grant bypass, fingerprint mutation, replay after
+  both roster change and month lock returning original IDs, opening-table ACLs,
+  and fake-Storage denial. Commit, fresh
   review, and root-agent full-matrix acceptance are required before Track 3.
 
 **Named verification:** the four Track 2 pgTAP files, capability/context tests,
