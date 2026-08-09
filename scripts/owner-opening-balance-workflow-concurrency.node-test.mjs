@@ -16,6 +16,7 @@ const ids = {
   owner: "b22c0000-0000-4000-8000-000000000006",
   propertyOwner: "b22c0000-0000-4000-8000-000000000007",
   replacementOwner: "b22c0000-0000-4000-8000-000000000008",
+  propertyOwnerTwo: "b22c0000-0000-4000-8000-000000000009",
   financeMember: "b22c0000-0000-4000-8000-000000000010",
   submitterTwo: "b22c0000-0000-4000-8000-000000000011",
   reviewer: "b22c0000-0000-4000-8000-000000000012",
@@ -106,13 +107,118 @@ function raceAfterMarker(container, firstSql, secondSql, marker) {
   });
 }
 
-function authenticatedSubmitSql(actorId, idempotencyKey, predecessor = null) {
+function spawnSession(container, sql) {
+  const child = spawn("docker", psqlArgs(container, sql), {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+  });
+  const session = {
+    child,
+    stdout: "",
+    stderr: "",
+    status: null,
+    closed: false,
+  };
+  child.stdout.on("data", (chunk) => {
+    session.stdout += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    session.stderr += chunk;
+  });
+  session.done = new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (status) => {
+      session.status = status;
+      session.closed = true;
+      resolve(session);
+    });
+  });
+  return session;
+}
+
+async function waitForMarker(session, marker, timeoutMs = 10_000) {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    if (`${session.stdout}\n${session.stderr}`.includes(marker)) return;
+    if (session.closed) {
+      assert.fail(
+        `session closed before ${marker}: ${session.stdout}\n${session.stderr}`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.fail(
+    `timed out waiting for ${marker}: ${session.stdout}\n${session.stderr}`,
+  );
+}
+
+function installOpeningWritePause(container) {
+  run(container, `
+    CREATE OR REPLACE FUNCTION app_private.test_pause_owner_opening_write()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = ''
+    AS $pause$
+    DECLARE
+      v_pause_table text := current_setting(
+        'app.owner_opening_test_pause_table', true
+      );
+      v_pause_scope text := current_setting(
+        'app.owner_opening_test_pause_scope', true
+      );
+      v_write_scope text;
+    BEGIN
+      IF TG_TABLE_NAME = 'owner_opening_balance_entries' THEN
+        v_write_scope := NEW.request_id::text;
+      ELSE
+        v_write_scope := NEW.property_id::text;
+      END IF;
+      IF v_pause_table = TG_TABLE_NAME AND v_pause_scope = v_write_scope THEN
+        PERFORM set_config('app.owner_opening_test_pause_table', '', true);
+        RAISE NOTICE 'owner_opening_write_pause_ready';
+        PERFORM pg_sleep(2);
+      END IF;
+      RETURN NEW;
+    END;
+    $pause$;
+
+    DROP TRIGGER IF EXISTS test_pause_owner_opening_request_write
+      ON public.owner_opening_balance_requests;
+    CREATE TRIGGER test_pause_owner_opening_request_write
+    BEFORE INSERT ON public.owner_opening_balance_requests
+    FOR EACH ROW EXECUTE FUNCTION app_private.test_pause_owner_opening_write();
+
+    DROP TRIGGER IF EXISTS test_pause_owner_opening_entry_write
+      ON public.owner_opening_balance_entries;
+    CREATE TRIGGER test_pause_owner_opening_entry_write
+    BEFORE INSERT ON public.owner_opening_balance_entries
+    FOR EACH ROW EXECUTE FUNCTION app_private.test_pause_owner_opening_write();
+  `);
+}
+
+function removeOpeningWritePause(container) {
+  run(container, `
+    DROP TRIGGER IF EXISTS test_pause_owner_opening_request_write
+      ON public.owner_opening_balance_requests;
+    DROP TRIGGER IF EXISTS test_pause_owner_opening_entry_write
+      ON public.owner_opening_balance_entries;
+    DROP FUNCTION IF EXISTS app_private.test_pause_owner_opening_write();
+  `);
+}
+
+function authenticatedSubmitSql(
+  actorId,
+  idempotencyKey,
+  predecessor = null,
+  propertyId = ids.property,
+) {
   const predecessorSql = predecessor ? `'${predecessor}'::uuid` : "NULL::uuid";
   return `
     SELECT set_config('request.jwt.claim.sub', '${actorId}', true);
     SET LOCAL ROLE authenticated;
     SELECT public.submit_owner_opening_balance(
-      '${ids.organization}', '${ids.property}', '${ids.owner}', 'USD',
+      '${ids.organization}', '${propertyId}', '${ids.owner}', 'USD',
       '2026-08-01', 'ips_held_owner_cash', 10.00,
       'Concurrency verified opening', 'Concurrency source row', NULL,
       repeat('a', 64), ${predecessorSql}, '${idempotencyKey}'
@@ -199,6 +305,254 @@ function authenticatedRosterMutationSql(actorId, mutationKind) {
     SET LOCAL ROLE authenticated;
     ${mutationSql}
   `;
+}
+
+function transactionWithOpeningWritePause(tableName, scopeId, workflowSql) {
+  return `BEGIN;
+    SET LOCAL deadlock_timeout = '100ms';
+    SET LOCAL statement_timeout = '15s';
+    SELECT set_config('app.owner_opening_test_pause_table', '${tableName}', true);
+    SELECT set_config('app.owner_opening_test_pause_scope', '${scopeId}', true);
+    ${workflowSql}
+    COMMIT;`;
+}
+
+function archiveSharedOwnerAfterTupleLockSql() {
+  return `BEGIN;
+    SET LOCAL deadlock_timeout = '100ms';
+    SET LOCAL statement_timeout = '15s';
+    SELECT set_config('request.jwt.claim.sub', '${ids.submitterTwo}', true);
+    SET LOCAL ROLE authenticated;
+    SELECT id
+    FROM public.people
+    WHERE organization_id = '${ids.organization}'
+      AND id = '${ids.owner}'
+    FOR UPDATE;
+    DO $barrier$ BEGIN RAISE NOTICE 'owner_archive_tuple_ready'; END $barrier$;
+    SELECT pg_sleep(0.25);
+    SELECT public.archive_person('${ids.organization}', '${ids.owner}');
+    COMMIT;`;
+}
+
+async function exactThreeSessionRace(
+  container,
+  pausedTable,
+  pausedScope,
+  pausedWorkflowSql,
+  competingWorkflowSql,
+) {
+  const paused = spawnSession(
+    container,
+    transactionWithOpeningWritePause(
+      pausedTable,
+      pausedScope,
+      pausedWorkflowSql,
+    ),
+  );
+  await waitForMarker(paused, "owner_opening_write_pause_ready", 15_000);
+
+  const archive = spawnSession(container, archiveSharedOwnerAfterTupleLockSql());
+  await waitForMarker(archive, "owner_archive_tuple_ready", 15_000);
+
+  const competing = spawnSession(
+    container,
+    `BEGIN;
+      SET LOCAL deadlock_timeout = '100ms';
+      SET LOCAL statement_timeout = '15s';
+      ${competingWorkflowSql}
+      COMMIT;`,
+  );
+
+  await Promise.all([paused.done, archive.done, competing.done]);
+  return { paused, archive, competing };
+}
+
+function requestIdFor(container, propertyId, requestKind, status) {
+  return run(container, `
+    SELECT id
+    FROM public.owner_opening_balance_requests
+    WHERE organization_id = '${ids.organization}'
+      AND property_id = '${propertyId}'
+      AND request_kind = '${requestKind}'
+      AND status = '${status}'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1;
+  `);
+}
+
+function openingEntryIdFor(container, propertyId) {
+  return run(container, `
+    SELECT id
+    FROM public.owner_opening_balance_entries
+    WHERE organization_id = '${ids.organization}'
+      AND property_id = '${propertyId}'
+      AND entry_kind IN ('opening', 'correction_replacement')
+      AND reversal_of_entry_id IS NULL
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1;
+  `);
+}
+
+function prepareApprovedInitial(container, propertyId, suffix) {
+  run(container, `BEGIN;
+    ${authenticatedSubmitSql(
+      ids.financeMember,
+      `three-session-${suffix}-submit`,
+      null,
+      propertyId,
+    )}
+    COMMIT;`);
+  const requestId = requestIdFor(container, propertyId, "initial", "submitted");
+  run(container, `BEGIN;
+    ${authenticatedReviewSql(
+      ids.reviewer,
+      requestId,
+      `three-session-${suffix}-approve`,
+      "approve",
+    )}
+    COMMIT;`);
+  return openingEntryIdFor(container, propertyId);
+}
+
+function prepareThreeSessionWorkflows(container, workflowKind, pausedProperty) {
+  const competingProperty = pausedProperty === ids.property
+    ? ids.propertyTwo
+    : ids.property;
+  const suffix = `${workflowKind}-${pausedProperty === ids.property ? "a" : "b"}`;
+
+  if (workflowKind === "initial_submit") {
+    return {
+      pausedTable: "owner_opening_balance_requests",
+      pausedScope: pausedProperty,
+      pausedWorkflowSql: authenticatedSubmitSql(
+        ids.financeMember,
+        `three-session-${suffix}-paused`,
+        null,
+        pausedProperty,
+      ),
+      competingWorkflowSql: authenticatedSubmitSql(
+        ids.financeMember,
+        `three-session-${suffix}-competing`,
+        null,
+        competingProperty,
+      ),
+    };
+  }
+
+  if (workflowKind === "initial_resubmit") {
+    const predecessors = new Map();
+    for (const propertyId of [ids.property, ids.propertyTwo]) {
+      const propertySuffix = propertyId === ids.property ? "a" : "b";
+      run(container, `BEGIN;
+        ${authenticatedSubmitSql(
+          ids.financeMember,
+          `three-session-${suffix}-${propertySuffix}-parent`,
+          null,
+          propertyId,
+        )}
+        COMMIT;`);
+      const predecessor = requestIdFor(
+        container,
+        propertyId,
+        "initial",
+        "submitted",
+      );
+      run(container, `BEGIN;
+        ${authenticatedReviewSql(
+          ids.reviewer,
+          predecessor,
+          `three-session-${suffix}-${propertySuffix}-reject`,
+          "reject",
+        )}
+        COMMIT;`);
+      predecessors.set(propertyId, predecessor);
+    }
+    return {
+      pausedTable: "owner_opening_balance_requests",
+      pausedScope: pausedProperty,
+      pausedWorkflowSql: authenticatedSubmitSql(
+        ids.financeMember,
+        `three-session-${suffix}-paused`,
+        predecessors.get(pausedProperty),
+        pausedProperty,
+      ),
+      competingWorkflowSql: authenticatedSubmitSql(
+        ids.financeMember,
+        `three-session-${suffix}-competing`,
+        predecessors.get(competingProperty),
+        competingProperty,
+      ),
+    };
+  }
+
+  if (workflowKind === "correction_submit") {
+    const entryA = prepareApprovedInitial(container, ids.property, `${suffix}-a`);
+    const entryB = prepareApprovedInitial(container, ids.propertyTwo, `${suffix}-b`);
+    const entries = new Map([
+      [ids.property, entryA],
+      [ids.propertyTwo, entryB],
+    ]);
+    return {
+      pausedTable: "owner_opening_balance_requests",
+      pausedScope: pausedProperty,
+      pausedWorkflowSql: authenticatedCorrectionSql(
+        ids.financeMember,
+        entries.get(pausedProperty),
+        "12.00",
+        `three-session-${suffix}-paused`,
+      ),
+      competingWorkflowSql: authenticatedCorrectionSql(
+        ids.financeMember,
+        entries.get(competingProperty),
+        "13.00",
+        `three-session-${suffix}-competing`,
+      ),
+    };
+  }
+
+  assert.equal(workflowKind, "approval");
+  run(container, `BEGIN;
+    ${authenticatedSubmitSql(
+      ids.financeMember,
+      `three-session-${suffix}-a-submit`,
+      null,
+      ids.property,
+    )}
+    COMMIT;`);
+  const initialA = requestIdFor(container, ids.property, "initial", "submitted");
+  const entryB = prepareApprovedInitial(container, ids.propertyTwo, `${suffix}-b`);
+  run(container, `BEGIN;
+    ${authenticatedCorrectionSql(
+      ids.financeMember,
+      entryB,
+      "14.00",
+      `three-session-${suffix}-b-correction`,
+    )}
+    COMMIT;`);
+  const correctionB = requestIdFor(
+    container,
+    ids.propertyTwo,
+    "correction",
+    "submitted",
+  );
+  const pausedRequest = pausedProperty === ids.property ? initialA : correctionB;
+  const competingRequest = pausedProperty === ids.property ? correctionB : initialA;
+  return {
+    pausedTable: "owner_opening_balance_entries",
+    pausedScope: pausedRequest,
+    pausedWorkflowSql: authenticatedReviewSql(
+      ids.reviewer,
+      pausedRequest,
+      `three-session-${suffix}-paused-approve`,
+      "approve",
+    ),
+    competingWorkflowSql: authenticatedReviewSql(
+      ids.reviewer,
+      competingRequest,
+      `three-session-${suffix}-competing-approve`,
+      "approve",
+    ),
+  };
 }
 
 function prepareRosterRaceApproval(container, requestKind, suffix) {
@@ -294,10 +648,16 @@ function setup(container) {
     INSERT INTO public.property_owners (
       id, organization_id, property_id, person_id, is_primary,
       ownership_percent, started_on
-    ) VALUES (
-      '${ids.propertyOwner}', '${ids.organization}', '${ids.property}',
-      '${ids.owner}', true, 100.000, '2026-01-01'
-    ) ON CONFLICT (id) DO NOTHING;
+    ) VALUES
+      (
+        '${ids.propertyOwner}', '${ids.organization}', '${ids.property}',
+        '${ids.owner}', true, 100.000, '2026-01-01'
+      ),
+      (
+        '${ids.propertyOwnerTwo}', '${ids.organization}', '${ids.propertyTwo}',
+        '${ids.owner}', true, 100.000, '2026-01-01'
+      )
+    ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO public.organization_members (organization_id, user_id, role)
     VALUES
@@ -962,6 +1322,90 @@ test("owner opening approval serializes every current-roster mutation", async ()
       }
     }
   } finally {
+    cleanup(container);
+  }
+});
+
+test("owner opening workflows prelock shared roster tuples before property advisories", async () => {
+  const container = databaseContainer();
+  const workflowKinds = [
+    "initial_submit",
+    "initial_resubmit",
+    "correction_submit",
+    "approval",
+  ];
+  const pausedProperties = [ids.property, ids.propertyTwo];
+
+  cleanup(container);
+  installOpeningWritePause(container);
+  try {
+    for (const workflowKind of workflowKinds) {
+      for (const pausedProperty of pausedProperties) {
+        cleanup(container);
+        setup(container);
+        const pausedLabel = pausedProperty === ids.property ? "a" : "b";
+        const label = `${workflowKind}-${pausedLabel}`;
+        const prepared = prepareThreeSessionWorkflows(
+          container,
+          workflowKind,
+          pausedProperty,
+        );
+        const race = await exactThreeSessionRace(
+          container,
+          prepared.pausedTable,
+          prepared.pausedScope,
+          prepared.pausedWorkflowSql,
+          prepared.competingWorkflowSql,
+        );
+        const combinedOutput = [race.paused, race.archive, race.competing]
+          .map((session) => `${session.stdout}\n${session.stderr}`)
+          .join("\n");
+
+        assert.doesNotMatch(combinedOutput, /deadlock detected/i, label);
+        assert.equal(race.paused.status, 0, `${label}: ${race.paused.stderr}`);
+        assert.equal(race.archive.status, 0, `${label}: ${race.archive.stderr}`);
+        assert.equal(
+          race.competing.status,
+          1,
+          `${label}: competing workflow unexpectedly committed`,
+        );
+        assert.match(
+          race.competing.stderr,
+          /owner person not found|owner_person_inactive|owner_roster_missing|ownership_roster_changed/i,
+          label,
+        );
+        assert.equal(
+          run(container, `
+            SELECT jsonb_build_array(
+              (SELECT count(*)
+               FROM public.owner_opening_balance_requests AS request
+               WHERE request.organization_id = '${ids.organization}'
+                 AND request.status = 'approved'
+                 AND request.request_kind = 'initial'
+                 AND 1 <> (
+                   SELECT count(*)
+                   FROM public.owner_opening_balance_entries AS entry
+                   WHERE entry.request_id = request.id
+                 )),
+              (SELECT count(*)
+               FROM public.owner_opening_balance_requests AS request
+               WHERE request.organization_id = '${ids.organization}'
+                 AND request.status = 'approved'
+                 AND request.request_kind = 'correction'
+                 AND 2 <> (
+                   SELECT count(*)
+                   FROM public.owner_opening_balance_entries AS entry
+                   WHERE entry.request_id = request.id
+                 ))
+            );
+          `),
+          "[0, 0]",
+          label,
+        );
+      }
+    }
+  } finally {
+    removeOpeningWritePause(container);
     cleanup(container);
   }
 });

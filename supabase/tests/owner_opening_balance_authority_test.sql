@@ -717,6 +717,59 @@ SELECT has_function(
 
 SELECT has_function(
   'app_private',
+  'lock_owner_opening_roster_inputs',
+  ARRAY['uuid', 'uuid', 'date', 'uuid', 'uuid'],
+  'workflow paths share one tuple-before-advisory roster input lock helper'
+);
+
+SELECT is(
+  (
+    SELECT jsonb_build_array(
+      procedure_row.provolatile,
+      procedure_row.prosecdef,
+      owner_role.rolname,
+      procedure_row.proconfig
+    )
+    FROM pg_proc AS procedure_row
+    JOIN pg_roles AS owner_role ON owner_role.oid = procedure_row.proowner
+    WHERE procedure_row.oid = to_regprocedure(
+      'app_private.lock_owner_opening_roster_inputs(uuid,uuid,date,uuid,uuid)'
+    )
+  ),
+  '["v", true, "postgres", ["search_path=\"\""]]'::jsonb,
+  'the roster input helper is volatile, postgres-owned, hardened SECURITY DEFINER code'
+);
+
+SELECT ok(
+  (
+    SELECT
+      pg_catalog.strpos(definition, 'FROM public.properties AS property') > 0
+      AND pg_catalog.strpos(definition, 'FROM public.properties AS property')
+        < pg_catalog.strpos(definition, 'FROM public.property_owners AS assignment')
+      AND pg_catalog.strpos(definition, 'FROM public.property_owners AS assignment')
+        < pg_catalog.strpos(definition, 'FROM public.people AS person')
+      AND pg_catalog.strpos(definition, 'FROM public.people AS person')
+        < pg_catalog.strpos(definition, 'FROM public.person_roles AS owner_role')
+      AND pg_catalog.strpos(definition, 'FROM public.person_roles AS owner_role')
+        < pg_catalog.strpos(
+          definition,
+          'PERFORM app_private.lock_owner_opening_roster_property('
+        )
+      AND (
+        SELECT count(*)
+        FROM pg_catalog.regexp_matches(definition, E'ORDER BY [^;]+FOR SHARE;', 'g')
+      ) = 3
+    FROM (
+      SELECT pg_catalog.pg_get_functiondef(
+        'app_private.lock_owner_opening_roster_inputs(uuid,uuid,date,uuid,uuid)'::regprocedure
+      ) AS definition
+    ) AS helper
+  ),
+  'the helper locks property, assignment, person, and role tuples in stable order before the advisory'
+);
+
+SELECT has_function(
+  'app_private',
   'lock_owner_opening_roster_person',
   ARRAY['uuid', 'uuid'],
   'the shared person roster serialization helper exists'
@@ -803,6 +856,30 @@ SELECT ok(
   AND NOT coalesce(
     has_function_privilege(
       'anon',
+      to_regprocedure('app_private.lock_owner_opening_roster_inputs(uuid,uuid,date,uuid,uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'authenticated',
+      to_regprocedure('app_private.lock_owner_opening_roster_inputs(uuid,uuid,date,uuid,uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'service_role',
+      to_regprocedure('app_private.lock_owner_opening_roster_inputs(uuid,uuid,date,uuid,uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'anon',
       to_regprocedure('app_private.lock_owner_opening_roster_person(uuid,uuid)'),
       'EXECUTE'
     ),
@@ -856,11 +933,15 @@ SELECT ok(
     SELECT bool_and(
       pg_catalog.strpos(
         pg_catalog.pg_get_functiondef(procedure_row.oid),
-        'PERFORM app_private.lock_owner_opening_roster_property('
+        'PERFORM app_private.lock_owner_opening_roster_inputs('
       ) > pg_catalog.strpos(
         pg_catalog.pg_get_functiondef(procedure_row.oid),
         'PERFORM app_private.lock_owner_opening_property_month('
       )
+      AND pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(procedure_row.oid),
+        'PERFORM app_private.lock_owner_opening_roster_property('
+      ) = 0
       AND pg_catalog.strpos(
         pg_catalog.pg_get_functiondef(procedure_row.oid),
         'FOR KEY SHARE'
@@ -876,7 +957,7 @@ SELECT ok(
         'submit_owner_opening_balance_correction'
       )
   ),
-  'every opening snapshot/review path takes the shared roster lock before unlocked validation'
+  'every opening workflow prelocks roster tuples before the shared advisory and validation'
 );
 
 CREATE TEMP TABLE owner_opening_request_fixture (

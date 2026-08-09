@@ -294,6 +294,66 @@ test("all branch text-rewrite constants are invariant in fresh autocrlf sources"
   }
 });
 
+test("owner opening roster prelock rewrites are exact-one and LF/CRLF invariant", () => {
+  const file = "20260809211719_owner_opening_roster_input_prelocks.sql";
+  const lfSource = readMigration(file).replaceAll("\r\n", "\n");
+  const crlfSource = lfSource.replaceAll("\n", "\r\n");
+  const marker = "-- Preserve replay-first and the established property-month lock order";
+  const lfBlock = lfSource.slice(lfSource.indexOf(marker));
+  const crlfBlock = crlfSource.slice(crlfSource.indexOf(marker));
+
+  assert.match(
+    lfBlock,
+    /v_definition := pg_catalog\.replace\(v_definition, E'\\r\\n', E'\\n'\);/,
+  );
+  assert.match(
+    lfBlock,
+    /v_old_lock := pg_catalog\.replace\(v_old_lock, E'\\r\\n', E'\\n'\);/,
+  );
+  assert.match(
+    lfBlock,
+    /v_new_lock := pg_catalog\.replace\(v_new_lock, E'\\r\\n', E'\\n'\);/,
+  );
+  assert.ok(
+    lfBlock.indexOf("v_definition := pg_catalog.replace") <
+      lfBlock.indexOf("v_actual_count := ("),
+    "definition and source constants must normalize before exact-one counting",
+  );
+
+  const lfOldLocks = readAllTaggedConstants(lfBlock, "old");
+  const lfNewLocks = readAllTaggedConstants(lfBlock, "new");
+  const crlfOldLocks = readAllTaggedConstants(crlfBlock, "old");
+  const crlfNewLocks = readAllTaggedConstants(crlfBlock, "new");
+  assert.equal(lfOldLocks.length, 3);
+  assert.equal(lfNewLocks.length, 3);
+  assert.deepEqual(crlfOldLocks, lfOldLocks);
+  assert.deepEqual(crlfNewLocks, lfNewLocks);
+
+  for (let index = 0; index < lfOldLocks.length; index += 1) {
+    const anchor = lfOldLocks[index];
+    const replacement = lfNewLocks[index];
+    const predecessor = [
+      "CREATE OR REPLACE FUNCTION public.example() RETURNS void AS $function$",
+      "BEGIN",
+      anchor,
+      "END;",
+      "$function$ LANGUAGE plpgsql;",
+    ].join("\n");
+    const lfResult = applyBodyRewrites(predecessor, [[anchor, replacement]]);
+    const crlfResult = applyBodyRewrites(
+      predecessor.replaceAll("\n", "\r\n"),
+      [[anchor, replacement]],
+    );
+    assert.deepEqual(lfResult.counts, [1]);
+    assert.deepEqual(crlfResult.counts, [1]);
+    assert.equal(crlfResult.definition, lfResult.definition);
+    assert.throws(
+      () => applyBodyRewrites(`${predecessor}\n${anchor}`, [[anchor, replacement]]),
+      /exactly one anchor, found 2/,
+    );
+  }
+});
+
 test("owner import preserve-path rewrite is token-scoped and newline invariant", () => {
   const ownerMigration = readMigration(
     "20260809122054_owner_opening_ownership_readiness.sql",
@@ -396,6 +456,22 @@ function readNormalizedTaggedLiteral(source, tag) {
     `${tag} must normalize CRLF to LF at use`,
   );
   return source.slice(valueStart, end).replaceAll("\r\n", "\n");
+}
+
+function readAllTaggedConstants(source, tag) {
+  const opening = `$${tag}$`;
+  const values = [];
+  let cursor = 0;
+  while (cursor < source.length) {
+    const start = source.indexOf(opening, cursor);
+    if (start === -1) break;
+    const valueStart = start + opening.length;
+    const end = source.indexOf(opening, valueStart);
+    assert.notEqual(end, -1, `${tag} must close every dollar quote`);
+    values.push(source.slice(valueStart, end).replaceAll("\r\n", "\n"));
+    cursor = end + opening.length;
+  }
+  return values;
 }
 
 function readPlainConstant(source, name) {
