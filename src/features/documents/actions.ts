@@ -18,7 +18,10 @@ type DocumentFieldErrors = {
 };
 
 export type DocumentActionState = {
+  contentSha256?: string;
+  documentId?: string;
   fieldErrors?: DocumentFieldErrors;
+  fileName?: string;
   message?: string;
   status?: "error" | "success";
 };
@@ -193,8 +196,12 @@ export async function createDocumentAction(
     propertyIds: [parsed.data.propertyId],
     unitIds: [unitId],
   });
+  revalidatePath("/balances");
 
   return {
+    contentSha256,
+    documentId,
+    fileName: file.name,
     message: "Document uploaded.",
     status: "success",
   };

@@ -108,6 +108,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canReverseExpense: boolean;
   canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
+  openingAuthority?: ReactNode;
   organizationName: string;
   selectedPropertyId?: string | null;
   view: FinanceOperationsView;
@@ -359,6 +360,7 @@ function getScreen(
         <BalancesView
           canRecordOwnerCash={props.canRecordOwnerCash}
           invoices={props.tenantInvoices}
+          openingAuthority={props.openingAuthority}
           openModal={openModal}
           ownerInvoices={props.ownerInvoices}
           positions={props.positions}
@@ -1182,12 +1184,14 @@ function ExpenseSubmissionTable({
 function BalancesView({
   canRecordOwnerCash,
   invoices,
+  openingAuthority,
   openModal,
   ownerInvoices,
   positions,
 }: {
   canRecordOwnerCash: boolean;
   invoices: TenantInvoiceSummary[];
+  openingAuthority?: ReactNode;
   openModal: (modal: ModalState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
   positions: PropertyFinancePosition[];
@@ -1214,11 +1218,28 @@ function BalancesView({
   }, [invoices]);
 
   return (
-    <Tabs
-      className="h-full min-h-0 gap-0 bg-background"
-      onValueChange={(value) => setTab(value as "owners" | "tenants")}
-      value={tab}
-    >
+    <div className="h-full min-h-0 overflow-auto bg-background">
+      {openingAuthority}
+      <section
+        aria-labelledby="current-balance-projection-heading"
+        className="min-h-[420px]"
+      >
+        <div className="border-b px-4 py-3 sm:px-6">
+          <h2
+            className="text-base font-semibold"
+            id="current-balance-projection-heading"
+          >
+            Current balance projection
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Operational view only. This is not an official owner statement.
+          </p>
+        </div>
+        <Tabs
+          className="min-h-0 gap-0 bg-background"
+          onValueChange={(value) => setTab(value as "owners" | "tenants")}
+          value={tab}
+        >
       <TabsList
         className="h-11 w-full shrink-0 justify-start rounded-none border-b px-4 sm:px-6"
         variant="line"
@@ -1345,7 +1366,9 @@ function BalancesView({
           </Table>
         </TableFrame>
       </TabsContent>
-    </Tabs>
+        </Tabs>
+      </section>
+    </div>
   );
 }
 

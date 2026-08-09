@@ -106,11 +106,15 @@ describe("document fingerprint actions", () => {
 
   it("hashes exact file bytes before upload and passes the lowercase hash to checked create", async () => {
     await expect(createDocumentAction({}, documentForm(evidenceFile()))).resolves.toEqual({
+      contentSha256: fileHash,
+      documentId: generatedId,
+      fileName: "opening.pdf",
       message: "Document uploaded.",
       status: "success",
     });
 
     expect(mocks.upload).toHaveBeenCalledOnce();
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/balances");
     expect(mocks.rpc).toHaveBeenCalledWith(
       "create_document",
       expect.objectContaining({
