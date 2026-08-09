@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(47);
+SELECT plan(55);
 
 SELECT ok(
   EXISTS (
@@ -62,6 +62,14 @@ SELECT has_function('app_private', 'can_review_expense', ARRAY['uuid'], 'expense
 SELECT has_function('app_private', 'can_reverse_expense', ARRAY['uuid'], 'expense-reversal capability exists');
 SELECT has_function('app_private', 'can_manage_operations', ARRAY['uuid'], 'operations-management capability exists');
 SELECT has_function('app_private', 'can_execute_operations', ARRAY['uuid'], 'operations-execution capability exists');
+SELECT has_function('app_private', 'can_operate_finance', ARRAY['uuid'], 'ordinary Finance operation capability exists');
+SELECT has_function('app_private', 'can_manage_petty_cash', ARRAY['uuid'], 'Petty Cash operation capability exists');
+SELECT has_function('app_private', 'can_manage_reconciliation_sources', ARRAY['uuid'], 'reconciliation-source configuration capability exists');
+SELECT has_function('app_private', 'can_retry_current_rent', ARRAY['uuid'], 'current-rent retry capability exists');
+SELECT has_function('app_private', 'can_lock_financial_month', ARRAY['uuid'], 'financial-month lock capability exists');
+SELECT has_function('app_private', 'can_unlock_financial_month', ARRAY['uuid'], 'financial-month unlock capability exists');
+SELECT has_function('app_private', 'can_read_finance_reports', ARRAY['uuid'], 'Finance report-read capability exists');
+SELECT has_function('app_private', 'can_correct_finance', ARRAY['uuid'], 'Finance correction capability exists');
 SELECT has_function(
   'app_private',
   'workspace_role_scope_is_valid',
@@ -78,7 +86,15 @@ SELECT ok(
   AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_review_expense(uuid)'), 'EXECUTE'), false)
   AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_reverse_expense(uuid)'), 'EXECUTE'), false)
   AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_manage_operations(uuid)'), 'EXECUTE'), false)
-  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_execute_operations(uuid)'), 'EXECUTE'), false),
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_execute_operations(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_operate_finance(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_manage_petty_cash(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_manage_reconciliation_sources(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_retry_current_rent(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_lock_financial_month(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_unlock_financial_month(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_read_finance_reports(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_correct_finance(uuid)'), 'EXECUTE'), false),
   'capability helpers are not executable through default PUBLIC grants'
 );
 
@@ -91,7 +107,15 @@ SELECT ok(
   AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_review_expense(uuid)'), 'EXECUTE'), false)
   AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_reverse_expense(uuid)'), 'EXECUTE'), false)
   AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_manage_operations(uuid)'), 'EXECUTE'), false)
-  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_execute_operations(uuid)'), 'EXECUTE'), false),
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_execute_operations(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_operate_finance(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_manage_petty_cash(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_manage_reconciliation_sources(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_retry_current_rent(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_lock_financial_month(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_unlock_financial_month(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_read_finance_reports(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_correct_finance(uuid)'), 'EXECUTE'), false),
   'authenticated RLS evaluation can execute every capability helper'
 );
 

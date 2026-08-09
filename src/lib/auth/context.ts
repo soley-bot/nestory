@@ -42,6 +42,10 @@ type FinanceRole = Extract<
   WorkspaceRole,
   "super_admin" | "finance_manager" | "finance_member"
 >;
+type FinanceManagerRole = Extract<
+  WorkspaceRole,
+  "super_admin" | "finance_manager"
+>;
 type OperationsRole = Extract<
   WorkspaceRole,
   "super_admin" | "operations_manager" | "operations_member"
@@ -212,6 +216,48 @@ export const requireFinanceReviewContext = cache(async () =>
 
 export const requireFinanceReversalContext = cache(async () =>
   requireCapability("canReverseExpense").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
+export const requireFinanceOperationContext = cache(async () =>
+  requireCapability("canOperateFinance").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireFinancePettyCashContext = cache(async () =>
+  requireCapability("canManagePettyCash").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireFinanceReportContext = cache(async () =>
+  requireCapability("canReadFinanceReports").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireCurrentRentRetryContext = cache(async () =>
+  requireCapability("canRetryCurrentRent").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireFinancialMonthLockContext = cache(async () =>
+  requireCapability("canLockFinancialMonth").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireFinancialMonthUnlockContext = cache(async () =>
+  requireCapability("canUnlockFinancialMonth").then((context) => ({
     ...context,
     role: context.role as "super_admin",
   })),

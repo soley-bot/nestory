@@ -43,4 +43,86 @@ describe("workspace role capabilities", () => {
       capabilities.canExecuteOperations,
     ]).toEqual(expected);
   });
+
+  it.each<[WorkspaceRole, Record<string, boolean>]>([
+    [
+      "super_admin",
+      {
+        canCorrectFinance: true,
+        canLockFinancialMonth: true,
+        canManagePettyCash: true,
+        canManageReconciliationSources: true,
+        canOperateFinance: true,
+        canReadFinanceReports: true,
+        canRetryCurrentRent: true,
+        canUnlockFinancialMonth: true,
+      },
+    ],
+    [
+      "finance_manager",
+      {
+        canCorrectFinance: false,
+        canLockFinancialMonth: true,
+        canManagePettyCash: true,
+        canManageReconciliationSources: false,
+        canOperateFinance: true,
+        canReadFinanceReports: true,
+        canRetryCurrentRent: true,
+        canUnlockFinancialMonth: false,
+      },
+    ],
+    [
+      "finance_member",
+      {
+        canCorrectFinance: false,
+        canLockFinancialMonth: false,
+        canManagePettyCash: false,
+        canManageReconciliationSources: false,
+        canOperateFinance: false,
+        canReadFinanceReports: false,
+        canRetryCurrentRent: false,
+        canUnlockFinancialMonth: false,
+      },
+    ],
+    [
+      "operations_manager",
+      {
+        canCorrectFinance: false,
+        canLockFinancialMonth: false,
+        canManagePettyCash: false,
+        canManageReconciliationSources: false,
+        canOperateFinance: false,
+        canReadFinanceReports: false,
+        canRetryCurrentRent: false,
+        canUnlockFinancialMonth: false,
+      },
+    ],
+    [
+      "operations_member",
+      {
+        canCorrectFinance: false,
+        canLockFinancialMonth: false,
+        canManagePettyCash: false,
+        canManageReconciliationSources: false,
+        canOperateFinance: false,
+        canReadFinanceReports: false,
+        canRetryCurrentRent: false,
+        canUnlockFinancialMonth: false,
+      },
+    ],
+  ])("maps %s to the granular finance authority matrix", (role, expected) => {
+    expect(getWorkspaceCapabilities(role)).toMatchObject(expected);
+  });
+
+  it("keeps Finance Manager outside paid-cost submission and structural or correction authority", () => {
+    expect(getWorkspaceCapabilities("finance_manager")).toMatchObject({
+      canConfigureLeases: false,
+      canCorrectFinance: false,
+      canManageAccess: false,
+      canManageReconciliationSources: false,
+      canReverseExpense: false,
+      canSubmitExpense: false,
+      canUnlockFinancialMonth: false,
+    });
+  });
 });
