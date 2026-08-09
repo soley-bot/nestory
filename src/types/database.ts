@@ -530,7 +530,6 @@ type RpcFunctionOverrides = {
       p_notes: string | null;
       p_organization_id: string;
       p_owner: string | null;
-      p_owner_mode: "replace";
       p_owner_ownership_percent: string | null;
       p_owner_person_id?: string | null;
       p_owner_started_on: string | null;

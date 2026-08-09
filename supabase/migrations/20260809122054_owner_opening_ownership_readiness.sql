@@ -49,6 +49,13 @@ AS $$
     SELECT p.organization_id, p.id AS property_id
     FROM public.properties AS p
     WHERE p.archived_at IS NULL
+    UNION
+    SELECT p.organization_id, p.id
+    FROM public.properties AS p
+    JOIN public.property_owners AS po
+      ON po.organization_id = p.organization_id
+     AND po.property_id = p.id
+     AND po.archived_at IS NULL
   ),
   owners AS (
     SELECT
@@ -101,10 +108,9 @@ AS $$
       o.started_on, o.ended_on, o.person_archived_at, o.has_active_owner_role
     FROM boundaries AS b
     JOIN owners AS o
-      ON o.organization_id = b.organization_id
+     ON o.organization_id = b.organization_id
      AND o.property_id = b.property_id
      AND o.started_on IS NOT NULL
-     AND o.ownership_percent IS NOT NULL
      AND o.started_on <= b.boundary_date
      AND (o.ended_on IS NULL OR b.boundary_date < o.ended_on)
   ),
@@ -115,13 +121,18 @@ AS $$
       coalesce(sum(a.ownership_percent), 0)::numeric(9,3) AS ownership_percent_total,
       coalesce(array_agg(a.property_owner_id ORDER BY lower(a.property_owner_id::text))
         FILTER (WHERE a.property_owner_id IS NOT NULL), ARRAY[]::uuid[]) AS property_owner_ids,
+      coalesce(array_agg(a.property_owner_id ORDER BY lower(a.property_owner_id::text))
+        FILTER (WHERE a.ownership_percent IS NULL), ARRAY[]::uuid[]) AS share_missing_ids,
+      coalesce(array_agg(a.property_owner_id ORDER BY lower(a.property_owner_id::text))
+        FILTER (WHERE a.ownership_percent IS NOT NULL AND (a.ownership_percent <= 0 OR a.ownership_percent > 100)), ARRAY[]::uuid[]) AS share_invalid_ids,
+      coalesce(array_agg(a.property_owner_id ORDER BY lower(a.property_owner_id::text))
+        FILTER (WHERE a.person_archived_at IS NOT NULL OR NOT a.has_active_owner_role), ARRAY[]::uuid[]) AS inactive_owner_ids,
       string_agg(
         lower(a.property_owner_id::text) || '|' || lower(a.owner_person_id::text) || '|' ||
         to_char(a.ownership_percent, 'FM990.000') || '|' || to_char(a.started_on, 'YYYY-MM-DD') || '|' ||
         coalesce(to_char(a.ended_on, 'YYYY-MM-DD'), ''),
         E'\n' ORDER BY lower(a.property_owner_id::text)
       ) AS canonical_roster,
-      bool_or(a.person_archived_at IS NOT NULL OR NOT a.has_active_owner_role) AS has_inactive_owner,
       count(a.property_owner_id) <> count(DISTINCT a.owner_person_id) AS has_overlap
     FROM boundaries AS b
     LEFT JOIN active AS a
@@ -130,60 +141,91 @@ AS $$
      AND a.boundary_date = b.boundary_date
     GROUP BY b.organization_id, b.property_id, b.boundary_date, b.next_boundary_date
   ),
-  boundary_issue_sets AS (
-    SELECT
-      s.*,
-      array_remove(ARRAY[
-        CASE WHEN s.active_owner_count = 0 THEN 'owner_roster_missing' END,
-        CASE WHEN s.active_owner_count > 0 AND s.ownership_percent_total <> 100.000 THEN 'owner_share_total_not_100' END,
-        CASE WHEN coalesce(s.has_inactive_owner, false) THEN 'owner_person_inactive' END,
-        CASE WHEN coalesce(s.has_overlap, false) THEN 'owner_interval_overlap' END
-      ], NULL)::text[] AS issue_codes
+  boundary_issues AS (
+    SELECT s.organization_id, s.property_id, s.boundary_date,
+      'owner_roster_missing'::text AS issue_code, ARRAY[]::uuid[] AS property_owner_ids
+    FROM summaries AS s WHERE s.active_owner_count = 0
+    UNION ALL
+    SELECT s.organization_id, s.property_id, s.boundary_date,
+      'owner_share_missing', s.share_missing_ids
+    FROM summaries AS s WHERE cardinality(s.share_missing_ids) > 0
+    UNION ALL
+    SELECT s.organization_id, s.property_id, s.boundary_date,
+      'owner_share_invalid', s.share_invalid_ids
+    FROM summaries AS s WHERE cardinality(s.share_invalid_ids) > 0
+    UNION ALL
+    SELECT s.organization_id, s.property_id, s.boundary_date,
+      'owner_share_total_not_100', s.property_owner_ids
     FROM summaries AS s
+    WHERE s.active_owner_count > 0 AND s.ownership_percent_total <> 100.000
+    UNION ALL
+    SELECT s.organization_id, s.property_id, s.boundary_date,
+      'owner_person_inactive', s.inactive_owner_ids
+    FROM summaries AS s WHERE cardinality(s.inactive_owner_ids) > 0
+    UNION ALL
+    SELECT s.organization_id, s.property_id, s.boundary_date,
+      'owner_interval_overlap', s.property_owner_ids
+    FROM summaries AS s WHERE s.has_overlap
   ),
-  boundary_rows AS (
-    SELECT
-      s.organization_id,
-      s.property_id,
-      s.boundary_date,
-      s.next_boundary_date,
-      issue.issue_code,
-      s.property_owner_ids,
-      s.active_owner_count,
-      s.ownership_percent_total,
-      CASE WHEN issue.issue_code IS NULL THEN s.canonical_roster ELSE NULL END AS canonical_roster,
-      CASE WHEN issue.issue_code IS NULL AND s.canonical_roster IS NOT NULL
-        THEN encode(extensions.digest(s.canonical_roster, 'sha256'), 'hex') ELSE NULL END AS ownership_roster_hash
-    FROM boundary_issue_sets AS s
-    LEFT JOIN LATERAL unnest(
-      CASE WHEN cardinality(s.issue_codes) = 0 THEN ARRAY[NULL::text] ELSE s.issue_codes END
-    ) AS issue(issue_code) ON true
-  ),
-  intrinsic_rows AS (
+  intrinsic_issue_sources AS (
     SELECT
       o.organization_id,
       o.property_id,
       p_cutover_date AS boundary_date,
-      NULL::date AS next_boundary_date,
       issue.issue_code,
-      ARRAY[o.property_owner_id]::uuid[] AS property_owner_ids,
-      0::integer AS active_owner_count,
-      0::numeric(9,3) AS ownership_percent_total,
-      NULL::text AS canonical_roster,
-      NULL::text AS ownership_roster_hash
+      o.property_owner_id
     FROM owners AS o
     CROSS JOIN LATERAL unnest(array_remove(ARRAY[
       CASE WHEN o.started_on IS NULL THEN 'owner_start_missing' END,
-      CASE WHEN o.ownership_percent IS NULL THEN 'owner_share_missing' END,
+      CASE WHEN o.ownership_percent IS NULL
+        AND (o.started_on IS NULL OR (o.ended_on IS NOT NULL AND o.ended_on <= o.started_on))
+        THEN 'owner_share_missing' END,
       CASE WHEN o.ownership_percent IS NOT NULL AND (o.ownership_percent <= 0 OR o.ownership_percent > 100)
+        AND (o.started_on IS NULL OR (o.ended_on IS NOT NULL AND o.ended_on <= o.started_on))
         THEN 'owner_share_invalid' END,
       CASE WHEN o.started_on IS NOT NULL AND o.ended_on IS NOT NULL AND o.ended_on <= o.started_on
         THEN 'owner_interval_invalid' END
     ], NULL)) AS issue(issue_code)
+  ),
+  intrinsic_issues AS (
+    SELECT organization_id, property_id, boundary_date, issue_code,
+      array_agg(property_owner_id ORDER BY lower(property_owner_id::text)) AS property_owner_ids
+    FROM intrinsic_issue_sources
+    GROUP BY organization_id, property_id, boundary_date, issue_code
+  ),
+  all_issues AS (
+    SELECT * FROM boundary_issues
+    UNION ALL
+    SELECT * FROM intrinsic_issues
+  ),
+  issue_rows AS (
+    SELECT
+      s.organization_id, s.property_id, s.boundary_date, s.next_boundary_date,
+      i.issue_code, i.property_owner_ids, s.active_owner_count, s.ownership_percent_total,
+      NULL::text AS canonical_roster, NULL::text AS ownership_roster_hash
+    FROM all_issues AS i
+    JOIN summaries AS s
+      ON s.organization_id = i.organization_id
+     AND s.property_id = i.property_id
+     AND s.boundary_date = i.boundary_date
+  ),
+  ready_rows AS (
+    SELECT
+      s.organization_id, s.property_id, s.boundary_date, s.next_boundary_date,
+      NULL::text AS issue_code, s.property_owner_ids, s.active_owner_count, s.ownership_percent_total,
+      s.canonical_roster,
+      encode(extensions.digest(s.canonical_roster, 'sha256'), 'hex') AS ownership_roster_hash
+    FROM summaries AS s
+    WHERE NOT EXISTS (
+      SELECT 1 FROM all_issues AS i
+      WHERE i.organization_id = s.organization_id
+        AND i.property_id = s.property_id
+        AND i.boundary_date = s.boundary_date
+    )
   )
-  SELECT * FROM boundary_rows
+  SELECT * FROM ready_rows
   UNION ALL
-  SELECT * FROM intrinsic_rows
+  SELECT * FROM issue_rows
   ORDER BY organization_id, property_id, boundary_date, issue_code NULLS FIRST, property_owner_ids;
 $$;
 
@@ -247,7 +289,7 @@ RETURNS TABLE (
   ownership_percent numeric(6,3),
   started_on date,
   ended_on date,
-  roster_hash text
+  ownership_roster_hash text
 )
 LANGUAGE plpgsql
 STABLE
@@ -545,7 +587,7 @@ CREATE FUNCTION public.update_property(
   p_property_id uuid, p_organization_id uuid, p_name text, p_code text,
   p_property_type text, p_owner text, p_address text, p_status text,
   p_acquisition_date date, p_notes text, p_owner_person_id uuid,
-  p_owner_started_on date, p_owner_ownership_percent numeric, p_owner_mode text
+  p_owner_started_on date, p_owner_ownership_percent numeric
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -568,13 +610,6 @@ BEGIN
   IF normalized_code = '' OR length(normalized_code) > 24 THEN RAISE EXCEPTION 'Property code is invalid' USING ERRCODE = '22023'; END IF;
   IF normalized_type = '' OR length(normalized_type) > 80 THEN RAISE EXCEPTION 'Property type is invalid' USING ERRCODE = '22023'; END IF;
   IF normalized_status NOT IN ('active', 'under_renovation', 'inactive') THEN RAISE EXCEPTION 'Property status is not supported' USING ERRCODE = '22023'; END IF;
-  IF p_owner_mode NOT IN ('replace', 'preserve') THEN RAISE EXCEPTION 'Property owner mode is not supported' USING ERRCODE = '22023'; END IF;
-  IF p_owner_mode = 'preserve'
-    AND (p_owner_person_id IS NOT NULL OR p_owner_started_on IS NOT NULL OR p_owner_ownership_percent IS NOT NULL)
-  THEN
-    RAISE EXCEPTION 'Preserve-owner mode cannot carry replacement ownership facts' USING ERRCODE = '22023';
-  END IF;
-
   UPDATE public.properties SET
     name = normalized_name, code = normalized_code, property_type = normalized_type,
     owner = nullif(trim(coalesce(p_owner, '')), ''), address = nullif(trim(coalesce(p_address, '')), ''),
@@ -582,25 +617,23 @@ BEGIN
     notes = nullif(trim(coalesce(p_notes, '')), ''), updated_by = auth.uid()
   WHERE id = p_property_id;
 
-  IF p_owner_mode = 'replace' THEN
-    PERFORM app_private.sync_property_primary_owner(
-      p_organization_id, p_property_id, p_owner_person_id, p_owner_started_on, p_owner_ownership_percent
-    );
-  END IF;
+  PERFORM app_private.sync_property_primary_owner(
+    p_organization_id, p_property_id, p_owner_person_id, p_owner_started_on, p_owner_ownership_percent
+  );
   INSERT INTO public.activity_logs (organization_id, actor_id, entity_type, entity_id, action, previous_values, new_values)
   VALUES (p_organization_id, auth.uid(), 'property', p_property_id, 'property_updated',
     to_jsonb(old_property), jsonb_build_object('name', normalized_name, 'code', normalized_code,
       'owner_person_id', p_owner_person_id, 'owner_started_on', p_owner_started_on,
-      'owner_ownership_percent', p_owner_ownership_percent, 'owner_mode', p_owner_mode));
+      'owner_ownership_percent', p_owner_ownership_percent));
   RETURN p_property_id;
 END;
 $$;
 
-ALTER FUNCTION public.update_property(uuid, uuid, text, text, text, text, text, text, date, text, uuid, date, numeric, text) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.update_property(uuid, uuid, text, text, text, text, text, text, date, text, uuid, date, numeric, text) FROM PUBLIC, anon, service_role;
-GRANT EXECUTE ON FUNCTION public.update_property(uuid, uuid, text, text, text, text, text, text, date, text, uuid, date, numeric, text) TO authenticated;
+ALTER FUNCTION public.update_property(uuid, uuid, text, text, text, text, text, text, date, text, uuid, date, numeric) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.update_property(uuid, uuid, text, text, text, text, text, text, date, text, uuid, date, numeric) FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.update_property(uuid, uuid, text, text, text, text, text, text, date, text, uuid, date, numeric) TO authenticated;
 
-CREATE FUNCTION public.update_property(
+CREATE FUNCTION app_private.update_property_preserving_ownership_for_import(
   p_property_id uuid, p_organization_id uuid, p_name text, p_code text,
   p_property_type text, p_owner text, p_address text, p_status text,
   p_acquisition_date date, p_notes text, p_owner_person_id uuid
@@ -610,19 +643,62 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  old_property public.properties%ROWTYPE;
+  normalized_name text := trim(coalesce(p_name, ''));
+  normalized_code text := upper(trim(coalesce(p_code, '')));
+  normalized_type text := trim(coalesce(p_property_type, ''));
+  normalized_status text := lower(trim(coalesce(p_status, '')));
 BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000'; END IF;
+  IF NOT app_private.is_org_admin(p_organization_id) THEN RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501'; END IF;
   IF p_owner_person_id IS NOT NULL THEN
-    RAISE EXCEPTION 'Legacy import compatibility accepts only a null owner and preserves existing ownership'
+    RAISE EXCEPTION 'Import preserve-owner path cannot carry replacement ownership facts'
       USING ERRCODE = '22023';
   END IF;
-  RETURN public.update_property(
-    p_property_id, p_organization_id, p_name, p_code, p_property_type,
-    p_owner, p_address, p_status, p_acquisition_date, p_notes,
-    NULL::uuid, NULL::date, NULL::numeric, 'preserve'::text
-  );
+  SELECT * INTO old_property FROM public.properties
+  WHERE id = p_property_id AND organization_id = p_organization_id AND archived_at IS NULL FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Property not found' USING ERRCODE = '23503'; END IF;
+  IF normalized_name = '' OR length(normalized_name) > 120 THEN RAISE EXCEPTION 'Property name is invalid' USING ERRCODE = '22023'; END IF;
+  IF normalized_code = '' OR length(normalized_code) > 24 THEN RAISE EXCEPTION 'Property code is invalid' USING ERRCODE = '22023'; END IF;
+  IF normalized_type = '' OR length(normalized_type) > 80 THEN RAISE EXCEPTION 'Property type is invalid' USING ERRCODE = '22023'; END IF;
+  IF normalized_status NOT IN ('active', 'under_renovation', 'inactive') THEN RAISE EXCEPTION 'Property status is not supported' USING ERRCODE = '22023'; END IF;
+
+  UPDATE public.properties SET
+    name = normalized_name, code = normalized_code, property_type = normalized_type,
+    owner = nullif(trim(coalesce(p_owner, '')), ''), address = nullif(trim(coalesce(p_address, '')), ''),
+    status = normalized_status, acquisition_date = p_acquisition_date,
+    notes = nullif(trim(coalesce(p_notes, '')), ''), updated_by = auth.uid()
+  WHERE id = p_property_id;
+
+  INSERT INTO public.activity_logs (organization_id, actor_id, entity_type, entity_id, action, previous_values, new_values)
+  VALUES (p_organization_id, auth.uid(), 'property', p_property_id, 'property_updated',
+    to_jsonb(old_property), jsonb_build_object('name', normalized_name, 'code', normalized_code,
+      'owner_mode', 'preserve_import'));
+  RETURN p_property_id;
 END;
 $$;
 
-ALTER FUNCTION public.update_property(uuid, uuid, text, text, text, text, text, text, date, text, uuid) OWNER TO postgres;
-REVOKE ALL ON FUNCTION public.update_property(uuid, uuid, text, text, text, text, text, text, date, text, uuid) FROM PUBLIC, anon, service_role;
-GRANT EXECUTE ON FUNCTION public.update_property(uuid, uuid, text, text, text, text, text, text, date, text, uuid) TO authenticated;
+ALTER FUNCTION app_private.update_property_preserving_ownership_for_import(uuid, uuid, text, text, text, text, text, text, date, text, uuid) OWNER TO postgres;
+REVOKE ALL ON FUNCTION app_private.update_property_preserving_ownership_for_import(uuid, uuid, text, text, text, text, text, text, date, text, uuid) FROM PUBLIC, anon, authenticated, service_role;
+
+-- Preserve existing ownership during property import without a public compatibility overload.
+DO $$
+DECLARE
+  v_definition text;
+  v_old_token constant text := 'public.update_property(';
+  v_new_token constant text := 'app_private.update_property_preserving_ownership_for_import(';
+BEGIN
+  SELECT pg_get_functiondef('public.commit_generic_import_run_internal(uuid,uuid)'::regprocedure)
+  INTO v_definition;
+  v_definition := replace(v_definition, E'\r\n', E'\n');
+  IF (length(v_definition) - length(replace(v_definition, v_old_token, ''))) / length(v_old_token) <> 1 THEN
+    RAISE EXCEPTION 'Unexpected predecessor definition: public.commit_generic_import_run_internal property update call';
+  END IF;
+  v_definition := replace(v_definition, v_old_token, v_new_token);
+  EXECUTE v_definition;
+END;
+$$;
+
+ALTER FUNCTION public.commit_generic_import_run_internal(uuid, uuid) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.commit_generic_import_run_internal(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;

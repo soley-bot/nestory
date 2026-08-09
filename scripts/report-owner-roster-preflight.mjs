@@ -61,11 +61,31 @@ export function buildReport(rows, cutoverDate) {
 
 export function remediationManifestPayload({ projectRef, report }) {
   return {
-    contractVersion: "owner_roster_remediation_v1",
+    contractVersion: "owner_roster_remediation_v2",
     projectRef,
     cutoverDate: report.cutoverDate,
     preflightReportHash: report.reportHash,
     issueRowCount: report.issueRowCount,
+    issues: report.rows
+      .filter((row) => row.issueCode !== null)
+      .map((row) => {
+        const identity = normalizedIssueIdentity(row);
+        return {
+          ...identity,
+          issueIdentityHash: sha256(JSON.stringify(identity)),
+          decision: null,
+        };
+      }),
+  };
+}
+
+function normalizedIssueIdentity(row) {
+  return {
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    boundaryDate: row.boundaryDate,
+    issueCode: row.issueCode,
+    propertyOwnerIds: [...row.propertyOwnerIds].sort((left, right) => left.localeCompare(right)),
   };
 }
 
@@ -81,6 +101,13 @@ relevant_properties AS (
   FROM public.properties AS p CROSS JOIN params
   WHERE p.archived_at IS NULL
     AND (params.organization_id IS NULL OR p.organization_id = params.organization_id)
+  UNION
+  SELECT p.organization_id, p.id
+  FROM public.properties AS p
+  JOIN public.property_owners AS po
+    ON po.organization_id = p.organization_id AND po.property_id = p.id AND po.archived_at IS NULL
+  CROSS JOIN params
+  WHERE params.organization_id IS NULL OR p.organization_id = params.organization_id
 ),
 owners AS (
   SELECT po.organization_id, po.property_id, po.id AS property_owner_id,
@@ -109,8 +136,8 @@ active AS (
     o.property_owner_id, o.owner_person_id, o.ownership_percent, o.started_on, o.ended_on,
     o.person_archived_at, o.has_active_owner_role
   FROM boundaries AS b JOIN owners AS o
-    ON o.organization_id = b.organization_id AND o.property_id = b.property_id
-   AND o.started_on IS NOT NULL AND o.ownership_percent IS NOT NULL
+   ON o.organization_id = b.organization_id AND o.property_id = b.property_id
+   AND o.started_on IS NOT NULL
    AND o.started_on <= b.boundary_date AND (o.ended_on IS NULL OR b.boundary_date < o.ended_on)
 ),
 summaries AS (
@@ -119,48 +146,83 @@ summaries AS (
     coalesce(sum(a.ownership_percent), 0)::numeric(9,3) AS ownership_percent_total,
     coalesce(array_agg(a.property_owner_id ORDER BY lower(a.property_owner_id::text))
       FILTER (WHERE a.property_owner_id IS NOT NULL), ARRAY[]::uuid[]) AS property_owner_ids,
+    coalesce(array_agg(a.property_owner_id ORDER BY lower(a.property_owner_id::text))
+      FILTER (WHERE a.ownership_percent IS NULL), ARRAY[]::uuid[]) AS share_missing_ids,
+    coalesce(array_agg(a.property_owner_id ORDER BY lower(a.property_owner_id::text))
+      FILTER (WHERE a.ownership_percent IS NOT NULL AND (a.ownership_percent <= 0 OR a.ownership_percent > 100)), ARRAY[]::uuid[]) AS share_invalid_ids,
+    coalesce(array_agg(a.property_owner_id ORDER BY lower(a.property_owner_id::text))
+      FILTER (WHERE a.person_archived_at IS NOT NULL OR NOT a.has_active_owner_role), ARRAY[]::uuid[]) AS inactive_owner_ids,
     string_agg(lower(a.property_owner_id::text) || '|' || lower(a.owner_person_id::text) || '|' ||
       to_char(a.ownership_percent, 'FM990.000') || '|' || to_char(a.started_on, 'YYYY-MM-DD') || '|' ||
       coalesce(to_char(a.ended_on, 'YYYY-MM-DD'), ''), E'\n' ORDER BY lower(a.property_owner_id::text)) AS canonical_roster,
-    bool_or(a.person_archived_at IS NOT NULL OR NOT a.has_active_owner_role) AS has_inactive_owner,
     count(a.property_owner_id) <> count(DISTINCT a.owner_person_id) AS has_overlap
   FROM boundaries AS b LEFT JOIN active AS a
     ON a.organization_id = b.organization_id AND a.property_id = b.property_id AND a.boundary_date = b.boundary_date
   GROUP BY b.organization_id, b.property_id, b.boundary_date, b.next_boundary_date
 ),
-boundary_issue_sets AS (
-  SELECT s.*, array_remove(ARRAY[
-    CASE WHEN active_owner_count = 0 THEN 'owner_roster_missing' END,
-    CASE WHEN active_owner_count > 0 AND ownership_percent_total <> 100.000 THEN 'owner_share_total_not_100' END,
-    CASE WHEN coalesce(has_inactive_owner, false) THEN 'owner_person_inactive' END,
-    CASE WHEN coalesce(has_overlap, false) THEN 'owner_interval_overlap' END
-  ], NULL)::text[] AS issue_codes FROM summaries AS s
+boundary_issues AS (
+  SELECT s.organization_id, s.property_id, s.boundary_date,
+    'owner_roster_missing'::text AS issue_code, ARRAY[]::uuid[] AS property_owner_ids
+  FROM summaries AS s WHERE s.active_owner_count = 0
+  UNION ALL
+  SELECT s.organization_id, s.property_id, s.boundary_date, 'owner_share_missing', s.share_missing_ids
+  FROM summaries AS s WHERE cardinality(s.share_missing_ids) > 0
+  UNION ALL
+  SELECT s.organization_id, s.property_id, s.boundary_date, 'owner_share_invalid', s.share_invalid_ids
+  FROM summaries AS s WHERE cardinality(s.share_invalid_ids) > 0
+  UNION ALL
+  SELECT s.organization_id, s.property_id, s.boundary_date, 'owner_share_total_not_100', s.property_owner_ids
+  FROM summaries AS s WHERE s.active_owner_count > 0 AND s.ownership_percent_total <> 100.000
+  UNION ALL
+  SELECT s.organization_id, s.property_id, s.boundary_date, 'owner_person_inactive', s.inactive_owner_ids
+  FROM summaries AS s WHERE cardinality(s.inactive_owner_ids) > 0
+  UNION ALL
+  SELECT s.organization_id, s.property_id, s.boundary_date, 'owner_interval_overlap', s.property_owner_ids
+  FROM summaries AS s WHERE s.has_overlap
 ),
-boundary_rows AS (
-  SELECT s.organization_id, s.property_id, s.boundary_date, s.next_boundary_date,
-    issue.issue_code, s.property_owner_ids, s.active_owner_count, s.ownership_percent_total,
-    CASE WHEN issue.issue_code IS NULL THEN s.canonical_roster ELSE NULL END AS canonical_roster,
-    CASE WHEN issue.issue_code IS NULL AND s.canonical_roster IS NOT NULL
-      THEN encode(extensions.digest(s.canonical_roster, 'sha256'), 'hex') ELSE NULL END AS ownership_roster_hash
-  FROM boundary_issue_sets AS s
-  LEFT JOIN LATERAL unnest(CASE WHEN cardinality(s.issue_codes) = 0 THEN ARRAY[NULL::text] ELSE s.issue_codes END)
-    AS issue(issue_code) ON true
-),
-intrinsic_rows AS (
-  SELECT o.organization_id, o.property_id, params.cutover_date AS boundary_date, NULL::date AS next_boundary_date,
-    issue.issue_code, ARRAY[o.property_owner_id]::uuid[] AS property_owner_ids,
-    0::integer AS active_owner_count, 0::numeric(9,3) AS ownership_percent_total,
-    NULL::text AS canonical_roster, NULL::text AS ownership_roster_hash
+intrinsic_issue_sources AS (
+  SELECT o.organization_id, o.property_id, params.cutover_date AS boundary_date,
+    issue.issue_code, o.property_owner_id
   FROM owners AS o CROSS JOIN params
   CROSS JOIN LATERAL unnest(array_remove(ARRAY[
     CASE WHEN o.started_on IS NULL THEN 'owner_start_missing' END,
-    CASE WHEN o.ownership_percent IS NULL THEN 'owner_share_missing' END,
-    CASE WHEN o.ownership_percent IS NOT NULL AND (o.ownership_percent <= 0 OR o.ownership_percent > 100) THEN 'owner_share_invalid' END,
+    CASE WHEN o.ownership_percent IS NULL
+      AND (o.started_on IS NULL OR (o.ended_on IS NOT NULL AND o.ended_on <= o.started_on))
+      THEN 'owner_share_missing' END,
+    CASE WHEN o.ownership_percent IS NOT NULL AND (o.ownership_percent <= 0 OR o.ownership_percent > 100)
+      AND (o.started_on IS NULL OR (o.ended_on IS NOT NULL AND o.ended_on <= o.started_on))
+      THEN 'owner_share_invalid' END,
     CASE WHEN o.started_on IS NOT NULL AND o.ended_on IS NOT NULL AND o.ended_on <= o.started_on THEN 'owner_interval_invalid' END
   ], NULL)) AS issue(issue_code)
 ),
+intrinsic_issues AS (
+  SELECT organization_id, property_id, boundary_date, issue_code,
+    array_agg(property_owner_id ORDER BY lower(property_owner_id::text)) AS property_owner_ids
+  FROM intrinsic_issue_sources
+  GROUP BY organization_id, property_id, boundary_date, issue_code
+),
+all_issues AS (
+  SELECT * FROM boundary_issues UNION ALL SELECT * FROM intrinsic_issues
+),
+issue_rows AS (
+  SELECT s.organization_id, s.property_id, s.boundary_date, s.next_boundary_date,
+    i.issue_code, i.property_owner_ids, s.active_owner_count, s.ownership_percent_total,
+    NULL::text AS canonical_roster, NULL::text AS ownership_roster_hash
+  FROM all_issues AS i JOIN summaries AS s
+    ON s.organization_id = i.organization_id AND s.property_id = i.property_id AND s.boundary_date = i.boundary_date
+),
+ready_rows AS (
+  SELECT s.organization_id, s.property_id, s.boundary_date, s.next_boundary_date,
+    NULL::text AS issue_code, s.property_owner_ids, s.active_owner_count, s.ownership_percent_total,
+    s.canonical_roster, encode(extensions.digest(s.canonical_roster, 'sha256'), 'hex') AS ownership_roster_hash
+  FROM summaries AS s
+  WHERE NOT EXISTS (
+    SELECT 1 FROM all_issues AS i
+    WHERE i.organization_id = s.organization_id AND i.property_id = s.property_id AND i.boundary_date = s.boundary_date
+  )
+),
 final_rows AS (
-  SELECT * FROM boundary_rows UNION ALL SELECT * FROM intrinsic_rows
+  SELECT * FROM ready_rows UNION ALL SELECT * FROM issue_rows
 ),
 json_rows AS (
   SELECT organization_id, property_id, to_char(boundary_date, 'YYYY-MM-DD') AS boundary_date,
@@ -206,19 +268,91 @@ async function validateHostedGate(args, cutoverDate) {
   const manifestPath = valueAfter(args, "--remediation-manifest");
   const expectedHash = valueAfter(args, "--expected-clean-report-hash");
   const databaseUrlEnv = valueAfter(args, "--database-url-env");
-  if (!projectRef || !approvalPath || !manifestPath || !/^[a-f0-9]{64}$/.test(expectedHash ?? "") || !databaseUrlEnv) {
+  if (!/^[a-z0-9]{20}$/.test(projectRef ?? "") || !approvalPath || !manifestPath || !/^[a-f0-9]{64}$/.test(expectedHash ?? "") || !databaseUrlEnv) {
     throw new Error("Hosted preflight requires explicit hosted-read approval, a named project, verified remediation manifest, expected clean report hash, and database URL environment name.");
   }
-  const approval = JSON.parse(await readFile(approvalPath, "utf8"));
-  if (approval.approved !== true || approval.projectRef !== projectRef || approval.cutoverDate !== cutoverDate || !approval.approvedBy) {
-    throw new Error("Hosted-read approval does not exactly match the named project and cutover date.");
-  }
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  const { manifestHash, ...payload } = manifest;
-  if (manifestHash !== sha256(JSON.stringify(payload)) || payload.projectRef !== projectRef || payload.cutoverDate !== cutoverDate) {
+  const { manifestHash, ...manifestPayload } = manifest;
+  if (
+    manifest.contractVersion !== "owner_roster_remediation_v2" ||
+    !/^[a-f0-9]{64}$/.test(manifestHash ?? "") ||
+    manifestHash !== sha256(JSON.stringify(manifestPayload)) ||
+    manifest.projectRef !== projectRef ||
+    manifest.cutoverDate !== cutoverDate ||
+    !/^[a-f0-9]{64}$/.test(manifest.preflightReportHash ?? "") ||
+    !Number.isInteger(manifest.issueRowCount) ||
+    !Array.isArray(manifest.issues) ||
+    manifest.issueRowCount !== manifest.issues.length
+  ) {
     throw new Error("Remediation manifest hash or scope is invalid.");
   }
-  return { projectRef, expectedHash, databaseUrlEnv };
+  const seenIssueIdentities = new Set();
+  const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+  const allowedIssueCodes = new Set([
+    "owner_roster_missing", "owner_start_missing", "owner_interval_invalid",
+    "owner_interval_overlap", "owner_share_missing", "owner_share_invalid",
+    "owner_share_total_not_100", "owner_person_inactive",
+  ]);
+  for (const issue of manifest.issues) {
+    if (!Array.isArray(issue.propertyOwnerIds)) {
+      throw new Error("Remediation manifest requires one explicit decision for every normalized issue identity.");
+    }
+    const identity = normalizedIssueIdentity(issue);
+    const uniqueSortedOwnerIds = [...new Set(issue.propertyOwnerIds)].sort((left, right) => left.localeCompare(right));
+    const identityValuesValid =
+      uuidPattern.test(identity.organizationId ?? "") &&
+      uuidPattern.test(identity.propertyId ?? "") &&
+      /^\d{4}-\d{2}-\d{2}$/.test(identity.boundaryDate ?? "") &&
+      allowedIssueCodes.has(identity.issueCode) &&
+      issue.propertyOwnerIds.every((id) => uuidPattern.test(id)) &&
+      JSON.stringify(issue.propertyOwnerIds) === JSON.stringify(uniqueSortedOwnerIds);
+    const identityHash = sha256(JSON.stringify(identity));
+    if (
+      !identityValuesValid ||
+      issue.issueIdentityHash !== identityHash ||
+      seenIssueIdentities.has(identityHash) ||
+      typeof issue.decision !== "string" ||
+      issue.decision.trim().length === 0
+    ) {
+      throw new Error("Remediation manifest requires one explicit decision for every normalized issue identity.");
+    }
+    seenIssueIdentities.add(identityHash);
+  }
+
+  const approval = JSON.parse(await readFile(approvalPath, "utf8"));
+  const { approvalHash, ...approvalPayload } = approval;
+  if (
+    approval.contractVersion !== "owner_roster_hosted_approval_v2" ||
+    approval.approved !== true ||
+    approval.projectRef !== projectRef ||
+    approval.cutoverDate !== cutoverDate ||
+    approval.manifestHash !== manifestHash ||
+    approval.expectedCleanReportHash !== expectedHash ||
+    typeof approval.approvedBy !== "string" || approval.approvedBy.trim().length === 0 ||
+    !/^[a-f0-9]{64}$/.test(approvalHash ?? "") ||
+    approvalHash !== sha256(JSON.stringify(approvalPayload))
+  ) {
+    throw new Error("Hosted-read approval must bind the named project, remediation manifest hash, and expected clean report hash with a valid approval hash.");
+  }
+
+  const databaseUrl = process.env[databaseUrlEnv];
+  if (!databaseUrl || !databaseUrlMatchesProject(databaseUrl, projectRef)) {
+    throw new Error("Hosted database URL is missing or does not match the approved project.");
+  }
+  return { projectRef, expectedHash, databaseUrl };
+}
+
+function databaseUrlMatchesProject(databaseUrl, projectRef) {
+  try {
+    const parsed = new URL(databaseUrl);
+    if (!["postgres:", "postgresql:"].includes(parsed.protocol)) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    const username = decodeURIComponent(parsed.username);
+    if (hostname === `db.${projectRef}.supabase.co`) return username === "postgres";
+    return /^[a-z0-9-]+\.pooler\.supabase\.com$/.test(hostname) && username === `postgres.${projectRef}`;
+  } catch {
+    return false;
+  }
 }
 
 async function main() {
@@ -241,8 +375,7 @@ async function main() {
     }
   }
 
-  const databaseUrl = hostedGate ? process.env[hostedGate.databaseUrlEnv] : undefined;
-  if (hostedGate && (!databaseUrl || !databaseUrl.includes(hostedGate.projectRef))) throw new Error("Hosted database URL is missing or does not match the approved project.");
+  const databaseUrl = hostedGate?.databaseUrl;
   const report = buildReport(runPsql({ cwd, container, cutoverDate, organizationId, databaseUrl }), cutoverDate);
   await writeFile(path.resolve(cwd, outputPath), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 

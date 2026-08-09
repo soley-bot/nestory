@@ -133,10 +133,7 @@ describe("property ownership authority inputs", () => {
         "Choose a later ownership start date or correct the never-effective owner record first.",
       status: "error",
     });
-    expect(rpc).toHaveBeenCalledWith(
-      "update_property",
-      expect.objectContaining({ p_owner_mode: "replace" }),
-    );
+    expect(rpc.mock.calls.at(-1)?.[1]).not.toHaveProperty("p_owner_mode");
   });
 });
 

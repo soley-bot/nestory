@@ -294,6 +294,35 @@ test("all branch text-rewrite constants are invariant in fresh autocrlf sources"
   }
 });
 
+test("owner import preserve-path rewrite is token-scoped and newline invariant", () => {
+  const ownerMigration = readMigration(
+    "20260809122054_owner_opening_ownership_readiness.sql",
+  );
+  const marker = "-- Preserve existing ownership during property import without a public compatibility overload.";
+  const start = ownerMigration.indexOf(marker);
+  assert.notEqual(start, -1, "owner migration must carry the import rewrite contract");
+  const block = ownerMigration.slice(start);
+  const oldToken = "public.update_property(";
+  const newToken = "app_private.update_property_preserving_ownership_for_import(";
+  assert.match(block, /replace\(v_definition, v_old_token, v_new_token\)/);
+
+  const predecessor = [
+    "CREATE FUNCTION public.commit_generic_import_run_internal()",
+    "BEGIN",
+    "  PERFORM public.update_property(",
+    "    p_property_id",
+    "  );",
+    "END;",
+  ].join("\n");
+  for (const source of [predecessor, predecessor.replaceAll("\n", "\r\n")]) {
+    const normalized = source.replaceAll("\r\n", "\n");
+    assert.equal(normalized.split(oldToken).length - 1, 1);
+    const rewritten = normalized.replace(oldToken, newToken);
+    assert.equal(rewritten.includes(oldToken), false);
+    assert.equal(rewritten.split(newToken).length - 1, 1);
+  }
+});
+
 function readMigration(file) {
   return fs.readFileSync(path.join(migrationsDirectory, file), "utf8");
 }

@@ -7666,42 +7666,24 @@ export type Database = {
         }
         Returns: Json
       }
-      update_property:
-        | {
-            Args: {
-              p_acquisition_date: string
-              p_address: string
-              p_code: string
-              p_name: string
-              p_notes: string
-              p_organization_id: string
-              p_owner: string
-              p_owner_person_id: string
-              p_property_id: string
-              p_property_type: string
-              p_status: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_acquisition_date: string
-              p_address: string
-              p_code: string
-              p_name: string
-              p_notes: string
-              p_organization_id: string
-              p_owner: string
-              p_owner_mode: string
-              p_owner_ownership_percent: number
-              p_owner_person_id: string
-              p_owner_started_on: string
-              p_property_id: string
-              p_property_type: string
-              p_status: string
-            }
-            Returns: string
-          }
+      update_property: {
+        Args: {
+          p_acquisition_date: string
+          p_address: string
+          p_code: string
+          p_name: string
+          p_notes: string
+          p_organization_id: string
+          p_owner: string
+          p_owner_ownership_percent: number
+          p_owner_person_id: string
+          p_owner_started_on: string
+          p_property_id: string
+          p_property_type: string
+          p_status: string
+        }
+        Returns: string
+      }
       update_rent_policy_draft: {
         Args: {
           p_concessions_support_state: string

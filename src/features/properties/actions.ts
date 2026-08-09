@@ -278,7 +278,6 @@ export async function updatePropertyAction(
     p_notes: nullableString(parsed.data.notes),
     p_organization_id: context.organizationId,
     p_owner: nullableString(parsed.data.owner),
-    p_owner_mode: "replace",
     p_owner_ownership_percent: nullableString(parsed.data.ownershipPercent),
     p_owner_person_id: nullableString(parsed.data.ownerPersonId),
     p_owner_started_on: nullableString(parsed.data.ownerStartedOn),

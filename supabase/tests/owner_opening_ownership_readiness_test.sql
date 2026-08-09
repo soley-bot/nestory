@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(60);
+SELECT plan(66);
 
 SELECT has_column(
   'public',
@@ -65,6 +65,39 @@ SELECT has_function(
   'validate_owner_roster_on_date',
   ARRAY['uuid', 'uuid', 'date'],
   'the private date-scoped owner roster validator exists'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.parameters
+    WHERE specific_schema = 'app_private'
+      AND specific_name LIKE 'validate_owner_roster_on_date_%'
+      AND parameter_mode = 'OUT'
+      AND parameter_name = 'ownership_roster_hash'
+  ),
+  'the private validator names its authority hash ownership_roster_hash'
+);
+
+SELECT has_function(
+  'app_private',
+  'update_property_preserving_ownership_for_import',
+  ARRAY['uuid', 'uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'date', 'text', 'uuid'],
+  'imports have an explicit private preserve-owner property path'
+);
+
+SELECT function_privs_are(
+  'app_private',
+  'update_property_preserving_ownership_for_import',
+  ARRAY['uuid', 'uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'date', 'text', 'uuid'],
+  'authenticated',
+  ARRAY[]::text[],
+  'authenticated cannot execute the private preserve-owner import path'
+);
+
+SELECT ok(
+  to_regprocedure('public.update_property(uuid,uuid,text,text,text,text,text,text,date,text,uuid)') IS NULL,
+  'the legacy public 11-argument property update overload is removed'
 );
 
 SELECT has_function(
@@ -158,10 +191,10 @@ SELECT hasnt_function(
   'the legacy create-property overload cannot bypass explicit ownership facts'
 );
 
-SELECT has_function(
+SELECT hasnt_function(
   'public', 'update_property',
   ARRAY['uuid', 'uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'date', 'text', 'uuid'],
-  'the checked import-compatibility update overload preserves existing ownership'
+  'the public import-compatibility update overload is removed'
 );
 
 SELECT has_function(
@@ -179,7 +212,7 @@ SELECT has_function(
   'update_property',
   ARRAY[
     'uuid', 'uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'date',
-    'text', 'uuid', 'date', 'numeric', 'text'
+    'text', 'uuid', 'date', 'numeric'
   ],
   'property updates accept explicit ownership authority'
 );
@@ -307,9 +340,10 @@ SELECT is(
 );
 
 SELECT is(
-  (SELECT roster_hash FROM app_private.validate_owner_roster_on_date(
-    'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', '2026-06-01'
-  )),
+  (SELECT to_jsonb(validated) ->> 'ownership_roster_hash'
+   FROM app_private.validate_owner_roster_on_date(
+     'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', '2026-06-01'
+   ) AS validated),
   encode(extensions.digest(
     '00000000-0000-0000-0000-000000000002|10000000-0000-0000-0000-000000000001|100.000|2026-06-01|',
     'sha256'
@@ -510,9 +544,11 @@ SELECT is(
 );
 
 SELECT is(
-  (SELECT issue_code FROM app_private.owner_roster_legacy_preflight('2026-08-01')
-   WHERE property_id = 'b0000000-0000-0000-0000-000000000004'),
-  'owner_roster_missing',
+  (SELECT count(*)::integer FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+   WHERE organization_id = 'a0000000-0000-0000-0000-000000000001'
+     AND property_id = 'b0000000-0000-0000-0000-000000000004'
+     AND issue_code = 'owner_roster_missing'),
+  1,
   'the preflight emits one missing-roster issue row'
 );
 
@@ -557,6 +593,48 @@ SELECT is(
     'allAuthorityNull', true
   ),
   'overlap and invalid-total conditions produce separate exact issue rows with no authority hash'
+);
+
+ALTER TABLE public.property_owners
+  DROP CONSTRAINT property_owners_unarchived_share_required_check;
+
+INSERT INTO public.properties (id, organization_id, name, code, property_type)
+VALUES
+  ('b0000000-0000-0000-0000-000000000096', 'a0000000-0000-0000-0000-000000000001', 'Invalid sibling', 'OWN-SIB', 'Apartment'),
+  ('b0000000-0000-0000-0000-000000000097', 'a0000000-0000-0000-0000-000000000001', 'Archived parent', 'OWN-ARC', 'Apartment');
+
+UPDATE public.properties
+SET archived_at = now()
+WHERE id = 'b0000000-0000-0000-0000-000000000097';
+
+INSERT INTO public.property_owners (
+  id, organization_id, property_id, person_id, ownership_percent, started_on
+) VALUES
+  ('00000000-0000-0000-0000-000000000096', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000096', '10000000-0000-0000-0000-000000000001', 100.000, '2026-01-01'),
+  ('00000000-0000-0000-0000-000000000097', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000096', '10000000-0000-0000-0000-000000000002', NULL, '2026-01-01'),
+  ('00000000-0000-0000-0000-000000000098', 'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000097', '10000000-0000-0000-0000-000000000002', 100.000, '2026-01-01');
+
+SELECT is(
+  (SELECT jsonb_build_object(
+    'issues', array_agg(coalesce(issue_code, 'READY') ORDER BY issue_code NULLS FIRST),
+    'allAuthorityNull', bool_and(canonical_roster IS NULL AND ownership_roster_hash IS NULL)
+  )
+  FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+  WHERE property_id = 'b0000000-0000-0000-0000-000000000096'
+    AND boundary_date = '2026-08-01'),
+  jsonb_build_object(
+    'issues', ARRAY['owner_share_missing'],
+    'allAuthorityNull', true
+  ),
+  'an effective invalid sibling suppresses the otherwise-valid boundary authority row'
+);
+
+SELECT is(
+  (SELECT count(*)::integer
+   FROM app_private.owner_roster_legacy_preflight('2026-08-01')
+   WHERE property_id = 'b0000000-0000-0000-0000-000000000097'),
+  2,
+  'unarchived owner rows under an archived property remain visible to migration preflight'
 );
 
 SELECT * FROM finish();

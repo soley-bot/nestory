@@ -85,46 +85,173 @@ test("shared vectors pin the exact LF serialization and lowercase sha256", async
   assert.equal(report.reportHash, vectors.reportHash);
 });
 
-test("hosted dry gate requires named approval, a verified remediation manifest, and expected clean hash", async () => {
-  const approvalPath = path.join(repoRoot, ".owner-roster-hosted-approval.json");
-  const manifestPath = path.join(repoRoot, ".owner-roster-remediation-manifest.json");
-  const projectRef = "pfvmztxktkwyewvxfgot";
-  const cutoverDate = "2026-08-01";
+function hostedGateDocuments({ projectRef, cutoverDate, expectedCleanReportHash, decision = "repair_explicit_ownership" }) {
+  const identity = {
+    organizationId: "a1000000-0000-0000-0000-000000000001",
+    propertyId: "b1000000-0000-0000-0000-000000000001",
+    boundaryDate: cutoverDate,
+    issueCode: "owner_share_total_not_100",
+    propertyOwnerIds: ["01000000-0000-0000-0000-000000000001"],
+  };
+  const issue = {
+    ...identity,
+    issueIdentityHash: sha256(JSON.stringify(identity)),
+    decision,
+  };
   const manifestPayload = {
-    contractVersion: "owner_roster_remediation_v1",
+    contractVersion: "owner_roster_remediation_v2",
     projectRef,
     cutoverDate,
     preflightReportHash: "1".repeat(64),
-    issueRowCount: 2,
+    issueRowCount: 1,
+    issues: [issue],
   };
-  try {
-    await writeFile(approvalPath, JSON.stringify({
-      approved: true,
-      projectRef,
-      cutoverDate,
-      approvedBy: "local-review-test",
-    }));
-    await writeFile(manifestPath, JSON.stringify({
-      ...manifestPayload,
-      manifestHash: sha256(JSON.stringify(manifestPayload)),
-    }));
+  const manifest = {
+    ...manifestPayload,
+    manifestHash: sha256(JSON.stringify(manifestPayload)),
+  };
+  const approvalPayload = {
+    contractVersion: "owner_roster_hosted_approval_v2",
+    approved: true,
+    projectRef,
+    cutoverDate,
+    manifestHash: manifest.manifestHash,
+    expectedCleanReportHash,
+    approvedBy: "local-review-test",
+  };
+  return {
+    manifest,
+    approval: {
+      ...approvalPayload,
+      approvalHash: sha256(JSON.stringify(approvalPayload)),
+    },
+  };
+}
 
-    const result = spawnSync(process.execPath, [
+async function runHostedDryGate({ name, databaseUrl, mutateDocuments }) {
+  const approvalPath = path.join(repoRoot, `.owner-roster-hosted-approval-${name}.json`);
+  const manifestPath = path.join(repoRoot, `.owner-roster-remediation-manifest-${name}.json`);
+  const projectRef = "pfvmztxktkwyewvxfgot";
+  const cutoverDate = "2026-08-01";
+  const expectedCleanReportHash = "2".repeat(64);
+  const documents = hostedGateDocuments({ projectRef, cutoverDate, expectedCleanReportHash });
+  mutateDocuments?.(documents);
+  const databaseUrlEnv = `OWNER_ROSTER_TEST_DATABASE_URL_${name.toUpperCase()}`;
+  try {
+    await writeFile(approvalPath, JSON.stringify(documents.approval));
+    await writeFile(manifestPath, JSON.stringify(documents.manifest));
+    return spawnSync(process.execPath, [
       script, "--target", "hosted", "--dry-hosted-gate",
       "--project-ref", projectRef,
       "--approval-file", approvalPath,
       "--remediation-manifest", manifestPath,
-      "--expected-clean-report-hash", "2".repeat(64),
-      "--database-url-env", "OWNER_ROSTER_TEST_DATABASE_URL_NOT_SET",
+      "--expected-clean-report-hash", expectedCleanReportHash,
+      "--database-url-env", databaseUrlEnv,
       "--cutover", cutoverDate,
       "--out", "ignored.json",
-    ], { cwd: repoRoot, encoding: "utf8", shell: false });
-
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /dry gate ready.*no hosted contact/i);
+    ], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: databaseUrl === undefined ? process.env : { ...process.env, [databaseUrlEnv]: databaseUrl },
+      shell: false,
+    });
   } finally {
     await Promise.all([rm(approvalPath, { force: true }), rm(manifestPath, { force: true })]);
   }
+}
+
+test("hosted dry gate validates a signed approval, explicit issue decision, and exact direct project URL without contact", async () => {
+  const result = await runHostedDryGate({
+    name: "valid",
+    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co:5432/postgres",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /dry gate ready.*no hosted contact/i);
+  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /never-print-this/);
+});
+
+test("hosted dry gate rejects a missing URL before returning success", async () => {
+  const result = await runHostedDryGate({ name: "missing_url" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /database URL.*missing|approved project/i);
+});
+
+test("hosted dry gate rejects a URL whose host merely contains the approved project ref", async () => {
+  const result = await runHostedDryGate({
+    name: "substring_host",
+    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co.attacker.example:5432/postgres",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /does not match the approved project/i);
+  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /never-print-this/);
+});
+
+test("hosted dry gate rejects a nested pooler lookalike even with the approved project username", async () => {
+  const result = await runHostedDryGate({
+    name: "nested_pooler_host",
+    databaseUrl: "postgresql://postgres.pfvmztxktkwyewvxfgot:never-print-this@evil.aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /does not match the approved project/i);
+  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /never-print-this/);
+});
+
+test("hosted dry gate requires one explicit decision for every normalized issue identity", async () => {
+  const result = await runHostedDryGate({
+    name: "missing_decision",
+    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co:5432/postgres",
+    mutateDocuments: ({ manifest }) => {
+      manifest.issues[0].decision = "";
+      const payload = { ...manifest };
+      delete payload.manifestHash;
+      manifest.manifestHash = sha256(JSON.stringify(payload));
+    },
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /explicit decision.*issue identity/i);
+});
+
+test("hosted dry gate rejects a non-normalized issue identity with duplicate owner IDs", async () => {
+  const result = await runHostedDryGate({
+    name: "duplicate_owner_identity",
+    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co:5432/postgres",
+    mutateDocuments: ({ manifest, approval }) => {
+      const issue = manifest.issues[0];
+      issue.propertyOwnerIds.push(issue.propertyOwnerIds[0]);
+      const identity = {
+        organizationId: issue.organizationId,
+        propertyId: issue.propertyId,
+        boundaryDate: issue.boundaryDate,
+        issueCode: issue.issueCode,
+        propertyOwnerIds: issue.propertyOwnerIds,
+      };
+      issue.issueIdentityHash = sha256(JSON.stringify(identity));
+      const manifestPayload = { ...manifest };
+      delete manifestPayload.manifestHash;
+      manifest.manifestHash = sha256(JSON.stringify(manifestPayload));
+      approval.manifestHash = manifest.manifestHash;
+      const approvalPayload = { ...approval };
+      delete approvalPayload.approvalHash;
+      approval.approvalHash = sha256(JSON.stringify(approvalPayload));
+    },
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /normalized issue identity/i);
+});
+
+test("hosted dry gate requires approval to bind manifest and expected clean hashes", async () => {
+  const result = await runHostedDryGate({
+    name: "approval_binding",
+    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co:5432/postgres",
+    mutateDocuments: ({ approval }) => {
+      approval.expectedCleanReportHash = "3".repeat(64);
+      const payload = { ...approval };
+      delete payload.approvalHash;
+      approval.approvalHash = sha256(JSON.stringify(payload));
+    },
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /approval.*expected clean report hash/i);
 });
 
 test("self-contained baseline SQL and installed helper match the shared database vectors", async () => {
@@ -157,19 +284,43 @@ test("self-contained baseline SQL and installed helper match the shared database
     DELETE FROM public.organizations WHERE id = ${quoted(seed.organization.id)};
     SET session_replication_role = origin;
   `;
+  const restoreShareConstraintSql = `
+    DO $restore$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'public.property_owners'::regclass
+          AND conname = 'property_owners_unarchived_share_required_check'
+      ) THEN
+        ALTER TABLE public.property_owners
+          ADD CONSTRAINT property_owners_unarchived_share_required_check
+          CHECK (archived_at IS NOT NULL OR (ownership_percent IS NOT NULL AND ownership_percent > 0 AND ownership_percent <= 100))
+          NOT VALID;
+      END IF;
+    END
+    $restore$;
+    ALTER TABLE public.property_owners
+      VALIDATE CONSTRAINT property_owners_unarchived_share_required_check;
+  `;
 
   try {
     runSql(cleanupSql);
     const setupSql = `
+      ALTER TABLE public.property_owners
+        DROP CONSTRAINT property_owners_unarchived_share_required_check;
       INSERT INTO public.organizations (id, name, slug) VALUES (${quoted(seed.organization.id)}, ${quoted(seed.organization.name)}, ${quoted(seed.organization.slug)});
-      INSERT INTO public.properties (id, organization_id, name, code, property_type) VALUES
-        ${seed.properties.map((property) => `(${quoted(property.id)}, ${quoted(seed.organization.id)}, ${quoted(property.name)}, ${quoted(property.code)}, 'Apartment')`).join(",")};
+      INSERT INTO public.properties (id, organization_id, name, code, property_type, archived_at) VALUES
+        ${seed.properties.map((property) => `(${quoted(property.id)}, ${quoted(seed.organization.id)}, ${quoted(property.name)}, ${quoted(property.code)}, 'Apartment', ${property.archivedAt ? quoted(property.archivedAt) : "NULL"}::timestamptz)`).join(",")};
       INSERT INTO public.people (id, organization_id, display_name) VALUES
         ${seed.people.map((person) => `(${quoted(person.id)}, ${quoted(seed.organization.id)}, ${quoted(person.name)})`).join(",")};
       INSERT INTO public.person_roles (organization_id, person_id, role, status) VALUES
         ${seed.people.map((person) => `(${quoted(seed.organization.id)}, ${quoted(person.id)}, 'owner', 'active')`).join(",")};
       INSERT INTO public.property_owners (id, organization_id, property_id, person_id, ownership_percent, started_on) VALUES
-        ${seed.owners.map((owner) => `(${quoted(owner.id)}, ${quoted(seed.organization.id)}, ${quoted(owner.propertyId)}, ${quoted(owner.personId)}, ${quoted(owner.share)}::numeric, ${quoted(owner.startedOn)}::date)`).join(",")};
+        ${seed.owners.map((owner) => `(${quoted(owner.id)}, ${quoted(seed.organization.id)}, ${quoted(owner.propertyId)}, ${quoted(owner.personId)}, ${owner.share === null ? "NULL" : quoted(owner.share)}::numeric, ${quoted(owner.startedOn)}::date)`).join(",")};
+      ALTER TABLE public.property_owners
+        ADD CONSTRAINT property_owners_unarchived_share_required_check
+        CHECK (archived_at IS NOT NULL OR (ownership_percent IS NOT NULL AND ownership_percent > 0 AND ownership_percent <= 100))
+        NOT VALID;
     `;
     const setup = runSql(setupSql);
     assert.equal(setup.status, 0, setup.stderr);
@@ -206,9 +357,11 @@ test("self-contained baseline SQL and installed helper match the shared database
     const { manifestHash, ...manifestPayload } = remediation;
     assert.equal(manifestHash, sha256(JSON.stringify(manifestPayload)));
     assert.equal(manifestPayload.preflightReportHash, vectors.reportHash);
-    assert.equal(manifestPayload.issueRowCount, 2);
+    assert.equal(manifestPayload.issueRowCount, 4);
   } finally {
     runSql(cleanupSql);
+    const restored = runSql(restoreShareConstraintSql);
+    assert.equal(restored.status, 0, restored.stderr);
     await rm(outputPath, { force: true });
     await rm(remediationPath, { force: true });
   }
