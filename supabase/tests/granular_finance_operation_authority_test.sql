@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(21);
+SELECT plan(22);
 
 SELECT has_function('app_private', 'can_operate_finance', ARRAY['uuid'], 'ordinary Finance operation predicate exists');
 SELECT has_function('app_private', 'can_manage_petty_cash', ARRAY['uuid'], 'Petty Cash operation predicate exists');
@@ -88,6 +88,27 @@ SELECT ok(
     )
   ),
   'authenticated reaches only the checked public Finance commands, never duplicated internals'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'public.tenant_invoice_payments',
+      'public.tenant_invoice_payment_allocations',
+      'public.owner_collection_confirmations',
+      'public.owner_collection_confirmation_allocations',
+      'public.finance_receipts',
+      'public.finance_receipt_allocations',
+      'public.owner_payments',
+      'public.owner_payment_allocations',
+      'public.property_withdrawals',
+      'public.ledger_entries'
+    ]) AS source_table(table_name)
+    CROSS JOIN unnest(ARRAY['INSERT', 'UPDATE', 'DELETE']) AS checked_privilege(privilege_name)
+    WHERE has_table_privilege('authenticated', source_table.table_name, checked_privilege.privilege_name)
+  ),
+  'authenticated cannot bypass checked settlement and owner-cash RPCs with direct source-table DML'
 );
 
 CREATE TEMP TABLE granular_authority_state (

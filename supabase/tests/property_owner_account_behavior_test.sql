@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for account and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(28);
+SELECT plan(30);
 
 SELECT has_column(
   'public',
@@ -51,6 +51,7 @@ CREATE TEMP TABLE owner_account_state (
   through_tenant_id uuid NOT NULL,
   direct_tenant_id uuid NOT NULL,
   through_invoice_id uuid,
+  through_payment_id uuid,
   direct_invoice_id uuid,
   through_property_id uuid,
   direct_property_id uuid,
@@ -125,7 +126,8 @@ DECLARE
 BEGIN
   EXECUTE statement INTO result;
   RETURN result;
-EXCEPTION WHEN insufficient_privilege THEN
+EXCEPTION
+  WHEN insufficient_privilege OR invalid_parameter_value THEN
   RETURN NULL;
 END;
 $$;
@@ -250,12 +252,20 @@ SELECT lives_ok(
   'property account has a receipt source'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
-    SELECT public.record_tenant_invoice_payment(
+    UPDATE owner_account_state
+    SET through_payment_id = public.record_tenant_invoice_payment(
       organization_id,
       through_invoice_id,
-      850,
+      850.00::numeric(14, 2),
       current_date,
       source_id,
       'Full rent',
@@ -267,15 +277,108 @@ SELECT lives_ok(
             WHERE invoice_id = through_invoice_id
               AND line_type = 'rent'
           ),
-          'amount', 850
+          'amount', 850.00::numeric(14, 2)
         )
       ),
       'account-through-payment-0001'
     )
-    FROM owner_account_state
   $$,
-  'full rent collection settles the management fee from held cash'
+  'Finance Manager full rent collection settles the management fee from held cash'
 );
+
+SELECT is(
+  pg_temp.try_uuid(format(
+    'SELECT public.record_tenant_invoice_payment(%L,%L,850.00::numeric(14,2),current_date,%L,%L,%L::jsonb,%L)',
+    organization_id,
+    through_invoice_id,
+    source_id,
+    'Full rent',
+    jsonb_build_array(jsonb_build_object(
+      'lineId', (
+        SELECT id
+        FROM public.tenant_invoice_lines
+        WHERE invoice_id = through_invoice_id
+          AND line_type = 'rent'
+      ),
+      'amount', 850.00::numeric(14, 2)
+    ))::text,
+    'account-through-payment-0001'
+  )),
+  through_payment_id,
+  'an exact fully settled Finance Manager replay returns the original payment'
+)
+FROM owner_account_state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM owner_account_state),
+  true
+);
+RESET ROLE;
+
+INSERT INTO public.financial_month_locks (
+  organization_id,
+  month_start,
+  is_locked,
+  locked_at,
+  locked_by,
+  reason
+)
+SELECT
+  organization_id,
+  date_trunc('month', current_date)::date,
+  true,
+  now(),
+  admin_id,
+  'Completed tenant-payment replay must remain immutable'
+FROM owner_account_state
+ON CONFLICT (organization_id, month_start) DO UPDATE
+SET is_locked = EXCLUDED.is_locked,
+    locked_at = EXCLUDED.locked_at,
+    locked_by = EXCLUDED.locked_by,
+    reason = EXCLUDED.reason;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  format(
+    'SELECT public.record_tenant_invoice_payment(%L,%L,850.00::numeric(14,2),current_date,%L,%L,%L::jsonb,%L)',
+    organization_id,
+    through_invoice_id,
+    source_id,
+    'Full rent',
+    jsonb_build_array(jsonb_build_object(
+      'lineId', (
+        SELECT id
+        FROM public.tenant_invoice_lines
+        WHERE invoice_id = through_invoice_id
+          AND line_type = 'rent'
+      ),
+      'amount', 850.00::numeric(14, 2)
+    ))::text,
+    'account-through-payment-0001'
+  ),
+  '22023',
+  'Financial month is locked',
+  'a later month lock remains authoritative before tenant-payment replay'
+)
+FROM owner_account_state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM owner_account_state),
+  true
+);
+RESET ROLE;
+
+DELETE FROM public.financial_month_locks
+WHERE organization_id = (SELECT organization_id FROM owner_account_state)
+  AND month_start = date_trunc('month', current_date)::date;
 
 SELECT results_eq(
   $$

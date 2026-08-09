@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for invoice and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(32);
+SELECT plan(34);
 
 CREATE TEMP TABLE tenant_invoice_state (
   organization_id uuid NOT NULL,
@@ -212,6 +212,31 @@ SELECT set_config(
   true
 );
 SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    SELECT public.set_lease_billing_term(
+      organization_id,
+      through_lease_id,
+      (date_trunc('month', current_date) + interval '2 months')::date,
+      'through_ips',
+      'percentage',
+      10,
+      true,
+      true,
+      'individual',
+      through_tenant_id,
+      NULL,
+      NULL,
+      through_billing_id,
+      'invoice-through-billing-manager-denied'
+    )
+    FROM tenant_invoice_state
+  $$,
+  '42501',
+  'Not authorized',
+  'Finance Manager cannot configure lease billing terms'
+);
 
 SELECT lives_ok(
   $$
@@ -546,6 +571,22 @@ SELECT is(
   'an exact Finance Manager owner-collection retry returns the original record'
 )
 FROM tenant_invoice_state;
+
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_owner_collection_confirmation(
+      organization_id,
+      confirmation_id,
+      current_date,
+      'Unauthorized correction',
+      'invoice-owner-reverse-manager'
+    )
+    FROM tenant_invoice_state
+  $$,
+  '42501',
+  'Not authorized',
+  'Finance Manager cannot reverse an existing owner collection confirmation'
+);
 
 SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
 RESET ROLE;
