@@ -124,6 +124,19 @@ describe("OverviewScreen", () => {
     expect(screen.getByRole("link", { name: /RIV \/ Riverside Apartments/ })).toBeTruthy();
   });
 
+  it("keeps the attention drilldown discoverable when no checks are open", () => {
+    render(
+      <OverviewScreen
+        data={{ ...data, attentionTotal: 0 }}
+        query={query}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Review" }).getAttribute("href")).toBe(
+      "/overview/attention?month=2026-08",
+    );
+  });
+
   it("opens records without owner-statement language", () => {
     render(<RecordsPropertyPreviewList rows={data.recordsByProperty} />);
 

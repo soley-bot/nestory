@@ -31,7 +31,7 @@
     "shell-reports": { "kind": "global", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/reports\"", "labelToken": "label: \"Reports\"" },
     "shell-settings": { "kind": "global", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/settings\"", "labelToken": "label: \"Settings\"" },
     "profile-account": { "kind": "profile", "source": "src/components/layout/app-shell.tsx", "hrefToken": "<Link href=\"/account\">", "labelToken": "Profile" },
-    "overview-drilldown": { "kind": "context", "source": "src/features/overview/components/overview-attention-queue.tsx", "hrefToken": "href={`/overview/attention?month=${month}`}", "labelToken": "Review queues" },
+    "overview-drilldown": { "kind": "context", "source": "src/features/overview/components/portfolio-workspace.tsx", "hrefToken": "href={`/overview/attention?month=${query.month}`}", "labelToken": "Review" },
     "people-owners": { "kind": "context", "source": "src/features/people/components/people-workspace-navigation.tsx", "hrefToken": "href: \"/owners\"", "labelToken": "label: \"Owners\"" },
     "people-staff": { "kind": "context", "source": "src/features/people/components/people-workspace-navigation.tsx", "hrefToken": "href: \"/staff\"", "labelToken": "label: \"Staff\"" },
     "people-tenants": { "kind": "context", "source": "src/features/people/components/people-workspace-navigation.tsx", "hrefToken": "href: \"/tenants\"", "labelToken": "label: \"Tenants\"" },

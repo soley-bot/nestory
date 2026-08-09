@@ -168,10 +168,10 @@ async function openContextJourney(page, journey, chain) {
       await fromGlobal(page, chain, "/overview", "Overview");
       await clickAndWait(
         page,
-        page.getByRole("link", { name: "Review queues" }),
+        page.getByRole("link", { name: "Review", exact: true }),
         journey.route,
       );
-      chain.push("Review queues");
+      chain.push("Review");
     },
     "people-owners": () => openPeopleTab(page, chain, journey.route, "Owners"),
     "people-staff": () => openPeopleTab(page, chain, journey.route, "Staff"),

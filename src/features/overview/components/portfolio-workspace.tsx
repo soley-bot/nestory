@@ -129,20 +129,22 @@ export function PortfolioWorkspace({
               </p>
             )}
           </CardContent>
-          {data.attentionTotal > 0 ? (
-            <CardFooter className="justify-between gap-4">
-              <span className="flex items-center gap-2 text-sm font-medium">
+          <CardFooter className="justify-between gap-4">
+            <span className="flex items-center gap-2 text-sm font-medium">
+              {data.attentionTotal > 0 ? (
                 <CircleAlert className="size-4 text-amber-600 dark:text-amber-400" />
-                {data.attentionTotal} open checks need attention
-              </span>
-              <Link
-                className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
-                href={`/overview/attention?month=${query.month}`}
-              >
-                Review <ArrowRight className="size-4" />
-              </Link>
-            </CardFooter>
-          ) : null}
+              ) : null}
+              {data.attentionTotal > 0
+                ? `${data.attentionTotal} open checks need attention`
+                : "No open checks need attention"}
+            </span>
+            <Link
+              className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
+              href={`/overview/attention?month=${query.month}`}
+            >
+              Review <ArrowRight className="size-4" />
+            </Link>
+          </CardFooter>
         </Card>
       </div>
     </div>
