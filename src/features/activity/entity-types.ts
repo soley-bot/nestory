@@ -1,0 +1,37 @@
+export const activityEntityTypes = [
+  "timeline_event",
+  "ledger_entry",
+  "financial_month",
+  "finance_income_item",
+  "finance_expense_item",
+  "finance_receipt_allocation",
+  "expense_submission",
+  "tenant_invoice",
+  "tenant_invoice_payment",
+  "owner_collection_confirmation",
+  "owner_payment",
+  "petty_cash_entry",
+  "petty_cash_account",
+  "petty_cash_period",
+  "task",
+  "tenant_request",
+  "document",
+  "lease",
+  "lease_billing_term",
+  "lease_occupancy",
+  "lease_occupancy_participant",
+  "lease_party",
+  "lease_term",
+  "property",
+  "unit",
+  "person",
+  "import",
+  "organization",
+  "organization_branch",
+  "organization_invitation",
+  "organization_membership",
+] as const;
+
+export type ActivityEntityType = (typeof activityEntityTypes)[number];
+
+export default activityEntityTypes;

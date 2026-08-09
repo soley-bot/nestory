@@ -254,9 +254,9 @@ SELECT results_eq(
   'rent balances include IPS-paid, owner-collected, and open obligations'
 );
 
-SELECT ok(
-  EXISTS (
-    SELECT 1
+SELECT is(
+  (
+    SELECT count(*)
     FROM public.rent_generation_exceptions AS exception
     JOIN public.leases AS lease
       ON lease.organization_id = exception.organization_id
@@ -267,7 +267,8 @@ SELECT ok(
     WHERE property.code = 'GDN-CRT'
       AND exception.resolved_at IS NULL
   ),
-  'Garden Court exposes one recoverable rent setup exception'
+  1::bigint,
+  'Garden Court exposes exactly one unresolved rent setup exception'
 );
 
 SELECT is(

@@ -14,8 +14,11 @@ describe("resolveActivityEntityTarget", () => {
       "financial_month",
       "finance_income_item",
       "finance_expense_item",
+      "finance_receipt_allocation",
       "expense_submission",
       "tenant_invoice",
+      "tenant_invoice_payment",
+      "owner_collection_confirmation",
       "owner_payment",
       "petty_cash_entry",
       "petty_cash_account",
@@ -24,6 +27,11 @@ describe("resolveActivityEntityTarget", () => {
       "tenant_request",
       "document",
       "lease",
+      "lease_billing_term",
+      "lease_occupancy",
+      "lease_occupancy_participant",
+      "lease_party",
+      "lease_term",
       "property",
       "unit",
       "person",
@@ -206,6 +214,32 @@ describe("resolveActivityEntityTarget", () => {
       recordLabel: "Owner payment recorded",
     });
   });
+
+  it.each([
+    ["finance_receipt_allocation", "/rent-income"],
+    ["lease_billing_term", "/leases"],
+    ["lease_occupancy", "/leases"],
+    ["lease_occupancy_participant", "/leases"],
+    ["lease_party", "/leases"],
+    ["lease_term", "/leases"],
+    ["owner_collection_confirmation", "/rent-income"],
+    ["tenant_invoice_payment", "/rent-income"],
+  ])(
+    "resolves fixture activity type %s to its operating module",
+    (entityType, href) => {
+      expect(
+        resolveActivityEntityTarget({
+          entityId: id,
+          entityType,
+          recordLabel: "Fixture activity",
+        }),
+      ).toMatchObject({
+        focusMode: "module",
+        href,
+        recordLabel: "Fixture activity",
+      });
+    },
+  );
 
   it.each([
     ["organization", "Organization", "/settings?section=organization"],

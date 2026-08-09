@@ -2,6 +2,23 @@ import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import activityEntityTypesModule from "../src/features/activity/entity-types.ts";
+
+export const fixtureSupportedActivityEntityTypes =
+  activityEntityTypesModule.activityEntityTypes ??
+  activityEntityTypesModule.default ??
+  activityEntityTypesModule;
+
+export function findUnsupportedFixtureActivityEntityTypes(
+  fixtureEntityTypes,
+  supportedEntityTypes,
+) {
+  const supported = new Set(supportedEntityTypes);
+
+  return [...new Set(fixtureEntityTypes)]
+    .filter((entityType) => !supported.has(entityType))
+    .sort();
+}
 
 export function selectLocalDatabaseContainer(cwd, containerNames) {
   if (process.env.SUPABASE_DB_CONTAINER) {
@@ -68,7 +85,50 @@ async function main() {
   if (result.status !== 0) {
     throw new Error(result.stderr.trim() || "Could not load the test fixture.");
   }
+
+  const activityResult = spawnSync(
+    "docker",
+    [
+      "exec",
+      container,
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-At",
+      "-c",
+      "SELECT DISTINCT entity_type FROM public.activity_logs ORDER BY entity_type",
+    ],
+    { cwd, encoding: "utf8", shell: false },
+  );
+
+  if (activityResult.error) throw activityResult.error;
+  if (activityResult.status !== 0) {
+    throw new Error(
+      activityResult.stderr.trim() ||
+        "Could not inspect fixture activity entity types.",
+    );
+  }
+
+  const fixtureActivityEntityTypes = activityResult.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const unsupportedActivityEntityTypes =
+    findUnsupportedFixtureActivityEntityTypes(
+      fixtureActivityEntityTypes,
+      fixtureSupportedActivityEntityTypes,
+    );
+
+  if (unsupportedActivityEntityTypes.length > 0) {
+    throw new Error(
+      `Fixture activity target resolver is missing: ${unsupportedActivityEntityTypes.join(", ")}`,
+    );
+  }
+
   process.stdout.write("Database test baseline loaded.\n");
+  process.stdout.write("Fixture activity targets verified.\n");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

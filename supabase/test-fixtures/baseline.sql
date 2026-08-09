@@ -1044,6 +1044,30 @@ WHERE exception.organization_id = runtime.organization_id
   AND exception.billing_period_start = date_trunc('month', current_date)::date
   AND exception.resolved_at IS NULL;
 
+DO $$
+DECLARE
+  v_garden_exception_id uuid;
+BEGIN
+  SELECT garden_exception_id
+  INTO v_garden_exception_id
+  FROM fixture_runtime;
+
+  IF v_garden_exception_id IS NULL OR NOT EXISTS (
+    SELECT 1
+    FROM public.rent_generation_exceptions AS exception
+    JOIN public.properties AS property
+      ON property.organization_id = exception.organization_id
+     AND property.id = exception.property_id
+    WHERE exception.id = v_garden_exception_id
+      AND property.code = 'GDN-CRT'
+      AND exception.resolved_at IS NULL
+  ) THEN
+    RAISE EXCEPTION
+      'Fixture Garden Court rent exception was not captured as unresolved.';
+  END IF;
+END;
+$$;
+
 UPDATE fixture_runtime AS runtime
 SET through_payment_id = public.record_tenant_invoice_payment(
   runtime.organization_id,

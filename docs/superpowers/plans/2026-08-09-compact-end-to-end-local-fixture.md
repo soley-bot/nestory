@@ -34,7 +34,7 @@
 - Consumes: the existing tables, views, and RPC effects already asserted by `demo_seed_contract_test.sql`
 - Produces: executable expectations for three properties, ten units, five leases, actionable Finance and Operations queues, reference-backed evidence, and resolved/open reporting stories
 
-- [ ] **Step 1: Replace the two-property and five-unit assertions with the approved compact portfolio counts**
+- [x] **Step 1: Replace the two-property and five-unit assertions with the approved compact portfolio counts**
 
 Add exact assertions for three active properties and ten active units. Use stable property codes rather than relying only on totals:
 
@@ -62,7 +62,7 @@ SELECT is(
 );
 ```
 
-- [ ] **Step 2: Add failing assertions for actionable Finance states**
+- [x] **Step 2: Add failing assertions for actionable Finance states**
 
 Require both terminal history and work that remains actionable:
 
@@ -86,7 +86,7 @@ SELECT ok(
 );
 ```
 
-- [ ] **Step 3: Add failing assertions for the Operations state matrix**
+- [x] **Step 3: Add failing assertions for the Operations state matrix**
 
 Assert one or more tasks in each intended lifecycle without pretending recurrence is a generator:
 
@@ -119,7 +119,7 @@ SELECT ok(
 );
 ```
 
-- [ ] **Step 4: Add failing assertions for rent coverage and the reporting split**
+- [x] **Step 4: Add failing assertions for rent coverage and the reporting split**
 
 Require paid, owner-confirmed, open/partial, and recoverable-exception coverage. Assert that Central Residence remains fully resolved while Garden Court intentionally contains open work:
 
@@ -139,7 +139,7 @@ SELECT ok(
 
 Use `tenant_invoice_balances` to assert two paid invoices and two unpaid invoices. Assert five current leases: four with generated current-month invoices and one missing-billing exception lease. Do not add partial payment behavior to this fixture.
 
-- [ ] **Step 5: Add failing integrity assertions for evidence and activity targets**
+- [x] **Step 5: Add failing integrity assertions for evidence and activity targets**
 
 Require every submitted expense to contain a document or nonblank reference, and require seeded activity entity types to resolve through current supported types:
 
@@ -165,7 +165,7 @@ npx supabase test db --local supabase/tests/demo_seed_contract_test.sql
 
 Expected: FAIL because the current fixture has two properties, five units, no submitted general expense, no submitted maintenance cost, and no Garden Court story. Existing assertions must continue passing.
 
-- [ ] **Step 7: Commit the failing contract**
+- [x] **Step 7: Commit the failing contract**
 
 ```powershell
 git add supabase/tests/demo_seed_contract_test.sql
@@ -184,7 +184,7 @@ git commit -m "test: define complete local fixture contract"
 - Consumes: stable organization, branch, user, and role UUIDs already defined in the fixture
 - Produces: property code `GDN-CRT`, five new units for a total of ten, additional people/roles/ownership, and stable foundational IDs consumed by Task 3
 
-- [ ] **Step 1: Add Garden Court and its units to the direct foundational inserts**
+- [x] **Step 1: Add Garden Court and its units to the direct foundational inserts**
 
 Add a third property with a stable UUID and code `GDN-CRT`. Add exactly five units to bring the total to ten; use explicit stable UUIDs and recognizable labels. Keep all units in the existing Phnom Penh branch and distribute occupied/vacant states through leases rather than a denormalized unit status field.
 
@@ -206,19 +206,19 @@ Example property row shape:
 )
 ```
 
-- [ ] **Step 2: Add only the people needed by the new stories**
+- [x] **Step 2: Add only the people needed by the new stories**
 
 Add one Garden Court owner and two tenants. Reuse an existing vendor for maintenance and expenses. Give each new person an appropriate active `person_roles` row. Do not add decorative contacts with no relationship to a lease, property, task, submission, or owner record.
 
-- [ ] **Step 3: Add complete Garden Court ownership**
+- [x] **Step 3: Add complete Garden Court ownership**
 
 Insert one current primary ownership row totaling 100 percent. Preserve the contract that every active property has exactly one complete current ownership model.
 
-- [ ] **Step 4: Preserve role scoping and add no new auth personas**
+- [x] **Step 4: Preserve role scoping and add no new auth personas**
 
 Keep exactly five `organization_members`. Ensure Finance roles remain organization-wide and Operations roles keep valid `person_id` and `branch_id` values.
 
-- [ ] **Step 5: Reset and load the fixture**
+- [x] **Step 5: Reset and load the fixture**
 
 Run:
 
@@ -229,7 +229,7 @@ npm run db:test:fixture
 
 Expected: reset succeeds, the local-only guard passes, and the fixture commits without foundational foreign-key or ownership errors.
 
-- [ ] **Step 6: Run the foundational subset of the fixture contract**
+- [x] **Step 6: Run the foundational subset of the fixture contract**
 
 Run the full contract and inspect failures:
 
@@ -239,7 +239,7 @@ npx supabase test db --local supabase/tests/demo_seed_contract_test.sql
 
 Expected: property, unit, ownership, people, and role assertions PASS. New workflow-state assertions remain FAIL until Tasks 3 and 4.
 
-- [ ] **Step 7: Commit foundational fixture expansion**
+- [x] **Step 7: Commit foundational fixture expansion**
 
 ```powershell
 git add supabase/test-fixtures/baseline.sql supabase/tests/demo_seed_contract_test.sql
@@ -259,7 +259,7 @@ git commit -m "test: expand compact local portfolio"
 - Consumes: Garden Court property/unit/person IDs from Task 2 and existing approved rent policy/reconciliation source
 - Produces: two canonical Garden Court leases, one current-month unpaid invoice, and one recoverable missing-billing exception stored in `fixture_runtime`
 
-- [ ] **Step 1: Extend `fixture_runtime` with explicit IDs for the new lease story**
+- [x] **Step 1: Extend `fixture_runtime` with explicit IDs for the new lease story**
 
 Add columns such as:
 
@@ -273,17 +273,17 @@ garden_exception_id uuid
 
 Only include IDs actually used later in the transaction or contract diagnostics.
 
-- [ ] **Step 2: Create two Garden Court leases through `create_lease_with_relationships`**
+- [x] **Step 2: Create two Garden Court leases through `create_lease_with_relationships`**
 
 Create two authoritative active monthly USD leases with `pg_temp.active_lease_relationship_payload`. Keep their dates wide enough to include the current billing month. Use unique idempotency keys `fixture-lease-garden-open` and `fixture-lease-garden-exception`.
 
-- [ ] **Step 3: Create a supported billing term or a deliberate recoverable exception**
+- [x] **Step 3: Create a supported billing term or a deliberate recoverable exception**
 
 Configure a valid through-IPS billing term only for `garden_open_lease_id`. Leave `garden_exception_lease_id` without a billing term, then run the canonical generator so it records the typed missing-billing exception. Do not repair the exception in the fixture; it remains the Super-Admin recovery example.
 
 Do not insert `rent_generation_exceptions` directly.
 
-- [ ] **Step 4: Run canonical rent generation and capture generated IDs**
+- [x] **Step 4: Run canonical rent generation and capture generated IDs**
 
 Continue using:
 
@@ -295,11 +295,11 @@ SET LOCAL ROLE authenticated;
 
 Capture invoice and exception IDs by stable lease and current billing period.
 
-- [ ] **Step 5: Leave the generated Garden Court invoice unpaid**
+- [x] **Step 5: Leave the generated Garden Court invoice unpaid**
 
 Do not call a settlement RPC for `garden_invoice_id`. Assert it remains unpaid through `tenant_invoice_balances`. Never update balance views or receipt allocations directly.
 
-- [ ] **Step 6: Reload and run the fixture contract**
+- [x] **Step 6: Reload and run the fixture contract**
 
 ```powershell
 npm run db:reset
@@ -309,7 +309,7 @@ npx supabase test db --local supabase/tests/demo_seed_contract_test.sql
 
 Expected: authoritative term, billing-route, generated-rent, payment-state, management-fee, and exception assertions PASS.
 
-- [ ] **Step 7: Run rent-specific pgTAP regression tests**
+- [x] **Step 7: Run rent-specific pgTAP regression tests**
 
 ```powershell
 npx supabase test db --local supabase/tests/lease_derived_rent_generation_test.sql
@@ -317,7 +317,7 @@ npx supabase test db --local supabase/tests/lease_derived_rent_generation_test.s
 
 Expected: PASS with no direct-writer or period-authority regression.
 
-- [ ] **Step 8: Commit canonical rent coverage**
+- [x] **Step 8: Commit canonical rent coverage**
 
 ```powershell
 git add supabase/test-fixtures/baseline.sql supabase/tests/demo_seed_contract_test.sql
@@ -338,7 +338,7 @@ git commit -m "test: cover lease-derived rent fixture states"
 - Consumes: foundational property/unit/person/vendor IDs, Finance and Operations user IDs, active reconciliation source
 - Produces: submitted/approved/rejected/reversed expense matrix, maintenance state matrix, actionable queues, and posted/open petty-cash examples
 
-- [ ] **Step 1: Extend `fixture_runtime` for actionable submission and task IDs**
+- [x] **Step 1: Extend `fixture_runtime` for actionable submission and task IDs**
 
 Add only needed columns:
 
@@ -352,7 +352,7 @@ completed_task_id uuid,
 open_petty_cash_entry_id uuid
 ```
 
-- [ ] **Step 2: Submit one general expense and leave it in `submitted`**
+- [x] **Step 2: Submit one general expense and leave it in `submitted`**
 
 Act as Finance Member and call `public.submit_expense` with Garden Court scope, an active reconciliation source, a vendor/person where required, and a nonblank receipt reference. Do not review it.
 
@@ -386,7 +386,7 @@ SET pending_general_submission_id = (
 
 Use the exact `public.submit_expense` argument order already exercised by the existing reversed and rejected examples: organization, Garden Court property, Garden Court unit, `general`, null source record, `repair`, vendor label, `current_date - 2`, internal cost, markup, `USD`, `owner`, null tenant invoice, reconciliation source, null supporting document, existing vendor person, reference `GDN-PUMP-2088`, and idempotency key `fixture-expense-pending-review`.
 
-- [ ] **Step 3: Add the maintenance lifecycle matrix through checked RPCs**
+- [x] **Step 3: Add the maintenance lifecycle matrix through checked RPCs**
 
 As Operations Manager, create the minimum tasks needed for `scheduled`, `in_progress`, `blocked`, `completed`, and cost-submitted states. Assign at least one actionable task to the Operations Member. Use explicit titles that explain the demo story, for example:
 
@@ -398,11 +398,11 @@ As Operations Manager, create the minimum tasks needed for `scheduled`, `in_prog
 
 Use `public.create_maintenance_task` and `public.update_maintenance_task`; do not insert tasks or finance effects directly.
 
-- [ ] **Step 4: Leave one maintenance cost awaiting Finance review**
+- [x] **Step 4: Leave one maintenance cost awaiting Finance review**
 
 Record actual cost through `update_maintenance_task`, then call `public.submit_maintenance_cost` with a nonblank evidence reference. Preserve the existing approved `Kitchen sink repair` path as the completed handoff example.
 
-- [ ] **Step 5: Add honest document metadata only where schema and local UI support it**
+- [x] **Step 5: Add honest document metadata only where schema and local UI support it**
 
 Inspect the current `create_document` signature before adding document rows:
 
@@ -412,11 +412,11 @@ rg -n "CREATE OR REPLACE FUNCTION public.create_document|CREATE FUNCTION public.
 
 Do not create document rows when the checked workflow requires a real Storage object. Keep all new submission evidence reference-backed. The contract asserts evidence presence through the nonblank reference; it does not claim signed document-byte availability.
 
-- [ ] **Step 6: Add one open petty-cash example without posting it**
+- [x] **Step 6: Add one open petty-cash example without posting it**
 
 Retain the existing posted `Kitchen repair consumables` entry. Create one additional entry in the current period with a supported pre-post status and leave it open. Use `create_petty_cash_entry`; do not call `post_petty_cash_entry` for the new row.
 
-- [ ] **Step 7: Reload and run fixture plus workflow contracts**
+- [x] **Step 7: Reload and run fixture plus workflow contracts**
 
 ```powershell
 npm run db:reset
@@ -428,7 +428,7 @@ npx supabase test db --local supabase/tests/maintenance_cost_handoff_test.sql
 
 Expected: all PASS. The fixture has non-empty Finance and Operations action queues, rejected work has no financial effect, and approved/reversed work retains exact append-only identity.
 
-- [ ] **Step 8: Commit workflow fixture expansion**
+- [x] **Step 8: Commit workflow fixture expansion**
 
 ```powershell
 git add supabase/test-fixtures/baseline.sql supabase/tests/demo_seed_contract_test.sql
@@ -449,7 +449,7 @@ git commit -m "test: complete operations and finance fixture flows"
 - Consumes: completed fixture and executable fixture contract from Tasks 1–4
 - Produces: repeatable verification commands and documented role/story inventory
 
-- [ ] **Step 1: Run the complete database verification path from a clean reset**
+- [x] **Step 1: Run the complete database verification path from a clean reset**
 
 ```powershell
 npm run db:reset
@@ -461,7 +461,7 @@ npx supabase test db --local supabase/tests
 
 Expected: the fixture loads atomically, database lint reports no errors, and all pgTAP tests PASS.
 
-- [ ] **Step 2: Run Supabase advisors at error level**
+- [x] **Step 2: Run Supabase advisors at error level**
 
 Discover the installed CLI syntax first:
 
@@ -471,11 +471,11 @@ npx supabase db advisors --help
 
 Then run the supported local error-level command. Expected: no error-level security or performance findings introduced by fixture work.
 
-- [ ] **Step 3: Verify canonical cash and reporting data directly**
+- [x] **Step 3: Verify canonical cash and reporting data directly**
 
 Use the existing fixture contract's authenticated Finance Member call to `public.get_property_cash_events_page`. Confirm Central Residence contains only `resolution_state = 'resolved'` events for the current month and includes the expected reversal. Confirm Garden Court's deliberately open work does not cause Central Residence reporting to become unresolved.
 
-- [ ] **Step 4: Add the five-role browser smoke script**
+- [x] **Step 4: Add the five-role browser smoke script**
 
 Implement `scripts/smoke-fixture-role-journeys.mjs` using the repository's existing Playwright smoke helper conventions:
 
@@ -491,7 +491,7 @@ const journeys = [
 
 For each journey, authenticate with `process.env.NESTORY_TEST_PASSWORD ?? "123456789"`, request the route, assert no redirect to `/no-access`, and assert a seeded record unique to that role's story is visible. Never print the password or session token. Add `"test:fixture-roles": "node scripts/smoke-fixture-role-journeys.mjs"` to `package.json`.
 
-- [ ] **Step 5: Run application verification**
+- [x] **Step 5: Run application verification**
 
 ```powershell
 npx tsc --noEmit
@@ -505,7 +505,7 @@ npm run test:fixture-roles
 
 Expected: all commands PASS. Existing skipped tests remain documented rather than silently converted to passes.
 
-- [ ] **Step 6: Update local-development documentation**
+- [x] **Step 6: Update local-development documentation**
 
 In `PROJECT.md`, retain the empty-reset boundary and add the compact fixture inventory:
 
@@ -518,7 +518,7 @@ compact development fixture, not a scale benchmark or hosted seed.
 
 List the five role emails without duplicating the password outside the fixture header.
 
-- [ ] **Step 7: Run final diff and provenance checks**
+- [x] **Step 7: Run final diff and provenance checks**
 
 ```powershell
 git diff --check

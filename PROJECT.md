@@ -330,6 +330,23 @@ Normal local resets contain no business records. `npm run db:test:fixture`
 loads the guarded disposable five-role fixture documented at the top of
 `supabase/test-fixtures/baseline.sql`.
 
+The guarded local fixture contains one organization, five fixed-role logins,
+three properties, ten units, five current leases, and connected lease-derived
+rent, Finance approval, maintenance handoff, petty-cash, timeline, and reporting
+stories. It is local-only: it is not a scale benchmark, hosted seed, or proof of
+production readiness.
+
+The five role logins are:
+
+- `nestory@gmail.com`
+- `finance.manager@nestory.com`
+- `finance.member@nestory.com`
+- `operations.manager@nestory.com`
+- `operations.member@nestory.com`
+
+After loading the fixture and starting the local application, run
+`npm run test:fixture-roles` to verify each role's intended seeded journey.
+
 Useful checks:
 
 ```powershell
