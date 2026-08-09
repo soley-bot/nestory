@@ -12,6 +12,14 @@ const organizationTheme = fs.readFileSync(
   path.join(root, "src/lib/theme/organization-theme.ts"),
   "utf8",
 );
+const tablePrimitive = fs.readFileSync(
+  path.join(root, "src/components/ui/table.tsx"),
+  "utf8",
+);
+const interactiveTable = fs.readFileSync(
+  path.join(root, "src/components/data/interactive-table.tsx"),
+  "utf8",
+);
 const components = JSON.parse(
   fs.readFileSync(path.join(root, "components.json"), "utf8"),
 ) as { style?: string; tailwind?: { cssVariables?: boolean } };
@@ -96,4 +104,36 @@ describe("Shadcn theme contract", () => {
       );
     }
   });
+
+  it("applies organization accents to table hierarchy without recoloring table text", () => {
+    for (const token of [
+      '"--table-header-bg"',
+      '"--table-row-hover"',
+      '"--table-row-selected"',
+      '"--table-row-selected-indicator"',
+    ]) {
+      expect(organizationTheme).toContain(token);
+    }
+
+    expect(tablePrimitive).toContain("bg-[var(--table-header-bg)]");
+    expect(tablePrimitive).toContain("hover:bg-[var(--table-row-hover)]");
+    expect(tablePrimitive).toContain("data-[state=selected]:bg-[var(--table-row-selected)]");
+    expect(interactiveTable).toContain("hover:bg-[var(--table-row-hover)]");
+    expect(interactiveTable).toContain("bg-[var(--table-row-selected)]");
+    expect(interactiveTable).toContain("var(--table-row-selected-indicator)");
+
+    for (const source of readTypeScriptSources(path.join(root, "src/features"))) {
+      for (const match of source.matchAll(/<thead\b[^>]*>/g)) {
+        expect(match[0]).toContain("bg-[var(--table-header-bg)]");
+      }
+    }
+  });
 });
+
+function readTypeScriptSources(directory: string): string[] {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) return readTypeScriptSources(target);
+    return entry.name.endsWith(".tsx") ? [fs.readFileSync(target, "utf8")] : [];
+  });
+}

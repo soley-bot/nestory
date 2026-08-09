@@ -14,6 +14,10 @@
   --state-success: #237a3e;
   --state-success-soft: #eaf7ec;
   --record-spine: var(--primary);
+  --table-header-bg: color-mix(in oklch, var(--primary) 5%, var(--background));
+  --table-row-hover: color-mix(in oklch, var(--primary) 6%, var(--background));
+  --table-row-selected: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --table-row-selected-indicator: var(--primary);
   --type-body: 14px;
   --type-table: 13px;
   --type-table-header: 11px;

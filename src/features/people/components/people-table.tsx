@@ -84,7 +84,7 @@ export function PeopleTable({
                   <col className="w-[8%]" />
                 </colgroup>
               )}
-              <thead className="sticky top-0 z-10 bg-muted/50 text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 {isRoleScoped ? (
                   <tr>
                     <th className="px-2.5 py-2.5 font-semibold">

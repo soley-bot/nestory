@@ -66,7 +66,7 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
           tabIndex={0}
         >
           <table className="w-full min-w-[620px] text-left text-sm">
-            <thead className="border-b border-border text-xs uppercase text-muted-foreground">
+            <thead className="border-b border-border bg-[var(--table-header-bg)] text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="py-2 pr-4">Version</th>
                 <th className="py-2 pr-4">Effective</th>

@@ -488,7 +488,7 @@ function FinanceWorkView({
         ) : (
           <TableFrame>
             <Table className="min-w-[860px]">
-              <thead>
+              <thead className="bg-[var(--table-header-bg)]">
                 <tr>
                   <Th>Work</Th>
                   <Th>Property</Th>
@@ -798,7 +798,7 @@ function RentView({
         ) : (
           <TableFrame>
             <Table className="min-w-[980px]">
-              <thead>
+              <thead className="bg-[var(--table-header-bg)]">
                 <tr>
                   <Th>Invoice</Th>
                   <Th>Billed to</Th>
@@ -1009,7 +1009,7 @@ function ExpenseSubmissionTable({
   return (
     <TableFrame>
       <Table className="min-w-[1080px]">
-        <thead>
+        <thead className="bg-[var(--table-header-bg)]">
           <tr>
             <Th>Date</Th>
             <Th>Expense</Th>
@@ -1220,7 +1220,7 @@ function BalancesView({
       <TabsContent className="min-h-0 overflow-auto" value="owners">
         <TableFrame>
           <Table className="min-w-[1040px]">
-            <thead>
+            <thead className="bg-[var(--table-header-bg)]">
               <tr>
                 <Th>Property</Th>
                 <Th>Owner</Th>
@@ -1299,7 +1299,7 @@ function BalancesView({
       <TabsContent className="min-h-0 overflow-auto" value="tenants">
         <TableFrame>
           <Table className="min-w-[720px]">
-            <thead>
+            <thead className="bg-[var(--table-header-bg)]">
               <tr>
                 <Th>Customer</Th>
                 <Th>Invoices</Th>
@@ -1384,7 +1384,7 @@ function PropertyAccountView({
       ) : (
         <TableFrame>
           <Table className="min-w-[820px]">
-            <thead>
+            <thead className="bg-[var(--table-header-bg)]">
               <tr>
                 <Th>Date</Th>
                 <Th>Type</Th>

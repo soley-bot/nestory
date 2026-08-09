@@ -35,7 +35,7 @@ export function LedgerTable({
             <col className="w-[18%]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-muted text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Flow</th>

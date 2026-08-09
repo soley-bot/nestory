@@ -384,7 +384,7 @@ export function ImportPreviewScreen({
               tabIndex={0}
             >
               <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">
-                <thead className="sticky top-0 bg-muted text-[11px] uppercase text-muted-foreground">
+                <thead className="sticky top-0 bg-[var(--table-header-bg)] text-[11px] uppercase text-muted-foreground">
                   <tr>
                     <th className="border-b border-border px-3 py-2 font-semibold">
                       Row

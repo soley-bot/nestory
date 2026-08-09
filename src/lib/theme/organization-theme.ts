@@ -35,7 +35,11 @@ export type OrganizationThemeStyle = CSSProperties &
     | "--sidebar-primary"
     | "--sidebar-primary-foreground"
     | "--sidebar-accent"
-    | "--sidebar-accent-foreground",
+    | "--sidebar-accent-foreground"
+    | "--table-header-bg"
+    | "--table-row-hover"
+    | "--table-row-selected"
+    | "--table-row-selected-indicator",
     string
   >;
 
@@ -130,6 +134,10 @@ export function getOrganizationThemeStyle(
     "--sidebar-primary-foreground": foreground,
     "--sidebar-accent": soft,
     "--sidebar-accent-foreground": surfaceForeground,
+    "--table-header-bg": `color-mix(in oklch, ${primary} ${dark ? "8%" : "5%"}, ${background})`,
+    "--table-row-hover": `color-mix(in oklch, ${primary} ${dark ? "10%" : "6%"}, ${background})`,
+    "--table-row-selected": `color-mix(in oklch, ${primary} ${dark ? "16%" : "10%"}, ${background})`,
+    "--table-row-selected-indicator": primary,
   };
 }
 

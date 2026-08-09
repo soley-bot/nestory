@@ -68,7 +68,7 @@ export function PropertiesTable({
                 <col className="w-[10%]" />
                 <col className="w-[8%]" />
               </colgroup>
-              <thead className="sticky top-0 z-10 bg-muted/50 text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
                     active={sort === "code_asc"}

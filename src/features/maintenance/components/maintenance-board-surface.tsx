@@ -222,7 +222,7 @@ function BoardListSurface({
         aria-label="Work order list"
         className="w-full min-w-[760px] border-collapse text-left text-[13px]"
       >
-        <thead className="bg-muted text-[11px] uppercase text-muted-foreground">
+        <thead className="bg-[var(--table-header-bg)] text-[11px] uppercase text-muted-foreground">
           <tr>
             <th className="px-3 py-2 font-semibold">Work order</th>
             <th className="px-3 py-2 font-semibold">Status / Priority</th>

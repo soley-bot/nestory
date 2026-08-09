@@ -20,6 +20,7 @@ Playwright CLI was run against the local fixture at 1440x900 and 1280x800 in bot
 - Finance: summary cards, work table, navigation, and primary actions use the same surface hierarchy.
 - Maintenance: list controls and rows remain dense and readable; semantic warning/status colors remain independent of the organization accent.
 - Timeline: record links use the accessible interaction token rather than the background-accent token.
+- Shared tables: headers use a 5% Light / 8% Dark accent mix; row hover uses 6% / 10%; selected rows use 10% / 16% plus a narrow full-accent indicator. Header and body text remain neutral, and semantic badges remain independent.
 - Settings / Appearance: Super Admin can preview presets without mutating the workspace, save a preset, refresh, and retain the saved choice.
 - The header quick toggle persists the organization mode, immediately reapplies the saved theme after the server action, and refreshes the settings data so the workspace and Theme mode selector do not disagree.
 - Forest was used as the non-neutral verification preset. Primary/link contrast is derived to at least 4.5:1 against the active light or dark workspace background.
