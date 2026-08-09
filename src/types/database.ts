@@ -45,8 +45,25 @@ type WithArgs<Name extends keyof GeneratedFunctions, Args> = Omit<
 > & {
   Args: Args;
 };
+type WithReturns<Name extends keyof GeneratedFunctions, Returns> = Omit<
+  GeneratedFunctions[Name],
+  "Returns"
+> & {
+  Returns: Returns;
+};
 
 type RpcFunctionOverrides = {
+  get_owner_roster_readiness: WithReturns<
+    "get_owner_roster_readiness",
+    {
+      active_owner_count: number;
+      effective_date: string;
+      issue_codes: string[];
+      ownership_percent_total: string;
+      property_id: string;
+      setup_path: string;
+    }[]
+  >;
   update_organization_appearance: WithArgs<
     "update_organization_appearance",
     {
@@ -387,7 +404,9 @@ type RpcFunctionOverrides = {
       p_notes: string | null;
       p_organization_id: string;
       p_owner: string | null;
+      p_owner_ownership_percent: string | null;
       p_owner_person_id?: string | null;
+      p_owner_started_on: string | null;
       p_property_type: string;
       p_status: string;
     }
@@ -506,7 +525,9 @@ type RpcFunctionOverrides = {
       p_notes: string | null;
       p_organization_id: string;
       p_owner: string | null;
+      p_owner_ownership_percent: string | null;
       p_owner_person_id?: string | null;
+      p_owner_started_on: string | null;
       p_property_id: string;
       p_property_type: string;
       p_status: string;

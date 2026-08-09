@@ -4837,6 +4837,7 @@ export type Database = {
           archived_by: string | null
           created_at: string
           created_by: string | null
+          effective_range: unknown
           ended_on: string | null
           id: string
           is_primary: boolean
@@ -4854,6 +4855,7 @@ export type Database = {
           archived_by?: string | null
           created_at?: string
           created_by?: string | null
+          effective_range?: unknown
           ended_on?: string | null
           id?: string
           is_primary?: boolean
@@ -4871,6 +4873,7 @@ export type Database = {
           archived_by?: string | null
           created_at?: string
           created_by?: string | null
+          effective_range?: unknown
           ended_on?: string | null
           id?: string
           is_primary?: boolean
@@ -6850,7 +6853,9 @@ export type Database = {
           p_notes: string
           p_organization_id: string
           p_owner: string
+          p_owner_ownership_percent?: number
           p_owner_person_id?: string
+          p_owner_started_on?: string
           p_property_type: string
           p_status: string
         }
@@ -7057,6 +7062,17 @@ export type Database = {
           password_required: boolean
           scope_name: string
           staff_name: string
+        }[]
+      }
+      get_owner_roster_readiness: {
+        Args: { p_cutover_date: string; p_organization_id: string }
+        Returns: {
+          active_owner_count: number
+          effective_date: string
+          issue_codes: string[]
+          ownership_percent_total: number
+          property_id: string
+          setup_path: string
         }[]
       }
       get_property_cash_events_page: {
@@ -7654,7 +7670,9 @@ export type Database = {
           p_notes: string
           p_organization_id: string
           p_owner: string
+          p_owner_ownership_percent?: number
           p_owner_person_id?: string
+          p_owner_started_on?: string
           p_property_id: string
           p_property_type: string
           p_status: string

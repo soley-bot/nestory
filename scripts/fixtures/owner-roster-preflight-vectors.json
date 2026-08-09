@@ -1,0 +1,40 @@
+{
+  "contractVersion": "owner_roster_preflight_v1",
+  "rosters": [
+    {
+      "name": "same-day transfer uses the successor roster",
+      "rows": [
+        {
+          "propertyOwnerId": "00000000-0000-0000-0000-000000000002",
+          "ownerPersonId": "10000000-0000-0000-0000-000000000002",
+          "ownershipPercent": "40.000",
+          "startedOn": "2026-06-01",
+          "endedOn": null
+        },
+        {
+          "propertyOwnerId": "00000000-0000-0000-0000-000000000001",
+          "ownerPersonId": "10000000-0000-0000-0000-000000000001",
+          "ownershipPercent": "60.000",
+          "startedOn": "2026-06-01",
+          "endedOn": null
+        }
+      ],
+      "canonicalRoster": "00000000-0000-0000-0000-000000000001|10000000-0000-0000-0000-000000000001|60.000|2026-06-01|\n00000000-0000-0000-0000-000000000002|10000000-0000-0000-0000-000000000002|40.000|2026-06-01|",
+      "rosterHash": "a0b7818f779abd382f9843f759b6fdbccc50218150cc2276fb0ec8accdf907d7"
+    },
+    {
+      "name": "sole owner share is explicit",
+      "rows": [
+        {
+          "propertyOwnerId": "00000000-0000-0000-0000-000000000010",
+          "ownerPersonId": "10000000-0000-0000-0000-000000000010",
+          "ownershipPercent": "100.000",
+          "startedOn": "2026-01-01",
+          "endedOn": null
+        }
+      ],
+      "canonicalRoster": "00000000-0000-0000-0000-000000000010|10000000-0000-0000-0000-000000000010|100.000|2026-01-01|",
+      "rosterHash": "7a32af7c10ef88fb996f2274627868e2378c245e77b7a6befb85870ad2e64e17"
+    }
+  ]
+}

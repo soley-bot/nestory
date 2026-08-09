@@ -558,12 +558,14 @@ INSERT INTO public.property_owners (
   created_by,
   updated_by
 )
+-- These are explicit demo-fixture ownership facts, not a sole-owner fallback.
+-- Each fixture property is authored as 100.000 percent from the stated date.
 VALUES
   (
     '00000000-0000-0000-0000-000000000001',
     '10000000-0000-0000-0000-000000000001',
     '80000000-0000-0000-0000-000000000004',
-    'Sole owner', 100, true,
+    'Sole owner', 100.000, true,
     (date_trunc('month', current_date) - interval '2 years')::date,
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
@@ -572,7 +574,7 @@ VALUES
     '00000000-0000-0000-0000-000000000001',
     '10000000-0000-0000-0000-000000000002',
     '80000000-0000-0000-0000-000000000005',
-    'Sole owner', 100, true,
+    'Sole owner', 100.000, true,
     (date_trunc('month', current_date) - interval '2 years')::date,
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
@@ -581,7 +583,7 @@ VALUES
     '00000000-0000-0000-0000-000000000001',
     '10000000-0000-0000-0000-000000000003',
     '80000000-0000-0000-0000-000000000009',
-    'Sole owner', 100, true,
+    'Sole owner', 100.000, true,
     (date_trunc('month', current_date) - interval '2 years')::date,
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'

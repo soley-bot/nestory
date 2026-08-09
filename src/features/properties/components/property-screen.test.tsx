@@ -331,6 +331,17 @@ describe("PropertyScreen redesign contract", () => {
     expect(navigation.replace).toHaveBeenCalledWith("/properties", {
       scroll: false,
     });
+    const startInput = document.querySelector<HTMLInputElement>(
+      'input[name="ownerStartedOn"]',
+    );
+    const shareInput = screen.getByRole("textbox", {
+      name: /^Ownership share/,
+    });
+    expect(startInput?.value).toBe("");
+    expect(startInput?.required).toBe(true);
+    expect(shareInput.getAttribute("required")).not.toBeNull();
+    expect(shareInput.getAttribute("value")).toBe("");
+    expect(screen.queryByDisplayValue("100.000")).toBeNull();
   });
 });
 
@@ -365,7 +376,12 @@ function renderProperties({
 
 function makeProperty(id: string, code: string, name: string) {
   return buildPropertySummary({
-    activeOwner: { label: "Nora Owner", personId: `owner-${id}` },
+    activeOwner: {
+      label: "Nora Owner",
+      ownershipPercent: "100.000",
+      personId: `owner-${id}`,
+      startedOn: "2026-01-01",
+    },
     hasActiveOwnerLink: true,
     ledgerEntries: [{ amount: 1200, currency: "USD", direction: "income" }],
     property: {

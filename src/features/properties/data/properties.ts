@@ -42,14 +42,18 @@ export type { PropertyDetail } from "@/features/properties/data/property-detail"
 
 type ActiveOwnerLink = {
   label: string;
+  ownershipPercent: string;
   personId: string;
+  startedOn: string;
 };
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 type PropertyFilterQuery = ReturnType<typeof buildPropertyBaseQuery>;
 type ActiveOwnerRow = {
+  ownership_percent: number;
   person_id: string;
   property_id: string;
+  started_on: string;
 };
 type PropertyPersonRow = {
   display_name: string;
@@ -967,7 +971,9 @@ async function getActiveOwnerLinks(
   for (const owner of ownerRows) {
     links.set(owner.property_id, {
       label: labelsByPerson.get(owner.person_id) ?? "Linked owner",
+      ownershipPercent: owner.ownership_percent.toFixed(3),
       personId: owner.person_id,
+      startedOn: owner.started_on,
     });
   }
 
@@ -980,7 +986,7 @@ async function getActiveOwnerRows(
 ): Promise<ActiveOwnerRow[]> {
   const result = await supabase
     .from("property_owners")
-    .select("person_id, property_id")
+    .select("ownership_percent, person_id, property_id, started_on")
     .eq("organization_id", organizationId)
     .eq("is_primary", true)
     .is("archived_at", null)
@@ -1005,7 +1011,7 @@ async function getActiveOwnerRowsForProperties(
   return queryValueBatches([...propertyIds], async (batch) => {
     const result = await supabase
       .from("property_owners")
-      .select("person_id, property_id")
+      .select("ownership_percent, person_id, property_id, started_on")
       .eq("organization_id", organizationId)
       .eq("is_primary", true)
       .in("property_id", batch)

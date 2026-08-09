@@ -66,6 +66,9 @@ export function PropertyForm({
     initialState,
   );
   const defaults = getPropertyDefaults(property, initialValues);
+  const [selectedOwnerPersonId, setSelectedOwnerPersonId] = useState(
+    defaults.ownerPersonId ?? "",
+  );
   const [photoPreview, setPhotoPreview] = useState<PhotoPreview | null>(null);
   const [dropzoneKey, setDropzoneKey] = useState(0);
   const openPhotoPickerRef = useRef<(() => void) | null>(null);
@@ -216,6 +219,7 @@ export function PropertyForm({
               context="Property owner"
               defaultValue={defaults.ownerPersonId ?? ""}
               name="ownerPersonId"
+              onValueChange={setSelectedOwnerPersonId}
               options={ownerOptions}
               placeholder="Choose owner"
               preservedOption={
@@ -256,6 +260,39 @@ export function PropertyForm({
               ariaLabel="Acquisition date"
               defaultValue={defaults.acquisitionDate ?? ""}
               name="acquisitionDate"
+            />
+          </RecordField>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RecordField
+            error={state.fieldErrors?.ownerStartedOn?.[0]}
+            label="Ownership start date"
+            name="ownerStartedOn"
+            required={Boolean(selectedOwnerPersonId)}
+          >
+            <DatePickerField
+              ariaLabel="Ownership start date"
+              defaultValue={defaults.ownerStartedOn ?? ""}
+              name="ownerStartedOn"
+              required={Boolean(selectedOwnerPersonId)}
+            />
+          </RecordField>
+
+          <RecordField
+            error={state.fieldErrors?.ownershipPercent?.[0]}
+            label="Ownership share (%)"
+            name="ownershipPercent"
+            required={Boolean(selectedOwnerPersonId)}
+          >
+            <Input
+              aria-label="Ownership share (%)"
+              defaultValue={defaults.ownershipPercent ?? ""}
+              inputMode="decimal"
+              maxLength={7}
+              name="ownershipPercent"
+              required={Boolean(selectedOwnerPersonId)}
+              type="text"
             />
           </RecordField>
         </div>
@@ -445,6 +482,8 @@ function getPropertyDefaults(
     owner: property?.formValues.owner ?? "",
     ownerPersonId:
       property?.formValues.ownerPersonId ?? initialValues.ownerPersonId ?? "",
+    ownerStartedOn: property?.formValues.ownerStartedOn ?? "",
+    ownershipPercent: property?.formValues.ownershipPercent ?? "",
     propertyType: property?.formValues.propertyType ?? "",
     status: property?.formValues.status ?? "active",
   };

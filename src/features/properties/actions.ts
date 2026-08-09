@@ -14,6 +14,8 @@ type PropertyFieldErrors = {
   notes?: string[];
   owner?: string[];
   ownerPersonId?: string[];
+  ownerStartedOn?: string[];
+  ownershipPercent?: string[];
   photo?: string[];
   propertyId?: string[];
   propertyType?: string[];
@@ -43,7 +45,23 @@ const optionalUuidSchema = z
     },
   );
 
-const propertyMutationSchema = z.object({
+const optionalDateSchema = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), {
+    message: "Enter a valid ownership start date.",
+  });
+
+const optionalOwnershipPercentSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => value === "" || isValidOwnershipPercent(value),
+    "Enter a share greater than 0 and no more than 100 with up to 3 decimals.",
+  );
+
+const propertyMutationSchema = z
+  .object({
   acquisitionDate: z
     .string()
     .trim()
@@ -64,13 +82,40 @@ const propertyMutationSchema = z.object({
   notes: z.string().trim().max(800, "Keep notes under 800 characters."),
   owner: z.string().trim().max(120, "Keep the owner under 120 characters."),
   ownerPersonId: optionalUuidSchema,
+  ownerStartedOn: optionalDateSchema,
+  ownershipPercent: optionalOwnershipPercentSchema,
   propertyType: z
     .string()
     .trim()
     .min(1, "Enter a property type.")
     .max(80, "Keep the type under 80 characters."),
   status: propertyStatusSchema,
-});
+  })
+  .superRefine((value, context) => {
+    if (value.ownerPersonId) {
+      if (!value.ownerStartedOn) {
+        context.addIssue({
+          code: "custom",
+          message: "Enter the ownership start date.",
+          path: ["ownerStartedOn"],
+        });
+      }
+
+      if (!value.ownershipPercent) {
+        context.addIssue({
+          code: "custom",
+          message: "Enter the ownership share.",
+          path: ["ownershipPercent"],
+        });
+      }
+    } else if (value.ownerStartedOn || value.ownershipPercent) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose an owner for these ownership details.",
+        path: ["ownerPersonId"],
+      });
+    }
+  });
 
 const propertyIdSchema = z.guid("Choose a property.");
 
@@ -88,6 +133,8 @@ function readPropertyMutationInput(formData: FormData) {
     notes: readString(formData, "notes"),
     owner: readString(formData, "owner"),
     ownerPersonId: readString(formData, "ownerPersonId"),
+    ownerStartedOn: readString(formData, "ownerStartedOn"),
+    ownershipPercent: readString(formData, "ownershipPercent"),
     propertyType: readString(formData, "propertyType"),
     status: readString(formData, "status"),
   };
@@ -153,7 +200,9 @@ export async function createPropertyAction(
     p_notes: nullableString(parsed.data.notes),
     p_organization_id: context.organizationId,
     p_owner: nullableString(parsed.data.owner),
+    p_owner_ownership_percent: nullableString(parsed.data.ownershipPercent),
     p_owner_person_id: nullableString(parsed.data.ownerPersonId),
+    p_owner_started_on: nullableString(parsed.data.ownerStartedOn),
     p_property_type: parsed.data.propertyType,
     p_status: parsed.data.status,
   });
@@ -229,7 +278,9 @@ export async function updatePropertyAction(
     p_notes: nullableString(parsed.data.notes),
     p_organization_id: context.organizationId,
     p_owner: nullableString(parsed.data.owner),
+    p_owner_ownership_percent: nullableString(parsed.data.ownershipPercent),
     p_owner_person_id: nullableString(parsed.data.ownerPersonId),
+    p_owner_started_on: nullableString(parsed.data.ownerStartedOn),
     p_property_id: parsedPropertyId.data,
     p_property_type: parsed.data.propertyType,
     p_status: parsed.data.status,
@@ -412,5 +463,22 @@ function propertyActionErrorMessage(message: string) {
     return "Choose an active person for the current owner.";
   }
 
+  if (message.includes("Ownership replacement would create an empty interval")) {
+    return "Choose a later ownership start date or correct the never-effective owner record first.";
+  }
+
   return "We could not save the property. Please check the fields and try again.";
+}
+
+function isValidOwnershipPercent(value: string) {
+  const match = /^(\d{1,3})(?:\.(\d{1,3}))?$/.exec(value);
+
+  if (!match) {
+    return false;
+  }
+
+  const whole = BigInt(match[1] ?? "0");
+  const fraction = BigInt((match[2] ?? "").padEnd(3, "0"));
+  const thousandths = whole * BigInt(1000) + fraction;
+  return thousandths > BigInt(0) && thousandths <= BigInt(100000);
 }
