@@ -241,6 +241,13 @@ Required database enforcement includes:
 - trigger/RPC validation for same-key rejected predecessor and latest-chain
   lineage, which cannot be expressed by a row check alone.
 
+Task 2.1A defines nullable `correction_of_entry_id` plus its row-level kind/null
+pairing and submitted-correction uniqueness, but cannot add an entry foreign key
+before `owner_opening_balance_entries` exists. Task 2.1B adds the composite
+organization/scoped correction-target foreign key and target constraints only
+after creating the entry table. No migration uses an unresolved forward
+reference or temporarily disables referential enforcement.
+
 pgTAP asserts the complete table ACL matrix: `authenticated` has only `SELECT`;
 `anon` and `service_role` have no table privilege; and none of `anon`,
 `authenticated`, or `service_role` has `INSERT`, `UPDATE`, `DELETE`, or
@@ -523,18 +530,30 @@ each interval whose exact active-share total differs from `100.000`. It prints
 the canonical roster serialization/hash when valid, a deterministic issue JSON
 hash, and never writes or proposes a sole-owner default.
 
-The query contract is
-`app_private.owner_roster_legacy_preflight(p_cutover_date date)`, a `STABLE`,
-non-`SECURITY DEFINER`, non-Data-API function callable only by the migration
-owner. It returns one row per property/boundary/issue with `organization_id`,
+The pre-migration command must work against the clean pre-Task-2.0 baseline. It
+executes a self-contained read-only SQL/CTE over the existing `property_owners`,
+`properties`, and `people` schema; it must not call, probe, or assume the later
+helper exists. Its contract is
+`node scripts/report-owner-roster-preflight.mjs --target local --cutover
+YYYY-MM-DD --out <path>`; any later hosted target requires explicit hosted-read
+approval and a named project.
+
+Task 2.0 then installs
+`app_private.owner_roster_legacy_preflight(p_cutover_date date)`, a reusable
+`STABLE`, non-`SECURITY DEFINER`, non-Data-API helper callable only by the
+migration owner. Both paths return one row per property/boundary/issue with
+`organization_id`,
 `property_id`, `boundary_date`, nullable `next_boundary_date`, `issue_code`,
 sorted `property_owner_ids uuid[]`, `active_owner_count`,
 `ownership_percent_total numeric(9,3)`, nullable canonical serialization, and
-nullable `ownership_roster_hash`. The command is
-`node scripts/report-owner-roster-preflight.mjs --target local --cutover
-YYYY-MM-DD --out <path>`; any later hosted target requires the explicit hosted
-read approval and named project. JSON rows are sorted by organization, property,
-boundary, issue, and owner IDs before their lowercase SHA-256 report hash.
+nullable `ownership_roster_hash`. JSON rows are sorted by organization, property,
+boundary, issue, and owner IDs before their lowercase SHA-256 report hash. Both
+consume `scripts/fixtures/owner-roster-preflight-vectors.json` as shared
+deterministic expected rows and canonical/report hashes. Acceptance first runs
+the script
+before the migration/helper exists and proves zero writes; after installation it
+runs the same vectors through both paths and requires byte-identical normalized
+rows, canonical roster hashes, and report hashes.
 
 The hosted ownership migration is gated on a separately approved read-only
 preflight against the named project, followed by an operator-approved remediation
@@ -892,7 +911,9 @@ pgTAP. Add the half-open range, unarchived overlap exclusion, explicit positive
 share constraints, exact-100.000 date validator, canonical roster hash, and
 Finance-readable remediation surface. Add the deterministic read-only legacy
 preflight query/command, issue/report hashes, and hosted clean-report/remediation
-gate. Replace the current primary-owner sync
+gate. The command runs its self-contained baseline SQL before the helper exists,
+then proves identical shared-vector output after helper installation. Replace
+the current primary-owner sync
 writer/action/form so start/share are explicit and never prefilled. Correct
 fixture ownership explicitly; never infer sole-owner `100.000`. No
 opening-balance table exists in this task.
@@ -907,6 +928,8 @@ Add failing-then-green structure and concurrency pgTAP. No public mutation RPC
 or approved entry table exists yet. Explicitly assert that `authenticated` has
 read only, while `anon` and `service_role` have no table access and all three
 application roles lack every table mutation privilege.
+Define `correction_of_entry_id` without its future entry FK in this task; retain
+the kind/null and uniqueness rules that do not require the entry table.
 
 ### Task 2.1B: Approved entry schema, capabilities, and immutable access
 
@@ -916,6 +939,8 @@ reversible `0.00` authority-bearing row, immutable guards, explicit capabilities
 and contexts, RLS/read policy, complete anon/authenticated/service-role ACL and
 direct-DML denial, and generated schema types. Do not add handwritten RPC
 overrides before the RPC signatures exist. No public workflow RPC exists.
+After creating the entry table, add the request-to-entry composite correction
+target FK and same-scope/target constraints deferred by Task 2.1A.
 
 ### Task 2.2A: Verifiable document fingerprint and evidence lock
 
@@ -1036,7 +1061,9 @@ Acceptance must prove at least:
   non-null hash/bytes, new-row replacement, replacement/delete lock, honest
   reference-only hash limits, and upload cleanup after failed submit;
 - read-only legacy ownership preflight coverage at every interval boundary and
-  supplied cutover date, deterministic roster/report hashes, zero-write proof,
+  supplied cutover date, successful execution before the Task 2.0 helper exists,
+  shared deterministic fixture vectors, zero-write proof, byte-identical rows
+  and canonical/report hashes between baseline SQL and post-migration helper,
   no silent backfill, and a blocking hosted remediation gate;
 - initial approve/reject, self-review denial, duplicate authority, known zero,
   unknown, new submit/approve/correction denial while locked, locked-month reject,

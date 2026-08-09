@@ -265,8 +265,9 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
 - Create: `supabase/tests/owner_opening_balance_authority_test.sql`
 - Create: `supabase/tests/owner_opening_balance_workflow_test.sql`
 - Create: `supabase/tests/owner_opening_balance_reconciliation_test.sql`
-- Create: `scripts/report-owner-roster-preflight.mjs` and its deterministic
-  read-only issue/report-hash fixture
+- Create: `scripts/report-owner-roster-preflight.mjs`
+- Create: `scripts/fixtures/owner-roster-preflight-vectors.json` as the shared
+  deterministic row/canonical-hash/report-hash vectors
 - Create: `src/features/owner-balances/owner-balance.types.ts`
 - Create: `src/features/owner-balances/owner-balance.money.ts`
 - Create: `src/features/owner-balances/actions.ts`
@@ -297,7 +298,9 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
   is never silently defaulted to `100.000`.
 - Produces a zero-write legacy ownership preflight covering every roster interval
   and supplied cutover date; hosted application is blocked until an approved
-  remediation manifest and clean rerun hash exist.
+  remediation manifest and clean rerun hash exist. Its self-contained SQL/CTE
+  runs on the pre-Task-2.0 baseline; after helper installation, shared fixture
+  vectors must yield identical normalized rows and canonical/report hashes.
 - Produces checked submit, approve/reject, and correction-request RPCs with
   exact-decimal strings, evidence SHA/document/reference, independent reviewer,
   rejected-request resubmission lineage, public-argument-only payload
@@ -316,6 +319,8 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
   `100.000` on the requested date, deterministic date validator/roster hash, and
   Finance-readable remediation. Add the deterministic zero-write legacy
   preflight and hosted clean-report/remediation gate with no silent backfill.
+  Prove the standalone script succeeds with zero writes before the helper exists
+  and matches the installed helper exactly on shared deterministic vectors.
   Replace the carried-forward primary-owner
   writer/action/form so effective start/share are explicit and never prefilled.
   Explicitly correct fixture data; never backfill a sole owner to `100.000`.
@@ -323,12 +328,15 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
 - [ ] **Task 2.1A — request schema:** create the component type and opening
   request table with ownership/evidence snapshots,
   `resubmission_of_request_id`, status/check constraints, composite scope keys,
-  and concurrent pending-request uniqueness. Commit and obtain fresh review.
+  and concurrent pending-request uniqueness. Define `correction_of_entry_id`
+  without its not-yet-possible entry FK. Commit and obtain fresh review.
 - [ ] **Task 2.1B — entry schema and access:** create immutable signed entries,
   initial/reversal/replacement constraints including `0.00`, explicit
   capabilities, RLS, explicit anon/authenticated/service-role ACLs, and
   direct-DML denial. Generate schema types only; handwritten RPC overrides wait
-  for real signatures. Commit and obtain fresh review before workflow RPCs.
+  for real signatures. Add the composite correction-target FK/same-scope rules
+  only after this task creates the entry table. Commit and obtain fresh review
+  before workflow RPCs.
 - [ ] **Task 2.2A — document fingerprint/evidence lock:** add checked nullable
   `documents.content_sha256`, exact upload-byte hashing, null-to-hash once-only
   fingerprinting, immutable fingerprinted bytes/hash, new-row file replacement,
