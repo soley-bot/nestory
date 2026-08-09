@@ -4,6 +4,11 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  buildDeniedGlobalEntryChecks,
+  validateDiscoverabilityEvidence,
+} from "./smoke-authenticated-route-discoverability-core.mjs";
+
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dashboardRoot = join(projectRoot, "src", "app", "(dashboard)");
 const contractPath = join(
@@ -62,6 +67,14 @@ if (process.argv.includes("--write-report")) {
   const evidence = evidencePath && existsSync(evidencePath)
     ? JSON.parse(await readFile(evidencePath, "utf8"))
     : undefined;
+  if (evidence) {
+    const evidenceIssues = validateDiscoverabilityEvidence(contract, evidence);
+    if (evidenceIssues.length > 0) {
+      throw new Error(
+        `Refusing invalid discoverability evidence:\n${evidenceIssues.join("\n")}`,
+      );
+    }
+  }
   await writeFile(reportPath, buildReport(contract, contractHash, evidence), "utf8");
 }
 
@@ -139,6 +152,17 @@ for (const routeContract of contract.routes) {
     if (entry.kind !== classification) {
       issues.push(`${routeContract.route}: ${role} classification does not match entry kind`);
     }
+    if (
+      entry.kind === "global" &&
+      (typeof entry.href !== "string" || !entry.href.startsWith("/"))
+    ) {
+      issues.push(`${routeContract.route}: global entry ${entryOrReason} has no canonical href`);
+    }
+    if (entry.kind === "global" && entry.href !== routeContract.route) {
+      issues.push(
+        `${routeContract.route}: global entry ${entryOrReason} href does not match the route`,
+      );
+    }
     const entrySourcePath = join(projectRoot, entry.source ?? "missing");
     const entrySource = existsSync(entrySourcePath)
       ? await readFile(entrySourcePath, "utf8")
@@ -174,6 +198,18 @@ for (const routeContract of contract.routes) {
         issues.push(`${routeContract.route}: UI coverage expects ${uiEntry.smoke?.expectedAccess?.[role]} for ${role}, expected ${expected}`);
       }
     }
+  }
+}
+
+for (const role of roles) {
+  try {
+    buildDeniedGlobalEntryChecks(contract, role);
+  } catch (error) {
+    issues.push(
+      `contract: ${role} denied-global checks are invalid: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
   }
 }
 
@@ -274,7 +310,25 @@ function buildReport(currentContract, hash, evidence) {
         `- Tested implementation SHA: \`${evidence.head}\``,
         `- Local base URL: \`${evidence.baseUrl}\``,
         `- Result: ${evidence.passed}/${evidence.total} visible-link journeys passed`,
-        "- Every journey began at `/workspace`; only the initial login/arrival used direct navigation.",
+        `- Role sessions: ${evidence.sessionStarts.length}/${roles.length} started at \`/workspace\` and clicked \`Open workspace\` once.`,
+        `- Denied global anchors: ${evidence.deniedGlobalAbsence.reduce((total, result) => total + result.checked, 0)} role/entry absence checks passed.`,
+        `- Direct denials: ${evidence.denials.length} separate probes passed; these are authorization evidence, not discoverability journeys.`,
+        "",
+        "### Role session starts",
+        "",
+        ...evidence.sessionStarts.map(
+          (session) =>
+            `- \`${session.role}\`: ${session.status} — ${session.chain.join(" → ")} → ${session.destination}`,
+        ),
+        "",
+        "### Denied global entry absence",
+        "",
+        ...evidence.deniedGlobalAbsence.map(
+          (result) =>
+            `- \`${result.role}\`: ${result.status} — ${result.checked} forbidden global hrefs checked`,
+        ),
+        "",
+        "### Visible-link journeys from the current shell/context",
         "",
         ...evidence.journeys.map(
           (journey) => `- \`${journey.id}\`: ${journey.status} — ${journey.chain.join(" → ")}`,
@@ -282,5 +336,5 @@ function buildReport(currentContract, hash, evidence) {
       ].join("\n")
     : "Browser evidence pending the exact-HEAD local fixture run.";
 
-  return `# Authenticated route discoverability\n\n<!-- contract-sha256:${hash} -->\n\nThis report is generated from \`config/authenticated-route-discoverability.json\`. The contract covers all 38 production pages inside the authenticated dashboard layout. \`/workspace\` is the authenticated arrival router and is verified separately as the shell entry.\n\nClassifications are \`global\`, \`context\`, \`profile\`, or \`intentionally inaccessible\`. An authorized page is incomplete unless its visible entry and shell-start browser journey both exist.\n\n| Route | Guard / capability | Super Admin | Finance Manager | Finance Member | Operations Manager | Operations Member | Dead-end checks |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n## Browser evidence\n\n${evidenceSection}\n\n## Known scope\n\n- Public, authentication, invitation, API, and error routes are outside this authenticated dashboard inventory.\n- Direct-denial checks prove authorization only; they are not counted as discoverability evidence.\n- Hosted Supabase, Vercel, email, real IPS data, and production deployment remain unchanged.\n`;
+  return `# Authenticated route discoverability\n\n<!-- contract-sha256:${hash} -->\n\nThis report is generated from \`config/authenticated-route-discoverability.json\`. The contract covers all 38 production pages inside the authenticated dashboard layout. \`/workspace\` is the authenticated arrival router and is verified once per role as the shell entry.\n\nClassifications are \`global\`, \`context\`, \`profile\`, or \`intentionally inaccessible\`. An authorized page is incomplete unless its visible entry and browser journey from the current shell or contextual origin both exist.\n\n| Route | Guard / capability | Super Admin | Finance Manager | Finance Member | Operations Manager | Operations Member | Dead-end checks |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n## Browser evidence\n\n${evidenceSection}\n\n## Known scope\n\n- Public, authentication, invitation, API, and error routes are outside this authenticated dashboard inventory.\n- Direct-denial checks prove authorization only; they are not counted as discoverability evidence.\n- Hosted Supabase, Vercel, email, real IPS data, and production deployment remain unchanged.\n`;
 }

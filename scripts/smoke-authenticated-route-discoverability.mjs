@@ -6,10 +6,14 @@ import { chromium } from "playwright";
 
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
 import {
+  buildDeniedGlobalEntryChecks,
   buildDiscoverabilityPlan,
   createPassedJourneyEvidence,
+  createSessionStartEvidence,
   directDenialRoutes,
+  findForbiddenGlobalEntries,
   fixtureRoleEmails,
+  validateDiscoverabilityEvidence,
 } from "./smoke-authenticated-route-discoverability-core.mjs";
 
 const projectRoot = process.cwd();
@@ -35,6 +39,8 @@ const head = execFileSync("git", ["rev-parse", "HEAD"], {
 }).trim();
 const journeys = [];
 const denials = [];
+const deniedGlobalAbsence = [];
+const sessionStarts = [];
 const browser = await chromium.launch({ headless: true });
 
 try {
@@ -46,8 +52,14 @@ try {
 
     try {
       await authenticate(page, fixtureRoleEmails[role]);
-      await openWorkspaceArrival(page);
-      await assertInaccessibleGlobalEntriesAreAbsent(page, role);
+      const arrivalDestination = await openWorkspaceArrival(page);
+      sessionStarts.push(createSessionStartEvidence(role, arrivalDestination));
+      const checked = await assertInaccessibleGlobalEntriesAreAbsent(page, role);
+      deniedGlobalAbsence.push({ checked, role, status: "passed" });
+      process.stdout.write(
+        `PASS session ${role} /workspace -> Open workspace -> ${arrivalDestination}\n`,
+      );
+      process.stdout.write(`PASS denied-global ${role} checked=${checked}\n`);
 
       for (const journey of plan.filter((candidate) => candidate.role === role)) {
         const chain = await openJourney(page, journey);
@@ -59,7 +71,7 @@ try {
       const deniedRoute = directDenialRoutes[role];
       if (deniedRoute) {
         await openDirectDenial(page, deniedRoute);
-        denials.push({ role, route: deniedRoute, status: "pass" });
+        denials.push({ role, route: deniedRoute, status: "passed" });
         process.stdout.write(`PASS denial ${role} ${deniedRoute}\n`);
       }
     } finally {
@@ -73,11 +85,18 @@ try {
 const evidence = {
   baseUrl,
   denials,
+  deniedGlobalAbsence,
   head,
   journeys,
   passed: journeys.length,
+  sessionStarts,
   total: plan.length,
 };
+
+const evidenceIssues = validateDiscoverabilityEvidence(contract, evidence);
+if (evidenceIssues.length > 0) {
+  throw new Error(`Invalid discoverability evidence:\n${evidenceIssues.join("\n")}`);
+}
 
 await mkdir(dirname(evidencePath), { recursive: true });
 await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
@@ -113,30 +132,35 @@ async function openWorkspaceArrival(page) {
     { timeout: 30_000 },
   );
   assertAuthorizedDestination(page);
+  return new URL(page.url()).pathname;
 }
 
 async function assertInaccessibleGlobalEntriesAreAbsent(page, role) {
-  for (const route of contract.routes) {
-    const [classification, entryId] = route.roleAccess[role];
-    if (
-      classification !== "inaccessible" ||
-      !entryId ||
-      contract.entries[entryId]?.kind !== "global"
-    ) {
-      continue;
-    }
-
-    const locator = page.locator(
-      `nav[aria-label="Global navigation"] a[href="${staticRoute(route.route)}"]:visible`,
-    );
-    if ((await locator.count()) > 0) {
-      throw new Error(`${role} can see inaccessible global entry ${route.route}`);
-    }
+  const collapsedGroups = page.getByRole("button", {
+    name: /^Expand .* navigation$/,
+  });
+  for (let index = (await collapsedGroups.count()) - 1; index >= 0; index -= 1) {
+    await collapsedGroups.nth(index).click();
   }
+
+  const visibleHrefs = await page
+    .locator('nav[aria-label="Global navigation"] a[href]:visible')
+    .evaluateAll((anchors) =>
+      anchors.map((anchor) => anchor.getAttribute("href")).filter(Boolean),
+    );
+  const forbidden = findForbiddenGlobalEntries(contract, role, visibleHrefs);
+  if (forbidden.length > 0) {
+    throw new Error(
+      `${role} can see inaccessible global entries: ${forbidden
+        .map((entry) => `${entry.href} (${entry.route})`)
+        .join(", ")}`,
+    );
+  }
+  return buildDeniedGlobalEntryChecks(contract, role).length;
 }
 
 async function openJourney(page, journey) {
-  const chain = ["/workspace", "Open workspace"];
+  const chain = [];
 
   if (journey.classification === "global") {
     await clickGlobalRoute(page, journey.route);
