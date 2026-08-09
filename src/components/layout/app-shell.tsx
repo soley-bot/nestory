@@ -1,10 +1,11 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2,
+  ChevronRight,
   FileChartColumn,
   History,
   Landmark,
@@ -42,8 +43,12 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
@@ -55,12 +60,62 @@ import type { OrganizationTheme } from "@/lib/theme/organization-theme";
 import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
 
 type GlobalDestination = {
+  children?: readonly GlobalDestinationChild[];
   id: string;
   href: string;
   icon: LucideIcon;
   label: string;
   routes: readonly string[];
 };
+
+type GlobalDestinationChild = {
+  href: string;
+  label: string;
+  routes: readonly string[];
+};
+
+const FINANCE_CHILDREN = [
+  { href: "/finance", label: "Finance work", routes: ["/finance"] },
+  { href: "/rent-income", label: "Rent", routes: ["/rent-income"] },
+  { href: "/bills-expenses", label: "Expenses", routes: ["/bills-expenses"] },
+  { href: "/balances", label: "Owner balances", routes: ["/balances"] },
+  { href: "/leases", label: "Leases", routes: ["/leases"] },
+  { href: "/ledger", label: "Ledger", routes: ["/ledger"] },
+  { href: "/petty-cash", label: "Petty cash", routes: ["/petty-cash"] },
+] satisfies readonly GlobalDestinationChild[];
+
+const MAINTENANCE_CHILDREN = [
+  { href: "/maintenance", label: "Cases", routes: ["/maintenance"] },
+  { href: "/tasks", label: "My work", routes: ["/tasks"] },
+  {
+    href: "/recurring-tasks",
+    label: "Recurring work",
+    routes: ["/recurring-tasks"],
+  },
+  { href: "/inspections", label: "Inspections", routes: ["/inspections"] },
+  { href: "/work-orders", label: "Work orders", routes: ["/work-orders"] },
+] satisfies readonly GlobalDestinationChild[];
+
+const RECORDS_CHILDREN = [
+  { href: "/timeline", label: "Timeline history", routes: ["/timeline"] },
+  {
+    href: "/property-timeline",
+    label: "Property timeline",
+    routes: ["/property-timeline"],
+  },
+  {
+    href: "/maintenance-timeline",
+    label: "Maintenance timeline",
+    routes: ["/maintenance-timeline"],
+  },
+  {
+    href: "/financial-timeline",
+    label: "Financial timeline",
+    routes: ["/financial-timeline"],
+  },
+  { href: "/documents", label: "Documents", routes: ["/documents"] },
+  { href: "/import", label: "Import", routes: ["/import"] },
+] satisfies readonly GlobalDestinationChild[];
 
 const ADMIN_GLOBAL_DESTINATIONS = [
   {
@@ -85,6 +140,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     routes: ["/people", "/tenants", "/owners", "/vendors", "/staff"],
   },
   {
+    children: FINANCE_CHILDREN,
     id: "finance",
     href: "/finance",
     icon: Landmark,
@@ -100,6 +156,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     ],
   },
   {
+    children: MAINTENANCE_CHILDREN,
     id: "maintenance",
     href: "/maintenance",
     icon: Wrench,
@@ -113,6 +170,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     ],
   },
   {
+    children: RECORDS_CHILDREN,
     id: "records",
     href: "/timeline",
     icon: History,
@@ -165,6 +223,10 @@ function getGlobalDestinations(
 
   return [
     {
+      children:
+        role === "operations_manager"
+          ? MAINTENANCE_CHILDREN
+          : [MAINTENANCE_CHILDREN[1]],
       id: "maintenance",
       href: role === "operations_manager" ? "/maintenance" : "/tasks",
       icon: Wrench,
@@ -186,6 +248,85 @@ function destinationMatchesPath(
 ) {
   return destination.routes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}
+
+function childDestinationMatchesPath(
+  pathname: string,
+  destination: GlobalDestinationChild,
+) {
+  return destination.routes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}
+
+function DomainDestinationMenuItem({
+  active,
+  destination,
+  pathname,
+}: {
+  active: boolean;
+  destination: GlobalDestination;
+  pathname: string;
+}) {
+  const [expanded, setExpanded] = useState(active);
+  const Icon = destination.icon;
+
+  useEffect(() => {
+    if (active) {
+      setExpanded(true);
+    }
+  }, [active]);
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        asChild
+        isActive={active}
+        tooltip={destination.label}
+      >
+        <Link
+          aria-current={active ? "page" : undefined}
+          href={destination.href}
+          prefetch={false}
+        >
+          <span className="sr-only">{active ? "Current: " : ""}</span>
+          <Icon />
+          <span>{destination.label}</span>
+        </Link>
+      </SidebarMenuButton>
+      <SidebarMenuAction
+        aria-expanded={expanded}
+        aria-label={`${expanded ? "Collapse" : "Expand"} ${destination.label} navigation`}
+        onClick={() => setExpanded((current) => !current)}
+        type="button"
+      >
+        <ChevronRight
+          aria-hidden="true"
+          className={expanded ? "rotate-90 transition-transform" : "transition-transform"}
+        />
+      </SidebarMenuAction>
+      {expanded ? (
+        <SidebarMenuSub aria-label={`${destination.label} pages`}>
+          {destination.children?.map((child) => {
+            const childActive = childDestinationMatchesPath(pathname, child);
+            return (
+              <SidebarMenuSubItem key={child.href}>
+                <SidebarMenuSubButton asChild isActive={childActive}>
+                  <Link
+                    aria-current={childActive ? "page" : undefined}
+                    href={child.href}
+                    prefetch={false}
+                  >
+                    <span>{child.label}</span>
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            );
+          })}
+        </SidebarMenuSub>
+      ) : null}
+    </SidebarMenuItem>
   );
 }
 
@@ -275,7 +416,14 @@ export function AppShell({
                         destination,
                       );
                       const Icon = destination.icon;
-                      return (
+                      return destination.children ? (
+                        <DomainDestinationMenuItem
+                          active={active}
+                          destination={destination}
+                          key={destination.id}
+                          pathname={pathname}
+                        />
+                      ) : (
                         <SidebarMenuItem key={destination.id}>
                           <SidebarMenuButton
                             asChild

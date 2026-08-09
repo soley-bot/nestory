@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 
@@ -44,6 +44,75 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(screen.getByRole("link", { name: "Quick Create" }).getAttribute("href")).toBe(
       "/properties?action=create",
     );
+  });
+
+  it("exposes deep Finance, Maintenance, and Records destinations from desktop domain groups", () => {
+    render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
+
+    for (const domain of ["Finance", "Maintenance", "Records"]) {
+      fireEvent.click(
+        screen.getByRole("button", { name: `Expand ${domain} navigation` }),
+      );
+    }
+
+    for (const label of [
+      "Finance work",
+      "Rent",
+      "Expenses",
+      "Owner balances",
+      "Leases",
+      "Ledger",
+      "Petty cash",
+      "Cases",
+      "My work",
+      "Recurring work",
+      "Inspections",
+      "Work orders",
+      "Timeline history",
+      "Property timeline",
+      "Maintenance timeline",
+      "Financial timeline",
+      "Documents",
+      "Import",
+    ]) {
+      expect(screen.getByRole("link", { name: label })).toBeTruthy();
+    }
+  });
+
+  it.each(["finance_manager", "finance_member"] as const)(
+    "limits %s deep navigation to Finance",
+    (role) => {
+      navigation.pathname = "/finance";
+      render(<AppShell role={role}><div>Workspace content</div></AppShell>);
+
+      expect(screen.getByRole("link", { name: "Finance work" })).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Ledger" })).toBeTruthy();
+      expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();
+    },
+  );
+
+  it("limits Operations Member deep navigation to My work", () => {
+    navigation.pathname = "/tasks";
+    render(<AppShell role="operations_member"><div>Workspace content</div></AppShell>);
+
+    expect(screen.getByRole("link", { name: "My work" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Work orders" })).toBeNull();
+  });
+
+  it("expands the active domain and marks its child current", () => {
+    navigation.pathname = "/ledger";
+    render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
+
+    expect(
+      screen
+        .getByRole("button", { name: "Collapse Finance navigation" })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("link", { name: "Ledger" }).getAttribute("aria-current"),
+    ).toBe("page");
   });
 
   it("shows organization theme control only to the Super Admin", () => {
