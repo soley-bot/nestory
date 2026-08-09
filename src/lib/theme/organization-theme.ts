@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 export const THEME_MODES = ["light", "dark", "system"] as const;
+export const ORGANIZATION_THEME_UPDATED_EVENT = "nestory-organization-theme-updated";
 export const ACCENT_PRESET_NAMES = [
   "neutral",
   "forest",

@@ -5,7 +5,10 @@ import { useState, useTransition } from "react";
 
 import { applyOrganizationTheme } from "@/components/theme-runtime";
 import { updateOrganizationAppearanceAction } from "@/features/organization/actions";
-import type { OrganizationTheme } from "@/lib/theme/organization-theme";
+import {
+  ORGANIZATION_THEME_UPDATED_EVENT,
+  type OrganizationTheme,
+} from "@/lib/theme/organization-theme";
 import { cn } from "@/lib/utils";
 
 type ThemeToggleProps = {
@@ -49,7 +52,12 @@ export function ThemeToggle({
           window.matchMedia("(prefers-color-scheme: dark)").matches,
         );
         setError(result.message ?? "Theme not updated.");
+        return;
       }
+      applyOrganizationTheme(organizationId, next, nextTheme === "dark");
+      window.dispatchEvent(
+        new CustomEvent(ORGANIZATION_THEME_UPDATED_EVENT, { detail: next }),
+      );
     });
   }
 

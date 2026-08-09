@@ -10,7 +10,6 @@ const { updateOrganizationAppearanceAction } = vi.hoisted(() => ({
 vi.mock("@/features/organization/actions", () => ({
   updateOrganizationAppearanceAction,
 }));
-
 import { ThemeToggle } from "@/components/theme-toggle";
 
 beforeEach(() => {
@@ -34,6 +33,8 @@ afterEach(() => {
 
 describe("ThemeToggle", () => {
   it("optimistically persists the organization mode while preserving accent", async () => {
+    const updated = vi.fn();
+    window.addEventListener("nestory-organization-theme-updated", updated);
     render(
       <ThemeToggle
         organizationId="org-1"
@@ -49,6 +50,12 @@ describe("ThemeToggle", () => {
     expect(submitted.get("mode")).toBe("dark");
     expect(submitted.get("accentPreset")).toBe("ocean");
     expect(submitted.get("accentSeed")).toBe("");
+    await waitFor(() => expect(updated).toHaveBeenCalledOnce());
+    expect((updated.mock.calls[0]?.[0] as CustomEvent).detail).toMatchObject({
+      accentPreset: "ocean",
+      mode: "dark",
+    });
+    window.removeEventListener("nestory-organization-theme-updated", updated);
   });
 
   it("rolls back an optimistic update when persistence fails", async () => {

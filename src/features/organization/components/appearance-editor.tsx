@@ -30,6 +30,7 @@ import {
   getOrganizationThemeStyle,
   normalizeHexColor,
   normalizeOrganizationTheme,
+  ORGANIZATION_THEME_UPDATED_EVENT,
   type AccentPreset,
   type OrganizationTheme,
   type ThemeMode,
@@ -72,6 +73,7 @@ export const AppearanceEditor = forwardRef<
   });
   const previewTheme = getPreviewTheme(draft.values);
   const previewMode = previewTheme.mode === "dark" ? "dark" : "light";
+  const acceptThemeValues = draft.acceptValues;
 
   useImperativeHandle(controllerRef, () => ({ discard: draft.discard }), [draft.discard]);
   useEffect(() => onDraftStatusChange(draft.status), [draft.status, onDraftStatusChange]);
@@ -82,6 +84,19 @@ export const AppearanceEditor = forwardRef<
   useEffect(() => {
     if (draft.status === "saved") router.refresh();
   }, [draft.status, router]);
+  useEffect(() => {
+    function handleThemeUpdated(event: Event) {
+      const next = (event as CustomEvent<OrganizationTheme>).detail;
+      acceptThemeValues({
+        accentPreset: next.accentPreset,
+        accentSeed: next.accentSeed ?? "#2563EB",
+        mode: next.mode,
+      });
+    }
+
+    window.addEventListener(ORGANIZATION_THEME_UPDATED_EVENT, handleThemeUpdated);
+    return () => window.removeEventListener(ORGANIZATION_THEME_UPDATED_EVENT, handleThemeUpdated);
+  }, [acceptThemeValues]);
 
   function restoreDefault() {
     draft.replaceValues({

@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { updateOrganizationAppearanceAction } = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { AppearanceEditor } from "@/features/organization/components/appearance-editor";
+import { ORGANIZATION_THEME_UPDATED_EVENT } from "@/lib/theme/organization-theme";
 
 afterEach(cleanup);
 
@@ -64,5 +65,27 @@ describe("AppearanceEditor", () => {
     expect(
       (document.querySelector('input[name="mode"]') as HTMLInputElement).value,
     ).toBe("system");
+  });
+
+  it("synchronizes with the organization quick toggle", () => {
+    render(
+      <AppearanceEditor
+        onDraftStatusChange={vi.fn()}
+        theme={{ accentPreset: "forest", accentSeed: null, mode: "light" }}
+      />,
+    );
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(ORGANIZATION_THEME_UPDATED_EVENT, {
+          detail: { accentPreset: "forest", accentSeed: null, mode: "dark" },
+        }),
+      );
+    });
+
+    expect((document.querySelector('input[name="mode"]') as HTMLInputElement).value).toBe("dark");
+    expect(screen.getByRole("button", { name: "Forest" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("No changes")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save changes" }).hasAttribute("disabled")).toBe(true);
   });
 });

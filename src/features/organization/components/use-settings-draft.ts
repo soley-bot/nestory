@@ -100,6 +100,18 @@ export function useSettingsDraft<TValues extends DraftValues>({
     setStatusMessage(undefined);
   }
 
+  function acceptValues(next: TValues) {
+    activeSubmission.current += 1;
+    revision.current += 1;
+    baseline.current = { ...next };
+    submitting.current = false;
+    setValues({ ...next });
+    setErrors({});
+    setResultMessage(undefined);
+    setStatus("clean");
+    setStatusMessage(undefined);
+  }
+
   async function submit(onInvalid: (field: keyof TValues) => void) {
     const submittedValues = { ...values };
     const nextErrors = validate(submittedValues);
@@ -176,6 +188,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
   }
 
   return {
+    acceptValues,
     discard,
     errors,
     resultMessage,
