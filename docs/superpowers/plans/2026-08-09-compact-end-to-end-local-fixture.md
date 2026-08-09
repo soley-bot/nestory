@@ -528,7 +528,7 @@ git diff --stat HEAD~4..HEAD
 
 Expected: no whitespace errors, only intended fixture/contract/docs/smoke files changed, and no migration file was added for local demo data.
 
-- [ ] **Step 8: Commit verification and documentation**
+- [x] **Step 8: Commit verification and documentation**
 
 ```powershell
 git add PROJECT.md package.json scripts/smoke-fixture-role-journeys.mjs supabase/tests/demo_seed_contract_test.sql
