@@ -1,5 +1,10 @@
 import { toRecentChange } from "@/features/activity/recent-changes";
 import {
+  resolveRecentChangeTargets,
+  type ActivityTargetQueryClient,
+} from "@/features/activity/recent-change-targets";
+import type { RecentChange } from "@/features/activity/activity.types";
+import {
   OPERATIONAL_OPEN_MAINTENANCE_STATUSES,
   REMINDER_ACTIONABLE_MAINTENANCE_STATUSES,
   HIGH_COST_AMOUNT,
@@ -259,7 +264,18 @@ export async function getMaintenanceScreenData(
         : getTaskCostSubmissions(supabase, organizationId, pageTaskIds),
     ]);
   const documentsByTaskId = groupDocumentsByTaskId(documentRows);
-  const activityByTaskId = groupActivityByTaskId(activityRows);
+  const resolvedActivity = await resolveRecentChangeTargets({
+    logs: activityRows,
+    organizationId,
+    supabase: supabase as unknown as ActivityTargetQueryClient,
+  });
+  const resolvedActivityById = new Map(
+    resolvedActivity.map((change) => [change.id, change]),
+  );
+  const activityByTaskId = groupActivityByTaskId(
+    activityRows,
+    resolvedActivityById,
+  );
   const reopenInstructionByTaskId = getLatestReviewInstructionByTaskId(reopenRows);
   const costSubmissionByTaskId = getLatestCostSubmissionByTaskId(
     costSubmissionRows,
@@ -1787,12 +1803,15 @@ function getLatestCostSubmissionByTaskId(
   return submissions;
 }
 
-function groupActivityByTaskId(rows: ActivityRow[]) {
+export function groupActivityByTaskId(
+  rows: ActivityRow[],
+  resolvedById: Map<string, RecentChange>,
+) {
   const grouped = new Map<string, ReturnType<typeof toRecentChange>[]>();
 
   for (const row of rows) {
     const group = grouped.get(row.entity_id) ?? [];
-    group.push(toRecentChange(row));
+    group.push(resolvedById.get(row.id) ?? toRecentChange(row));
     grouped.set(row.entity_id, group);
   }
 

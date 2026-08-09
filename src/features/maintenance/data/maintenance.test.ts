@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildMaintenanceSummary,
   filterMaintenanceCases,
+  groupActivityByTaskId,
   getLatestReviewInstructionByTaskId,
   maintenanceMatchesReview,
   scopeMaintenanceMutableOptions,
 } from "@/features/maintenance/data/maintenance";
+import type { RecentChange } from "@/features/activity/activity.types";
 import {
   getMaintenanceProgressState,
   getMaintenanceTaskFacts,
@@ -209,6 +211,44 @@ describe("maintenance route contracts", () => {
 });
 
 describe("maintenance role-safe loading", () => {
+  it("uses resolved activity targets instead of exposing source UUIDs", () => {
+    const sourceId = "12121212-1212-4121-8121-121212121212";
+    const row = {
+      action: "updated",
+      created_at: "2026-07-13T02:00:00Z",
+      entity_id: sourceId,
+      entity_type: "task",
+      id: "activity-1",
+      new_values: { title: sourceId },
+      previous_values: null,
+    };
+    const resolved: RecentChange = {
+      action: "updated",
+      actionLabel: "Updated",
+      createdAt: row.created_at,
+      details: [],
+      entityLabel: "Maintenance task",
+      id: row.id,
+      recordLabel: "Source record unavailable",
+      target: {
+        actionLabel: "Source unavailable",
+        entityLabel: "Maintenance task",
+        focusMode: "unavailable",
+        recordLabel: "Source record unavailable",
+      },
+      tone: "neutral",
+    };
+
+    const grouped = groupActivityByTaskId(
+      [row],
+      new Map([[row.id, resolved]]),
+    );
+
+    expect(grouped.get(sourceId)?.[0]).toBe(resolved);
+    expect(grouped.get(sourceId)?.[0]?.recordLabel).not.toContain(sourceId);
+    expect(grouped.get(sourceId)?.[0]?.href).toBeUndefined();
+  });
+
   it("returns no mutable option collections for members", () => {
     const options = {
       branchOptions: [{ id: "branch-1", label: "Branch" }],
