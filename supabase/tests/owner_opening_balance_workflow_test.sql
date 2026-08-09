@@ -29,6 +29,15 @@ SELECT has_function(
   'review exposes the fixed request decision contract'
 );
 
+SELECT has_function(
+  'public',
+  'submit_owner_opening_balance_correction',
+  ARRAY[
+    'uuid', 'uuid', 'numeric', 'text', 'text', 'uuid', 'text', 'uuid', 'text'
+  ],
+  'correction submit exposes only the approved target-derived public contract'
+);
+
 SELECT ok(
   coalesce(
     has_function_privilege(
@@ -95,6 +104,40 @@ SELECT ok(
     false
   ),
   'only authenticated can execute review'
+);
+
+SELECT ok(
+  coalesce(
+    has_function_privilege(
+      'authenticated',
+      to_regprocedure(
+        'public.submit_owner_opening_balance_correction(uuid,uuid,numeric,text,text,uuid,text,uuid,text)'
+      ),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'anon',
+      to_regprocedure(
+        'public.submit_owner_opening_balance_correction(uuid,uuid,numeric,text,text,uuid,text,uuid,text)'
+      ),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'service_role',
+      to_regprocedure(
+        'public.submit_owner_opening_balance_correction(uuid,uuid,numeric,text,text,uuid,text,uuid,text)'
+      ),
+      'EXECUTE'
+    ),
+    false
+  ),
+  'only authenticated can execute correction submission'
 );
 
 SELECT ok(
@@ -171,11 +214,26 @@ CREATE TEMP TABLE owner_opening_workflow_state (
   evidence_document_id uuid NOT NULL DEFAULT 'b2200000-0000-4000-8000-000000000018',
   first_request_id uuid,
   resubmitted_request_id uuid,
-  document_request_id uuid
+  document_request_id uuid,
+  super_request_id uuid,
+  super_opening_entry_id uuid,
+  zero_request_id uuid,
+  zero_opening_entry_id uuid,
+  rejected_correction_request_id uuid,
+  correction_request_id uuid,
+  correction_reversal_entry_id uuid,
+  correction_replacement_entry_id uuid,
+  zero_correction_request_id uuid,
+  zero_correction_reversal_entry_id uuid,
+  zero_correction_replacement_entry_id uuid,
+  second_correction_request_id uuid,
+  second_correction_reversal_entry_id uuid,
+  second_correction_replacement_entry_id uuid,
+  pending_locked_correction_request_id uuid
 ) ON COMMIT DROP;
 
 INSERT INTO owner_opening_workflow_state DEFAULT VALUES;
-GRANT SELECT ON owner_opening_workflow_state TO authenticated;
+GRANT SELECT, UPDATE ON owner_opening_workflow_state TO authenticated;
 
 INSERT INTO auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -332,6 +390,38 @@ BEGIN
     p_request_id,
     p_decision,
     p_review_reason,
+    p_idempotency_key
+  ) INTO v_result;
+  RETURN v_result;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.submit_opening_correction(
+  p_actor_id uuid,
+  p_entry_id uuid,
+  p_replacement_amount numeric,
+  p_reason text,
+  p_reference text,
+  p_supporting_document_id uuid,
+  p_evidence_sha256 text,
+  p_resubmission_of_request_id uuid,
+  p_idempotency_key text
+) RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_result jsonb;
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub', p_actor_id::text, true);
+  SELECT public.submit_owner_opening_balance_correction(
+    'b2200000-0000-4000-8000-000000000001',
+    p_entry_id,
+    p_replacement_amount,
+    p_reason,
+    p_reference,
+    p_supporting_document_id,
+    p_evidence_sha256,
+    p_resubmission_of_request_id,
     p_idempotency_key
   ) INTO v_result;
   RETURN v_result;
@@ -575,12 +665,20 @@ SELECT throws_ok(
   'the same submit key with a different canonical public amount conflicts'
 );
 
-SELECT lives_ok(
-  $$SELECT pg_temp.submit_reference_opening(
+WITH submitted AS (
+  SELECT pg_temp.submit_reference_opening(
     'b2200000-0000-4000-8000-000000000010', 20.00,
     'owner_due_to_ips', 'Super Admin verified opening', 'IPS cutover row 2',
     repeat('2', 64), NULL, 'super-submit-0001'
-  )$$,
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET super_request_id = (submitted.result ->> 'request_id')::uuid
+FROM submitted;
+
+SELECT isnt(
+  (SELECT super_request_id FROM owner_opening_workflow_state),
+  NULL::uuid,
   'Super Admin can submit an initial request through the same checked path'
 );
 
@@ -589,10 +687,7 @@ SELECT throws_ok(
     SELECT pg_temp.review_opening(
       'b2200000-0000-4000-8000-000000000010',
       (
-        SELECT id
-        FROM public.owner_opening_balance_requests
-        WHERE submitted_by = 'b2200000-0000-4000-8000-000000000010'
-          AND component = 'owner_due_to_ips'
+        SELECT super_request_id FROM owner_opening_workflow_state
       ),
       'reject',
       'Independent review is required',
@@ -713,16 +808,739 @@ SELECT set_config(
   true
 );
 SET LOCAL ROLE authenticated;
-SELECT throws_ok(
-  format(
-    'SELECT public.review_owner_opening_balance(%L,%L,%L,%L,%L)',
+WITH approved AS (
+  SELECT public.review_owner_opening_balance(
     'b2200000-0000-4000-8000-000000000001',
-    (SELECT first_request_id FROM owner_opening_workflow_state),
-    'approve', 'Approval is not yet available', 'approve-before-2-2c'
+    (SELECT super_request_id FROM owner_opening_workflow_state),
+    'approve', 'Independent opening approval', 'approve-initial-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET super_opening_entry_id = (approved.result -> 'entry_ids' ->> 0)::uuid
+FROM approved;
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      request.status,
+      request.reviewed_by,
+      entry.entry_kind,
+      entry.signed_amount::text,
+      entry.created_by,
+      entry.property_owner_id,
+      entry.ownership_percent_snapshot::text,
+      entry.ownership_roster_hash
+    FROM public.owner_opening_balance_requests AS request
+    JOIN public.owner_opening_balance_entries AS entry
+      ON entry.request_id = request.id
+    WHERE request.id = (
+      SELECT super_request_id FROM owner_opening_workflow_state
+    )
+  $$,
+  $$
+    SELECT
+      'approved'::text,
+      'b2200000-0000-4000-8000-000000000011'::uuid,
+      'opening'::text,
+      '20.00'::text,
+      'b2200000-0000-4000-8000-000000000011'::uuid,
+      request.property_owner_id,
+      request.ownership_percent_snapshot::text,
+      request.ownership_roster_hash
+    FROM public.owner_opening_balance_requests AS request
+    WHERE request.id = (
+      SELECT super_request_id FROM owner_opening_workflow_state
+    )
+  $$,
+  'initial approval atomically creates one opening entry copied from the immutable request snapshot'
+);
+
+SELECT is(
+  (
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000011',
+      (SELECT super_request_id FROM owner_opening_workflow_state),
+      'approve', 'Independent opening approval', 'approve-initial-0001'
+    ) -> 'entry_ids' ->> 0
   ),
+  (SELECT super_opening_entry_id::text FROM owner_opening_workflow_state),
+  'completed initial approval replay returns the original opening entry ID'
+);
+
+SELECT throws_ok(
+  $$SELECT pg_temp.submit_reference_opening(
+    'b2200000-0000-4000-8000-000000000013', 21.00,
+    'owner_due_to_ips', 'Duplicate approved opening', 'IPS cutover duplicate',
+    repeat('8', 64), NULL, 'duplicate-approved-0001'
+  )$$,
+  '23505',
+  'Initial owner opening authority already exists',
+  'an approved initial authority blocks a duplicate initial request'
+);
+
+WITH submitted AS (
+  SELECT pg_temp.submit_reference_opening(
+    'b2200000-0000-4000-8000-000000000013', 0.00,
+    'ips_due_to_owner', 'Explicit known zero', 'IPS cutover known zero',
+    repeat('9', 64), NULL, 'known-zero-submit-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET zero_request_id = (submitted.result ->> 'request_id')::uuid
+FROM submitted;
+
+UPDATE public.property_owners
+SET ownership_percent = 99.999
+WHERE id = 'b2200000-0000-4000-8000-000000000005';
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000011',
+      (SELECT zero_request_id FROM owner_opening_workflow_state),
+      'approve', 'Known zero independently reviewed', 'known-zero-approve-0001'
+    )
+  $$,
+  '23514',
+  'owner_share_total_not_100: expected 100.000, got 99.999',
+  'initial approval revalidates the effective roster and leaves no partial approved authority when it changed'
+);
+
+UPDATE public.property_owners
+SET ownership_percent = 100.000
+WHERE id = 'b2200000-0000-4000-8000-000000000005';
+
+WITH approved AS (
+  SELECT pg_temp.review_opening(
+    'b2200000-0000-4000-8000-000000000011',
+    (SELECT zero_request_id FROM owner_opening_workflow_state),
+    'approve', 'Known zero independently reviewed', 'known-zero-approve-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET zero_opening_entry_id = (approved.result -> 'entry_ids' ->> 0)::uuid
+FROM approved;
+
+SELECT results_eq(
+  $$
+    SELECT request.status, entry.entry_kind, entry.signed_amount::text
+    FROM public.owner_opening_balance_requests AS request
+    JOIN public.owner_opening_balance_entries AS entry
+      ON entry.request_id = request.id
+    WHERE request.id = (
+      SELECT zero_request_id FROM owner_opening_workflow_state
+    )
+  $$,
+  $$ VALUES ('approved'::text, 'opening'::text, '0.00'::text) $$,
+  'approved explicit zero creates known-zero authority instead of remaining unknown'
+);
+
+SET LOCAL ROLE anon;
+SELECT throws_ok(
+  $$
+    SELECT public.submit_owner_opening_balance_correction(
+      'b2200000-0000-4000-8000-000000000001',
+      'b2200000-0000-4000-8000-000000000099',
+      1.00, 'Anonymous correction probe', 'Anonymous correction source',
+      NULL, repeat('a', 64), NULL, 'anonymous-correction-0001'
+    )
+  $$,
+  '42501',
+  'permission denied for function submit_owner_opening_balance_correction',
+  'anonymous callers cannot execute correction submission'
+);
+RESET ROLE;
+
+SET LOCAL ROLE service_role;
+SELECT throws_ok(
+  $$
+    SELECT public.submit_owner_opening_balance_correction(
+      'b2200000-0000-4000-8000-000000000001',
+      'b2200000-0000-4000-8000-000000000099',
+      1.00, 'Service correction probe', 'Service correction source',
+      NULL, repeat('a', 64), NULL, 'service-correction-0001'
+    )
+  $$,
+  '42501',
+  'permission denied for function submit_owner_opening_balance_correction',
+  'service_role has no correction submission bypass'
+);
+RESET ROLE;
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000014',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.00, 'Operations correction denied', 'Operations source', NULL,
+      repeat('a', 64), NULL, 'ops-correction-0001'
+    )
+  $$,
+  '42501',
+  'Not authorized to request owner opening balance corrections',
+  'Operations Manager cannot submit a correction'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000015',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.00, 'Operations correction denied', 'Operations source', NULL,
+      repeat('a', 64), NULL, 'ops-member-correction-0001'
+    )
+  $$,
+  '42501',
+  'Not authorized to request owner opening balance corrections',
+  'Operations Member cannot submit a correction'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000016',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.00, 'Unaffiliated correction denied', 'Unaffiliated source', NULL,
+      repeat('a', 64), NULL, 'unaffiliated-correction-0001'
+    )
+  $$,
+  '42501',
+  'Not authorized to request owner opening balance corrections',
+  'an unaffiliated actor cannot submit a correction'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000013',
+      'b2200000-0000-4000-8000-000000000099',
+      25.00, 'Finance Member guessed target', 'Guessed source', NULL,
+      repeat('a', 64), NULL, 'member-guessed-correction-0001'
+    )
+  $$,
+  '23503',
+  'Owner opening correction target not found',
+  'Finance Member reaches the correction capability but a guessed target fails closed'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000010',
+      'b2200000-0000-4000-8000-000000000099',
+      25.00, 'Super Admin guessed target', 'Guessed source', NULL,
+      repeat('a', 64), NULL, 'super-guessed-correction-0001'
+    )
+  $$,
+  '23503',
+  'Owner opening correction target not found',
+  'Super Admin reaches the correction capability but a guessed target fails closed'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'b2200000-0000-4000-8000-000000000017',
+  true
+);
+SELECT throws_ok(
+  $$
+    SELECT public.submit_owner_opening_balance_correction(
+      'b2200000-0000-4000-8000-000000000002',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.00, 'Cross organization target', 'Cross source', NULL,
+      repeat('a', 64), NULL, 'cross-correction-0001'
+    )
+  $$,
+  '23503',
+  'Owner opening correction target not found',
+  'an authorized actor in another organization cannot repoint a foreign entry'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000012',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.001, 'Invalid correction scale', 'Scale source', NULL,
+      repeat('a', 64), NULL, 'scale-correction-0001'
+    )
+  $$,
   '22023',
-  'Owner opening approval is not available in this workflow milestone',
-  'Task 2.2B exposes no approval or entry creation path'
+  'Replacement amount must be nonnegative and use at most two decimal places',
+  'Finance Manager correction rejects more than two decimal places'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000012',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      -0.01, 'Invalid negative correction', 'Negative source', NULL,
+      repeat('a', 64), NULL, 'negative-correction-0001'
+    )
+  $$,
+  '22023',
+  'Replacement amount must be nonnegative and use at most two decimal places',
+  'Finance Manager correction rejects a negative replacement amount'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000012',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.00, 'Correction evidence mismatch', NULL,
+      'b2200000-0000-4000-8000-000000000018', repeat('b', 64), NULL,
+      'correction-doc-mismatch-0001'
+    )
+  $$,
+  '22023',
+  'Opening evidence document is not eligible',
+  'correction submission enforces exact immutable document evidence equality'
+);
+
+UPDATE public.property_owners
+SET started_on = '2025-12-01'
+WHERE id = 'b2200000-0000-4000-8000-000000000005';
+
+WITH submitted AS (
+  SELECT pg_temp.submit_opening_correction(
+    'b2200000-0000-4000-8000-000000000012',
+    (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+    25.00, 'Correct opening authority', 'IPS correction source 1', NULL,
+    repeat('a', 64), NULL, 'manager-correction-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET rejected_correction_request_id = (submitted.result ->> 'request_id')::uuid
+FROM submitted;
+
+SELECT is(
+  (
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000012',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.00, 'Correct opening authority', 'IPS correction source 1', NULL,
+      repeat('a', 64), NULL, 'manager-correction-0001'
+    ) ->> 'request_id'
+  ),
+  (SELECT rejected_correction_request_id::text FROM owner_opening_workflow_state),
+  'completed correction submission replay returns the original request ID'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000012',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      26.00, 'Correct opening authority', 'IPS correction source 1', NULL,
+      repeat('a', 64), NULL, 'manager-correction-0001'
+    )
+  $$,
+  '22023',
+  'Conflicting financial idempotency request',
+  'correction submission rejects reuse of a key with a different public amount'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000013',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.00, 'Correct opening authority', 'IPS correction source 1', NULL,
+      repeat('a', 64), NULL, 'manager-correction-0001'
+    )
+  $$,
+  '22023',
+  'Conflicting financial idempotency request',
+  'correction submission rejects another actor reusing the completed identity'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000011',
+      (SELECT rejected_correction_request_id FROM owner_opening_workflow_state),
+      'reject', 'Correction requires another source', 'reject-correction-0001'
+    )
+  $$,
+  'independent Super Admin can reject a correction without creating entries'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000012',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.00, 'Corrected source supplied', 'IPS correction source 2', NULL,
+      repeat('c', 64), NULL, 'missing-correction-predecessor-0001'
+    )
+  $$,
+  '22023',
+  'Latest rejected predecessor is required for correction resubmission',
+  'a rejected correction chain cannot be silently abandoned'
+);
+
+WITH submitted AS (
+  SELECT pg_temp.submit_opening_correction(
+    'b2200000-0000-4000-8000-000000000012',
+    (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+    25.00, 'Corrected source supplied', 'IPS correction source 2', NULL,
+    repeat('c', 64),
+    (SELECT rejected_correction_request_id FROM owner_opening_workflow_state),
+    'manager-correction-resubmit-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET correction_request_id = (submitted.result ->> 'request_id')::uuid
+FROM submitted;
+
+SELECT results_eq(
+  $$
+    SELECT
+      child.request_kind,
+      child.status,
+      child.correction_of_entry_id,
+      child.resubmission_of_request_id,
+      child.submitted_by,
+      child.ownership_roster_hash <> target.ownership_roster_hash
+    FROM public.owner_opening_balance_requests AS child
+    JOIN public.owner_opening_balance_entries AS target
+      ON target.id = child.correction_of_entry_id
+    WHERE child.id = (
+      SELECT correction_request_id FROM owner_opening_workflow_state
+    )
+  $$,
+  $$
+    SELECT
+      'correction'::text,
+      'submitted'::text,
+      state.super_opening_entry_id,
+      state.rejected_correction_request_id,
+      'b2200000-0000-4000-8000-000000000012'::uuid,
+      true
+    FROM owner_opening_workflow_state AS state
+  $$,
+  'Finance Manager resubmits one linked correction with the current server roster snapshot'
+);
+
+UPDATE public.property_owners
+SET started_on = '2025-11-01'
+WHERE id = 'b2200000-0000-4000-8000-000000000005';
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000011',
+      (SELECT correction_request_id FROM owner_opening_workflow_state),
+      'approve', 'Approve corrected authority', 'approve-correction-0001'
+    )
+  $$,
+  '22023',
+  'ownership_roster_changed',
+  'correction approval fails atomically when the roster snapshot changed after submission'
+);
+
+SELECT results_eq(
+  $$
+    SELECT request.status, count(entry.id)::bigint
+    FROM public.owner_opening_balance_requests AS request
+    LEFT JOIN public.owner_opening_balance_entries AS entry
+      ON entry.request_id = request.id
+    WHERE request.id = (
+      SELECT correction_request_id FROM owner_opening_workflow_state
+    )
+    GROUP BY request.status
+  $$,
+  $$ VALUES ('submitted'::text, 0::bigint) $$,
+  'failed correction approval leaves the request submitted with no partial entry pair'
+);
+
+UPDATE public.property_owners
+SET started_on = '2025-12-01'
+WHERE id = 'b2200000-0000-4000-8000-000000000005';
+
+WITH approved AS (
+  SELECT pg_temp.review_opening(
+    'b2200000-0000-4000-8000-000000000011',
+    (SELECT correction_request_id FROM owner_opening_workflow_state),
+    'approve', 'Approve corrected authority', 'approve-correction-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET correction_reversal_entry_id = (approved.result -> 'entry_ids' ->> 0)::uuid,
+    correction_replacement_entry_id = (approved.result -> 'entry_ids' ->> 1)::uuid
+FROM approved;
+
+SELECT results_eq(
+  $$
+    SELECT
+      entry.entry_kind,
+      entry.signed_amount::text,
+      entry.reversal_of_entry_id,
+      entry.created_by,
+      entry.property_owner_id,
+      entry.ownership_percent_snapshot::text,
+      entry.ownership_roster_hash
+    FROM public.owner_opening_balance_entries AS entry
+    WHERE entry.request_id = (
+      SELECT correction_request_id FROM owner_opening_workflow_state
+    )
+    ORDER BY CASE entry.entry_kind
+      WHEN 'correction_reversal' THEN 1
+      ELSE 2
+    END
+  $$,
+  $$
+    SELECT
+      'correction_reversal'::text,
+      '-20.00'::text,
+      state.super_opening_entry_id,
+      'b2200000-0000-4000-8000-000000000011'::uuid,
+      opening_entry.property_owner_id,
+      opening_entry.ownership_percent_snapshot::text,
+      opening_entry.ownership_roster_hash
+    FROM owner_opening_workflow_state AS state
+    JOIN public.owner_opening_balance_entries AS opening_entry
+      ON opening_entry.id = state.super_opening_entry_id
+    UNION ALL
+    SELECT
+      'correction_replacement'::text,
+      '25.00'::text,
+      NULL::uuid,
+      'b2200000-0000-4000-8000-000000000011'::uuid,
+      request.property_owner_id,
+      request.ownership_percent_snapshot::text,
+      request.ownership_roster_hash
+    FROM owner_opening_workflow_state AS state
+    JOIN public.owner_opening_balance_requests AS request
+      ON request.id = state.correction_request_id
+  $$,
+  'correction approval inserts one exact reversal with the old snapshot and one replacement with the new snapshot'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      count(*)::bigint,
+      sum(entry.signed_amount)::text,
+      count(*) FILTER (
+        WHERE entry.reversal_of_entry_id = (
+          SELECT super_opening_entry_id FROM owner_opening_workflow_state
+        )
+      )::bigint
+    FROM public.owner_opening_balance_entries AS entry
+    WHERE entry.organization_id = 'b2200000-0000-4000-8000-000000000001'
+      AND entry.property_id = 'b2200000-0000-4000-8000-000000000003'
+      AND entry.owner_person_id = 'b2200000-0000-4000-8000-000000000004'
+      AND entry.currency = 'USD'
+      AND entry.effective_date = '2026-08-01'
+      AND entry.component = 'owner_due_to_ips'
+  $$,
+  $$ VALUES (3::bigint, '25.00'::text, 1::bigint) $$,
+  'the original opening is retained, reversed once, and the exact current authority sum is 25.00'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      pg_temp.review_opening(
+        'b2200000-0000-4000-8000-000000000011',
+        (SELECT correction_request_id FROM owner_opening_workflow_state),
+        'approve', 'Approve corrected authority', 'approve-correction-0001'
+      ) -> 'entry_ids'
+  $$,
+  $$
+    SELECT pg_catalog.jsonb_build_array(
+      correction_reversal_entry_id,
+      correction_replacement_entry_id
+    )
+    FROM owner_opening_workflow_state
+  $$,
+  'completed correction approval replay returns the original ordered entry IDs'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000011',
+      (SELECT correction_request_id FROM owner_opening_workflow_state),
+      'reject', 'Conflicting correction decision', 'approve-correction-0001'
+    )
+  $$,
+  '22023',
+  'Conflicting financial idempotency request',
+  'review idempotency rejects a different decision under the completed approval key'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000013',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      24.00, 'Stale opening correction', 'Stale source', NULL,
+      repeat('d', 64), NULL, 'stale-correction-0001'
+    )
+  $$,
+  '22023',
+  'Owner opening correction target is stale',
+  'a second correction cannot target the already reversed original opening'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000013',
+      (SELECT correction_reversal_entry_id FROM owner_opening_workflow_state),
+      24.00, 'Wrong entry kind correction', 'Wrong kind source', NULL,
+      repeat('d', 64), NULL, 'wrong-kind-correction-0001'
+    )
+  $$,
+  '22023',
+  'Owner opening correction target must carry current authority',
+  'a correction reversal entry cannot itself become the next authority target'
+);
+
+WITH submitted AS (
+  SELECT pg_temp.submit_opening_correction(
+    'b2200000-0000-4000-8000-000000000013',
+    (SELECT correction_replacement_entry_id FROM owner_opening_workflow_state),
+    22.00, 'Second current correction', 'IPS correction source 3', NULL,
+    repeat('e', 64), NULL, 'member-second-correction-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET second_correction_request_id = (submitted.result ->> 'request_id')::uuid
+FROM submitted;
+
+WITH approved AS (
+  SELECT pg_temp.review_opening(
+    'b2200000-0000-4000-8000-000000000011',
+    (SELECT second_correction_request_id FROM owner_opening_workflow_state),
+    'approve', 'Approve second correction', 'approve-second-correction-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET second_correction_reversal_entry_id = (approved.result -> 'entry_ids' ->> 0)::uuid,
+    second_correction_replacement_entry_id = (approved.result -> 'entry_ids' ->> 1)::uuid
+FROM approved;
+
+SELECT results_eq(
+  $$
+    SELECT
+      count(*)::bigint,
+      sum(entry.signed_amount)::text,
+      count(*) FILTER (WHERE entry.entry_kind = 'opening')::bigint,
+      count(*) FILTER (WHERE entry.entry_kind = 'correction_reversal')::bigint,
+      count(*) FILTER (WHERE entry.entry_kind = 'correction_replacement')::bigint
+    FROM public.owner_opening_balance_entries AS entry
+    WHERE entry.organization_id = 'b2200000-0000-4000-8000-000000000001'
+      AND entry.property_id = 'b2200000-0000-4000-8000-000000000003'
+      AND entry.owner_person_id = 'b2200000-0000-4000-8000-000000000004'
+      AND entry.currency = 'USD'
+      AND entry.effective_date = '2026-08-01'
+      AND entry.component = 'owner_due_to_ips'
+  $$,
+  $$ VALUES (5::bigint, '22.00'::text, 1::bigint, 2::bigint, 2::bigint) $$,
+  'a second correction targets only the latest replacement and preserves the complete exact chain'
+);
+
+WITH submitted AS (
+  SELECT pg_temp.submit_opening_correction(
+    'b2200000-0000-4000-8000-000000000010',
+    (SELECT zero_opening_entry_id FROM owner_opening_workflow_state),
+    0.00, 'Reconfirm explicit zero', 'Zero correction source', NULL,
+    repeat('f', 64), NULL, 'zero-correction-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET zero_correction_request_id = (submitted.result ->> 'request_id')::uuid
+FROM submitted;
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000010',
+      (SELECT zero_correction_request_id FROM owner_opening_workflow_state),
+      'approve', 'Self review zero denied', 'self-zero-approve-0001'
+    )
+  $$,
+  '22023',
+  'Owner opening submitter cannot review the same request',
+  'Super Admin cannot approve their own zero correction request'
+);
+
+WITH approved AS (
+  SELECT pg_temp.review_opening(
+    'b2200000-0000-4000-8000-000000000011',
+    (SELECT zero_correction_request_id FROM owner_opening_workflow_state),
+    'approve', 'Approve explicit zero correction', 'approve-zero-correction-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET zero_correction_reversal_entry_id = (approved.result -> 'entry_ids' ->> 0)::uuid,
+    zero_correction_replacement_entry_id = (approved.result -> 'entry_ids' ->> 1)::uuid
+FROM approved;
+
+SELECT results_eq(
+  $$
+    SELECT
+      entry.entry_kind,
+      entry.signed_amount::text,
+      entry.reversal_of_entry_id
+    FROM public.owner_opening_balance_entries AS entry
+    WHERE entry.request_id = (
+      SELECT zero_correction_request_id FROM owner_opening_workflow_state
+    )
+    ORDER BY CASE entry.entry_kind
+      WHEN 'correction_reversal' THEN 1
+      ELSE 2
+    END
+  $$,
+  $$
+    SELECT
+      'correction_reversal'::text,
+      '0.00'::text,
+      zero_opening_entry_id
+    FROM owner_opening_workflow_state
+    UNION ALL
+    SELECT 'correction_replacement'::text, '0.00'::text, NULL::uuid
+  $$,
+  'known zero correction appends an explicit zero reversal and zero replacement'
+);
+
+SELECT is(
+  (
+    SELECT sum(entry.signed_amount)::text
+    FROM public.owner_opening_balance_entries AS entry
+    WHERE entry.organization_id = 'b2200000-0000-4000-8000-000000000001'
+      AND entry.property_id = 'b2200000-0000-4000-8000-000000000003'
+      AND entry.owner_person_id = 'b2200000-0000-4000-8000-000000000004'
+      AND entry.currency = 'USD'
+      AND entry.effective_date = '2026-08-01'
+      AND entry.component = 'ips_due_to_owner'
+  ),
+  '0.00'::text,
+  'zero correction remains known authority with an exact zero chain sum'
+);
+
+WITH submitted AS (
+  SELECT pg_temp.submit_opening_correction(
+    'b2200000-0000-4000-8000-000000000012',
+    (SELECT second_correction_replacement_entry_id FROM owner_opening_workflow_state),
+    23.00, 'Pending locked correction', 'IPS correction source 4', NULL,
+    repeat('1', 64), NULL, 'pending-lock-correction-0001'
+  ) AS result
+)
+UPDATE owner_opening_workflow_state
+SET pending_locked_correction_request_id = (submitted.result ->> 'request_id')::uuid
+FROM submitted;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'b2200000-0000-4000-8000-000000000011',
+  true
 );
 
 SELECT lives_ok(
@@ -751,7 +1569,13 @@ SELECT results_eq(
 );
 
 SELECT is(
-  (SELECT count(*) FROM public.owner_opening_balance_entries),
+  (
+    SELECT count(*)
+    FROM public.owner_opening_balance_entries
+    WHERE request_id = (
+      SELECT first_request_id FROM owner_opening_workflow_state
+    )
+  ),
   0::bigint,
   'rejection creates no opening entry'
 );
@@ -1036,6 +1860,102 @@ SELECT is(
   'completed submit replay returns the original ID before archived-document, changed-roster, and locked-month checks'
 );
 
+SELECT is(
+  (
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000011',
+      (SELECT super_request_id FROM owner_opening_workflow_state),
+      'approve', 'Independent opening approval', 'approve-initial-0001'
+    ) -> 'entry_ids' ->> 0
+  ),
+  (SELECT super_opening_entry_id::text FROM owner_opening_workflow_state),
+  'completed initial approval replay returns before changed-roster and locked-month checks'
+);
+
+SELECT is(
+  (
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000012',
+      (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
+      25.00, 'Corrected source supplied', 'IPS correction source 2', NULL,
+      repeat('c', 64),
+      (SELECT rejected_correction_request_id FROM owner_opening_workflow_state),
+      'manager-correction-resubmit-0001'
+    ) ->> 'request_id'
+  ),
+  (SELECT correction_request_id::text FROM owner_opening_workflow_state),
+  'completed correction submission replay returns before stale-target, changed-roster, and locked-month checks'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      pg_temp.review_opening(
+        'b2200000-0000-4000-8000-000000000011',
+        (SELECT second_correction_request_id FROM owner_opening_workflow_state),
+        'approve', 'Approve second correction', 'approve-second-correction-0001'
+      ) -> 'entry_ids'
+  $$,
+  $$
+    SELECT pg_catalog.jsonb_build_array(
+      second_correction_reversal_entry_id,
+      second_correction_replacement_entry_id
+    )
+    FROM owner_opening_workflow_state
+  $$,
+  'completed correction approval replay returns original IDs before changed-roster and locked-month checks'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.submit_opening_correction(
+      'b2200000-0000-4000-8000-000000000013',
+      (SELECT second_correction_replacement_entry_id FROM owner_opening_workflow_state),
+      24.00, 'New locked correction denied', 'Locked correction source', NULL,
+      repeat('2', 64), NULL, 'locked-new-correction-0001'
+    )
+  $$,
+  '22023',
+  'Financial month is locked',
+  'new correction submission fails before domain mutation when the month is locked'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000011',
+      (SELECT pending_locked_correction_request_id FROM owner_opening_workflow_state),
+      'approve', 'Locked correction approval denied', 'locked-correction-approve-0001'
+    )
+  $$,
+  '22023',
+  'Financial month is locked',
+  'new correction approval fails before status transition or entry creation while locked'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000011',
+      (SELECT pending_locked_correction_request_id FROM owner_opening_workflow_state),
+      'reject', 'Locked correction remains rejectable', 'locked-correction-reject-0001'
+    )
+  $$,
+  'correction rejection remains available while the month is locked'
+);
+
+SELECT is(
+  (
+    SELECT pg_temp.review_opening(
+      'b2200000-0000-4000-8000-000000000011',
+      (SELECT pending_locked_correction_request_id FROM owner_opening_workflow_state),
+      'reject', 'Locked correction remains rejectable', 'locked-correction-reject-0001'
+    ) ->> 'request_id'
+  ),
+  (SELECT pending_locked_correction_request_id::text FROM owner_opening_workflow_state),
+  'completed locked correction rejection replay returns the original request'
+);
+
 SELECT throws_ok(
   $$SELECT pg_temp.submit_reference_opening(
     'b2200000-0000-4000-8000-000000000013', 5.00,
@@ -1071,7 +1991,20 @@ SELECT is(
 );
 
 SELECT is(
-  (SELECT count(*) FROM public.owner_opening_balance_entries),
+  (
+    SELECT count(*)
+    FROM public.owner_opening_balance_entries AS entry
+    WHERE entry.request_id IN (
+      SELECT state.first_request_id
+      FROM owner_opening_workflow_state AS state
+      UNION ALL
+      SELECT state.resubmitted_request_id
+      FROM owner_opening_workflow_state AS state
+      UNION ALL
+      SELECT state.document_request_id
+      FROM owner_opening_workflow_state AS state
+    )
+  ),
   0::bigint,
   'Task 2.2B submit, reject, replay, and resubmit paths never create an entry'
 );
@@ -1108,6 +2041,99 @@ SELECT ok(
       AND activity.new_values -> 'entry_ids' = '[]'::jsonb
   ),
   'rejection activity records independent actor, checked source, idempotency provenance, and no entries'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      activity.actor_id,
+      activity.new_values ->> 'source',
+      activity.new_values ->> 'operation',
+      activity.new_values ->> 'target_entry_id',
+      activity.new_values ->> 'replacement_amount',
+      activity.new_values ->> 'payload_hash',
+      request.payload_hash
+    FROM public.activity_logs AS activity
+    JOIN app_private.financial_idempotency_requests AS request
+      ON request.id = (
+        activity.new_values ->> 'financial_idempotency_request_id'
+      )::uuid
+    WHERE activity.entity_type = 'owner_opening_balance_request'
+      AND activity.entity_id = (
+        SELECT correction_request_id FROM owner_opening_workflow_state
+      )
+      AND activity.action = 'resubmitted'
+  $$,
+  $$
+    SELECT
+      'b2200000-0000-4000-8000-000000000012'::uuid,
+      'checked_rpc'::text,
+      'submit_owner_opening_balance_correction'::text,
+      state.super_opening_entry_id::text,
+      '25.00'::text,
+      request.payload_hash,
+      request.payload_hash
+    FROM owner_opening_workflow_state AS state
+    JOIN app_private.financial_idempotency_requests AS request
+      ON request.operation = 'submit_owner_opening_balance_correction'
+      AND request.idempotency_key = 'manager-correction-resubmit-0001'
+  $$,
+  'correction submission activity binds actor, target, exact decimal, canonical payload hash, and idempotency provenance'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      activity.actor_id,
+      activity.new_values ->> 'source',
+      activity.new_values ->> 'operation',
+      activity.new_values -> 'entry_ids',
+      activity.new_values ->> 'payload_hash',
+      request.payload_hash
+    FROM public.activity_logs AS activity
+    JOIN app_private.financial_idempotency_requests AS request
+      ON request.id = (
+        activity.new_values ->> 'financial_idempotency_request_id'
+      )::uuid
+    WHERE activity.entity_type = 'owner_opening_balance_request'
+      AND activity.entity_id = (
+        SELECT correction_request_id FROM owner_opening_workflow_state
+      )
+      AND activity.action = 'approved'
+  $$,
+  $$
+    SELECT
+      'b2200000-0000-4000-8000-000000000011'::uuid,
+      'checked_rpc'::text,
+      'review_owner_opening_balance'::text,
+      pg_catalog.jsonb_build_array(
+        state.correction_reversal_entry_id,
+        state.correction_replacement_entry_id
+      ),
+      request.payload_hash,
+      request.payload_hash
+    FROM owner_opening_workflow_state AS state
+    JOIN app_private.financial_idempotency_requests AS request
+      ON request.operation = 'review_owner_opening_balance'
+      AND request.idempotency_key = 'approve-correction-0001'
+  $$,
+  'correction approval activity binds independent reviewer, ordered entry IDs, canonical payload hash, and idempotency provenance'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      count(*)::bigint,
+      count(DISTINCT activity.new_values ->> 'payload_hash')::bigint
+    FROM public.activity_logs AS activity
+    WHERE activity.entity_type = 'owner_opening_balance_request'
+      AND activity.entity_id = (
+        SELECT correction_request_id FROM owner_opening_workflow_state
+      )
+      AND activity.action IN ('resubmitted', 'approved')
+  $$,
+  $$ VALUES (2::bigint, 2::bigint) $$,
+  'completed correction submission and approval replays create no duplicate or divergent activity'
 );
 
 SELECT * FROM finish();

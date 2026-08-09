@@ -73,6 +73,20 @@ type RpcFunctionOverrides = {
       p_supporting_document_id: string | null;
     }
   >;
+  submit_owner_opening_balance_correction: WithArgs<
+    "submit_owner_opening_balance_correction",
+    {
+      p_entry_id: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_reason: string;
+      p_replacement_amount: string;
+      p_resubmission_of_request_id: string | null;
+      p_source_reference: string | null;
+      p_supporting_document_id: string | null;
+    }
+  >;
   review_owner_opening_balance: WithArgs<
     "review_owner_opening_balance",
     {

@@ -7956,6 +7956,20 @@ export type Database = {
         }
         Returns: Json
       }
+      submit_owner_opening_balance_correction: {
+        Args: {
+          p_entry_id: string
+          p_evidence_sha256: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_replacement_amount: number
+          p_resubmission_of_request_id: string
+          p_source_reference: string
+          p_supporting_document_id: string
+        }
+        Returns: Json
+      }
       update_document: {
         Args: {
           p_category: string

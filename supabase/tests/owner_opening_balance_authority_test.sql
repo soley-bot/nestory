@@ -268,8 +268,8 @@ SELECT is(
         'submit_owner_opening_balance_correction'
       )
   ),
-  '["review_owner_opening_balance","submit_owner_opening_balance"]'::jsonb,
-  'Task 2.2B exposes submit and rejection review but no correction RPC'
+  '["review_owner_opening_balance","submit_owner_opening_balance","submit_owner_opening_balance_correction"]'::jsonb,
+  'Task 2.2C exposes only the fixed initial/correction submit and review RPCs'
 );
 
 SELECT ok(
@@ -649,6 +649,14 @@ SELECT ok(
     ),
     false
   )
+  AND coalesce(
+    has_function_privilege(
+      'authenticated',
+      'public.submit_owner_opening_balance_correction(uuid,uuid,numeric,text,text,uuid,text,uuid,text)',
+      'EXECUTE'
+    ),
+    false
+  )
   AND NOT coalesce(
     has_function_privilege(
       'anon',
@@ -661,6 +669,22 @@ SELECT ok(
     has_function_privilege(
       'service_role',
       'public.review_owner_opening_balance(uuid,uuid,text,text,text)',
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'anon',
+      'public.submit_owner_opening_balance_correction(uuid,uuid,numeric,text,text,uuid,text,uuid,text)',
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'service_role',
+      'public.submit_owner_opening_balance_correction(uuid,uuid,numeric,text,text,uuid,text,uuid,text)',
       'EXECUTE'
     ),
     false

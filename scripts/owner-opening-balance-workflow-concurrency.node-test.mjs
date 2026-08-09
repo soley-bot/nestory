@@ -119,13 +119,35 @@ function authenticatedSubmitSql(actorId, idempotencyKey, predecessor = null) {
   `;
 }
 
-function authenticatedReviewSql(actorId, requestId, idempotencyKey) {
+function authenticatedReviewSql(
+  actorId,
+  requestId,
+  idempotencyKey,
+  decision = "reject",
+) {
   return `
     SELECT set_config('request.jwt.claim.sub', '${actorId}', true);
     SET LOCAL ROLE authenticated;
     SELECT public.review_owner_opening_balance(
-      '${ids.organization}', '${requestId}', 'reject',
-      'Concurrency rejection evidence', '${idempotencyKey}'
+      '${ids.organization}', '${requestId}', '${decision}',
+      'Concurrency ${decision} evidence', '${idempotencyKey}'
+    ) ->> 'request_id';
+  `;
+}
+
+function authenticatedCorrectionSql(
+  actorId,
+  entryId,
+  amount,
+  idempotencyKey,
+) {
+  return `
+    SELECT set_config('request.jwt.claim.sub', '${actorId}', true);
+    SET LOCAL ROLE authenticated;
+    SELECT public.submit_owner_opening_balance_correction(
+      '${ids.organization}', '${entryId}', ${amount},
+      'Concurrency correction evidence', 'Concurrency correction source',
+      NULL, repeat('b', 64), NULL, '${idempotencyKey}'
     ) ->> 'request_id';
   `;
 }
@@ -441,6 +463,280 @@ test("owner opening locks serialize required scopes without deadlocks", async ()
         );
       `),
       "[1, 1, 0]",
+    );
+  } finally {
+    cleanup(container);
+  }
+});
+
+test("owner opening approvals commit complete entry chains under races", async () => {
+  const container = databaseContainer();
+  cleanup(container);
+  setup(container);
+
+  try {
+    run(container, `BEGIN;
+      ${authenticatedSubmitSql(ids.financeMember, "approval-race-submit-0001")}
+      COMMIT;`);
+    const initialRequestId = run(container, `
+      SELECT id
+      FROM public.owner_opening_balance_requests
+      WHERE organization_id = '${ids.organization}'
+        AND component = 'ips_held_owner_cash'
+        AND request_kind = 'initial'
+        AND status = 'submitted';
+    `);
+
+    const initialApprovalRace = await raceAfterMarker(
+      container,
+      `BEGIN;
+       SELECT app_private.lock_owner_opening_property_month(
+         '${ids.organization}', '${ids.property}', 'USD', '2026-08-01'
+       );
+       SELECT pg_advisory_xact_lock(hashtextextended(concat_ws(':',
+         'owner_opening_authority_v1', '${ids.organization}', '${ids.property}',
+         '${ids.owner}', 'USD', '2026-08-01', 'ips_held_owner_cash'), 0));
+       DO $barrier$ BEGIN RAISE NOTICE 'initial_approval_ready'; END $barrier$;
+       SELECT pg_sleep(1.2);
+       ${authenticatedReviewSql(
+         ids.reviewer,
+         initialRequestId,
+         "initial-approval-race-first",
+         "approve",
+       )}
+       COMMIT;`,
+      `BEGIN;
+       ${authenticatedReviewSql(
+         ids.submitterTwo,
+         initialRequestId,
+         "initial-approval-race-second",
+         "approve",
+       )}
+       COMMIT;`,
+      "initial_approval_ready",
+    );
+    assert.equal(initialApprovalRace.first.status, 0, initialApprovalRace.first.stderr);
+    assert.equal(initialApprovalRace.second.status, 1);
+    assert.match(initialApprovalRace.second.stderr, /only a submitted owner opening request/i);
+    assert.doesNotMatch(
+      `${initialApprovalRace.first.stderr}\n${initialApprovalRace.second.stderr}`,
+      /deadlock detected/i,
+    );
+    assert.equal(
+      run(container, `
+        SELECT jsonb_build_array(
+          (SELECT count(*) FROM public.owner_opening_balance_requests
+            WHERE id = '${initialRequestId}' AND status = 'approved'),
+          (SELECT count(*) FROM public.owner_opening_balance_entries
+            WHERE request_id = '${initialRequestId}' AND entry_kind = 'opening')
+        );
+      `),
+      "[1, 1]",
+    );
+
+    let currentEntryId = run(container, `
+      SELECT id
+      FROM public.owner_opening_balance_entries
+      WHERE request_id = '${initialRequestId}' AND entry_kind = 'opening';
+    `);
+    run(container, `BEGIN;
+      ${authenticatedCorrectionSql(
+        ids.financeMember,
+        currentEntryId,
+        "15.00",
+        "correction-approval-race-submit-0001",
+      )}
+      COMMIT;`);
+    let correctionRequestId = run(container, `
+      SELECT id
+      FROM public.owner_opening_balance_requests
+      WHERE correction_of_entry_id = '${currentEntryId}' AND status = 'submitted';
+    `);
+
+    const correctionApprovalRace = await raceAfterMarker(
+      container,
+      `BEGIN;
+       SELECT app_private.lock_owner_opening_property_month(
+         '${ids.organization}', '${ids.property}', 'USD', '2026-08-01'
+       );
+       SELECT pg_advisory_xact_lock(hashtextextended(concat_ws(':',
+         'owner_opening_authority_v1', '${ids.organization}', '${ids.property}',
+         '${ids.owner}', 'USD', '2026-08-01', 'ips_held_owner_cash'), 0));
+       DO $barrier$ BEGIN RAISE NOTICE 'correction_approval_ready'; END $barrier$;
+       SELECT pg_sleep(1.2);
+       ${authenticatedReviewSql(
+         ids.reviewer,
+         correctionRequestId,
+         "correction-approval-race-first",
+         "approve",
+       )}
+       COMMIT;`,
+      `BEGIN;
+       ${authenticatedReviewSql(
+         ids.submitterTwo,
+         correctionRequestId,
+         "correction-approval-race-second",
+         "approve",
+       )}
+       COMMIT;`,
+      "correction_approval_ready",
+    );
+    assert.equal(correctionApprovalRace.first.status, 0, correctionApprovalRace.first.stderr);
+    assert.equal(correctionApprovalRace.second.status, 1);
+    assert.match(
+      correctionApprovalRace.second.stderr,
+      /only a submitted owner opening request|correction target is stale/i,
+    );
+    assert.doesNotMatch(
+      `${correctionApprovalRace.first.stderr}\n${correctionApprovalRace.second.stderr}`,
+      /deadlock detected/i,
+    );
+    assert.equal(
+      run(container, `
+        SELECT jsonb_build_array(
+          (SELECT count(*) FROM public.owner_opening_balance_requests
+            WHERE id = '${correctionRequestId}' AND status = 'approved'),
+          (SELECT count(*) FROM public.owner_opening_balance_entries
+            WHERE request_id = '${correctionRequestId}'),
+          (SELECT count(*) FROM public.owner_opening_balance_entries
+            WHERE request_id = '${correctionRequestId}'
+              AND entry_kind = 'correction_reversal'),
+          (SELECT count(*) FROM public.owner_opening_balance_entries
+            WHERE request_id = '${correctionRequestId}'
+              AND entry_kind = 'correction_replacement')
+        );
+      `),
+      "[1, 2, 1, 1]",
+    );
+
+    currentEntryId = run(container, `
+      SELECT id FROM public.owner_opening_balance_entries
+      WHERE request_id = '${correctionRequestId}'
+        AND entry_kind = 'correction_replacement';
+    `);
+    run(container, `BEGIN;
+      ${authenticatedCorrectionSql(
+        ids.financeMember,
+        currentEntryId,
+        "18.00",
+        "approval-first-submit-0001",
+      )}
+      COMMIT;`);
+    correctionRequestId = run(container, `
+      SELECT id FROM public.owner_opening_balance_requests
+      WHERE correction_of_entry_id = '${currentEntryId}' AND status = 'submitted';
+    `);
+
+    const approvalFirst = await raceAfterMarker(
+      container,
+      `BEGIN;
+       SELECT app_private.lock_owner_opening_property_month(
+         '${ids.organization}', '${ids.property}', 'USD', '2026-08-01'
+       );
+       SELECT pg_advisory_xact_lock(hashtextextended(concat_ws(':',
+         'owner_opening_authority_v1', '${ids.organization}', '${ids.property}',
+         '${ids.owner}', 'USD', '2026-08-01', 'ips_held_owner_cash'), 0));
+       DO $barrier$ BEGIN RAISE NOTICE 'approval_first_ready'; END $barrier$;
+       SELECT pg_sleep(1.2);
+       ${authenticatedReviewSql(
+         ids.reviewer,
+         correctionRequestId,
+         "approval-first-review-0001",
+         "approve",
+       )}
+       COMMIT;`,
+      `BEGIN;
+       ${authenticatedCorrectionSql(
+         ids.submitterTwo,
+         currentEntryId,
+         "19.00",
+         "approval-first-competing-submit",
+       )}
+       COMMIT;`,
+      "approval_first_ready",
+    );
+    assert.equal(approvalFirst.first.status, 0, approvalFirst.first.stderr);
+    assert.equal(approvalFirst.second.status, 1);
+    assert.match(approvalFirst.second.stderr, /correction target is stale/i);
+    assert.doesNotMatch(
+      `${approvalFirst.first.stderr}\n${approvalFirst.second.stderr}`,
+      /deadlock detected/i,
+    );
+
+    currentEntryId = run(container, `
+      SELECT id FROM public.owner_opening_balance_entries
+      WHERE request_id = '${correctionRequestId}'
+        AND entry_kind = 'correction_replacement';
+    `);
+    run(container, `BEGIN;
+      ${authenticatedCorrectionSql(
+        ids.financeMember,
+        currentEntryId,
+        "21.00",
+        "submission-first-submit-0001",
+      )}
+      COMMIT;`);
+    correctionRequestId = run(container, `
+      SELECT id FROM public.owner_opening_balance_requests
+      WHERE correction_of_entry_id = '${currentEntryId}' AND status = 'submitted';
+    `);
+
+    const submissionFirst = await raceAfterMarker(
+      container,
+      `BEGIN;
+       SELECT app_private.lock_owner_opening_property_month(
+         '${ids.organization}', '${ids.property}', 'USD', '2026-08-01'
+       );
+       SELECT pg_advisory_xact_lock(hashtextextended(concat_ws(':',
+         'owner_opening_authority_v1', '${ids.organization}', '${ids.property}',
+         '${ids.owner}', 'USD', '2026-08-01', 'ips_held_owner_cash'), 0));
+       SELECT id FROM public.owner_opening_balance_entries
+         WHERE id = '${currentEntryId}' FOR UPDATE;
+       DO $barrier$ BEGIN RAISE NOTICE 'submission_first_ready'; END $barrier$;
+       SELECT pg_sleep(1.2);
+       ${authenticatedCorrectionSql(
+         ids.submitterTwo,
+         currentEntryId,
+         "22.00",
+         "submission-first-competing-submit",
+       )}
+       COMMIT;`,
+      `BEGIN;
+       ${authenticatedReviewSql(
+         ids.reviewer,
+         correctionRequestId,
+         "submission-first-review-0001",
+         "approve",
+       )}
+       COMMIT;`,
+      "submission_first_ready",
+    );
+    assert.equal(submissionFirst.first.status, 1);
+    assert.match(submissionFirst.first.stderr, /correction request is already submitted/i);
+    assert.equal(submissionFirst.second.status, 0, submissionFirst.second.stderr);
+    assert.doesNotMatch(
+      `${submissionFirst.first.stderr}\n${submissionFirst.second.stderr}`,
+      /deadlock detected/i,
+    );
+
+    assert.equal(
+      run(container, `
+        SELECT jsonb_build_array(
+          (SELECT count(*) FROM public.owner_opening_balance_requests
+            WHERE organization_id = '${ids.organization}' AND status = 'submitted'),
+          (SELECT count(*) FROM public.owner_opening_balance_requests
+            WHERE organization_id = '${ids.organization}' AND status = 'approved'),
+          (SELECT count(*) FROM public.owner_opening_balance_entries
+            WHERE organization_id = '${ids.organization}'),
+          (SELECT count(*) FROM public.owner_opening_balance_requests AS request
+            WHERE request.organization_id = '${ids.organization}'
+              AND request.status = 'approved'
+              AND request.request_kind = 'correction'
+              AND 2 <> (SELECT count(*) FROM public.owner_opening_balance_entries AS entry
+                WHERE entry.request_id = request.id))
+        );
+      `),
+      "[0, 4, 7, 0]",
     );
   } finally {
     cleanup(container);

@@ -11,6 +11,8 @@ type SubmitArgs =
   Database["public"]["Functions"]["submit_owner_opening_balance"]["Args"];
 type ReviewArgs =
   Database["public"]["Functions"]["review_owner_opening_balance"]["Args"];
+type CorrectionArgs =
+  Database["public"]["Functions"]["submit_owner_opening_balance_correction"]["Args"];
 
 type AmountStaysExactText = Expect<Equal<SubmitArgs["p_amount"], string>>;
 type SourceReferenceSupportsDocumentOnly = Expect<
@@ -25,10 +27,18 @@ type ResubmissionStartsNullable = Expect<
 type ReviewReasonMatchesPublicSql = Expect<
   Equal<ReviewArgs["p_review_reason"], string | null>
 >;
+type CorrectionAmountStaysExactText = Expect<
+  Equal<CorrectionArgs["p_replacement_amount"], string>
+>;
+type CorrectionResubmissionStartsNullable = Expect<
+  Equal<CorrectionArgs["p_resubmission_of_request_id"], string | null>
+>;
 
 export type OwnerOpeningRpcTypeContract =
   | AmountStaysExactText
   | SourceReferenceSupportsDocumentOnly
   | SupportingDocumentSupportsReferenceOnly
   | ResubmissionStartsNullable
-  | ReviewReasonMatchesPublicSql;
+  | ReviewReasonMatchesPublicSql
+  | CorrectionAmountStaysExactText
+  | CorrectionResubmissionStartsNullable;
