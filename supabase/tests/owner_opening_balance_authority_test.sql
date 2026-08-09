@@ -708,6 +708,177 @@ SELECT ok(
   'workflow RPCs are authenticated-only while the ordered lock helper remains private'
 );
 
+SELECT has_function(
+  'app_private',
+  'lock_owner_opening_roster_property',
+  ARRAY['uuid', 'uuid'],
+  'the shared property roster serialization helper exists'
+);
+
+SELECT has_function(
+  'app_private',
+  'lock_owner_opening_roster_person',
+  ARRAY['uuid', 'uuid'],
+  'the shared person roster serialization helper exists'
+);
+
+SELECT has_function(
+  'app_private',
+  'guard_owner_opening_roster_mutation',
+  ARRAY[]::text[],
+  'the shared roster mutation trigger guard exists'
+);
+
+SELECT has_trigger(
+  'public',
+  'properties',
+  'guard_owner_opening_roster_property_mutation',
+  'property archive and identity mutations share the roster lock boundary'
+);
+
+SELECT has_trigger(
+  'public',
+  'property_owners',
+  'guard_owner_opening_roster_assignment_mutation',
+  'ownership inserts, changes, transfers, archives, and deletes share the roster lock boundary'
+);
+
+SELECT has_trigger(
+  'public',
+  'people',
+  'guard_owner_opening_roster_person_mutation',
+  'owner archive and restore mutations share every affected property roster lock'
+);
+
+SELECT has_trigger(
+  'public',
+  'person_roles',
+  'guard_owner_opening_roster_role_mutation',
+  'owner-role activation and removal share every affected property roster lock'
+);
+
+SELECT is(
+  (
+    SELECT jsonb_agg(
+      jsonb_build_array(
+        trigger_row.tgrelid::regclass::text,
+        trigger_row.tgname,
+        trigger_row.tgenabled
+      )
+      ORDER BY trigger_row.tgrelid::regclass::text, trigger_row.tgname
+    )
+    FROM pg_trigger AS trigger_row
+    WHERE NOT trigger_row.tgisinternal
+      AND trigger_row.tgname LIKE 'guard_owner_opening_roster_%'
+  ),
+  '[["people","guard_owner_opening_roster_person_mutation","O"],["people","guard_owner_opening_roster_person_truncate","O"],["person_roles","guard_owner_opening_roster_role_mutation","O"],["person_roles","guard_owner_opening_roster_role_truncate","O"],["properties","guard_owner_opening_roster_property_mutation","O"],["properties","guard_owner_opening_roster_property_truncate","O"],["property_owners","guard_owner_opening_roster_assignment_mutation","O"],["property_owners","guard_owner_opening_roster_assignment_truncate","O"]]'::jsonb,
+  'all four roster-input tables guard relevant row mutations and bypass-RLS truncation'
+);
+
+SELECT ok(
+  NOT coalesce(
+    has_function_privilege(
+      'anon',
+      to_regprocedure('app_private.lock_owner_opening_roster_property(uuid,uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'authenticated',
+      to_regprocedure('app_private.lock_owner_opening_roster_property(uuid,uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'service_role',
+      to_regprocedure('app_private.lock_owner_opening_roster_property(uuid,uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'anon',
+      to_regprocedure('app_private.lock_owner_opening_roster_person(uuid,uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'authenticated',
+      to_regprocedure('app_private.lock_owner_opening_roster_person(uuid,uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'service_role',
+      to_regprocedure('app_private.lock_owner_opening_roster_person(uuid,uuid)'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'anon',
+      to_regprocedure('app_private.guard_owner_opening_roster_mutation()'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'authenticated',
+      to_regprocedure('app_private.guard_owner_opening_roster_mutation()'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'service_role',
+      to_regprocedure('app_private.guard_owner_opening_roster_mutation()'),
+      'EXECUTE'
+    ),
+    false
+  ),
+  'roster serialization helpers remain private from every application role'
+);
+
+SELECT ok(
+  (
+    SELECT bool_and(
+      pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(procedure_row.oid),
+        'PERFORM app_private.lock_owner_opening_roster_property('
+      ) > pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(procedure_row.oid),
+        'PERFORM app_private.lock_owner_opening_property_month('
+      )
+      AND pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(procedure_row.oid),
+        'FOR KEY SHARE'
+      ) = 0
+    )
+    FROM pg_proc AS procedure_row
+    JOIN pg_namespace AS namespace_row
+      ON namespace_row.oid = procedure_row.pronamespace
+    WHERE namespace_row.nspname = 'public'
+      AND procedure_row.proname IN (
+        'submit_owner_opening_balance',
+        'review_owner_opening_balance',
+        'submit_owner_opening_balance_correction'
+      )
+  ),
+  'every opening snapshot/review path takes the shared roster lock before unlocked validation'
+);
+
 CREATE TEMP TABLE owner_opening_request_fixture (
   organization_id uuid NOT NULL DEFAULT 'a2110000-0000-4000-8000-000000000001',
   property_id uuid NOT NULL DEFAULT 'a2110000-0000-4000-8000-000000000002',

@@ -15,6 +15,7 @@ const ids = {
   propertyOtherOrg: "b22c0000-0000-4000-8000-000000000005",
   owner: "b22c0000-0000-4000-8000-000000000006",
   propertyOwner: "b22c0000-0000-4000-8000-000000000007",
+  replacementOwner: "b22c0000-0000-4000-8000-000000000008",
   financeMember: "b22c0000-0000-4000-8000-000000000010",
   submitterTwo: "b22c0000-0000-4000-8000-000000000011",
   reviewer: "b22c0000-0000-4000-8000-000000000012",
@@ -152,6 +153,96 @@ function authenticatedCorrectionSql(
   `;
 }
 
+function authenticatedRosterMutationSql(actorId, mutationKind) {
+  if (mutationKind === "service_role_remove_owner_role") {
+    return `
+      SET LOCAL ROLE service_role;
+      UPDATE public.person_roles
+      SET status = 'inactive', archived_at = now()
+      WHERE organization_id = '${ids.organization}'
+        AND person_id = '${ids.owner}'
+        AND role = 'owner';
+    `;
+  }
+
+  const mutationSql = {
+    archive_person: `SELECT public.archive_person('${ids.organization}', '${ids.owner}');`,
+    remove_owner_role: `SELECT public.update_person(
+      '${ids.owner}', '${ids.organization}', 'Opening concurrency owner', NULL,
+      'individual', NULL, NULL, NULL, NULL, ARRAY['vendor']::text[]
+    );`,
+    direct_remove_owner_role: `UPDATE public.person_roles
+      SET status = 'inactive', archived_at = now(), updated_by = '${actorId}'
+      WHERE organization_id = '${ids.organization}'
+        AND person_id = '${ids.owner}'
+        AND role = 'owner';`,
+    change_ownership_percent: `SELECT public.update_property(
+      '${ids.property}', '${ids.organization}', 'Opening concurrency A', 'OCA',
+      'Apartment', NULL, NULL, 'active', NULL, NULL,
+      '${ids.owner}', '2026-01-01', 90.000
+    );`,
+    transfer_owner: `SELECT public.update_property(
+      '${ids.property}', '${ids.organization}', 'Opening concurrency A', 'OCA',
+      'Apartment', NULL, NULL, 'active', NULL, NULL,
+      '${ids.replacementOwner}', '2026-08-01', 100.000
+    );`,
+    archive_property: `SELECT public.archive_property('${ids.property}', '${ids.organization}');`,
+    direct_archive_property: `UPDATE public.properties
+      SET archived_at = now(), archived_by = '${actorId}', updated_by = '${actorId}'
+      WHERE organization_id = '${ids.organization}'
+        AND id = '${ids.property}';`,
+  }[mutationKind];
+  assert.ok(mutationSql, `Unsupported roster mutation: ${mutationKind}`);
+
+  return `
+    SELECT set_config('request.jwt.claim.sub', '${actorId}', true);
+    SET LOCAL ROLE authenticated;
+    ${mutationSql}
+  `;
+}
+
+function prepareRosterRaceApproval(container, requestKind, suffix) {
+  run(container, `BEGIN;
+    ${authenticatedSubmitSql(ids.financeMember, `roster-${suffix}-initial-submit`)}
+    COMMIT;`);
+  const initialRequestId = run(container, `
+    SELECT id FROM public.owner_opening_balance_requests
+    WHERE organization_id = '${ids.organization}'
+      AND request_kind = 'initial'
+      AND status = 'submitted';
+  `);
+
+  if (requestKind === "initial") {
+    return { requestId: initialRequestId, expectedEntryCount: 1 };
+  }
+
+  run(container, `BEGIN;
+    ${authenticatedReviewSql(
+      ids.reviewer,
+      initialRequestId,
+      `roster-${suffix}-initial-approve`,
+      "approve",
+    )}
+    COMMIT;`);
+  const openingEntryId = run(container, `
+    SELECT id FROM public.owner_opening_balance_entries
+    WHERE request_id = '${initialRequestId}' AND entry_kind = 'opening';
+  `);
+  run(container, `BEGIN;
+    ${authenticatedCorrectionSql(
+      ids.financeMember,
+      openingEntryId,
+      "12.00",
+      `roster-${suffix}-correction-submit`,
+    )}
+    COMMIT;`);
+  const correctionRequestId = run(container, `
+    SELECT id FROM public.owner_opening_balance_requests
+    WHERE correction_of_entry_id = '${openingEntryId}' AND status = 'submitted';
+  `);
+  return { requestId: correctionRequestId, expectedEntryCount: 2 };
+}
+
 function setup(container) {
   run(container, `
     INSERT INTO auth.users (
@@ -190,17 +281,22 @@ function setup(container) {
     ON CONFLICT (organization_id, id) DO NOTHING;
 
     INSERT INTO public.people (id, organization_id, display_name)
-    VALUES ('${ids.owner}', '${ids.organization}', 'Opening concurrency owner')
+    VALUES
+      ('${ids.owner}', '${ids.organization}', 'Opening concurrency owner'),
+      ('${ids.replacementOwner}', '${ids.organization}', 'Replacement concurrency owner')
     ON CONFLICT (organization_id, id) DO NOTHING;
 
     INSERT INTO public.person_roles (organization_id, person_id, role, status)
-    VALUES ('${ids.organization}', '${ids.owner}', 'owner', 'active');
+    VALUES
+      ('${ids.organization}', '${ids.owner}', 'owner', 'active'),
+      ('${ids.organization}', '${ids.replacementOwner}', 'owner', 'active');
 
     INSERT INTO public.property_owners (
-      id, organization_id, property_id, person_id, ownership_percent, started_on
+      id, organization_id, property_id, person_id, is_primary,
+      ownership_percent, started_on
     ) VALUES (
       '${ids.propertyOwner}', '${ids.organization}', '${ids.property}',
-      '${ids.owner}', 100.000, '2026-01-01'
+      '${ids.owner}', true, 100.000, '2026-01-01'
     ) ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO public.organization_members (organization_id, user_id, role)
@@ -738,6 +834,133 @@ test("owner opening approvals commit complete entry chains under races", async (
       `),
       "[0, 4, 7, 0]",
     );
+  } finally {
+    cleanup(container);
+  }
+});
+
+test("owner opening approval serializes every current-roster mutation", async () => {
+  const container = databaseContainer();
+  const requestKinds = ["initial", "correction"];
+  const mutationKinds = [
+    "archive_person",
+    "remove_owner_role",
+    "direct_remove_owner_role",
+    "service_role_remove_owner_role",
+    "change_ownership_percent",
+    "transfer_owner",
+    "archive_property",
+    "direct_archive_property",
+  ];
+  const startOrders = ["mutation_first", "approval_first"];
+
+  cleanup(container);
+  try {
+    for (const requestKind of requestKinds) {
+      for (const mutationKind of mutationKinds) {
+        for (const startOrder of startOrders) {
+          cleanup(container);
+          setup(container);
+          const suffix = `${requestKind}-${mutationKind}-${startOrder}`;
+          const { requestId, expectedEntryCount } = prepareRosterRaceApproval(
+            container,
+            requestKind,
+            suffix,
+          );
+          const reviewSql = authenticatedReviewSql(
+            ids.reviewer,
+            requestId,
+            `roster-${suffix}-review`,
+            "approve",
+          );
+          const mutationSql = authenticatedRosterMutationSql(
+            ids.submitterTwo,
+            mutationKind,
+          );
+          const firstSql = startOrder === "mutation_first"
+            ? `BEGIN;
+               ${mutationSql}
+               DO $barrier$ BEGIN RAISE NOTICE 'roster_mutation_ready'; END $barrier$;
+               SELECT pg_sleep(0.8);
+               COMMIT;`
+            : `BEGIN;
+               ${reviewSql}
+               DO $barrier$ BEGIN RAISE NOTICE 'roster_approval_ready'; END $barrier$;
+               SELECT pg_sleep(0.8);
+               COMMIT;`;
+          const secondSql = startOrder === "mutation_first"
+            ? `BEGIN; ${reviewSql} COMMIT;`
+            : `BEGIN; ${mutationSql} COMMIT;`;
+          const marker = startOrder === "mutation_first"
+            ? "roster_mutation_ready"
+            : "roster_approval_ready";
+
+          const race = await raceAfterMarker(
+            container,
+            firstSql,
+            secondSql,
+            marker,
+          );
+          assert.equal(
+            race.first.status,
+            0,
+            `${suffix}: ${race.first.stderr}`,
+          );
+          assert.ok(
+            race.secondElapsedMs >= 500,
+            `${suffix}: mutation boundary did not wait (${race.secondElapsedMs}ms)`,
+          );
+          assert.doesNotMatch(
+            `${race.first.stderr}\n${race.second.stderr}`,
+            /deadlock detected/i,
+            suffix,
+          );
+
+          if (startOrder === "mutation_first") {
+            assert.equal(
+              race.second.status,
+              1,
+              `${suffix}: stale approval unexpectedly committed`,
+            );
+            assert.match(
+              race.second.stderr,
+              /owner_roster_property_not_found|owner_roster_missing|owner_share_total_not_100|owner_person_inactive|ownership_roster_changed/i,
+              suffix,
+            );
+            assert.equal(
+              run(container, `
+                SELECT jsonb_build_array(
+                  (SELECT count(*) FROM public.owner_opening_balance_requests
+                    WHERE id = '${requestId}' AND status = 'submitted'),
+                  (SELECT count(*) FROM public.owner_opening_balance_entries
+                    WHERE request_id = '${requestId}')
+                );
+              `),
+              "[1, 0]",
+              suffix,
+            );
+          } else {
+            assert.equal(
+              race.second.status,
+              0,
+              `${suffix}: ${race.second.stderr}`,
+            );
+            assert.equal(
+              run(container, `
+                SELECT jsonb_build_array(
+                  (SELECT count(*) FROM public.owner_opening_balance_requests
+                    WHERE id = '${requestId}' AND status = 'approved'),
+                  (SELECT count(*) FROM public.owner_opening_balance_entries
+                    WHERE request_id = '${requestId}')
+                );
+              `),
+              `[1, ${expectedEntryCount}]`,
+              suffix,
+            );
+          }
+        }
+      }
+    }
   } finally {
     cleanup(container);
   }
