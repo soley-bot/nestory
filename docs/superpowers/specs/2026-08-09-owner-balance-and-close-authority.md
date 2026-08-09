@@ -6,6 +6,9 @@
 
 **Decision authority:** IPS approved D1-D14 on 2026-08-09. This specification freezes D1-D12 and applies the D13-D14 separation-of-duties boundary without broadening Finance Manager authority.
 
+**Review status:** Corrected after adversarial specification review; Track 2
+implementation starts with Task 2.0 and may not skip any numbered/lettered gate.
+
 **Implementation boundary:** Local branch only. This specification does not authorize a hosted migration, import, close, publication, deployment, push, or merge.
 
 ## Purpose
@@ -63,6 +66,9 @@ unlike authority. No implementation task may add a second `currency_code` value.
   nonzero amount.
 - **Opening authority key** is
   `(organization_id, property_id, owner_person_id, currency, effective_date, component)`.
+- **Opening ownership snapshot** is the exact `property_owners.id`, explicit
+  `ownership_percent`, and canonical whole-roster SHA-256 resolved for the
+  opening effective date. It is authority evidence, not a live join.
 - **Period key** is
   `(organization_id, property_id, owner_person_id, currency, month_start)`.
 - **Atomic source line** is the smallest immutable source row whose whole amount
@@ -79,13 +85,13 @@ maker-checker separation. The fail-closed Tracks 2-4 matrix is therefore:
 
 | Operation | Super Admin | Finance Manager | Finance Member | Operations roles |
 | --- | --- | --- | --- | --- |
-| Read opening requests, approved components, allocation exceptions, roll-forward, close readiness, and published statements | Allow | Allow | Allow where existing Finance read authority allows | Deny |
+| Read opening requests, approved components, opening-ownership remediation, and later allocation/close/statement results once their tracks exist | Allow | Allow | Allow where existing Finance read authority allows | Deny |
 | Submit initial opening request | Allow, but cannot review own request | Deny | Allow | Deny |
 | Submit correction request | Allow, but cannot review own request | Allow, but cannot review | Allow | Deny |
 | Approve or reject opening/correction request | Allow only, and reviewer must differ from submitter | Deny | Deny | Deny |
 | Upload/select opening evidence | Existing checked document authority only; reference-only submission remains supported | Select readable evidence/reference only | Select readable evidence/reference only | Deny |
 | Inspect close readiness and reconciliation | Allow | Allow | Read-only queue context | Deny |
-| Generate/recompute open-period allocations and roll-forward | Checked private/system path | Checked private/system path only through an allowed ordinary operation or explicit readiness runner | Deny | Deny |
+| Generate/recompute event allocation, roll-forward, or withdrawal capacity | Track 3 only | Track 3 only through an allowed checked path | Deny | Deny |
 | Safe open-period correction after Track 3 acceptance | Allow | Allow only through `canCorrectFinance` and the exact guarded paths approved by Track 3 | Deny | Deny |
 | Unlock, ownership transfer instruction, closed-period reopen, exceptional correction, close, or publication | Allow only | Deny | Deny | Deny |
 | Mutate tables directly | Deny | Deny | Deny | Deny |
@@ -166,12 +172,16 @@ point MUST NOT cross an authoritative owner-balance action or loader boundary.
 | `organization_id` | `uuid` | Required; FK organization, delete restrict |
 | `property_id` | `uuid` | Required; composite organization/property scope checked |
 | `owner_person_id` | `uuid` | Required; active owner role and roster membership checked at `effective_date` |
+| `property_owner_id` | `uuid` | Required; exact active `property_owners` row resolved by the Track 2.0 validator |
+| `ownership_percent_snapshot` | `numeric(6,3)` | Required, `> 0` and `<= 100`; exact explicit share on `property_owner_id` |
+| `ownership_roster_hash` | `text` | Required lowercase 64-hex hash of the complete valid roster on `effective_date` |
 | `currency` | `currency_code` | Required; `USD` in current product |
 | `effective_date` | `date` | Required; first day of a calendar month |
 | `component` | `owner_balance_component` | Required |
 | `request_kind` | `text` | `initial` or `correction` |
 | `proposed_amount` | `numeric(14,2)` | Required, `>= 0`; `0.00` is valid known zero |
-| `correction_of_entry_id` | `uuid` | Null for initial; required for correction; targets an unreversed positive opening/replacement entry with the same authority key |
+| `correction_of_entry_id` | `uuid` | Null for initial; required for correction; targets the current unreversed authority-bearing opening/replacement entry with the same authority key, including an entry whose amount is `0.00` |
+| `resubmission_of_request_id` | `uuid` | Optional; targets the immediately preceding rejected request in the same request chain |
 | `status` | `text` | `submitted`, `approved`, or `rejected` |
 | `reason` | `text` | Trimmed 3-500 characters |
 | `source_reference` | `text` | Optional trimmed 3-240 characters |
@@ -187,6 +197,12 @@ Table invariants:
 
 - at least one of `source_reference` and `supporting_document_id` is non-null;
 - initial requests have no correction target; correction requests have one;
+- a resubmission target is a rejected request with the same organization,
+  authority key, request kind, and correction target; it is never self, is not
+  already resubmitted, and is the immediately preceding rejected request;
+- a rejected request has at most one successor through a unique non-null
+  `resubmission_of_request_id`; resubmission always creates a new submitted row
+  and never changes the rejected row;
 - submitted rows have no review fields; reviewed rows have actor/time;
 - `reviewed_by <> submitted_by` for approved and rejected requests;
 - a rejected request creates no entry and never returns to submitted;
@@ -194,6 +210,35 @@ Table invariants:
   the review RPC may update only status and review fields through a private
   transaction-local capability guard;
 - `(organization_id, id)` is unique for composite foreign keys.
+- only one submitted initial request may exist per authority key, and only one
+  submitted correction may exist per `correction_of_entry_id`; partial unique
+  indexes enforce both under concurrency;
+- `property_owner_id`, `ownership_percent_snapshot`, and
+  `ownership_roster_hash` are copied from the successful Track 2.0 date
+  validator and are part of `payload_hash`; the client cannot supply an
+  arbitrary share or roster hash.
+
+Required database enforcement includes:
+
+- composite foreign keys proving request organization/property/owner and
+  `property_owner_id` scope, not standalone UUID existence;
+- check `effective_date = date_trunc('month', effective_date)::date`;
+- check `proposed_amount >= 0`, exact `numeric(14,2)` storage, reason/reference
+  trim/length, and both hash formats;
+- check initial/correction target pairing, status/review-field pairing,
+  independent reviewed/submitted actors, and no self-reference for correction
+  or resubmission;
+- unique non-null `resubmission_of_request_id`;
+- partial unique submitted-initial index on the full authority key;
+- partial unique submitted-correction index on `correction_of_entry_id`;
+- trigger/RPC validation for same-key rejected predecessor and latest-chain
+  lineage, which cannot be expressed by a row check alone.
+
+Concurrency tests use two database sessions and barriers, not sequential calls,
+to prove only one pending initial per authority key, one pending correction per
+target, one approval result, one resubmission successor, and one reversal pair.
+The losing transaction must return a stable domain/idempotency error without a
+partial request or entry.
 
 ### Track 2: `owner_opening_balance_entries`
 
@@ -201,7 +246,7 @@ Table invariants:
 | --- | --- | --- |
 | `id` | `uuid` | Primary key |
 | `request_id` | `uuid` | Required FK to approved request, delete restrict |
-| `organization_id`, `property_id`, `owner_person_id`, `currency`, `effective_date`, `component` | same as request | Required immutable copy; exact equality to request enforced by checked RPC and trigger |
+| `organization_id`, `property_id`, `owner_person_id`, `property_owner_id`, `ownership_percent_snapshot`, `ownership_roster_hash`, `currency`, `effective_date`, `component` | same domain as request | Opening/replacement copies the approved request snapshot; correction reversal copies the exact target-entry snapshot |
 | `entry_kind` | `text` | `opening`, `correction_reversal`, or `correction_replacement` |
 | `signed_amount` | `numeric(14,2)` | Opening/replacement `>= 0`; reversal `<= 0` and exact negative of target, including explicit zero reversal |
 | `reversal_of_entry_id` | `uuid` | Required only for correction reversal; never self; unique |
@@ -209,11 +254,22 @@ Table invariants:
 
 An approved initial request creates exactly one `opening` entry. An approved
 correction creates exactly two entries in one transaction: one
-`correction_reversal` against the current unreversed positive entry and one
+`correction_reversal` against the current unreversed authority-bearing
+`opening`/`correction_replacement` entry, including `0.00`, and one
 `correction_replacement` with the proposed nonnegative amount. The request ID
 plus entry kind is unique. There is exactly one `opening` entry per authority
-key. A positive entry can be reversed once. The current opening amount is the
+key. An authority-bearing opening/replacement entry can be reversed once. The current opening amount is the
 exact sum of all signed entries for the authority key.
+
+Approval re-runs the Task 2.0 validator at the effective date. It requires the
+request's `property_owner_id`, explicit share, and roster hash to match the
+current validated effective-date roster. If they changed after submission,
+approval fails `ownership_roster_changed`, leaves the request submitted, and
+creates no entry. The operator must repair ownership or reject/resubmit with a
+new snapshot. For a correction, the reversal row preserves the target entry's
+old ownership snapshot while the replacement preserves the newly approved
+request snapshot; the lineage therefore explains a deliberate roster repair
+instead of rewriting the old evidence.
 
 The presence of an approved entry chain establishes knowledge. No row means
 unknown; a chain summing to `0.00` means known zero. Consumers MUST return an
@@ -395,24 +451,93 @@ or returns the retained artifact.
 
 ## Ownership And Transfer Invariants
 
-Before Track 2 approval can consume an owner roster:
+Task 2.0 is a prerequisite migration and executable readiness gate. No opening
+table or request RPC may be created until it is independently approved.
 
-- `property_owners.started_on` is non-null for every active financial owner;
+For every unarchived `property_owners` row used as financial authority:
+
+- `started_on` is required;
 - `ended_on` is null or strictly greater than `started_on`;
-- effective membership is `started_on <= event_date` and
-  `(ended_on IS NULL OR event_date < ended_on)`;
-- duplicate/overlapping intervals for the same property/person are rejected;
-- all active roster percentages are non-null, greater than zero, at most 100,
-  and sum to exactly `100.000` at the effective date;
-- archived rows are excluded;
-- `is_primary` may control contact/display only and MUST NOT select financial
-  authority with `ORDER BY ... LIMIT 1`.
+- `ownership_percent` is required, greater than `0.000`, and at most `100.000`;
+- a stored generated `effective_range daterange` uses
+  `daterange(started_on, ended_on, '[)')`;
+- a GiST exclusion constraint rejects overlapping unarchived ranges for the
+  same `(organization_id, property_id, person_id)`;
+- effective membership is `started_on <= p_effective_date` and
+  `(ended_on IS NULL OR p_effective_date < ended_on)`;
+- every active roster share on the requested property/date is explicit and the
+  exact sum is `100.000`.
 
-Track 2 must add a half-open range contract and change its own queries. Track 3
-must remove every inclusive-ended current-owner resolver from owner allocation
-and balance paths before event allocation acceptance. Existing product views
-that still use `ended_on >= date` are contradictory evidence and cannot be cited
-as Track 3 completion.
+There is no sole-owner exception. One active owner with a null share is not
+treated as `100.000`; one active owner with `99.999` is not rounded to 100; and
+`is_primary` never supplies or overrides a share. Existing rows that fail the
+new constraints must be corrected explicitly in the guarded local fixture or
+surfaced as remediation data before constraint validation. The migration must
+not backfill `100.000` merely because only one active row is found.
+
+Task 2.0 creates one non-public date validator with this interface:
+
+```sql
+app_private.validate_owner_roster_on_date(
+  p_organization_id uuid,
+  p_property_id uuid,
+  p_effective_date date
+) returns table (
+  property_owner_id uuid,
+  owner_person_id uuid,
+  ownership_percent numeric(6,3),
+  started_on date,
+  ended_on date,
+  ownership_roster_hash text
+);
+```
+
+The validator checks property/organization scope, excludes archived rows,
+requires at least one row, validates every half-open interval/share, asserts the
+sum is exactly `100.000`, sorts canonical roster input by `property_owner_id`,
+and computes one lowercase SHA-256 over exact UUID/date/share strings. Every
+returned row carries that same whole-roster hash. It never defaults, normalizes,
+or rounds a missing share.
+
+A checked Finance-readable remediation RPC/view exposes typed issues without
+writing ownership:
+
+```text
+owner_roster_missing
+owner_start_missing
+owner_interval_invalid
+owner_interval_overlap
+owner_share_missing
+owner_share_invalid
+owner_share_total_not_100
+owner_person_inactive
+```
+
+Each issue includes organization, property, optional `property_owner_id`,
+effective date, observed share total, and a direct owner/property setup target.
+Only existing Super Admin ownership setup authority can repair it. Finance roles
+may inspect the issue but cannot write `property_owners`.
+
+The current `app_private.sync_property_primary_owner` path inserts a primary
+owner without `ownership_percent` and uses implicit `current_date` boundaries.
+Task 2.0 must replace that carried-forward writer and its property action/form
+contract so selecting an owner requires an explicit ownership start date and
+explicit decimal share. The UI must not prefill `100.000`. A same-day
+replacement that would create an empty `[date,date)` interval is rejected or
+handled through an explicit correction that removes the never-effective row;
+it is never stored as a zero-length ownership interval. `is_primary` remains a
+contact/display choice, not a financial allocation shortcut.
+
+Track 2 opening submission calls this validator, selects the exact owner row,
+and persists its `property_owner_id`, explicit share, and whole-roster hash on
+both request and approved entries. Subsequent ownership edits never rewrite the
+snapshot.
+
+Track 3 must remove every inclusive-ended or current-primary-owner resolver
+from event allocation, existing balance projections, roll-forward, and
+withdrawal-capacity paths before those paths can consume this authority.
+Existing projections remain explicitly non-authoritative during Track 2 and
+cannot be cited as Track 2 completion.
 
 An ownership transfer with unsettled amounts creates explicit
 `owner_component_transfer` allocation sets per component, from owner and to
@@ -427,6 +552,35 @@ Reference-only submissions remain valid so fixture and migration rehearsals do
 not invent Storage objects. The submission must carry a SHA-256 of the exact
 source snapshot used to derive the amount.
 
+Task 2.2A adds nullable `documents.content_sha256 text` with a lowercase 64-hex
+check. Existing document rows remain null and cannot be selected as opening
+evidence until their bytes are deliberately re-read/re-uploaded through a
+checked fingerprint workflow. The migration MUST NOT populate a content hash
+from file name, path, size, ETag, Storage metadata, or an unverified client
+claim.
+
+The checked document upload/update path accepts `p_content_sha256`, and the
+server action computes SHA-256 from the exact file bytes before upload. Opening
+submission requires:
+
+```text
+p_evidence_sha256 = documents.content_sha256
+```
+
+as well as the scope/object/category/archive checks below. The database can
+prove equality to immutable document metadata and can prevent later replacement;
+it cannot independently re-hash Supabase Storage object bytes inside ordinary
+PostgreSQL. That limitation must be stated in the UI/report and verified at the
+application upload boundary. A local integration test that actually uploads an
+object must download/read it and compare the bytes to `content_sha256`; a
+metadata-only fixture must use reference evidence instead.
+
+`content_sha256` is insert-only except through the existing checked full-file
+replacement path. A replacement must supply a new storage path, file name,
+MIME type, byte size, and content hash together; it is denied when any financial
+evidence reference locks the document. A metadata-only update cannot change the
+hash. Direct table updates remain denied.
+
 For a supporting document, the checked submit RPC verifies:
 
 - document organization and property match the request;
@@ -434,7 +588,8 @@ For a supporting document, the checked submit RPC verifies:
 - the private `nestory-documents` object exists;
 - its category is `owner_opening_balance_evidence`;
 - it is not archived;
-- the submitted byte hash is lowercase 64-hex.
+- `documents.content_sha256` is non-null and equals the submitted lowercase
+  64-hex `p_evidence_sha256`.
 
 Once referenced by a submitted or approved opening request, document metadata
 and Storage bytes are locked from replacement, archive, and deletion. The
@@ -442,6 +597,11 @@ existing expense-evidence lock must be generalized or complemented so storage
 policies call one financial-evidence predicate covering both expense and owner
 opening evidence. A rejected request releases the lock only if no submitted or
 approved request references the same document. Approved evidence is permanent.
+
+For reference-only evidence, `evidence_sha256` is the fingerprint of the exact
+external extract/manifest row retained by the migration operator. Nestory
+stores and compares that fingerprint but cannot prove the external bytes still
+exist. The UI calls this **Source snapshot fingerprint**, never **Verified file**.
 
 Upload and submission are two transactions. If upload succeeds and submit
 fails, the action reports the failure and may remove only the newly uploaded,
@@ -457,24 +617,43 @@ reopen, and publication command is payload-idempotent. Reuse
 table.
 
 Canonical payloads use normalized UUID text, enum values, ISO dates, canonical
-two-decimal amount strings, trimmed reason/reference text, evidence hashes, and
-sorted arrays. An exact completed replay returns original result IDs. Reusing a
-key with a different actor or payload fails `22023` and creates no effect.
+two-decimal amount strings, trimmed reason/reference text, evidence/document
+hashes, `property_owner_id`, explicit share, roster hash, resubmission identity,
+and sorted arrays. An exact completed replay returns original result IDs even if
+the effective month was locked after the first success. Reusing a key with a
+different actor or payload fails `22023` and creates no effect.
 
-The mandatory write lock order is:
+Each RPC first authorizes organization/role and canonicalizes enough immutable
+identity to call `app_private.get_financial_idempotency_replay`. A completed
+exact replay returns immediately before any open-month assertion. A conflict
+fails immediately. A missing or pending replay continues through serialization.
 
-1. organization-month advisory lock;
-2. property/currency/month advisory lock;
-3. owner/authority-key advisory lock where applicable;
-4. financial idempotency claim;
-5. request/source/domain rows in stable UUID order;
-6. projection/roll-forward/close rows.
+The mandatory new-request lock order is:
 
-Opening submit/review/correction uses the month containing `effective_date` and
-`app_private.lock_open_property_financial_month` before claiming idempotency.
-If the month becomes locked, an unreviewed request remains submitted and review
-fails without entries. Track 4 close uses the exclusive organization-month
-boundary and rechecks the input hash after acquiring all locks.
+1. completed-replay/conflict lookup using the canonical payload;
+2. organization-month advisory serialization lock;
+3. property/currency/month advisory lock;
+4. open-month assertion when the decision can create or replace authority;
+5. owner/authority-key advisory lock;
+6. financial idempotency claim;
+7. request/source/domain rows in stable UUID order;
+8. Track 3/4 projection, roll-forward, or close rows only in those later tracks.
+
+Initial submit, correction submit, and approval require the effective month to
+be open. Rejection is serialized on the same organization/property/month keys
+but deliberately skips the open-month assertion because it creates no opening
+entry and must remain possible after an operational lock. An exact completed
+submit/approve/correction/reject replay returns its original IDs regardless of
+the later lock state. A new approval attempted after lock leaves the request
+submitted and creates no entry. A new correction submission attempted after
+lock creates no request.
+
+The review RPC resolves the immutable request and canonical replay identity,
+then branches on `p_decision`: `approve` follows the open-month path; `reject`
+follows serialized-no-open. It must not call a helper whose unconditional open
+check makes locked-month rejection impossible. Track 4 close uses the exclusive
+organization-month boundary and rechecks the input hash after acquiring all
+locks.
 
 ## Cutover And Month Behavior
 
@@ -511,6 +690,7 @@ public.submit_owner_opening_balance(
   p_source_reference text,
   p_supporting_document_id uuid,
   p_evidence_sha256 text,
+  p_resubmission_of_request_id uuid,
   p_idempotency_key text
 ) returns jsonb;
 
@@ -530,6 +710,7 @@ public.submit_owner_opening_balance_correction(
   p_source_reference text,
   p_supporting_document_id uuid,
   p_evidence_sha256 text,
+  p_resubmission_of_request_id uuid,
   p_idempotency_key text
 ) returns jsonb;
 ```
@@ -538,6 +719,11 @@ public.submit_owner_opening_balance_correction(
 request ID and created entry IDs. Rejection returns an empty entry list.
 Correction submission derives all authority-key fields from the target entry;
 the client cannot repoint a correction to another owner/property/component.
+Initial and correction submission validate `p_resubmission_of_request_id`
+against the rejected predecessor rules above. Null means a new chain. A request
+for the same key/kind after a rejection must name the latest rejected request;
+it cannot silently abandon rejected history. The RPC returns both the new
+request ID and its predecessor ID.
 
 Read access uses security-invoker views or checked read RPCs that preserve
 unknown explicitly. No view may bypass RLS. New tables exposed through the Data
@@ -555,12 +741,26 @@ Create one feature boundary under `src/features/owner-balances`:
 - `data/opening-balances.ts` maps database decimal strings without `Number`;
 - `components/opening-balance-screen.tsx` renders the submission/review queue,
   component completeness, evidence links, and blocked ownership states;
-- `components/owner-balance-ledger.tsx` is added only in Track 3 and consumes
-  persisted allocations/periods, not live report reconstruction.
+- `src/types/database.ts` must override generated numeric RPC arguments/results
+  so authoritative owner-opening amounts are decimal `string`; generated
+  `number` types must not be accepted at the action/data boundary;
+- `components/owner-balance-ledger.tsx`, existing balance projection changes,
+  event allocation, roll-forward, and withdrawal availability are Track 3 only.
 
-`/balances` must display four distinct component columns plus derived available
-withdrawal. It must render `Unknown` for missing authority and `$0.00` only for
-an approved zero. It must never assign today's primary owner to historical rows.
+During Track 2, `/balances` adds an explicitly labelled **Opening authority**
+queue/completeness view. It renders `Unknown` for missing authority and `$0.00`
+only for an approved zero. It does not relabel the current all-time property
+projection as authoritative, derive available withdrawal, assign today's
+primary owner to historical rows, or modify the current projection. Track 3
+must replace/retire that projection only after event allocation and roll-forward
+acceptance.
+
+Zod/form parsing must validate the original amount string with an exact decimal
+regular expression and canonical string helper. It must not use `z.coerce.number`,
+`Number`, unary `+`, `parseFloat`, arithmetic on a JavaScript number, or a
+generated Supabase numeric type that aliases the owner-opening amount to
+`number`. Tests include a source scan and runtime value above JavaScript's exact
+integer range in cents.
 
 Required UI language is: **Opening balance**, **Submit opening balance**,
 **Approve opening balance**, **Request correction**, **Known zero**,
@@ -591,49 +791,87 @@ table DML, or a Super Admin impersonation actor.
 
 ## Sequential Implementation Tasks
 
-### Task 2.1: Schema and executable contracts
+### Task 2.0: Opening-ownership readiness
 
-Create migrations only through:
+Create a CLI-generated `owner_opening_ownership_readiness` migration and focused
+pgTAP. Add the half-open range, unarchived overlap exclusion, explicit positive
+share constraints, exact-100.000 date validator, canonical roster hash, and
+Finance-readable remediation surface. Replace the current primary-owner sync
+writer/action/form so start/share are explicit and never prefilled. Correct
+fixture ownership explicitly; never infer sole-owner `100.000`. No
+opening-balance table exists in this task.
 
-```powershell
-npx supabase migration new owner_opening_balance_schema_contracts
-```
+### Task 2.1A: Opening request schema
 
-Implement the component enum, request/entry tables, half-open opening-ownership
-checks, immutable-row guards, capability contract, minimum RLS/grants, and
-failing-then-green pgTAP structure/denial tests. Do not add public mutation RPCs
-until the schema contract is independently reviewed.
+Create a CLI-generated `owner_opening_balance_request_schema` migration. Add the
+component type and request table with exact authority/ownership/evidence
+snapshots, `resubmission_of_request_id`, request/status pairing, partial unique
+submitted-request indexes, composite scope keys, and required constraints.
+Add failing-then-green structure and concurrency pgTAP. No public mutation RPC
+or approved entry table exists yet.
 
-### Task 2.2: Submit, review, correction, and evidence locking
+### Task 2.1B: Approved entry schema, capabilities, and immutable access
 
-Create the workflow migration only through:
+Create a CLI-generated `owner_opening_balance_entry_authority` migration. Add
+the signed entry table, initial/reversal/replacement uniqueness, including a
+reversible `0.00` authority-bearing row, immutable guards, explicit capabilities
+and contexts, RLS/read policy, direct-DML denial, and generated plus
+`src/types/database.ts` string-decimal overrides. No public workflow RPC exists.
 
-```powershell
-npx supabase migration new owner_opening_balance_workflows
-```
+### Task 2.2A: Verifiable document fingerprint and evidence lock
 
-Add the three public RPCs, private checked helpers, idempotency, month
-serialization, reviewer separation, approved entry creation, correction
-reversal/replacement, evidence integrity/locking, activity logs, and complete
-allow/deny/RLS/Storage pgTAP matrix.
+Create a CLI-generated `owner_opening_evidence_fingerprints` migration. Add
+nullable checked `documents.content_sha256`, byte-hashing upload/update plumbing,
+opening-evidence category/scope/object/hash equality, generalized evidence lock,
+and honest Storage limitations. Prove existing null-hash documents are
+ineligible and reference-only evidence does not invent Storage.
 
-### Task 2.3: Application and evidence workflow
+### Task 2.2B: Submit, reject, and resubmit workflow
 
-Implement exact-decimal types/actions/loaders, `/balances` opening queue,
-role-specific controls, upload rollback behavior, evidence links, unknown/zero
-copy, ownership blockers, component completeness, and action/component/route
-tests. Do not implement roll-forward or Owner Statement presentation here.
+Create a CLI-generated `owner_opening_submit_reject_resubmit` migration. Add
+initial/correction submission and rejection paths, roster snapshot resolution,
+resubmission lineage, completed replay before open check, open-month submit,
+serialized locked-month rejection, payload idempotency, activity, five-role/
+cross-org/direct-DML tests, and concurrent one-pending-request proof. No approval
+or entry creation exists yet.
+
+### Task 2.2C: Approval and append-only correction authority
+
+Create a CLI-generated `owner_opening_approval_correction` migration. Complete
+the review approval branch, independent actor, open-month requirement, exact
+entry creation, current unreversed opening/replacement correction including
+`0.00`, reversal plus replacement, completed locked-month replay, concurrency,
+and stale-target denial. Rejection behavior from 2.2B must remain possible while
+locked.
+
+### Task 2.3A: Exact-decimal application boundary and loaders
+
+Implement canonical string money, Zod validation without numeric coercion,
+capability-specific server actions, RPC string overrides in
+`src/types/database.ts`, request/entry/readiness loaders, unknown/known-zero
+mapping, and action/data tests. No existing balance projection, allocation,
+roll-forward, withdrawal capacity, close, or report code changes.
+
+### Task 2.3B: Opening authority and evidence UI
+
+Implement the role-specific `/balances` **Opening authority** queue,
+component-completeness view, ownership remediation, evidence upload/select/
+reference workflow, safe orphan cleanup, resubmission/correction history,
+unknown/known-zero copy, accessibility, and route/component tests. Keep the
+current balance projection separate and explicitly non-authoritative.
 
 ### Task 2.4: Fixture and reconciliation acceptance
 
 Extend the guarded local fixture through checked RPCs with one owner/property,
-all four explicit components including a known zero, one rejected request, and
-one approved correction chain. Add a deterministic reconciliation smoke that
-compares the approved component totals and evidence hashes with a checked local
-manifest. Do not create fake Storage bytes; use reference evidence unless the
-test actually uploads an object.
+an explicitly valid roster, all four components including a known zero, one
+rejected-then-resubmitted request, and one approved correction from a current
+authority-bearing `0.00` entry. Add a deterministic reconciliation smoke that
+compares approved component totals, `property_owner_id`, share snapshot, roster
+hash, request lineage, and evidence hashes with a checked local manifest. Do not
+create fake Storage bytes; use reference evidence unless the test actually
+uploads and re-reads an object.
 
-Each task is a separate commit, implementation report, fresh read-only review,
+Each numbered/lettered task is a separate commit, implementation report, fresh read-only review,
 and root-agent acceptance gate. Track 3 may not start until Task 2.4 is approved
 from current HEAD.
 
@@ -642,7 +880,7 @@ from current HEAD.
 Focused Track 2 acceptance includes:
 
 ```powershell
-npx supabase test db --local supabase/tests/owner_opening_balance_authority_test.sql supabase/tests/owner_opening_balance_workflow_test.sql supabase/tests/owner_opening_balance_reconciliation_test.sql
+npx supabase test db --local supabase/tests/owner_opening_ownership_readiness_test.sql supabase/tests/owner_opening_balance_authority_test.sql supabase/tests/owner_opening_balance_workflow_test.sql supabase/tests/owner_opening_balance_reconciliation_test.sql
 npx vitest run src/features/owner-balances src/lib/auth/capabilities.test.ts
 npm run test:fixture-owner-opening-balances
 ```
@@ -669,14 +907,22 @@ Acceptance must prove at least:
 
 - all five roles, unaffiliated users, cross-organization users, anon, direct
   table DML, public/private function grants, and RLS;
-- exact amount scale, canonical idempotency replay/conflict, and concurrency;
-- half-open transfer-date ownership, overlap, missing percentage, and total not
-  equal to 100.000;
+- exact amount scale and string typing, canonical idempotency replay/conflict,
+  concurrent pending submission/approval/correction, and no JavaScript numeric
+  coercion;
+- half-open transfer-date ownership, same-person overlap exclusion, missing/
+  zero/negative percentage, exact total below/above `100.000`, deterministic
+  `property_owner_id`/share/roster hash snapshots, and no sole-owner default;
 - missing evidence/object, wrong organization/property document, archive,
-  replacement/delete lock, and upload cleanup after failed submit;
+  null/mismatched `documents.content_sha256`, actual uploaded-byte hash equality,
+  replacement/delete lock, honest reference-only hash limits, and upload cleanup
+  after failed submit;
 - initial approve/reject, self-review denial, duplicate authority, known zero,
-  unknown, locked-month review, correction of current entry, repeated/stale
-  correction denial, and original-row retention;
+  unknown, new submit/approve/correction denial while locked, locked-month reject,
+  completed replay after lock, rejected resubmission lineage and concurrency,
+  roster/share/hash change between submit and approve with reject/resubmit,
+  correction of the current authority-bearing entry including `0.00`, repeated/
+  stale correction denial, and original-row retention;
 - one manifest-to-approved-components reconciliation with exact cents and
   evidence hashes.
 
@@ -686,8 +932,12 @@ Acceptance must prove at least:
   `LIMIT 1`, report-time allocation, or report-time opening/closing plug.
 - No custom role, permission table, generic approval engine, journal, chart of
   accounts, accounts payable, bank reconciliation, or second currency.
-- No owner allocation/roll-forward code in Track 2; no close/publication code
-  before Track 3 source coverage and continuity are approved.
+- No edit, replacement, or relabeling of existing balance projections in Track
+  2. Event allocation, roll-forward, current-balance derivation, available
+  withdrawal, held-cash guards, safe correction delegation, projection
+  retirement, and owner-balance Ledger are entirely Track 3.
+- No close/publication code before Track 3 source coverage and continuity are
+  approved.
 - No migration filename invented by hand; use the Supabase CLI and record the
   generated filename in each report.
 - No direct authenticated table write, broad `TO authenticated` authorization,
@@ -695,6 +945,8 @@ Acceptance must prove at least:
   view.
 - No fake document or Storage object, evidence deletion, mutation of an approved
   request/entry, or rewrite of a closed revision/publication.
+- No `documents.content_sha256` fabricated from path/name/size/ETag/metadata and
+  no claim that PostgreSQL independently hashed Storage bytes.
 - No hosted Supabase/Vercel/email/storage/IPS-data access, push, merge, or deploy
   without the later explicit hosted-mutation approval boundary.
 

@@ -254,10 +254,14 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
 **Files:**
 
 - Create: `docs/superpowers/specs/2026-08-09-owner-balance-and-close-authority.md`
-- Create through `npx supabase migration new owner_opening_balance_schema_contracts`:
-  generated schema migration (record its exact filename in the task report)
-- Create through `npx supabase migration new owner_opening_balance_workflows`:
-  generated RPC/RLS/evidence migration (record its exact filename in the task report)
+- Create through Supabase CLI only: generated migrations for
+  `owner_opening_ownership_readiness`, `owner_opening_balance_request_schema`,
+  `owner_opening_balance_entry_authority`,
+  `owner_opening_evidence_fingerprints`,
+  `owner_opening_submit_reject_resubmit`, and
+  `owner_opening_approval_correction`; record each exact generated filename in
+  its task report
+- Create: `supabase/tests/owner_opening_ownership_readiness_test.sql`
 - Create: `supabase/tests/owner_opening_balance_authority_test.sql`
 - Create: `supabase/tests/owner_opening_balance_workflow_test.sql`
 - Create: `supabase/tests/owner_opening_balance_reconciliation_test.sql`
@@ -268,11 +272,15 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
 - Create: `src/features/owner-balances/components/opening-balance-screen.tsx`
 - Modify: `src/app/(dashboard)/balances/page.tsx`
 - Modify: `src/lib/auth/capabilities.ts`, `src/lib/auth/context.ts`, and focused tests
+- Modify in Task 2.0: property owner sync writer,
+  `src/features/properties/actions.ts`, property form, and focused tests so
+  effective start/share are explicit
 - Modify: document/storage evidence guards and focused tests only as required by the binding specification
 - Modify: `supabase/test-fixtures/baseline.sql`
 - Create: `scripts/smoke-fixture-owner-opening-balances.mjs`
 - Create: `scripts/smoke-fixture-owner-opening-balances.node-test.mjs`
 - Modify: `src/types/database.generated.ts`
+- Modify: `src/types/database.ts` with explicit decimal-string RPC overrides
 
 **Interfaces:**
 
@@ -281,46 +289,82 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
   `security_deposit_custody`.
 - Produces immutable request and signed-entry chains keyed by organization,
   property, owner, currency, effective date, and component.
+- Produces an exact half-open opening-ownership snapshot containing
+  `property_owner_id`, explicit positive share, and whole-roster hash; one owner
+  is never silently defaulted to `100.000`.
 - Produces checked submit, approve/reject, and correction-request RPCs with
   exact-decimal strings, evidence SHA/document/reference, independent reviewer,
-  payload fingerprint/idempotency, and append-only reversal/replacement lineage.
+  rejected-request resubmission lineage, payload fingerprint/idempotency,
+  completed replay before an open-month check, and append-only
+  reversal/replacement lineage including correction from an authoritative
+  `0.00` entry.
 - Produces explicit unknown versus known-zero states and a four-component
   readiness/reconciliation contract consumed by Track 3.
 
 - [x] Ratify D1-D12 and freeze the exact schema, ownership, evidence, amount,
   authority, month, correction, roll-forward, close, and publication semantics in
   the binding specification before migration code.
-- [ ] **Task 2.1 — schema/contracts:** write failing structure/authorization tests;
-  create the component enum, opening request/entry tables, half-open ownership
-  contract, immutable-row guards, explicit capabilities, minimum RLS/grants,
-  unknown/known-zero rules, and exact-cent constraints. Commit and obtain fresh
-  review before RPC work.
-- [ ] **Task 2.2 — submit/review/correct RPCs and evidence:** write failing
-  behavior/security/concurrency tests; implement checked submit,
-  approve/reject, correction reversal+replacement, payload idempotency,
-  organization-month serialization, independent reviewer, document/reference
-  integrity, Storage lock, activity, and complete five-role/cross-org/direct-DML
-  denial. Commit and obtain fresh review.
-- [ ] **Task 2.3 — UI/evidence workflow:** add exact-decimal server actions and
-  loaders, opening queue, component completeness, evidence drill-through,
-  upload rollback, role-specific controls, ownership remediation, and explicit
-  `Unknown` versus approved `$0.00` component presentation. Commit and obtain
-  fresh review.
+- [ ] **Task 2.0 — opening-ownership readiness:** enforce half-open ranges,
+  unarchived same-owner overlap exclusion, explicit shares `> 0` summing exactly
+  `100.000` on the requested date, deterministic date validator/roster hash, and
+  Finance-readable remediation. Replace the carried-forward primary-owner
+  writer/action/form so effective start/share are explicit and never prefilled.
+  Explicitly correct fixture data; never backfill a sole owner to `100.000`.
+  Commit and obtain fresh review before opening schema work.
+- [ ] **Task 2.1A — request schema:** create the component type and opening
+  request table with ownership/evidence snapshots,
+  `resubmission_of_request_id`, status/check constraints, composite scope keys,
+  and concurrent pending-request uniqueness. Commit and obtain fresh review.
+- [ ] **Task 2.1B — entry schema and access:** create immutable signed entries,
+  initial/reversal/replacement constraints including `0.00`, explicit
+  capabilities, RLS/grants/direct-DML denial, and generated plus handwritten
+  decimal-string types. Commit and obtain fresh review before workflow RPCs.
+- [ ] **Task 2.2A — document fingerprint/evidence lock:** add checked nullable
+  `documents.content_sha256`, exact upload-byte hashing, submitted hash equality,
+  scope/object/category/archive checks, generalized immutable evidence, and
+  honest reference-only/Storage limitations. Commit and obtain fresh review.
+- [ ] **Task 2.2B — submit/reject/resubmit:** implement initial/correction
+  submission, locked-month-capable serialized rejection, rejected-request chain,
+  roster snapshots, completed replay before open checks, open-month submission,
+  idempotency/activity, five-role/cross-org/direct-DML, and real concurrent
+  pending/resubmission tests. Commit and obtain fresh review.
+- [ ] **Task 2.2C — approve/correct:** implement independent approval, exact
+  opening entry creation, current unreversed authority-bearing entry correction
+  including `0.00`, reversal+replacement, open-month new work, completed replay
+  after lock, stale-target and concurrent approval/reversal denial. Commit and
+  obtain fresh review.
+- [ ] **Task 2.3A — exact-decimal application/data:** add decimal-string
+  validation/actions/loaders and `src/types/database.ts` overrides with no
+  `Number`, `parseFloat`, or numeric coercion. Preserve existing balance
+  projections unchanged. Commit and obtain fresh review.
+- [ ] **Task 2.3B — opening/evidence UI:** add the separately labelled opening
+  authority queue, ownership remediation, component completeness,
+  document/reference/fingerprint workflow, safe orphan cleanup,
+  resubmission/correction history, role controls, accessibility, and explicit
+  `Unknown` versus approved `$0.00`. Commit and obtain fresh review.
 - [ ] **Task 2.4 — fixture/reconciliation acceptance:** create all four approved
-  components including a known zero, rejected request, and approved correction
-  chain through checked RPCs; compare exact cents/evidence hashes to a guarded
+  components including a known zero, rejected/resubmitted request, and approved
+  correction-from-zero chain through checked RPCs; compare exact cents,
+  ownership snapshots, roster hash, and evidence hashes to a guarded
   local manifest; mutation-test duplicate, missing evidence/object, self-review,
-  wrong role/org, ownership overlap/incomplete allocation, locked month, stale
-  correction, idempotency conflict, and fake-Storage denial. Commit, fresh
+  wrong role/org, ownership overlap/incomplete allocation, no sole-owner default,
+  new locked-month submit/approve/correct, locked-month reject and completed
+  replay, stale correction, idempotency/concurrency conflict, document hash
+  mismatch, and fake-Storage denial. Commit, fresh
   review, and root-agent full-matrix acceptance are required before Track 3.
 
-**Named verification:** the three Track 2 pgTAP files, capability/context tests,
+**Named verification:** the four Track 2 pgTAP files, capability/context tests,
 `src/features/owner-balances/actions.test.ts`,
 `opening-balance-screen.test.tsx`, document/storage tests,
 `npm run test:fixture-owner-opening-balances`, database lint/advisors, and the
 program-wide local matrix.
 
 **Acceptance:** One real reconciled example can be reconstructed from its evidence. No report or UI can create an opening number. Corrections retain the original approved row and reviewer trail.
+
+**Deferred to Track 3:** Existing balance projections, primary-owner resolution,
+event allocation, component roll-forward, withdrawal-capacity derivation,
+dependent-distribution guards, safe Finance Manager correction delegation, and
+projection retirement are not modified or relabelled in Track 2.
 
 ---
 
