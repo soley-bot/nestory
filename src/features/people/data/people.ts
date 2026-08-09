@@ -182,7 +182,6 @@ type PeopleSummaryLoadResult = {
 type PeopleDataTable =
   | "documents"
   | "lease_parties"
-  | "leases"
   | "people"
   | "person_contacts"
   | "person_roles"
@@ -831,13 +830,10 @@ async function loadPeopleSummariesForRows({
       ),
     ]);
   const leaseIds = new Set(leaseParties.map((party) => party.leaseId));
-  const leases = await getRows(
+  const leases = await getCurrentLeaseRows(
     supabase,
-    "leases",
-    leaseSelect,
     organizationId,
-    toLeaseRow,
-    { column: "id", values: leaseIds },
+    leaseIds,
   );
   const propertyIds = new Set([
     ...leases.map((lease) => lease.propertyId),
@@ -990,6 +986,34 @@ async function getRows<T>(
   }
 
   return asRows(result.data, mapper);
+}
+
+async function getCurrentLeaseRows(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  leaseIds: ReadonlySet<string>,
+): Promise<LeaseRow[]> {
+  if (leaseIds.size === 0) {
+    return [];
+  }
+
+  if (leaseIds.size > PEOPLE_IN_FILTER_BATCH_SIZE) {
+    return queryValueBatches([...leaseIds], (batch) =>
+      getCurrentLeaseRows(supabase, organizationId, new Set(batch)),
+    );
+  }
+
+  const result = await supabase
+    .from("current_leases")
+    .select(leaseSelect)
+    .eq("organization_id", organizationId)
+    .in("id", [...leaseIds]);
+
+  if (result.error) {
+    throw new Error(`Could not load current leases: ${result.error.message}`);
+  }
+
+  return asRows(result.data, toLeaseRow);
 }
 
 async function getPeopleIdsMatchingQuery({
@@ -1667,13 +1691,10 @@ async function filterPeopleRowsByQuery({
       ),
     ]);
   const leaseIds = new Set(leaseParties.map((party) => party.leaseId));
-  const leases = await getRows(
+  const leases = await getCurrentLeaseRows(
     supabase,
-    "leases",
-    leaseSelect,
     organizationId,
-    toLeaseRow,
-    { column: "id", values: leaseIds },
+    leaseIds,
   );
   const propertyIds = new Set([
     ...leases.map((lease) => lease.propertyId),
