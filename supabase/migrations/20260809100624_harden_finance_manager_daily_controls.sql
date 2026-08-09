@@ -103,7 +103,9 @@ DECLARE
   v_declare_replacement constant text := $replacement$  cash_out_amount numeric := 0;
   v_payload jsonb;
   v_claim record;$replacement$;
-  v_authorization_anchor constant text := E'  IF NOT EXISTS (\r\n    SELECT 1\r\n    FROM public.petty_cash_accounts';
+  v_authorization_anchor constant text := $anchor$  IF NOT EXISTS (
+    SELECT 1
+    FROM public.petty_cash_accounts$anchor$;
   v_authorization_replacement constant text := $replacement$  v_payload := jsonb_build_object(
     'accountId', p_account_id,
     'periodId', p_period_id,
@@ -144,7 +146,8 @@ DECLARE
   IF NOT EXISTS (
     SELECT 1
     FROM public.petty_cash_accounts$replacement$;
-  v_return_anchor constant text := E'  RETURN new_entry_id;\r\nEND;';
+  v_return_anchor constant text := $anchor$  RETURN new_entry_id;
+END;$anchor$;
   v_return_replacement constant text := $replacement$  PERFORM app_private.complete_financial_idempotency(
     v_claim.request_id,
     p_organization_id,
@@ -159,6 +162,7 @@ END;$replacement$;
     'public.create_petty_cash_entry(uuid,uuid,uuid,uuid,uuid,date,date,text,text,text,text,text,numeric,uuid,text,text,text,text,numeric,numeric,numeric)'::regprocedure;
 BEGIN
   SELECT pg_get_functiondef(v_old_function) INTO v_definition;
+  v_definition := replace(v_definition, E'\r\n', E'\n');
 
   v_anchor_count := (
     length(v_definition) - length(replace(v_definition, v_signature_anchor, ''))
