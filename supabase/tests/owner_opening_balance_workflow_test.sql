@@ -768,6 +768,90 @@ SELECT is(
   'an exact completed rejection replay returns the original empty entry list'
 );
 
+SELECT matches(
+  (
+    SELECT activity.new_values ->> 'payload_hash'
+    FROM public.activity_logs AS activity
+    WHERE activity.entity_type = 'owner_opening_balance_request'
+      AND activity.entity_id = (
+        SELECT first_request_id FROM owner_opening_workflow_state
+      )
+      AND activity.action = 'rejected'
+  ),
+  '^[0-9a-f]{64}$',
+  'rejection activity stores one lowercase canonical payload hash'
+);
+
+SELECT is(
+  (
+    SELECT activity.new_values ->> 'payload_hash'
+    FROM public.activity_logs AS activity
+    WHERE activity.entity_type = 'owner_opening_balance_request'
+      AND activity.entity_id = (
+        SELECT first_request_id FROM owner_opening_workflow_state
+      )
+      AND activity.action = 'rejected'
+  ),
+  (
+    SELECT pg_catalog.encode(
+      extensions.digest(
+        pg_catalog.jsonb_build_object(
+          'organization_id', state.organization_id::text,
+          'request_id', state.first_request_id::text,
+          'decision', 'reject',
+          'review_reason', 'Insufficient source detail'
+        )::text,
+        'sha256'
+      ),
+      'hex'
+    )
+    FROM owner_opening_workflow_state AS state
+  ),
+  'rejection activity payload hash equals the independently hashed canonical public arguments'
+);
+
+SELECT is(
+  (
+    SELECT activity.new_values ->> 'payload_hash'
+    FROM public.activity_logs AS activity
+    WHERE activity.entity_type = 'owner_opening_balance_request'
+      AND activity.entity_id = (
+        SELECT first_request_id FROM owner_opening_workflow_state
+      )
+      AND activity.action = 'rejected'
+  ),
+  (
+    SELECT request.payload_hash
+    FROM app_private.financial_idempotency_requests AS request
+    WHERE request.id = (
+      SELECT (activity.new_values ->> 'financial_idempotency_request_id')::uuid
+      FROM public.activity_logs AS activity
+      WHERE activity.entity_type = 'owner_opening_balance_request'
+        AND activity.entity_id = (
+          SELECT first_request_id FROM owner_opening_workflow_state
+        )
+        AND activity.action = 'rejected'
+    )
+  ),
+  'rejection activity payload hash equals its linked idempotency request payload hash'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      count(*)::bigint,
+      count(DISTINCT activity.new_values ->> 'payload_hash')::bigint
+    FROM public.activity_logs AS activity
+    WHERE activity.entity_type = 'owner_opening_balance_request'
+      AND activity.entity_id = (
+        SELECT first_request_id FROM owner_opening_workflow_state
+      )
+      AND activity.action = 'rejected'
+  $$,
+  $$ VALUES (1::bigint, 1::bigint) $$,
+  'exact rejection replay creates no duplicate activity or divergent payload hash'
+);
+
 SELECT throws_ok(
   $$SELECT pg_temp.submit_reference_opening(
     'b2200000-0000-4000-8000-000000000010', 10.00,
