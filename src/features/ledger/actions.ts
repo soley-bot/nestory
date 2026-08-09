@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sha256Hex } from "@/features/documents/content-fingerprint";
+import { removeUnregisteredDocumentObject } from "@/features/documents/storage-cleanup";
 import {
   requireFinancialMonthLockContext,
   requireFinancialMonthUnlockContext,
@@ -221,7 +222,7 @@ export async function attachLedgerReceiptAction(
   );
 
   if (documentError || !documentId) {
-    await supabase.storage.from("nestory-documents").remove([storagePath]);
+    await removeUnregisteredDocumentObject(supabase, storagePath);
 
     return {
       message: "We could not save the receipt record. Please try again.",

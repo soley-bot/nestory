@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   from: vi.fn(),
   maybeSingleByTable: new Map<string, unknown>(),
+  maybeSingleByStoragePath: new Map<string, unknown>(),
   remove: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   revalidatePath: vi.fn(),
@@ -37,12 +38,23 @@ const generatedId = "30000000-0000-4000-8000-000000000001";
 const fileHash = "a76024b36f70838462fca9268bac5c13bf23ee0c6e0c6fa1b9dceb1d5a7f4aa6";
 
 function createQuery(table: string) {
+  const filters = new Map<string, unknown>();
   const query = {
-    eq: vi.fn(() => query),
+    eq: vi.fn((column: string, value: unknown) => {
+      filters.set(column, value);
+      return query;
+    }),
     is: vi.fn(() => query),
-    maybeSingle: vi.fn(async () =>
-      mocks.maybeSingleByTable.get(table) ?? { data: null, error: null },
-    ),
+    maybeSingle: vi.fn(async () => {
+      const storagePath = filters.get("storage_path");
+      if (typeof storagePath === "string") {
+        return mocks.maybeSingleByStoragePath.get(storagePath) ?? {
+          data: null,
+          error: null,
+        };
+      }
+      return mocks.maybeSingleByTable.get(table) ?? { data: null, error: null };
+    }),
     select: vi.fn(() => query),
   };
 
@@ -68,6 +80,7 @@ describe("document fingerprint actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.maybeSingleByTable.clear();
+    mocks.maybeSingleByStoragePath.clear();
     mocks.requireSuperAdminContext.mockResolvedValue({ organizationId });
     mocks.maybeSingleByTable.set("properties", {
       data: { id: propertyId },
@@ -109,7 +122,7 @@ describe("document fingerprint actions", () => {
     );
   });
 
-  it("replaces bytes by creating a new fingerprinted row and archiving the old row", async () => {
+  it("replaces bytes through one atomic metadata create-and-archive RPC", async () => {
     mocks.maybeSingleByTable.set("documents", {
       data: {
         archived_at: null,
@@ -126,9 +139,7 @@ describe("document fingerprint actions", () => {
       },
       error: null,
     });
-    mocks.rpc
-      .mockResolvedValueOnce({ data: generatedId, error: null })
-      .mockResolvedValueOnce({ data: documentId, error: null });
+    mocks.rpc.mockResolvedValueOnce({ data: generatedId, error: null });
     const formData = documentForm(evidenceFile());
     formData.set("documentId", documentId);
 
@@ -137,22 +148,22 @@ describe("document fingerprint actions", () => {
       status: "success",
     });
 
-    expect(mocks.rpc).toHaveBeenNthCalledWith(
-      1,
-      "create_document",
-      expect.objectContaining({ p_content_sha256: fileHash }),
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "replace_document",
+      expect.objectContaining({
+        p_content_sha256: fileHash,
+        p_document_id: documentId,
+        p_organization_id: organizationId,
+      }),
     );
-    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "archive_document", {
-      p_document_id: documentId,
-      p_organization_id: organizationId,
-    });
     expect(mocks.rpc).not.toHaveBeenCalledWith("update_document", expect.anything());
     expect(mocks.remove).not.toHaveBeenCalledWith([
       `${organizationId}/documents/old.pdf`,
     ]);
   });
 
-  it("cleans up only the just-created replacement when the old row cannot be archived", async () => {
+  it("removes only an unregistered unique object when atomic replacement fails", async () => {
     mocks.maybeSingleByTable.set("documents", {
       data: {
         archived_at: null,
@@ -169,10 +180,10 @@ describe("document fingerprint actions", () => {
       },
       error: null,
     });
-    mocks.rpc
-      .mockResolvedValueOnce({ data: generatedId, error: null })
-      .mockResolvedValueOnce({ data: null, error: { message: "referenced" } })
-      .mockResolvedValueOnce({ data: generatedId, error: null });
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "referenced" },
+    });
     const formData = documentForm(evidenceFile());
     formData.set("documentId", documentId);
 
@@ -181,20 +192,33 @@ describe("document fingerprint actions", () => {
     });
 
     const replacementPath = `${organizationId}/documents/${generatedId}-opening.pdf`;
-    expect(mocks.rpc).toHaveBeenNthCalledWith(
-      3,
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
       "discard_unreferenced_document_upload",
-      {
-        p_content_sha256: fileHash,
-        p_document_id: generatedId,
-        p_organization_id: organizationId,
-        p_storage_path: replacementPath,
-      },
+      expect.anything(),
     );
     expect(mocks.remove).toHaveBeenCalledWith([replacementPath]);
     expect(mocks.remove).not.toHaveBeenCalledWith([
       `${organizationId}/documents/old.pdf`,
     ]);
+  });
+
+  it("never removes an object after failed create when metadata already owns its path", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "duplicate request" },
+    });
+    const path = `${organizationId}/documents/${generatedId}-opening.pdf`;
+    mocks.maybeSingleByStoragePath.set(path, {
+      data: { id: documentId },
+      error: null,
+    });
+
+    await expect(
+      createDocumentAction({}, documentForm(evidenceFile())),
+    ).resolves.toMatchObject({ status: "error" });
+
+    expect(mocks.remove).not.toHaveBeenCalled();
   });
 
   it("updates metadata without sending any byte identity fields", async () => {
@@ -224,11 +248,11 @@ describe("document fingerprint actions", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("update_document", {
       p_category: "owner_opening_balance_evidence",
       p_document_id: documentId,
-      p_lease_id: null,
+      p_lease_id: undefined,
       p_organization_id: organizationId,
       p_property_id: propertyId,
-      p_task_id: null,
-      p_unit_id: null,
+      p_task_id: undefined,
+      p_unit_id: undefined,
     });
   });
 

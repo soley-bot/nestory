@@ -453,22 +453,6 @@ type RpcFunctionOverrides = {
       p_task_id: string;
     }
   >;
-  update_document: WithArgs<
-    "update_document",
-    {
-      p_category: string;
-      p_document_id: string;
-      p_file_name?: string | null;
-      p_lease_id?: string | null;
-      p_mime_type?: string | null;
-      p_organization_id: string;
-      p_property_id: string;
-      p_size_bytes?: number | null;
-      p_storage_path?: string | null;
-      p_task_id?: string | null;
-      p_unit_id?: string | null;
-    }
-  >;
   update_maintenance_task: WithArgs<
     "update_maintenance_task",
     {

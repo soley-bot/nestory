@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sha256Hex } from "@/features/documents/content-fingerprint";
+import { removeUnregisteredDocumentObject } from "@/features/documents/storage-cleanup";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -180,7 +181,7 @@ export async function createDocumentAction(
   });
 
   if (error || !documentId) {
-    await supabase.storage.from("nestory-documents").remove([storagePath]);
+    await removeUnregisteredDocumentObject(supabase, storagePath);
 
     return {
       message: "We could not save the document record. Please try again.",
@@ -294,54 +295,28 @@ export async function updateDocumentAction(
 
   if (replacementFile && replacementPath && replacementSha256) {
     const { data: replacementDocumentId, error: replacementError } =
-      await supabase.rpc("create_document", {
+      await supabase.rpc("replace_document", {
         p_category: parsed.data.category,
         p_content_sha256: replacementSha256,
+        p_document_id: parsedDocumentId.data,
         p_file_name: replacementFile.name,
-        p_lease_id: leaseId,
-        p_ledger_entry_id: previous.ledger_entry_id,
+        p_lease_id: leaseId ?? undefined,
         p_mime_type: replacementFile.type,
         p_organization_id: context.organizationId,
         p_property_id: parsed.data.propertyId,
         p_size_bytes: replacementFile.size,
         p_storage_path: replacementPath,
-        p_task_id: taskId,
-        p_tenant_request_id: previous.tenant_request_id,
-        p_timeline_event_id: previous.timeline_event_id,
-        p_unit_id: unitId,
+        p_task_id: taskId ?? undefined,
+        p_unit_id: unitId ?? undefined,
       });
 
     if (replacementError || !replacementDocumentId) {
-      await supabase.storage.from("nestory-documents").remove([replacementPath]);
+      await removeUnregisteredDocumentObject(supabase, replacementPath);
 
       return {
-        message: "We could not save the replacement document. Please try again.",
-        status: "error",
-      };
-    }
-
-    const { error: archiveError } = await supabase.rpc("archive_document", {
-      p_document_id: parsedDocumentId.data,
-      p_organization_id: context.organizationId,
-    });
-
-    if (archiveError) {
-      const { error: cleanupError } = await supabase.rpc(
-        "discard_unreferenced_document_upload",
-        {
-          p_content_sha256: replacementSha256,
-          p_document_id: replacementDocumentId,
-          p_organization_id: context.organizationId,
-          p_storage_path: replacementPath,
-        },
-      );
-
-      if (!cleanupError) {
-        await supabase.storage.from("nestory-documents").remove([replacementPath]);
-      }
-
-      return {
-        message: documentActionErrorMessage(archiveError.message),
+        message: replacementError
+          ? documentActionErrorMessage(replacementError.message)
+          : "We could not save the replacement document. Please try again.",
         status: "error",
       };
     }
@@ -360,11 +335,11 @@ export async function updateDocumentAction(
   const { error } = await supabase.rpc("update_document", {
     p_category: parsed.data.category,
     p_document_id: parsedDocumentId.data,
-    p_lease_id: leaseId,
+    p_lease_id: leaseId ?? undefined,
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
-    p_task_id: taskId,
-    p_unit_id: unitId,
+    p_task_id: taskId ?? undefined,
+    p_unit_id: unitId ?? undefined,
   });
 
   if (error) {

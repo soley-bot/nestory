@@ -7265,15 +7265,6 @@ export type Database = {
         }
         Returns: string
       }
-      discard_unreferenced_document_upload: {
-        Args: {
-          p_content_sha256: string
-          p_document_id: string
-          p_organization_id: string
-          p_storage_path: string
-        }
-        Returns: string
-      }
       execute_assigned_maintenance_task: {
         Args: {
           p_action: string
@@ -7643,6 +7634,23 @@ export type Database = {
       }
       remove_organization_member_access: {
         Args: { p_member_id: string; p_organization_id: string }
+        Returns: string
+      }
+      replace_document: {
+        Args: {
+          p_category: string
+          p_content_sha256: string
+          p_document_id: string
+          p_file_name: string
+          p_lease_id?: string
+          p_mime_type: string
+          p_organization_id: string
+          p_property_id: string
+          p_size_bytes: number
+          p_storage_path: string
+          p_task_id?: string
+          p_unit_id?: string
+        }
         Returns: string
       }
       resolve_authoritative_lease_term: {

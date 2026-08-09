@@ -50,12 +50,146 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
   });
   assert.equal(login.error, null, "fixture Super Admin should authenticate");
 
+  const orphanPath = `${organizationId}/documents/${randomUUID()}-failed-create.pdf`;
+  const orphanBytes = Buffer.from("unregistered failed create\n", "utf8");
+  const orphanUpload = await client.storage.from(bucket).upload(orphanPath, orphanBytes, {
+    contentType: "application/pdf",
+    upsert: false,
+  });
+  assert.equal(orphanUpload.error, null, "failed-create object upload should succeed");
+  const failedCreate = await client.rpc("create_document", {
+    p_category: "owner_opening_balance_evidence",
+    p_content_sha256: "BAD-HASH",
+    p_file_name: "failed-create.pdf",
+    p_mime_type: "application/pdf",
+    p_organization_id: organizationId,
+    p_property_id: propertyId,
+    p_size_bytes: orphanBytes.byteLength,
+    p_storage_path: orphanPath,
+  });
+  assert.ok(failedCreate.error, "failed checked create should roll back all metadata");
+  const orphanMetadata = await client
+    .from("documents")
+    .select("id")
+    .eq("storage_path", orphanPath)
+    .maybeSingle();
+  assert.equal(orphanMetadata.error, null);
+  assert.equal(orphanMetadata.data, null, "failed create leaves no registered row");
+  const removeOrphan = await client.storage.from(bucket).remove([orphanPath]);
+  assert.equal(
+    removeOrphan.error,
+    null,
+    "only the unique unregistered failed-create object is removable",
+  );
+  const removedOrphan = await client.storage.from(bucket).download(orphanPath);
+  assert.ok(removedOrphan.error, "unregistered failed-create object should be gone");
+
+  const ledgerEntry = await client
+    .from("ledger_entries")
+    .select("id, unit_id")
+    .eq("organization_id", organizationId)
+    .eq("property_id", propertyId)
+    .limit(1)
+    .single();
+  assert.equal(ledgerEntry.error, null, "fixture should expose one Ledger entry");
+
+  const representativeLinks = [
+    {
+      argument: "p_timeline_event_id",
+      label: "timeline",
+      table: "timeline_events",
+    },
+    {
+      argument: "p_task_id",
+      label: "task",
+      table: "tasks",
+    },
+    {
+      argument: "p_lease_id",
+      label: "lease",
+      table: "leases",
+    },
+    {
+      argument: "p_tenant_request_id",
+      label: "tenant-request",
+      table: "tenant_requests",
+    },
+  ];
+
+  for (const link of representativeLinks) {
+    const linkedRecord = await client
+      .from(link.table)
+      .select("id, unit_id")
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .limit(1)
+      .single();
+    assert.equal(
+      linkedRecord.error,
+      null,
+      `fixture should expose one ${link.label} record`,
+    );
+    const linkedPath = `${organizationId}/documents/${randomUUID()}-${link.label}.pdf`;
+    const linkedBytes = Buffer.from(`registered ${link.label} document\n`, "utf8");
+    const linkedHash = sha256(linkedBytes);
+    const linkedUpload = await client.storage
+      .from(bucket)
+      .upload(linkedPath, linkedBytes, {
+        contentType: "application/pdf",
+        upsert: false,
+      });
+    assert.equal(linkedUpload.error, null);
+    const linkedCreate = await client.rpc("create_document", {
+      [link.argument]: linkedRecord.data.id,
+      p_category: `${link.label} evidence`,
+      p_content_sha256: linkedHash,
+      p_file_name: `${link.label}.pdf`,
+      p_mime_type: "application/pdf",
+      p_organization_id: organizationId,
+      p_property_id: propertyId,
+      p_size_bytes: linkedBytes.byteLength,
+      p_storage_path: linkedPath,
+      p_unit_id: linkedRecord.data.unit_id,
+    });
+    assert.equal(linkedCreate.error, null, `${link.label} document create should succeed`);
+    assert.ok(linkedCreate.data);
+    const retiredLinkedDiscard = await client.rpc(
+      "discard_unreferenced_document_upload",
+      {
+        p_content_sha256: linkedHash,
+        p_document_id: linkedCreate.data,
+        p_organization_id: organizationId,
+        p_storage_path: linkedPath,
+      },
+    );
+    assert.ok(
+      retiredLinkedDiscard.error,
+      `${link.label} linked metadata has no authenticated discard route`,
+    );
+    const retainedLinkedRow = await client
+      .from("documents")
+      .select("id")
+      .eq("id", linkedCreate.data)
+      .single();
+    assert.equal(
+      retainedLinkedRow.error,
+      null,
+      `${link.label} linked metadata must remain`,
+    );
+  }
+
   const storagePath = `${organizationId}/documents/${randomUUID()}-opening-evidence.pdf`;
+  const replacementPath = `${organizationId}/documents/${randomUUID()}-replacement.pdf`;
   const exactBytes = Buffer.from(
     "Nestory opening evidence actual-byte integration\r\nUSD 123.45\r\n",
     "utf8",
   );
   const contentSha256 = sha256(exactBytes);
+  const replacementBytes = Buffer.from(
+    "Nestory replacement evidence actual-byte integration\r\nUSD 123.45\r\n",
+    "utf8",
+  );
+  const replacementSha256 = sha256(replacementBytes);
 
   const upload = await client.storage.from(bucket).upload(storagePath, exactBytes, {
     cacheControl: "3600",
@@ -64,21 +198,22 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
   });
   assert.equal(upload.error, null, "real local Storage upload should succeed");
 
-  let documentId;
-  try {
+  {
     const createResult = await client.rpc("create_document", {
       p_category: "owner_opening_balance_evidence",
       p_content_sha256: contentSha256,
       p_file_name: "opening-evidence.pdf",
+      p_ledger_entry_id: ledgerEntry.data.id,
       p_mime_type: "application/pdf",
       p_organization_id: organizationId,
       p_property_id: propertyId,
       p_size_bytes: exactBytes.byteLength,
       p_storage_path: storagePath,
+      p_unit_id: ledgerEntry.data.unit_id,
     });
     assert.equal(createResult.error, null, "checked document metadata create should succeed");
     assert.ok(createResult.data, "checked create should return a document ID");
-    documentId = createResult.data;
+    const documentId = createResult.data;
 
     const metadataResult = await client
       .from("documents")
@@ -88,6 +223,30 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
     assert.equal(metadataResult.error, null, "document metadata should be readable");
     assert.equal(metadataResult.data.content_sha256, contentSha256);
     assert.equal(metadataResult.data.storage_path, storagePath);
+
+    const retiredDiscard = await client.rpc(
+      "discard_unreferenced_document_upload",
+      {
+        p_content_sha256: contentSha256,
+        p_document_id: documentId,
+        p_organization_id: organizationId,
+        p_storage_path: storagePath,
+      },
+    );
+    assert.ok(
+      retiredDiscard.error,
+      "no authenticated RPC may discard successfully created metadata",
+    );
+    const retainedAfterDiscardAttempt = await client
+      .from("documents")
+      .select("id")
+      .eq("id", documentId)
+      .single();
+    assert.equal(
+      retainedAfterDiscardAttempt.error,
+      null,
+      "successfully created linked document metadata must remain",
+    );
 
     const download = await client.storage.from(bucket).download(storagePath);
     assert.equal(download.error, null, "uploaded evidence should download");
@@ -121,43 +280,92 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
       "fingerprinted Storage bytes cannot be deleted directly",
     );
 
-    const wrongCleanup = await client.rpc("discard_unreferenced_document_upload", {
-      p_content_sha256: "0".repeat(64),
+    const replacementUpload = await client.storage
+      .from(bucket)
+      .upload(replacementPath, replacementBytes, {
+        contentType: "application/pdf",
+        upsert: false,
+      });
+    assert.equal(replacementUpload.error, null, "replacement upload should succeed");
+    const replacement = await client.rpc("replace_document", {
+      p_category: "owner_opening_balance_evidence",
+      p_content_sha256: replacementSha256,
       p_document_id: documentId,
+      p_file_name: "replacement.pdf",
+      p_mime_type: "application/pdf",
       p_organization_id: organizationId,
-      p_storage_path: storagePath,
+      p_property_id: propertyId,
+      p_size_bytes: replacementBytes.byteLength,
+      p_storage_path: replacementPath,
+      p_unit_id: ledgerEntry.data.unit_id,
     });
-    assert.ok(wrongCleanup.error, "cleanup must reject a non-matching fingerprint");
+    assert.equal(replacement.error, null, "atomic replacement should succeed");
+    assert.ok(replacement.data, "atomic replacement should return the new row identity");
 
-    const stillPresent = await client
+    const replacementRows = await client
+      .from("documents")
+      .select("id, archived_at, content_sha256, ledger_entry_id, storage_path")
+      .in("id", [documentId, replacement.data]);
+    assert.equal(replacementRows.error, null);
+    const oldRow = replacementRows.data.find((row) => row.id === documentId);
+    const newRow = replacementRows.data.find((row) => row.id === replacement.data);
+    assert.ok(oldRow?.archived_at, "old linked metadata should be archived and retained");
+    assert.equal(oldRow?.content_sha256, contentSha256);
+    assert.equal(oldRow?.ledger_entry_id, ledgerEntry.data.id);
+    assert.equal(newRow?.archived_at, null);
+    assert.equal(newRow?.content_sha256, replacementSha256);
+    assert.equal(newRow?.ledger_entry_id, ledgerEntry.data.id);
+    assert.equal(newRow?.storage_path, replacementPath);
+
+    const failedReplacementPath = `${organizationId}/documents/${randomUUID()}-failed-replacement.pdf`;
+    const failedReplacementUpload = await client.storage
+      .from(bucket)
+      .upload(failedReplacementPath, orphanBytes, {
+        contentType: "application/pdf",
+        upsert: false,
+      });
+    assert.equal(failedReplacementUpload.error, null);
+    const failedReplacement = await client.rpc("replace_document", {
+      p_category: "owner_opening_balance_evidence",
+      p_content_sha256: "WRONG-HASH",
+      p_document_id: replacement.data,
+      p_file_name: "failed-replacement.pdf",
+      p_mime_type: "application/pdf",
+      p_organization_id: organizationId,
+      p_property_id: propertyId,
+      p_size_bytes: orphanBytes.byteLength,
+      p_storage_path: failedReplacementPath,
+      p_unit_id: ledgerEntry.data.unit_id,
+    });
+    assert.ok(failedReplacement.error, "failed replacement should roll back metadata");
+    const failedReplacementRow = await client
       .from("documents")
       .select("id")
-      .eq("id", documentId)
-      .single();
-    assert.equal(stillPresent.error, null, "failed cleanup must retain the document");
+      .eq("storage_path", failedReplacementPath)
+      .maybeSingle();
+    assert.equal(failedReplacementRow.error, null);
+    assert.equal(failedReplacementRow.data, null);
+    const removeFailedReplacement = await client.storage
+      .from(bucket)
+      .remove([failedReplacementPath]);
+    assert.equal(
+      removeFailedReplacement.error,
+      null,
+      "failed atomic replacement leaves only an unregistered object to remove",
+    );
 
-    const cleanup = await client.rpc("discard_unreferenced_document_upload", {
-      p_content_sha256: contentSha256,
-      p_document_id: documentId,
-      p_organization_id: organizationId,
-      p_storage_path: storagePath,
-    });
-    assert.equal(cleanup.error, null, "checked cleanup should remove only the new unreferenced row");
-    documentId = undefined;
-
-    const remove = await client.storage.from(bucket).remove([storagePath]);
-    assert.equal(remove.error, null, "orphan object removal should succeed after checked row cleanup");
-    const afterCleanup = await client.storage.from(bucket).download(storagePath);
-    assert.ok(afterCleanup.error, "checked orphan cleanup should remove the uploaded object");
-  } finally {
-    if (documentId) {
-      await client.rpc("discard_unreferenced_document_upload", {
-        p_content_sha256: contentSha256,
-        p_document_id: documentId,
-        p_organization_id: organizationId,
-        p_storage_path: storagePath,
-      });
-    }
-    await client.storage.from(bucket).remove([storagePath]);
+    await client.storage.from(bucket).remove([storagePath, replacementPath]);
+    const retainedOldBytes = await client.storage.from(bucket).download(storagePath);
+    const retainedNewBytes = await client.storage.from(bucket).download(replacementPath);
+    assert.equal(retainedOldBytes.error, null, "old registered bytes remain immutable");
+    assert.equal(retainedNewBytes.error, null, "new registered bytes remain immutable");
+    assert.deepEqual(
+      Buffer.from(await retainedOldBytes.data.arrayBuffer()),
+      exactBytes,
+    );
+    assert.deepEqual(
+      Buffer.from(await retainedNewBytes.data.arrayBuffer()),
+      replacementBytes,
+    );
   }
 });

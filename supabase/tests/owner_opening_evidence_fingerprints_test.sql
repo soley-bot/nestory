@@ -48,16 +48,35 @@ SELECT is(
         'create_document',
         'discard_unreferenced_document_upload',
         'fingerprint_document_content',
+        'replace_document',
         'update_document'
       )
   ),
   '[
     ["create_document", "p_organization_id uuid, p_category text, p_file_name text, p_storage_path text, p_mime_type text, p_size_bytes bigint, p_content_sha256 text, p_property_id uuid, p_unit_id uuid, p_lease_id uuid, p_timeline_event_id uuid, p_ledger_entry_id uuid, p_task_id uuid, p_tenant_request_id uuid, p_activity_entity_type text, p_activity_entity_id uuid, p_activity_action text, p_activity_new_values jsonb"],
-    ["discard_unreferenced_document_upload", "p_document_id uuid, p_organization_id uuid, p_storage_path text, p_content_sha256 text"],
     ["fingerprint_document_content", "p_document_id uuid, p_organization_id uuid, p_content_sha256 text"],
+    ["replace_document", "p_document_id uuid, p_organization_id uuid, p_category text, p_file_name text, p_storage_path text, p_mime_type text, p_size_bytes bigint, p_content_sha256 text, p_property_id uuid, p_unit_id uuid, p_lease_id uuid, p_task_id uuid"],
     ["update_document", "p_document_id uuid, p_organization_id uuid, p_category text, p_property_id uuid, p_unit_id uuid, p_lease_id uuid, p_task_id uuid"]
   ]'::jsonb,
-  'only checked create, once-only fingerprint, and metadata-only update signatures remain'
+  'only checked create, atomic replacement, once-only fingerprint, and metadata-only update signatures remain'
+);
+
+SELECT ok(
+  to_regprocedure(
+    'public.discard_unreferenced_document_upload(uuid,uuid,text,text)'
+  ) IS NULL,
+  'no public RPC can discard a successfully created document row'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.documents'::regclass
+      AND contype = 'u'
+      AND pg_get_constraintdef(oid) = 'UNIQUE (storage_path)'
+  ),
+  'one document row can own each unique Storage object path'
 );
 
 SELECT ok(
@@ -73,8 +92,8 @@ SELECT ok(
       AND procedure.proname IN (
         'archive_document',
         'create_document',
-        'discard_unreferenced_document_upload',
         'fingerprint_document_content',
+        'replace_document',
         'restore_document',
         'update_document'
       )
@@ -92,8 +111,8 @@ SELECT ok(
       AND procedure.proname IN (
         'archive_document',
         'create_document',
-        'discard_unreferenced_document_upload',
         'fingerprint_document_content',
+        'replace_document',
         'restore_document',
         'update_document'
       )
@@ -114,8 +133,8 @@ SELECT ok(
       AND procedure.proname IN (
         'archive_document',
         'create_document',
-        'discard_unreferenced_document_upload',
         'fingerprint_document_content',
+        'replace_document',
         'restore_document',
         'update_document'
       )
@@ -131,8 +150,8 @@ SELECT ok(
       AND procedure.proname IN (
         'archive_document',
         'create_document',
-        'discard_unreferenced_document_upload',
         'fingerprint_document_content',
+        'replace_document',
         'restore_document',
         'update_document'
       )
@@ -359,8 +378,11 @@ CREATE TEMP TABLE evidence_test_state (
   legacy_document_id uuid NOT NULL DEFAULT gen_random_uuid(),
   archived_document_id uuid NOT NULL DEFAULT gen_random_uuid(),
   absent_object_document_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  replace_source_document_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  replacement_document_id uuid,
   referenced_document_id uuid NOT NULL DEFAULT gen_random_uuid(),
-  reference_only_request_id uuid NOT NULL DEFAULT gen_random_uuid()
+  reference_only_request_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  discard_probe_document_id uuid
 ) ON COMMIT DROP;
 
 INSERT INTO evidence_test_state DEFAULT VALUES;
@@ -437,7 +459,11 @@ INSERT INTO storage.objects (bucket_id, name)
 SELECT 'nestory-documents', pg_temp.evidence_path('legacy.pdf')
 UNION ALL SELECT 'nestory-documents', pg_temp.evidence_path('archived.pdf')
 UNION ALL SELECT 'nestory-documents', pg_temp.evidence_path('referenced.pdf')
-UNION ALL SELECT 'nestory-documents', pg_temp.evidence_path('valid-create.pdf');
+UNION ALL SELECT 'nestory-documents', pg_temp.evidence_path('valid-create.pdf')
+UNION ALL SELECT 'nestory-documents', pg_temp.evidence_path('discard-probe.pdf')
+UNION ALL SELECT 'nestory-documents', pg_temp.evidence_path('replace-source.pdf')
+UNION ALL SELECT 'nestory-documents', pg_temp.evidence_path('replacement.pdf')
+UNION ALL SELECT 'nestory-documents', pg_temp.evidence_path('referenced-replacement.pdf');
 
 INSERT INTO public.documents (
   id, organization_id, property_id, category, file_name, storage_path,
@@ -461,6 +487,13 @@ SELECT
   absent_object_document_id, organization_id, property_id,
   'owner_opening_balance_evidence', 'absent.pdf',
   pg_temp.evidence_path('absent.pdf'), 'application/pdf', 6,
+  super_admin_id, NULL
+FROM evidence_test_state
+UNION ALL
+SELECT
+  replace_source_document_id, organization_id, property_id,
+  'lease', 'replace-source.pdf',
+  pg_temp.evidence_path('replace-source.pdf'), 'application/pdf', 7,
   super_admin_id, NULL
 FROM evidence_test_state;
 
@@ -488,6 +521,38 @@ BEGIN
   EXECUTE
     'SELECT app_private.assert_owner_opening_evidence_eligible($1,$2,$3,$4)'
     USING p_organization_id, p_property_id, p_document_id, p_evidence_sha256;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.call_atomic_document_replacement(
+  p_document_id uuid,
+  p_organization_id uuid,
+  p_category text,
+  p_file_name text,
+  p_storage_path text,
+  p_mime_type text,
+  p_size_bytes bigint,
+  p_content_sha256 text,
+  p_property_id uuid
+) RETURNS uuid
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_replacement_id uuid;
+BEGIN
+  IF to_regprocedure(
+    'public.replace_document(uuid,uuid,text,text,text,text,bigint,text,uuid,uuid,uuid,uuid)'
+  ) IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  EXECUTE
+    'SELECT public.replace_document($1,$2,$3,$4,$5,$6,$7,$8,$9)'
+    INTO v_replacement_id
+    USING p_document_id, p_organization_id, p_category, p_file_name,
+      p_storage_path, p_mime_type, p_size_bytes, p_content_sha256,
+      p_property_id;
+  RETURN v_replacement_id;
 END;
 $$;
 
@@ -726,6 +791,131 @@ SELECT throws_ok(
 )
 FROM evidence_test_state;
 
+SELECT public.fingerprint_document_content(
+  replace_source_document_id,
+  organization_id,
+  repeat('2', 64)
+)
+FROM evidence_test_state;
+
+SELECT throws_ok(
+  format(
+    'SELECT pg_temp.call_atomic_document_replacement(%L,%L,%L,%L,%L,%L,%s,%L,%L)',
+    replace_source_document_id,
+    organization_id,
+    'lease',
+    'replacement.pdf',
+    pg_temp.evidence_path('replacement.pdf'),
+    'application/pdf',
+    11,
+    'BAD-HASH',
+    property_id
+  ),
+  '22023',
+  NULL,
+  'failed atomic replacement rolls back before creating metadata or archiving the old row'
+)
+FROM evidence_test_state;
+
+SELECT is(
+  (
+    SELECT count(*)
+    FROM public.documents
+    WHERE storage_path = pg_temp.evidence_path('replacement.pdf')
+  ),
+  0::bigint,
+  'failed atomic replacement leaves the uploaded unique object unregistered'
+);
+
+UPDATE evidence_test_state
+SET replacement_document_id = pg_temp.call_atomic_document_replacement(
+  replace_source_document_id,
+  organization_id,
+  'lease',
+  'replacement.pdf',
+  pg_temp.evidence_path('replacement.pdf'),
+  'application/pdf',
+  11,
+  repeat('3', 64),
+  property_id
+);
+
+SELECT ok(
+  replacement_document_id IS NOT NULL,
+  'atomic replacement returns the new document identity'
+)
+FROM evidence_test_state;
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM public.documents AS old_document
+    WHERE old_document.id = state.replace_source_document_id
+      AND old_document.archived_at IS NOT NULL
+      AND old_document.content_sha256 = repeat('2', 64)
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM public.documents AS replacement
+    WHERE replacement.id = state.replacement_document_id
+      AND replacement.archived_at IS NULL
+      AND replacement.storage_path = pg_temp.evidence_path('replacement.pdf')
+      AND replacement.content_sha256 = repeat('3', 64)
+  ),
+  'atomic replacement preserves the old evidence and commits one active new row'
+)
+FROM evidence_test_state AS state;
+
+UPDATE evidence_test_state
+SET discard_probe_document_id = public.create_document(
+  organization_id,
+  'Receipt',
+  'discard-probe.pdf',
+  pg_temp.evidence_path('discard-probe.pdf'),
+  'application/pdf',
+  13,
+  repeat('1', 64),
+  property_id
+);
+
+CREATE OR REPLACE FUNCTION pg_temp.attempt_retired_document_discard(
+  p_document_id uuid,
+  p_organization_id uuid,
+  p_storage_path text,
+  p_content_sha256 text
+) RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF to_regprocedure(
+    'public.discard_unreferenced_document_upload(uuid,uuid,text,text)'
+  ) IS NOT NULL THEN
+    EXECUTE
+      'SELECT public.discard_unreferenced_document_upload($1,$2,$3,$4)'
+      USING p_document_id, p_organization_id, p_storage_path, p_content_sha256;
+  END IF;
+END;
+$$;
+
+SELECT pg_temp.attempt_retired_document_discard(
+  discard_probe_document_id,
+  organization_id,
+  pg_temp.evidence_path('discard-probe.pdf'),
+  repeat('1', 64)
+)
+FROM evidence_test_state;
+
+SELECT is(
+  (
+    SELECT count(*)
+    FROM public.documents AS document
+    JOIN evidence_test_state AS state
+      ON state.discard_probe_document_id = document.id
+  ),
+  1::bigint,
+  'the same uploader cannot discard a successfully created property-linked document'
+);
+
 SELECT set_config(
   'request.jwt.claim.sub',
   (SELECT super_admin_id::text FROM evidence_test_state),
@@ -832,6 +1022,41 @@ SELECT
   'Verified opening evidence', NULL, referenced_document_id,
   repeat('9', 64), repeat('7', 64), super_admin_id
 FROM evidence_test_state;
+
+SELECT throws_ok(
+  format(
+    'SELECT pg_temp.call_atomic_document_replacement(%L,%L,%L,%L,%L,%L,%s,%L,%L)',
+    referenced_document_id,
+    organization_id,
+    'owner_opening_balance_evidence',
+    'referenced-replacement.pdf',
+    pg_temp.evidence_path('referenced-replacement.pdf'),
+    'application/pdf',
+    14,
+    repeat('4', 64),
+    property_id
+  ),
+  '22023',
+  NULL,
+  'atomic replacement cannot archive evidence after a finance/opening reference wins'
+)
+FROM evidence_test_state;
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM public.documents AS document
+    JOIN evidence_test_state AS state
+      ON state.referenced_document_id = document.id
+    WHERE document.archived_at IS NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.documents
+    WHERE storage_path = pg_temp.evidence_path('referenced-replacement.pdf')
+  ),
+  'failed referenced replacement retains old metadata and creates no replacement row'
+);
 
 SELECT throws_ok(
   format(

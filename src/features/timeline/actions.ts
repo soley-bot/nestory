@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sha256Hex } from "@/features/documents/content-fingerprint";
+import { removeUnregisteredDocumentObject } from "@/features/documents/storage-cleanup";
 import { Constants } from "@/types/database";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -404,7 +405,7 @@ export async function attachTimelineDocumentAction(
   );
 
   if (documentError || !documentId) {
-    await supabase.storage.from("nestory-documents").remove([storagePath]);
+    await removeUnregisteredDocumentObject(supabase, storagePath);
 
     return {
       message: "We could not save the document record. Please try again.",
