@@ -45,8 +45,12 @@ async function runJourney(browserInstance, journey) {
     if (!response?.ok()) {
       throw new FixtureJourneyError("route did not load");
     }
-    await page.getByRole("link", { name: "Open workspace" }).click();
-    await page.waitForLoadState("domcontentloaded");
+    await Promise.all([
+      page.waitForURL((url) => url.pathname !== "/workspace", {
+        timeout: 20_000,
+      }),
+      page.getByRole("link", { name: "Open workspace" }).click(),
+    ]);
 
     stage = "route";
     if (new URL(page.url()).pathname !== journey.route) {
