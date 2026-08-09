@@ -167,6 +167,11 @@ Tracks are executed sequentially at their review gates. Read-only investigation 
 
 **Purpose:** Let Finance Manager complete an ordinary day without becoming Super Admin.
 
+**Current status:** Track 1A is independently approved at branch HEAD
+`765ab010d1170ded427c7cd5316003716b34533e`. Track 1B remains intentionally
+blocked on the Track 3 reversal/allocation/held-cash guard gate; no correction
+authority has been delegated.
+
 **Files:**
 
 - Modify: `src/lib/auth/capabilities.ts`
@@ -175,29 +180,65 @@ Tracks are executed sequentially at their review gates. Read-only investigation 
 - Modify: Finance route pages under `src/app/(dashboard)`
 - Modify: `src/features/finance-operations/actions.ts`
 - Modify: `src/features/finance-operations/components/finance-operations-screen.tsx`
-- Create: `supabase/migrations/20260809120000_granular_finance_operation_authority.sql`
-- Create: `supabase/tests/granular_finance_operation_authority_test.sql`
+- Created through the Supabase CLI:
+  `supabase/migrations/20260809072422_granular_finance_operation_authority.sql`,
+  `20260809075032_delegate_safe_finance_operations.sql`,
+  `20260809085306_finance_manager_daily_controls.sql`, and
+  `20260809100624_harden_finance_manager_daily_controls.sql`
+- Created/modified: `supabase/tests/granular_finance_operation_authority_test.sql`
 - Modify: `src/types/database.generated.ts`
-- Modify: `scripts/smoke-fixture-role-journeys.mjs`
+- Create: `scripts/smoke-fixture-finance-manager-day.mjs`
+- Create: `scripts/smoke-fixture-finance-manager-day.node-test.mjs`
 
 **Interfaces:**
 
 - Produces UI/server/database capabilities named by operation, including `canOperateFinance`, `canCorrectFinance`, `canManageReconciliationSources`, `canManagePettyCash`, `canRetryCurrentRent`, `canLockFinancialMonth`, `canUnlockFinancialMonth`, and `canReadFinanceReports`.
 - `canCorrectFinance` remains false for Finance Manager until Track 3 proves reversal symmetry and held-cash guards.
 
-- [ ] Ratify D13-D14 with the IPS role owner and record the approved matrix in `PROJECT.md`.
-- [ ] Write failing TypeScript and pgTAP matrices for all five roles. Prove both allowed actions and denied structural/dangerous actions.
-- [ ] Replace route-level reliance on `canManageFinanceOperations` with the narrow capability required by each visible control.
-- [ ] Mirror each client/server capability with a database predicate used inside its checked RPC. Hidden navigation must never be the authorization boundary.
-- [ ] Grant Finance Manager ordinary append-only tenant payment, owner-direct collection, owner invoice payment, owner distribution, petty-cash operation, reconciliation-source use, report export, current-rent retry, and close-readiness inspection as approved by D13.
-- [ ] Keep lease/billing/rent-policy configuration, access management, financial-month unlock, exceptional recovery, and unsafe correction Super-Admin-only.
-- [ ] Keep Finance Member submission-only for paid costs and prevent Finance Manager from creating a cost snapshot they can review.
-- [ ] Add a Finance Manager browser journey that records rent, confirms an owner-direct receipt, handles ordinary owner cash, posts petty cash, reviews a paid cost, reads Ledger, and exports a report without a Super Admin session.
-- [ ] Do not enable Finance Manager correction controls until Track 3 acceptance is complete.
+- [x] Ratify D13-D14 with IPS and record the canonical approved matrix in the
+  Decision Register and Track 1 SDD brief.
+- [x] Add five-role TypeScript and pgTAP capability matrices, checked database
+  predicates, purpose-specific server contexts, cross-organization denials, and
+  direct-DML/grant boundaries. Task 1A.1 was independently approved at
+  `cb6ed42`: TypeScript `13/13`, focused pgTAP `73/73`, full pgTAP `978/978`.
+- [x] Delegate only append-only tenant payment, owner-direct collection, owner
+  invoice payment, capacity-checked owner distribution, and current-business-
+  month retry. Task 1A.2 was independently approved at `ddac6a1`: focused
+  TypeScript `35/35`, focused pgTAP `172/172`, full pgTAP `1002/1002`, with the
+  real Finance Manager actor retained through invoice, income, fee, activity,
+  and exception provenance.
+- [x] Delegate only normal Petty Cash create/post against configured authority,
+  current operational-month lock, existing reconciliation-source selection,
+  and existing operational report read/PDF/Excel. Keep structural Petty Cash,
+  reconciliation-source configuration, month unlock, and Owner Statement
+  unavailable.
+- [x] Keep lease/billing/rent-policy and access configuration, historical
+  recovery, unlock, and unsafe/exceptional correction Super-Admin-only.
+- [x] Preserve Finance Member paid-cost submission / Finance Manager review and
+  prevent Finance Manager paid-cost submission through alternate controls or
+  direct RPC/DML paths.
+- [x] Prove the authenticated Finance Manager full-day journey through 50
+  allowed/forbidden/action/replay/effect stages at semantic commit `3a1f8d6`.
+  Later commits changed migration newline portability only.
+- [x] Prove final portability and regression at `765ab01`: fresh autocrlf and LF
+  checkout migration chains each reset all `7/7` migrations, native reset
+  passed, focused pgTAP `187/187`, focused UI/action `76/76`, Node smoke contract
+  `4/4`, full pgTAP `1034/1034`, application tests `1301` passed with one
+  pre-existing skip, demo tools `28/28`, and TypeScript/lint/build passed.
+- [ ] Add owner close-readiness inspection when Track 2-4 authority exists; it
+  was not invented as a Track 1 screen.
+- [ ] Start Track 1B only after Track 3 independently approves symmetric owner-
+  cash reversals, persisted allocation/roll-forward, dependent-distribution
+  guards, and concurrency. Until then `canCorrectFinance` remains false for
+  Finance Manager and correction controls remain absent.
 
 **Named verification:** `src/lib/auth/capabilities.test.ts`, `supabase/tests/fixed_role_capabilities_test.sql`, `supabase/tests/granular_finance_operation_authority_test.sql`, `supabase/tests/financial_month_lock_test.sql`, finance route tests, `npm run test:fixture-roles`.
 
-**Acceptance:** The Finance Manager full-day browser journey passes. Direct RPC attempts match the matrix. Finance Manager cannot configure leases/policy, manage access, unlock a month, approve their own submitted cost, or execute an exceptional correction.
+**Acceptance:** **Track 1A accepted at `765ab01`.** The Finance Manager full-day
+browser journey passes, direct RPC attempts match the matrix, and Finance
+Manager cannot configure leases/policy, manage access, unlock a month, submit a
+paid cost for their own review, or execute a correction. Track 1 as a whole is
+not complete until the Track 1B checkbox above is accepted after Track 3.
 
 ---
 
@@ -205,32 +246,79 @@ Tracks are executed sequentially at their review gates. Read-only investigation 
 
 **Purpose:** Store evidence-backed cutover positions as business authority rather than report input.
 
+**Binding specification:**
+`docs/superpowers/specs/2026-08-09-owner-balance-and-close-authority.md`.
+D1-D12 are approved and frozen; implementation must not substitute a simpler
+scalar, inferred zero, primary-owner guess, or report-time plug.
+
 **Files:**
 
 - Create: `docs/superpowers/specs/2026-08-09-owner-balance-and-close-authority.md`
-- Create: `supabase/migrations/20260809130000_owner_opening_balance_authority.sql`
+- Create through `npx supabase migration new owner_opening_balance_schema_contracts`:
+  generated schema migration (record its exact filename in the task report)
+- Create through `npx supabase migration new owner_opening_balance_workflows`:
+  generated RPC/RLS/evidence migration (record its exact filename in the task report)
 - Create: `supabase/tests/owner_opening_balance_authority_test.sql`
+- Create: `supabase/tests/owner_opening_balance_workflow_test.sql`
+- Create: `supabase/tests/owner_opening_balance_reconciliation_test.sql`
 - Create: `src/features/owner-balances/owner-balance.types.ts`
+- Create: `src/features/owner-balances/owner-balance.money.ts`
 - Create: `src/features/owner-balances/actions.ts`
 - Create: `src/features/owner-balances/data/opening-balances.ts`
 - Create: `src/features/owner-balances/components/opening-balance-screen.tsx`
 - Modify: `src/app/(dashboard)/balances/page.tsx`
+- Modify: `src/lib/auth/capabilities.ts`, `src/lib/auth/context.ts`, and focused tests
+- Modify: document/storage evidence guards and focused tests only as required by the binding specification
+- Modify: `supabase/test-fixtures/baseline.sql`
+- Create: `scripts/smoke-fixture-owner-opening-balances.mjs`
+- Create: `scripts/smoke-fixture-owner-opening-balances.node-test.mjs`
 - Modify: `src/types/database.generated.ts`
 
 **Interfaces:**
 
-- Produces an immutable opening-balance source keyed by organization, property, owner, currency, effective date, and approved component from D1-D2.
-- Produces checked submit, approve, reject, and append-only correction RPCs with evidence and actor lineage.
+- Produces `owner_balance_component` with exactly
+  `ips_held_owner_cash`, `owner_due_to_ips`, `ips_due_to_owner`, and
+  `security_deposit_custody`.
+- Produces immutable request and signed-entry chains keyed by organization,
+  property, owner, currency, effective date, and component.
+- Produces checked submit, approve/reject, and correction-request RPCs with
+  exact-decimal strings, evidence SHA/document/reference, independent reviewer,
+  payload fingerprint/idempotency, and append-only reversal/replacement lineage.
+- Produces explicit unknown versus known-zero states and a four-component
+  readiness/reconciliation contract consumed by Track 3.
 
-- [ ] Ratify D1-D12 and freeze the semantics in the owner-balance specification before migration code is written.
-- [ ] Write a failing pgTAP contract for required dimensions, exact amounts, evidence, approval, idempotency, RLS, locked-month behavior, and append-only correction.
-- [ ] Add opening-balance tables with explicit status, source reference/document, reason, created/submitted/reviewed actors and timestamps, reversal/correction lineage, and uniqueness that rejects duplicate authority.
-- [ ] Revoke direct DML and expose checked RPCs for draft submission, independent approval/rejection, and correction by reversal plus replacement.
-- [ ] Add server actions with Zod validation and exact decimal string handling; never convert authoritative amounts through JavaScript floating point.
-- [ ] Build the Finance opening-balance queue with owner/property/component/date/evidence context and a clear blocked state when ownership is ambiguous.
-- [ ] Add fixture data for one IPS-like owner cutover and mutation-test duplicate, missing-evidence, wrong-role, overlap, and locked-period failures.
+- [x] Ratify D1-D12 and freeze the exact schema, ownership, evidence, amount,
+  authority, month, correction, roll-forward, close, and publication semantics in
+  the binding specification before migration code.
+- [ ] **Task 2.1 — schema/contracts:** write failing structure/authorization tests;
+  create the component enum, opening request/entry tables, half-open ownership
+  contract, immutable-row guards, explicit capabilities, minimum RLS/grants,
+  unknown/known-zero rules, and exact-cent constraints. Commit and obtain fresh
+  review before RPC work.
+- [ ] **Task 2.2 — submit/review/correct RPCs and evidence:** write failing
+  behavior/security/concurrency tests; implement checked submit,
+  approve/reject, correction reversal+replacement, payload idempotency,
+  organization-month serialization, independent reviewer, document/reference
+  integrity, Storage lock, activity, and complete five-role/cross-org/direct-DML
+  denial. Commit and obtain fresh review.
+- [ ] **Task 2.3 — UI/evidence workflow:** add exact-decimal server actions and
+  loaders, opening queue, component completeness, evidence drill-through,
+  upload rollback, role-specific controls, ownership remediation, and explicit
+  `Unknown` versus approved `$0.00` component presentation. Commit and obtain
+  fresh review.
+- [ ] **Task 2.4 — fixture/reconciliation acceptance:** create all four approved
+  components including a known zero, rejected request, and approved correction
+  chain through checked RPCs; compare exact cents/evidence hashes to a guarded
+  local manifest; mutation-test duplicate, missing evidence/object, self-review,
+  wrong role/org, ownership overlap/incomplete allocation, locked month, stale
+  correction, idempotency conflict, and fake-Storage denial. Commit, fresh
+  review, and root-agent full-matrix acceptance are required before Track 3.
 
-**Named verification:** `supabase/tests/owner_opening_balance_authority_test.sql`, `src/features/owner-balances/actions.test.ts`, `opening-balance-screen.test.tsx`, `npm run db:lint`, local advisors.
+**Named verification:** the three Track 2 pgTAP files, capability/context tests,
+`src/features/owner-balances/actions.test.ts`,
+`opening-balance-screen.test.tsx`, document/storage tests,
+`npm run test:fixture-owner-opening-balances`, database lint/advisors, and the
+program-wide local matrix.
 
 **Acceptance:** One real reconciled example can be reconstructed from its evidence. No report or UI can create an opening number. Corrections retain the original approved row and reviewer trail.
 
