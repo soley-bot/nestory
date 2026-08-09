@@ -444,6 +444,22 @@ SELECT ok(
   'posted petty cash is linked to its custodian and exact Ledger event'
 );
 
+SELECT results_eq(
+  $$
+    SELECT status, count(*)::integer
+    FROM public.petty_cash_entries
+    WHERE archived_at IS NULL
+    GROUP BY status
+    ORDER BY status
+  $$,
+  $$
+    VALUES
+      ('draft'::text, 1),
+      ('posted'::text, 1)
+  $$,
+  'petty cash includes one actionable draft and one posted history item'
+);
+
 SELECT is(
   (
     SELECT count(*)

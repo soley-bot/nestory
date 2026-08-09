@@ -367,7 +367,7 @@ SET pending_general_submission_id = (
     '20000000-0000-0000-0000-000000000006',
     'general',
     NULL,
-    'repair',
+    'repairs_maintenance',
     'Khmer Home Services',
     current_date - 2,
     210,

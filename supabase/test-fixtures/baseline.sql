@@ -646,10 +646,17 @@ CREATE TEMP TABLE fixture_runtime (
   direct_confirmation_id uuid,
   reversed_submission_id uuid,
   rejected_submission_id uuid,
+  pending_general_submission_id uuid,
   maintenance_task_id uuid,
   maintenance_submission_id uuid,
+  pending_maintenance_task_id uuid,
+  pending_maintenance_submission_id uuid,
+  in_progress_task_id uuid,
+  blocked_task_id uuid,
+  completed_task_id uuid,
   petty_cash_account_id uuid,
-  petty_cash_entry_id uuid
+  petty_cash_entry_id uuid,
+  open_petty_cash_entry_id uuid
 ) ON COMMIT DROP;
 
 INSERT INTO fixture_runtime (organization_id)
@@ -1134,6 +1141,30 @@ SET rejected_submission_id = (
   ) ->> 'submission_id'
 )::uuid;
 
+UPDATE fixture_runtime
+SET pending_general_submission_id = (
+  public.submit_expense(
+    organization_id,
+    '10000000-0000-0000-0000-000000000003',
+    '20000000-0000-0000-0000-000000000006',
+    'general',
+    NULL,
+    'repairs_maintenance',
+    'Khmer Home Services',
+    current_date - 2,
+    210,
+    20,
+    'USD',
+    'owner',
+    NULL,
+    source_id,
+    NULL,
+    '80000000-0000-0000-0000-000000000006',
+    'GDN-PUMP-2088',
+    'fixture-expense-pending-review'
+  ) ->> 'submission_id'
+)::uuid;
+
 SELECT set_config(
   'request.jwt.claim.sub',
   '00000000-0000-0000-0000-000000000701',
@@ -1265,6 +1296,184 @@ SELECT public.create_maintenance_task(
 )
 FROM fixture_runtime AS runtime;
 
+UPDATE fixture_runtime
+SET in_progress_task_id = public.create_maintenance_task(
+  organization_id,
+  '10000000-0000-0000-0000-000000000003',
+  '20000000-0000-0000-0000-000000000008',
+  'Garden Court corridor light repair',
+  'Replace the failed corridor fitting and verify the timer circuit.',
+  'Electrical',
+  'normal',
+  'pending',
+  current_date + 1,
+  '13:30',
+  current_date,
+  '09:00',
+  '80000000-0000-0000-0000-000000000006',
+  55,
+  'USD',
+  '[{"id":"isolate","label":"Isolate circuit","done":true},{"id":"replace","label":"Replace fitting","done":false}]'::jsonb,
+  'none',
+  '00000000-0000-0000-0000-000000000211',
+  '80000000-0000-0000-0000-000000000008'
+);
+
+UPDATE fixture_runtime
+SET blocked_task_id = public.create_maintenance_task(
+  organization_id,
+  '10000000-0000-0000-0000-000000000002',
+  '20000000-0000-0000-0000-000000000005',
+  'Riverside drainage access blocked',
+  'Inspect the rear drain once the neighboring delivery lane is clear.',
+  'Drainage',
+  'high',
+  'pending',
+  current_date + 3,
+  '08:00',
+  current_date + 2,
+  '09:00',
+  '80000000-0000-0000-0000-000000000006',
+  90,
+  'USD',
+  '[{"id":"access","label":"Confirm lane access","done":false}]'::jsonb,
+  'none',
+  '00000000-0000-0000-0000-000000000211',
+  NULL
+);
+
+SELECT public.execute_coordinated_maintenance_task(
+  organization_id,
+  blocked_task_id,
+  'start',
+  NULL
+)
+FROM fixture_runtime;
+
+SELECT public.execute_coordinated_maintenance_task(
+  organization_id,
+  blocked_task_id,
+  'block',
+  'Delivery vehicles currently block safe drain access.'
+)
+FROM fixture_runtime;
+
+UPDATE fixture_runtime
+SET completed_task_id = public.create_maintenance_task(
+  organization_id,
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000003',
+  'Central Residence fire extinguisher inspection',
+  'Verify seals, gauges, and inspection tags on the second floor.',
+  'Safety inspection',
+  'normal',
+  'pending',
+  current_date - 2,
+  '10:00',
+  NULL,
+  NULL,
+  NULL,
+  0,
+  'USD',
+  '[{"id":"gauges","label":"Check pressure gauges","done":true},{"id":"tags","label":"Update inspection tags","done":true}]'::jsonb,
+  'none',
+  '00000000-0000-0000-0000-000000000211',
+  NULL
+);
+
+SELECT public.execute_coordinated_maintenance_task(
+  organization_id,
+  completed_task_id,
+  'start',
+  NULL
+)
+FROM fixture_runtime;
+
+SELECT public.execute_coordinated_maintenance_task(
+  organization_id,
+  completed_task_id,
+  'complete',
+  'All gauges and inspection tags were verified.'
+)
+FROM fixture_runtime;
+
+UPDATE fixture_runtime
+SET pending_maintenance_task_id = public.create_maintenance_task(
+  organization_id,
+  '10000000-0000-0000-0000-000000000003',
+  '20000000-0000-0000-0000-000000000009',
+  'Garden Court pump replacement',
+  'Replace the failed booster-pump controller and confirm pressure.',
+  'Water system',
+  'urgent',
+  'pending',
+  current_date + 1,
+  '11:00',
+  current_date,
+  '09:00',
+  '80000000-0000-0000-0000-000000000006',
+  260,
+  'USD',
+  '[{"id":"controller","label":"Replace controller","done":true},{"id":"pressure","label":"Test water pressure","done":false}]'::jsonb,
+  'none',
+  '00000000-0000-0000-0000-000000000211',
+  '80000000-0000-0000-0000-000000000008'
+);
+
+SELECT public.update_maintenance_task(
+  runtime.pending_maintenance_task_id,
+  runtime.organization_id,
+  '10000000-0000-0000-0000-000000000003',
+  '20000000-0000-0000-0000-000000000009',
+  'Garden Court pump replacement',
+  'Replace the failed booster-pump controller and confirm pressure.',
+  'Water system',
+  'urgent',
+  'pending',
+  current_date + 1,
+  '11:00',
+  current_date,
+  '09:00',
+  '80000000-0000-0000-0000-000000000006',
+  260,
+  'USD',
+  245,
+  'USD',
+  '[{"id":"controller","label":"Replace controller","done":true},{"id":"pressure","label":"Test water pressure","done":false}]'::jsonb,
+  'none',
+  '00000000-0000-0000-0000-000000000211',
+  '80000000-0000-0000-0000-000000000008'
+)
+FROM fixture_runtime AS runtime;
+
+UPDATE fixture_runtime
+SET pending_maintenance_submission_id = (
+  public.submit_maintenance_cost(
+    organization_id,
+    pending_maintenance_task_id,
+    current_date,
+    NULL,
+    'GDN-PUMP-2088',
+    'fixture-maintenance-pending-review'
+  ) ->> 'submission_id'
+)::uuid;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000601',
+  true
+);
+
+SELECT public.execute_assigned_maintenance_task(
+  organization_id,
+  in_progress_task_id,
+  'start',
+  NULL,
+  NULL,
+  NULL
+)
+FROM fixture_runtime;
+
 SELECT set_config(
   'request.jwt.claim.sub',
   '00000000-0000-0000-0000-000000000701',
@@ -1325,6 +1534,30 @@ SELECT public.post_petty_cash_entry(
   runtime.petty_cash_entry_id
 )
 FROM fixture_runtime AS runtime;
+
+UPDATE fixture_runtime AS runtime
+SET open_petty_cash_entry_id = public.create_petty_cash_entry(
+  p_organization_id => runtime.organization_id,
+  p_account_id => runtime.petty_cash_account_id,
+  p_period_id => period.id,
+  p_property_id => '10000000-0000-0000-0000-000000000003',
+  p_unit_id => '20000000-0000-0000-0000-000000000008',
+  p_invoice_date => current_date,
+  p_clear_date => NULL,
+  p_entry_kind => 'expense',
+  p_status => 'draft',
+  p_category => 'ELECTRICAL-SUPPLIES',
+  p_supplier => 'Khmer Home Services',
+  p_description => 'Corridor light fitting',
+  p_amount => 20,
+  p_counterparty_person_id => '80000000-0000-0000-0000-000000000006',
+  p_receipt_reference => 'PC-DRAFT-0002',
+  p_remark => 'Awaiting field receipt confirmation'
+)
+FROM public.petty_cash_periods AS period
+WHERE period.organization_id = runtime.organization_id
+  AND period.account_id = runtime.petty_cash_account_id
+  AND period.period_start = date_trunc('month', current_date)::date;
 
 RESET ROLE;
 
