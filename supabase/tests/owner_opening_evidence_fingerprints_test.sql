@@ -211,7 +211,7 @@ SELECT is(
 
 SELECT ok(
   (
-    SELECT count(*) >= 5
+    SELECT count(*) >= 6
       AND bool_and(procedure.prosecdef)
       AND bool_and(procedure.proconfig @> ARRAY['search_path=""'])
       AND bool_and(owner.rolname = 'postgres')
@@ -220,6 +220,7 @@ SELECT ok(
     JOIN pg_roles AS owner ON owner.oid = procedure.proowner
     WHERE namespace.nspname = 'app_private'
       AND procedure.proname IN (
+        'assert_document_storage_object_exists',
         'assert_owner_opening_evidence_eligible',
         'guard_financial_evidence_document',
         'guard_document_content_fingerprint',
@@ -238,6 +239,7 @@ SELECT ok(
     CROSS JOIN (VALUES ('anon'), ('service_role')) AS role_name(name)
     WHERE namespace.nspname = 'app_private'
       AND procedure.proname IN (
+        'assert_document_storage_object_exists',
         'assert_owner_opening_evidence_eligible',
         'guard_financial_evidence_document',
         'guard_document_content_fingerprint',
@@ -255,6 +257,7 @@ SELECT ok(
     ) AS function_acl
     WHERE namespace.nspname = 'app_private'
       AND procedure.proname IN (
+        'assert_document_storage_object_exists',
         'assert_owner_opening_evidence_eligible',
         'guard_financial_evidence_document',
         'guard_document_content_fingerprint',
@@ -281,6 +284,18 @@ SELECT ok(
     false
   ),
   'private workflow helpers are not directly executable by app roles'
+);
+
+SELECT is(
+  (
+    SELECT procedure.provolatile
+    FROM pg_proc AS procedure
+    WHERE procedure.oid = to_regprocedure(
+      'app_private.assert_document_storage_object_exists(text)'
+    )
+  ),
+  'v'::"char",
+  'the shared Storage-object assertion is volatile so every caller takes a current locking read'
 );
 
 SELECT ok(

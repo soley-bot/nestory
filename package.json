@@ -25,7 +25,7 @@
     "leases:test-history-integrity": "node scripts/lease-history-integrity-concurrency.mjs",
     "leases:test-relationships": "node scripts/lease-relationship-concurrency.mjs",
     "owners:test-readiness": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/report-owner-roster-preflight.node-test.mjs scripts/owner-roster-readiness-concurrency.node-test.mjs",
-    "documents:test-evidence-storage": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/document-evidence-storage.node-test.mjs scripts/document-replacement-concurrency.node-test.mjs",
+    "documents:test-evidence-storage": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/document-evidence-storage.node-test.mjs scripts/document-replacement-concurrency.node-test.mjs scripts/document-storage-lifecycle-concurrency.node-test.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "db:lint": "supabase db lint",

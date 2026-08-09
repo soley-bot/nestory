@@ -1,12 +1,108 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import path from "node:path";
 import { test } from "node:test";
 import { createClient } from "@supabase/supabase-js";
+
+import { selectLocalDatabaseContainer } from "./load-test-fixture.mjs";
 
 const organizationId = "00000000-0000-0000-0000-000000000001";
 const propertyId = "10000000-0000-0000-0000-000000000001";
 const bucket = "nestory-documents";
+const repoRoot = path.resolve(import.meta.dirname, "..");
+
+function databaseContainer() {
+  const result = spawnSync(
+    "docker",
+    ["ps", "--filter", "name=^/supabase_db_", "--format", "{{.Names}}"],
+    { cwd: repoRoot, encoding: "utf8", shell: false },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  return selectLocalDatabaseContainer(
+    repoRoot,
+    result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+  );
+}
+
+function cleanupExactArtifacts(runId, storagePaths) {
+  const expectedPrefix = `${organizationId}/documents/${runId}-`;
+  assert.ok(storagePaths.length > 0, "cleanup requires exact test object paths");
+  assert.equal(
+    new Set(storagePaths).size,
+    storagePaths.length,
+    "cleanup paths must be unique",
+  );
+  for (const storagePath of storagePaths) {
+    assert.ok(
+      storagePath.startsWith(expectedPrefix),
+      `cleanup path must remain inside the exact test run: ${storagePath}`,
+    );
+  }
+
+  const pathArray = storagePaths.map((storagePath) => `'${storagePath}'`).join(",");
+  const sql = `
+    BEGIN;
+    LOCK TABLE public.documents IN ACCESS EXCLUSIVE MODE;
+    CREATE TEMP TABLE document_evidence_cleanup_ids ON COMMIT DROP AS
+    SELECT id
+    FROM public.documents
+    WHERE organization_id = '${organizationId}'
+      AND storage_path = ANY (ARRAY[${pathArray}]::text[]);
+    DELETE FROM public.activity_logs
+    WHERE organization_id = '${organizationId}'
+      AND (
+        entity_id IN (SELECT id FROM document_evidence_cleanup_ids)
+        OR new_values ->> 'document_id' IN (
+          SELECT id::text FROM document_evidence_cleanup_ids
+        )
+        OR previous_values ->> 'document_id' IN (
+          SELECT id::text FROM document_evidence_cleanup_ids
+        )
+      );
+    ALTER TABLE public.documents
+      DISABLE TRIGGER guard_document_content_fingerprint;
+    DELETE FROM public.documents
+    WHERE id IN (SELECT id FROM document_evidence_cleanup_ids);
+    ALTER TABLE public.documents
+      ENABLE TRIGGER guard_document_content_fingerprint;
+    SELECT set_config('storage.allow_delete_query', 'true', true);
+    DELETE FROM storage.objects AS object
+    WHERE object.bucket_id = '${bucket}'
+      AND object.name = ANY (ARRAY[${pathArray}]::text[])
+      AND NOT EXISTS (
+        SELECT 1 FROM public.documents AS document
+        WHERE document.storage_path = object.name
+      );
+    COMMIT;
+    SELECT jsonb_build_array(
+      (
+        SELECT count(*) FROM public.documents
+        WHERE storage_path = ANY (ARRAY[${pathArray}]::text[])
+      ),
+      (
+        SELECT count(*) FROM storage.objects
+        WHERE bucket_id = '${bucket}'
+          AND name = ANY (ARRAY[${pathArray}]::text[])
+      )
+    );
+  `;
+  const container = databaseContainer();
+  const result = spawnSync(
+    "docker",
+    [
+      "exec", container, "psql", "-X", "-U", "postgres", "-d", "postgres",
+      "-v", "ON_ERROR_STOP=1", "-At", "-c", sql,
+    ],
+    { cwd: repoRoot, encoding: "utf8", shell: false },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    result.stdout.trim().split(/\r?\n/).at(-1),
+    "[0, 0]",
+    "real Storage harness must leave zero exact document rows and objects",
+  );
+}
 
 function readLocalRuntime() {
   const result = process.env.npm_execpath
@@ -40,17 +136,38 @@ function sha256(bytes) {
 }
 
 test("real local Storage bytes equal immutable opening-evidence metadata", async () => {
-  const runtime = readLocalRuntime();
-  const client = createClient(runtime.apiUrl, runtime.anonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const login = await client.auth.signInWithPassword({
-    email: "nestory@gmail.com",
-    password: "123456789",
-  });
-  assert.equal(login.error, null, "fixture Super Admin should authenticate");
+  const runId = randomUUID();
+  const artifactPath = (suffix) =>
+    `${organizationId}/documents/${runId}-${suffix}`;
+  const orphanPath = artifactPath("failed-create.pdf");
+  const linkedPaths = new Map(
+    ["timeline", "task", "lease", "tenant-request"].map((label) => [
+      label,
+      artifactPath(`${label}.pdf`),
+    ]),
+  );
+  const storagePath = artifactPath("opening-evidence.pdf");
+  const replacementPath = artifactPath("replacement.pdf");
+  const failedReplacementPath = artifactPath("failed-replacement.pdf");
+  const exactArtifactPaths = [
+    orphanPath,
+    ...linkedPaths.values(),
+    storagePath,
+    replacementPath,
+    failedReplacementPath,
+  ];
 
-  const orphanPath = `${organizationId}/documents/${randomUUID()}-failed-create.pdf`;
+  try {
+    const runtime = readLocalRuntime();
+    const client = createClient(runtime.apiUrl, runtime.anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const login = await client.auth.signInWithPassword({
+      email: "nestory@gmail.com",
+      password: "123456789",
+    });
+    assert.equal(login.error, null, "fixture Super Admin should authenticate");
+
   const orphanBytes = Buffer.from("unregistered failed create\n", "utf8");
   const orphanUpload = await client.storage.from(bucket).upload(orphanPath, orphanBytes, {
     contentType: "application/pdf",
@@ -129,7 +246,8 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
       null,
       `fixture should expose one ${link.label} record`,
     );
-    const linkedPath = `${organizationId}/documents/${randomUUID()}-${link.label}.pdf`;
+    const linkedPath = linkedPaths.get(link.label);
+    assert.ok(linkedPath);
     const linkedBytes = Buffer.from(`registered ${link.label} document\n`, "utf8");
     const linkedHash = sha256(linkedBytes);
     const linkedUpload = await client.storage
@@ -178,8 +296,13 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
     );
   }
 
-  const storagePath = `${organizationId}/documents/${randomUUID()}-opening-evidence.pdf`;
-  const replacementPath = `${organizationId}/documents/${randomUUID()}-replacement.pdf`;
+  if (
+    process.env.NESTORY_DOCUMENT_EVIDENCE_FORCE_FAILURE ===
+    "after-linked-documents"
+  ) {
+    assert.fail("forced test-only failure after registered linked documents");
+  }
+
   const exactBytes = Buffer.from(
     "Nestory opening evidence actual-byte integration\r\nUSD 123.45\r\n",
     "utf8",
@@ -317,7 +440,6 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
     assert.equal(newRow?.ledger_entry_id, ledgerEntry.data.id);
     assert.equal(newRow?.storage_path, replacementPath);
 
-    const failedReplacementPath = `${organizationId}/documents/${randomUUID()}-failed-replacement.pdf`;
     const failedReplacementUpload = await client.storage
       .from(bucket)
       .upload(failedReplacementPath, orphanBytes, {
@@ -367,5 +489,8 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
       Buffer.from(await retainedNewBytes.data.arrayBuffer()),
       replacementBytes,
     );
+    }
+  } finally {
+    cleanupExactArtifacts(runId, exactArtifactPaths);
   }
 });
