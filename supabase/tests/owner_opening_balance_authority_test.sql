@@ -255,11 +255,12 @@ SELECT ok(
   'anon, authenticated, and service_role have no request mutation privilege'
 );
 
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1
+SELECT is(
+  (
+    SELECT jsonb_agg(procedure_row.proname ORDER BY procedure_row.proname)
     FROM pg_proc AS procedure_row
-    JOIN pg_namespace AS namespace_row ON namespace_row.oid = procedure_row.pronamespace
+    JOIN pg_namespace AS namespace_row
+      ON namespace_row.oid = procedure_row.pronamespace
     WHERE namespace_row.nspname = 'public'
       AND procedure_row.proname IN (
         'submit_owner_opening_balance',
@@ -267,7 +268,8 @@ SELECT ok(
         'submit_owner_opening_balance_correction'
       )
   ),
-  'schema foundation exposes no opening-balance workflow mutation RPC'
+  '["review_owner_opening_balance","submit_owner_opening_balance"]'::jsonb,
+  'Task 2.2B exposes submit and rejection review but no correction RPC'
 );
 
 SELECT ok(
@@ -628,6 +630,58 @@ SELECT ok(
     false
   ),
   'the known-authority view follows the same minimum read ACL as its tables'
+);
+
+SELECT ok(
+  coalesce(
+    has_function_privilege(
+      'authenticated',
+      'public.submit_owner_opening_balance(uuid,uuid,uuid,public.currency_code,date,public.owner_balance_component,numeric,text,text,uuid,text,uuid,text)',
+      'EXECUTE'
+    ),
+    false
+  )
+  AND coalesce(
+    has_function_privilege(
+      'authenticated',
+      'public.review_owner_opening_balance(uuid,uuid,text,text,text)',
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'anon',
+      'public.submit_owner_opening_balance(uuid,uuid,uuid,public.currency_code,date,public.owner_balance_component,numeric,text,text,uuid,text,uuid,text)',
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'service_role',
+      'public.review_owner_opening_balance(uuid,uuid,text,text,text)',
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'authenticated',
+      'app_private.lock_owner_opening_property_month(uuid,uuid,public.currency_code,date)',
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'service_role',
+      'app_private.lock_owner_opening_property_month(uuid,uuid,public.currency_code,date)',
+      'EXECUTE'
+    ),
+    false
+  ),
+  'workflow RPCs are authenticated-only while the ordered lock helper remains private'
 );
 
 CREATE TEMP TABLE owner_opening_request_fixture (

@@ -6,6 +6,8 @@ export type { Json } from "./database.generated";
 type PublicSchemaGenerated = DatabaseGenerated["public"];
 type GeneratedFunctions = PublicSchemaGenerated["Functions"];
 type CurrencyCode = PublicSchemaGenerated["Enums"]["currency_code"];
+type OwnerBalanceComponent =
+  PublicSchemaGenerated["Enums"]["owner_balance_component"];
 type TimelineEventType = PublicSchemaGenerated["Enums"]["timeline_event_type"];
 type GeneratedCurrentLease =
   PublicSchemaGenerated["Views"]["current_leases"];
@@ -53,6 +55,34 @@ type WithReturns<Name extends keyof GeneratedFunctions, Returns> = Omit<
 };
 
 type RpcFunctionOverrides = {
+  submit_owner_opening_balance: WithArgs<
+    "submit_owner_opening_balance",
+    {
+      p_amount: string;
+      p_component: OwnerBalanceComponent;
+      p_currency: CurrencyCode;
+      p_effective_date: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+      p_reason: string;
+      p_resubmission_of_request_id: string | null;
+      p_source_reference: string | null;
+      p_supporting_document_id: string | null;
+    }
+  >;
+  review_owner_opening_balance: WithArgs<
+    "review_owner_opening_balance",
+    {
+      p_decision: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_request_id: string;
+      p_review_reason: string | null;
+    }
+  >;
   get_owner_roster_readiness: WithReturns<
     "get_owner_roster_readiness",
     {

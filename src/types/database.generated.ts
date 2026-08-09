@@ -7830,6 +7830,16 @@ export type Database = {
         }
         Returns: string
       }
+      review_owner_opening_balance: {
+        Args: {
+          p_decision: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_request_id: string
+          p_review_reason: string
+        }
+        Returns: Json
+      }
       revoke_organization_invitation: {
         Args: { p_invitation_id: string }
         Returns: string
@@ -7925,6 +7935,24 @@ export type Database = {
           p_reference: string
           p_supporting_document_id: string
           p_task_id: string
+        }
+        Returns: Json
+      }
+      submit_owner_opening_balance: {
+        Args: {
+          p_amount: number
+          p_component: Database["public"]["Enums"]["owner_balance_component"]
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_effective_date: string
+          p_evidence_sha256: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_person_id: string
+          p_property_id: string
+          p_reason: string
+          p_resubmission_of_request_id: string
+          p_source_reference: string
+          p_supporting_document_id: string
         }
         Returns: Json
       }
