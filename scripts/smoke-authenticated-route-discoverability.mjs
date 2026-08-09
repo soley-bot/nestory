@@ -151,7 +151,7 @@ async function openJourney(page, journey) {
     await page.getByRole("button", { name: fixtureRoleEmails[journey.role] }).click();
     await clickAndWait(
       page,
-      page.getByRole("link", { name: "Profile" }),
+      page.getByRole("menuitem", { name: "Profile" }),
       journey.route,
     );
     chain.push("Profile menu", "Profile");
