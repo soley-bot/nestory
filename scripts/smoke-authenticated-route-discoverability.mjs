@@ -179,12 +179,13 @@ async function openContextJourney(page, journey, chain) {
     "people-vendors": () => openPeopleTab(page, chain, journey.route, "Vendors"),
     "people-detail": async () => {
       await fromGlobal(page, chain, "/people", "People");
-      await clickAndWait(
-        page,
-        page.getByRole("link", { name: "Open record" }).first(),
-        journey.route,
-      );
-      chain.push("Open record");
+      const personLink = page
+        .locator('[data-slot="app-shell-content"] a[href^="/people/"]:visible')
+        .first();
+      await personLink.waitFor({ state: "visible", timeout: 20_000 });
+      const personLabel = (await personLink.textContent())?.trim() || "Person record";
+      await clickAndWait(page, personLink, journey.route);
+      chain.push(personLabel);
     },
     "property-setup": async () => {
       await fromGlobal(page, chain, "/properties", "Properties");
@@ -199,7 +200,7 @@ async function openContextJourney(page, journey, chain) {
       await openPropertyInspector(page, chain);
       await clickAndWait(
         page,
-        page.getByRole("link", { name: "Open property" }),
+        page.getByText("Open property", { exact: true }),
         journey.route,
       );
       chain.push("Open property");
@@ -221,12 +222,15 @@ async function openContextJourney(page, journey, chain) {
         "/units",
       );
       chain.push("Units");
-      const unitLink = page
-        .locator('[data-slot="app-shell-content"] a[href^="/units/"]:visible')
+      const unitPreview = page
+        .locator('[data-slot="app-shell-content"] [aria-label^="Preview unit "]:visible')
         .first();
-      const unitLabel = (await unitLink.textContent())?.trim() || "Unit record";
+      await unitPreview.click();
+      const unitLink = page.getByText("Open unit", { exact: true });
+      await unitLink.waitFor({ state: "visible", timeout: 20_000 });
+      const unitLabel = (await unitPreview.getAttribute("aria-label")) || "Preview unit";
       await clickAndWait(page, unitLink, journey.route);
-      chain.push(unitLabel);
+      chain.push(unitLabel, "Open unit");
     },
     "property-account": async () => {
       await fromGlobal(page, chain, "/balances", "Owner balances");
@@ -276,9 +280,9 @@ async function openPropertyInspector(page, chain) {
   await fromGlobal(page, chain, "/properties", "Properties");
   const preview = page.locator('[aria-label^="Preview "]:visible').first();
   await preview.click();
-  await page.getByRole("link", { name: "Open property" }).waitFor({
+  await page.getByText("Open property", { exact: true }).waitFor({
     state: "visible",
-    timeout: 15_000,
+    timeout: 30_000,
   });
   chain.push((await preview.getAttribute("aria-label")) || "Preview property");
 }

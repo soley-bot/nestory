@@ -40,7 +40,7 @@
     "property-detail": { "kind": "context", "source": "src/features/properties/components/property-inspector.tsx", "hrefToken": "href={`/properties/${property.id}`}", "labelToken": "Open property" },
     "property-setup": { "kind": "context", "source": "src/features/properties/components/property-screen.tsx", "hrefToken": "href=\"/properties/setup\"", "labelToken": "Set up property" },
     "units-list": { "kind": "context", "source": "src/features/properties/components/property-inspector.tsx", "hrefToken": "href={`/units?propertyId=${property.id}`}", "labelToken": "Units" },
-    "unit-detail": { "kind": "context", "source": "src/features/properties/components/property-units-table.tsx", "hrefToken": "href={`/units/${unit.id}`}", "labelToken": "Unit {unit.unitNumber}" },
+    "unit-detail": { "kind": "context", "source": "src/features/units/components/unit-inspector.tsx", "hrefToken": "href={`/units/${unit.id}`}", "labelToken": "Open unit" },
     "property-account": { "kind": "context", "source": "src/features/finance-operations/components/finance-operations-screen.tsx", "hrefToken": "href={`/properties/${position.propertyId}/account`}", "labelToken": "{position.propertyLabel}" },
     "report-detail": { "kind": "context", "source": "src/app/(dashboard)/reports/page.tsx", "hrefToken": "href={`/reports/${report.kind}`}", "labelToken": "Open report" },
     "settings-access": { "kind": "context", "source": "src/components/layout/settings-tabs.tsx", "hrefToken": "href: \"/users-roles\"", "labelToken": "label: \"Workspace Access\"" },
