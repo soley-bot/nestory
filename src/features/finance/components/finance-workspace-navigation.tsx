@@ -23,16 +23,22 @@ export type FinanceWorkspaceRoute =
 
 export function FinanceWorkspaceNavigation({
   activeRoute,
+  canReadFinanceReports = false,
 }: {
   activeRoute: FinanceWorkspaceRoute;
+  canReadFinanceReports?: boolean;
 }) {
+  const destinations = canReadFinanceReports
+    ? [...financeDestinations, { href: "/reports", label: "Reports", route: "/reports" } as const]
+    : financeDestinations;
+
   return (
     <nav
       aria-label="Finance workspace"
       className="min-w-0 overflow-x-auto px-4 py-1 sm:px-6 md:hidden"
     >
       <div className="flex min-w-max items-center gap-1">
-        {financeDestinations.map((destination) => (
+        {destinations.map((destination) => (
           <Link
             aria-current={
               activeRoute === destination.route ? "page" : undefined

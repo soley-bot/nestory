@@ -175,6 +175,13 @@ describe("LedgerScreen finance workspace contract", () => {
 
     expect(screen.getByRole("button", { name: "Month lock" })).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Month lock" }));
+    expect(
+      screen.getByRole("region", { name: "Month lock consequence" }).textContent,
+    ).toContain("current open operational month");
+    expect(
+      (screen.getByRole("textbox", { name: "Reason" }) as HTMLTextAreaElement)
+        .required,
+    ).toBe(true);
     const state = screen.getByRole("combobox", { name: "State" });
     await user.click(state);
     expect(screen.getByRole("option", { name: "Lock" })).not.toBeNull();

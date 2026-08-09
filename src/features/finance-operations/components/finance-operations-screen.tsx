@@ -102,6 +102,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canCorrectFinance: boolean;
   canRecordOwnerCash: boolean;
   canRecordPayments: boolean;
+  canReadFinanceReports?: boolean;
   canRecoverRent: boolean;
   canReviewExpense: boolean;
   canReverseExpense: boolean;
@@ -165,7 +166,10 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       contextHref={screen.contextHref}
       headerClassName="py-3 lg:py-3"
       localNav={(
-        <FinanceWorkspaceNavigation activeRoute={screen.activeRoute} />
+        <FinanceWorkspaceNavigation
+          activeRoute={screen.activeRoute}
+          canReadFinanceReports={props.canReadFinanceReports ?? false}
+        />
       )}
       title={screen.title}
       toolbar={screen.toolbar}

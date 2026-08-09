@@ -1576,7 +1576,8 @@ SET petty_cash_entry_id = public.create_petty_cash_entry(
   p_amount => 35,
   p_counterparty_person_id => '80000000-0000-0000-0000-000000000006',
   p_receipt_reference => 'PC-0001',
-  p_remark => 'Trap, seal tape, and cleaning materials'
+  p_remark => 'Trap, seal tape, and cleaning materials',
+  p_idempotency_key => 'fixture-petty-repair-supplies'
 )
 FROM public.petty_cash_periods AS period
 WHERE period.organization_id = runtime.organization_id
@@ -1606,7 +1607,8 @@ SET open_petty_cash_entry_id = public.create_petty_cash_entry(
   p_amount => 20,
   p_counterparty_person_id => '80000000-0000-0000-0000-000000000006',
   p_receipt_reference => 'PC-DRAFT-0002',
-  p_remark => 'Awaiting field receipt confirmation'
+  p_remark => 'Awaiting field receipt confirmation',
+  p_idempotency_key => 'fixture-petty-electrical-supplies'
 )
 FROM public.petty_cash_periods AS period
 WHERE period.organization_id = runtime.organization_id

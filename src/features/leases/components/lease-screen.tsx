@@ -59,6 +59,7 @@ type DrawerState =
 
 type LeaseScreenProps = {
   canConfigure?: boolean;
+  canReadFinanceReports?: boolean;
   initialLeaseId?: string;
   leases: LeaseSummary[];
   pagination: LeasePagination;
@@ -70,6 +71,7 @@ type LeaseScreenProps = {
 
 export function LeaseScreen({
   canConfigure = true,
+  canReadFinanceReports = false,
   initialLeaseId,
   leases,
   pagination,
@@ -253,7 +255,10 @@ export function LeaseScreen({
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/leases"
       localNav={(
-        <FinanceWorkspaceNavigation activeRoute="/leases" />
+        <FinanceWorkspaceNavigation
+          activeRoute="/leases"
+          canReadFinanceReports={canReadFinanceReports}
+        />
       )}
       title="Leases"
       toolbar={<LeaseFilters

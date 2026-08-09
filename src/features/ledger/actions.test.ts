@@ -23,8 +23,14 @@ import { setLedgerPeriodLockAction } from "@/features/ledger/actions";
 describe("financial month lock action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireFinancialMonthLockContext.mockResolvedValue({ organizationId: "org-1" });
-    mocks.requireFinancialMonthUnlockContext.mockResolvedValue({ organizationId: "org-1" });
+    mocks.requireFinancialMonthLockContext.mockResolvedValue({
+      organizationId: "org-1",
+      role: "finance_manager",
+    });
+    mocks.requireFinancialMonthUnlockContext.mockResolvedValue({
+      organizationId: "org-1",
+      role: "super_admin",
+    });
     mocks.requireSuperAdminContext.mockResolvedValue({ organizationId: "org-1" });
     mocks.rpc.mockResolvedValue({ data: "lock-1", error: null });
   });
@@ -65,6 +71,37 @@ describe("financial month lock action", () => {
     expect(mocks.requireFinancialMonthUnlockContext).toHaveBeenCalledOnce();
     expect(mocks.requireFinancialMonthLockContext).not.toHaveBeenCalled();
     expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
+  });
+
+  it("rejects a blank Finance Manager operational-lock reason before the RPC", async () => {
+    const formData = new FormData();
+    formData.set("lockState", "locked");
+    formData.set("periodStart", "2026-08");
+    formData.set("reason", "   ");
+
+    await expect(setLedgerPeriodLockAction({}, formData)).resolves.toEqual({
+      fieldErrors: { reason: ["Enter an operational lock reason."] },
+      status: "error",
+    });
+
+    expect(mocks.requireFinancialMonthLockContext).toHaveBeenCalledOnce();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("preserves Super Admin lock handling for an empty optional reason", async () => {
+    mocks.requireFinancialMonthLockContext.mockResolvedValue({
+      organizationId: "org-1",
+      role: "super_admin",
+    });
+    const formData = new FormData();
+    formData.set("lockState", "locked");
+    formData.set("periodStart", "2026-08");
+    formData.set("reason", "");
+
+    await expect(setLedgerPeriodLockAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(mocks.rpc).toHaveBeenCalledOnce();
   });
 
   it("validates the requested transition before selecting authority", async () => {

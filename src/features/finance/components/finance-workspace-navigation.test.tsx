@@ -32,4 +32,23 @@ describe("FinanceWorkspaceNavigation", () => {
       ),
     ).toBe("page");
   });
+
+  it("adds the mobile Reports destination only when report authority is present", () => {
+    const { rerender } = render(
+      <FinanceWorkspaceNavigation
+        activeRoute="/ledger"
+        canReadFinanceReports
+      />,
+    );
+    const navigation = screen.getByRole("navigation", { name: "Finance workspace" });
+    expect(within(navigation).getByRole("link", { name: "Reports" })).toBeTruthy();
+
+    rerender(
+      <FinanceWorkspaceNavigation
+        activeRoute="/ledger"
+        canReadFinanceReports={false}
+      />,
+    );
+    expect(within(navigation).queryByRole("link", { name: "Reports" })).toBeNull();
+  });
 });

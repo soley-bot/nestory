@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(67);
+SELECT plan(72);
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -182,7 +182,8 @@ SELECT lives_ok(
     p_supplier => NULL,
     p_description => 'Additional custodian funding',
     p_amount => 100,
-    p_counterparty_person_id => '80000000-0000-0000-0000-000000000008'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000008',
+    p_idempotency_key => 'petty-test-custodian-advance'
   )$$,
   'later custodian advance is additive to opening cash'
 );
@@ -258,7 +259,8 @@ SELECT lives_ok(
     p_supplier => 'Untrusted browser label',
     p_description => 'Linked person snapshot',
     p_amount => 75,
-    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006',
+    p_idempotency_key => 'petty-test-linked-in'
   )$$,
   'linked counterparty entry is created'
 );
@@ -310,7 +312,8 @@ SELECT throws_ok(
     p_supplier => NULL,
     p_description => 'Rejected cross-org person',
     p_amount => 10,
-    p_counterparty_person_id => '89900000-0000-0000-0000-000000000001'
+    p_counterparty_person_id => '89900000-0000-0000-0000-000000000001',
+    p_idempotency_key => 'petty-test-cross-org-person'
   )$$,
   '23503',
   'Counterparty must be an active person in this organization',
@@ -348,7 +351,8 @@ SELECT throws_ok(
     p_supplier => NULL,
     p_description => 'Rejected archived person',
     p_amount => 10,
-    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006',
+    p_idempotency_key => 'petty-test-archived-person'
   )$$,
   '23503',
   'Counterparty must be an active person in this organization',
@@ -387,7 +391,8 @@ SELECT lives_ok(
     p_supplier => 'Walk-in source',
     p_description => 'External cash source',
     p_amount => 25,
-    p_counterparty_person_id => NULL
+    p_counterparty_person_id => NULL,
+    p_idempotency_key => 'petty-test-external-in'
   )$$,
   'external party entry is created'
 );
@@ -425,7 +430,8 @@ SELECT throws_ok(
     p_supplier => NULL,
     p_description => 'Missing party',
     p_amount => 10,
-    p_counterparty_person_id => NULL
+    p_counterparty_person_id => NULL,
+    p_idempotency_key => 'petty-test-missing-party'
   )$$,
   '22023',
   'Choose a linked person or name an external party',
@@ -492,7 +498,8 @@ SELECT lives_ok(
     p_supplier => 'Temporary supplier',
     p_description => 'Duplicate expense',
     p_amount => 50,
-    p_counterparty_person_id => NULL
+    p_counterparty_person_id => NULL,
+    p_idempotency_key => 'petty-test-void-candidate'
   )$$,
   'void candidate is created'
 );
@@ -599,7 +606,8 @@ SELECT lives_ok(
     p_supplier => 'Cash office',
     p_description => 'Additional top up',
     p_amount => 20,
-    p_counterparty_person_id => NULL
+    p_counterparty_person_id => NULL,
+    p_idempotency_key => 'petty-test-rollover-top-up'
   )$$,
   'cash-in row for rollover is created'
 );
@@ -736,7 +744,8 @@ SELECT lives_ok(
     p_supplier => NULL,
     p_description => 'Postable linked expense',
     p_amount => 30,
-    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006',
+    p_idempotency_key => 'petty-test-post-candidate'
   )$$,
   'post candidate is created in the open period'
 );
@@ -839,7 +848,8 @@ SELECT lives_ok(
     p_supplier => NULL,
     p_description => 'Must stop when account becomes inactive',
     p_amount => 15,
-    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
+    p_counterparty_person_id => '80000000-0000-0000-0000-000000000006',
+    p_idempotency_key => 'petty-test-inactive-candidate'
   )$$,
   'inactive-account guard candidate is created while account is active'
 );
@@ -964,6 +974,27 @@ SELECT ok(
   'authenticated role can reach the update RPC subject to authorization checks'
 );
 
+SELECT has_function(
+  'public',
+  'create_petty_cash_entry',
+  ARRAY[
+    'uuid','uuid','uuid','uuid','uuid','date','date','text','text','text','text',
+    'text','numeric','uuid','text','text','text','text','numeric','numeric','numeric',
+    'text'
+  ],
+  'Petty Cash create requires an explicit request identity'
+);
+
+SELECT hasnt_function(
+  'public',
+  'create_petty_cash_entry',
+  ARRAY[
+    'uuid','uuid','uuid','uuid','uuid','date','date','text','text','text','text',
+    'text','numeric','uuid','text','text','text','text','numeric','numeric','numeric'
+  ],
+  'the non-idempotent Petty Cash create signature is removed'
+);
+
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 
 SELECT lives_ok(
@@ -980,7 +1011,8 @@ SELECT lives_ok(
     p_category => 'FM-DAILY-CASH',
     p_supplier => 'Finance Manager vendor',
     p_description => 'Finance Manager daily paid cost',
-    p_amount => 10
+    p_amount => 10,
+    p_idempotency_key => 'fm-petty-create-0001'
   )$$,
   'Finance Manager can create a row in an existing active account and open period'
 );
@@ -989,6 +1021,65 @@ SELECT is(
   (SELECT created_by FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH'),
   '00000000-0000-0000-0000-000000000701'::uuid,
   'Finance Manager remains the created-by actor'
+);
+
+SELECT is(
+  public.create_petty_cash_entry(
+    p_organization_id => '00000000-0000-0000-0000-000000000001',
+    p_account_id => (SELECT id FROM public.petty_cash_accounts WHERE account_number = 'AUDIT-CASH-01'),
+    p_period_id => (SELECT period.id FROM public.petty_cash_periods AS period JOIN public.petty_cash_accounts AS account ON account.id = period.account_id WHERE account.account_number = 'AUDIT-CASH-01' AND period.status = 'open'),
+    p_property_id => '10000000-0000-0000-0000-000000000001',
+    p_unit_id => NULL,
+    p_invoice_date => current_date,
+    p_clear_date => current_date,
+    p_entry_kind => 'expense',
+    p_status => 'cleared',
+    p_category => 'FM-DAILY-CASH',
+    p_supplier => 'Finance Manager vendor',
+    p_description => 'Finance Manager daily paid cost',
+    p_amount => 10,
+    p_idempotency_key => 'fm-petty-create-0001'
+  ),
+  (SELECT id FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH'),
+  'Finance Manager exact create replay returns the original Petty Cash row'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*)::integer FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH'),
+      (
+        SELECT count(*)::integer
+        FROM public.activity_logs
+        WHERE entity_type = 'petty_cash_entry'
+          AND action = 'created'
+          AND entity_id = (SELECT id FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH')
+      )
+  $$,
+  $$ VALUES (1, 1) $$,
+  'exact create replay produces one row and one creation activity'
+);
+
+SELECT throws_ok(
+  $$SELECT public.create_petty_cash_entry(
+    p_organization_id => '00000000-0000-0000-0000-000000000001',
+    p_account_id => (SELECT id FROM public.petty_cash_accounts WHERE account_number = 'AUDIT-CASH-01'),
+    p_period_id => (SELECT period.id FROM public.petty_cash_periods AS period JOIN public.petty_cash_accounts AS account ON account.id = period.account_id WHERE account.account_number = 'AUDIT-CASH-01' AND period.status = 'open'),
+    p_property_id => '10000000-0000-0000-0000-000000000001',
+    p_unit_id => NULL,
+    p_invoice_date => current_date,
+    p_clear_date => current_date,
+    p_entry_kind => 'expense',
+    p_status => 'cleared',
+    p_category => 'FM-DAILY-CASH',
+    p_supplier => 'Finance Manager vendor',
+    p_description => 'Finance Manager daily paid cost',
+    p_amount => 11,
+    p_idempotency_key => 'fm-petty-create-0001'
+  )$$,
+  '22023',
+  'Conflicting financial idempotency request',
+  'same Petty Cash create key rejects a changed payload'
 );
 
 SELECT lives_ok(

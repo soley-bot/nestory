@@ -6825,6 +6825,7 @@ export type Database = {
           p_description: string
           p_economic_scope?: string
           p_entry_kind: string
+          p_idempotency_key?: string
           p_invoice_date: string
           p_organization_id: string
           p_owner_bill_status?: string

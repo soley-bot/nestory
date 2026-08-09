@@ -92,6 +92,21 @@ describe("AppShell Shadcn dashboard block", () => {
     },
   );
 
+  it("makes Reports discoverable only to the Finance Manager among non-admin roles", () => {
+    const { rerender } = render(
+      <AppShell role="finance_manager"><div>Workspace content</div></AppShell>,
+    );
+    expect(screen.getByRole("link", { name: /Reports/ }).getAttribute("href")).toBe(
+      "/reports",
+    );
+
+    rerender(<AppShell role="finance_member"><div>Workspace content</div></AppShell>);
+    expect(screen.queryByRole("link", { name: /Reports/ })).toBeNull();
+
+    rerender(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
+    expect(screen.queryByRole("link", { name: /Reports/ })).toBeNull();
+  });
+
   it("limits Operations Member deep navigation to My work", () => {
     navigation.pathname = "/tasks";
     render(<AppShell role="operations_member"><div>Workspace content</div></AppShell>);

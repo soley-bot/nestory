@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { createClient } from "@supabase/supabase-js";
 
 import { selectLocalDatabaseContainer } from "./load-test-fixture.mjs";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
@@ -20,6 +21,7 @@ export const financeManagerDaySmokeContract = Object.freeze({
     "post-petty-cash-entry",
     "lock-financial-month",
     "read-ledger",
+    "navigate-to-reports",
     "export-pdf",
     "export-excel",
   ]),
@@ -37,6 +39,22 @@ export const financeManagerDaySmokeContract = Object.freeze({
     "owner-statement-unavailable",
     "reconciliation-source-configuration",
   ]),
+  replayCoverage: Object.freeze({
+    sameRequestKey: Object.freeze([
+      "record-payment",
+      "confirm-owner-direct-collection",
+      "record-owner-invoice-payment",
+      "record-capacity-withdrawal",
+      "review-paid-cost",
+      "create-petty-cash-entry",
+    ]),
+    naturalIdentity: Object.freeze([
+      "retry-current-rent",
+      "post-petty-cash-entry",
+    ]),
+    rejectedReplay: Object.freeze(["lock-financial-month"]),
+    unavailable: Object.freeze([]),
+  }),
 });
 
 const safeFailureReasons = new Set([
@@ -87,11 +105,19 @@ async function main() {
 
   try {
     await authenticate(page, config);
-    await assertFinanceWork(page, config.baseUrl);
-    await assertPaidCostReview(page, config.baseUrl);
-    await assertOwnerCash(page, config.baseUrl);
-    await createAndPostPettyCash(page, config.baseUrl);
-    await lockCurrentMonth(page, config.baseUrl);
+    const financeRequests = await assertFinanceWork(page, config.baseUrl);
+    const paidCostRequest = await assertPaidCostReview(page, config.baseUrl);
+    const ownerCashRequest = await assertOwnerCash(page, config.baseUrl);
+    const pettyCashRequests = await createAndPostPettyCash(page, config.baseUrl);
+    const authenticatedRpc = await createAuthenticatedRpcClient(cwd, config);
+    await replayOrdinaryFinanceRequests(cwd, authenticatedRpc, {
+      ...financeRequests,
+      ownerCashRequest,
+      paidCostRequest,
+      ...pettyCashRequests,
+    });
+    const monthLockRequest = await lockCurrentMonth(page, config.baseUrl);
+    await assertRejectedMonthLockReplay(authenticatedRpc, monthLockRequest);
     await assertReportExports(page, config.baseUrl);
 
     for (const [stage, sql, expected] of [
@@ -189,14 +215,100 @@ function findDatabaseContainer(cwd) {
 }
 
 function assertDatabaseValue(cwd, sql, expected, stage) {
+  const actual = queryDatabaseValue(cwd, sql, stage);
+  if (actual !== expected) {
+    throw new Error(formatFinanceManagerDayFailure(stage, "database assertion failed"));
+  }
+}
+
+function queryDatabaseValue(cwd, sql, stage) {
   const result = spawnSync(
     "docker",
     ["exec", findDatabaseContainer(cwd), "psql", "-U", "postgres", "-d", "postgres", "-At", "-c", sql],
     { cwd, encoding: "utf8", shell: false },
   );
-  if (result.error || result.status !== 0 || result.stdout.trim() !== expected) {
+  if (result.error || result.status !== 0) {
     throw new Error(formatFinanceManagerDayFailure(stage, "database assertion failed"));
   }
+  return result.stdout.trim();
+}
+
+async function createAuthenticatedRpcClient(cwd, config) {
+  const runtime = readLocalSupabaseRuntime(cwd);
+  const client = createClient(runtime.apiUrl, runtime.anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error } = await client.auth.signInWithPassword({
+    email: config.email,
+    password: config.password,
+  });
+  if (error) {
+    throw new Error(formatFinanceManagerDayFailure("rpc-login", "login did not complete"));
+  }
+  return client;
+}
+
+function readLocalSupabaseRuntime(cwd) {
+  const npmCli = process.env.npm_execpath;
+  const result = npmCli
+    ? spawnSync(
+        process.execPath,
+        [npmCli, "exec", "--", "supabase", "status", "-o", "env"],
+        { cwd, encoding: "utf8", shell: false },
+      )
+    : spawnSync(
+        "npx",
+        ["supabase", "status", "-o", "env"],
+        { cwd, encoding: "utf8", shell: false },
+      );
+  if (result.error || result.status !== 0) {
+    throw new Error(formatFinanceManagerDayFailure("rpc-runtime", "database assertion failed"));
+  }
+  const values = Object.fromEntries(
+    result.stdout
+      .split(/\r?\n/)
+      .map((line) => line.match(/^([A-Z_]+)="?(.*?)"?$/))
+      .filter(Boolean)
+      .map((match) => [match[1], match[2].replace(/"$/, "")]),
+  );
+  const apiUrl = values.API_URL;
+  const anonKey = values.ANON_KEY ?? values.PUBLISHABLE_KEY;
+  if (!apiUrl || !anonKey) {
+    throw new Error(formatFinanceManagerDayFailure("rpc-runtime", "database assertion failed"));
+  }
+  return { anonKey, apiUrl };
+}
+
+async function readFormRequest(container) {
+  const entries = await container.evaluate((element) => {
+    const form = element instanceof HTMLFormElement
+      ? element
+      : element.querySelector("form");
+    if (!form) throw new Error("Form not found");
+    return Array.from(new FormData(form).entries(), ([key, value]) => [
+      key,
+      typeof value === "string" ? value : value.name,
+    ]);
+  });
+  return entries;
+}
+
+function requestValue(entries, name) {
+  return entries.find(([key]) => key === name)?.[1] ?? "";
+}
+
+function requestNumber(entries, name) {
+  return Number(requestValue(entries, name));
+}
+
+function requestAllocations(entries) {
+  return entries
+    .filter(([key]) => key.startsWith("allocation:"))
+    .map(([key, value]) => ({
+      amount: Number(value),
+      lineId: key.slice("allocation:".length),
+    }))
+    .filter((allocation) => allocation.amount > 0);
 }
 
 async function authenticate(page, config) {
@@ -261,6 +373,7 @@ async function assertFinanceWork(page, baseUrl) {
   await dialog.locator('input[name="reconciliationSourceId"] + button').click();
   await page.getByRole("option").first().click();
   await dialog.locator('input[name="reference"]').fill("FM-DAY-TENANT");
+  const tenantPaymentRequest = await readFormRequest(dialog);
   await dialog.getByRole("button", { name: "Record payment" }).click();
   await requireVisible(page.getByText("Payment recorded.", { exact: true }), "record-payment");
 
@@ -268,6 +381,7 @@ async function assertFinanceWork(page, baseUrl) {
   await directRow.getByRole("button", { name: "Confirm" }).click();
   dialog = page.getByRole("dialog", { name: "Confirm owner collection" });
   await dialog.locator('input[name="reference"]').fill("FM-DAY-OWNER-DIRECT");
+  const ownerCollectionRequest = await readFormRequest(dialog);
   await dialog.getByRole("button", { name: "Confirm collected" }).click();
   await requireVisible(page.getByText("Owner collection confirmed.", { exact: true }), "confirm-owner-direct-collection");
 
@@ -275,10 +389,14 @@ async function assertFinanceWork(page, baseUrl) {
   await ownerRow.getByRole("button", { name: "Record" }).click();
   dialog = page.getByRole("dialog", { name: "Owner payment" });
   await dialog.locator('input[name="reference"]').fill("FM-DAY-OWNER-PAYMENT");
+  const ownerPaymentRequest = await readFormRequest(dialog);
   await dialog.getByRole("button", { name: "Record owner payment" }).click();
   await requireVisible(page.getByText("Owner payment recorded.", { exact: true }), "record-owner-invoice-payment");
 
   const retryButton = page.getByRole("button", { name: /^Retry rent for / });
+  const retryRequest = await readFormRequest(
+    retryButton.locator("xpath=ancestor::form"),
+  );
   await retryButton.click();
   try {
     await retryButton.waitFor({ state: "hidden", timeout: 15_000 });
@@ -286,6 +404,12 @@ async function assertFinanceWork(page, baseUrl) {
     throw new Error(formatFinanceManagerDayFailure("retry-current-rent", "resolved exception remained actionable"));
   }
   pass("retry-current-rent");
+  return {
+    ownerCollectionRequest,
+    ownerPaymentRequest,
+    retryRequest,
+    tenantPaymentRequest,
+  };
 }
 
 async function assertPaidCostReview(page, baseUrl) {
@@ -301,8 +425,10 @@ async function assertPaidCostReview(page, baseUrl) {
   await paidCostRow.getByRole("button", { name: /^Approve / }).click();
   const dialog = page.getByRole("dialog", { name: "Approve expense" });
   await dialog.getByRole("textbox", { name: "Review note" }).fill("FM day review");
+  const paidCostRequest = await readFormRequest(dialog);
   await dialog.getByRole("button", { name: "Approve expense" }).click();
   await requireVisible(page.getByText("Expense approved and recorded.", { exact: true }), "review-paid-cost");
+  return paidCostRequest;
 }
 
 async function assertOwnerCash(page, baseUrl) {
@@ -312,8 +438,10 @@ async function assertOwnerCash(page, baseUrl) {
   const dialog = page.getByRole("dialog", { name: "Owner withdrawal" });
   await dialog.locator('input[name="amount"]').fill("1");
   await dialog.locator('input[name="reference"]').fill("FM-DAY-WITHDRAWAL");
+  const ownerCashRequest = await readFormRequest(dialog);
   await dialog.getByRole("button", { name: "Record withdrawal" }).click();
   await requireVisible(page.getByText("Withdrawal recorded.", { exact: true }), "record-capacity-withdrawal");
+  return ownerCashRequest;
 }
 
 async function createAndPostPettyCash(page, baseUrl) {
@@ -334,7 +462,11 @@ async function createAndPostPettyCash(page, baseUrl) {
   await page.getByRole("textbox", { name: "External party name" }).fill("FM day vendor");
   await page.getByRole("textbox", { name: "Description" }).fill("Finance Manager daily field purchase");
   await page.getByRole("textbox", { name: "Receipt / invoice reference" }).fill("FM-DAY-001");
-  await page.getByRole("button", { name: "Add cash row" }).last().click();
+  const addCashRowButton = page.getByRole("button", { name: "Add cash row" }).last();
+  const pettyCashCreateRequest = await readFormRequest(
+    addCashRowButton.locator("xpath=ancestor::form"),
+  );
+  await addCashRowButton.click();
   await requireVisible(page.getByText("Petty cash row added.", { exact: true }), "create-petty-cash-entry");
 
   await page.getByRole("button", { name: "Preview FM-DAY-CASH" }).click();
@@ -342,8 +474,193 @@ async function createAndPostPettyCash(page, baseUrl) {
   await requireAbsent(inspector.getByRole("button", { name: "Edit" }), "petty-cash-update");
   await requireAbsent(inspector.getByRole("button", { name: "Void" }), "petty-cash-void");
   await inspector.getByRole("button", { name: "Post to ledger" }).click();
-  await page.getByRole("dialog", { name: "Post to ledger" }).getByRole("button", { name: "Post to ledger" }).click();
+  const postDialog = page.getByRole("dialog", { name: "Post to ledger" });
+  const pettyCashPostRequest = await readFormRequest(postDialog);
+  await postDialog.getByRole("button", { name: "Post to ledger" }).click();
   await requireVisible(page.getByText("Petty cash expense posted to ledger.", { exact: true }), "post-petty-cash-entry");
+  return { pettyCashCreateRequest, pettyCashPostRequest };
+}
+
+async function replayOrdinaryFinanceRequests(cwd, client, requests) {
+  const organizationId = "00000000-0000-0000-0000-000000000001";
+  const tenantAllocations = requestAllocations(requests.tenantPaymentRequest);
+  await assertStableRpcReplay(
+    cwd,
+    client,
+    "record-payment",
+    "record_tenant_invoice_payment",
+    {
+      p_allocations: tenantAllocations.length ? tenantAllocations : null,
+      p_amount: requestNumber(requests.tenantPaymentRequest, "amount"),
+      p_idempotency_key: requestValue(requests.tenantPaymentRequest, "idempotencyKey"),
+      p_invoice_id: requestValue(requests.tenantPaymentRequest, "invoiceId"),
+      p_organization_id: organizationId,
+      p_received_date: requestValue(requests.tenantPaymentRequest, "settlementDate"),
+      p_reconciliation_source_id: requestValue(
+        requests.tenantPaymentRequest,
+        "reconciliationSourceId",
+      ),
+      p_reference: requestValue(requests.tenantPaymentRequest, "reference"),
+    },
+    `SELECT id::text FROM public.tenant_invoice_payments WHERE reference = 'FM-DAY-TENANT' AND reversal_of_id IS NULL`,
+  );
+
+  const collectionAllocations = requestAllocations(requests.ownerCollectionRequest);
+  await assertStableRpcReplay(
+    cwd,
+    client,
+    "confirm-owner-direct-collection",
+    "confirm_owner_collected_rent",
+    {
+      p_allocations: collectionAllocations.length ? collectionAllocations : null,
+      p_amount: requestNumber(requests.ownerCollectionRequest, "amount"),
+      p_confirmed_date: requestValue(requests.ownerCollectionRequest, "settlementDate"),
+      p_idempotency_key: requestValue(requests.ownerCollectionRequest, "idempotencyKey"),
+      p_invoice_id: requestValue(requests.ownerCollectionRequest, "invoiceId"),
+      p_organization_id: organizationId,
+      p_reference: requestValue(requests.ownerCollectionRequest, "reference"),
+    },
+    `SELECT id::text FROM public.owner_collection_confirmations WHERE reference = 'FM-DAY-OWNER-DIRECT' AND reversal_of_id IS NULL`,
+  );
+
+  await assertStableRpcReplay(
+    cwd,
+    client,
+    "record-owner-invoice-payment",
+    "record_owner_invoice_payment",
+    {
+      p_amount: requestNumber(requests.ownerPaymentRequest, "amount"),
+      p_idempotency_key: requestValue(requests.ownerPaymentRequest, "idempotencyKey"),
+      p_organization_id: organizationId,
+      p_owner_invoice_id: requestValue(requests.ownerPaymentRequest, "ownerInvoiceId"),
+      p_received_date: requestValue(requests.ownerPaymentRequest, "receivedDate"),
+      p_reference: requestValue(requests.ownerPaymentRequest, "reference"),
+    },
+    `SELECT id::text FROM public.owner_payments WHERE reference = 'FM-DAY-OWNER-PAYMENT'`,
+  );
+
+  await assertStableRpcReplay(
+    cwd,
+    client,
+    "record-capacity-withdrawal",
+    "record_property_withdrawal",
+    {
+      p_amount: requestNumber(requests.ownerCashRequest, "amount"),
+      p_idempotency_key: requestValue(requests.ownerCashRequest, "idempotencyKey"),
+      p_organization_id: organizationId,
+      p_property_id: requestValue(requests.ownerCashRequest, "propertyId"),
+      p_reference: requestValue(requests.ownerCashRequest, "reference"),
+      p_withdrawal_date: requestValue(requests.ownerCashRequest, "withdrawalDate"),
+    },
+    `SELECT id::text FROM public.property_withdrawals WHERE reference = 'FM-DAY-WITHDRAWAL'`,
+  );
+
+  await assertStableRpcReplay(
+    cwd,
+    client,
+    "review-paid-cost",
+    "review_expense",
+    {
+      p_decision: requestValue(requests.paidCostRequest, "decision"),
+      p_idempotency_key: requestValue(requests.paidCostRequest, "idempotencyKey"),
+      p_organization_id: organizationId,
+      p_reason: requestValue(requests.paidCostRequest, "reason") || null,
+      p_reconciliation_source_id:
+        requestValue(requests.paidCostRequest, "reconciliationSourceId") || null,
+      p_submission_id: requestValue(requests.paidCostRequest, "submissionId"),
+    },
+    `SELECT id::text FROM public.expense_submissions WHERE reference = 'GDN-PUMP-2088' AND source_type = 'general'`,
+  );
+
+  const petty = requests.pettyCashCreateRequest;
+  const counterpartyIsLinked = requestValue(petty, "counterpartyMode") === "linked";
+  await assertStableRpcReplay(
+    cwd,
+    client,
+    "create-petty-cash-entry",
+    "create_petty_cash_entry",
+    {
+      p_account_id: requestValue(petty, "accountId"),
+      p_amount: requestNumber(petty, "amount"),
+      p_category: requestValue(petty, "category"),
+      p_clear_date: requestValue(petty, "clearDate") || null,
+      p_company_loss_amount: requestNumber(petty, "companyLossAmount") || 0,
+      p_counterparty_person_id: counterpartyIsLinked
+        ? requestValue(petty, "counterpartyPersonId")
+        : null,
+      p_description: requestValue(petty, "description"),
+      p_economic_scope: requestValue(petty, "economicScope") || "property_expense",
+      p_entry_kind: requestValue(petty, "entryKind"),
+      p_idempotency_key: requestValue(petty, "idempotencyKey"),
+      p_invoice_date: requestValue(petty, "invoiceDate"),
+      p_organization_id: organizationId,
+      p_owner_bill_status: requestValue(petty, "ownerBillStatus") || "not_billable",
+      p_owner_reimbursable_amount:
+        requestNumber(petty, "ownerReimbursableAmount") || 0,
+      p_owner_reimbursed_amount: requestNumber(petty, "ownerReimbursedAmount") || 0,
+      p_period_id: requestValue(petty, "periodId"),
+      p_property_id: requestValue(petty, "propertyId") || null,
+      p_receipt_reference: requestValue(petty, "receiptReference") || null,
+      p_remark: requestValue(petty, "remark") || null,
+      p_status: requestValue(petty, "status"),
+      p_supplier: counterpartyIsLinked ? null : requestValue(petty, "supplier"),
+      p_unit_id: requestValue(petty, "unitId") || null,
+    },
+    `SELECT id::text FROM public.petty_cash_entries WHERE category = 'FM-DAY-CASH'`,
+  );
+
+  await assertStableRpcReplay(
+    cwd,
+    client,
+    "post-petty-cash-entry",
+    "post_petty_cash_entry",
+    {
+      p_entry_id: requestValue(requests.pettyCashPostRequest, "entryId"),
+      p_organization_id: organizationId,
+    },
+    `SELECT ledger_entry_id::text FROM public.petty_cash_entries WHERE category = 'FM-DAY-CASH'`,
+  );
+
+  await assertStableRpcReplay(
+    cwd,
+    client,
+    "retry-current-rent",
+    "recover_rent_generation_exception",
+    {
+      p_exception_id: requestValue(requests.retryRequest, "exceptionId"),
+      p_organization_id: organizationId,
+    },
+    `SELECT resolved_invoice_id::text FROM public.rent_generation_exceptions WHERE id = '${requestValue(requests.retryRequest, "exceptionId")}'`,
+  );
+}
+
+async function assertStableRpcReplay(cwd, client, stage, rpc, args, sourceSql) {
+  const originalSourceId = queryDatabaseValue(cwd, sourceSql, stage);
+  if (!originalSourceId) {
+    throw new Error(formatFinanceManagerDayFailure(stage, "database assertion failed"));
+  }
+  const { error } = await client.rpc(rpc, args);
+  if (error) {
+    throw new Error(formatFinanceManagerDayFailure(stage, "mutation failed"));
+  }
+  const replaySourceId = queryDatabaseValue(cwd, sourceSql, stage);
+  if (replaySourceId !== originalSourceId) {
+    throw new Error(formatFinanceManagerDayFailure(stage, "database assertion failed"));
+  }
+  pass(`${stage}-same-request-replay`);
+}
+
+async function assertRejectedMonthLockReplay(client, request) {
+  const { error } = await client.rpc("set_financial_month_lock", {
+    p_locked: requestValue(request, "lockState") === "locked",
+    p_month_start: `${requestValue(request, "periodStart")}-01`,
+    p_organization_id: "00000000-0000-0000-0000-000000000001",
+    p_reason: requestValue(request, "reason"),
+  });
+  if (!error?.message.includes("Financial month is already locked")) {
+    throw new Error(formatFinanceManagerDayFailure("lock-financial-month", "mutation failed"));
+  }
+  pass("lock-financial-month-rejected-replay");
 }
 
 async function chooseSelect(page, label, option) {
@@ -360,12 +677,29 @@ async function lockCurrentMonth(page, baseUrl) {
   await requireAbsent(page.getByRole("option", { name: "Unlock" }), "unlock-financial-month");
   await page.keyboard.press("Escape");
   await page.getByRole("textbox", { name: "Reason" }).fill("Finance Manager daily close smoke");
+  const monthLockRequest = await readFormRequest(
+    page.getByRole("dialog", { name: "Month lock" }),
+  );
   await page.getByRole("button", { name: "Update month" }).click();
   await requireVisible(page.getByText("Month locked.", { exact: true }), "lock-financial-month");
+  return monthLockRequest;
 }
 
 async function assertReportExports(page, baseUrl) {
-  await gotoPath(page, baseUrl, "/reports/unit-profit-loss", "report-detail");
+  const globalNavigation = page.getByRole("navigation", {
+    name: "Global navigation",
+  });
+  await requireVisible(
+    globalNavigation.getByRole("link", { name: "Reports", exact: true }),
+    "reports-navigation-control",
+  );
+  await globalNavigation.getByRole("link", { name: "Reports", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/reports", { timeout: 20_000 });
+  pass("navigate-to-reports");
+  await page.getByRole("link", { name: /Monthly Unit Profit & Loss/ }).click();
+  await page.waitForURL((url) => url.pathname === "/reports/unit-profit-loss", {
+    timeout: 20_000,
+  });
   await requireAbsent(page.getByText("Owner Statement", { exact: true }), "owner-statement-unavailable");
   await page.getByRole("button", { name: "Export" }).click();
   const pdfHref = await page.getByRole("menuitem", { name: "PDF" }).getAttribute("href");

@@ -115,6 +115,7 @@ SELECT ok(
   (
     SELECT procedure.prosrc LIKE '%app_private.can_manage_petty_cash(p_organization_id)%'
       AND procedure.prosrc NOT LIKE '%app_private.is_org_admin(p_organization_id)%'
+      AND procedure.prosrc LIKE '%app_private.claim_financial_idempotency(%'
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
     WHERE namespace.nspname = 'public'
@@ -131,13 +132,14 @@ SELECT ok(
   AND (
     SELECT procedure.prosrc LIKE '%app_private.can_lock_financial_month(p_organization_id)%'
       AND procedure.prosrc LIKE '%app_private.can_unlock_financial_month(p_organization_id)%'
-      AND procedure.prosrc NOT LIKE '%app_private.is_org_admin(p_organization_id)%'
+      AND procedure.prosrc LIKE '%app_private.is_super_admin(p_organization_id)%'
+      AND procedure.prosrc LIKE '%Finance Manager can lock only the current operational month%'
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
     WHERE namespace.nspname = 'public'
       AND procedure.proname = 'set_financial_month_lock'
   ),
-  'daily Finance commands consume only their operation-specific predicates'
+  'daily Finance commands consume operation-specific predicates and the narrow Super Admin lock exception'
 );
 
 CREATE TEMP TABLE granular_authority_state (

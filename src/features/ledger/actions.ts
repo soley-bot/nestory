@@ -76,6 +76,17 @@ export async function setLedgerPeriodLockAction(
     ? await requireFinancialMonthLockContext()
     : await requireFinancialMonthUnlockContext();
 
+  if (
+    parsed.data.lockState === "locked" &&
+    context.role === "finance_manager" &&
+    parsed.data.reason.length === 0
+  ) {
+    return {
+      fieldErrors: { reason: ["Enter an operational lock reason."] },
+      status: "error",
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("set_financial_month_lock", {
     p_locked: parsed.data.lockState === "locked",

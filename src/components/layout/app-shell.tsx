@@ -203,6 +203,9 @@ const ADMIN_GLOBAL_DESTINATIONS = [
 const FINANCE_GLOBAL_DESTINATIONS = ADMIN_GLOBAL_DESTINATIONS.filter(
   (destination) => destination.id === "finance",
 );
+const FINANCE_MANAGER_GLOBAL_DESTINATIONS = ADMIN_GLOBAL_DESTINATIONS.filter(
+  (destination) => destination.id === "finance" || destination.id === "reports",
+);
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -217,7 +220,10 @@ function getGlobalDestinations(
   role: WorkspaceRole,
 ): readonly GlobalDestination[] {
   if (role === "super_admin") return ADMIN_GLOBAL_DESTINATIONS;
-  if (role === "finance_manager" || role === "finance_member") {
+  if (role === "finance_manager") {
+    return FINANCE_MANAGER_GLOBAL_DESTINATIONS;
+  }
+  if (role === "finance_member") {
     return FINANCE_GLOBAL_DESTINATIONS;
   }
 

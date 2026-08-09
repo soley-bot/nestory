@@ -72,6 +72,7 @@ describe("petty cash actions", () => {
       "create_petty_cash_entry",
       expect.objectContaining({
         p_counterparty_person_id: personId,
+        p_idempotency_key: "petty-entry-request-0001",
         p_supplier: null,
       }),
     );
@@ -210,6 +211,7 @@ function makeEntryFormData() {
   formData.set("economicScope", "property_expense");
   formData.set("entryKind", "expense");
   formData.set("invoiceDate", "2026-07-10");
+  formData.set("idempotencyKey", "petty-entry-request-0001");
   formData.set("ownerBillStatus", "not_billable");
   formData.set("ownerReimbursableAmount", "0");
   formData.set("ownerReimbursedAmount", "0");

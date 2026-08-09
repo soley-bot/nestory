@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(86);
+SELECT plan(88);
 
 SELECT has_column(
   'public',
@@ -1284,6 +1284,64 @@ SELECT results_eq(
   $$,
   $$ VALUES (1, 1, 1) $$,
   'successful current retry creates exactly one invoice, income item, and management fee'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_manager_id::text FROM lease_rent_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    UPDATE lease_rent_state
+    SET current_retry_result = public.recover_rent_generation_exception(
+      organization_id,
+      (
+        SELECT id
+        FROM public.rent_generation_exceptions
+        WHERE lease_id = lease_rent_state.blocked_lease_id
+          AND billing_period_start = lease_rent_state.current_period_start
+      )
+    )
+  $$,
+  'Finance Manager can safely replay the same successful current exception request'
+);
+
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      state.current_retry_result ->> 'status',
+      state.current_retry_result ->> 'invoiceId',
+      exception.resolved_invoice_id::text,
+      (
+        SELECT count(*)::integer
+        FROM public.tenant_invoices
+        WHERE lease_id = state.blocked_lease_id
+          AND billing_period_start = state.current_period_start
+      )
+    FROM lease_rent_state AS state
+    JOIN public.rent_generation_exceptions AS exception
+      ON exception.organization_id = state.organization_id
+     AND exception.lease_id = state.blocked_lease_id
+     AND exception.billing_period_start = state.current_period_start
+  $$,
+  $$
+    SELECT
+      'already_generated'::text,
+      resolved_invoice_id::text,
+      resolved_invoice_id::text,
+      1
+    FROM public.rent_generation_exceptions AS exception
+    JOIN lease_rent_state AS state
+      ON state.organization_id = exception.organization_id
+     AND state.blocked_lease_id = exception.lease_id
+     AND state.current_period_start = exception.billing_period_start
+  $$,
+  'same current-exception replay returns the original invoice without duplicates'
 );
 
 SELECT results_eq(

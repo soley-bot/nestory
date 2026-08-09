@@ -58,6 +58,7 @@ describe("Finance read routes", () => {
           canLockFinancialMonth: role === "finance_manager",
           canManageFinanceOperations: false,
           canManagePettyCash: role === "finance_manager",
+          canReadFinanceReports: role === "finance_manager",
           canUnlockFinancialMonth: false,
         },
         organizationId: "organization-1",
@@ -75,9 +76,14 @@ describe("Finance read routes", () => {
           ? {
               canLockFinancialMonth: true,
               canManageFinance: false,
+              canReadFinanceReports: true,
               canUnlockFinancialMonth: false,
             }
-          : { canManageFinance: false, canManagePettyCash: false },
+          : {
+              canManageFinance: false,
+              canManagePettyCash: false,
+              canReadFinanceReports: false,
+            },
       ));
     },
   );
@@ -88,6 +94,7 @@ describe("Finance read routes", () => {
         canLockFinancialMonth: true,
         canManageFinanceOperations: true,
         canManagePettyCash: true,
+        canReadFinanceReports: true,
         canUnlockFinancialMonth: true,
       },
       organizationId: "organization-1",
@@ -105,6 +112,7 @@ describe("Finance read routes", () => {
       expect.objectContaining({
         canLockFinancialMonth: true,
         canManageFinance: true,
+        canReadFinanceReports: true,
         canUnlockFinancialMonth: true,
       }),
     );
@@ -112,6 +120,7 @@ describe("Finance read routes", () => {
       expect.objectContaining({
         canManageFinance: true,
         canManagePettyCash: true,
+        canReadFinanceReports: true,
       }),
     );
   });

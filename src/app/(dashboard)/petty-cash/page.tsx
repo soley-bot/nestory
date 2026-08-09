@@ -25,6 +25,7 @@ export default async function PettyCashPage({
       {...data}
       canManageFinance={context.capabilities.canManageFinanceOperations}
       canManagePettyCash={context.capabilities.canManagePettyCash}
+      canReadFinanceReports={context.capabilities.canReadFinanceReports}
     />
   );
 }

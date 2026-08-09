@@ -21,6 +21,7 @@ test("defines the local Finance Manager day journey and every required allowed s
     "post-petty-cash-entry",
     "lock-financial-month",
     "read-ledger",
+    "navigate-to-reports",
     "export-pdf",
     "export-excel",
   ]);
@@ -41,6 +42,23 @@ test("declares every forbidden structural, maker-checker, and correction control
     "owner-statement-unavailable",
     "reconciliation-source-configuration",
   ]);
+});
+
+test("declares same-request replay coverage for every keyed ordinary create or review", () => {
+  assert.deepEqual(financeManagerDaySmokeContract.replayCoverage, {
+    sameRequestKey: [
+      "record-payment",
+      "confirm-owner-direct-collection",
+      "record-owner-invoice-payment",
+      "record-capacity-withdrawal",
+      "review-paid-cost",
+      "create-petty-cash-entry",
+    ],
+    naturalIdentity: ["retry-current-rent", "post-petty-cash-entry"],
+    rejectedReplay: ["lock-financial-month"],
+    unavailable: [],
+  });
+  assert.ok(financeManagerDaySmokeContract.allowed.includes("navigate-to-reports"));
 });
 
 test("accepts only a local URL and keeps the password out of diagnostics", () => {

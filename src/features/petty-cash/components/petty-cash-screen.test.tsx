@@ -320,6 +320,13 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(screen.queryByRole("button", { name: "Add account" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Open next month" })).toBeNull();
 
+    await user.click(screen.getByRole("button", { name: "Add cash row" }));
+    expect(
+      (document.querySelector('input[name="idempotencyKey"]') as HTMLInputElement)
+        ?.value,
+    ).toMatch(/^petty-entry-/);
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+
     await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
     const inspector = screen.getByRole("dialog", {
       name: "Cleaning cash quick view",

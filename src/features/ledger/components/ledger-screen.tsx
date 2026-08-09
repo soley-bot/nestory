@@ -60,6 +60,7 @@ type DrawerState =
 type LedgerScreenProps = {
   canLockFinancialMonth?: boolean;
   canManageFinance?: boolean;
+  canReadFinanceReports?: boolean;
   canUnlockFinancialMonth?: boolean;
   entries: LedgerEntry[];
   initialEntryId?: string;
@@ -74,6 +75,7 @@ type LedgerScreenProps = {
 export function LedgerScreen({
   canManageFinance = true,
   canLockFinancialMonth = canManageFinance,
+  canReadFinanceReports = false,
   canUnlockFinancialMonth = canManageFinance,
   entries,
   initialEntryId,
@@ -222,7 +224,10 @@ export function LedgerScreen({
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/ledger"
       localNav={(
-        <FinanceWorkspaceNavigation activeRoute="/ledger" />
+        <FinanceWorkspaceNavigation
+          activeRoute="/ledger"
+          canReadFinanceReports={canReadFinanceReports}
+        />
       )}
       title="Financial Ledger"
     >
@@ -632,7 +637,11 @@ function PeriodLockPanel({
     <form action={action} className="flex h-full flex-col">
       <div className="flex-1 space-y-5 px-4 py-5 sm:px-5">
         <ConsequencePanel
-          summary="Locking prevents changes to historical financial records in the selected month. Unlocking reopens that month for authorized changes."
+          summary={
+            canUnlockFinancialMonth
+              ? "Locking prevents changes to historical financial records in the selected month. Unlocking reopens that month for authorized changes."
+              : "Locking closes the current open operational month to further financial changes. A reason is required, and only Super Admin can unlock it."
+          }
           title="Month lock consequence"
         />
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
@@ -674,6 +683,7 @@ function PeriodLockPanel({
             className="mt-2"
             name="reason"
             placeholder="Routine month lock, correction window, or audit note"
+            required={!canUnlockFinancialMonth}
           />
           {state.fieldErrors?.reason?.[0] ? (
             <p className="mt-1 text-xs text-danger">

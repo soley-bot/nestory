@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(22);
+SELECT plan(27);
 
 CREATE TEMP TABLE financial_month_lock_test_state (
   super_admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -14,6 +14,7 @@ CREATE TEMP TABLE financial_month_lock_test_state (
   branch_id uuid NOT NULL DEFAULT gen_random_uuid(),
   operations_manager_person_id uuid NOT NULL DEFAULT gen_random_uuid(),
   operations_member_person_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  current_month_start date,
   organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
   cross_organization_id uuid NOT NULL DEFAULT gen_random_uuid()
 ) ON COMMIT DROP;
@@ -105,6 +106,12 @@ FROM financial_month_lock_test_state
 UNION ALL
 SELECT organization_id, finance_manager_id, 'finance_manager'
 FROM financial_month_lock_test_state;
+
+UPDATE financial_month_lock_test_state
+SET current_month_start = date_trunc(
+  'month',
+  app_private.rent_business_date(organization_id, now())
+)::date;
 
 INSERT INTO public.organization_branches (id, organization_id, name, code)
 SELECT branch_id, organization_id, 'Month lock branch', 'LOCK'
@@ -281,25 +288,85 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start - interval '1 month' FROM financial_month_lock_test_state),
+    'Finance Manager past lock'
+  ),
+  '22023',
+  'Finance Manager can lock only the current operational month',
+  'Finance Manager cannot lock a past operational month'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start + interval '1 month' FROM financial_month_lock_test_state),
+    'Finance Manager future lock'
+  ),
+  '22023',
+  'Finance Manager can lock only the current operational month',
+  'Finance Manager cannot lock a future operational month'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start FROM financial_month_lock_test_state),
+    '   '
+  ),
+  '22023',
+  'Finance Manager lock reason is required',
+  'Finance Manager cannot lock without a trimmed reason'
+);
+
 SELECT lives_ok(
   format(
     'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
     (SELECT organization_id FROM financial_month_lock_test_state),
-    '2026-09-01',
+    (SELECT current_month_start FROM financial_month_lock_test_state),
     'Finance Manager month-end lock'
   ),
-  'Finance Manager can lock an operational month'
+  'Finance Manager can lock the current open operational month'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start FROM financial_month_lock_test_state),
+    'Finance Manager duplicate lock'
+  ),
+  '22023',
+  'Financial month is already locked',
+  'Finance Manager cannot lock an already locked operational month'
 );
 
 SELECT throws_ok(
   format(
     'SELECT public.set_financial_month_lock(%L,%L,false,%L)',
     (SELECT organization_id FROM financial_month_lock_test_state),
-    '2026-09-01',
+    (SELECT current_month_start FROM financial_month_lock_test_state),
     'Finance Manager cannot reopen'
   ),
   '42501', 'Not authorized',
   'Finance Manager cannot unlock an operational month'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT cross_organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start FROM financial_month_lock_test_state),
+    'Finance Manager cross organization attempt'
+  ),
+  '42501',
+  'Not authorized',
+  'Finance Manager cannot lock another organization current month'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT finance_member_id::text FROM financial_month_lock_test_state), true);

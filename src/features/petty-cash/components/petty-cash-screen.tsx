@@ -87,6 +87,7 @@ type PettyCashScreenProps = {
   accounts: PettyCashAccount[];
   canManageFinance?: boolean;
   canManagePettyCash?: boolean;
+  canReadFinanceReports?: boolean;
   counterpartyOptions: PersonSelectOption[];
   entries: PettyCashEntry[];
   focusedEntryId?: string;
@@ -104,6 +105,7 @@ export function PettyCashScreen({
   accounts,
   canManageFinance = true,
   canManagePettyCash = canManageFinance,
+  canReadFinanceReports = false,
   counterpartyOptions,
   entries,
   focusedEntryId,
@@ -257,7 +259,10 @@ export function PettyCashScreen({
       }
       contextHref="/petty-cash"
       localNav={(
-        <FinanceWorkspaceNavigation activeRoute="/petty-cash" />
+        <FinanceWorkspaceNavigation
+          activeRoute="/petty-cash"
+          canReadFinanceReports={canReadFinanceReports}
+        />
       )}
       title="Petty Cash"
     >
@@ -1044,6 +1049,9 @@ function PettyCashEntryForm({
         ? PERSON_SELECT_EXTERNAL_VALUE
         : ""),
   );
+  const [idempotencyKey] = useState(() =>
+    entry ? "" : `petty-entry-${globalThis.crypto.randomUUID()}`,
+  );
   const [state, action, pending] = useActionState(
     entry ? updatePettyCashEntryAction : createPettyCashEntryAction,
     entryInitialState,
@@ -1085,6 +1093,9 @@ function PettyCashEntryForm({
       <input name="accountId" type="hidden" value={account.id} />
       <input name="periodId" type="hidden" value={period.id} />
       {entry ? <input name="entryId" type="hidden" value={entry.id} /> : null}
+      {entry ? null : (
+        <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      )}
       <input
         name="counterpartyMode"
         type="hidden"

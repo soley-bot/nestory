@@ -18,6 +18,7 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
       {...data}
       canLockFinancialMonth={context.capabilities.canLockFinancialMonth}
       canManageFinance={context.capabilities.canManageFinanceOperations}
+      canReadFinanceReports={context.capabilities.canReadFinanceReports}
       canUnlockFinancialMonth={context.capabilities.canUnlockFinancialMonth}
       initialEntryId={query.entryId ?? undefined}
     />
