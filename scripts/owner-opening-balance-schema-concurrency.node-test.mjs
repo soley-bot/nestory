@@ -106,10 +106,8 @@ function raceAgainstUncommittedWriter(container, firstSql, secondSql) {
     let secondResult;
     let launched = false;
 
-    first.stderr.on("data", (chunk) => { firstStderr += chunk; });
-    first.stdout.on("data", (chunk) => {
-      firstStdout += chunk;
-      if (!launched && firstStdout.includes("writer_ready")) {
+    function launchSecondWhenReady(output) {
+      if (!launched && output.includes("writer_ready")) {
         launched = true;
         secondResult = spawnSync("docker", psqlArgs(container, secondSql), {
           cwd: repoRoot,
@@ -117,6 +115,15 @@ function raceAgainstUncommittedWriter(container, firstSql, secondSql) {
           shell: false,
         });
       }
+    }
+
+    first.stderr.on("data", (chunk) => {
+      firstStderr += chunk;
+      launchSecondWhenReady(firstStderr);
+    });
+    first.stdout.on("data", (chunk) => {
+      firstStdout += chunk;
+      launchSecondWhenReady(firstStdout);
     });
     first.on("error", reject);
     first.on("close", (status) => {
@@ -154,18 +161,18 @@ const staleRaceIds = {
   propertyOwner: "a2130000-0000-4000-8000-000000000004",
   submitter: "a2130000-0000-4000-8000-000000000005",
   reviewer: "a2130000-0000-4000-8000-000000000006",
-  pendingFirstOpeningRequest: "a2130000-0000-4000-8000-000000000011",
-  pendingFirstTarget: "a2130000-0000-4000-8000-000000000012",
-  pendingFirstApprovedCorrection: "a2130000-0000-4000-8000-000000000013",
-  pendingFirstRequest: "a2130000-0000-4000-8000-000000000014",
-  pendingFirstReversal: "a2130000-0000-4000-8000-000000000015",
-  pendingFirstReplacement: "a2130000-0000-4000-8000-000000000016",
-  reversalFirstOpeningRequest: "a2130000-0000-4000-8000-000000000021",
-  reversalFirstTarget: "a2130000-0000-4000-8000-000000000022",
-  reversalFirstApprovedCorrection: "a2130000-0000-4000-8000-000000000023",
-  reversalFirstRequest: "a2130000-0000-4000-8000-000000000024",
-  reversalFirstReversal: "a2130000-0000-4000-8000-000000000025",
-  reversalFirstReplacement: "a2130000-0000-4000-8000-000000000026",
+  approvalFirstOpeningRequest: "a2130000-0000-4000-8000-000000000011",
+  approvalFirstTarget: "a2130000-0000-4000-8000-000000000012",
+  approvalFirstCorrectionA: "a2130000-0000-4000-8000-000000000013",
+  approvalFirstCorrectionB: "a2130000-0000-4000-8000-000000000014",
+  approvalFirstReversal: "a2130000-0000-4000-8000-000000000015",
+  approvalFirstReplacement: "a2130000-0000-4000-8000-000000000016",
+  submissionFirstOpeningRequest: "a2130000-0000-4000-8000-000000000021",
+  submissionFirstTarget: "a2130000-0000-4000-8000-000000000022",
+  submissionFirstCorrectionA: "a2130000-0000-4000-8000-000000000023",
+  submissionFirstCorrectionB: "a2130000-0000-4000-8000-000000000024",
+  submissionFirstReversal: "a2130000-0000-4000-8000-000000000025",
+  submissionFirstReplacement: "a2130000-0000-4000-8000-000000000026",
 };
 
 function requestInsert({ id, component, kind, correctionTarget = null }) {
@@ -333,9 +340,68 @@ test("two sessions enforce one submitted initial key and one submitted correctio
   );
 });
 
-test("pending correction and reversal serialize on current authority in both orderings", async () => {
+test("valid correction approval and new submission use one deadlock-free target-first order", async () => {
   const container = databaseContainer();
   const race = staleRaceIds;
+
+  const correctionInsert = ({ id, target, component, amount, hash }) => `
+    INSERT INTO public.owner_opening_balance_requests (
+      id, organization_id, property_id, owner_person_id, property_owner_id,
+      ownership_percent_snapshot, ownership_roster_hash, currency,
+      effective_date, component, request_kind, proposed_amount,
+      correction_of_entry_id, reason, source_reference, evidence_sha256,
+      payload_hash, submitted_by
+    ) VALUES (
+      '${id}', '${race.organization}', '${race.property}', '${race.owner}',
+      '${race.propertyOwner}', 100.000, repeat('a', 64), 'USD', '2026-08-01',
+      '${component}', 'correction', ${amount}, '${target}',
+      'Concurrent correction evidence', 'IPS cutover correction race',
+      repeat('${hash}', 64), repeat('${hash}', 64), '${race.submitter}'
+    )`;
+
+  const approvalTransaction = ({
+    request,
+    target,
+    reversal,
+    replacement,
+    component,
+    originalAmount,
+    replacementAmount,
+    markAfterUpdate = false,
+  }) => `
+    BEGIN;
+    SET LOCAL statement_timeout = '8s';
+    SELECT set_config(
+      'app.owner_opening_request_review_context',
+      'checked-review-v1',
+      true
+    );
+    UPDATE public.owner_opening_balance_requests
+    SET status = 'approved', reviewed_at = now(), reviewed_by = '${race.reviewer}'
+    WHERE id = '${request}';
+    ${markAfterUpdate ? "SELECT 'writer_ready'; SELECT pg_sleep(1);" : ""}
+    INSERT INTO public.owner_opening_balance_entries (
+      id, request_id, organization_id, property_id, owner_person_id,
+      property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
+      currency, effective_date, component, entry_kind, signed_amount,
+      reversal_of_entry_id, created_by
+    ) VALUES (
+      '${reversal}', '${request}', '${race.organization}', '${race.property}',
+      '${race.owner}', '${race.propertyOwner}', 100.000, repeat('a', 64),
+      'USD', '2026-08-01', '${component}', 'correction_reversal',
+      -${originalAmount}, '${target}', '${race.reviewer}'
+    );
+    INSERT INTO public.owner_opening_balance_entries (
+      id, request_id, organization_id, property_id, owner_person_id,
+      property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
+      currency, effective_date, component, entry_kind, signed_amount, created_by
+    ) VALUES (
+      '${replacement}', '${request}', '${race.organization}', '${race.property}',
+      '${race.owner}', '${race.propertyOwner}', 100.000, repeat('a', 64),
+      'USD', '2026-08-01', '${component}', 'correction_replacement',
+      ${replacementAmount}, '${race.reviewer}'
+    );
+    COMMIT;`;
 
   run(container, `
     BEGIN;
@@ -347,24 +413,24 @@ test("pending correction and reversal serialize on current authority in both ord
     ) VALUES
     (
       '00000000-0000-0000-0000-000000000000', '${race.submitter}',
-      'authenticated', 'authenticated', 'owner-opening-stale-submit@example.test',
-      extensions.crypt('owner-opening-stale-race', extensions.gen_salt('bf')),
+      'authenticated', 'authenticated', 'owner-opening-race-submit@example.test',
+      extensions.crypt('owner-opening-race', extensions.gen_salt('bf')),
       now(), '', '', '', '', '', '',
       '{"provider":"email","providers":["email"]}', '{}', now(), now()
     ),
     (
       '00000000-0000-0000-0000-000000000000', '${race.reviewer}',
-      'authenticated', 'authenticated', 'owner-opening-stale-review@example.test',
-      extensions.crypt('owner-opening-stale-race', extensions.gen_salt('bf')),
+      'authenticated', 'authenticated', 'owner-opening-race-review@example.test',
+      extensions.crypt('owner-opening-race', extensions.gen_salt('bf')),
       now(), '', '', '', '', '', '',
       '{"provider":"email","providers":["email"]}', '{}', now(), now()
     );
     INSERT INTO public.organizations (id, name, slug)
-    VALUES ('${race.organization}', 'Owner opening stale race', 'owner-opening-stale-race');
+    VALUES ('${race.organization}', 'Owner opening approval race', 'owner-opening-approval-race');
     INSERT INTO public.properties (id, organization_id, name, code, property_type)
-    VALUES ('${race.property}', '${race.organization}', 'Stale race property', 'OPEN-RACE', 'Apartment');
+    VALUES ('${race.property}', '${race.organization}', 'Approval race property', 'OPEN-RACE', 'Apartment');
     INSERT INTO public.people (id, organization_id, display_name)
-    VALUES ('${race.owner}', '${race.organization}', 'Stale race owner');
+    VALUES ('${race.owner}', '${race.organization}', 'Approval race owner');
     INSERT INTO public.person_roles (organization_id, person_id, role, status)
     VALUES ('${race.organization}', '${race.owner}', 'owner', 'active');
     INSERT INTO public.property_owners (
@@ -380,17 +446,17 @@ test("pending correction and reversal serialize on current authority in both ord
       source_reference, evidence_sha256, payload_hash, submitted_by
     ) VALUES
     (
-      '${race.pendingFirstOpeningRequest}', '${race.organization}',
+      '${race.approvalFirstOpeningRequest}', '${race.organization}',
       '${race.property}', '${race.owner}', '${race.propertyOwner}', 100.000,
       repeat('a', 64), 'USD', '2026-08-01', 'ips_due_to_owner', 'initial',
-      10.00, 'Pending-first opening authority', 'IPS cutover pending-first source',
+      10.00, 'Approval-first opening', 'IPS cutover approval-first source',
       repeat('1', 64), repeat('2', 64), '${race.submitter}'
     ),
     (
-      '${race.reversalFirstOpeningRequest}', '${race.organization}',
+      '${race.submissionFirstOpeningRequest}', '${race.organization}',
       '${race.property}', '${race.owner}', '${race.propertyOwner}', 100.000,
       repeat('a', 64), 'USD', '2026-08-01', 'security_deposit_custody', 'initial',
-      20.00, 'Reversal-first opening authority', 'IPS cutover reversal-first source',
+      20.00, 'Submission-first opening', 'IPS cutover submission-first source',
       repeat('3', 64), repeat('4', 64), '${race.submitter}'
     );
     SELECT set_config(
@@ -401,8 +467,8 @@ test("pending correction and reversal serialize on current authority in both ord
     UPDATE public.owner_opening_balance_requests
     SET status = 'approved', reviewed_at = now(), reviewed_by = '${race.reviewer}'
     WHERE id IN (
-      '${race.pendingFirstOpeningRequest}',
-      '${race.reversalFirstOpeningRequest}'
+      '${race.approvalFirstOpeningRequest}',
+      '${race.submissionFirstOpeningRequest}'
     );
     INSERT INTO public.owner_opening_balance_entries (
       id, request_id, organization_id, property_id, owner_person_id,
@@ -410,211 +476,153 @@ test("pending correction and reversal serialize on current authority in both ord
       currency, effective_date, component, entry_kind, signed_amount, created_by
     ) VALUES
     (
-      '${race.pendingFirstTarget}', '${race.pendingFirstOpeningRequest}',
+      '${race.approvalFirstTarget}', '${race.approvalFirstOpeningRequest}',
       '${race.organization}', '${race.property}', '${race.owner}',
       '${race.propertyOwner}', 100.000, repeat('a', 64), 'USD', '2026-08-01',
       'ips_due_to_owner', 'opening', 10.00, '${race.reviewer}'
     ),
     (
-      '${race.reversalFirstTarget}', '${race.reversalFirstOpeningRequest}',
+      '${race.submissionFirstTarget}', '${race.submissionFirstOpeningRequest}',
       '${race.organization}', '${race.property}', '${race.owner}',
       '${race.propertyOwner}', 100.000, repeat('a', 64), 'USD', '2026-08-01',
       'security_deposit_custody', 'opening', 20.00, '${race.reviewer}'
     );
-    COMMIT;
-  `);
-
-  run(container, `
-    BEGIN;
-    DO $seed$
-    BEGIN
-      IF EXISTS (
-        SELECT 1 FROM pg_trigger
-        WHERE tgrelid = to_regclass('public.owner_opening_balance_requests')
-          AND tgname = 'owner_opening_balance_approved_entries_complete'
-      ) THEN
-        ALTER TABLE public.owner_opening_balance_requests
-          DISABLE TRIGGER owner_opening_balance_approved_entries_complete;
-      END IF;
-    END
-    $seed$;
-    INSERT INTO public.owner_opening_balance_requests (
-      id, organization_id, property_id, owner_person_id, property_owner_id,
-      ownership_percent_snapshot, ownership_roster_hash, currency,
-      effective_date, component, request_kind, proposed_amount,
-      correction_of_entry_id, reason, source_reference, evidence_sha256,
-      payload_hash, submitted_by
-    ) VALUES
-    (
-      '${race.pendingFirstApprovedCorrection}', '${race.organization}',
-      '${race.property}', '${race.owner}', '${race.propertyOwner}', 100.000,
-      repeat('a', 64), 'USD', '2026-08-01', 'ips_due_to_owner', 'correction',
-      7.00, '${race.pendingFirstTarget}', 'Pending-first reviewer transaction',
-      'IPS cutover pending-first review', repeat('5', 64), repeat('6', 64),
-      '${race.submitter}'
-    ),
-    (
-      '${race.reversalFirstApprovedCorrection}', '${race.organization}',
-      '${race.property}', '${race.owner}', '${race.propertyOwner}', 100.000,
-      repeat('a', 64), 'USD', '2026-08-01', 'security_deposit_custody', 'correction',
-      17.00, '${race.reversalFirstTarget}', 'Reversal-first reviewer transaction',
-      'IPS cutover reversal-first review', repeat('7', 64), repeat('8', 64),
-      '${race.submitter}'
-    );
-    SELECT set_config(
-      'app.owner_opening_request_review_context',
-      'checked-review-v1',
-      true
-    );
-    UPDATE public.owner_opening_balance_requests
-    SET status = 'approved', reviewed_at = now(), reviewed_by = '${race.reviewer}'
-    WHERE id IN (
-      '${race.pendingFirstApprovedCorrection}',
-      '${race.reversalFirstApprovedCorrection}'
-    );
-    DO $seed$
-    BEGIN
-      IF EXISTS (
-        SELECT 1 FROM pg_trigger
-        WHERE tgrelid = to_regclass('public.owner_opening_balance_requests')
-          AND tgname = 'owner_opening_balance_approved_entries_complete'
-      ) THEN
-        ALTER TABLE public.owner_opening_balance_requests
-          ENABLE TRIGGER owner_opening_balance_approved_entries_complete;
-      END IF;
-    END
-    $seed$;
+    ${correctionInsert({
+      id: race.approvalFirstCorrectionA,
+      target: race.approvalFirstTarget,
+      component: "ips_due_to_owner",
+      amount: "7.00",
+      hash: "5",
+    })};
+    ${correctionInsert({
+      id: race.submissionFirstCorrectionA,
+      target: race.submissionFirstTarget,
+      component: "security_deposit_custody",
+      amount: "17.00",
+      hash: "6",
+    })};
     COMMIT;
   `);
 
   try {
-    const pendingFirst = await raceAgainstUncommittedWriter(
+    const approvalFirst = await raceAgainstUncommittedWriter(
       container,
-      `BEGIN;
-       INSERT INTO public.owner_opening_balance_requests (
-         id, organization_id, property_id, owner_person_id, property_owner_id,
-         ownership_percent_snapshot, ownership_roster_hash, currency,
-         effective_date, component, request_kind, proposed_amount,
-         correction_of_entry_id, reason, source_reference, evidence_sha256,
-         payload_hash, submitted_by
-       ) VALUES (
-         '${race.pendingFirstRequest}', '${race.organization}', '${race.property}',
-         '${race.owner}', '${race.propertyOwner}', 100.000, repeat('a', 64),
-         'USD', '2026-08-01', 'ips_due_to_owner', 'correction', 6.00,
-         '${race.pendingFirstTarget}', 'Concurrent pending correction',
-         'IPS cutover concurrent pending correction', repeat('9', 64),
-         repeat('a', 64), '${race.submitter}'
-       );
-       SELECT 'writer_ready'; SELECT pg_sleep(1); COMMIT;`,
-      `BEGIN;
-       INSERT INTO public.owner_opening_balance_entries (
-         id, request_id, organization_id, property_id, owner_person_id,
-         property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
-         currency, effective_date, component, entry_kind, signed_amount,
-         reversal_of_entry_id, created_by
-       ) VALUES (
-         '${race.pendingFirstReversal}', '${race.pendingFirstApprovedCorrection}',
-         '${race.organization}', '${race.property}', '${race.owner}',
-         '${race.propertyOwner}', 100.000, repeat('a', 64), 'USD', '2026-08-01',
-         'ips_due_to_owner', 'correction_reversal', -10.00,
-         '${race.pendingFirstTarget}', '${race.reviewer}'
-       );
-       INSERT INTO public.owner_opening_balance_entries (
-         id, request_id, organization_id, property_id, owner_person_id,
-         property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
-         currency, effective_date, component, entry_kind, signed_amount, created_by
-       ) VALUES (
-         '${race.pendingFirstReplacement}', '${race.pendingFirstApprovedCorrection}',
-         '${race.organization}', '${race.property}', '${race.owner}',
-         '${race.propertyOwner}', 100.000, repeat('a', 64), 'USD', '2026-08-01',
-         'ips_due_to_owner', 'correction_replacement', 7.00, '${race.reviewer}'
-       );
-       COMMIT;`,
+      approvalTransaction({
+        request: race.approvalFirstCorrectionA,
+        target: race.approvalFirstTarget,
+        reversal: race.approvalFirstReversal,
+        replacement: race.approvalFirstReplacement,
+        component: "ips_due_to_owner",
+        originalAmount: "10.00",
+        replacementAmount: "7.00",
+        markAfterUpdate: true,
+      }),
+      correctionInsert({
+        id: race.approvalFirstCorrectionB,
+        target: race.approvalFirstTarget,
+        component: "ips_due_to_owner",
+        amount: "6.00",
+        hash: "7",
+      }),
     );
+    const approvalFirstErrors =
+      `${approvalFirst.first.stderr}\n${approvalFirst.second.stderr}`;
+    assert.doesNotMatch(approvalFirstErrors, /deadlock detected/i);
     assert.deepEqual(
-      [pendingFirst.first.status, pendingFirst.second.status],
+      [approvalFirst.first.status, approvalFirst.second.status],
       [0, 1],
     );
-    assert.match(
-      pendingFirst.second.stderr,
-      /another submitted owner opening correction already targets current authority/i,
-    );
+    assert.match(approvalFirst.second.stderr, /correction target is stale/i);
     assert.equal(
       run(container, `
-        SELECT jsonb_build_array(
-          (SELECT count(*) FROM public.owner_opening_balance_requests
-           WHERE correction_of_entry_id = '${race.pendingFirstTarget}'
-             AND status = 'submitted'),
+        SELECT concat_ws('|',
+          count(*) FILTER (WHERE request.status = 'submitted'),
+          max(request.status) FILTER (WHERE request.id = '${race.approvalFirstCorrectionA}'),
           (SELECT count(*) FROM public.owner_opening_balance_entries
-           WHERE reversal_of_entry_id = '${race.pendingFirstTarget}')
+           WHERE request_id = '${race.approvalFirstCorrectionA}'),
+          (SELECT current_amount::text
+           FROM public.owner_opening_balance_known_authority_v1
+           WHERE organization_id = '${race.organization}'
+             AND component = 'ips_due_to_owner')
         )
+        FROM public.owner_opening_balance_requests AS request
+        WHERE request.correction_of_entry_id = '${race.approvalFirstTarget}'
       `),
-      "[1, 0]",
+      "0|approved|2|7.00",
     );
 
-    const reversalFirst = await raceAgainstUncommittedWriter(
+    run(container, `
+      CREATE OR REPLACE FUNCTION app_private.pause_owner_opening_submission_test()
+      RETURNS trigger LANGUAGE plpgsql SET search_path TO '' AS $$
+      BEGIN
+        IF NEW.id = '${race.submissionFirstCorrectionB}' THEN
+          RAISE NOTICE 'writer_ready';
+          PERFORM pg_sleep(1);
+        END IF;
+        RETURN NEW;
+      END;
+      $$;
+      REVOKE ALL ON FUNCTION app_private.pause_owner_opening_submission_test()
+        FROM PUBLIC, anon, authenticated, service_role;
+      CREATE TRIGGER guard_owner_opening_balance_correction_target_zz_test_pause
+        BEFORE INSERT ON public.owner_opening_balance_requests
+        FOR EACH ROW
+        EXECUTE FUNCTION app_private.pause_owner_opening_submission_test();
+    `);
+
+    const submissionFirst = await raceAgainstUncommittedWriter(
       container,
-      `BEGIN;
-       INSERT INTO public.owner_opening_balance_entries (
-         id, request_id, organization_id, property_id, owner_person_id,
-         property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
-         currency, effective_date, component, entry_kind, signed_amount,
-         reversal_of_entry_id, created_by
-       ) VALUES (
-         '${race.reversalFirstReversal}', '${race.reversalFirstApprovedCorrection}',
-         '${race.organization}', '${race.property}', '${race.owner}',
-         '${race.propertyOwner}', 100.000, repeat('a', 64), 'USD', '2026-08-01',
-         'security_deposit_custody', 'correction_reversal', -20.00,
-         '${race.reversalFirstTarget}', '${race.reviewer}'
-       );
-       INSERT INTO public.owner_opening_balance_entries (
-         id, request_id, organization_id, property_id, owner_person_id,
-         property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
-         currency, effective_date, component, entry_kind, signed_amount, created_by
-       ) VALUES (
-         '${race.reversalFirstReplacement}', '${race.reversalFirstApprovedCorrection}',
-         '${race.organization}', '${race.property}', '${race.owner}',
-         '${race.propertyOwner}', 100.000, repeat('a', 64), 'USD', '2026-08-01',
-         'security_deposit_custody', 'correction_replacement', 17.00,
-         '${race.reviewer}'
-       );
-       SELECT 'writer_ready'; SELECT pg_sleep(1); COMMIT;`,
-      `INSERT INTO public.owner_opening_balance_requests (
-         id, organization_id, property_id, owner_person_id, property_owner_id,
-         ownership_percent_snapshot, ownership_roster_hash, currency,
-         effective_date, component, request_kind, proposed_amount,
-         correction_of_entry_id, reason, source_reference, evidence_sha256,
-         payload_hash, submitted_by
-       ) VALUES (
-         '${race.reversalFirstRequest}', '${race.organization}', '${race.property}',
-         '${race.owner}', '${race.propertyOwner}', 100.000, repeat('a', 64),
-         'USD', '2026-08-01', 'security_deposit_custody', 'correction', 16.00,
-         '${race.reversalFirstTarget}', 'Concurrent stale correction',
-         'IPS cutover concurrent stale correction', repeat('b', 64),
-         repeat('c', 64), '${race.submitter}'
-       );`,
+      correctionInsert({
+        id: race.submissionFirstCorrectionB,
+        target: race.submissionFirstTarget,
+        component: "security_deposit_custody",
+        amount: "16.00",
+        hash: "8",
+      }),
+      approvalTransaction({
+        request: race.submissionFirstCorrectionA,
+        target: race.submissionFirstTarget,
+        reversal: race.submissionFirstReversal,
+        replacement: race.submissionFirstReplacement,
+        component: "security_deposit_custody",
+        originalAmount: "20.00",
+        replacementAmount: "17.00",
+      }),
     );
+    const submissionFirstErrors =
+      `${submissionFirst.first.stderr}\n${submissionFirst.second.stderr}`;
+    assert.doesNotMatch(submissionFirstErrors, /deadlock detected/i);
     assert.deepEqual(
-      [reversalFirst.first.status, reversalFirst.second.status],
-      [0, 1],
+      [submissionFirst.first.status, submissionFirst.second.status],
+      [1, 0],
     );
     assert.match(
-      reversalFirst.second.stderr,
-      /owner opening correction target is stale/i,
+      submissionFirst.first.stderr,
+      /owner_opening_balance_requests_submitted_correction_uidx/i,
     );
     assert.equal(
       run(container, `
-        SELECT jsonb_build_array(
-          (SELECT count(*) FROM public.owner_opening_balance_requests
-           WHERE correction_of_entry_id = '${race.reversalFirstTarget}'
-             AND status = 'submitted'),
+        SELECT concat_ws('|',
+          count(*) FILTER (WHERE request.status = 'submitted'),
+          max(request.status) FILTER (WHERE request.id = '${race.submissionFirstCorrectionA}'),
           (SELECT count(*) FROM public.owner_opening_balance_entries
-           WHERE request_id = '${race.reversalFirstApprovedCorrection}')
+           WHERE request_id = '${race.submissionFirstCorrectionA}'),
+          (SELECT current_amount::text
+           FROM public.owner_opening_balance_known_authority_v1
+           WHERE organization_id = '${race.organization}'
+             AND component = 'security_deposit_custody')
         )
+        FROM public.owner_opening_balance_requests AS request
+        WHERE request.correction_of_entry_id = '${race.submissionFirstTarget}'
       `),
-      "[0, 2]",
+      "0|approved|2|17.00",
     );
   } finally {
+    run(container, `
+      DROP TRIGGER IF EXISTS guard_owner_opening_balance_correction_target_zz_test_pause
+        ON public.owner_opening_balance_requests;
+      DROP FUNCTION IF EXISTS app_private.pause_owner_opening_submission_test();
+    `);
     cleanupOwnerOpeningTestOrganization(
       container,
       race.organization,
