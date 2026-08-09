@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -272,12 +272,6 @@ function DomainDestinationMenuItem({
   const [expanded, setExpanded] = useState(active);
   const Icon = destination.icon;
 
-  useEffect(() => {
-    if (active) {
-      setExpanded(true);
-    }
-  }, [active]);
-
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -420,7 +414,7 @@ export function AppShell({
                         <DomainDestinationMenuItem
                           active={active}
                           destination={destination}
-                          key={destination.id}
+                          key={`${destination.id}:${pathname}`}
                           pathname={pathname}
                         />
                       ) : (
