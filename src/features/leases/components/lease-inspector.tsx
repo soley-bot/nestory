@@ -314,29 +314,16 @@ export function LeaseInspector({
             <ExternalLink size={15} />
             <span className="truncate">Open lease</span>
           </Link>
-          {canConfigure && lease.unitId ? (
-            <Link
-              aria-label={`Open ${lease.unitLabel}`}
-              className={iconButtonClassName}
-              href={`/units/${lease.unitId}`}
-              prefetch={false}
-              title="Open unit"
-            >
-              <ExternalLink size={15} />
-              <span className="truncate">Open unit</span>
-            </Link>
-          ) : canConfigure ? (
-            <Link
-              aria-label={`Open property ${lease.propertyCode}`}
-              className={iconButtonClassName}
-              href={`/properties/${lease.propertyId}`}
-              prefetch={false}
-              title="Open property"
-            >
-              <ExternalLink size={15} />
-              <span className="truncate">Open property</span>
-            </Link>
-          ) : null}
+          <Link
+            aria-label="Open property account"
+            className={iconButtonClassName}
+            href={`/properties/${lease.propertyId}/account`}
+            prefetch={false}
+            title="Open property account"
+          >
+            <ExternalLink size={15} />
+            <span className="truncate">Property account</span>
+          </Link>
           {canConfigure && lease.isArchived ? (
             <button
               aria-label={`Review restore requirements for ${lease.tenantName}`}

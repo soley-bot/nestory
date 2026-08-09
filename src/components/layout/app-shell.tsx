@@ -238,11 +238,7 @@ function getGlobalDestinations(
       icon: Wrench,
       label: "Maintenance",
       routes: [
-        "/maintenance",
         "/tasks",
-        "/work-orders",
-        "/inspections",
-        "/recurring-tasks",
       ],
     },
   ];

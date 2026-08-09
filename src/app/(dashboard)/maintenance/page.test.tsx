@@ -1,13 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getMaintenanceScreenData, requireOperationsExecutionContext } = vi.hoisted(() => ({
+const { getMaintenanceScreenData, requireOperationsManagementContext } = vi.hoisted(() => ({
   getMaintenanceScreenData: vi.fn(),
-  requireOperationsExecutionContext: vi.fn(),
+  requireOperationsManagementContext: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({
-  requireOperationsExecutionContext,
+  requireOperationsManagementContext,
 }));
 
 vi.mock("@/features/maintenance/data/maintenance", () => ({
@@ -23,14 +23,16 @@ import MaintenancePage from "@/app/(dashboard)/maintenance/page";
 describe("MaintenancePage", () => {
   beforeEach(() => {
     getMaintenanceScreenData.mockReset();
-    requireOperationsExecutionContext.mockReset();
+    requireOperationsManagementContext.mockReset();
   });
 
-  it("shows a setup-required state for a member without a linked staff profile", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
+  it("uses manager authority for the case-management surface", async () => {
+    requireOperationsManagementContext.mockResolvedValue({
+      branchId: "branch-1",
       organizationId: "organization-1",
       organizationName: "Nestory Test",
-      role: "operations_member",
+      personId: "person-1",
+      role: "operations_manager",
       userId: "user-1",
     });
     getMaintenanceScreenData.mockResolvedValue({
@@ -47,8 +49,8 @@ describe("MaintenancePage", () => {
     const page = await MaintenancePage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toContain("Staff profile link required");
-    expect(html).toContain("Ask an administrator to link your login");
-    expect(getMaintenanceScreenData).not.toHaveBeenCalled();
+    expect(html).toContain("Maintenance cases");
+    expect(requireOperationsManagementContext).toHaveBeenCalledOnce();
+    expect(getMaintenanceScreenData).toHaveBeenCalledOnce();
   });
 });

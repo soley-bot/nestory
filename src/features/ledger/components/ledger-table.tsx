@@ -105,7 +105,7 @@ export function LedgerTable({
                   </p>
                   <Link
                     className="mt-0.5 block truncate text-xs text-accent hover:underline"
-                    href={entry.hrefs.property}
+                    href={`/properties/${entry.propertyId}/account`}
                     onClick={(event) => event.stopPropagation()}
                   >
                     {entry.propertyName}

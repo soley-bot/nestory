@@ -8,7 +8,7 @@ import { SettingsTabs } from "@/components/layout/settings-tabs";
 afterEach(cleanup);
 
 describe("SettingsTabs", () => {
-  it.each(["/settings", "/users-roles"])(
+  it.each(["/settings", "/users-roles", "/settings/rent-policy"])(
     "keeps exactly one current section for %s",
     (activeHref) => {
       render(<SettingsTabs activeHref={activeHref} />);
@@ -24,6 +24,7 @@ describe("SettingsTabs", () => {
       expect(links.map((link) => link.textContent)).toEqual([
         "Workspace",
         "Workspace Access",
+        "Rent Policy",
       ]);
       expect(current).toHaveLength(1);
       expect(current[0]?.getAttribute("href")).toBe(activeHref);

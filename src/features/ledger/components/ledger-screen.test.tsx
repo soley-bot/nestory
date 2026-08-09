@@ -83,7 +83,7 @@ describe("LedgerScreen finance workspace contract", () => {
     ).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "Home" }).getAttribute("href"),
-    ).toBe("/properties/property-1");
+    ).toBe("/properties/property-1/account");
     expect(
       within(rows[0]!).getByRole("button", { name: "Preview Rent" }),
     ).not.toBeNull();

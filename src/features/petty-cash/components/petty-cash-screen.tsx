@@ -606,7 +606,7 @@ function PettyCashTable({
                   {entry.propertyId ? (
                     <Link
                       className="block truncate font-medium text-accent hover:underline"
-                      href={`/properties/${entry.propertyId}`}
+                      href={`/properties/${entry.propertyId}/account`}
                       onClick={(event) => event.stopPropagation()}
                     >
                       {entry.propertyCode}
@@ -771,18 +771,7 @@ function PettyCashInspector({
       <div className="space-y-3 p-4 text-sm">
         <div className="grid grid-cols-2 gap-3">
           <CompactFact label="Counterparty">
-            {entry.counterpartyPersonId ? (
-              <Link
-                className="line-clamp-2 text-accent hover:underline"
-                href={`/people/${entry.counterpartyPersonId}`}
-              >
-                {entry.supplier ??
-                  entry.counterpartyCurrentName ??
-                  "Linked person"}
-              </Link>
-            ) : (
-              (entry.supplier ?? "Not recorded")
-            )}
+            {entry.supplier ?? entry.counterpartyCurrentName ?? "Not recorded"}
           </CompactFact>
           <CompactFact label="Period">
             {formatDate(period.periodStart)}
@@ -802,7 +791,7 @@ function PettyCashInspector({
             {entry.propertyId ? (
               <Link
                 className="line-clamp-2 text-accent hover:underline"
-                href={`/properties/${entry.propertyId}`}
+                href={`/properties/${entry.propertyId}/account`}
               >
                 {entry.propertyCode}
               </Link>
@@ -811,16 +800,7 @@ function PettyCashInspector({
             )}
           </CompactFact>
           <CompactFact label="Unit">
-            {entry.unitId ? (
-              <Link
-                className="line-clamp-2 text-accent hover:underline"
-                href={`/units/${entry.unitId}`}
-              >
-                Unit {entry.unitNumber}
-              </Link>
-            ) : (
-              "Property level"
-            )}
+            {entry.unitId ? `Unit ${entry.unitNumber}` : "Property level"}
           </CompactFact>
         </div>
 

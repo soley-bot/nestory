@@ -1060,8 +1060,7 @@
     "surface": "workspace",
     "roles": [
       "super_admin",
-      "operations_manager",
-      "operations_member"
+      "operations_manager"
     ],
     "states": [
       "loading",
@@ -1118,7 +1117,7 @@
         "finance_manager": "permission-blocked",
         "finance_member": "permission-blocked",
         "operations_manager": "accessible",
-        "operations_member": "accessible",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "preserved",
@@ -1220,8 +1219,7 @@
     "surface": "workspace",
     "roles": [
       "super_admin",
-      "operations_manager",
-      "operations_member"
+      "operations_manager"
     ],
     "states": [
       "loading",
@@ -1278,7 +1276,7 @@
         "finance_manager": "permission-blocked",
         "finance_member": "permission-blocked",
         "operations_manager": "accessible",
-        "operations_member": "accessible",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1300,8 +1298,7 @@
     "surface": "workspace",
     "roles": [
       "super_admin",
-      "operations_manager",
-      "operations_member"
+      "operations_manager"
     ],
     "states": [
       "loading",
@@ -1358,7 +1355,7 @@
         "finance_manager": "permission-blocked",
         "finance_member": "permission-blocked",
         "operations_manager": "accessible",
-        "operations_member": "accessible",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1380,8 +1377,7 @@
     "surface": "workspace",
     "roles": [
       "super_admin",
-      "operations_manager",
-      "operations_member"
+      "operations_manager"
     ],
     "states": [
       "loading",
@@ -1438,7 +1434,7 @@
         "finance_manager": "permission-blocked",
         "finance_member": "permission-blocked",
         "operations_manager": "accessible",
-        "operations_member": "accessible",
+        "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
       "queryContract": "not-applicable",
@@ -1849,7 +1845,8 @@
     "phase": 3,
     "surface": "workspace",
     "roles": [
-      "super_admin"
+      "super_admin",
+      "finance_manager"
     ],
     "states": [
       "populated",
@@ -1868,7 +1865,7 @@
       "path": "/reports",
       "expectedAccess": {
         "super_admin": "accessible",
-        "finance_manager": "permission-blocked",
+        "finance_manager": "accessible",
         "finance_member": "permission-blocked",
         "operations_manager": "permission-blocked",
         "operations_member": "permission-blocked",
@@ -1888,7 +1885,8 @@
     "phase": 3,
     "surface": "detail",
     "roles": [
-      "super_admin"
+      "super_admin",
+      "finance_manager"
     ],
     "states": [
       "loading",
@@ -1927,7 +1925,7 @@
       "path": "/reports/unit-profit-loss?month=2026-07",
       "expectedAccess": {
         "super_admin": "accessible",
-        "finance_manager": "permission-blocked",
+        "finance_manager": "accessible",
         "finance_member": "permission-blocked",
         "operations_manager": "permission-blocked",
         "operations_member": "permission-blocked",

@@ -38,14 +38,19 @@ async function runJourney(browserInstance, journey) {
 
   try {
     await authenticate(page, journey.email);
-    stage = "route";
-
-    const response = await page.goto(new URL(journey.route, baseUrl).toString(), {
+    const response = await page.goto(new URL("/workspace", baseUrl).toString(), {
       timeout: 30_000,
       waitUntil: "domcontentloaded",
     });
     if (!response?.ok()) {
       throw new FixtureJourneyError("route did not load");
+    }
+    await page.getByRole("link", { name: "Open workspace" }).click();
+    await page.waitForLoadState("domcontentloaded");
+
+    stage = "route";
+    if (new URL(page.url()).pathname !== journey.route) {
+      await openVisibleShellRoute(page, journey.route);
     }
 
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
@@ -82,6 +87,24 @@ async function runJourney(browserInstance, journey) {
   } finally {
     await context.close();
   }
+}
+
+async function openVisibleShellRoute(page, route) {
+  const financeRoutes = new Set(["/bills-expenses", "/rent-income"]);
+  if (financeRoutes.has(route)) {
+    const expand = page.getByRole("button", {
+      name: /(?:Expand|Collapse) Finance navigation/,
+    });
+    if ((await expand.getAttribute("aria-expanded")) !== "true") {
+      await expand.click();
+    }
+  }
+
+  const link = page.locator(`nav[aria-label="Global navigation"] a[href="${route}"]`);
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === route, { timeout: 20_000 }),
+    link.click(),
+  ]);
 }
 
 async function authenticate(page, email) {

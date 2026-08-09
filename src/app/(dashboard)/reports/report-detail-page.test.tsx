@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getReportsScreenData: vi.fn(),
+  prepareTrustedReportForScreen: vi.fn((report) => report),
   reportScreen: vi.fn(),
   requireFinanceReportContext: vi.fn(),
 }));
@@ -12,6 +13,7 @@ vi.mock("@/lib/auth/context", () => ({
 }));
 vi.mock("@/features/reports/data/reports", () => ({
   getReportsScreenData: mocks.getReportsScreenData,
+  prepareTrustedReportForScreen: mocks.prepareTrustedReportForScreen,
 }));
 vi.mock("@/features/reports/components/reports-screen", () => ({
   ReportBuilderScreen: (props: Record<string, unknown>) => {
@@ -31,7 +33,9 @@ describe("ReportBuilderPage", () => {
       organizationName: "IPS",
       role: "finance_manager",
     });
-    mocks.getReportsScreenData.mockResolvedValue({ rows: [] });
+    mocks.getReportsScreenData.mockResolvedValue({
+      trustedReport: { rows: [] },
+    });
   });
 
   it("loads an existing operational report with Finance report authority", async () => {
@@ -45,6 +49,10 @@ describe("ReportBuilderPage", () => {
     expect(mocks.getReportsScreenData).toHaveBeenCalledWith(
       "organization-1",
       expect.objectContaining({ report: "unit-profit-loss" }),
+    );
+    expect(mocks.prepareTrustedReportForScreen).toHaveBeenCalledWith(
+      { rows: [] },
+      { financeSafeRecords: true },
     );
   });
 });

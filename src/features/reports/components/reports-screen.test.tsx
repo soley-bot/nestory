@@ -179,6 +179,36 @@ describe("minimal Reports workspace", () => {
       ),
     ).toBeTruthy();
   });
+
+  it("keeps Finance Manager report records on finance-safe routes", () => {
+    const report = unitProfitLossReport();
+    report.rows[0]!.sourceLinks.push(
+      {
+        href: "/properties/property-1",
+        id: "property-1",
+        label: "P1",
+        recordType: "property",
+      },
+      {
+        href: "/units/unit-1",
+        id: "unit-1",
+        label: "Unit A1",
+        recordType: "unit",
+      },
+    );
+
+    const financeSafe = prepareTrustedReportForScreen(report, {
+      financeSafeRecords: true,
+    });
+    renderReport({ report: financeSafe });
+
+    expect(screen.queryByRole("link", { name: "P1 - Property One" })).toBeNull();
+    expect(screen.getByRole("link", { name: "P1" }).getAttribute("href")).toBe(
+      "/properties/property-1/account",
+    );
+    expect(screen.queryByRole("link", { name: "Unit A1" })).toBeNull();
+    expect(screen.getAllByText("Unit A1")).not.toHaveLength(0);
+  });
 });
 
 function renderReport({

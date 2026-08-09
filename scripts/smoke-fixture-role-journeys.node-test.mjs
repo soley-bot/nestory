@@ -36,7 +36,7 @@ test("defines the five local fixture role journeys with stable story records", (
     {
       email: "operations.member@nestory.com",
       expectedRecord: "Garden Court corridor light repair",
-      route: "/maintenance",
+      route: "/tasks",
     },
   ]);
 });

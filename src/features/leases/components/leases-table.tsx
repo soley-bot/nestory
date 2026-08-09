@@ -145,27 +145,14 @@ export function LeasesTable({
 }
 
 function RecordContextLinks({ lease }: { lease: LeaseSummary }) {
-  const linkClassName =
-    "block truncate rounded-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
   return (
     <div className="min-w-0">
-      {lease.unitId ? (
-        <Link
-          className={linkClassName}
-          href={`/units/${lease.unitId}`}
-          onClick={(event) => event.stopPropagation()}
-          prefetch={false}
-          title={lease.unitLabel}
-        >
-          {lease.unitLabel}
-        </Link>
-      ) : (
-        <span className="block truncate font-medium">{lease.unitLabel}</span>
-      )}
+      <span className="block truncate font-medium" title={lease.unitLabel}>
+        {lease.unitLabel}
+      </span>
       <Link
         className="mt-0.5 block truncate rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        href={`/properties/${lease.propertyId}`}
+        href={`/properties/${lease.propertyId}/account`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
         title={lease.propertyName}

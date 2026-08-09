@@ -27,7 +27,7 @@ export const fixtureRoleJourneys = [
   {
     email: "operations.member@nestory.com",
     expectedRecord: "Garden Court corridor light repair",
-    route: "/maintenance",
+    route: "/tasks",
   },
 ];
 

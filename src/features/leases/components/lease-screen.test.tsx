@@ -442,6 +442,18 @@ describe("LeaseScreen redesign contract", () => {
     expect(within(quickView).queryByRole("link", { name: "Open rent policy" })).toBeNull();
     expect(within(quickView).queryByRole("link", { name: "Open Unit 2A" })).toBeNull();
     expect(
+      within(quickView).getByRole("link", { name: "Open property account" }).getAttribute(
+        "href",
+      ),
+    ).toBe("/properties/property-1/account");
+    const financeRow = screen.getAllByRole("row")[1]!;
+    expect(within(financeRow).queryByRole("link", { name: "Unit 2A" })).toBeNull();
+    expect(
+      within(financeRow).getByRole("link", { name: "Riverside House" }).getAttribute(
+        "href",
+      ),
+    ).toBe("/properties/property-1/account");
+    expect(
       within(quickView).queryByRole("link", {
         name: "Open ledger filtered to Alice Tenant",
       }),
