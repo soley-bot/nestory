@@ -2627,7 +2627,7 @@
       ]
     },
     "smoke": {
-      "path": "/people/80100000-0000-0000-0000-000000000001",
+      "path": "/people/80000000-0000-4000-8000-000000000001",
       "expectedAccess": {
         "super_admin": "accessible",
         "finance_manager": "permission-blocked",

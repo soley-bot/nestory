@@ -114,6 +114,12 @@ describe("UI route coverage contract", () => {
     }
   });
 
+  it("uses the seeded person record for the People detail smoke route", () => {
+    expect(getUiRouteContract("/people/[personId]")?.smoke.path).toBe(
+      "/people/80000000-0000-4000-8000-000000000001",
+    );
+  });
+
   it("models the workspace entry as a linked-persona recovery surface", () => {
     expect(getUiRouteContract("/workspace")).toMatchObject({
       roles: [
