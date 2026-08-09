@@ -16,6 +16,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
   return (
     <OrganizationSettingsScreen
+      appearance={data.appearance}
       branches={data.branches}
       canManageStructure={context.role === "super_admin"}
       header={
@@ -36,7 +37,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
 function readSection(value: string | string[] | undefined): SettingsSection {
   const section = Array.isArray(value) ? value[0] : value;
-  return section === "branches" ||
+  return section === "appearance" ||
+    section === "branches" ||
     section === "teams" ||
     section === "configuration"
     ? section

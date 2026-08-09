@@ -6,7 +6,53 @@ const { createSupabaseServerClient } = vi.hoisted(() => ({
 
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 
-import { getAccessByPersonId, getAccessSettingsData } from "./data";
+import {
+  getAccessByPersonId,
+  getAccessSettingsData,
+  getOrganizationSettingsData,
+} from "./data";
+
+describe("getOrganizationSettingsData", () => {
+  it("loads and normalizes the organization appearance", async () => {
+    const appearanceQuery = {
+      eq: vi.fn(),
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: {
+          accent_preset: "custom",
+          accent_seed: "#2563EB",
+          theme_mode: "dark",
+        },
+        error: null,
+      }),
+    };
+    appearanceQuery.select.mockReturnValue(appearanceQuery);
+    appearanceQuery.eq.mockReturnValue(appearanceQuery);
+    const branches = chainQuery({ data: [], error: null }, "order");
+    const teams = chainQuery({ data: [], error: null }, "order");
+    const roles = chainQuery({ data: [], error: null }, "is");
+    createSupabaseServerClient.mockResolvedValue({
+      from: vi.fn((table: string) => {
+        if (table === "organizations") return appearanceQuery;
+        if (table === "organization_branches") return branches;
+        if (table === "organization_teams") return teams;
+        if (table === "person_roles") return roles;
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    });
+
+    await expect(getOrganizationSettingsData("organization-1")).resolves.toEqual({
+      appearance: {
+        accentPreset: "custom",
+        accentSeed: "#2563EB",
+        mode: "dark",
+      },
+      branches: [],
+      staff: [],
+      teams: [],
+    });
+  });
+});
 
 describe("getAccessByPersonId", () => {
   beforeEach(() => {

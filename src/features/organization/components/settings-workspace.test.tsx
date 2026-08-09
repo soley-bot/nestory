@@ -12,15 +12,17 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createBranchAction, createTeamAction, navigation } = vi.hoisted(() => ({
+const { createBranchAction, createTeamAction, navigation, updateOrganizationAppearanceAction } = vi.hoisted(() => ({
   createBranchAction: vi.fn(),
   createTeamAction: vi.fn(),
   navigation: { push: vi.fn() },
+  updateOrganizationAppearanceAction: vi.fn(),
 }));
 
 vi.mock("@/features/organization/actions", () => ({
   createBranchAction,
   createTeamAction,
+  updateOrganizationAppearanceAction,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -105,6 +107,7 @@ afterEach(() => {
 describe("SettingsWorkspace navigation and layout", () => {
   it.each([
     ["organization", "Organization"],
+    ["appearance", "Appearance"],
     ["configuration", "Configuration"],
     ["branches", "Branches"],
     ["teams", "Teams"],
@@ -121,12 +124,14 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     expect(links.map((link) => link.textContent)).toEqual([
       "Organization",
+      "Appearance",
       "Configuration",
       "Branches",
       "Teams",
     ]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/settings?section=organization",
+      "/settings?section=appearance",
       "/settings?section=configuration",
       "/settings?section=branches",
       "/settings?section=teams",
@@ -137,6 +142,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
   it.each([
     ["organization", "Organization"],
+    ["appearance", "Appearance"],
     ["configuration", "Configuration"],
     ["branches", "Branches"],
     ["teams", "Teams"],

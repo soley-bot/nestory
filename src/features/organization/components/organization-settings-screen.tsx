@@ -12,8 +12,10 @@ import type {
   OrganizationPersonOption,
   OrganizationTeam,
 } from "@/features/organization/data";
+import type { OrganizationTheme } from "@/lib/theme/organization-theme";
 
 export function OrganizationSettingsScreen({
+  appearance,
   branches,
   canManageStructure = true,
   header,
@@ -23,6 +25,7 @@ export function OrganizationSettingsScreen({
   staff,
   teams,
 }: {
+  appearance?: OrganizationTheme;
   branches: OrganizationBranch[];
   canManageStructure?: boolean;
   header?: ReactNode;
@@ -36,6 +39,7 @@ export function OrganizationSettingsScreen({
     <SettingsNavigationGuardProvider>
       {header ?? <SettingsTabs activeHref="/settings" />}
       <SettingsWorkspace
+        appearance={appearance}
         branches={branches}
         canManageStructure={canManageStructure}
         organizationName={organizationName}

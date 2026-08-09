@@ -6,6 +6,11 @@ import { getAuthCallbackUrl } from "@/lib/auth/callback-url";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  ACCENT_PRESET_NAMES,
+  normalizeHexColor,
+  THEME_MODES,
+} from "@/lib/theme/organization-theme";
 
 export type OrganizationActionState = {
   message?: string;
@@ -61,11 +66,57 @@ const userAccessSchema = z.object({
 });
 const invitationIdSchema = z.object({ invitationId: uuidShapeSchema });
 const memberIdSchema = z.object({ memberId: uuidShapeSchema });
+const appearanceSchema = z.object({
+  accentPreset: z.enum(ACCENT_PRESET_NAMES),
+  accentSeed: z.string().trim(),
+  mode: z.enum(THEME_MODES),
+});
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
 
   return typeof value === "string" ? value : "";
+}
+
+export async function updateOrganizationAppearanceAction(
+  _state: OrganizationActionState,
+  formData: FormData,
+): Promise<OrganizationActionState> {
+  const context = await requireSuperAdminContext();
+  const parsed = appearanceSchema.safeParse({
+    accentPreset: readString(formData, "accentPreset"),
+    accentSeed: readString(formData, "accentSeed"),
+    mode: readString(formData, "mode"),
+  });
+  if (!parsed.success) {
+    return { message: "Choose a valid theme and accent.", status: "error" };
+  }
+
+  const accentSeed =
+    parsed.data.accentPreset === "custom"
+      ? normalizeHexColor(parsed.data.accentSeed)
+      : null;
+  if (parsed.data.accentPreset === "custom" && !accentSeed) {
+    return {
+      message: "Enter a valid six-digit hex color.",
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_organization_appearance", {
+    p_accent_preset: parsed.data.accentPreset,
+    p_accent_seed: accentSeed,
+    p_organization_id: context.organizationId,
+    p_theme_mode: parsed.data.mode,
+  });
+  if (error) {
+    return { message: organizationErrorMessage(error.message), status: "error" };
+  }
+
+  revalidateSettings();
+  revalidatePath("/", "layout");
+  return { message: "Appearance updated.", status: "success" };
 }
 
 export async function createBranchAction(

@@ -61,6 +61,7 @@ describe("SettingsPage", () => {
 
   it.each([
     ["organization", "organization"],
+    ["appearance", "appearance"],
     ["configuration", "configuration"],
     ["branches", "branches"],
     ["teams", "teams"],

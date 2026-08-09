@@ -1,6 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { isWorkspaceRole } from "@/lib/auth/capabilities";
 import type { PersonSelectOption } from "@/features/people/person-select";
+import {
+  normalizeOrganizationTheme,
+  type OrganizationTheme,
+} from "@/lib/theme/organization-theme";
 
 import {
   buildAccessByPersonId,
@@ -61,13 +65,33 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient
 export async function getOrganizationSettingsData(organizationId: string) {
   const supabase = await createSupabaseServerClient();
 
-  const [branches, teams, staff] = await Promise.all([
+  const [appearance, branches, teams, staff] = await Promise.all([
+    loadOrganizationAppearance(supabase, organizationId),
     loadBranches(supabase, organizationId),
     loadTeams(supabase, organizationId),
     loadStaffForOrganization(supabase, organizationId),
   ]);
 
-  return { branches, staff, teams };
+  return { appearance, branches, staff, teams };
+}
+
+async function loadOrganizationAppearance(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+): Promise<OrganizationTheme> {
+  const { data, error } = await supabase
+    .from("organizations")
+    .select("theme_mode, accent_preset, accent_seed")
+    .eq("id", organizationId)
+    .single();
+  if (error || !data) {
+    throw new Error(`Could not load organization appearance: ${error?.message ?? "Organization not found"}`);
+  }
+  return normalizeOrganizationTheme({
+    accentPreset: data.accent_preset,
+    accentSeed: data.accent_seed,
+    mode: data.theme_mode,
+  });
 }
 
 export async function getAccessSettingsData(organizationId: string) {

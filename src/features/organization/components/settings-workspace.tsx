@@ -5,6 +5,7 @@ import { useEffect, useRef, type MouseEvent } from "react";
 import {
   Building2,
   Landmark,
+  Palette,
   SlidersHorizontal,
   UsersRound,
 } from "lucide-react";
@@ -24,24 +25,31 @@ import {
   type SettingsEditorHandle,
 } from "@/features/organization/components/branch-editor";
 import { TeamEditor } from "@/features/organization/components/team-editor";
+import { AppearanceEditor } from "@/features/organization/components/appearance-editor";
 import type {
   OrganizationBranch,
   OrganizationPersonOption,
   OrganizationTeam,
 } from "@/features/organization/data";
+import {
+  DEFAULT_ORGANIZATION_THEME,
+  type OrganizationTheme,
+} from "@/lib/theme/organization-theme";
 import { cn } from "@/lib/utils";
 
 export type SettingsSection =
-  "organization" | "configuration" | "branches" | "teams";
+  "organization" | "appearance" | "configuration" | "branches" | "teams";
 
 const sections = [
   { icon: Landmark, label: "Organization", value: "organization" },
+  { icon: Palette, label: "Appearance", value: "appearance" },
   { icon: SlidersHorizontal, label: "Configuration", value: "configuration" },
   { icon: Building2, label: "Branches", value: "branches" },
   { icon: UsersRound, label: "Teams", value: "teams" },
 ] as const;
 
 type SettingsWorkspaceProps = {
+  appearance?: OrganizationTheme;
   branches: OrganizationBranch[];
   canManageStructure: boolean;
   organizationName: string;
@@ -66,6 +74,7 @@ export function SettingsWorkspace(props: SettingsWorkspaceProps) {
 }
 
 function SettingsWorkspaceContent({
+  appearance = DEFAULT_ORGANIZATION_THEME,
   branches,
   canManageStructure,
   organizationName,
@@ -147,6 +156,12 @@ function SettingsWorkspaceContent({
             organizationName={organizationName}
             organizationSlug={organizationSlug}
             teams={teams}
+          />
+        ) : section === "appearance" ? (
+          <AppearanceEditor
+            onDraftStatusChange={guard?.setDraftStatus ?? (() => undefined)}
+            ref={editorRef}
+            theme={appearance}
           />
         ) : section === "configuration" ? (
           <ConfigurationRegistryCatalog />

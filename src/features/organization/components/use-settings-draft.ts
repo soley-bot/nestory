@@ -82,6 +82,21 @@ export function useSettingsDraft<TValues extends DraftValues>({
     });
   }
 
+  function replaceValues(next: TValues) {
+    revision.current += 1;
+    setValues({ ...next });
+    setErrors({});
+    setResultMessage(undefined);
+    setStatus(
+      Object.keys(initialValues).every(
+        (field) => next[field] === initialValues[field],
+      )
+        ? "clean"
+        : "dirty",
+    );
+    setStatusMessage(undefined);
+  }
+
   async function submit(onInvalid: (field: keyof TValues) => void) {
     const nextErrors = validate(values);
     const firstInvalid = Object.keys(initialValues).find(
@@ -157,6 +172,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
     discard,
     errors,
     resultMessage,
+    replaceValues,
     setField,
     status,
     statusMessage,
