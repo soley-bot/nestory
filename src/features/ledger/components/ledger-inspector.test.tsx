@@ -38,6 +38,24 @@ describe("LedgerInspector managed receipt projections", () => {
 
     expect(screen.queryByRole("button", { name: "Restore" })).toBeNull();
   });
+
+  it("does not claim an unknown source type is linked", () => {
+    render(
+      <LedgerInspector
+        entry={{
+          ...receiptProjection(),
+          sourceLabel: "Source unavailable",
+          sourceResolved: false,
+          sourceType: "unknown",
+        }}
+        onAttachReceipt={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Source unavailable")).not.toBeNull();
+    expect(screen.getByText("Needs review")).not.toBeNull();
+    expect(screen.queryByText("Source linked")).toBeNull();
+  });
 });
 
 function receiptProjection(): LedgerEntry {
@@ -72,6 +90,7 @@ function receiptProjection(): LedgerEntry {
     sourceId: "allocation-1",
     reversalOfLedgerEntryId: "ledger-original",
     sourceLabel: "Rent & Income",
+    sourceResolved: true,
     sourceType: "receipt_allocation",
     transactionDate: "2026-07-10",
   };

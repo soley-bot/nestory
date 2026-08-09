@@ -168,6 +168,7 @@ function withLedgerDetailContext(
     | "riskIndicators"
     | "sourceId"
     | "sourceLabel"
+    | "sourceResolved"
     | "sourceType"
   >,
 ): LedgerEntry {
@@ -198,6 +199,7 @@ function withLedgerDetailContext(
     riskIndicators: [],
     sourceLabel:
       entry.direction === "income" ? "Rent & Income" : "Bills & Expenses",
+    sourceResolved: true,
     sourceType:
       entry.direction === "income"
         ? "receipt_allocation"

@@ -345,6 +345,11 @@ function toLedgerEntry({
     timelineEvents: relatedTimelineEvent ? 1 : 0,
   };
 
+  const sourceResolved = isLedgerSourceResolved(
+    entry.source_id,
+    entry.source_type,
+  );
+
   return {
     activity,
     amount: entry.amount,
@@ -382,11 +387,12 @@ function toLedgerEntry({
       recordCounts,
       reversalOfLedgerEntryId: entry.reversal_of_ledger_entry_id,
       relatedTimelineEvent,
-      sourceId: entry.source_id,
+      sourceResolved,
       unitId: entry.unit_id,
     }),
     sourceId: entry.source_id ?? undefined,
     sourceLabel: formatLedgerSource(entry.source_type),
+    sourceResolved,
     sourceType: normalizeLedgerSource(entry.source_type),
     transactionDate: entry.transaction_date,
     unitId: entry.unit_id ?? undefined,
@@ -434,6 +440,13 @@ export function formatLedgerSource(value: string) {
   }
 
   return "Source unavailable";
+}
+
+export function isLedgerSourceResolved(
+  sourceId: string | null | undefined,
+  sourceType: string,
+) {
+  return Boolean(sourceId) && normalizeLedgerSource(sourceType) !== "unknown";
 }
 
 function indexTimelineEventsByLedgerEntryId(rows: TimelineEventRow[]) {
@@ -545,7 +558,7 @@ function buildLedgerRiskIndicators({
   recordCounts,
   reversalOfLedgerEntryId,
   relatedTimelineEvent,
-  sourceId,
+  sourceResolved,
   unitId,
 }: {
   isArchived: boolean;
@@ -553,23 +566,23 @@ function buildLedgerRiskIndicators({
   recordCounts: LedgerRecordCounts;
   reversalOfLedgerEntryId: string | null;
   relatedTimelineEvent?: TimelineEventRow;
-  sourceId: string | null;
+  sourceResolved: boolean;
   unitId: string | null;
 }): LedgerRiskIndicator[] {
   return [
     {
-      description: sourceId
+      description: sourceResolved
         ? reversalOfLedgerEntryId
           ? "This immutable reversal points to its exact original Ledger event."
           : "This immutable Ledger event points to its exact source record."
         : "The source workflow identity is missing and needs review.",
       id: "source",
-      label: sourceId
+      label: sourceResolved
         ? reversalOfLedgerEntryId
           ? "Reversal linked"
           : "Source linked"
         : "Source needs review",
-      tone: sourceId ? "success" : "danger",
+      tone: sourceResolved ? "success" : "danger",
     },
     {
       description: isLocked

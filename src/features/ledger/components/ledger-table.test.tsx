@@ -79,6 +79,7 @@ const entry: LedgerEntry = {
   riskIndicators: [],
   sourceId: "allocation-1",
   sourceLabel: "Rent & Income",
+  sourceResolved: true,
   sourceType: "receipt_allocation",
   transactionDate: "2026-07-10",
 };

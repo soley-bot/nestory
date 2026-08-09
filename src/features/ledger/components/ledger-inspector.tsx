@@ -80,9 +80,9 @@ export function LedgerInspector({
           </CompactFact>
           <CompactFact label="Record integrity">
             <span
-              className={entry.sourceId ? "text-success" : "text-danger"}
+              className={entry.sourceResolved ? "text-success" : "text-danger"}
             >
-              {entry.sourceId ? "Source linked" : "Needs review"}
+              {entry.sourceResolved ? "Source linked" : "Needs review"}
             </span>
           </CompactFact>
           {entry.reversalOfLedgerEntryId ? (

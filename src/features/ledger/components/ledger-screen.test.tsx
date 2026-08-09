@@ -294,6 +294,7 @@ function makeEntry(
     riskIndicators: [],
     sourceId: `source-${id}`,
     sourceLabel: direction === "income" ? "Rent & Income" : "Bills & Expenses",
+    sourceResolved: true,
     sourceType:
       direction === "income" ? "receipt_allocation" : "payment_allocation",
     transactionDate: "2026-07-10",

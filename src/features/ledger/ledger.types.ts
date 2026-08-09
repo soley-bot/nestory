@@ -66,6 +66,7 @@ export type LedgerEntry = {
   riskIndicators: LedgerRiskIndicator[];
   sourceId?: string;
   sourceLabel: string;
+  sourceResolved: boolean;
   sourceType: LedgerSourceType;
   transactionDate: string;
   unitId?: string;
