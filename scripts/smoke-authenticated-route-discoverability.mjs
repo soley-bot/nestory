@@ -7,6 +7,7 @@ import { chromium } from "playwright";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
 import {
   buildDiscoverabilityPlan,
+  createPassedJourneyEvidence,
   directDenialRoutes,
   fixtureRoleEmails,
 } from "./smoke-authenticated-route-discoverability-core.mjs";
@@ -51,11 +52,7 @@ try {
       for (const journey of plan.filter((candidate) => candidate.role === role)) {
         const chain = await openJourney(page, journey);
         assertAuthorizedDestination(page, journey.route);
-        journeys.push({
-          chain: chain.join(" -> "),
-          id: journey.id,
-          status: "pass",
-        });
+        journeys.push(createPassedJourneyEvidence(journey.id, chain));
         process.stdout.write(`PASS ${journey.id} ${chain.join(" -> ")}\n`);
       }
 

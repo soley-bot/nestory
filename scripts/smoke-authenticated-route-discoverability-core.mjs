@@ -34,3 +34,11 @@ export function buildDiscoverabilityPlan(contract) {
 
   return journeys;
 }
+
+export function createPassedJourneyEvidence(id, chain) {
+  return {
+    chain: [...chain],
+    id,
+    status: "passed",
+  };
+}

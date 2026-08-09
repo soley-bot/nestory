@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   buildDiscoverabilityPlan,
+  createPassedJourneyEvidence,
   directDenialRoutes,
 } from "./smoke-authenticated-route-discoverability-core.mjs";
 
@@ -43,4 +44,19 @@ test("keeps direct denial checks separate from discoverability evidence", () => 
     operations_member: "/maintenance",
     super_admin: null,
   });
+});
+
+test("serializes click chains for the tracked report schema", () => {
+  assert.deepEqual(
+    createPassedJourneyEvidence("sa:overview", [
+      "/workspace",
+      "Open workspace",
+      "Overview",
+    ]),
+    {
+      chain: ["/workspace", "Open workspace", "Overview"],
+      id: "sa:overview",
+      status: "passed",
+    },
+  );
 });
