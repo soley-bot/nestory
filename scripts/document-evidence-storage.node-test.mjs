@@ -25,22 +25,74 @@ function databaseContainer() {
   );
 }
 
-function cleanupExactArtifacts(runId, storagePaths) {
+function runLocalAdminSql(sql) {
+  const container = databaseContainer();
+  const result = spawnSync(
+    "docker",
+    [
+      "exec", container, "psql", "-X", "-U", "postgres", "-d", "postgres",
+      "-v", "ON_ERROR_STOP=1", "-At", "-c", sql,
+    ],
+    { cwd: repoRoot, encoding: "utf8", shell: false },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim().split(/\r?\n/).at(-1);
+}
+
+function physicalArtifactFiles(runId) {
+  assert.match(runId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  const storageContainerResult = spawnSync(
+    "docker",
+    ["ps", "--filter", "name=^/supabase_storage_", "--format", "{{.Names}}"],
+    { cwd: repoRoot, encoding: "utf8", shell: false },
+  );
+  assert.equal(storageContainerResult.status, 0, storageContainerResult.stderr);
+  const storageContainer = storageContainerResult.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  assert.ok(storageContainer, "local Storage container must be running");
+  const artifactRoot = `/mnt/stub/stub/${bucket}/${organizationId}/documents`;
+  const result = spawnSync(
+    "docker",
+    [
+      "exec", storageContainer, "find", artifactRoot, "-type", "f", "-path",
+      `*${runId}-*`,
+    ],
+    { cwd: repoRoot, encoding: "utf8", shell: false },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+async function cleanupExactArtifacts(
+  client,
+  runId,
+  metadataPaths,
+  storagePaths,
+) {
   const expectedPrefix = `${organizationId}/documents/${runId}-`;
-  assert.ok(storagePaths.length > 0, "cleanup requires exact test object paths");
+  assert.ok(metadataPaths.length > 0, "cleanup requires exact test object paths");
+  assert.equal(
+    new Set(metadataPaths).size,
+    metadataPaths.length,
+    "cleanup metadata paths must be unique",
+  );
   assert.equal(
     new Set(storagePaths).size,
     storagePaths.length,
-    "cleanup paths must be unique",
+    "cleanup Storage paths must be unique",
   );
-  for (const storagePath of storagePaths) {
+  for (const storagePath of [...metadataPaths, ...storagePaths]) {
     assert.ok(
       storagePath.startsWith(expectedPrefix),
       `cleanup path must remain inside the exact test run: ${storagePath}`,
     );
   }
 
-  const pathArray = storagePaths.map((storagePath) => `'${storagePath}'`).join(",");
+  const pathArray = metadataPaths
+    .map((storagePath) => `'${storagePath}'`)
+    .join(",");
   const sql = `
     BEGIN;
     LOCK TABLE public.documents IN ACCESS EXCLUSIVE MODE;
@@ -66,15 +118,43 @@ function cleanupExactArtifacts(runId, storagePaths) {
     WHERE id IN (SELECT id FROM document_evidence_cleanup_ids);
     ALTER TABLE public.documents
       ENABLE TRIGGER guard_document_content_fingerprint;
-    SELECT set_config('storage.allow_delete_query', 'true', true);
-    DELETE FROM storage.objects AS object
-    WHERE object.bucket_id = '${bucket}'
-      AND object.name = ANY (ARRAY[${pathArray}]::text[])
-      AND NOT EXISTS (
-        SELECT 1 FROM public.documents AS document
-        WHERE document.storage_path = object.name
-      );
     COMMIT;
+    SELECT count(*) FROM public.documents
+    WHERE storage_path = ANY (ARRAY[${pathArray}]::text[]);
+  `;
+  assert.equal(
+    runLocalAdminSql(sql),
+    "0",
+    "local admin cleanup must remove only the exact document metadata rows",
+  );
+
+  for (const storagePath of storagePaths) {
+    const removal = await client.storage.from(bucket).remove([storagePath]);
+    assert.equal(
+      removal.error,
+      null,
+      `authenticated Storage cleanup failed for ${storagePath}`,
+    );
+    assert.ok(
+      removal.data?.some((object) => object.name === storagePath),
+      `authenticated Storage cleanup did not confirm ${storagePath}`,
+    );
+  }
+
+  const parentPath = `${organizationId}/documents`;
+  const listing = await client.storage.from(bucket).list(parentPath, {
+    limit: metadataPaths.length + 1,
+    search: `${runId}-`,
+  });
+  assert.equal(listing.error, null, "exact-run Storage listing must succeed");
+  assert.deepEqual(listing.data, [], "exact-run Storage listing must be empty");
+
+  for (const storagePath of metadataPaths) {
+    const download = await client.storage.from(bucket).download(storagePath);
+    assert.ok(download.error, `cleaned Storage path must not download: ${storagePath}`);
+  }
+
+  const residueSql = `
     SELECT jsonb_build_array(
       (
         SELECT count(*) FROM public.documents
@@ -87,20 +167,15 @@ function cleanupExactArtifacts(runId, storagePaths) {
       )
     );
   `;
-  const container = databaseContainer();
-  const result = spawnSync(
-    "docker",
-    [
-      "exec", container, "psql", "-X", "-U", "postgres", "-d", "postgres",
-      "-v", "ON_ERROR_STOP=1", "-At", "-c", sql,
-    ],
-    { cwd: repoRoot, encoding: "utf8", shell: false },
-  );
-  assert.equal(result.status, 0, result.stderr);
   assert.equal(
-    result.stdout.trim().split(/\r?\n/).at(-1),
+    runLocalAdminSql(residueSql),
     "[0, 0]",
     "real Storage harness must leave zero exact document rows and objects",
+  );
+  assert.deepEqual(
+    physicalArtifactFiles(runId),
+    [],
+    "real Storage harness must leave zero exact physical files",
   );
 }
 
@@ -156,10 +231,14 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
     replacementPath,
     failedReplacementPath,
   ];
+  const uploadedArtifactPaths = new Set();
+  let client;
+  let authenticated = false;
+  let primaryError;
 
   try {
     const runtime = readLocalRuntime();
-    const client = createClient(runtime.apiUrl, runtime.anonKey, {
+    client = createClient(runtime.apiUrl, runtime.anonKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const login = await client.auth.signInWithPassword({
@@ -167,6 +246,20 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
       password: "123456789",
     });
     assert.equal(login.error, null, "fixture Super Admin should authenticate");
+    authenticated = true;
+    assert.deepEqual(
+      physicalArtifactFiles(runId),
+      [],
+      "the exact Storage run prefix must start without physical files",
+    );
+    const initialList = await client.storage
+      .from(bucket)
+      .list(`${organizationId}/documents`, {
+        limit: exactArtifactPaths.length + 1,
+        search: `${runId}-`,
+      });
+    assert.equal(initialList.error, null);
+    assert.deepEqual(initialList.data, [], "the exact Storage run prefix must start empty");
 
   const orphanBytes = Buffer.from("unregistered failed create\n", "utf8");
   const orphanUpload = await client.storage.from(bucket).upload(orphanPath, orphanBytes, {
@@ -174,6 +267,7 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
     upsert: false,
   });
   assert.equal(orphanUpload.error, null, "failed-create object upload should succeed");
+  uploadedArtifactPaths.add(orphanPath);
   const failedCreate = await client.rpc("create_document", {
     p_category: "owner_opening_balance_evidence",
     p_content_sha256: "BAD-HASH",
@@ -200,6 +294,7 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
   );
   const removedOrphan = await client.storage.from(bucket).download(orphanPath);
   assert.ok(removedOrphan.error, "unregistered failed-create object should be gone");
+  uploadedArtifactPaths.delete(orphanPath);
 
   const ledgerEntry = await client
     .from("ledger_entries")
@@ -257,6 +352,7 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
         upsert: false,
       });
     assert.equal(linkedUpload.error, null);
+    uploadedArtifactPaths.add(linkedPath);
     const linkedCreate = await client.rpc("create_document", {
       [link.argument]: linkedRecord.data.id,
       p_category: `${link.label} evidence`,
@@ -320,6 +416,7 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
     upsert: false,
   });
   assert.equal(upload.error, null, "real local Storage upload should succeed");
+  uploadedArtifactPaths.add(storagePath);
 
   {
     const createResult = await client.rpc("create_document", {
@@ -410,6 +507,7 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
         upsert: false,
       });
     assert.equal(replacementUpload.error, null, "replacement upload should succeed");
+    uploadedArtifactPaths.add(replacementPath);
     const replacement = await client.rpc("replace_document", {
       p_category: "owner_opening_balance_evidence",
       p_content_sha256: replacementSha256,
@@ -447,6 +545,7 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
         upsert: false,
       });
     assert.equal(failedReplacementUpload.error, null);
+    uploadedArtifactPaths.add(failedReplacementPath);
     const failedReplacement = await client.rpc("replace_document", {
       p_category: "owner_opening_balance_evidence",
       p_content_sha256: "WRONG-HASH",
@@ -475,6 +574,11 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
       null,
       "failed atomic replacement leaves only an unregistered object to remove",
     );
+    const removedFailedReplacement = await client.storage
+      .from(bucket)
+      .download(failedReplacementPath);
+    assert.ok(removedFailedReplacement.error);
+    uploadedArtifactPaths.delete(failedReplacementPath);
 
     await client.storage.from(bucket).remove([storagePath, replacementPath]);
     const retainedOldBytes = await client.storage.from(bucket).download(storagePath);
@@ -490,7 +594,26 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
       replacementBytes,
     );
     }
+  } catch (error) {
+    primaryError = error;
   } finally {
-    cleanupExactArtifacts(runId, exactArtifactPaths);
+    if (client && authenticated) {
+      try {
+        await cleanupExactArtifacts(
+          client,
+          runId,
+          exactArtifactPaths,
+          [...uploadedArtifactPaths],
+        );
+      } catch (cleanupError) {
+        throw new AggregateError(
+          primaryError ? [cleanupError, primaryError] : [cleanupError],
+          "real Storage harness cleanup failed",
+          { cause: cleanupError },
+        );
+      }
+    }
   }
+
+  if (primaryError) throw primaryError;
 });
