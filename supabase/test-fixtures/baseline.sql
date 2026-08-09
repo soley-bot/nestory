@@ -632,11 +632,16 @@ CREATE TEMP TABLE fixture_runtime (
   through_lease_id uuid,
   direct_lease_id uuid,
   commercial_lease_id uuid,
+  garden_open_lease_id uuid,
+  garden_exception_lease_id uuid,
   through_billing_id uuid,
   direct_billing_id uuid,
   commercial_billing_id uuid,
+  garden_billing_id uuid,
   through_invoice_id uuid,
   direct_invoice_id uuid,
+  garden_invoice_id uuid,
+  garden_exception_id uuid,
   through_payment_id uuid,
   direct_confirmation_id uuid,
   reversed_submission_id uuid,
@@ -864,6 +869,58 @@ SET commercial_lease_id = (
 )::uuid;
 
 UPDATE fixture_runtime
+SET garden_open_lease_id = (
+  public.create_lease_with_relationships(
+    organization_id,
+    '10000000-0000-0000-0000-000000000003',
+    '20000000-0000-0000-0000-000000000006',
+    '80000000-0000-0000-0000-000000000010',
+    (date_trunc('month', current_date) - interval '3 months')::date,
+    (date_trunc('month', current_date) + interval '21 months' - interval '1 day')::date,
+    720,
+    'USD',
+    5,
+    'monthly',
+    'active',
+    720,
+    'USD',
+    'active',
+    pg_temp.active_lease_relationship_payload(
+      '80000000-0000-0000-0000-000000000010',
+      (date_trunc('month', current_date) - interval '3 months')::date,
+      (date_trunc('month', current_date) + interval '21 months' - interval '1 day')::date
+    ),
+    'fixture-lease-garden-open'
+  ) ->> 'leaseId'
+)::uuid;
+
+UPDATE fixture_runtime
+SET garden_exception_lease_id = (
+  public.create_lease_with_relationships(
+    organization_id,
+    '10000000-0000-0000-0000-000000000003',
+    '20000000-0000-0000-0000-000000000007',
+    '80000000-0000-0000-0000-000000000011',
+    (date_trunc('month', current_date) - interval '2 months')::date,
+    (date_trunc('month', current_date) + interval '22 months' - interval '1 day')::date,
+    760,
+    'USD',
+    5,
+    'monthly',
+    'active',
+    760,
+    'USD',
+    'active',
+    pg_temp.active_lease_relationship_payload(
+      '80000000-0000-0000-0000-000000000011',
+      (date_trunc('month', current_date) - interval '2 months')::date,
+      (date_trunc('month', current_date) + interval '22 months' - interval '1 day')::date
+    ),
+    'fixture-lease-garden-exception'
+  ) ->> 'leaseId'
+)::uuid;
+
+UPDATE fixture_runtime
 SET through_billing_id = public.set_lease_billing_term(
   organization_id,
   through_lease_id,
@@ -918,6 +975,24 @@ SET commercial_billing_id = public.set_lease_billing_term(
 );
 
 UPDATE fixture_runtime
+SET garden_billing_id = public.set_lease_billing_term(
+  organization_id,
+  garden_open_lease_id,
+  (date_trunc('month', current_date) - interval '3 months')::date,
+  'through_ips',
+  'percentage',
+  9,
+  true,
+  true,
+  'individual',
+  '80000000-0000-0000-0000-000000000010',
+  NULL,
+  NULL,
+  NULL,
+  'fixture-billing-garden-open'
+);
+
+UPDATE fixture_runtime
 SET source_id = public.create_financial_reconciliation_source(
   organization_id,
   'OPS-USD',
@@ -946,6 +1021,21 @@ FROM public.tenant_invoices AS invoice
 WHERE invoice.organization_id = runtime.organization_id
   AND invoice.lease_id = runtime.direct_lease_id
   AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+
+UPDATE fixture_runtime AS runtime
+SET garden_invoice_id = invoice.id
+FROM public.tenant_invoices AS invoice
+WHERE invoice.organization_id = runtime.organization_id
+  AND invoice.lease_id = runtime.garden_open_lease_id
+  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+
+UPDATE fixture_runtime AS runtime
+SET garden_exception_id = exception.id
+FROM public.rent_generation_exceptions AS exception
+WHERE exception.organization_id = runtime.organization_id
+  AND exception.lease_id = runtime.garden_exception_lease_id
+  AND exception.billing_period_start = date_trunc('month', current_date)::date
+  AND exception.resolved_at IS NULL;
 
 UPDATE fixture_runtime AS runtime
 SET through_payment_id = public.record_tenant_invoice_payment(
