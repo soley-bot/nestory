@@ -10,6 +10,10 @@ import {
   type WorkspaceRole,
 } from "@/lib/auth/capabilities";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  normalizeOrganizationTheme,
+  type OrganizationTheme,
+} from "@/lib/theme/organization-theme";
 
 export type { WorkspaceCapabilities, WorkspaceRole } from "@/lib/auth/capabilities";
 
@@ -27,6 +31,7 @@ type WorkspaceMembership = {
   organizationSlug?: string;
   personId?: string;
   role: WorkspaceRole;
+  theme: OrganizationTheme;
 };
 
 type WorkspaceMembershipOptions = {
@@ -94,7 +99,7 @@ export async function getWorkspaceMembershipForUser(
 
   let query = supabase
     .from("organization_members")
-    .select("organization_id, role, person_id, branch_id, created_at, organizations!inner(name, slug)")
+    .select("organization_id, role, person_id, branch_id, created_at, organizations!inner(name, slug, theme_mode, accent_preset, accent_seed)")
     .eq("user_id", userId)
     .in("role", [...WORKSPACE_ROLES]);
 
@@ -126,6 +131,11 @@ export async function getWorkspaceMembershipForUser(
     organizationSlug: organization.slug ?? undefined,
     personId: data.person_id ?? undefined,
     role: data.role,
+    theme: normalizeOrganizationTheme({
+      accentPreset: organization.accent_preset,
+      accentSeed: organization.accent_seed,
+      mode: organization.theme_mode,
+    }),
   };
 }
 

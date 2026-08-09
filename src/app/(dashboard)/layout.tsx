@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
+import { ThemeRuntime } from "@/components/theme-runtime";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 
 export const dynamic = "force-dynamic";
@@ -11,12 +12,17 @@ export default async function DashboardLayout({
   const context = await requireWorkspaceContext();
 
   return (
-    <AppShell
-      organizationName={context.organizationName}
-      role={context.role}
-      userEmail={context.userEmail}
+    <ThemeRuntime
+      organizationId={context.organizationId}
+      theme={context.theme}
     >
-      {children}
-    </AppShell>
+      <AppShell
+        organizationName={context.organizationName}
+        role={context.role}
+        userEmail={context.userEmail}
+      >
+        {children}
+      </AppShell>
+    </ThemeRuntime>
   );
 }

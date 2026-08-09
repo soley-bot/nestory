@@ -32,6 +32,11 @@ describe("GET /api/workspace-search", () => {
       organizationName: "Nestory",
       personId: "person-1",
       role: "operations_manager",
+      theme: {
+        accentPreset: "neutral",
+        accentSeed: null,
+        mode: "system",
+      },
     });
     vi.mocked(searchWorkspace).mockResolvedValue([
       {

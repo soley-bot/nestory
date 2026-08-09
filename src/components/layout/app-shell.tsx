@@ -10,10 +10,8 @@ import {
   Landmark,
   LayoutDashboard,
   LogOut,
-  Moon,
   PlusCircle,
   Settings,
-  Sun,
   UserRound,
   UsersRound,
   Wrench,
@@ -22,8 +20,8 @@ import {
 
 import { NestoryLogo } from "@/components/brand/nestory-logo";
 import { WorkspaceCommandPalette } from "@/components/layout/workspace-command-palette";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -361,7 +359,7 @@ export function AppShell({
                 id="workspace-page-tools"
               />
               <WorkspaceCommandPalette role={role} />
-              <ThemeToggle />
+              {role === "super_admin" ? <ThemeToggle /> : null}
             </div>
           </header>
           <div
@@ -441,28 +439,6 @@ function SidebarProfileMenu({
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
-  );
-}
-
-function ThemeToggle() {
-  function toggleTheme() {
-    const dark = document.documentElement.classList.contains("dark");
-    document.documentElement.classList.toggle("dark", !dark);
-    document.documentElement.dataset.theme = dark ? "light" : "dark";
-    window.localStorage.setItem("nestory-theme", dark ? "light" : "dark");
-  }
-
-  return (
-    <Button
-      aria-label="Toggle color theme"
-      onClick={toggleTheme}
-      size="icon-sm"
-      title="Toggle color theme"
-      variant="ghost"
-    >
-      <Moon className="theme-toggle-moon" />
-      <Sun className="theme-toggle-sun" />
-    </Button>
   );
 }
 

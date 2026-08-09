@@ -37,9 +37,8 @@ export const metadata: Metadata = {
 const themeScript = `
 (() => {
   try {
-    const stored = window.localStorage.getItem("nestory-theme");
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const theme = stored === "dark" || stored === "light" ? stored : prefersDark ? "dark" : "light";
+    const theme = prefersDark ? "dark" : "light";
     document.documentElement.dataset.theme = theme;
     document.documentElement.classList.toggle("dark", theme === "dark");
   } catch {
