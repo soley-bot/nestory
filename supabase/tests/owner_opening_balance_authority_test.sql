@@ -282,6 +282,30 @@ SELECT ok(
 );
 
 SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_trigger
+    WHERE tgrelid = to_regclass('public.owner_opening_balance_requests')
+      AND tgname = 'owner_opening_balance_approved_entries_complete'
+      AND tgconstraint <> 0
+      AND tgdeferrable
+      AND tginitdeferred
+      AND NOT tgisinternal
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM pg_trigger
+    WHERE tgrelid = to_regclass('public.owner_opening_balance_entries')
+      AND tgname = 'owner_opening_balance_entry_request_complete'
+      AND tgconstraint <> 0
+      AND tgdeferrable
+      AND tginitdeferred
+      AND NOT tgisinternal
+  ),
+  'approved requests and their entries share initially-deferred completeness invariants'
+);
+
+SELECT ok(
   NOT coalesce(
     has_function_privilege(
       'anon',
@@ -306,6 +330,30 @@ SELECT ok(
     ),
     false
   )
+  AND NOT coalesce(
+    has_function_privilege(
+      'anon',
+      to_regprocedure('app_private.enforce_owner_opening_balance_approved_entries()'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'authenticated',
+      to_regprocedure('app_private.enforce_owner_opening_balance_approved_entries()'),
+      'EXECUTE'
+    ),
+    false
+  )
+  AND NOT coalesce(
+    has_function_privilege(
+      'service_role',
+      to_regprocedure('app_private.enforce_owner_opening_balance_approved_entries()'),
+      'EXECUTE'
+    ),
+    false
+  )
   AND NOT EXISTS (
     SELECT 1
     FROM pg_class AS relation
@@ -316,7 +364,7 @@ SELECT ok(
       AND relation_acl.grantee = 0
       AND relation_acl.privilege_type = 'SELECT'
   ),
-  'the private request mutation guard is not directly executable by application roles'
+  'private request lifecycle guards are not directly executable by application roles'
 );
 
 SELECT has_table(
@@ -640,6 +688,175 @@ SELECT
   100.000, '2026-08-01'
 FROM owner_opening_request_fixture;
 
+SELECT throws_ok(
+  format(
+    $sql$
+      INSERT INTO public.owner_opening_balance_requests (
+        organization_id, property_id, owner_person_id, property_owner_id,
+        ownership_percent_snapshot, ownership_roster_hash, currency,
+        effective_date, component, request_kind, proposed_amount, status,
+        reason, source_reference, evidence_sha256, payload_hash, submitted_by,
+        reviewed_at, reviewed_by
+      ) VALUES (
+        %L, %L, %L, %L, 100.000, repeat('a', 64), 'USD',
+        '2026-08-01', 'security_deposit_custody', 'initial', 10.00, 'approved',
+        'Invalid direct approval', 'IPS cutover direct approval probe',
+        repeat('a', 64), repeat('b', 64), %L,
+        '2026-08-09T11:55:00Z', %L
+      )
+    $sql$,
+    organization_id,
+    property_id,
+    owner_person_id,
+    property_owner_id,
+    submitter_id,
+    reviewer_id
+  ),
+  '22023',
+  'owner opening balance requests must be inserted as submitted',
+  'a request cannot bypass review by being inserted directly as approved'
+)
+FROM owner_opening_request_fixture;
+
+SELECT throws_ok(
+  format(
+    $sql$
+      INSERT INTO public.owner_opening_balance_requests (
+        id, organization_id, property_id, owner_person_id, property_owner_id,
+        ownership_percent_snapshot, ownership_roster_hash, currency,
+        effective_date, component, request_kind, proposed_amount,
+        reason, source_reference, evidence_sha256, payload_hash, submitted_by
+      ) VALUES (
+        'a2110000-0000-4000-8000-000000000060', %L, %L, %L, %L,
+        100.000, repeat('a', 64), 'USD', '2026-08-01',
+        'security_deposit_custody', 'initial', 10.00,
+        'Missing opening entry', 'IPS cutover missing opening probe',
+        repeat('c', 64), repeat('d', 64), %L
+      );
+      SELECT set_config(
+        'app.owner_opening_request_review_context',
+        'checked-review-v1',
+        true
+      );
+      UPDATE public.owner_opening_balance_requests
+      SET status = 'approved',
+          reviewed_at = '2026-08-09T11:56:00Z',
+          reviewed_by = %L
+      WHERE id = 'a2110000-0000-4000-8000-000000000060';
+      SET CONSTRAINTS owner_opening_balance_approved_entries_complete IMMEDIATE
+    $sql$,
+    organization_id,
+    property_id,
+    owner_person_id,
+    property_owner_id,
+    submitter_id,
+    reviewer_id
+  ),
+  '23514',
+  'approved initial owner opening request requires exactly one opening entry',
+  'an approved initial request cannot commit without its opening entry'
+)
+FROM owner_opening_request_fixture;
+
+SELECT throws_ok(
+  format(
+    $sql$
+      INSERT INTO public.owner_opening_balance_requests (
+        id, organization_id, property_id, owner_person_id, property_owner_id,
+        ownership_percent_snapshot, ownership_roster_hash, currency,
+        effective_date, component, request_kind, proposed_amount,
+        reason, source_reference, evidence_sha256, payload_hash, submitted_by
+      ) VALUES (
+        'a2110000-0000-4000-8000-000000000061', %L, %L, %L, %L,
+        100.000, repeat('a', 64), 'USD', '2026-08-01',
+        'ips_due_to_owner', 'initial', 10.00,
+        'Lifecycle race source', 'IPS cutover lifecycle probe',
+        repeat('1', 64), repeat('2', 64), %L
+      );
+      SELECT set_config(
+        'app.owner_opening_request_review_context',
+        'checked-review-v1',
+        true
+      );
+      UPDATE public.owner_opening_balance_requests
+      SET status = 'approved',
+          reviewed_at = '2026-08-09T11:57:00Z',
+          reviewed_by = %L
+      WHERE id = 'a2110000-0000-4000-8000-000000000061';
+      INSERT INTO public.owner_opening_balance_entries (
+        id, request_id, organization_id, property_id, owner_person_id,
+        property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
+        currency, effective_date, component, entry_kind, signed_amount, created_by
+      ) VALUES (
+        'a2110000-0000-4000-8000-000000000062',
+        'a2110000-0000-4000-8000-000000000061', %L, %L, %L, %L,
+        100.000, repeat('a', 64), 'USD', '2026-08-01',
+        'ips_due_to_owner', 'opening', 10.00, %L
+      );
+      SET CONSTRAINTS owner_opening_balance_approved_entries_complete IMMEDIATE;
+      SET CONSTRAINTS owner_opening_balance_approved_entries_complete DEFERRED;
+      INSERT INTO public.owner_opening_balance_requests (
+        id, organization_id, property_id, owner_person_id, property_owner_id,
+        ownership_percent_snapshot, ownership_roster_hash, currency,
+        effective_date, component, request_kind, proposed_amount,
+        correction_of_entry_id, reason, source_reference, evidence_sha256,
+        payload_hash, submitted_by
+      ) VALUES (
+        'a2110000-0000-4000-8000-000000000063', %L, %L, %L, %L,
+        100.000, repeat('a', 64), 'USD', '2026-08-01',
+        'ips_due_to_owner', 'correction', 7.00,
+        'a2110000-0000-4000-8000-000000000062',
+        'Incomplete correction pair', 'IPS cutover incomplete correction probe',
+        repeat('3', 64), repeat('4', 64), %L
+      );
+      UPDATE public.owner_opening_balance_requests
+      SET status = 'approved',
+          reviewed_at = '2026-08-09T11:58:00Z',
+          reviewed_by = %L
+      WHERE id = 'a2110000-0000-4000-8000-000000000063';
+      INSERT INTO public.owner_opening_balance_entries (
+        id, request_id, organization_id, property_id, owner_person_id,
+        property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
+        currency, effective_date, component, entry_kind, signed_amount,
+        reversal_of_entry_id, created_by
+      ) VALUES (
+        'a2110000-0000-4000-8000-000000000064',
+        'a2110000-0000-4000-8000-000000000063', %L, %L, %L, %L,
+        100.000, repeat('a', 64), 'USD', '2026-08-01',
+        'ips_due_to_owner', 'correction_reversal', -10.00,
+        'a2110000-0000-4000-8000-000000000062', %L
+      );
+      SET CONSTRAINTS owner_opening_balance_approved_entries_complete IMMEDIATE
+    $sql$,
+    organization_id,
+    property_id,
+    owner_person_id,
+    property_owner_id,
+    submitter_id,
+    reviewer_id,
+    organization_id,
+    property_id,
+    owner_person_id,
+    property_owner_id,
+    reviewer_id,
+    organization_id,
+    property_id,
+    owner_person_id,
+    property_owner_id,
+    submitter_id,
+    reviewer_id,
+    organization_id,
+    property_id,
+    owner_person_id,
+    property_owner_id,
+    reviewer_id
+  ),
+  '23514',
+  'approved correction owner opening request requires exactly one reversal and one replacement entry',
+  'an approved correction cannot commit with only its reversal entry'
+)
+FROM owner_opening_request_fixture;
+
 SELECT lives_ok(
   format(
     $sql$
@@ -911,6 +1128,13 @@ SELECT lives_ok(
 )
 FROM owner_opening_request_fixture;
 
+SELECT lives_ok(
+  'SET CONSTRAINTS owner_opening_balance_approved_entries_complete IMMEDIATE',
+  'a valid initial approval and opening entry satisfy the deferred invariant in one transaction'
+);
+
+SET CONSTRAINTS ALL DEFERRED;
+
 SELECT results_eq(
   $$
     SELECT authority_state, current_amount::text, entry_count
@@ -1008,6 +1232,13 @@ SELECT lives_ok(
   'a zero authority-bearing entry can be reversed once and replaced with zero without losing lineage'
 )
 FROM owner_opening_request_fixture;
+
+SELECT lives_ok(
+  'SET CONSTRAINTS owner_opening_balance_approved_entries_complete IMMEDIATE',
+  'a valid zero correction reversal and replacement pair satisfies the deferred invariant'
+);
+
+SET CONSTRAINTS ALL DEFERRED;
 
 SELECT results_eq(
   $$
