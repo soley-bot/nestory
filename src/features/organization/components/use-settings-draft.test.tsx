@@ -30,6 +30,10 @@ describe("useSettingsDraft", () => {
       await Promise.all([first, second]);
     });
     expect(result.current.status).toBe("saved");
+    expect(result.current.values.name).toBe("Phuket");
+
+    act(() => result.current.discard());
+    expect(result.current.values.name).toBe("Phuket");
   });
 });
 
@@ -43,6 +47,7 @@ function useHarnessDraft(
     action,
     errorMessage: "Not saved",
     initialValues: { name: "" },
+    retainValuesAfterSuccess: true,
     savedMessage: "Saved",
     savingMessage: "Saving",
     validate: (values) =>

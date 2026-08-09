@@ -68,9 +68,15 @@ describe("organization theme", () => {
     expect(
       contrastRatio(dark["--primary"], dark["--primary-foreground"]),
     ).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(dark["--primary"], "#101313")).toBeGreaterThanOrEqual(
+      4.5,
+    );
     expect(
       contrastRatio(light["--primary"], light["--primary-foreground"]),
     ).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(light["--primary"], "#FFFFFF")).toBeGreaterThanOrEqual(
+      4.5,
+    );
     expect(contrastRatio(dark["--ring"], "#101313")).toBeGreaterThanOrEqual(
       3,
     );

@@ -110,7 +110,8 @@ export function getOrganizationThemeStyle(
         ? normalized.accentSeed!
         : ACCENT_PRESETS[normalized.accentPreset].seed!;
   const background = dark ? "#101313" : "#FFFFFF";
-  const foreground = chooseReadableForeground(seed, dark ? "#101313" : "#FFFFFF");
+  const primary = ensureContrast(seed, background, 4.5);
+  const foreground = chooseReadableForeground(primary, dark ? "#101313" : "#FFFFFF");
   const ring = ensureContrast(seed, background, 3);
   const soft = `color-mix(in oklch, ${seed} ${dark ? "18%" : "10%"}, ${background})`;
   const surfaceForeground = dark ? "#F1F4F2" : "#171A19";
@@ -118,13 +119,13 @@ export function getOrganizationThemeStyle(
   return {
     "--org-accent-seed": seed,
     "--org-accent-soft": soft,
-    "--org-accent-hover": `color-mix(in oklch, ${seed} 86%, ${foreground})`,
+    "--org-accent-hover": `color-mix(in oklch, ${primary} 86%, ${foreground})`,
     "--accent": soft,
     "--accent-foreground": surfaceForeground,
-    "--primary": seed,
+    "--primary": primary,
     "--primary-foreground": foreground,
     "--ring": ring,
-    "--sidebar-primary": seed,
+    "--sidebar-primary": primary,
     "--sidebar-primary-foreground": foreground,
     "--sidebar-accent": soft,
     "--sidebar-accent-foreground": surfaceForeground,

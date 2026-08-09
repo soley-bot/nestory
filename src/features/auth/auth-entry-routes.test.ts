@@ -211,7 +211,8 @@ describe("entry experience contracts", () => {
     expect(shell).toContain("bg-[var(--auth-page-card-bg)]");
     expect(shell).toContain('markTone={visualSrc ? "light" : "auto"}');
     expect(shell).toContain("<ThemeToggle");
-    expect(themeToggle).toContain('localStorage.setItem("nestory-theme"');
+    expect(themeToggle).not.toContain('localStorage.setItem("nestory-theme"');
+    expect(themeToggle).toContain('classList.toggle("dark"');
     expect(login).not.toContain('switchHref="/signup"');
     expect(login).not.toContain("Create workspace");
     expect(loginForm).toContain('href="/forgot-password"');

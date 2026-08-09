@@ -84,7 +84,7 @@ export function TimelineTable({
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-2.5">
                     <Link
-                      className="min-w-0 truncate rounded-sm font-medium text-accent outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      className="min-w-0 truncate rounded-sm font-medium text-primary outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                       href={event.hrefs.timeline}
                       onClick={(linkEvent) => linkEvent.stopPropagation()}
                     >

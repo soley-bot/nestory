@@ -65,6 +65,7 @@ export const AppearanceEditor = forwardRef<
     action: updateOrganizationAppearanceAction,
     errorMessage: "Appearance not saved",
     initialValues,
+    retainValuesAfterSuccess: true,
     savedMessage: "Appearance saved",
     savingMessage: "Saving appearance",
     validate: validateAppearance,

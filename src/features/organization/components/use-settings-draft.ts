@@ -19,6 +19,7 @@ type UseSettingsDraftOptions<TValues extends DraftValues> = {
   savingMessage: string;
   savedMessage: string;
   errorMessage: string;
+  retainValuesAfterSuccess?: boolean;
   validate: (values: TValues) => DraftErrors<TValues>;
 };
 
@@ -26,6 +27,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
   action,
   errorMessage,
   initialValues,
+  retainValuesAfterSuccess = false,
   savedMessage,
   savingMessage,
   validate,
@@ -37,6 +39,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
   const [values, setValues] = useState<TValues>(() => ({ ...initialValues }));
   const activeSubmission = useRef(0);
   const alive = useRef(true);
+  const baseline = useRef<TValues>({ ...initialValues });
   const revision = useRef(0);
   const submitting = useRef(false);
 
@@ -58,14 +61,14 @@ export function useSettingsDraft<TValues extends DraftValues>({
     setResultMessage(undefined);
     setStatus("clean");
     setStatusMessage(undefined);
-    setValues({ ...initialValues });
+    setValues({ ...baseline.current });
   }
 
   function setField<TKey extends keyof TValues>(key: TKey, value: string) {
     revision.current += 1;
     const next = { ...values, [key]: value };
-    const isClean = Object.keys(initialValues).every(
-      (field) => next[field] === initialValues[field],
+    const isClean = Object.keys(baseline.current).every(
+      (field) => next[field] === baseline.current[field],
     );
     setValues(next);
     setStatus(isClean ? "clean" : "dirty");
@@ -88,8 +91,8 @@ export function useSettingsDraft<TValues extends DraftValues>({
     setErrors({});
     setResultMessage(undefined);
     setStatus(
-      Object.keys(initialValues).every(
-        (field) => next[field] === initialValues[field],
+      Object.keys(baseline.current).every(
+        (field) => next[field] === baseline.current[field],
       )
         ? "clean"
         : "dirty",
@@ -98,8 +101,9 @@ export function useSettingsDraft<TValues extends DraftValues>({
   }
 
   async function submit(onInvalid: (field: keyof TValues) => void) {
-    const nextErrors = validate(values);
-    const firstInvalid = Object.keys(initialValues).find(
+    const submittedValues = { ...values };
+    const nextErrors = validate(submittedValues);
+    const firstInvalid = Object.keys(baseline.current).find(
       (key) => nextErrors[key] !== undefined,
     ) as keyof TValues | undefined;
 
@@ -128,7 +132,7 @@ export function useSettingsDraft<TValues extends DraftValues>({
 
     try {
       const formData = new FormData();
-      Object.entries(values).forEach(([key, value]) => formData.set(key, value));
+      Object.entries(submittedValues).forEach(([key, value]) => formData.set(key, value));
       const result = await action({}, formData);
 
       if (
@@ -142,7 +146,10 @@ export function useSettingsDraft<TValues extends DraftValues>({
       setResultMessage(result.message);
       if (result.status === "success") {
         revision.current += 1;
-        setValues({ ...initialValues });
+        baseline.current = retainValuesAfterSuccess
+          ? { ...submittedValues }
+          : { ...initialValues };
+        setValues({ ...baseline.current });
         setStatus("saved");
         setStatusMessage(savedMessage);
       } else {
