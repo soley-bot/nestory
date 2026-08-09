@@ -144,6 +144,7 @@ export type Database = {
           archived_at: string | null
           archived_by: string | null
           category: string
+          content_sha256: string | null
           file_name: string
           id: string
           lease_id: string | null
@@ -164,6 +165,7 @@ export type Database = {
           archived_at?: string | null
           archived_by?: string | null
           category: string
+          content_sha256?: string | null
           file_name: string
           id?: string
           lease_id?: string | null
@@ -184,6 +186,7 @@ export type Database = {
           archived_at?: string | null
           archived_by?: string | null
           category?: string
+          content_sha256?: string | null
           file_name?: string
           id?: string
           lease_id?: string | null
@@ -7057,6 +7060,7 @@ export type Database = {
           p_activity_entity_type?: string
           p_activity_new_values?: Json
           p_category: string
+          p_content_sha256: string
           p_file_name: string
           p_lease_id?: string
           p_ledger_entry_id?: string
@@ -7261,6 +7265,15 @@ export type Database = {
         }
         Returns: string
       }
+      discard_unreferenced_document_upload: {
+        Args: {
+          p_content_sha256: string
+          p_document_id: string
+          p_organization_id: string
+          p_storage_path: string
+        }
+        Returns: string
+      }
       execute_assigned_maintenance_task: {
         Args: {
           p_action: string
@@ -7278,6 +7291,14 @@ export type Database = {
           p_note?: string
           p_organization_id: string
           p_task_id: string
+        }
+        Returns: string
+      }
+      fingerprint_document_content: {
+        Args: {
+          p_content_sha256: string
+          p_document_id: string
+          p_organization_id: string
         }
         Returns: string
       }
@@ -7903,13 +7924,9 @@ export type Database = {
         Args: {
           p_category: string
           p_document_id: string
-          p_file_name?: string
           p_lease_id?: string
-          p_mime_type?: string
           p_organization_id: string
           p_property_id: string
-          p_size_bytes?: number
-          p_storage_path?: string
           p_task_id?: string
           p_unit_id?: string
         }

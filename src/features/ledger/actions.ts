@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { sha256Hex } from "@/features/documents/content-fingerprint";
 import {
   requireFinancialMonthLockContext,
   requireFinancialMonthUnlockContext,
@@ -178,6 +179,7 @@ export async function attachLedgerReceiptAction(
     .maybeSingle();
 
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const contentSha256 = await sha256Hex(await file.arrayBuffer());
   const storagePath = `${context.organizationId}/ledger/${parsedEntryId.data}/${crypto.randomUUID()}-${safeFileName}`;
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
@@ -205,6 +207,7 @@ export async function attachLedgerReceiptAction(
         timeline_event_id: timelineEvent?.id ?? null,
       },
       p_category: "Receipt",
+      p_content_sha256: contentSha256,
       p_file_name: file.name,
       p_ledger_entry_id: parsedEntryId.data,
       p_mime_type: file.type,

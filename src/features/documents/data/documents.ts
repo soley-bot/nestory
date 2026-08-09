@@ -19,6 +19,7 @@ import {
 type DocumentRow = {
   archived_at: string | null;
   category: string;
+  content_sha256: string | null;
   file_name: string;
   id: string;
   lease_id: string | null;
@@ -98,7 +99,7 @@ export async function getDocumentsScreenData(
   let documentsQuery = supabase
     .from("documents")
     .select(
-      "id, category, file_name, storage_path, mime_type, size_bytes, uploaded_at, archived_at, property_id, unit_id, lease_id, ledger_entry_id, task_id, timeline_event_id",
+      "id, category, content_sha256, file_name, storage_path, mime_type, size_bytes, uploaded_at, archived_at, property_id, unit_id, lease_id, ledger_entry_id, task_id, timeline_event_id",
       { count: "exact" },
     )
     .eq("organization_id", organizationId);
@@ -260,6 +261,7 @@ function toDocumentSummary({
   const isArchived = Boolean(document.archived_at);
   const linkedDocument: LinkedDocument = {
     category: document.category,
+    contentSha256: document.content_sha256 ?? undefined,
     fileName: document.file_name,
     id: document.id,
     mimeType: document.mime_type,

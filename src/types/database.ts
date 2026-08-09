@@ -210,6 +210,7 @@ type RpcFunctionOverrides = {
       p_activity_entity_type?: string;
       p_activity_new_values?: Json;
       p_category: string;
+      p_content_sha256: string;
       p_file_name: string;
       p_lease_id?: string | null;
       p_ledger_entry_id?: string | null;

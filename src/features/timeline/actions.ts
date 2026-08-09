@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { sha256Hex } from "@/features/documents/content-fingerprint";
 import { Constants } from "@/types/database";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -361,6 +362,7 @@ export async function attachTimelineDocumentAction(
   }
 
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const contentSha256 = await sha256Hex(await file.arrayBuffer());
   const storagePath = `${context.organizationId}/timeline/${parsedEventId.data}/${crypto.randomUUID()}-${safeFileName}`;
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
@@ -388,6 +390,7 @@ export async function attachTimelineDocumentAction(
         ledger_entry_id: event.ledger_entry_id,
       },
       p_category: "Timeline Document",
+      p_content_sha256: contentSha256,
       p_file_name: file.name,
       p_ledger_entry_id: event.ledger_entry_id,
       p_mime_type: file.type,

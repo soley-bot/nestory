@@ -571,9 +571,9 @@ SELECT throws_ok(
       super_admin_id
     FROM maintenance_cost_state
   $$,
-  '22023',
-  'Document storage path must belong to its organization',
-  'new document metadata cannot point at another organization storage path'
+  '42501',
+  'permission denied for table documents',
+  'direct authenticated document metadata creation is denied before a forged path can be stored'
 );
 
 SELECT lives_ok(
@@ -794,7 +794,7 @@ SELECT throws_ok(
     WHERE id = (SELECT document_id FROM maintenance_cost_state)
   $$,
   '22023',
-  'Expense submission evidence is immutable',
+  'Financial evidence document is immutable while referenced',
   'submitted evidence cannot be archived while Finance is reviewing it'
 );
 

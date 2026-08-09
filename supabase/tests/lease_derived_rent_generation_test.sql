@@ -261,22 +261,6 @@ CREATE TEMP TABLE lease_rent_state (
 
 INSERT INTO lease_rent_state DEFAULT VALUES;
 
-UPDATE lease_rent_state
-SET current_business_date = app_private.rent_business_date(
-      organization_id,
-      pg_catalog.now()
-    ),
-    current_period_start = pg_catalog.date_trunc(
-      'month',
-      app_private.rent_business_date(organization_id, pg_catalog.now())
-    )::date,
-    non_current_period_start = (
-      pg_catalog.date_trunc(
-        'month',
-        app_private.rent_business_date(organization_id, pg_catalog.now())
-      ) + interval '1 month'
-    )::date;
-
 GRANT SELECT, UPDATE ON lease_rent_state TO authenticated;
 
 INSERT INTO auth.users (
@@ -600,6 +584,25 @@ SELECT
   now(),
   super_admin_id
 FROM lease_rent_state;
+
+-- Resolve the business date only after the approved timezone policy exists.
+-- Before that, the helper correctly falls back to UTC, which can differ from
+-- the organization's Asia/Bangkok operating date around midnight.
+UPDATE lease_rent_state
+SET current_business_date = app_private.rent_business_date(
+      organization_id,
+      pg_catalog.now()
+    ),
+    current_period_start = pg_catalog.date_trunc(
+      'month',
+      app_private.rent_business_date(organization_id, pg_catalog.now())
+    )::date,
+    non_current_period_start = (
+      pg_catalog.date_trunc(
+        'month',
+        app_private.rent_business_date(organization_id, pg_catalog.now())
+      ) + interval '1 month'
+    )::date;
 
 INSERT INTO public.lease_billing_terms (
   id,
