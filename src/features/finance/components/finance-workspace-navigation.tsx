@@ -29,7 +29,7 @@ export function FinanceWorkspaceNavigation({
   return (
     <nav
       aria-label="Finance workspace"
-      className="min-w-0 overflow-x-auto px-4 py-1 sm:px-6"
+      className="min-w-0 overflow-x-auto px-4 py-1 sm:px-6 md:hidden"
     >
       <div className="flex min-w-max items-center gap-1">
         {financeDestinations.map((destination) => (

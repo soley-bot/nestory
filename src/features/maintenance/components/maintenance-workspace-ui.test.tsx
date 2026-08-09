@@ -132,6 +132,7 @@ describe("maintenance workspace redesign contract", () => {
       expect(
         within(localNavigation).getByRole("button", { name: currentLabel }),
       ).not.toBeNull();
+      expect(localNavigation.className).toContain("md:hidden");
     },
   );
 

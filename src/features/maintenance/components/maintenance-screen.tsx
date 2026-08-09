@@ -2367,7 +2367,7 @@ function MaintenanceWorkspaceNavigation({ pathname }: { pathname: string }) {
   return (
     <nav
       aria-label="Maintenance workspace"
-      className="px-4 py-1.5 sm:px-6"
+      className="px-4 py-1.5 sm:px-6 md:hidden"
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
