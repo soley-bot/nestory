@@ -4092,6 +4092,325 @@ export type Database = {
           },
         ]
       }
+      owner_opening_balance_entries: {
+        Row: {
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          effective_date: string
+          entry_kind: string
+          id: string
+          organization_id: string
+          owner_person_id: string
+          ownership_percent_snapshot: number
+          ownership_roster_hash: string
+          property_id: string
+          property_owner_id: string
+          request_id: string
+          reversal_of_entry_id: string | null
+          signed_amount: number
+        }
+        Insert: {
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          created_at?: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          effective_date: string
+          entry_kind: string
+          id?: string
+          organization_id: string
+          owner_person_id: string
+          ownership_percent_snapshot: number
+          ownership_roster_hash: string
+          property_id: string
+          property_owner_id: string
+          request_id: string
+          reversal_of_entry_id?: string | null
+          signed_amount: number
+        }
+        Update: {
+          component?: Database["public"]["Enums"]["owner_balance_component"]
+          created_at?: string
+          created_by?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          effective_date?: string
+          entry_kind?: string
+          id?: string
+          organization_id?: string
+          owner_person_id?: string
+          ownership_percent_snapshot?: number
+          ownership_roster_hash?: string
+          property_id?: string
+          property_owner_id?: string
+          request_id?: string
+          reversal_of_entry_id?: string | null
+          signed_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_opening_balance_entries_organization_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_entries_owner_person_fkey"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_entries_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_entries_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_entries_property_owner_fkey"
+            columns: [
+              "organization_id",
+              "property_id",
+              "owner_person_id",
+              "property_owner_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "property_owners"
+            referencedColumns: [
+              "organization_id",
+              "property_id",
+              "person_id",
+              "id",
+            ]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_entries_request_fkey"
+            columns: [
+              "organization_id",
+              "property_id",
+              "owner_person_id",
+              "currency",
+              "effective_date",
+              "component",
+              "request_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "owner_opening_balance_requests"
+            referencedColumns: [
+              "organization_id",
+              "property_id",
+              "owner_person_id",
+              "currency",
+              "effective_date",
+              "component",
+              "id",
+            ]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_entries_reversal_target_fkey"
+            columns: [
+              "organization_id",
+              "property_id",
+              "owner_person_id",
+              "currency",
+              "effective_date",
+              "component",
+              "reversal_of_entry_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "owner_opening_balance_entries"
+            referencedColumns: [
+              "organization_id",
+              "property_id",
+              "owner_person_id",
+              "currency",
+              "effective_date",
+              "component",
+              "id",
+            ]
+          },
+        ]
+      }
+      owner_opening_balance_requests: {
+        Row: {
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          correction_of_entry_id: string | null
+          created_at: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          effective_date: string
+          evidence_sha256: string
+          id: string
+          organization_id: string
+          owner_person_id: string
+          ownership_percent_snapshot: number
+          ownership_roster_hash: string
+          payload_hash: string
+          property_id: string
+          property_owner_id: string
+          proposed_amount: number
+          reason: string
+          request_kind: string
+          resubmission_of_request_id: string | null
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_reference: string | null
+          status: string
+          submitted_at: string
+          submitted_by: string
+          supporting_document_id: string | null
+        }
+        Insert: {
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          correction_of_entry_id?: string | null
+          created_at?: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          effective_date: string
+          evidence_sha256: string
+          id?: string
+          organization_id: string
+          owner_person_id: string
+          ownership_percent_snapshot: number
+          ownership_roster_hash: string
+          payload_hash: string
+          property_id: string
+          property_owner_id: string
+          proposed_amount: number
+          reason: string
+          request_kind: string
+          resubmission_of_request_id?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_reference?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by: string
+          supporting_document_id?: string | null
+        }
+        Update: {
+          component?: Database["public"]["Enums"]["owner_balance_component"]
+          correction_of_entry_id?: string | null
+          created_at?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          effective_date?: string
+          evidence_sha256?: string
+          id?: string
+          organization_id?: string
+          owner_person_id?: string
+          ownership_percent_snapshot?: number
+          ownership_roster_hash?: string
+          payload_hash?: string
+          property_id?: string
+          property_owner_id?: string
+          proposed_amount?: number
+          reason?: string
+          request_kind?: string
+          resubmission_of_request_id?: string | null
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_reference?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by?: string
+          supporting_document_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_opening_balance_requests_correction_target_fkey"
+            columns: [
+              "organization_id",
+              "property_id",
+              "owner_person_id",
+              "currency",
+              "effective_date",
+              "component",
+              "correction_of_entry_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "owner_opening_balance_entries"
+            referencedColumns: [
+              "organization_id",
+              "property_id",
+              "owner_person_id",
+              "currency",
+              "effective_date",
+              "component",
+              "id",
+            ]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_requests_document_fkey"
+            columns: ["supporting_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_requests_organization_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_requests_owner_person_fkey"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_requests_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_requests_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_requests_property_owner_fkey"
+            columns: [
+              "organization_id",
+              "property_id",
+              "owner_person_id",
+              "property_owner_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "property_owners"
+            referencedColumns: [
+              "organization_id",
+              "property_id",
+              "person_id",
+              "id",
+            ]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_requests_resubmission_fkey"
+            columns: ["organization_id", "resubmission_of_request_id"]
+            isOneToOne: false
+            referencedRelation: "owner_opening_balance_requests"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       owner_payment_allocations: {
         Row: {
           allocation_order: number
@@ -6370,6 +6689,52 @@ export type Database = {
           },
         ]
       }
+      owner_opening_balance_known_authority_v1: {
+        Row: {
+          authority_state: string | null
+          component:
+            | Database["public"]["Enums"]["owner_balance_component"]
+            | null
+          currency: Database["public"]["Enums"]["currency_code"] | null
+          current_amount: number | null
+          effective_date: string | null
+          entry_count: number | null
+          latest_entry_at: string | null
+          organization_id: string | null
+          owner_person_id: string | null
+          property_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_opening_balance_entries_organization_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_entries_owner_person_fkey"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_entries_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_opening_balance_entries_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+        ]
+      }
       property_account_entries: {
         Row: {
           amount: number | null
@@ -7743,6 +8108,11 @@ export type Database = {
     }
     Enums: {
       currency_code: "USD"
+      owner_balance_component:
+        | "ips_held_owner_cash"
+        | "owner_due_to_ips"
+        | "ips_due_to_owner"
+        | "security_deposit_custody"
       timeline_event_type:
         | "Lease Started"
         | "Lease Ended"
@@ -7883,6 +8253,12 @@ export const Constants = {
   public: {
     Enums: {
       currency_code: ["USD"],
+      owner_balance_component: [
+        "ips_held_owner_cash",
+        "owner_due_to_ips",
+        "ips_due_to_owner",
+        "security_deposit_custody",
+      ],
       timeline_event_type: [
         "Lease Started",
         "Lease Ended",

@@ -87,6 +87,7 @@ const ids = {
   propertyOwner: "a2120000-0000-4000-8000-000000000004",
   submitter: "a2120000-0000-4000-8000-000000000005",
   correctionTarget: "a2120000-0000-4000-8000-000000000006",
+  reviewer: "a2120000-0000-4000-8000-000000000007",
 };
 
 function requestInsert({ id, component, kind, correctionTarget = null }) {
@@ -116,9 +117,17 @@ test("two sessions enforce one submitted initial key and one submitted correctio
       confirmation_token, recovery_token, email_change_token_new, email_change,
       email_change_token_current, reauthentication_token, raw_app_meta_data,
       raw_user_meta_data, created_at, updated_at
-    ) VALUES (
+    ) VALUES
+    (
       '00000000-0000-0000-0000-000000000000', '${ids.submitter}',
       'authenticated', 'authenticated', 'owner-opening-concurrency@example.test',
+      extensions.crypt('owner-opening-concurrency', extensions.gen_salt('bf')),
+      now(), '', '', '', '', '', '',
+      '{"provider":"email","providers":["email"]}', '{}', now(), now()
+    ),
+    (
+      '00000000-0000-0000-0000-000000000000', '${ids.reviewer}',
+      'authenticated', 'authenticated', 'owner-opening-reviewer@example.test',
       extensions.crypt('owner-opening-concurrency', extensions.gen_salt('bf')),
       now(), '', '', '', '', '', '',
       '{"provider":"email","providers":["email"]}', '{}', now(), now()
@@ -140,6 +149,30 @@ test("two sessions enforce one submitted initial key and one submitted correctio
     ) VALUES (
       '${ids.propertyOwner}', '${ids.organization}', '${ids.property}',
       '${ids.owner}', 100.000, '2026-08-01'
+    ) ON CONFLICT (id) DO NOTHING;
+    INSERT INTO public.owner_opening_balance_requests (
+      id, organization_id, property_id, owner_person_id, property_owner_id,
+      ownership_percent_snapshot, ownership_roster_hash, currency,
+      effective_date, component, request_kind, proposed_amount, status, reason,
+      source_reference, evidence_sha256, payload_hash, submitted_by,
+      reviewed_at, reviewed_by
+    ) VALUES (
+      'a2120000-0000-4000-8000-000000000008', '${ids.organization}',
+      '${ids.property}', '${ids.owner}', '${ids.propertyOwner}', 100.000,
+      repeat('a', 64), 'USD', '2026-08-01', 'owner_due_to_ips', 'initial',
+      0.00, 'approved', 'Correction concurrency seed',
+      'IPS cutover correction concurrency seed', repeat('c', 64),
+      repeat('d', 64), '${ids.submitter}', now(), '${ids.reviewer}'
+    ) ON CONFLICT (id) DO NOTHING;
+    INSERT INTO public.owner_opening_balance_entries (
+      id, request_id, organization_id, property_id, owner_person_id,
+      property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
+      currency, effective_date, component, entry_kind, signed_amount, created_by
+    ) VALUES (
+      '${ids.correctionTarget}', 'a2120000-0000-4000-8000-000000000008',
+      '${ids.organization}', '${ids.property}', '${ids.owner}',
+      '${ids.propertyOwner}', 100.000, repeat('a', 64), 'USD', '2026-08-01',
+      'owner_due_to_ips', 'opening', 0.00, '${ids.reviewer}'
     ) ON CONFLICT (id) DO NOTHING;
   `);
 
@@ -219,6 +252,7 @@ test("two sessions enforce one submitted initial key and one submitted correctio
     DELETE FROM public.financial_reconciliation_sources WHERE organization_id = '${ids.organization}';
     DELETE FROM public.organizations WHERE id = '${ids.organization}';
     DELETE FROM auth.users WHERE id = '${ids.submitter}';
+    DELETE FROM auth.users WHERE id = '${ids.reviewer}';
     SET session_replication_role = origin;
   `);
 });

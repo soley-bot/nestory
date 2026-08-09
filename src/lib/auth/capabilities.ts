@@ -19,12 +19,20 @@ export type WorkspaceCapabilities = {
   canManagePettyCash: boolean;
   canManageReconciliationSources: boolean;
   canOperateFinance: boolean;
+  canCloseOwnerMonth: boolean;
+  canInspectOwnerCloseReadiness: boolean;
+  canPublishOwnerStatement: boolean;
   canReadFinance: boolean;
   canReadFinanceReports: boolean;
+  canReadOwnerBalanceAuthority: boolean;
+  canReopenOwnerMonth: boolean;
+  canRequestOwnerOpeningBalanceCorrection: boolean;
   canReviewExpense: boolean;
+  canReviewOwnerOpeningBalance: boolean;
   canReverseExpense: boolean;
   canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
+  canSubmitOwnerOpeningBalance: boolean;
   canUnlockFinancialMonth: boolean;
 };
 
@@ -40,12 +48,20 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canManageReconciliationSources: true,
     canManageOperations: true,
     canOperateFinance: true,
+    canCloseOwnerMonth: true,
+    canInspectOwnerCloseReadiness: true,
+    canPublishOwnerStatement: true,
     canReadFinance: true,
     canReadFinanceReports: true,
+    canReadOwnerBalanceAuthority: true,
+    canReopenOwnerMonth: true,
+    canRequestOwnerOpeningBalanceCorrection: true,
     canReviewExpense: true,
+    canReviewOwnerOpeningBalance: true,
     canReverseExpense: true,
     canRetryCurrentRent: true,
     canSubmitExpense: true,
+    canSubmitOwnerOpeningBalance: true,
     canUnlockFinancialMonth: true,
   },
   finance_manager: {
@@ -59,12 +75,20 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canManageReconciliationSources: false,
     canManageOperations: false,
     canOperateFinance: true,
+    canCloseOwnerMonth: false,
+    canInspectOwnerCloseReadiness: true,
+    canPublishOwnerStatement: false,
     canReadFinance: true,
     canReadFinanceReports: true,
+    canReadOwnerBalanceAuthority: true,
+    canReopenOwnerMonth: false,
+    canRequestOwnerOpeningBalanceCorrection: true,
     canReviewExpense: true,
+    canReviewOwnerOpeningBalance: false,
     canReverseExpense: false,
     canRetryCurrentRent: true,
     canSubmitExpense: false,
+    canSubmitOwnerOpeningBalance: false,
     canUnlockFinancialMonth: false,
   },
   finance_member: {
@@ -78,12 +102,20 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canManageReconciliationSources: false,
     canManageOperations: false,
     canOperateFinance: false,
+    canCloseOwnerMonth: false,
+    canInspectOwnerCloseReadiness: true,
+    canPublishOwnerStatement: false,
     canReadFinance: true,
     canReadFinanceReports: false,
+    canReadOwnerBalanceAuthority: true,
+    canReopenOwnerMonth: false,
+    canRequestOwnerOpeningBalanceCorrection: true,
     canReviewExpense: false,
+    canReviewOwnerOpeningBalance: false,
     canReverseExpense: false,
     canRetryCurrentRent: false,
     canSubmitExpense: true,
+    canSubmitOwnerOpeningBalance: true,
     canUnlockFinancialMonth: false,
   },
   operations_manager: {
@@ -97,12 +129,20 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canManageReconciliationSources: false,
     canManageOperations: true,
     canOperateFinance: false,
+    canCloseOwnerMonth: false,
+    canInspectOwnerCloseReadiness: false,
+    canPublishOwnerStatement: false,
     canReadFinance: false,
     canReadFinanceReports: false,
+    canReadOwnerBalanceAuthority: false,
+    canReopenOwnerMonth: false,
+    canRequestOwnerOpeningBalanceCorrection: false,
     canReviewExpense: false,
+    canReviewOwnerOpeningBalance: false,
     canReverseExpense: false,
     canRetryCurrentRent: false,
     canSubmitExpense: false,
+    canSubmitOwnerOpeningBalance: false,
     canUnlockFinancialMonth: false,
   },
   operations_member: {
@@ -116,12 +156,20 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canManageReconciliationSources: false,
     canManageOperations: false,
     canOperateFinance: false,
+    canCloseOwnerMonth: false,
+    canInspectOwnerCloseReadiness: false,
+    canPublishOwnerStatement: false,
     canReadFinance: false,
     canReadFinanceReports: false,
+    canReadOwnerBalanceAuthority: false,
+    canReopenOwnerMonth: false,
+    canRequestOwnerOpeningBalanceCorrection: false,
     canReviewExpense: false,
+    canReviewOwnerOpeningBalance: false,
     canReverseExpense: false,
     canRetryCurrentRent: false,
     canSubmitExpense: false,
+    canSubmitOwnerOpeningBalance: false,
     canUnlockFinancialMonth: false,
   },
 };
