@@ -87,6 +87,44 @@ type RpcFunctionOverrides = {
       p_supporting_document_id: string | null;
     }
   >;
+  submit_owner_opening_balance_with_document: WithArgs<
+    "submit_owner_opening_balance_with_document",
+    {
+      p_amount: string;
+      p_component: OwnerBalanceComponent;
+      p_currency: CurrencyCode;
+      p_document_file_name: string;
+      p_document_mime_type: string;
+      p_document_size_bytes: number;
+      p_document_storage_path: string;
+      p_effective_date: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+      p_reason: string;
+      p_resubmission_of_request_id: string | null;
+      p_source_reference: string | null;
+    }
+  >;
+  submit_owner_opening_balance_correction_with_document: WithArgs<
+    "submit_owner_opening_balance_correction_with_document",
+    {
+      p_document_file_name: string;
+      p_document_mime_type: string;
+      p_document_size_bytes: number;
+      p_document_storage_path: string;
+      p_entry_id: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_reason: string;
+      p_replacement_amount: string;
+      p_resubmission_of_request_id: string | null;
+      p_source_reference: string | null;
+    }
+  >;
   review_owner_opening_balance: WithArgs<
     "review_owner_opening_balance",
     {
@@ -103,7 +141,7 @@ type RpcFunctionOverrides = {
       active_owner_count: number;
       boundary_date: string;
       canonical_roster: string | null;
-      issue_code: string;
+      issue_code: string | null;
       next_boundary_date: string | null;
       organization_id: string;
       ownership_percent_total: string;

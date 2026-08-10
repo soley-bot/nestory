@@ -19,7 +19,7 @@ describe("FinanceWorkspaceNavigation", () => {
       "Finance work",
       "Rent",
       "Expenses",
-      "Owner Balance",
+      "Owner balances",
       "Leases",
       "Ledger",
       "Petty Cash",

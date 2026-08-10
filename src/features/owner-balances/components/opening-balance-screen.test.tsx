@@ -124,10 +124,21 @@ describe("OpeningBalanceScreen", () => {
     expect(screen.getAllByRole("button", { name: "Submit opening balance" }).length)
       .toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Request correction" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Approve opening balance" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Reject opening balance" })).toBeTruthy();
     expect(screen.getByText("Independent review required")).toBeTruthy();
     admin.unmount();
+
+    const reviewable = authorityData();
+    const reviewableRequest = reviewable.groups[0]!.components[2]!.requests[0]!;
+    reviewable.groups[0]!.components[2]!.requests[0] = {
+      ...reviewableRequest,
+      reviewedAt: null,
+      reviewedBy: null,
+      status: "submitted",
+    };
+    const review = renderScreen({ ...superAdminProps(), data: reviewable });
+    expect(screen.getByRole("button", { name: "Approve opening balance" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reject opening balance" })).toBeTruthy();
+    review.unmount();
 
     const financeManager = renderScreen({
       ...baseProps(),
@@ -165,6 +176,67 @@ describe("OpeningBalanceScreen", () => {
         .getByDisplayValue(rejectedRequestId)
         .getAttribute("name"),
     ).toBe("resubmissionOfRequestId");
+  });
+
+  it("offers only Resubmit for an unresolved rejected leaf", () => {
+    renderScreen(superAdminProps());
+
+    const row = screen.getByText("Security-deposit custody").closest("tr");
+    expect(row).toBeTruthy();
+    expect(within(row!).getByRole("button", { name: "Resubmit rejected opening" }))
+      .toBeTruthy();
+    expect(within(row!).queryByRole("button", { name: "Submit opening balance" }))
+      .toBeNull();
+  });
+
+  it("uses only the newest request as current workflow, evidence, ownership, and action", () => {
+    const data = authorityData();
+    const component = data.groups[0]!.components[3]!;
+    const rejected = component.requests[0]!;
+    component.requests = [
+      {
+        ...rejected,
+        id: pendingRequestId,
+        ownershipPercentSnapshot: "88.000",
+        ownershipRosterHash: "e".repeat(64),
+        resubmissionOfRequestId: rejected.id,
+        sourceReference: "Current successor evidence",
+        status: "submitted",
+        submittedAt: "2026-08-04T00:00:00Z",
+      },
+      {
+        ...rejected,
+        ownershipPercentSnapshot: "50.000",
+        sourceReference: "Older rejected evidence",
+        submittedAt: "2026-08-02T00:00:00Z",
+      },
+    ];
+
+    renderScreen({ ...superAdminProps(), data });
+
+    const row = screen.getByText("Security-deposit custody").closest("tr");
+    expect(row).toBeTruthy();
+    expect(within(row!).getByText("88.000%")).toBeTruthy();
+    expect(within(row!).getByText("Reference: Current successor evidence"))
+      .toBeTruthy();
+    expect(within(row!).queryByText("Reference: Older rejected evidence")).toBeNull();
+    expect(within(row!).queryByRole("button", { name: "Resubmit rejected opening" }))
+      .toBeNull();
+    expect(within(row!).getByRole("button", { name: "Approve opening balance" }))
+      .toBeTruthy();
+    expect(within(row!).getByRole("button", { name: "Reject opening balance" }))
+      .toBeTruthy();
+  });
+
+  it("does not fabricate a selected property-owner pair when the roster is invalid", () => {
+    const data = authorityData();
+    data.groups = [];
+
+    renderScreen({ ...superAdminProps(), data });
+
+    expect(screen.getByText("Ownership setup required")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Submit opening balance" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Resolve ownership" })).toBeTruthy();
   });
 
   it("uses exact text amounts, stable intent IDs, and real-byte evidence controls", async () => {
@@ -224,23 +296,33 @@ describe("OpeningBalanceScreen", () => {
         'input[name="idempotencyKey"]',
       )?.value,
     ).toBe("owner-opening-initial-00000000-0000-4000-8000-000000000099");
+    expect(within(screen.getByRole("dialog")).getByLabelText<HTMLInputElement>("Opening amount").value)
+      .toBe("999999999999.99");
+    expect(within(screen.getByRole("dialog")).getByLabelText<HTMLInputElement>("Reason").value)
+      .toBe("Reconciled opening evidence");
+    expect(within(screen.getByRole("dialog")).getByLabelText<HTMLInputElement>("Source reference").value)
+      .toBe("IPS workbook row 8");
   });
 
-  it("offers checked upload only to Super Admin and fixes its evidence category", async () => {
+  it("keeps a new evidence file local until final submission", async () => {
     const user = userEvent.setup();
     renderScreen(superAdminProps());
     await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
 
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText("Upload and register evidence")).toBeTruthy();
-    expect(
-      dialog.querySelector<HTMLInputElement>('input[name="category"]')?.value,
-    ).toBe("owner_opening_balance_evidence");
-    cleanup();
+    const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
+      type: "application/pdf",
+    });
+    await user.upload(within(dialog).getByLabelText("Evidence file"), file);
 
-    renderScreen({ ...baseProps(), canSubmitInitial: true });
-    await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
-    expect(screen.queryByText("Upload and register evidence")).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Register file" })).toBeNull();
+    expect(within(dialog).getByText("opening.pdf ready for final submission"))
+      .toBeTruthy();
+    expect(mocks.createDocument).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mocks.createDocument).not.toHaveBeenCalled();
   });
 
   it("submits the current entry for correction without numeric coercion", async () => {
@@ -268,7 +350,15 @@ describe("OpeningBalanceScreen", () => {
 
   it("sends an independent review decision with its stable intent key", async () => {
     const user = userEvent.setup();
-    renderScreen(superAdminProps());
+    const data = authorityData();
+    const reviewableRequest = data.groups[0]!.components[2]!.requests[0]!;
+    data.groups[0]!.components[2]!.requests[0] = {
+      ...reviewableRequest,
+      reviewedAt: null,
+      reviewedBy: null,
+      status: "submitted",
+    };
+    renderScreen({ ...superAdminProps(), data });
 
     await user.click(screen.getByRole("button", { name: "Approve opening balance" }));
     const dialog = screen.getByRole("dialog");
@@ -284,7 +374,7 @@ describe("OpeningBalanceScreen", () => {
     });
   });
 
-  it("passes selected evidence through the checked document action", async () => {
+  it("submits the selected file through the final opening command", async () => {
     const user = userEvent.setup();
     renderScreen(superAdminProps());
     await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
@@ -292,17 +382,83 @@ describe("OpeningBalanceScreen", () => {
     const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
       type: "application/pdf",
     });
-    const input = within(dialog).getByLabelText<HTMLInputElement>("Upload evidence document");
+    const input = within(dialog).getByLabelText<HTMLInputElement>("Evidence file");
     await user.upload(input, file);
     expect(input.files?.[0]).toBe(file);
-    const register = within(dialog).getByRole("button", { name: "Register file" });
-    fireEvent.submit(register.closest("form")!);
+    fireEvent.change(within(dialog).getByLabelText("Opening amount"), {
+      target: { value: "10.00" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Reason"), {
+      target: { value: "Reconciled uploaded evidence" },
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
 
-    await waitFor(() => expect(mocks.createDocument).toHaveBeenCalledOnce());
-    const submitted = mocks.createDocument.mock.calls[0]?.[1] as FormData;
-    expect(submitted.get("document")).toBeInstanceOf(File);
-    expect(submitted.get("category")).toBe("owner_opening_balance_evidence");
-    expect(submitted.get("propertyId")).toBe(propertyId);
+    await waitFor(() => expect(mocks.initial).toHaveBeenCalledOnce());
+    const submitted = mocks.initial.mock.calls[0]?.[1] as FormData;
+    expect(submitted.get("evidenceFile")).toBe(file);
+    expect(mocks.createDocument).not.toHaveBeenCalled();
+  });
+
+  it("retains a selected file, its fingerprint, source, amount, reason, and key after a network error", async () => {
+    mocks.initial.mockResolvedValueOnce({
+      errorCode: "database",
+      message: "We could not save the opening balance. Review it and try again.",
+      status: "error",
+    });
+    const user = userEvent.setup();
+    renderScreen(superAdminProps());
+    await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
+    const dialog = screen.getByRole("dialog");
+    const key = dialog.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')!.value;
+    const file = new File([new Uint8Array([1, 2, 3])], "recoverable.pdf", {
+      type: "application/pdf",
+    });
+    await user.upload(within(dialog).getByLabelText("Evidence file"), file);
+    fireEvent.change(within(dialog).getByLabelText("Opening amount"), {
+      target: { value: "19.50" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Reason"), {
+      target: { value: "Recover after network failure" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Source reference"), {
+      target: { value: "IPS workbook row 19" },
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    const recovered = screen.getByRole("dialog");
+    expect(within(recovered).getByText("recoverable.pdf ready for final submission"))
+      .toBeTruthy();
+    expect(within(recovered).getByText(/Fingerprint 039058c6f2c0/)).toBeTruthy();
+    expect(within(recovered).getByLabelText<HTMLInputElement>("Opening amount").value)
+      .toBe("19.50");
+    expect(within(recovered).getByLabelText<HTMLInputElement>("Reason").value)
+      .toBe("Recover after network failure");
+    expect(within(recovered).getByLabelText<HTMLInputElement>("Source reference").value)
+      .toBe("IPS workbook row 19");
+    expect(recovered.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')!.value)
+      .toBe(key);
+  });
+
+  it("announces success persistently and moves focus away from the removed dialog", async () => {
+    const user = userEvent.setup();
+    renderScreen(superAdminProps());
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("");
+    await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Opening amount"), {
+      target: { value: "10.00" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Reason"), {
+      target: { value: "Reconciled opening evidence" },
+    });
+    await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
+
+    expect(status.textContent).toContain("Opening balance submitted for review.");
+    await waitFor(() => expect(document.activeElement).toBe(status));
+    expect(document.activeElement).not.toBe(document.body);
+    expect(mocks.refresh).toHaveBeenCalledOnce();
   });
 
   it("keeps its table usable as a labelled keyboard-scroll region at narrow widths", () => {
@@ -482,7 +638,9 @@ function authorityData(): OpeningBalanceAuthorityData {
                 proposedAmount: canonicalizeOwnerOpeningAmount("12.34"),
                 requestKind: "correction",
                 resubmissionOfRequestId: rejectedRequestId,
-                status: "submitted",
+                reviewedAt: "2026-08-03T00:00:00Z",
+                reviewedBy: actorId,
+                status: "approved",
               },
             ],
           },
@@ -511,6 +669,7 @@ function authorityData(): OpeningBalanceAuthorityData {
         organizationId,
         ownerPersonId: ownerId,
         propertyId,
+        rosterState: "ready",
       },
     ],
   };

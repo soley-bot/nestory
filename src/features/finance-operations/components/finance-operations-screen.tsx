@@ -1219,7 +1219,7 @@ function BalancesView({
 
   return (
     <div className="h-full min-h-0 overflow-auto bg-background">
-      {openingAuthority}
+      {openingAuthority ? <div>{openingAuthority}</div> : null}
       <section
         aria-labelledby="current-balance-projection-heading"
         className="min-h-[420px]"
@@ -1251,7 +1251,7 @@ function BalancesView({
           Tenants &amp; companies
         </TabsTrigger>
       </TabsList>
-      <TabsContent className="min-h-0 overflow-auto" value="owners">
+      <TabsContent className="min-h-0 overflow-auto" tabIndex={-1} value="owners">
         <TableFrame>
           <Table className="min-w-[1040px]">
             <thead className="bg-[var(--table-header-bg)]">
@@ -1330,7 +1330,7 @@ function BalancesView({
           </Table>
         </TableFrame>
       </TabsContent>
-      <TabsContent className="min-h-0 overflow-auto" value="tenants">
+      <TabsContent className="min-h-0 overflow-auto" tabIndex={-1} value="tenants">
         <TableFrame>
           <Table className="min-w-[720px]">
             <thead className="bg-[var(--table-header-bg)]">

@@ -89,6 +89,194 @@ describe("opening balance authority loader", () => {
     });
   });
 
+  it("seeds the default queue from real effective-dated property-owner assignments", async () => {
+    const results = rowResults();
+    results.owner_opening_balance_requests.data = [];
+    results.owner_opening_balance_entries.data = [];
+    results.owner_opening_balance_known_authority_v1.data = [];
+    results.property_owners.data = [
+      {
+        archived_at: null,
+        ended_on: null,
+        id: propertyOwnerId,
+        organization_id: organizationId,
+        ownership_percent_text: "100.000",
+        person_id: ownerId,
+        property_id: propertyId,
+        started_on: "2026-07-01",
+      },
+    ];
+    results.properties.data = [
+      { archived_at: null, id: propertyId, organization_id: organizationId },
+    ];
+    results.people.data = [
+      { archived_at: null, id: ownerId, organization_id: organizationId },
+    ];
+    results.person_roles.data = [
+      {
+        archived_at: null,
+        organization_id: organizationId,
+        person_id: ownerId,
+        role: "owner",
+        status: "active",
+      },
+    ];
+    mocks.rpc.mockReturnValue(query({ data: [], error: null }));
+    mocks.from.mockImplementation((table: string) =>
+      query(results[table as keyof typeof results]),
+    );
+
+    const result = await getOpeningBalanceAuthorityData({
+      effectiveDate: "2026-08-01",
+    });
+
+    expect(result.groups).toEqual([
+      expect.objectContaining({
+        ownerPersonId: ownerId,
+        propertyId,
+        components: OWNER_BALANCE_COMPONENTS.map((component) =>
+          expect.objectContaining({
+            authority: { state: "unknown" },
+            component,
+            requests: [],
+          }),
+        ),
+      }),
+    ]);
+  });
+
+  it("uses a readiness row with no issue as authority, not as a blocker", async () => {
+    const results = rowResults();
+    results.owner_opening_balance_requests.data = [];
+    results.owner_opening_balance_entries.data = [];
+    results.owner_opening_balance_known_authority_v1.data = [];
+    results.property_owners.data = [{
+      archived_at: null,
+      ended_on: null,
+      id: propertyOwnerId,
+      organization_id: organizationId,
+      ownership_percent_text: "100.000",
+      person_id: ownerId,
+      property_id: propertyId,
+      started_on: "2026-07-01",
+    }];
+    results.properties.data = [
+      { archived_at: null, id: propertyId, organization_id: organizationId },
+    ];
+    results.people.data = [
+      { archived_at: null, id: ownerId, organization_id: organizationId },
+    ];
+    results.person_roles.data = [{
+      archived_at: null,
+      organization_id: organizationId,
+      person_id: ownerId,
+      role: "owner",
+      status: "active",
+    }];
+    mocks.rpc.mockReturnValue(query({
+      data: [{
+        active_owner_count: 1,
+        boundary_date: "2026-08-01",
+        canonical_roster: "canonical",
+        issue_code: null,
+        next_boundary_date: null,
+        organization_id: organizationId,
+        ownership_percent_total_text: "100.000",
+        ownership_roster_hash: "e".repeat(64),
+        property_id: propertyId,
+        property_owner_ids: [propertyOwnerId],
+        setup_path: `/properties/${propertyId}`,
+      }],
+      error: null,
+    }));
+    mocks.from.mockImplementation((table: string) =>
+      query(results[table as keyof typeof results]),
+    );
+
+    const result = await getOpeningBalanceAuthorityData({
+      effectiveDate: "2026-08-01",
+    });
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]?.rosterState).toBe("ready");
+    expect(result.readiness).toEqual([]);
+  });
+
+  it("uses half-open effective dates and exact filters when loading assignments", async () => {
+    await getOpeningBalanceAuthorityData({
+      effectiveDate: "2026-08-01",
+      ownerPersonId: ownerId,
+      propertyId,
+    });
+
+    const assignmentBuilder = mocks.from.mock.results.find(
+      (result) => result.value?.select?.mock?.calls?.[0]?.[0]?.includes?.("ownership_percent_text"),
+    )?.value;
+    expect(assignmentBuilder).toBeTruthy();
+    expect(assignmentBuilder.eq).toHaveBeenCalledWith("organization_id", organizationId);
+    expect(assignmentBuilder.is).toHaveBeenCalledWith("archived_at", null);
+    expect(assignmentBuilder.eq).toHaveBeenCalledWith("property_id", propertyId);
+    expect(assignmentBuilder.eq).not.toHaveBeenCalledWith("person_id", ownerId);
+    expect(assignmentBuilder.lte).toHaveBeenCalledWith("started_on", "2026-08-01");
+    expect(assignmentBuilder.or).toHaveBeenCalledWith(
+      "ended_on.is.null,ended_on.gt.2026-08-01",
+    );
+  });
+
+  it("does not seed a cross-product or an invalid effective roster", async () => {
+    const otherOwnerId = "00000000-0000-4000-8000-000000000098";
+    const results = rowResults();
+    results.owner_opening_balance_requests.data = [];
+    results.owner_opening_balance_entries.data = [];
+    results.owner_opening_balance_known_authority_v1.data = [];
+    results.property_owners.data = [
+      {
+        archived_at: null,
+        ended_on: "2026-08-01",
+        id: propertyOwnerId,
+        organization_id: organizationId,
+        ownership_percent_text: "100.000",
+        person_id: ownerId,
+        property_id: propertyId,
+        started_on: "2026-07-01",
+      },
+    ];
+    results.properties.data = [
+      { archived_at: null, id: propertyId, organization_id: organizationId },
+    ];
+    results.people.data = [
+      { archived_at: null, id: ownerId, organization_id: organizationId },
+      { archived_at: null, id: otherOwnerId, organization_id: organizationId },
+    ];
+    results.person_roles.data = [
+      {
+        archived_at: null,
+        organization_id: organizationId,
+        person_id: ownerId,
+        role: "owner",
+        status: "active",
+      },
+    ];
+    mocks.rpc.mockReturnValue(query({
+      data: [readiness("100.000", propertyId)],
+      error: null,
+    }));
+    mocks.from.mockImplementation((table: string) =>
+      query(results[table as keyof typeof results]),
+    );
+
+    const result = await getOpeningBalanceAuthorityData({
+      effectiveDate: "2026-08-01",
+      ownerPersonId: otherOwnerId,
+      propertyId,
+    });
+
+    expect(result.groups).toEqual([]);
+    expect(result.readiness).toEqual([
+      expect.objectContaining({ propertyId }),
+    ]);
+  });
+
   it("retains request, correction, resubmission, evidence, and ownership snapshots", async () => {
     const result = await getOpeningBalanceAuthorityData({
       effectiveDate: "2026-08-01",
@@ -260,6 +448,10 @@ function rowResults() {
       ],
       error: null,
     },
+    people: { data: [] as Record<string, unknown>[], error: null },
+    person_roles: { data: [] as Record<string, unknown>[], error: null },
+    properties: { data: [] as Record<string, unknown>[], error: null },
+    property_owners: { data: [] as Record<string, unknown>[], error: null },
   };
 }
 
@@ -342,6 +534,9 @@ function query(result: { data: unknown; error: unknown }) {
   const builder = {
     eq: vi.fn(() => builder),
     in: vi.fn(() => builder),
+    is: vi.fn(() => builder),
+    lte: vi.fn(() => builder),
+    or: vi.fn(() => builder),
     order: vi.fn(() => builder),
     select: vi.fn(() => builder),
     then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  cleanup: vi.fn(),
   from: vi.fn(),
   requireCorrection: vi.fn(),
   requireReview: vi.fn(),
   requireSubmission: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
+  storageFrom: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -19,7 +21,11 @@ vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({
     from: mocks.from,
     rpc: mocks.rpc,
+    storage: { from: mocks.storageFrom },
   })),
+}));
+vi.mock("@/features/documents/storage-cleanup", () => ({
+  removeUnregisteredDocumentObject: mocks.cleanup,
 }));
 
 import {
@@ -38,15 +44,21 @@ const entryId = "00000000-0000-4000-8000-000000000007";
 const reversalId = "00000000-0000-4000-8000-000000000008";
 const replacementId = "00000000-0000-4000-8000-000000000009";
 const hash = "a".repeat(64);
+const actorId = "00000000-0000-4000-8000-000000000010";
+const initialDocumentId = "5e15066a-0f1b-0d6f-f0b1-00e13d8642c0";
+const initialStoragePath = `${organizationId}/owner-opening/${initialDocumentId}`;
 
 describe("owner opening balance actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireSubmission.mockResolvedValue({
       organizationId,
-      userId: "00000000-0000-4000-8000-000000000010",
+      userId: actorId,
     });
-    mocks.requireCorrection.mockResolvedValue({ organizationId });
+    mocks.requireCorrection.mockResolvedValue({
+      organizationId,
+      userId: actorId,
+    });
     mocks.requireReview.mockResolvedValue({ organizationId, userId: ownerPersonId });
     mocks.from.mockReturnValue(requestKindQuery("initial"));
     mocks.rpc.mockResolvedValue({
@@ -57,6 +69,201 @@ describe("owner opening balance actions", () => {
       },
       error: null,
     });
+    mocks.storageFrom.mockReturnValue({
+      download: vi.fn(async () => ({ data: null, error: null })),
+      upload: vi.fn(async () => ({ data: { path: "uploaded" }, error: null })),
+    });
+  });
+
+  it("uploads new evidence only inside the final initial command and calls the atomic wrapper", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
+      type: "application/pdf",
+    });
+    const form = initialForm();
+    form.set("evidenceFile", file);
+    form.set("supportingDocumentId", "");
+    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    mocks.rpc.mockResolvedValue({
+      data: {
+        request_id: requestId,
+        resubmission_of_request_id: null,
+        status: "submitted",
+      },
+      error: null,
+    });
+
+    await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+      requestId,
+      status: "success",
+    });
+
+    const storage = mocks.storageFrom.mock.results[0]!.value;
+    expect(storage.upload).toHaveBeenCalledWith(
+      expect.stringMatching(new RegExp(`^${organizationId}/owner-opening/[0-9a-f-]{36}$`)),
+      file,
+      expect.objectContaining({ contentType: "application/pdf", upsert: false }),
+    );
+    const storagePath = storage.upload.mock.calls[0]![0];
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "submit_owner_opening_balance_with_document",
+      expect.objectContaining({
+        p_document_file_name: "opening.pdf",
+        p_document_mime_type: "application/pdf",
+        p_document_size_bytes: 3,
+        p_document_storage_path: storagePath,
+        p_evidence_sha256: "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+        p_idempotency_key: "initial-request-key",
+        p_organization_id: organizationId,
+      }),
+    );
+    expect(mocks.cleanup).not.toHaveBeenCalled();
+  });
+
+  it("removes only a newly uploaded unregistered object after the atomic wrapper fails", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
+      type: "application/pdf",
+    });
+    const form = initialForm();
+    form.set("evidenceFile", file);
+    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "owner_share_total_not_100" },
+    });
+
+    await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+      errorCode: "ownership_roster",
+      status: "error",
+    });
+
+    const storagePath = mocks.storageFrom.mock.results[0]!.value.upload.mock.calls[0]![0];
+    expect(mocks.cleanup).toHaveBeenCalledOnce();
+    expect(mocks.cleanup).toHaveBeenCalledWith(expect.anything(), storagePath);
+  });
+
+  it("cleans a newly uploaded object after a network failure and returns a recoverable error", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
+      type: "application/pdf",
+    });
+    const form = initialForm();
+    form.set("evidenceFile", file);
+    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    mocks.rpc.mockRejectedValueOnce(new Error("network unavailable"));
+
+    await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+      errorCode: "database",
+      status: "error",
+    });
+    expect(mocks.cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("reuses an exact pre-existing retry object without overwriting or cleanup", async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const file = new File([bytes], "opening.pdf", { type: "application/pdf" });
+    const storage = {
+      download: vi.fn(async () => ({
+        data: new Blob([bytes], { type: "application/pdf" }),
+        error: null,
+      })),
+      upload: vi.fn(async () => ({
+        data: null,
+        error: { message: "The resource already exists", statusCode: "409" },
+      })),
+    };
+    mocks.storageFrom.mockReturnValue(storage);
+    mocks.from.mockReturnValue(documentLookup({
+      archived_at: null,
+      content_sha256: "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+      file_name: "opening.pdf",
+      id: initialDocumentId,
+      mime_type: "application/pdf",
+      organization_id: organizationId,
+      size_bytes: 3,
+      storage_path: initialStoragePath,
+      uploaded_by: actorId,
+    }));
+    const form = initialForm();
+    form.set("evidenceFile", file);
+    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+
+    await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+      status: "success",
+    });
+
+    expect(storage.upload).toHaveBeenCalledWith(
+      expect.any(String),
+      file,
+      expect.objectContaining({ upsert: false }),
+    );
+    expect(storage.download).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "submit_owner_opening_balance_with_document",
+      expect.any(Object),
+    );
+    expect(mocks.cleanup).not.toHaveBeenCalled();
+  });
+
+  it("rejects changed file metadata for a pre-existing exact-path retry", async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const file = new File([bytes], "renamed.pdf", { type: "application/pdf" });
+    mocks.storageFrom.mockReturnValue({
+      download: vi.fn(async () => ({
+        data: new Blob([bytes], { type: "application/pdf" }),
+        error: null,
+      })),
+      upload: vi.fn(async () => ({
+        data: null,
+        error: { message: "The resource already exists", statusCode: "409" },
+      })),
+    });
+    mocks.from.mockReturnValue(documentLookup({
+      archived_at: null,
+      content_sha256: "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+      file_name: "opening.pdf",
+      id: initialDocumentId,
+      mime_type: "application/pdf",
+      organization_id: organizationId,
+      size_bytes: 3,
+      storage_path: initialStoragePath,
+      uploaded_by: actorId,
+    }));
+    const form = initialForm();
+    form.set("evidenceFile", file);
+    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+
+    await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+      errorCode: "evidence",
+      status: "error",
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.cleanup).not.toHaveBeenCalled();
+  });
+
+  it("rejects changed bytes for the same key without deleting the pre-existing object", async () => {
+    const file = new File([new Uint8Array([9, 9, 9])], "opening.pdf", {
+      type: "application/pdf",
+    });
+    mocks.storageFrom.mockReturnValue({
+      download: vi.fn(async () => ({
+        data: new Blob([new Uint8Array([1, 2, 3])], { type: "application/pdf" }),
+        error: null,
+      })),
+      upload: vi.fn(async () => ({
+        data: null,
+        error: { message: "The resource already exists", statusCode: "409" },
+      })),
+    });
+    const form = initialForm();
+    form.set("evidenceFile", file);
+    form.set("evidenceSha256", "e740a6faf2db65f5853148d75d9a335d7c4b94ab106fe5f237bc34fdcfc74584");
+
+    await expect(submitOwnerOpeningBalanceAction({}, form)).resolves.toMatchObject({
+      errorCode: "evidence",
+      status: "error",
+    });
+
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.cleanup).not.toHaveBeenCalled();
   });
 
   it("submits an initial opening with exact strings and caller replay identity", async () => {
@@ -145,6 +352,41 @@ describe("owner opening balance actions", () => {
         p_source_reference: "IPS corrected workbook row 8",
         p_supporting_document_id: null,
       },
+    );
+  });
+
+  it("uses the correction-specific atomic wrapper without broadening correction authority", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "correction.pdf", {
+      type: "application/pdf",
+    });
+    const form = correctionForm();
+    form.set("propertyId", propertyId);
+    form.set("evidenceFile", file);
+    form.set("evidenceSha256", "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+    mocks.rpc.mockResolvedValue({
+      data: {
+        correction_of_entry_id: entryId,
+        request_id: requestId,
+        resubmission_of_request_id: null,
+        status: "submitted",
+      },
+      error: null,
+    });
+
+    await expect(
+      submitOwnerOpeningBalanceCorrectionAction({}, form),
+    ).resolves.toMatchObject({ requestId, status: "success" });
+
+    expect(mocks.requireCorrection).toHaveBeenCalledOnce();
+    expect(mocks.requireSubmission).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      "submit_owner_opening_balance_correction_with_document",
+      expect.objectContaining({
+        p_document_file_name: "correction.pdf",
+        p_entry_id: entryId,
+        p_idempotency_key: "correction-request-key",
+        p_organization_id: organizationId,
+      }),
     );
   });
 
@@ -448,6 +690,16 @@ function requestKindQuery(requestKind: string) {
     eq: vi.fn(() => builder),
     select: vi.fn(() => builder),
     single: vi.fn(async () => result),
+  };
+  return builder;
+}
+
+function documentLookup(data: Record<string, unknown> | null) {
+  const result = { data, error: null };
+  const builder = {
+    eq: vi.fn(() => builder),
+    maybeSingle: vi.fn(async () => result),
+    select: vi.fn(() => builder),
   };
   return builder;
 }

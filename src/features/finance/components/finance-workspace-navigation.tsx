@@ -11,7 +11,7 @@ const financeDestinations = [
   },
   { href: "/rent-income", label: "Rent", route: "/rent-income" },
   { href: "/bills-expenses", label: "Expenses", route: "/bills-expenses" },
-  { href: "/balances", label: "Owner Balance", route: "/balances" },
+  { href: "/balances", label: "Owner balances", route: "/balances" },
   { href: "/leases", label: "Leases", route: "/leases" },
   { href: "/ledger", label: "Ledger", route: "/ledger" },
   { href: "/petty-cash", label: "Petty Cash", route: "/petty-cash" },

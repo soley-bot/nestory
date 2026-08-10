@@ -104,6 +104,17 @@ const READINESS_SELECT = [
   "setup_path",
 ].join(",");
 
+const ASSIGNMENT_SELECT = [
+  "id",
+  "organization_id",
+  "property_id",
+  "person_id",
+  "ownership_percent_text:ownership_percent::text",
+  "started_on",
+  "ended_on",
+  "archived_at",
+].join(",");
+
 type RawRequest = {
   id: string;
   organization_id: string;
@@ -180,7 +191,7 @@ type RawReadiness = {
   active_owner_count: number;
   boundary_date: string;
   canonical_roster: unknown;
-  issue_code: string;
+  issue_code: string | null;
   next_boundary_date: string | null;
   organization_id: string;
   ownership_percent_total_text: string;
@@ -188,6 +199,31 @@ type RawReadiness = {
   property_id: string;
   property_owner_ids: string[];
   setup_path: string;
+};
+
+type RawAssignment = {
+  archived_at: string | null;
+  ended_on: string | null;
+  id: string;
+  organization_id: string;
+  ownership_percent_text: string;
+  person_id: string;
+  property_id: string;
+  started_on: string;
+};
+
+type RawScopedRecord = {
+  archived_at: string | null;
+  id: string;
+  organization_id: string;
+};
+
+type RawOwnerRole = {
+  archived_at: string | null;
+  organization_id: string;
+  person_id: string;
+  role: string;
+  status: string;
 };
 
 export async function getOpeningBalanceAuthorityData(
@@ -218,12 +254,20 @@ export async function getOpeningBalanceAuthorityData(
       p_organization_id: context.organizationId,
     })
     .select(READINESS_SELECT);
+  let assignmentQuery = supabase
+    .from("property_owners")
+    .select(ASSIGNMENT_SELECT)
+    .eq("organization_id", context.organizationId)
+    .is("archived_at", null)
+    .lte("started_on", scope.effectiveDate)
+    .or(`ended_on.is.null,ended_on.gt.${scope.effectiveDate}`);
 
   if (scope.propertyId) {
     requestQuery = requestQuery.eq("property_id", scope.propertyId);
     entryQuery = entryQuery.eq("property_id", scope.propertyId);
     knownQuery = knownQuery.eq("property_id", scope.propertyId);
     readinessQuery = readinessQuery.eq("property_id", scope.propertyId);
+    assignmentQuery = assignmentQuery.eq("property_id", scope.propertyId);
   }
   if (scope.ownerPersonId) {
     requestQuery = requestQuery.eq("owner_person_id", scope.ownerPersonId);
@@ -236,7 +280,7 @@ export async function getOpeningBalanceAuthorityData(
     knownQuery = knownQuery.eq("currency", scope.currency);
   }
 
-  const [requestResult, entryResult, knownResult, readinessResult] = await Promise.all([
+  const [requestResult, entryResult, knownResult, readinessResult, assignmentResult] = await Promise.all([
     requestQuery.order("submitted_at", { ascending: false }).order("id", {
       ascending: false,
     }),
@@ -245,23 +289,44 @@ export async function getOpeningBalanceAuthorityData(
     }),
     knownQuery.order("property_id", { ascending: true }),
     readinessQuery,
+    assignmentQuery.order("property_id", { ascending: true }).order("id", {
+      ascending: true,
+    }),
   ]);
 
   assertQuerySucceeded(requestResult.error);
   assertQuerySucceeded(entryResult.error);
   assertQuerySucceeded(knownResult.error);
   assertQuerySucceeded(readinessResult.error);
+  assertQuerySucceeded(assignmentResult.error);
 
   const rawRequests = (requestResult.data ?? []) as unknown as RawRequest[];
   const rawEntries = (entryResult.data ?? []) as unknown as RawEntry[];
   const rawKnown = (knownResult.data ?? []) as unknown as RawKnown[];
   const rawReadiness = (readinessResult.data ?? []) as unknown as RawReadiness[];
+  const rawAssignments = (assignmentResult.data ?? []) as unknown as RawAssignment[];
   assertOrganization(context.organizationId, [
     ...rawRequests,
     ...rawEntries,
     ...rawKnown,
     ...rawReadiness,
+    ...rawAssignments,
   ]);
+
+  const scopedReadiness = rawReadiness.filter(
+    (row) => row.boundary_date === scope.effectiveDate,
+  );
+  const scopedBlockers = scopedReadiness.filter(
+    (row): row is RawReadiness & { issue_code: string } => row.issue_code !== null,
+  );
+  const validAssignments = await filterValidAssignments({
+    assignments: rawAssignments,
+    blockedPropertyIds: new Set(scopedBlockers.map((row) => row.property_id)),
+    effectiveDate: scope.effectiveDate,
+    organizationId: context.organizationId,
+    selectedOwnerPersonId: scope.ownerPersonId,
+    supabase,
+  });
 
   const documentIds = [
     ...new Set(
@@ -285,8 +350,15 @@ export async function getOpeningBalanceAuthorityData(
     assertOrganization(context.organizationId, documents);
   }
 
-  const groups = mapGroups(rawRequests, rawEntries, rawKnown, documents);
-  const readiness = rawReadiness.map(mapReadiness).sort(compareReadiness);
+  const groups = mapGroups(
+    rawRequests,
+    rawEntries,
+    rawKnown,
+    documents,
+    validAssignments,
+    scope.effectiveDate,
+  );
+  const readiness = scopedBlockers.map(mapReadiness).sort(compareReadiness);
   return { effectiveDate: scope.effectiveDate, groups, readiness };
 }
 
@@ -295,11 +367,20 @@ function mapGroups(
   rawEntries: RawEntry[],
   rawKnown: RawKnown[],
   documents: RawDocument[],
+  validAssignments: RawAssignment[],
+  effectiveDate: string,
 ): OwnerOpeningAuthorityGroup[] {
   const groupKeys = new Map<string, GroupIdentity>();
   for (const row of [...rawRequests, ...rawEntries, ...rawKnown]) {
     const identity = identityOf(row);
     groupKeys.set(groupKey(identity), identity);
+  }
+  const readyGroupKeys = new Set<string>();
+  for (const assignment of validAssignments) {
+    const identity = assignmentIdentity(assignment, effectiveDate);
+    const key = groupKey(identity);
+    groupKeys.set(key, identity);
+    readyGroupKeys.add(key);
   }
   const documentsById = new Map(documents.map((document) => [document.id, document]));
 
@@ -307,6 +388,9 @@ function mapGroups(
     .sort(compareGroup)
     .map((identity) => ({
       ...identity,
+      rosterState: readyGroupKeys.has(groupKey(identity))
+        ? "ready" as const
+        : "blocked" as const,
       components: OWNER_BALANCE_COMPONENTS.map((component) => {
         const requests = rawRequests
           .filter((row) => inComponent(row, identity, component))
@@ -336,6 +420,135 @@ function mapGroups(
         };
       }),
     }));
+}
+
+function assignmentIdentity(row: RawAssignment, effectiveDate: string): GroupIdentity {
+  return {
+    currency: "USD",
+    effectiveDate,
+    organizationId: row.organization_id,
+    ownerPersonId: row.person_id,
+    propertyId: row.property_id,
+  };
+}
+
+async function filterValidAssignments({
+  assignments,
+  blockedPropertyIds,
+  effectiveDate,
+  organizationId,
+  selectedOwnerPersonId,
+  supabase,
+}: {
+  assignments: RawAssignment[];
+  blockedPropertyIds: Set<string>;
+  effectiveDate: string;
+  organizationId: string;
+  selectedOwnerPersonId?: string;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+}): Promise<RawAssignment[]> {
+  const effectiveAssignments = assignments.filter(
+    (assignment) =>
+      assignment.organization_id === organizationId &&
+      assignment.archived_at === null &&
+      assignment.started_on <= effectiveDate &&
+      (assignment.ended_on === null || effectiveDate < assignment.ended_on),
+  );
+  if (effectiveAssignments.length === 0) return [];
+
+  const propertyIds = [...new Set(effectiveAssignments.map((row) => row.property_id))]
+    .sort(compareText);
+  const personIds = [...new Set(effectiveAssignments.map((row) => row.person_id))]
+    .sort(compareText);
+  const [propertyResult, peopleResult, roleResult] = await Promise.all([
+    supabase
+      .from("properties")
+      .select("id,organization_id,archived_at")
+      .eq("organization_id", organizationId)
+      .in("id", propertyIds)
+      .is("archived_at", null),
+    supabase
+      .from("people")
+      .select("id,organization_id,archived_at")
+      .eq("organization_id", organizationId)
+      .in("id", personIds)
+      .is("archived_at", null),
+    supabase
+      .from("person_roles")
+      .select("organization_id,person_id,role,status,archived_at")
+      .eq("organization_id", organizationId)
+      .in("person_id", personIds)
+      .eq("role", "owner")
+      .eq("status", "active")
+      .is("archived_at", null),
+  ]);
+  assertQuerySucceeded(propertyResult.error);
+  assertQuerySucceeded(peopleResult.error);
+  assertQuerySucceeded(roleResult.error);
+
+  const properties = (propertyResult.data ?? []) as unknown as RawScopedRecord[];
+  const people = (peopleResult.data ?? []) as unknown as RawScopedRecord[];
+  const roles = (roleResult.data ?? []) as unknown as RawOwnerRole[];
+  assertOrganization(organizationId, [...properties, ...people, ...roles]);
+  const activeProperties = new Set(
+    properties.filter((row) => row.archived_at === null).map((row) => row.id),
+  );
+  const activePeople = new Set(
+    people.filter((row) => row.archived_at === null).map((row) => row.id),
+  );
+  const activeOwners = new Set(
+    roles
+      .filter(
+        (row) =>
+          row.archived_at === null && row.role === "owner" && row.status === "active",
+      )
+      .map((row) => row.person_id),
+  );
+  const byProperty = new Map<string, RawAssignment[]>();
+  for (const assignment of effectiveAssignments) {
+    const rows = byProperty.get(assignment.property_id) ?? [];
+    rows.push(assignment);
+    byProperty.set(assignment.property_id, rows);
+  }
+
+  const valid: RawAssignment[] = [];
+  for (const [propertyId, rows] of byProperty) {
+    const shares = rows.map((row) => ownershipPercentMillis(row.ownership_percent_text));
+    const uniqueOwners = new Set(rows.map((row) => row.person_id));
+    const rosterReady =
+      !blockedPropertyIds.has(propertyId) &&
+      activeProperties.has(propertyId) &&
+      uniqueOwners.size === rows.length &&
+      shares.every((share) => share !== null && share > 0) &&
+      shares.reduce<number>((total, share) => total + (share ?? 0), 0) === 100000 &&
+      rows.every(
+        (row) => activePeople.has(row.person_id) && activeOwners.has(row.person_id),
+      );
+    if (!rosterReady) continue;
+    valid.push(
+      ...rows.filter(
+        (row) => !selectedOwnerPersonId || row.person_id === selectedOwnerPersonId,
+      ),
+    );
+  }
+  return valid.sort(
+    (left, right) =>
+      compareText(left.property_id, right.property_id) || compareText(left.id, right.id),
+  );
+}
+
+function ownershipPercentMillis(value: string): number | null {
+  const match = /^(?:0|[1-9]\d{0,2})(?:\.(\d{1,3}))?$/.exec(value);
+  if (!match) return null;
+  const whole = value.includes(".") ? value.slice(0, value.indexOf(".")) : value;
+  return decimalDigits(whole) * 1000 + decimalDigits((match[1] ?? "").padEnd(3, "0"));
+}
+
+function decimalDigits(value: string): number {
+  return [...value].reduce(
+    (total, digit) => total * 10 + digit.charCodeAt(0) - "0".charCodeAt(0),
+    0,
+  );
 }
 
 type GroupIdentity = {
@@ -463,7 +676,9 @@ function findCurrentAuthorityEntry(entries: OwnerOpeningEntryRecord[]): string |
   return candidates.at(-1)?.id ?? null;
 }
 
-function mapReadiness(row: RawReadiness): OwnerRosterReadinessRecord {
+function mapReadiness(
+  row: RawReadiness & { issue_code: string },
+): OwnerRosterReadinessRecord {
   return {
     activeOwnerCount: row.active_owner_count,
     boundaryDate: row.boundary_date,

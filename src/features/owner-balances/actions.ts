@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { sha256Hex } from "@/features/documents/content-fingerprint";
+import { removeUnregisteredDocumentObject } from "@/features/documents/storage-cleanup";
 import {
   requireOwnerOpeningBalanceCorrectionContext,
   requireOwnerOpeningBalanceReviewContext,
@@ -34,6 +36,24 @@ const optionalReference = z.preprocess(
   emptyToNull,
   z.string().trim().min(3).max(240).nullable(),
 );
+const optionalEvidenceFile = z.custom<File>(
+  (value) => typeof File !== "undefined" && value instanceof File && value.size > 0,
+  "Choose a valid evidence file.",
+).optional();
+const documentMimeTypes = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+type OwnerOpeningSupabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type PreparedDocument = {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storagePath: string;
+  uploadedThisAttempt: boolean;
+};
 
 const uniqueEntryIds = z.array(uuid).superRefine((entryIds, context) => {
   if (new Set(entryIds).size !== entryIds.length) {
@@ -76,6 +96,7 @@ const initialSchema = z
     currency: z.literal("USD"),
     effectiveDate: firstOfMonth,
     evidenceSha256: evidenceHash,
+    evidenceFile: optionalEvidenceFile,
     idempotencyKey,
     ownerPersonId: uuid,
     propertyId: uuid,
@@ -85,7 +106,10 @@ const initialSchema = z
     supportingDocumentId: optionalUuid,
   })
   .refine(
-    (value) => value.sourceReference !== null || value.supportingDocumentId !== null,
+    (value) =>
+      value.sourceReference !== null ||
+      value.supportingDocumentId !== null ||
+      value.evidenceFile !== undefined,
     { message: "Attach verified evidence or enter its source reference." },
   );
 
@@ -93,6 +117,7 @@ const correctionSchema = z
   .object({
     entryId: uuid,
     evidenceSha256: evidenceHash,
+    evidenceFile: optionalEvidenceFile,
     idempotencyKey,
     reason,
     replacementAmount: z.string(),
@@ -101,7 +126,10 @@ const correctionSchema = z
     supportingDocumentId: optionalUuid,
   })
   .refine(
-    (value) => value.sourceReference !== null || value.supportingDocumentId !== null,
+    (value) =>
+      value.sourceReference !== null ||
+      value.supportingDocumentId !== null ||
+      value.evidenceFile !== undefined,
     { message: "Attach verified evidence or enter its source reference." },
   );
 
@@ -129,32 +157,74 @@ export async function submitOwnerOpeningBalanceAction(
   const amount = parseExactAmount(parsed.data.amount);
   if (typeof amount !== "string") return amount;
 
+  let cleanupTarget:
+    | { document: PreparedDocument; supabase: OwnerOpeningSupabase }
+    | undefined;
   try {
     const context = await requireOwnerOpeningBalanceSubmissionContext();
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.rpc("submit_owner_opening_balance", {
-      p_amount: amount,
-      p_component: parsed.data.component,
-      p_currency: parsed.data.currency,
-      p_effective_date: parsed.data.effectiveDate,
-      p_evidence_sha256: parsed.data.evidenceSha256,
-      p_idempotency_key: parsed.data.idempotencyKey,
-      p_organization_id: context.organizationId,
-      p_owner_person_id: parsed.data.ownerPersonId,
-      p_property_id: parsed.data.propertyId,
-      p_reason: parsed.data.reason,
-      p_resubmission_of_request_id: parsed.data.resubmissionOfRequestId,
-      p_source_reference: parsed.data.sourceReference,
-      p_supporting_document_id: parsed.data.supportingDocumentId,
+    const prepared = await prepareAtomicEvidence({
+      evidenceFile: parsed.data.evidenceFile,
+      evidenceSha256: parsed.data.evidenceSha256,
+      idempotencyKey: parsed.data.idempotencyKey,
+      operation: "initial",
+      organizationId: context.organizationId,
+      supabase,
+      supportingDocumentId: parsed.data.supportingDocumentId,
+      userId: context.userId,
     });
-    if (error) return databaseError(error);
+    if (prepared.state) return prepared.state;
+    if (prepared.document) cleanupTarget = { document: prepared.document, supabase };
+
+    const command = prepared.document
+      ? await supabase.rpc("submit_owner_opening_balance_with_document", {
+          p_amount: amount,
+          p_component: parsed.data.component,
+          p_currency: parsed.data.currency,
+          p_document_file_name: prepared.document.fileName,
+          p_document_mime_type: prepared.document.mimeType,
+          p_document_size_bytes: prepared.document.sizeBytes,
+          p_document_storage_path: prepared.document.storagePath,
+          p_effective_date: parsed.data.effectiveDate,
+          p_evidence_sha256: parsed.data.evidenceSha256,
+          p_idempotency_key: parsed.data.idempotencyKey,
+          p_organization_id: context.organizationId,
+          p_owner_person_id: parsed.data.ownerPersonId,
+          p_property_id: parsed.data.propertyId,
+          p_reason: parsed.data.reason,
+          p_resubmission_of_request_id: parsed.data.resubmissionOfRequestId,
+          p_source_reference: parsed.data.sourceReference,
+        })
+      : await supabase.rpc("submit_owner_opening_balance", {
+          p_amount: amount,
+          p_component: parsed.data.component,
+          p_currency: parsed.data.currency,
+          p_effective_date: parsed.data.effectiveDate,
+          p_evidence_sha256: parsed.data.evidenceSha256,
+          p_idempotency_key: parsed.data.idempotencyKey,
+          p_organization_id: context.organizationId,
+          p_owner_person_id: parsed.data.ownerPersonId,
+          p_property_id: parsed.data.propertyId,
+          p_reason: parsed.data.reason,
+          p_resubmission_of_request_id: parsed.data.resubmissionOfRequestId,
+          p_source_reference: parsed.data.sourceReference,
+          p_supporting_document_id: parsed.data.supportingDocumentId,
+        });
+    if (command.error) {
+      await cleanupPreparedEvidence(supabase, prepared.document);
+      return databaseError(command.error);
+    }
 
     const result = parseInitialSubmitResult(
-      data,
+      command.data,
       parsed.data.resubmissionOfRequestId,
     );
-    if (!result) return unexpectedResponse();
+    if (!result) {
+      await cleanupPreparedEvidence(supabase, prepared.document);
+      return unexpectedResponse();
+    }
     revalidatePath("/balances");
+    cleanupTarget = undefined;
     return {
       entryIds: result.entryIds,
       message: "Opening balance submitted for review.",
@@ -162,6 +232,9 @@ export async function submitOwnerOpeningBalanceAction(
       status: "success",
     };
   } catch (error) {
+    if (cleanupTarget) {
+      await cleanupPreparedEvidence(cleanupTarget.supabase, cleanupTarget.document);
+    }
     return databaseError(error);
   }
 }
@@ -176,31 +249,72 @@ export async function submitOwnerOpeningBalanceCorrectionAction(
   const replacementAmount = parseExactAmount(parsed.data.replacementAmount);
   if (typeof replacementAmount !== "string") return replacementAmount;
 
+  let cleanupTarget:
+    | { document: PreparedDocument; supabase: OwnerOpeningSupabase }
+    | undefined;
   try {
     const context = await requireOwnerOpeningBalanceCorrectionContext();
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.rpc(
-      "submit_owner_opening_balance_correction",
-      {
-        p_entry_id: parsed.data.entryId,
-        p_evidence_sha256: parsed.data.evidenceSha256,
-        p_idempotency_key: parsed.data.idempotencyKey,
-        p_organization_id: context.organizationId,
-        p_reason: parsed.data.reason,
-        p_replacement_amount: replacementAmount,
-        p_resubmission_of_request_id: parsed.data.resubmissionOfRequestId,
-        p_source_reference: parsed.data.sourceReference,
-        p_supporting_document_id: parsed.data.supportingDocumentId,
-      },
-    );
-    if (error) return databaseError(error);
+    const prepared = await prepareAtomicEvidence({
+      evidenceFile: parsed.data.evidenceFile,
+      evidenceSha256: parsed.data.evidenceSha256,
+      idempotencyKey: parsed.data.idempotencyKey,
+      operation: "correction",
+      organizationId: context.organizationId,
+      supabase,
+      supportingDocumentId: parsed.data.supportingDocumentId,
+      userId: context.userId,
+    });
+    if (prepared.state) return prepared.state;
+    if (prepared.document) cleanupTarget = { document: prepared.document, supabase };
 
-    const result = parseCorrectionSubmitResult(data, {
+    const command = prepared.document
+      ? await supabase.rpc(
+          "submit_owner_opening_balance_correction_with_document",
+          {
+            p_document_file_name: prepared.document.fileName,
+            p_document_mime_type: prepared.document.mimeType,
+            p_document_size_bytes: prepared.document.sizeBytes,
+            p_document_storage_path: prepared.document.storagePath,
+            p_entry_id: parsed.data.entryId,
+            p_evidence_sha256: parsed.data.evidenceSha256,
+            p_idempotency_key: parsed.data.idempotencyKey,
+            p_organization_id: context.organizationId,
+            p_reason: parsed.data.reason,
+            p_replacement_amount: replacementAmount,
+            p_resubmission_of_request_id: parsed.data.resubmissionOfRequestId,
+            p_source_reference: parsed.data.sourceReference,
+          },
+        )
+      : await supabase.rpc(
+          "submit_owner_opening_balance_correction",
+          {
+            p_entry_id: parsed.data.entryId,
+            p_evidence_sha256: parsed.data.evidenceSha256,
+            p_idempotency_key: parsed.data.idempotencyKey,
+            p_organization_id: context.organizationId,
+            p_reason: parsed.data.reason,
+            p_replacement_amount: replacementAmount,
+            p_resubmission_of_request_id: parsed.data.resubmissionOfRequestId,
+            p_source_reference: parsed.data.sourceReference,
+            p_supporting_document_id: parsed.data.supportingDocumentId,
+          },
+        );
+    if (command.error) {
+      await cleanupPreparedEvidence(supabase, prepared.document);
+      return databaseError(command.error);
+    }
+
+    const result = parseCorrectionSubmitResult(command.data, {
       correctionOfEntryId: parsed.data.entryId,
       resubmissionOfRequestId: parsed.data.resubmissionOfRequestId,
     });
-    if (!result) return unexpectedResponse();
+    if (!result) {
+      await cleanupPreparedEvidence(supabase, prepared.document);
+      return unexpectedResponse();
+    }
     revalidatePath("/balances");
+    cleanupTarget = undefined;
     return {
       entryIds: result.entryIds,
       message: "Opening-balance correction submitted for review.",
@@ -208,6 +322,9 @@ export async function submitOwnerOpeningBalanceCorrectionAction(
       status: "success",
     };
   } catch (error) {
+    if (cleanupTarget) {
+      await cleanupPreparedEvidence(cleanupTarget.supabase, cleanupTarget.document);
+    }
     return databaseError(error);
   }
 }
@@ -267,6 +384,188 @@ export async function reviewOwnerOpeningBalanceAction(
   } catch (error) {
     return databaseError(error);
   }
+}
+
+async function prepareAtomicEvidence({
+  evidenceFile,
+  evidenceSha256,
+  idempotencyKey,
+  operation,
+  organizationId,
+  supabase,
+  supportingDocumentId,
+  userId,
+}: {
+  evidenceFile?: File;
+  evidenceSha256: string;
+  idempotencyKey: string;
+  operation: "initial" | "correction";
+  organizationId: string;
+  supabase: OwnerOpeningSupabase;
+  supportingDocumentId: string | null;
+  userId: string;
+}): Promise<{
+  document: PreparedDocument | null;
+  state: OwnerBalanceActionState | null;
+}> {
+  if (!evidenceFile) return { document: null, state: null };
+  if (supportingDocumentId) {
+    return {
+      document: null,
+      state: evidenceError("Choose either registered evidence or a new file."),
+    };
+  }
+
+  const fileError = validateEvidenceFile(evidenceFile);
+  if (fileError) return { document: null, state: evidenceError(fileError) };
+
+  const exactHash = await sha256Hex(await evidenceFile.arrayBuffer());
+  if (exactHash !== evidenceSha256) {
+    return {
+      document: null,
+      state: evidenceError("The evidence file no longer matches its fingerprint."),
+    };
+  }
+
+  const documentId = await deterministicEvidenceDocumentId(
+    organizationId,
+    userId,
+    operation,
+    idempotencyKey,
+  );
+  const storagePath = `${organizationId}/owner-opening/${documentId}`;
+  const bucket = supabase.storage.from("nestory-documents");
+  const upload = await bucket.upload(storagePath, evidenceFile, {
+    contentType: evidenceFile.type,
+    upsert: false,
+  });
+
+  let uploadedThisAttempt = !upload.error;
+  if (upload.error) {
+    if (!isExistingObjectError(upload.error)) {
+      return {
+        document: null,
+        state: evidenceError("The evidence file could not be uploaded. Try again."),
+      };
+    }
+
+    const existing = await bucket.download(storagePath);
+    if (existing.error || !existing.data) {
+      return {
+        document: null,
+        state: evidenceError("The existing evidence object could not be verified."),
+      };
+    }
+    const existingHash = await sha256Hex(await existing.data.arrayBuffer());
+    if (
+      existingHash !== evidenceSha256 ||
+      existing.data.size !== evidenceFile.size ||
+      existing.data.type !== evidenceFile.type
+    ) {
+      return {
+        document: null,
+        state: evidenceError(
+          "This replay key already has different evidence bytes or metadata.",
+        ),
+      };
+    }
+    const metadata = await supabase
+      .from("documents")
+      .select(
+        "id,organization_id,file_name,storage_path,mime_type,size_bytes,content_sha256,uploaded_by,archived_at",
+      )
+      .eq("organization_id", organizationId)
+      .eq("storage_path", storagePath)
+      .maybeSingle();
+    if (metadata.error) {
+      return {
+        document: null,
+        state: evidenceError("The existing evidence metadata could not be verified."),
+      };
+    }
+    if (
+      metadata.data &&
+      (
+        metadata.data.id !== documentId ||
+        metadata.data.organization_id !== organizationId ||
+        metadata.data.file_name !== evidenceFile.name ||
+        metadata.data.storage_path !== storagePath ||
+        metadata.data.mime_type !== evidenceFile.type ||
+        metadata.data.size_bytes !== evidenceFile.size ||
+        metadata.data.content_sha256 !== evidenceSha256 ||
+        metadata.data.uploaded_by !== userId ||
+        metadata.data.archived_at !== null
+      )
+    ) {
+      return {
+        document: null,
+        state: evidenceError("This replay key already has different evidence metadata."),
+      };
+    }
+    uploadedThisAttempt = false;
+  }
+
+  return {
+    document: {
+      fileName: evidenceFile.name,
+      mimeType: evidenceFile.type,
+      sizeBytes: evidenceFile.size,
+      storagePath,
+      uploadedThisAttempt,
+    },
+    state: null,
+  };
+}
+
+async function cleanupPreparedEvidence(
+  supabase: OwnerOpeningSupabase,
+  document: PreparedDocument | null,
+) {
+  if (!document?.uploadedThisAttempt) return;
+  await removeUnregisteredDocumentObject(supabase, document.storagePath);
+}
+
+function validateEvidenceFile(file: File) {
+  if (!file.name.trim() || file.name.length > 255) {
+    return "Use an evidence file name under 256 characters.";
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return "Evidence files must be 10 MB or smaller.";
+  }
+  if (!documentMimeTypes.has(file.type)) {
+    return "Upload a PDF, JPG, PNG, or WebP evidence file.";
+  }
+  return "";
+}
+
+async function deterministicEvidenceDocumentId(
+  organizationId: string,
+  userId: string,
+  operation: "initial" | "correction",
+  idempotencyKey: string,
+) {
+  const digest = await sha256Hex(
+    new TextEncoder().encode(
+      `owner-opening-document-v1|${organizationId}|${userId}|${operation}|${idempotencyKey}`,
+    ),
+  );
+  return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-${digest.slice(12, 16)}-${digest.slice(16, 20)}-${digest.slice(20, 32)}`;
+}
+
+function isExistingObjectError(error: unknown) {
+  const details = errorDetails(error);
+  const statusCode =
+    error && typeof error === "object"
+      ? String((error as { statusCode?: unknown }).statusCode ?? "")
+      : "";
+  return (
+    statusCode === "409" ||
+    /already exists|duplicate|conflict/i.test(details.message)
+  );
+}
+
+function evidenceError(message: string): OwnerBalanceActionState {
+  return { errorCode: "evidence", message, status: "error" };
 }
 
 function emptyToNull(value: unknown) {

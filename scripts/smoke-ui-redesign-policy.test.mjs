@@ -198,6 +198,7 @@ describe("browser acceptance matrix policy", () => {
       { label: "Workspace Access", manifestRoute: "/users-roles" },
       { label: "Account", manifestRoute: "/account" },
       { label: "Finance Operations", manifestRoute: "/finance" },
+      { label: "Owner balances", manifestRoute: "/balances" },
       { label: "Ledger", manifestRoute: "/ledger" },
       { label: "Reports", manifestRoute: "/reports" },
     ]);
@@ -210,7 +211,7 @@ describe("browser acceptance matrix policy", () => {
     }
   });
 
-  it("resolves the five 200%-equivalent keyboard routes from exact manifest paths", () => {
+  it("resolves the six 200%-equivalent keyboard routes including Opening authority", () => {
     expect(smokePolicy.resolveKeyboardZoomRoutes(routeManifest)).toEqual([
       { expectedAccess: "accessible", label: "Overview", manifestRoute: "/overview", operationalSurfaceKey: "overview-operating-work", operationalSurfaceSelector: "[data-slot=\"overview-operating-scroll\"]", path: "/overview" },
       { expectedAccess: "accessible", label: "Leases", manifestRoute: "/leases", operationalSurfaceKey: "leases-register", operationalSurfaceSelector: "[data-slot=\"workspace-main-surface\"]", path: "/leases?query=Dara" },
@@ -224,6 +225,7 @@ describe("browser acceptance matrix policy", () => {
         path: "/properties/10000000-0000-0000-0000-000000000001",
       },
       { expectedAccess: "accessible", label: "Settings", manifestRoute: "/settings", operationalSurfaceKey: "settings-workspace", operationalSurfaceSelector: "[data-testid=\"settings-workspace\"]", path: "/settings" },
+      { expectedAccess: "accessible", label: "Opening authority", largeTextScale: 2, manifestRoute: "/balances", operationalSurfaceKey: "opening-authority-components", operationalSurfaceSelector: "[data-slot=\"opening-authority-components\"]", path: "/balances" },
     ]);
     expect(smokePolicy.KEYBOARD_ZOOM_VIEWPORT).toEqual({
       height: 450,
@@ -280,6 +282,20 @@ describe("200%-equivalent keyboard audit policy", () => {
       "zoom-equivalent-200 /overview: reverse keyboard traversal failed",
       "zoom-equivalent-200 /overview: screenshot evidence missing",
     ]);
+  });
+
+  it("fails when a requested 200% large-text assertion was not applied", () => {
+    const result = passingKeyboardAudit();
+    result.largeText = {
+      applied: false,
+      baselineRootFontPx: 16,
+      computedRootFontPx: 16,
+      requestedScale: 2,
+    };
+
+    expect(smokePolicy.getKeyboardZoomAuditFailures(result)).toContain(
+      "zoom-equivalent-200 /overview: requested 200% large text was not applied",
+    );
   });
 
   it("fails a suite when any required keyboard route is absent", () => {
@@ -650,6 +666,14 @@ function createValidSummary() {
         expectedAccess: route.expectedAccess,
         label: route.label,
         manifestRoute: route.manifestRoute,
+        largeText: route.largeTextScale
+          ? {
+              applied: true,
+              baselineRootFontPx: 16,
+              computedRootFontPx: 32,
+              requestedScale: route.largeTextScale,
+            }
+          : null,
         route: route.path,
       };
     });

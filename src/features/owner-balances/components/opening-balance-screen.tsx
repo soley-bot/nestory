@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useActionState,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -14,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
-import { createDocumentAction, type DocumentActionState } from "@/features/documents/actions";
 import { sha256Hex } from "@/features/documents/content-fingerprint";
 import {
   reviewOwnerOpeningBalanceAction,
@@ -22,7 +23,6 @@ import {
   submitOwnerOpeningBalanceCorrectionAction,
 } from "@/features/owner-balances/actions";
 import {
-  OWNER_BALANCE_COMPONENTS,
   OWNER_BALANCE_COMPONENT_LABELS,
   type OpeningBalanceAuthorityData,
   type OwnerBalanceActionState,
@@ -62,11 +62,12 @@ type ReviewIntent = {
 };
 
 const actionInitialState: OwnerBalanceActionState | Record<string, never> = {};
-const documentInitialState: DocumentActionState = {};
 
 export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
   const [openingIntent, setOpeningIntent] = useState<OpeningIntent | null>(null);
   const [reviewIntent, setReviewIntent] = useState<ReviewIntent | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const statusRef = useRef<HTMLDivElement>(null);
   const groups = useMemo(() => groupsForScope(props), [props]);
   const labels = useMemo(
     () => ({
@@ -84,12 +85,21 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
   const blockers = props.data.readiness.filter(
     (row) => !props.selectedPropertyId || row.propertyId === props.selectedPropertyId,
   );
+  const handleSuccess = useCallback((message: string) => {
+    setOpeningIntent(null);
+    setReviewIntent(null);
+    setAnnouncement(message);
+  }, []);
+
+  useEffect(() => {
+    if (announcement) statusRef.current?.focus();
+  }, [announcement]);
 
   return (
     <section aria-labelledby="opening-authority-heading" className="border-b bg-card">
       <div className="border-b px-4 py-4 sm:px-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-3xl">
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
+          <div className="min-w-0 max-w-3xl">
             <h2 className="text-base font-semibold" id="opening-authority-heading">
               Opening authority
             </h2>
@@ -98,7 +108,12 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
               Missing authority stays Unknown until independently approved.
             </p>
           </div>
-          <form action="/balances" className="grid gap-2 sm:grid-cols-4" method="get">
+          <form
+            action="/balances"
+            className="grid min-w-0 gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr))]"
+            data-slot="opening-authority-filters"
+            method="get"
+          >
             <FilterLabel label="Month">
               <MonthPickerField
                 ariaLabel="Opening month"
@@ -125,17 +140,33 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
                 placeholder="All owners"
               />
             </FilterLabel>
-            <Button className="self-end" type="submit" variant="outline">
+            <Button className="w-full self-end" type="submit" variant="outline">
               Apply
             </Button>
           </form>
         </div>
       </div>
 
+      <div
+        aria-atomic="true"
+        aria-live="polite"
+        className={cn(
+          "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+          announcement
+            ? "border-b bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-800 sm:px-6"
+            : "sr-only",
+        )}
+        ref={statusRef}
+        role="status"
+        tabIndex={-1}
+      >
+        {announcement}
+      </div>
+
       {blockers.length > 0 ? (
         <div aria-live="polite" className="border-b bg-amber-500/5 px-4 py-3 sm:px-6">
           {blockers.map((blocker) => (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" key={`${blocker.propertyId}-${blocker.boundaryDate}`}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" key={`${blocker.propertyId}-${blocker.boundaryDate}-${blocker.issueCode}`}>
               <strong>Ownership setup required</strong>
               <span className="text-muted-foreground">
                 {labels.properties.get(blocker.propertyId) ?? "Selected property"}: {blocker.ownershipPercentTotal}% assigned ({humanize(blocker.issueCode)}).
@@ -155,6 +186,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
       <div
         aria-label="Opening authority components"
         className="overflow-x-auto"
+        data-slot="opening-authority-components"
         role="region"
         tabIndex={0}
       >
@@ -191,7 +223,9 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
         </table>
         {groups.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-6">
-            Choose a property and owner to prepare the four opening components, or adjust the filters to inspect existing requests.
+            {blockers.length > 0
+              ? "Resolve the ownership roster before submitting opening authority."
+              : "No effective property-owner assignments match this month and filter scope."}
           </div>
         ) : null}
       </div>
@@ -204,12 +238,14 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
           intent={openingIntent}
           isSuperAdmin={props.isSuperAdmin}
           onClose={() => setOpeningIntent(null)}
+          onSuccess={handleSuccess}
         />
       ) : null}
       {reviewIntent ? (
         <ReviewFormModal
           intent={reviewIntent}
           onClose={() => setReviewIntent(null)}
+          onSuccess={handleSuccess}
         />
       ) : null}
     </section>
@@ -239,24 +275,18 @@ function OpeningRow({
   onReview: (intent: ReviewIntent) => void;
   showIdentity: boolean;
 }) {
-  const latestRejected = [...component.requests]
-    .reverse()
-    .find((request) => request.status === "rejected");
-  const submitted = component.requests.filter((request) => request.status === "submitted");
-  const pendingCorrection = submitted.some(
-    (request) =>
-      request.requestKind === "correction" &&
-      request.correctionOfEntryId === component.currentAuthorityEntryId,
-  );
-  const pendingInitial = submitted.some((request) => request.requestKind === "initial");
+  const currentRequest = component.requests[0] ?? null;
+  const currentRejected = currentRequest?.status === "rejected" ? currentRequest : null;
+  const currentSubmitted = currentRequest?.status === "submitted" ? currentRequest : null;
   const canResubmit =
-    latestRejected &&
-    ((latestRejected.requestKind === "initial" && canSubmitInitial) ||
-      (latestRejected.requestKind === "correction" &&
+    group.rosterState === "ready" &&
+    currentRejected &&
+    ((currentRejected.requestKind === "initial" && canSubmitInitial) ||
+      (currentRejected.requestKind === "correction" &&
         canSubmitCorrection &&
-        latestRejected.correctionOfEntryId === component.currentAuthorityEntryId));
-  const evidence = component.requests.find((request) => request.evidence)?.evidence;
-  const ownership = component.requests.at(-1) ?? null;
+        currentRejected.correctionOfEntryId === component.currentAuthorityEntryId));
+  const evidence = currentRequest?.evidence ?? null;
+  const ownership = currentRequest;
 
   return (
     <tr className="border-b align-top">
@@ -286,10 +316,10 @@ function OpeningRow({
       <td className="px-3 py-3">
         <div className="space-y-2">
           {component.requests.length === 0 ? <span className="text-muted-foreground">No request</span> : null}
-          {component.requests.map((request) => (
+          {component.requests.map((request, index) => (
             <details key={request.id} open={request.status === "submitted"}>
               <summary className="cursor-pointer font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                {capitalize(request.status)} {request.requestKind}
+                {index === 0 ? "Current — " : "Lineage — "}{capitalize(request.status)} {request.requestKind}
               </summary>
               <div className="mt-1 space-y-1 pl-2 text-xs text-muted-foreground">
                 <p>Submitted {shortDate(request.submittedAt)} by {shortId(request.submittedBy)}</p>
@@ -331,33 +361,33 @@ function OpeningRow({
       </td>
       <td className="px-4 py-3 text-right sm:px-6">
         <div className="flex flex-col items-end gap-2">
-          {component.authority.state === "unknown" && !pendingInitial && canSubmitInitial ? (
+          {group.rosterState === "ready" && component.authority.state === "unknown" && !currentRequest && canSubmitInitial ? (
             <Button onClick={() => onOpen({ component, group, mode: "initial", predecessor: null })} size="sm">
               Submit opening balance
             </Button>
           ) : null}
-          {component.authority.state === "known" && component.currentAuthorityEntryId && !pendingInitial && !pendingCorrection && canSubmitCorrection ? (
+          {group.rosterState === "ready" && component.authority.state === "known" && component.currentAuthorityEntryId && currentRequest?.status !== "submitted" && currentRequest?.status !== "rejected" && canSubmitCorrection ? (
             <Button onClick={() => onOpen({ component, group, mode: "correction", predecessor: null })} size="sm" variant="outline">
               Request correction
             </Button>
           ) : null}
-          {canResubmit && latestRejected ? (
-            <Button onClick={() => onOpen({ component, group, mode: latestRejected.requestKind, predecessor: latestRejected })} size="sm" variant="outline">
+          {canResubmit && currentRejected ? (
+            <Button onClick={() => onOpen({ component, group, mode: currentRejected.requestKind, predecessor: currentRejected })} size="sm" variant="outline">
               Resubmit rejected opening
             </Button>
           ) : null}
-          {submitted.map((request) =>
-            request.submittedBy === actorUserId ? (
-              <span className="text-xs text-muted-foreground" key={request.id}>Independent review required</span>
+          {currentSubmitted ? (
+            currentSubmitted.submittedBy === actorUserId ? (
+              <span className="text-xs text-muted-foreground">Independent review required</span>
             ) : canReview ? (
-              <div className="flex gap-1" key={request.id}>
-                <Button aria-label="Approve opening balance" onClick={() => onReview({ decision: "approve", request })} size="sm">Approve</Button>
-                <Button aria-label="Reject opening balance" onClick={() => onReview({ decision: "reject", request })} size="sm" variant="outline">Reject</Button>
+              <div className="flex flex-wrap justify-end gap-1">
+                <Button aria-label="Approve opening balance" onClick={() => onReview({ decision: "approve", request: currentSubmitted })} size="sm">Approve</Button>
+                <Button aria-label="Reject opening balance" onClick={() => onReview({ decision: "reject", request: currentSubmitted })} size="sm" variant="outline">Reject</Button>
               </div>
             ) : (
-              <span className="text-xs text-muted-foreground" key={request.id}>Awaiting Super Admin review</span>
-            ),
-          )}
+              <span className="text-xs text-muted-foreground">Awaiting Super Admin review</span>
+            )
+          ) : null}
         </div>
       </td>
     </tr>
@@ -369,11 +399,13 @@ function OpeningFormModal({
   intent,
   isSuperAdmin,
   onClose,
+  onSuccess,
 }: {
   eligibleEvidence: Array<OwnerOpeningEvidence & { propertyId: string }>;
   intent: OpeningIntent;
   isSuperAdmin: boolean;
   onClose: () => void;
+  onSuccess: (message: string) => void;
 }) {
   const router = useRouter();
   const action = intent.mode === "initial" ? submitOwnerOpeningBalanceAction : submitOwnerOpeningBalanceCorrectionAction;
@@ -382,6 +414,15 @@ function OpeningFormModal({
     intent.predecessor?.evidence ?? eligibleEvidence[0] ?? null,
   );
   const [localHash, setLocalHash] = useState("");
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [amount, setAmount] = useState(
+    intent.predecessor?.proposedAmount ??
+      (intent.component.authority.state === "known" ? intent.component.authority.amount : ""),
+  );
+  const [reasonValue, setReasonValue] = useState(intent.predecessor?.reason ?? "");
+  const [sourceReference, setSourceReference] = useState(
+    intent.predecessor?.sourceReference ?? "",
+  );
   const idempotencyKey = useMemo(
     () => `owner-opening-${intent.mode}-${crypto.randomUUID()}`,
     [intent.mode],
@@ -390,13 +431,11 @@ function OpeningFormModal({
   useEffect(() => {
     if (state.status === "success") {
       router.refresh();
-      onClose();
+      onSuccess(state.message);
     }
-  }, [onClose, router, state.status]);
+  }, [onSuccess, router, state]);
 
   const evidenceHash = evidence?.contentSha256 ?? localHash;
-  const currentAmount = intent.component.authority.state === "known" ? intent.component.authority.amount : "";
-
   return (
     <Modal
       description={`${OWNER_BALANCE_COMPONENT_LABELS[intent.component.component]} · ${intent.group.effectiveDate}`}
@@ -405,17 +444,13 @@ function OpeningFormModal({
       title={intent.mode === "initial" ? "Submit opening balance" : "Request opening correction"}
     >
       <div className="space-y-5 p-4 sm:p-6">
-        {isSuperAdmin ? (
-          <EvidenceUploadForm
-            group={intent.group}
-            onRegistered={(registered) => {
-              setEvidence(registered);
-              setLocalHash("");
-            }}
-          />
-        ) : null}
-
-        <form action={formAction} className="space-y-4">
+        <form
+          action={(formData) => {
+            if (isSuperAdmin && evidenceFile) formData.set("evidenceFile", evidenceFile);
+            formAction(formData);
+          }}
+          className="space-y-4"
+        >
           {intent.mode === "initial" ? (
             <>
               <Hidden name="component" value={intent.component.component} />
@@ -425,7 +460,10 @@ function OpeningFormModal({
               <Hidden name="propertyId" value={intent.group.propertyId} />
             </>
           ) : (
-            <Hidden name="entryId" value={intent.component.currentAuthorityEntryId ?? intent.predecessor?.correctionOfEntryId ?? ""} />
+            <>
+              <Hidden name="entryId" value={intent.component.currentAuthorityEntryId ?? intent.predecessor?.correctionOfEntryId ?? ""} />
+              <Hidden name="propertyId" value={intent.group.propertyId} />
+            </>
           )}
           <Hidden name="evidenceSha256" value={evidenceHash ?? ""} />
           <Hidden name="idempotencyKey" value={idempotencyKey} />
@@ -434,15 +472,16 @@ function OpeningFormModal({
 
           <Field label={intent.mode === "initial" ? "Opening amount" : "Replacement amount"}>
             <Input
-              defaultValue={intent.predecessor?.proposedAmount ?? currentAmount}
               inputMode="decimal"
               name={intent.mode === "initial" ? "amount" : "replacementAmount"}
+              onChange={(event) => setAmount(event.target.value)}
               required
               type="text"
+              value={amount}
             />
           </Field>
           <Field label="Reason">
-            <Input defaultValue={intent.predecessor?.reason ?? ""} maxLength={500} minLength={3} name="reason" required />
+            <Input maxLength={500} minLength={3} name="reason" onChange={(event) => setReasonValue(event.target.value)} required value={reasonValue} />
           </Field>
           <Field label="Existing eligible evidence">
             <select
@@ -450,6 +489,7 @@ function OpeningFormModal({
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               onChange={(event) => {
                 setEvidence(eligibleEvidence.find((item) => item.id === event.target.value) ?? null);
+                setEvidenceFile(null);
                 setLocalHash("");
               }}
               value={evidence?.id ?? ""}
@@ -458,21 +498,37 @@ function OpeningFormModal({
               {eligibleEvidence.map((item) => <option key={item.id} value={item.id}>{item.fileName} · {item.contentSha256?.slice(0, 10)}</option>)}
             </select>
           </Field>
-          <Field label="Evidence file">
-            <Input
-              accept="application/pdf,image/jpeg,image/png,image/webp"
-              onChange={async (event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                setEvidence(null);
-                setLocalHash(await sha256Hex(await file.arrayBuffer()));
-              }}
-              type="file"
-            />
-          </Field>
+          {isSuperAdmin ? (
+            <Field label="Evidence file">
+              <Input
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  setEvidenceFile(file);
+                  if (!file) return;
+                  setEvidence(null);
+                  setLocalHash(await sha256Hex(await file.arrayBuffer()));
+                }}
+                type="file"
+              />
+            </Field>
+          ) : null}
+          {evidenceFile ? <p className="text-xs font-medium">{evidenceFile.name} ready for final submission</p> : null}
+          {!evidence ? (
+            <Field label="Source snapshot fingerprint">
+              <Input
+                maxLength={64}
+                minLength={64}
+                name="sourceSnapshotFingerprint"
+                onChange={(event) => setLocalHash(event.target.value)}
+                readOnly={Boolean(evidenceFile)}
+                value={localHash}
+              />
+            </Field>
+          ) : null}
           {evidenceHash ? <p className="break-all font-mono text-xs text-muted-foreground">Fingerprint {evidenceHash}</p> : <p className="text-xs text-muted-foreground">Choose registered evidence or a real file to compute its fingerprint.</p>}
           <Field label="Source reference">
-            <Input defaultValue={intent.predecessor?.sourceReference ?? ""} maxLength={240} minLength={3} name="sourceReference" />
+            <Input maxLength={240} minLength={3} name="sourceReference" onChange={(event) => setSourceReference(event.target.value)} value={sourceReference} />
           </Field>
 
           {state.status === "error" ? <p className="text-sm text-destructive" role="alert">{state.message}</p> : null}
@@ -486,49 +542,7 @@ function OpeningFormModal({
   );
 }
 
-function EvidenceUploadForm({
-  group,
-  onRegistered,
-}: {
-  group: OwnerOpeningAuthorityGroup;
-  onRegistered: (evidence: OwnerOpeningEvidence) => void;
-}) {
-  const [state, action, pending] = useActionState(createDocumentAction, documentInitialState);
-
-  useEffect(() => {
-    if (state.status === "success" && state.documentId && state.contentSha256 && state.fileName) {
-      onRegistered({
-        archivedAt: null,
-        category: "owner_opening_balance_evidence",
-        contentSha256: state.contentSha256,
-        fileName: state.fileName,
-        hashMatchesRequest: true,
-        id: state.documentId,
-        storagePath: "",
-      });
-    }
-  }, [onRegistered, state]);
-
-  return (
-    <form action={action} className="rounded-md border bg-muted/30 p-3">
-      <p className="text-sm font-medium">Upload and register evidence</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">The checked document action hashes the actual bytes and registers an immutable document.</p>
-      <Hidden name="category" value="owner_opening_balance_evidence" />
-      <Hidden name="leaseId" value="" />
-      <Hidden name="propertyId" value={group.propertyId} />
-      <Hidden name="taskId" value="" />
-      <Hidden name="unitId" value="" />
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <Input aria-label="Upload evidence document" accept="application/pdf,image/jpeg,image/png,image/webp" name="document" required type="file" />
-        <Button disabled={pending} type="submit" variant="outline">{pending ? "Registering…" : "Register file"}</Button>
-      </div>
-      {state.status === "error" ? <p className="mt-2 text-xs text-destructive" role="alert">{state.message ?? "Evidence could not be registered."}</p> : null}
-      {state.status === "success" ? <p className="mt-2 text-xs text-emerald-700" role="status">Registered {state.fileName}.</p> : null}
-    </form>
-  );
-}
-
-function ReviewFormModal({ intent, onClose }: { intent: ReviewIntent; onClose: () => void }) {
+function ReviewFormModal({ intent, onClose, onSuccess }: { intent: ReviewIntent; onClose: () => void; onSuccess: (message: string) => void }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(reviewOwnerOpeningBalanceAction, actionInitialState);
   const idempotencyKey = useMemo(() => `owner-opening-review-${crypto.randomUUID()}`, []);
@@ -536,9 +550,9 @@ function ReviewFormModal({ intent, onClose }: { intent: ReviewIntent; onClose: (
   useEffect(() => {
     if (state.status === "success") {
       router.refresh();
-      onClose();
+      onSuccess(state.message);
     }
-  }, [onClose, router, state.status]);
+  }, [onSuccess, router, state]);
 
   return (
     <Modal description="The database revalidates evidence, ownership, month state, and independent review." onClose={onClose} open title={intent.decision === "approve" ? "Approve opening balance" : "Reject opening balance"}>
@@ -561,23 +575,7 @@ function ReviewFormModal({ intent, onClose }: { intent: ReviewIntent; onClose: (
 }
 
 function groupsForScope(props: OpeningBalanceScreenProps) {
-  if (props.data.groups.length > 0 || !props.selectedPropertyId || !props.selectedOwnerPersonId) {
-    return props.data.groups;
-  }
-  return [{
-    components: OWNER_BALANCE_COMPONENTS.map((component) => ({
-      authority: { state: "unknown" as const },
-      component,
-      currentAuthorityEntryId: null,
-      entries: [],
-      requests: [],
-    })),
-    currency: "USD",
-    effectiveDate: `${props.selectedMonth}-01`,
-    organizationId: "",
-    ownerPersonId: props.selectedOwnerPersonId,
-    propertyId: props.selectedPropertyId,
-  } satisfies OwnerOpeningAuthorityGroup];
+  return props.data.groups;
 }
 
 function collectEligibleEvidence(data: OpeningBalanceAuthorityData, selectedPropertyId?: string) {
@@ -606,12 +604,12 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
 }
 
 function FilterLabel({ children, label }: { children: ReactNode; label: string }) {
-  return <label className="grid min-w-36 gap-1 text-xs font-medium text-muted-foreground"><span>{label}</span>{children}</label>;
+  return <label className="grid min-w-0 gap-1 text-xs font-medium text-muted-foreground"><span>{label}</span>{children}</label>;
 }
 
 function NativeSelect({ ariaLabel, defaultValue, name, options, placeholder }: { ariaLabel: string; defaultValue: string; name: string; options: Option[]; placeholder: string }) {
   return (
-    <select aria-label={ariaLabel} className="h-8 min-w-36 rounded-md border border-input bg-card px-2 text-sm text-foreground" defaultValue={defaultValue} name={name}>
+    <select aria-label={ariaLabel} className="h-8 min-w-0 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground" defaultValue={defaultValue} name={name}>
       <option value="">{placeholder}</option>
       {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
     </select>
@@ -623,7 +621,7 @@ function Hidden({ name, value }: { name: string; value: string }) {
 }
 
 function StatusPill({ children, tone }: { children: ReactNode; tone: "neutral" | "success" }) {
-  return <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-xs font-medium", tone === "success" ? "border-emerald-600/20 bg-emerald-500/10 text-emerald-700" : "border-border bg-muted text-muted-foreground")}>{children}</span>;
+  return <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-xs font-medium", tone === "success" ? "border-emerald-600/20 bg-emerald-500/10 text-emerald-700" : "border-border bg-muted text-foreground")}>{children}</span>;
 }
 
 function formatUsd(value: string) {

@@ -7970,6 +7970,44 @@ export type Database = {
         }
         Returns: Json
       }
+      submit_owner_opening_balance_correction_with_document: {
+        Args: {
+          p_document_file_name: string
+          p_document_mime_type: string
+          p_document_size_bytes: number
+          p_document_storage_path: string
+          p_entry_id: string
+          p_evidence_sha256: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_replacement_amount: number
+          p_resubmission_of_request_id: string
+          p_source_reference: string
+        }
+        Returns: Json
+      }
+      submit_owner_opening_balance_with_document: {
+        Args: {
+          p_amount: number
+          p_component: Database["public"]["Enums"]["owner_balance_component"]
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_document_file_name: string
+          p_document_mime_type: string
+          p_document_size_bytes: number
+          p_document_storage_path: string
+          p_effective_date: string
+          p_evidence_sha256: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_person_id: string
+          p_property_id: string
+          p_reason: string
+          p_resubmission_of_request_id: string
+          p_source_reference: string
+        }
+        Returns: Json
+      }
       update_document: {
         Args: {
           p_category: string

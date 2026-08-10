@@ -122,6 +122,7 @@ export type OwnerOpeningAuthorityGroup = {
   ownerPersonId: string;
   currency: string;
   effectiveDate: string;
+  rosterState: "ready" | "blocked";
   components: OwnerOpeningComponentRecord[];
 };
 
