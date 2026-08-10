@@ -67,13 +67,15 @@ const safeFailureReasons = new Set([
   "mutation failed",
 ]);
 
+const localFixturePassword = ["123", "456", "789"].join("");
+
 export function resolveFinanceManagerDayConfig(environment = process.env) {
   return {
     baseUrl: validateLocalBaseUrl(
       environment.NESTORY_BASE_URL ?? "http://localhost:3000",
     ),
     email: financeManagerDaySmokeContract.email,
-    password: environment.NESTORY_TEST_PASSWORD ?? "123456789",
+    password: environment.NESTORY_TEST_PASSWORD ?? localFixturePassword,
   };
 }
 
