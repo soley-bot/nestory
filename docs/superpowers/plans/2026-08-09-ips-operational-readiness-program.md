@@ -246,6 +246,12 @@ not complete until the Track 1B checkbox above is accepted after Track 3.
 
 **Purpose:** Store evidence-backed cutover positions as business authority rather than report input.
 
+**Current status:** Independently approved through correction commit
+`7c7f610efd6a440e51d6bc46e18432aafc00c7bb`. The guarded local example
+reconstructs all four exact components, known zero, reject/resubmit, correction
+lineage, ownership snapshots, evidence hashes, and authenticated database
+effects. This is local Track 2 approval only; hosted mutation remains forbidden.
+
 **Binding specification:**
 `docs/superpowers/specs/2026-08-09-owner-balance-and-close-authority.md`.
 D1-D12 are approved and frozen; implementation must not substitute a simpler
@@ -314,7 +320,7 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
 - [x] Ratify D1-D12 and freeze the exact schema, ownership, evidence, amount,
   authority, month, correction, roll-forward, close, and publication semantics in
   the binding specification before migration code.
-- [ ] **Task 2.0 — opening-ownership readiness:** enforce half-open ranges,
+- [x] **Task 2.0 — opening-ownership readiness:** enforce half-open ranges,
   unarchived same-owner overlap exclusion, explicit shares `> 0` summing exactly
   `100.000` on the requested date, deterministic date validator/roster hash, and
   Finance-readable remediation. Add the deterministic zero-write legacy
@@ -325,32 +331,32 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
   writer/action/form so effective start/share are explicit and never prefilled.
   Explicitly correct fixture data; never backfill a sole owner to `100.000`.
   Commit and obtain fresh review before opening schema work.
-- [ ] **Task 2.1A — request schema:** create the component type and opening
+- [x] **Task 2.1A — request schema:** create the component type and opening
   request table with ownership/evidence snapshots,
   `resubmission_of_request_id`, status/check constraints, composite scope keys,
   and concurrent pending-request uniqueness. Define `correction_of_entry_id`
   without its not-yet-possible entry FK. Commit and obtain fresh review.
-- [ ] **Task 2.1B — entry schema and access:** create immutable signed entries,
+- [x] **Task 2.1B — entry schema and access:** create immutable signed entries,
   initial/reversal/replacement constraints including `0.00`, explicit
   capabilities, RLS, explicit anon/authenticated/service-role ACLs, and
   direct-DML denial. Generate schema types only; handwritten RPC overrides wait
   for real signatures. Add the composite correction-target FK/same-scope rules
   only after this task creates the entry table. Commit and obtain fresh review
   before workflow RPCs.
-- [ ] **Task 2.2A — document fingerprint/evidence lock:** add checked nullable
+- [x] **Task 2.2A — document fingerprint/evidence lock:** add checked nullable
   `documents.content_sha256`, exact upload-byte hashing, null-to-hash once-only
   fingerprinting, immutable fingerprinted bytes/hash, new-row file replacement,
   scope/object/category/archive checks, generalized immutable evidence, narrowed
   direct document grants, and removal/revocation of bypassing legacy document
   RPC overloads. Commit and obtain fresh review.
-- [ ] **Task 2.2B — initial submit/reject/resubmit:** implement initial
+- [x] **Task 2.2B — initial submit/reject/resubmit:** implement initial
   submission only, plus a private ordered property/currency/month lock,
   locked-month-capable serialized rejection, rejected-request chain, immutable
   server roster snapshots separate from public replay payload, completed replay
   before roster/document/open checks, idempotency/activity, ACL, and real
   concurrent pending/resubmission tests. Regenerate types after RPC creation and
   add matching string overrides. No correction submission or approval yet.
-- [ ] **Task 2.2C — initial approve/correction submit+approve:** implement
+- [x] **Task 2.2C — initial approve/correction submit+approve:** implement
   independent initial approval and exact
   opening entry creation first, then correction submission and approval
   against the current unreversed authority-bearing entry including `0.00`,
@@ -358,17 +364,17 @@ scalar, inferred zero, primary-owner guess, or report-time plug.
   checks after roster change/month lock, stale-target and concurrent denial.
   Regenerate types and extend string overrides after signatures exist. Commit
   and obtain fresh review.
-- [ ] **Task 2.3A — exact-decimal application/data:** add decimal-string
+- [x] **Task 2.3A — exact-decimal application/data:** add decimal-string
   validation/actions/loaders and consume/verify the already generated
   `src/types/database.ts` overrides with no
   `Number`, `parseFloat`, or numeric coercion. Preserve existing balance
   projections unchanged. Commit and obtain fresh review.
-- [ ] **Task 2.3B — opening/evidence UI:** add the separately labelled opening
+- [x] **Task 2.3B — opening/evidence UI:** add the separately labelled opening
   authority queue, ownership remediation, component completeness,
   document/reference/fingerprint workflow, safe orphan cleanup,
   resubmission/correction history, role controls, accessibility, and explicit
   `Unknown` versus approved `$0.00`. Commit and obtain fresh review.
-- [ ] **Task 2.4 — fixture/reconciliation acceptance:** create all four approved
+- [x] **Task 2.4 — fixture/reconciliation acceptance:** create all four approved
   components including a known zero, rejected/resubmitted request, and approved
   correction-from-zero chain through checked RPCs; compare exact cents,
   ownership snapshots, roster hash, and evidence hashes to a guarded
