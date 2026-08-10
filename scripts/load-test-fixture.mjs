@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -20,20 +21,52 @@ export function findUnsupportedFixtureActivityEntityTypes(
     .sort();
 }
 
-export function selectLocalDatabaseContainer(cwd, containerNames) {
+export function selectLocalDatabaseContainer(
+  cwd,
+  containerNames,
+  { expectedContainerName } = {},
+) {
   if (process.env.SUPABASE_DB_CONTAINER) {
-    return process.env.SUPABASE_DB_CONTAINER;
+    const explicitContainer = process.env.SUPABASE_DB_CONTAINER;
+    if (!containerNames.includes(explicitContainer)) {
+      throw new Error(
+        `Explicit local Supabase database container is not running: ${explicitContainer}`,
+      );
+    }
+    if (
+      expectedContainerName &&
+      explicitContainer !== expectedContainerName
+    ) {
+      throw new Error(
+        `Explicit database target ${explicitContainer} does not match the configured local Supabase project (${expectedContainerName}).`,
+      );
+    }
+    return explicitContainer;
   }
 
-  const preferred = `supabase_db_${path.basename(cwd)}`;
+  const preferred = expectedContainerName ?? `supabase_db_${path.basename(cwd)}`;
   if (containerNames.includes(preferred)) return preferred;
+  if (expectedContainerName) {
+    throw new Error(
+      `Configured local Supabase database container is not running: ${expectedContainerName}`,
+    );
+  }
   if (containerNames.length === 1) return containerNames[0];
   throw new Error(
     "Could not select one local Supabase database container. Set SUPABASE_DB_CONTAINER explicitly.",
   );
 }
 
-function findLocalDatabaseContainer(cwd) {
+function configuredLocalDatabaseContainerName(cwd) {
+  const config = readFileSync(path.join(cwd, "supabase", "config.toml"), "utf8");
+  const projectId = config.match(/^\s*project_id\s*=\s*"([A-Za-z0-9_-]+)"\s*$/m)?.[1];
+  if (!projectId) {
+    throw new Error("Could not verify the local Supabase project_id in supabase/config.toml.");
+  }
+  return `supabase_db_${projectId}`;
+}
+
+export function findLocalDatabaseContainer(cwd) {
   const result = spawnSync(
     "docker",
     ["ps", "--filter", "name=^/supabase_db_", "--format", "{{.Names}}"],
@@ -50,6 +83,7 @@ function findLocalDatabaseContainer(cwd) {
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean),
+    { expectedContainerName: configuredLocalDatabaseContainerName(cwd) },
   );
 }
 

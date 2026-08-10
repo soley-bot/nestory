@@ -20,6 +20,19 @@ SELECT is(
 );
 
 SELECT is(
+  (SELECT count(*)::integer
+   FROM public.property_owners
+   WHERE id IN (
+     '90000000-0000-0000-0000-000000000001',
+     '90000000-0000-0000-0000-000000000002',
+     '90000000-0000-0000-0000-000000000003'
+   )
+     AND started_on = DATE '2024-01-01'),
+  3,
+  'all authored fixture ownership assignments use the pinned stable start date'
+);
+
+SELECT is(
   (SELECT jsonb_object_agg(status, count ORDER BY status)
    FROM (
      SELECT status, count(*)::integer AS count
@@ -243,14 +256,14 @@ CREATE TEMP TABLE fixture_expected_request_identity (
   canonical_payload_sha256 text NOT NULL
 );
 INSERT INTO fixture_expected_request_identity VALUES
-  ('FIXTURE-DEPOSIT-CORRECTION-001', 'security_deposit_custody', 'correction', 825.00, 'submitted', '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890', repeat('7', 64), 'b93adb48c935b2d649007162ec1c13618b6ea84cece9f8a98537634f396150ec'),
-  ('FIXTURE-OPENING-CASH-001', 'ips_held_owner_cash', 'initial', 1250.00, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890', repeat('1', 64), '6951ee58c0bab000cd45007eca6a690dfbb4ce0d8719fc4d4378b2d2212d8d17'),
-  ('FIXTURE-OPENING-DEPOSIT-001', 'security_deposit_custody', 'initial', 800.00, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890', repeat('4', 64), '1fcf3dd32557f5a2210c3205c8d3103b9ec3aacc96211b923c25363b62bc92ec'),
-  ('FIXTURE-OPENING-DUE-001', 'ips_due_to_owner', 'initial', 240.50, 'rejected', '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890', repeat('3', 64), 'c4ce77c6ce48ff88dd362cea807b36feb9658260c5e35bf915aa29e314e70dcc'),
-  ('FIXTURE-OPENING-DUE-RESUBMIT-001', 'ips_due_to_owner', 'initial', 240.50, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890', repeat('5', 64), 'ae59ba1d64b8ee242daa1fca450b2f05ecfb4ff3d880d09155d7a6b7a4e1e3f9'),
-  ('FIXTURE-OPENING-ZERO-001', 'owner_due_to_ips', 'initial', 0.00, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890', repeat('2', 64), 'b4e69449499178e82ee7cddc043d211c78ddf835c3cde2140379293576a72796'),
-  ('FIXTURE-ZERO-CORRECTION-001', 'owner_due_to_ips', 'correction', 0.00, 'rejected', '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890', repeat('6', 64), 'f4c9e579ce2054c3071cd1454632b996e7ff2b5500e479d9350f31a4fc99e5d3'),
-  ('FIXTURE-ZERO-CORRECTION-RESUBMIT-001', 'owner_due_to_ips', 'correction', 0.00, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890', repeat('8', 64), 'd6057ebe7358b5eabb72ce7cd0f89aee6bb20530e5e74d27f8b01e76bd39e026');
+  ('FIXTURE-DEPOSIT-CORRECTION-001', 'security_deposit_custody', 'correction', 825.00, 'submitted', '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262', repeat('7', 64), 'b93adb48c935b2d649007162ec1c13618b6ea84cece9f8a98537634f396150ec'),
+  ('FIXTURE-OPENING-CASH-001', 'ips_held_owner_cash', 'initial', 1250.00, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262', repeat('1', 64), '6951ee58c0bab000cd45007eca6a690dfbb4ce0d8719fc4d4378b2d2212d8d17'),
+  ('FIXTURE-OPENING-DEPOSIT-001', 'security_deposit_custody', 'initial', 800.00, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262', repeat('4', 64), '1fcf3dd32557f5a2210c3205c8d3103b9ec3aacc96211b923c25363b62bc92ec'),
+  ('FIXTURE-OPENING-DUE-001', 'ips_due_to_owner', 'initial', 240.50, 'rejected', '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262', repeat('3', 64), 'c4ce77c6ce48ff88dd362cea807b36feb9658260c5e35bf915aa29e314e70dcc'),
+  ('FIXTURE-OPENING-DUE-RESUBMIT-001', 'ips_due_to_owner', 'initial', 240.50, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262', repeat('5', 64), 'ae59ba1d64b8ee242daa1fca450b2f05ecfb4ff3d880d09155d7a6b7a4e1e3f9'),
+  ('FIXTURE-OPENING-ZERO-001', 'owner_due_to_ips', 'initial', 0.00, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262', repeat('2', 64), 'b4e69449499178e82ee7cddc043d211c78ddf835c3cde2140379293576a72796'),
+  ('FIXTURE-ZERO-CORRECTION-001', 'owner_due_to_ips', 'correction', 0.00, 'rejected', '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262', repeat('6', 64), 'f4c9e579ce2054c3071cd1454632b996e7ff2b5500e479d9350f31a4fc99e5d3'),
+  ('FIXTURE-ZERO-CORRECTION-RESUBMIT-001', 'owner_due_to_ips', 'correction', 0.00, 'approved', '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262', repeat('8', 64), 'd6057ebe7358b5eabb72ce7cd0f89aee6bb20530e5e74d27f8b01e76bd39e026');
 
 CREATE TEMP TABLE fixture_expected_entry_identity (
   entry_key text PRIMARY KEY,
@@ -263,12 +276,12 @@ CREATE TEMP TABLE fixture_expected_entry_identity (
   ownership_roster_hash text NOT NULL
 );
 INSERT INTO fixture_expected_entry_identity VALUES
-  ('FIXTURE-OPENING-CASH-001:opening', 'ips_held_owner_cash', 'opening', 1250.00, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890'),
-  ('FIXTURE-OPENING-DEPOSIT-001:opening', 'security_deposit_custody', 'opening', 800.00, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890'),
-  ('FIXTURE-OPENING-DUE-RESUBMIT-001:opening', 'ips_due_to_owner', 'opening', 240.50, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890'),
-  ('FIXTURE-OPENING-ZERO-001:opening', 'owner_due_to_ips', 'opening', 0.00, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890'),
-  ('FIXTURE-ZERO-CORRECTION-RESUBMIT-001:correction_replacement', 'owner_due_to_ips', 'correction_replacement', 0.00, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890'),
-  ('FIXTURE-ZERO-CORRECTION-RESUBMIT-001:correction_reversal', 'owner_due_to_ips', 'correction_reversal', 0.00, 'FIXTURE-OPENING-ZERO-001:opening', '90000000-0000-0000-0000-000000000001', 100.000, '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890');
+  ('FIXTURE-OPENING-CASH-001:opening', 'ips_held_owner_cash', 'opening', 1250.00, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262'),
+  ('FIXTURE-OPENING-DEPOSIT-001:opening', 'security_deposit_custody', 'opening', 800.00, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262'),
+  ('FIXTURE-OPENING-DUE-RESUBMIT-001:opening', 'ips_due_to_owner', 'opening', 240.50, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262'),
+  ('FIXTURE-OPENING-ZERO-001:opening', 'owner_due_to_ips', 'opening', 0.00, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262'),
+  ('FIXTURE-ZERO-CORRECTION-RESUBMIT-001:correction_replacement', 'owner_due_to_ips', 'correction_replacement', 0.00, NULL, '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262'),
+  ('FIXTURE-ZERO-CORRECTION-RESUBMIT-001:correction_reversal', 'owner_due_to_ips', 'correction_reversal', 0.00, 'FIXTURE-OPENING-ZERO-001:opening', '90000000-0000-0000-0000-000000000001', 100.000, '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262');
 
 CREATE TEMP TABLE fixture_contract_transitions AS
 SELECT idem.id, idem.idempotency_key, idem.operation, idem.actor_id,
@@ -341,12 +354,12 @@ AS $$
       SELECT 1 FROM pg_temp.fixture_contract_requests
       WHERE property_owner_id <> '90000000-0000-0000-0000-000000000001'
          OR ownership_percent_snapshot <> 100.000
-         OR ownership_roster_hash <> '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890'
+         OR ownership_roster_hash <> '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262'
     ) OR EXISTS (
       SELECT 1 FROM pg_temp.fixture_contract_entries
       WHERE property_owner_id <> '90000000-0000-0000-0000-000000000001'
          OR ownership_percent_snapshot <> 100.000
-         OR ownership_roster_hash <> '04d8a9cdae2958b96ee69c69cbb218b6d4a2d4383c6c2417f13641e1cb068890'
+         OR ownership_roster_hash <> '79fda8768211db83193d4eb3f8549f959b8331a729eaf83aa681add682d94262'
     ) THEN 'ownership_snapshot' END,
     CASE WHEN EXISTS (
       SELECT 1

@@ -3,10 +3,12 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const cwd = path.resolve(scriptDirectory, "..");
+const databaseContainer = findLocalDatabaseContainer(cwd);
 const baseUrl = validateLocalBaseUrl(
   process.env.NESTORY_BASE_URL ?? "http://localhost:3000",
 );
@@ -309,6 +311,7 @@ function loadBaseline() {
   ], {
     cwd,
     encoding: "utf8",
+    env: { ...process.env, SUPABASE_DB_CONTAINER: databaseContainer },
     shell: false,
   });
   if (result.error) throw result.error;
@@ -328,25 +331,11 @@ function assertNoEvidenceArtifacts() {
 }
 
 function dbScalar(sql) {
-  const container = localDatabaseContainer();
   const result = spawnSync(
     "docker",
-    ["exec", container, "psql", "-U", "postgres", "-d", "postgres", "-At", "-v", "ON_ERROR_STOP=1", "-c", sql],
+    ["exec", databaseContainer, "psql", "-U", "postgres", "-d", "postgres", "-At", "-v", "ON_ERROR_STOP=1", "-c", sql],
     { cwd, encoding: "utf8", shell: false },
   );
   if (result.status !== 0) throw new Error(result.stderr.trim() || "DB assertion failed");
   return result.stdout.trim();
-}
-
-function localDatabaseContainer() {
-  const result = spawnSync(
-    "docker",
-    ["ps", "--filter", "name=^/supabase_db_", "--format", "{{.Names}}"],
-    { cwd, encoding: "utf8", shell: false },
-  );
-  const names = result.stdout.split(/\r?\n/).map((name) => name.trim()).filter(Boolean);
-  const preferred = `supabase_db_${path.basename(cwd)}`;
-  if (names.includes(preferred)) return preferred;
-  if (names.length === 1) return names[0];
-  throw new Error("Set SUPABASE_DB_CONTAINER to one local database container");
 }

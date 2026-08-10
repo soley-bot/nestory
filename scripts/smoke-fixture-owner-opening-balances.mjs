@@ -67,6 +67,33 @@ export function reportSha256(report) {
     .digest("hex");
 }
 
+export function canonicalOwnershipRoster(roster) {
+  assert.ok(Array.isArray(roster) && roster.length > 0, "ownership roster must not be empty");
+  return [...roster]
+    .sort((left, right) => left.propertyOwnerId.toLowerCase().localeCompare(right.propertyOwnerId.toLowerCase()))
+    .map((row) => {
+      assert.match(row.propertyOwnerId, /^[0-9a-f-]{36}$/i, "ownership roster property-owner ID is invalid");
+      assert.match(row.ownerPersonId, /^[0-9a-f-]{36}$/i, "ownership roster owner-person ID is invalid");
+      assert.match(row.ownershipPercent, /^\d{1,3}\.\d{3}$/, "ownership roster share is not exact-decimal");
+      assert.match(row.startedOn, /^\d{4}-\d{2}-\d{2}$/, "ownership roster start date is invalid");
+      assert.ok(row.endedOn === null || /^\d{4}-\d{2}-\d{2}$/.test(row.endedOn), "ownership roster end date is invalid");
+      return [
+        row.propertyOwnerId.toLowerCase(),
+        row.ownerPersonId.toLowerCase(),
+        row.ownershipPercent,
+        row.startedOn,
+        row.endedOn ?? "",
+      ].join("|");
+    })
+    .join("\n");
+}
+
+export function ownershipRosterSha256(roster) {
+  return createHash("sha256")
+    .update(canonicalOwnershipRoster(roster))
+    .digest("hex");
+}
+
 export function assertCurrentMonthDates(report, expectedCurrentMonth) {
   assert.match(expectedCurrentMonth, /^\d{4}-\d{2}-01$/);
   assert.equal(report.effectiveDate, expectedCurrentMonth, "report effective date must equal the current business month");
@@ -112,6 +139,16 @@ export function validateReport(
   assert.equal(report.propertyOwnerId, manifest.propertyOwnerId);
   assert.equal(report.currency, manifest.currency);
   assert.equal(manifest.effectiveMonth, "CURRENT_MONTH");
+  assert.deepEqual(
+    report.ownershipRoster,
+    manifest.ownershipRoster,
+    "ownership roster canonical input changed",
+  );
+  assert.equal(
+    ownershipRosterSha256(report.ownershipRoster),
+    manifest.ownershipRosterHash,
+    "ownership roster hash changed",
+  );
   assertCurrentMonthDates(report, expectedCurrentMonth);
   assert.equal(report.requests.length, manifest.expected.requestCount);
   assert.equal(report.entries.length, manifest.expected.entryCount);
@@ -301,6 +338,21 @@ SELECT json_build_object(
   'propertyOwnerId', '90000000-0000-0000-0000-000000000001',
   'currency', 'USD',
   'effectiveDate', to_char(date_trunc('month', current_date), 'YYYY-MM-DD'),
+  'ownershipRoster', (
+    SELECT json_agg(json_build_object(
+      'propertyOwnerId', owner.id,
+      'ownerPersonId', owner.person_id,
+      'ownershipPercent', to_char(owner.ownership_percent, 'FM990.000'),
+      'startedOn', owner.started_on::text,
+      'endedOn', owner.ended_on::text
+    ) ORDER BY lower(owner.id::text))
+    FROM public.property_owners AS owner
+    WHERE owner.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND owner.property_id = '10000000-0000-0000-0000-000000000001'
+      AND owner.archived_at IS NULL
+      AND owner.started_on <= date_trunc('month', current_date)::date
+      AND (owner.ended_on IS NULL OR date_trunc('month', current_date)::date < owner.ended_on)
+  ),
   'statuses', (SELECT json_object_agg(status, count) FROM (SELECT status, count(*)::int AS count FROM fixture_requests GROUP BY status) s),
   'authority', (SELECT json_agg(json_build_object('component', component, 'amount', to_char(current_amount, 'FM9999999999990.00'), 'effectiveDate', effective_date::text) ORDER BY component) FROM public.owner_opening_balance_known_authority_v1 WHERE organization_id = '00000000-0000-0000-0000-000000000001' AND property_id = '10000000-0000-0000-0000-000000000001'),
   'requests', (SELECT json_agg(json_build_object(

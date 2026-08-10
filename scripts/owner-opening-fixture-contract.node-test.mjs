@@ -4,7 +4,6 @@ import test from "node:test";
 
 import {
   assertCurrentMonthDates,
-  queryReport,
   reportSha256,
   validateReport,
 } from "./smoke-fixture-owner-opening-balances.mjs";
@@ -12,6 +11,81 @@ import {
 const manifestUrl = new URL("./fixtures/owner-opening-balances.json", import.meta.url);
 const smokeUrl = new URL("./smoke-fixture-owner-opening-balances.mjs", import.meta.url);
 const browserUrl = new URL("./smoke-owner-opening-browser-acceptance.mjs", import.meta.url);
+
+const pinnedOwnershipRoster = [
+  {
+    propertyOwnerId: "90000000-0000-0000-0000-000000000001",
+    ownerPersonId: "80000000-0000-0000-0000-000000000004",
+    ownershipPercent: "100.000",
+    startedOn: "2024-01-01",
+    endedOn: null,
+  },
+];
+
+function withPinnedOwnershipRoster(manifest) {
+  return { ...manifest, ownershipRoster: pinnedOwnershipRoster };
+}
+
+function inMemoryFixtureReport(manifest, effectiveDate) {
+  const requestIds = new Map(
+    manifest.requests.map((row, index) => [row.sourceReference, `request-${index + 1}`]),
+  );
+  const entryIds = new Map(
+    manifest.entries.map((row, index) => [row.entryKey, `entry-${index + 1}`]),
+  );
+  const requests = manifest.requests.map((row) => ({
+    ...row,
+    id: requestIds.get(row.sourceReference),
+    effectiveDate,
+    correctionOfEntryId: row.targetEntryKey ? entryIds.get(row.targetEntryKey) : null,
+    resubmissionOfRequestId: row.predecessorSource
+      ? requestIds.get(row.predecessorSource)
+      : null,
+    payloadHash: row.canonicalPayloadSha256,
+    expectedPayloadHash: row.canonicalPayloadSha256,
+  }));
+  const entries = manifest.entries.map((row) => ({
+    ...row,
+    id: entryIds.get(row.entryKey),
+    requestId: requestIds.get(row.sourceReference),
+    effectiveDate,
+    reversalOfEntryId: row.reversalTargetEntryKey
+      ? entryIds.get(row.reversalTargetEntryKey)
+      : null,
+  }));
+  const idempotency = manifest.transitions.map((row, index) => ({
+    ...row,
+    id: `idempotency-${index + 1}`,
+    payloadHash: row.canonicalPayloadSha256,
+    expectedPayloadHash: row.canonicalPayloadSha256,
+    status: "completed",
+  }));
+  const activity = manifest.transitions.map((row, index) => ({
+    ...row,
+    payloadHash: row.canonicalPayloadSha256,
+    financialIdempotencyRequestId: `idempotency-${index + 1}`,
+    source: "checked_rpc",
+  }));
+
+  return {
+    organizationId: manifest.organizationId,
+    propertyId: manifest.propertyId,
+    ownerPersonId: manifest.ownerPersonId,
+    propertyOwnerId: manifest.propertyOwnerId,
+    currency: manifest.currency,
+    effectiveDate,
+    ownershipRoster: manifest.ownershipRoster,
+    ownershipRosterHash: manifest.ownershipRosterHash,
+    statuses: manifest.expected.requestStatuses,
+    authority: manifest.authority.map((row) => ({ ...row, effectiveDate })),
+    requests,
+    entries,
+    idempotency,
+    activity,
+    documentReferences: 0,
+    storageObjects: 0,
+  };
+}
 
 test("owner-opening fixture manifest fixes the four-component authority and lineage contract", async () => {
   const manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
@@ -37,6 +111,7 @@ test("owner-opening fixture manifest fixes the four-component authority and line
   assert.equal(manifest.expected.transitionCount, 15);
   assert.match(manifest.reportSha256, /^[0-9a-f]{64}$/);
   assert.equal(manifest.effectiveMonth, "CURRENT_MONTH");
+  assert.deepEqual(manifest.ownershipRoster, pinnedOwnershipRoster);
   assert.equal(manifest.requests.length, 8);
   assert.equal(manifest.entries.length, 6);
   for (const row of [...manifest.requests, ...manifest.entries]) {
@@ -46,18 +121,15 @@ test("owner-opening fixture manifest fixes the four-component authority and line
   }
 });
 
-test("semantic reconciliation hash is stable across current-month rollovers but rejects a mismatched authority date", () => {
-  const august = {
-    effectiveDate: "2026-08-01",
-    requests: [{ effectiveDate: "2026-08-01" }],
-    authority: [{ effectiveDate: "2026-08-01" }],
-  };
-  const september = {
-    effectiveDate: "2026-09-01",
-    requests: [{ effectiveDate: "2026-09-01" }],
-    authority: [{ effectiveDate: "2026-09-01" }],
-  };
+test("semantic reconciliation recomputes the full pinned roster across month rollover", async () => {
+  const manifest = withPinnedOwnershipRoster(
+    JSON.parse(await readFile(manifestUrl, "utf8")),
+  );
+  const august = inMemoryFixtureReport(manifest, "2026-08-01");
+  const september = inMemoryFixtureReport(manifest, "2026-09-01");
 
+  validateReport(august, manifest, { expectedCurrentMonth: "2026-08-01" });
+  validateReport(september, manifest, { expectedCurrentMonth: "2026-09-01" });
   assert.equal(reportSha256(august), reportSha256(september));
   assert.throws(
     () => assertCurrentMonthDates(
@@ -66,11 +138,39 @@ test("semantic reconciliation hash is stable across current-month rollovers but 
     ),
     /effective date/i,
   );
+  assert.throws(
+    () => validateReport(
+      {
+        ...september,
+        ownershipRoster: september.ownershipRoster.map((row) => ({
+          ...row,
+          startedOn: "2024-09-01",
+        })),
+      },
+      manifest,
+      { expectedCurrentMonth: "2026-09-01" },
+    ),
+    /roster/i,
+  );
+  const driftedRoster = september.ownershipRoster.map((row) => ({
+    ...row,
+    startedOn: "2024-09-01",
+  }));
+  assert.throws(
+    () => validateReport(
+      { ...september, ownershipRoster: driftedRoster },
+      { ...manifest, ownershipRoster: driftedRoster },
+      { expectedCurrentMonth: "2026-09-01" },
+    ),
+    /roster hash changed/i,
+  );
 });
 
 test("reconciliation rejects valid-looking wrong ownership identities and payload hashes", async () => {
-  const manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
-  const report = queryReport();
+  const manifest = withPinnedOwnershipRoster(
+    JSON.parse(await readFile(manifestUrl, "utf8")),
+  );
+  const report = inMemoryFixtureReport(manifest, "2026-08-01");
   validateReport(report, manifest);
   const wrongUuid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const wrongHash = "a".repeat(64);
