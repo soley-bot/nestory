@@ -59,8 +59,10 @@
 
 ## Track 4A - immutable owner close authority
 
-- Status: local implementation and self-review complete on 2026-08-10;
-  independent milestone review remains required. Track 4B is not started.
+- Status: locally approved on 2026-08-10 at correction commit
+  `e3ed33fc62d039048d2d0d2ca72424b8180917cc`. The final focused independent
+  review found no remaining Critical, Important, or Minor finding in scope.
+  Track 4B is open but not yet implemented.
 - Outcome: Super Admin can inspect typed readiness, close immutable revision 1,
   reopen for a reason into N+1, record a checked evidenced correction, reroll
   affected periods in order, and close revision 2 without changing revision 1.
@@ -136,4 +138,9 @@
   both correction/first-generation start orders 2/2; complete owner-close
   concurrency 15/15; clean reset/fixture, catalog/grants, DB lint, production
   build, and diff checks green. Browser and full matrix were not rerun.
-  Focused independent re-review remains mandatory and Track 4B stays blocked.
+- Final independent approval: exact clean head `e3ed33fc`; pgTAP 83/83;
+  movement-only race subset 2/2; checked rollback probe rejected with typed
+  `23514 owner_close_correction_downstream_negative` and zero residue;
+  function ownership, grants, locked search paths, and all five RLS plus FORCE
+  RLS tables passed. Track 4A is approved locally and the Track 4B gate is
+  open. Hosted and production readiness remain unverified.

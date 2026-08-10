@@ -249,4 +249,10 @@ generation-first holds it before correction. In both orders the correction is
 the atomic loser, first generation retains its expected blocked predecessor
 state, and there is no pending claim, loser residue, duplicate, or negative
 component. No browser or expensive full-matrix rerun is claimed. Focused
-independent re-review remains required; Track 4B is still blocked.
+independent re-review at exact clean head
+`e3ed33fc62d039048d2d0d2ca72424b8180917cc` independently reran pgTAP 83/83
+and the movement-only race subset 2/2, reproduced the typed `23514` rejection
+with zero residue, and confirmed function ownership, grants, locked search
+paths, and RLS plus FORCE RLS. It found no Critical, Important, or Minor
+finding in scope. Track 4A is locally approved and the Track 4B gate is open;
+hosted and production readiness remain unverified.
