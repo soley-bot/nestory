@@ -19,6 +19,27 @@ const repoRoot = path.resolve(path.dirname(script), "..");
 const vectorsPath = fileURLToPath(
   new URL("./fixtures/owner-roster-preflight-vectors.json", import.meta.url),
 );
+const fixtureDatabaseCredentialMarker = "fixture-credential-marker";
+
+function fixtureDatabaseUrl({
+  host = "db.pfvmztxktkwyewvxfgot.supabase.co",
+  username = "postgres",
+  port = "5432",
+} = {}) {
+  const url = new URL("postgresql://localhost/postgres");
+  url.username = username;
+  url.password = fixtureDatabaseCredentialMarker;
+  url.hostname = host;
+  url.port = port;
+  return url.toString();
+}
+
+function assertFixtureCredentialNotPrinted(result) {
+  assert.equal(
+    `${result.stdout}${result.stderr}`.includes(fixtureDatabaseCredentialMarker),
+    false,
+  );
+}
 
 test("owner roster preflight exposes its read-only local command contract", () => {
   const result = spawnSync(process.execPath, [script, "--help"], {
@@ -163,11 +184,11 @@ async function runHostedDryGate({ name, databaseUrl, mutateDocuments }) {
 test("hosted dry gate validates a signed approval, explicit issue decision, and exact direct project URL without contact", async () => {
   const result = await runHostedDryGate({
     name: "valid",
-    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co:5432/postgres",
+    databaseUrl: fixtureDatabaseUrl(),
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /dry gate ready.*no hosted contact/i);
-  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /never-print-this/);
+  assertFixtureCredentialNotPrinted(result);
 });
 
 test("hosted dry gate rejects a missing URL before returning success", async () => {
@@ -179,27 +200,33 @@ test("hosted dry gate rejects a missing URL before returning success", async () 
 test("hosted dry gate rejects a URL whose host merely contains the approved project ref", async () => {
   const result = await runHostedDryGate({
     name: "substring_host",
-    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co.attacker.example:5432/postgres",
+    databaseUrl: fixtureDatabaseUrl({
+      host: "db.pfvmztxktkwyewvxfgot.supabase.co.attacker.example",
+    }),
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /does not match the approved project/i);
-  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /never-print-this/);
+  assertFixtureCredentialNotPrinted(result);
 });
 
 test("hosted dry gate rejects a nested pooler lookalike even with the approved project username", async () => {
   const result = await runHostedDryGate({
     name: "nested_pooler_host",
-    databaseUrl: "postgresql://postgres.pfvmztxktkwyewvxfgot:never-print-this@evil.aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres",
+    databaseUrl: fixtureDatabaseUrl({
+      username: "postgres.pfvmztxktkwyewvxfgot",
+      host: "evil.aws-0-ap-southeast-1.pooler.supabase.com",
+      port: "6543",
+    }),
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /does not match the approved project/i);
-  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /never-print-this/);
+  assertFixtureCredentialNotPrinted(result);
 });
 
 test("hosted dry gate requires one explicit decision for every normalized issue identity", async () => {
   const result = await runHostedDryGate({
     name: "missing_decision",
-    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co:5432/postgres",
+    databaseUrl: fixtureDatabaseUrl(),
     mutateDocuments: ({ manifest }) => {
       manifest.issues[0].decision = "";
       const payload = { ...manifest };
@@ -214,7 +241,7 @@ test("hosted dry gate requires one explicit decision for every normalized issue 
 test("hosted dry gate rejects a non-normalized issue identity with duplicate owner IDs", async () => {
   const result = await runHostedDryGate({
     name: "duplicate_owner_identity",
-    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co:5432/postgres",
+    databaseUrl: fixtureDatabaseUrl(),
     mutateDocuments: ({ manifest, approval }) => {
       const issue = manifest.issues[0];
       issue.propertyOwnerIds.push(issue.propertyOwnerIds[0]);
@@ -242,7 +269,7 @@ test("hosted dry gate rejects a non-normalized issue identity with duplicate own
 test("hosted dry gate requires approval to bind manifest and expected clean hashes", async () => {
   const result = await runHostedDryGate({
     name: "approval_binding",
-    databaseUrl: "postgresql://postgres:never-print-this@db.pfvmztxktkwyewvxfgot.supabase.co:5432/postgres",
+    databaseUrl: fixtureDatabaseUrl(),
     mutateDocuments: ({ approval }) => {
       approval.expectedCleanReportHash = "3".repeat(64);
       const payload = { ...approval };
