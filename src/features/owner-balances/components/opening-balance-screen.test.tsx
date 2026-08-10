@@ -288,9 +288,11 @@ describe("OpeningBalanceScreen", () => {
       propertyId,
       resubmissionOfRequestId: "",
     });
-    expect(screen.getByRole("alert").textContent).toContain(
-      "Resolve the ownership roster",
-    );
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain(
+        "Resolve the ownership roster",
+      );
+    });
     expect(
       screen.getByRole("dialog").querySelector<HTMLInputElement>(
         'input[name="idempotencyKey"]',
@@ -455,8 +457,10 @@ describe("OpeningBalanceScreen", () => {
     });
     await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
 
-    expect(status.textContent).toContain("Opening balance submitted for review.");
-    await waitFor(() => expect(document.activeElement).toBe(status));
+    await waitFor(() => {
+      expect(status.textContent).toContain("Opening balance submitted for review.");
+      expect(document.activeElement).toBe(status);
+    });
     expect(document.activeElement).not.toBe(document.body);
     expect(mocks.refresh).toHaveBeenCalledOnce();
   });

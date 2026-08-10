@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import {
+  assertCurrentMonthDates,
+  queryReport,
+  reportSha256,
+  validateReport,
+} from "./smoke-fixture-owner-opening-balances.mjs";
+
 const manifestUrl = new URL("./fixtures/owner-opening-balances.json", import.meta.url);
 const smokeUrl = new URL("./smoke-fixture-owner-opening-balances.mjs", import.meta.url);
 const browserUrl = new URL("./smoke-owner-opening-browser-acceptance.mjs", import.meta.url);
@@ -9,7 +16,7 @@ const browserUrl = new URL("./smoke-owner-opening-browser-acceptance.mjs", impor
 test("owner-opening fixture manifest fixes the four-component authority and lineage contract", async () => {
   const manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
 
-  assert.equal(manifest.version, 1);
+  assert.equal(manifest.version, 2);
   assert.equal(manifest.currency, "USD");
   assert.deepEqual(
     manifest.authority.map(({ component, amount }) => [component, amount]),
@@ -29,6 +36,53 @@ test("owner-opening fixture manifest fixes the four-component authority and line
   });
   assert.equal(manifest.expected.transitionCount, 15);
   assert.match(manifest.reportSha256, /^[0-9a-f]{64}$/);
+  assert.equal(manifest.effectiveMonth, "CURRENT_MONTH");
+  assert.equal(manifest.requests.length, 8);
+  assert.equal(manifest.entries.length, 6);
+  for (const row of [...manifest.requests, ...manifest.entries]) {
+    assert.equal(row.propertyOwnerId, manifest.propertyOwnerId);
+    assert.equal(row.ownershipPercent, "100.000");
+    assert.match(row.ownershipRosterHash, /^[0-9a-f]{64}$/);
+  }
+});
+
+test("semantic reconciliation hash is stable across current-month rollovers but rejects a mismatched authority date", () => {
+  const august = {
+    effectiveDate: "2026-08-01",
+    requests: [{ effectiveDate: "2026-08-01" }],
+    authority: [{ effectiveDate: "2026-08-01" }],
+  };
+  const september = {
+    effectiveDate: "2026-09-01",
+    requests: [{ effectiveDate: "2026-09-01" }],
+    authority: [{ effectiveDate: "2026-09-01" }],
+  };
+
+  assert.equal(reportSha256(august), reportSha256(september));
+  assert.throws(
+    () => assertCurrentMonthDates(
+      { ...september, authority: [{ effectiveDate: "2026-08-01" }] },
+      "2026-09-01",
+    ),
+    /effective date/i,
+  );
+});
+
+test("reconciliation rejects valid-looking wrong ownership identities and payload hashes", async () => {
+  const manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
+  const report = queryReport();
+  validateReport(report, manifest);
+  const wrongUuid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const wrongHash = "a".repeat(64);
+
+  assert.throws(
+    () => validateReport({ ...report, requests: report.requests.map((row, index) => index === 0 ? { ...row, propertyOwnerId: wrongUuid } : row) }, manifest),
+    /propertyOwnerId/i,
+  );
+  assert.throws(
+    () => validateReport({ ...report, requests: report.requests.map((row, index) => index === 0 ? { ...row, payloadHash: wrongHash } : row) }, manifest),
+    /payload hash/i,
+  );
 });
 
 test("fixture reconciliation smoke is mutation-aware and checks physical Storage absence", async () => {
@@ -68,6 +122,8 @@ test("authenticated acceptance starts at the shell and covers the independent-re
     "0.00",
     "role=status",
     "document.activeElement",
+    "assertEqualTimestampFixtureCurrentLineage",
+    "pending deposit correction exposed a second correction action",
   ]) {
     assert.match(source, new RegExp(required));
   }

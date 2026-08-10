@@ -19,6 +19,7 @@ const actors = {
   operations_member: "operations.member@nestory.com",
 };
 const organizationId = "00000000-0000-0000-0000-000000000001";
+const fixturePropertyId = "10000000-0000-0000-0000-000000000001";
 const propertyId = "10000000-0000-0000-0000-000000000002";
 const ownerId = "80000000-0000-0000-0000-000000000005";
 const component = "owner_due_to_ips";
@@ -30,6 +31,8 @@ try {
   loadBaseline();
   assertNoEvidenceArtifacts();
   browser = await chromium.launch({ headless: true });
+
+  await assertEqualTimestampFixtureCurrentLineage();
 
   await withActor(actors.finance_member, async (page) => {
     await submitOpening(page, {
@@ -169,6 +172,35 @@ async function withActor(email, run) {
     ]);
     await page.getByText(componentLabel, { exact: true }).waitFor();
     await run(page);
+  });
+}
+
+async function assertEqualTimestampFixtureCurrentLineage() {
+  await withShellActor(actors.finance_manager, async (page) => {
+    await openOwnerBalancesFromVisibleFinance(page);
+    await page.getByLabel("Opening property").selectOption(fixturePropertyId);
+    await Promise.all([
+      page.waitForURL((url) => url.pathname === "/balances" && url.searchParams.get("propertyId") === fixturePropertyId),
+      page.getByRole("button", { name: "Apply" }).click(),
+    ]);
+
+    const deposit = page.getByRole("row").filter({ hasText: "Security-deposit custody" });
+    await deposit.getByText("Current — Submitted correction", { exact: true }).waitFor();
+    assert.equal(
+      await deposit.getByRole("button", { name: "Request correction" }).count(),
+      0,
+      "pending deposit correction exposed a second correction action",
+    );
+    await deposit.getByText("Independent review required", { exact: true }).waitFor();
+
+    const zero = page.getByRole("row").filter({ hasText: "Owner due to IPS" });
+    await zero.getByText("Current — Approved correction", { exact: true }).waitFor();
+    await zero.getByText("Lineage — Rejected correction", { exact: true }).waitFor();
+    assert.equal(
+      await zero.locator("summary").first().innerText(),
+      "Current — Approved correction",
+      "approved zero resubmission did not outrank its rejected predecessor",
+    );
   });
 }
 

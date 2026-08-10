@@ -392,15 +392,19 @@ function mapGroups(
         ? "ready" as const
         : "blocked" as const,
       components: OWNER_BALANCE_COMPONENTS.map((component) => {
-        const requests = rawRequests
-          .filter((row) => inComponent(row, identity, component))
-          .sort(compareRequestRows)
-          .map((row) => mapRequest(row, documentsById));
         const entries = rawEntries
           .filter((row) => inComponent(row, identity, component))
           .sort(compareEntryRows)
           .map(mapEntry);
         const known = rawKnown.find((row) => inComponent(row, identity, component));
+        const currentAuthorityEntryId = known ? findCurrentAuthorityEntry(entries) : null;
+        const requests = orderRequestsByCurrentSemantics(
+          rawRequests
+            .filter((row) => inComponent(row, identity, component))
+            .map((row) => mapRequest(row, documentsById)),
+          entries,
+          currentAuthorityEntryId,
+        );
         return {
           authority: known
             ? {
@@ -414,7 +418,7 @@ function mapGroups(
               }
             : { state: "unknown" as const },
           component,
-          currentAuthorityEntryId: known ? findCurrentAuthorityEntry(entries) : null,
+          currentAuthorityEntryId,
           entries,
           requests,
         };
@@ -673,7 +677,59 @@ function findCurrentAuthorityEntry(entries: OwnerOpeningEntryRecord[]): string |
       (entry.entryKind === "opening" || entry.entryKind === "correction_replacement") &&
       !reversed.has(entry.id),
   );
-  return candidates.at(-1)?.id ?? null;
+  return candidates.length === 1 ? candidates[0]!.id : null;
+}
+
+function orderRequestsByCurrentSemantics(
+  requests: OwnerOpeningRequestRecord[],
+  entries: OwnerOpeningEntryRecord[],
+  currentAuthorityEntryId: string | null,
+): OwnerOpeningRequestRecord[] {
+  if (requests.length < 2) return [...requests];
+
+  const successorIds = new Set(
+    requests.flatMap((request) =>
+      request.resubmissionOfRequestId ? [request.resubmissionOfRequestId] : [],
+    ),
+  );
+  const leaves = requests.filter((request) => !successorIds.has(request.id));
+  const submitted = leaves.filter((request) => request.status === "submitted");
+  const currentAuthorityEntry = currentAuthorityEntryId
+    ? entries.find((entry) => entry.id === currentAuthorityEntryId) ?? null
+    : null;
+  const unresolvedRejected = leaves.filter(
+    (request) =>
+      request.status === "rejected" &&
+      (request.requestKind === "initial" ||
+        request.correctionOfEntryId === currentAuthorityEntryId),
+  );
+  const authorityRequest = currentAuthorityEntry
+    ? requests.find((request) => request.id === currentAuthorityEntry.requestId) ?? null
+    : null;
+  const current =
+    (submitted.length === 1 ? submitted[0] : null) ??
+    (unresolvedRejected.length === 1 ? unresolvedRejected[0] : null) ??
+    authorityRequest ??
+    [...leaves].sort(compareRequestSemantics)[0] ??
+    [...requests].sort(compareRequestSemantics)[0]!;
+
+  const byId = new Map(requests.map((request) => [request.id, request]));
+  const ordered: OwnerOpeningRequestRecord[] = [];
+  const included = new Set<string>();
+  let cursor: OwnerOpeningRequestRecord | undefined = current;
+  while (cursor && !included.has(cursor.id)) {
+    ordered.push(cursor);
+    included.add(cursor.id);
+    cursor = cursor.resubmissionOfRequestId
+      ? byId.get(cursor.resubmissionOfRequestId)
+      : undefined;
+  }
+  ordered.push(
+    ...requests
+      .filter((request) => !included.has(request.id))
+      .sort(compareRequestSemantics),
+  );
+  return ordered;
 }
 
 function mapReadiness(
@@ -754,8 +810,18 @@ function compareGroup(left: GroupIdentity, right: GroupIdentity): number {
   return compareText(groupKey(left), groupKey(right));
 }
 
-function compareRequestRows(left: RawRequest, right: RawRequest): number {
-  return compareText(right.submitted_at, left.submitted_at) || compareText(right.id, left.id);
+function compareRequestSemantics(
+  left: OwnerOpeningRequestRecord,
+  right: OwnerOpeningRequestRecord,
+): number {
+  const kindOrder = (value: OwnerOpeningRequestKind) => value === "correction" ? 0 : 1;
+  const statusOrder = (value: OwnerOpeningRequestStatus) =>
+    value === "submitted" ? 0 : value === "rejected" ? 1 : 2;
+  return (
+    kindOrder(left.requestKind) - kindOrder(right.requestKind) ||
+    statusOrder(left.status) - statusOrder(right.status) ||
+    compareText(left.sourceReference ?? "", right.sourceReference ?? "")
+  );
 }
 
 function compareEntryRows(left: RawEntry, right: RawEntry): number {

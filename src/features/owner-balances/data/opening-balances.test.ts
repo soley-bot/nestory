@@ -306,6 +306,74 @@ describe("opening balance authority loader", () => {
     });
   });
 
+  it("selects the workflow current request from lineage and authority when timestamps tie", async () => {
+    const pendingDepositId = "00000000-0000-4000-8000-000000000001";
+    const approvedDepositId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const depositEntryId = "00000000-0000-4000-8000-000000000041";
+    const approvedZeroResubmissionId = "00000000-0000-4000-8000-000000000042";
+    const rejectedZeroCorrectionId = "ffffffff-ffff-4fff-8fff-fffffffffff1";
+    const approvedZeroInitialId = "ffffffff-ffff-4fff-8fff-fffffffffff2";
+    const zeroOpeningEntryId = "00000000-0000-4000-8000-000000000043";
+    const zeroReversalEntryId = "00000000-0000-4000-8000-000000000044";
+    const zeroReplacementEntryId = "00000000-0000-4000-8000-000000000045";
+    const results = rowResults();
+    results.owner_opening_balance_requests.data = [
+      {
+        ...request(approvedDepositId, "security_deposit_custody", "initial", "approved", "800.00"),
+        source_reference: "FIXTURE-OPENING-DEPOSIT-001",
+      },
+      {
+        ...request(pendingDepositId, "security_deposit_custody", "correction", "submitted", "825.00"),
+        correction_of_entry_id: depositEntryId,
+        source_reference: "FIXTURE-DEPOSIT-CORRECTION-001",
+      },
+      {
+        ...request(approvedZeroInitialId, "owner_due_to_ips", "initial", "approved", "0.00"),
+        source_reference: "FIXTURE-OPENING-ZERO-001",
+      },
+      {
+        ...request(rejectedZeroCorrectionId, "owner_due_to_ips", "correction", "rejected", "0.00"),
+        correction_of_entry_id: zeroOpeningEntryId,
+        source_reference: "FIXTURE-ZERO-CORRECTION-001",
+      },
+      {
+        ...request(approvedZeroResubmissionId, "owner_due_to_ips", "correction", "approved", "0.00"),
+        correction_of_entry_id: zeroOpeningEntryId,
+        resubmission_of_request_id: rejectedZeroCorrectionId,
+        source_reference: "FIXTURE-ZERO-CORRECTION-RESUBMIT-001",
+      },
+    ];
+    results.owner_opening_balance_entries.data = [
+      entry(depositEntryId, approvedDepositId, "security_deposit_custody", "opening", "800.00", null, "2026-08-01T00:00:00Z"),
+      entry(zeroOpeningEntryId, approvedZeroInitialId, "owner_due_to_ips", "opening", "0.00", null, "2026-08-01T00:00:00Z"),
+      entry(zeroReversalEntryId, approvedZeroResubmissionId, "owner_due_to_ips", "correction_reversal", "0.00", zeroOpeningEntryId, "2026-08-01T00:00:00Z"),
+      entry(zeroReplacementEntryId, approvedZeroResubmissionId, "owner_due_to_ips", "correction_replacement", "0.00", null, "2026-08-01T00:00:00Z"),
+    ];
+    results.owner_opening_balance_known_authority_v1.data = [
+      known("security_deposit_custody", "800.00", 1, "2026-08-01T00:00:00Z"),
+      known("owner_due_to_ips", "0.00", 3, "2026-08-01T00:00:00Z"),
+    ];
+    mocks.from.mockImplementation((table: string) =>
+      query(results[table as keyof typeof results]),
+    );
+
+    const result = await getOpeningBalanceAuthorityData({ effectiveDate: "2026-08-01" });
+    const components = result.groups[0]!.components;
+    const deposit = components.find((item) => item.component === "security_deposit_custody")!;
+    const zero = components.find((item) => item.component === "owner_due_to_ips")!;
+
+    expect(deposit.requests.map((row) => row.id)).toEqual([
+      pendingDepositId,
+      approvedDepositId,
+    ]);
+    expect(zero.currentAuthorityEntryId).toBe(zeroReplacementEntryId);
+    expect(zero.requests.map((row) => row.id)).toEqual([
+      approvedZeroResubmissionId,
+      rejectedZeroCorrectionId,
+      approvedZeroInitialId,
+    ]);
+  });
+
   it("queries only the authorized organization and exact requested scope", async () => {
     await getOpeningBalanceAuthorityData({
       currency: "USD",
@@ -430,7 +498,7 @@ function rowResults() {
           supporting_document_id: documentId,
         },
         request("00000000-0000-4000-8000-000000000012", "owner_due_to_ips", "initial", "submitted", "5.00"),
-      ],
+      ] as Record<string, unknown>[],
       error: null,
     },
     documents: {
