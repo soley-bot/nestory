@@ -1928,6 +1928,476 @@ SELECT pg_catalog.set_config(
   'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
 );
 
+SAVEPOINT track_4a_c2_inverse_order;
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'track-4a-c2-inverse-later-r1-ready'
+);
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  true,
+  'Lock inverse-order downstream viability month'
+);
+
+CREATE TEMP TABLE owner_close_c2_inverse_runtime (
+  later_series_id uuid,
+  later_revision_two_id uuid,
+  earlier_preparing_revision_id uuid
+) ON COMMIT DROP;
+GRANT ALL ON TABLE owner_close_c2_inverse_runtime TO authenticated;
+INSERT INTO owner_close_c2_inverse_runtime DEFAULT VALUES;
+
+WITH closed AS (
+  SELECT public.close_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004', 'USD',
+    (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+    'Close later month before inverse-order proof',
+    'track-4a-c2-inverse-later-close-r1'
+  ) AS payload
+)
+UPDATE owner_close_c2_inverse_runtime
+SET later_series_id = (closed.payload->>'series_id')::uuid
+FROM closed;
+
+WITH reopened AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001', runtime.later_series_id,
+    'Preserve later N plus 1 for inverse-order proof',
+    'track-4a-c2-inverse-later-reopen-r2'
+  ) AS payload
+  FROM owner_close_c2_inverse_runtime AS runtime
+)
+UPDATE owner_close_c2_inverse_runtime
+SET later_revision_two_id = (reopened.payload->>'revision_id')::uuid
+FROM reopened;
+
+SELECT lives_ok(
+  $$
+    SELECT public.record_owner_close_correction(
+      '00000000-0000-0000-0000-000000000001',
+      later_revision_two_id, 'ips_held_owner_cash',
+      (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+      -100.00,
+      'Accepted while predecessor authority is still 1855.00',
+      'TRACK-4A-C2-INVERSE-LATER-CROSSING', repeat('b', 64),
+      'track-4a-c2-inverse-later-crossing'
+    )
+    FROM owner_close_c2_inverse_runtime
+  $$,
+  'later negative 100 correction is initially valid against predecessor 1855.00'
+);
+
+WITH reopened AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001', runtime.series_id,
+    'Attempt predecessor reduction after later correction exists',
+    'track-4a-c2-inverse-earlier-reopen-r3'
+  ) AS payload
+  FROM owner_close_test_runtime AS runtime
+)
+UPDATE owner_close_c2_inverse_runtime
+SET earlier_preparing_revision_id = (reopened.payload->>'revision_id')::uuid
+FROM reopened;
+
+SELECT throws_ok(
+  $statement$
+    DO $oracle$
+    DECLARE
+      v_revision_id uuid;
+    BEGIN
+      SELECT earlier_preparing_revision_id INTO STRICT v_revision_id
+      FROM owner_close_c2_inverse_runtime;
+      PERFORM public.record_owner_close_correction(
+        '00000000-0000-0000-0000-000000000001',
+        v_revision_id, 'ips_held_owner_cash',
+        pg_catalog.date_trunc('month', current_date)::date,
+        -1800.00,
+        'Must not invalidate already-recorded later movement',
+        'TRACK-4A-C2-INVERSE-EARLIER-CROSSING', repeat('c', 64),
+        'track-4a-c2-inverse-earlier-crossing'
+      );
+      RAISE EXCEPTION 'owner_close_correction_downstream_negative_missing'
+        USING ERRCODE = 'P0001';
+    END;
+    $oracle$;
+  $statement$,
+  '23514',
+  'owner_close_correction_downstream_negative',
+  'predecessor reduction rejects before it makes a later component negative'
+);
+
+RESET ROLE;
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      (SELECT count(*) FROM public.owner_close_corrections
+       WHERE idempotency_key = 'track-4a-c2-inverse-earlier-crossing'),
+      (SELECT count(*) FROM public.owner_event_allocation_sets
+       WHERE idempotency_key = 'track-4a-c2-inverse-earlier-crossing'),
+      (SELECT count(*) FROM public.owner_component_movements AS movement
+       JOIN public.owner_event_owner_allocations AS owner_allocation
+         ON owner_allocation.organization_id = movement.organization_id
+        AND owner_allocation.id = movement.owner_event_owner_allocation_id
+       JOIN public.owner_event_allocation_sets AS allocation_set
+         ON allocation_set.organization_id = owner_allocation.organization_id
+        AND allocation_set.id = owner_allocation.allocation_set_id
+       WHERE allocation_set.idempotency_key = 'track-4a-c2-inverse-earlier-crossing'),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests
+       WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+         AND operation = 'record_owner_close_correction'
+         AND idempotency_key = 'track-4a-c2-inverse-earlier-crossing')
+    )::text
+  ),
+  '[0, 0, 0, 0]',
+  'downstream-negative rejection leaves no predecessor correction authority residue'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  pg_catalog.date_trunc('month', current_date)::date,
+  'track-4a-c2-inverse-earlier-unchanged-reroll'
+);
+SELECT public.close_owner_month(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  pg_catalog.date_trunc('month', current_date)::date,
+  'Reclose unchanged predecessor before rerolling the later movement',
+  'track-4a-c2-inverse-earlier-close-unchanged'
+);
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'track-4a-c2-inverse-crossing-reroll'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      pg_catalog.to_char(component.opening_amount, 'FM999999999990.00'),
+      pg_catalog.to_char(component.movement_amount, 'FM999999999990.00'),
+      pg_catalog.to_char(component.closing_amount, 'FM999999999990.00'),
+      (SELECT count(*)
+       FROM public.owner_balance_period_components AS invalid
+       WHERE invalid.organization_id = period.organization_id
+         AND invalid.closing_amount < 0)
+    )::text
+    FROM public.owner_balance_periods AS period
+    JOIN public.owner_balance_period_components AS component
+      ON component.organization_id = period.organization_id
+     AND component.owner_balance_period_id = period.id
+    WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND period.property_id = '10000000-0000-0000-0000-000000000001'
+      AND period.owner_person_id = '80000000-0000-0000-0000-000000000004'
+      AND period.month_start = (
+        pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month'
+      )::date
+      AND component.component = 'ips_held_owner_cash'
+  ),
+  '["1855.00", "-100.00", "1755.00", 0]',
+  'rejected predecessor change leaves the existing later chain nonnegative'
+);
+
+SELECT public.record_owner_close_correction(
+  '00000000-0000-0000-0000-000000000001',
+  later_revision_two_id, 'ips_held_owner_cash',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  50.00,
+  'Compensate later correction to a safe net negative 50',
+  'TRACK-4A-C2-INVERSE-LATER-COMPENSATE', repeat('d', 64),
+  'track-4a-c2-inverse-later-compensate'
+)
+FROM owner_close_c2_inverse_runtime;
+
+WITH reopened AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001', runtime.series_id,
+    'Retry predecessor reduction after later movement is safe',
+    'track-4a-c2-inverse-earlier-reopen-r4'
+  ) AS payload
+  FROM owner_close_test_runtime AS runtime
+)
+UPDATE owner_close_c2_inverse_runtime
+SET earlier_preparing_revision_id = (reopened.payload->>'revision_id')::uuid
+FROM reopened;
+
+SELECT lives_ok(
+  $$
+    SELECT public.record_owner_close_correction(
+      '00000000-0000-0000-0000-000000000001',
+      earlier_preparing_revision_id, 'ips_held_owner_cash',
+      pg_catalog.date_trunc('month', current_date)::date,
+      -1800.00,
+      'Safe after compensating later movement',
+      'TRACK-4A-C2-INVERSE-EARLIER-SAFE', repeat('e', 64),
+      'track-4a-c2-inverse-earlier-safe'
+    )
+    FROM owner_close_c2_inverse_runtime
+  $$,
+  'predecessor reduction succeeds once every downstream component stays nonnegative'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  pg_catalog.date_trunc('month', current_date)::date,
+  'track-4a-c2-inverse-earlier-safe-reroll'
+);
+SELECT public.close_owner_month(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  pg_catalog.date_trunc('month', current_date)::date,
+  'Reclose predecessor after safe inverse-order correction',
+  'track-4a-c2-inverse-earlier-close-safe'
+);
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'track-4a-c2-inverse-later-safe-reroll'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      pg_catalog.to_char(component.opening_amount, 'FM999999999990.00'),
+      pg_catalog.to_char(component.movement_amount, 'FM999999999990.00'),
+      pg_catalog.to_char(component.closing_amount, 'FM999999999990.00')
+    FROM public.owner_balance_periods AS period
+    JOIN public.owner_balance_period_components AS component
+      ON component.organization_id = period.organization_id
+     AND component.owner_balance_period_id = period.id
+    WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND period.property_id = '10000000-0000-0000-0000-000000000001'
+      AND period.owner_person_id = '80000000-0000-0000-0000-000000000004'
+      AND period.month_start = (
+        pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month'
+      )::date
+      AND component.component = 'ips_held_owner_cash'
+  $$,
+  $$ VALUES ('55.00'::text, '-50.00'::text, '5.00'::text) $$,
+  'compensated later movement preserves the exact nonnegative chain'
+);
+
+ROLLBACK TO SAVEPOINT track_4a_c2_inverse_order;
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
+SAVEPOINT track_4a_c2_full_downstream_chain;
+
+CREATE TEMP TABLE owner_close_c2_chain_runtime (
+  later_one_series_id uuid,
+  later_one_revision_id uuid,
+  later_two_series_id uuid,
+  later_two_revision_id uuid,
+  earlier_revision_id uuid
+) ON COMMIT DROP;
+GRANT ALL ON TABLE owner_close_c2_chain_runtime TO authenticated;
+INSERT INTO owner_close_c2_chain_runtime DEFAULT VALUES;
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'track-4a-c2-chain-later-one-ready'
+);
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  true, 'Lock first downstream full-chain month'
+);
+WITH closed AS (
+  SELECT public.close_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004', 'USD',
+    (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+    'Close first downstream month for full-chain proof',
+    'track-4a-c2-chain-later-one-close-r1'
+  ) AS payload
+)
+UPDATE owner_close_c2_chain_runtime
+SET later_one_series_id = (closed.payload->>'series_id')::uuid
+FROM closed;
+WITH reopened AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001', later_one_series_id,
+    'Add safe first downstream movement for full-chain proof',
+    'track-4a-c2-chain-later-one-reopen-r2'
+  ) AS payload
+  FROM owner_close_c2_chain_runtime
+)
+UPDATE owner_close_c2_chain_runtime
+SET later_one_revision_id = (reopened.payload->>'revision_id')::uuid
+FROM reopened;
+SELECT public.record_owner_close_correction(
+  '00000000-0000-0000-0000-000000000001',
+  later_one_revision_id, 'ips_held_owner_cash',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  -50.00, 'First downstream month remains nonnegative after predecessor change',
+  'TRACK-4A-C2-CHAIN-LATER-ONE', repeat('1', 64),
+  'track-4a-c2-chain-later-one-correction'
+)
+FROM owner_close_c2_chain_runtime;
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'track-4a-c2-chain-later-one-reroll'
+);
+SELECT public.close_owner_month(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'Reclose first downstream month before second successor',
+  'track-4a-c2-chain-later-one-close-r2'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '2 months')::date,
+  'track-4a-c2-chain-later-two-ready'
+);
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '2 months')::date,
+  true, 'Lock second downstream full-chain month'
+);
+WITH closed AS (
+  SELECT public.close_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004', 'USD',
+    (pg_catalog.date_trunc('month', current_date) + INTERVAL '2 months')::date,
+    'Close second downstream month for full-chain proof',
+    'track-4a-c2-chain-later-two-close-r1'
+  ) AS payload
+)
+UPDATE owner_close_c2_chain_runtime
+SET later_two_series_id = (closed.payload->>'series_id')::uuid
+FROM closed;
+WITH reopened AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001', later_two_series_id,
+    'Add crossing second downstream movement for full-chain proof',
+    'track-4a-c2-chain-later-two-reopen-r2'
+  ) AS payload
+  FROM owner_close_c2_chain_runtime
+)
+UPDATE owner_close_c2_chain_runtime
+SET later_two_revision_id = (reopened.payload->>'revision_id')::uuid
+FROM reopened;
+SELECT public.record_owner_close_correction(
+  '00000000-0000-0000-0000-000000000001',
+  later_two_revision_id, 'ips_held_owner_cash',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '2 months')::date,
+  -10.00, 'Second downstream month crosses only after predecessor change',
+  'TRACK-4A-C2-CHAIN-LATER-TWO', repeat('2', 64),
+  'track-4a-c2-chain-later-two-correction'
+)
+FROM owner_close_c2_chain_runtime;
+
+WITH reopened AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001', runtime.series_id,
+    'Attempt predecessor change that fails only at second successor',
+    'track-4a-c2-chain-earlier-reopen'
+  ) AS payload
+  FROM owner_close_test_runtime AS runtime
+)
+UPDATE owner_close_c2_chain_runtime
+SET earlier_revision_id = (reopened.payload->>'revision_id')::uuid
+FROM reopened;
+
+SELECT throws_ok(
+  $statement$
+    DO $oracle$
+    DECLARE
+      v_revision_id uuid;
+    BEGIN
+      SELECT earlier_revision_id INTO STRICT v_revision_id
+      FROM owner_close_c2_chain_runtime;
+      PERFORM public.record_owner_close_correction(
+        '00000000-0000-0000-0000-000000000001',
+        v_revision_id, 'ips_held_owner_cash',
+        pg_catalog.date_trunc('month', current_date)::date,
+        -1800.00,
+        'Full-chain validation must reach the second successor',
+        'TRACK-4A-C2-CHAIN-EARLIER-CROSSING', repeat('3', 64),
+        'track-4a-c2-chain-earlier-crossing'
+      );
+      RAISE EXCEPTION 'owner_close_correction_downstream_negative_missing'
+        USING ERRCODE = 'P0001';
+    END;
+    $oracle$;
+  $statement$,
+  '23514',
+  'owner_close_correction_downstream_negative',
+  'predecessor correction validates beyond a nonnegative immediate successor'
+);
+
+RESET ROLE;
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      (SELECT count(*) FROM public.owner_close_corrections
+       WHERE idempotency_key = 'track-4a-c2-chain-earlier-crossing'),
+      (SELECT count(*) FROM public.owner_event_allocation_sets
+       WHERE idempotency_key = 'track-4a-c2-chain-earlier-crossing'),
+      (SELECT count(*) FROM public.owner_component_movements AS movement
+       JOIN public.owner_event_owner_allocations AS owner_allocation
+         ON owner_allocation.organization_id = movement.organization_id
+        AND owner_allocation.id = movement.owner_event_owner_allocation_id
+       JOIN public.owner_event_allocation_sets AS allocation_set
+         ON allocation_set.organization_id = owner_allocation.organization_id
+        AND allocation_set.id = owner_allocation.allocation_set_id
+       WHERE allocation_set.idempotency_key = 'track-4a-c2-chain-earlier-crossing'),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests
+       WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+         AND operation = 'record_owner_close_correction'
+         AND idempotency_key = 'track-4a-c2-chain-earlier-crossing'),
+      (SELECT count(*) FROM public.owner_balance_period_components
+       WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+         AND closing_amount < 0)
+    )::text
+  ),
+  '[0, 0, 0, 0, 0]',
+  'full-chain rejection leaves no predecessor residue or negative component'
+);
+
+ROLLBACK TO SAVEPOINT track_4a_c2_full_downstream_chain;
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
 
 SELECT lives_ok(
   $$

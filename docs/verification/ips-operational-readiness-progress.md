@@ -113,3 +113,16 @@
   `55.00 - 50.00 = 5.00`. No application/type API changed; browser and full
   matrix were not rerun. Focused independent re-review remains mandatory and
   Track 4B is still blocked.
+- Independent-review correction round 3: final focused C2 review found the
+  inverse serialized order could invalidate an already-recorded later
+  correction. CLI-generated migration
+  `20260810142220_owner_close_downstream_viability.sql` now propagates a
+  proposed target close through the complete later movement chain under the
+  existing ascending recovery locks and atomically rejects the predecessor
+  command with `owner_close_correction_downstream_negative` if any successor
+  would cross below zero.
+- Round 3 evidence: Track 4A 80/80, including a second-successor full-chain
+  oracle; safe/crossing two-session subset 4/4; complete owner-close
+  concurrency 13/13; clean reset/fixture, DB lint, production build, and diff
+  checks green. Browser and the expensive full matrix were not rerun. Focused
+  independent re-review remains mandatory and Track 4B stays blocked.

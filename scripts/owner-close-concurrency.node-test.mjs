@@ -537,6 +537,136 @@ function laterSafeCorrectionSql(revisionId, label, pause = false) {
   `);
 }
 
+function laterCrossingCorrectionSql(revisionId, label, pause = false) {
+  return authenticatedSql(superAdminId, `
+    ${pause ? "SELECT set_config('app.owner_close_test_pause', 'correction_insert', true);" : ""}
+    SELECT public.record_owner_close_correction(
+      '${organizationId}', '${revisionId}', 'ips_held_owner_cash',
+      (date_trunc('month', current_date) + interval '1 month')::date, -100.00,
+      'Load-bearing later correction races predecessor reduction',
+      'OWNER-CLOSE-C2-${label}-LATER-CROSSING', repeat('9', 64),
+      'owner-close-c2-${label}-later-crossing'
+    );
+  `);
+}
+
+async function runCrossingPredecessorCorrectionRace({
+  expectedAmounts,
+  expectedError,
+  firstShouldLose,
+  firstSql,
+  label,
+  loserCorrectionKey,
+  marker,
+  secondSql,
+}) {
+  installPauseHarness();
+  const first = spawnSession(firstSql);
+  await waitForMarker(first, marker, 15_000);
+
+  const startedAt = performance.now();
+  const second = spawnSync("docker", psqlArgs(secondSql), {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+    timeout: 20_000,
+  });
+  const secondElapsedMs = performance.now() - startedAt;
+  await first.done;
+
+  const winner = firstShouldLose ? second : first;
+  const loser = firstShouldLose ? first : second;
+  const combinedErrors = `${first.stderr}\n${second.stderr}`;
+  assert.equal(winner.status, 0, `${label} winner: ${winner.stderr}`);
+  assert.notEqual(loser.status, 0, `${label} loser unexpectedly succeeded`);
+  assert.match(loser.stderr, new RegExp(expectedError));
+  assert.doesNotMatch(combinedErrors, /40P01|deadlock detected/i);
+  assert.ok(
+    secondElapsedMs >= 1_500,
+    `${label} second session waited only ${secondElapsedMs}ms`,
+  );
+
+  run(authenticatedSql(superAdminId, `
+    SELECT public.generate_owner_balance_period(
+      '${organizationId}', '${centralPropertyId}', '${centralOwnerId}', 'USD',
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      'owner-close-c2-${label}-later-reroll'
+    );
+  `));
+  assert.equal(run(`
+    SELECT jsonb_build_array(
+      to_char(component.opening_amount, 'FM999999999990.00'),
+      to_char(component.movement_amount, 'FM999999999990.00'),
+      to_char(component.closing_amount, 'FM999999999990.00'),
+      (SELECT count(*)
+       FROM app_private.financial_idempotency_requests AS request
+       WHERE request.organization_id = '${organizationId}'
+         AND request.status = 'pending'),
+      (SELECT count(*)
+       FROM public.owner_close_corrections AS correction
+       WHERE correction.organization_id = '${organizationId}'
+         AND correction.idempotency_key = '${loserCorrectionKey}'),
+      (SELECT count(*)
+       FROM public.owner_event_allocation_sets AS allocation_set
+       WHERE allocation_set.organization_id = '${organizationId}'
+         AND allocation_set.idempotency_key = '${loserCorrectionKey}'),
+      (SELECT count(*)
+       FROM public.owner_component_movements AS movement
+       JOIN public.owner_event_owner_allocations AS owner_allocation
+         ON owner_allocation.organization_id = movement.organization_id
+        AND owner_allocation.id = movement.owner_event_owner_allocation_id
+       JOIN public.owner_event_allocation_sets AS allocation_set
+         ON allocation_set.organization_id = owner_allocation.organization_id
+        AND allocation_set.id = owner_allocation.allocation_set_id
+       WHERE allocation_set.organization_id = '${organizationId}'
+         AND allocation_set.idempotency_key = '${loserCorrectionKey}'),
+      (SELECT count(*)
+       FROM public.owner_balance_period_components AS invalid_component
+       JOIN public.owner_balance_periods AS invalid_period
+         ON invalid_period.organization_id = invalid_component.organization_id
+        AND invalid_period.id = invalid_component.owner_balance_period_id
+       WHERE invalid_period.organization_id = '${organizationId}'
+         AND invalid_period.property_id = '${centralPropertyId}'
+         AND invalid_period.owner_person_id = '${centralOwnerId}'
+         AND invalid_component.closing_amount < 0),
+      (SELECT count(*)
+       FROM public.owner_close_revisions AS revision
+       JOIN public.owner_close_series AS revision_series
+         ON revision_series.organization_id = revision.organization_id
+        AND revision_series.id = revision.owner_close_series_id
+       WHERE revision_series.organization_id = '${organizationId}'
+         AND revision_series.property_id = '${centralPropertyId}'
+         AND revision_series.owner_person_id = '${centralOwnerId}'
+         AND revision_series.month_start = (
+           date_trunc('month', current_date) + interval '1 month'
+         )::date
+         AND revision.status = 'preparing'),
+      (SELECT count(*)
+       FROM public.owner_close_revisions AS revision
+       JOIN public.owner_close_series AS revision_series
+         ON revision_series.organization_id = revision.organization_id
+        AND revision_series.id = revision.owner_close_series_id
+       WHERE revision_series.organization_id = '${organizationId}'
+         AND revision_series.property_id = '${centralPropertyId}'
+         AND revision_series.owner_person_id = '${centralOwnerId}'
+         AND revision_series.month_start = date_trunc('month', current_date)::date
+         AND revision.status = 'preparing')
+    )
+    FROM public.owner_balance_periods AS period
+    JOIN public.owner_balance_period_components AS component
+      ON component.organization_id = period.organization_id
+     AND component.owner_balance_period_id = period.id
+     AND component.component = 'ips_held_owner_cash'
+    WHERE period.organization_id = '${organizationId}'
+      AND period.property_id = '${centralPropertyId}'
+      AND period.owner_person_id = '${centralOwnerId}'
+      AND period.currency = 'USD'
+      AND period.month_start = (
+        date_trunc('month', current_date) + interval '1 month'
+      )::date;
+  `), `${expectedAmounts.slice(0, -1)}, 0, 0, 0, 0, 0, 1, 0]`);
+}
+
 async function runPredecessorCorrectionRace({
   firstSql,
   label,
@@ -872,6 +1002,50 @@ test("later correction first serializes before a predecessor reclose", async () 
     ),
     marker: "owner_close_write_pause_ready",
     label: "later-first",
+  });
+});
+
+test("predecessor first makes a crossing later correction lose atomically", async () => {
+  const scope = preparePredecessorRecloseRace();
+  await runCrossingPredecessorCorrectionRace({
+    firstSql: predecessorRecloseSql(
+      scope.earlierSeriesId,
+      "crossing-predecessor-first",
+      true,
+    ),
+    secondSql: laterCrossingCorrectionSql(
+      scope.laterRevisionId,
+      "crossing-predecessor-first",
+    ),
+    marker: "owner_close_predecessor_close_pause_ready",
+    label: "crossing-predecessor-first",
+    firstShouldLose: false,
+    expectedError: "owner_close_correction_negative_component",
+    loserCorrectionKey:
+      "owner-close-c2-crossing-predecessor-first-later-crossing",
+    expectedAmounts: '["55.00", "0.00", "55.00"]',
+  });
+});
+
+test("later crossing correction first makes predecessor lowering lose atomically", async () => {
+  const scope = preparePredecessorRecloseRace();
+  await runCrossingPredecessorCorrectionRace({
+    firstSql: laterCrossingCorrectionSql(
+      scope.laterRevisionId,
+      "crossing-later-first",
+      true,
+    ),
+    secondSql: predecessorRecloseSql(
+      scope.earlierSeriesId,
+      "crossing-later-first",
+    ),
+    marker: "owner_close_write_pause_ready",
+    label: "crossing-later-first",
+    firstShouldLose: false,
+    expectedError: "owner_close_correction_downstream_negative",
+    loserCorrectionKey:
+      "owner-close-c2-crossing-later-first-earlier-correction",
+    expectedAmounts: '["1855.00", "-100.00", "1755.00"]',
   });
 });
 

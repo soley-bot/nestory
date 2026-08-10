@@ -168,3 +168,43 @@ first. Both serialize without `40P01`, leave no pending request or negative
 component, and end at the same exact `5.00` later closing. No application/type
 surface changed; the production build is green. No browser or full-matrix rerun is claimed. Focused
 independent re-review is still required; Track 4B remains blocked.
+
+## Correction round 3 verification addendum
+
+The final focused C2 re-review accepted predecessor-first authority but found
+the inverse serialized order unsafe: a later `-100.00` correction could be
+accepted against `1855.00`, after which a predecessor reduction to `55.00`
+could leave the later component at `-45.00` on reroll.
+
+CLI-generated migration
+`20260810142220_owner_close_downstream_viability.sql` corrects only this path.
+After deriving the target proposed close exactly once, the checked correction
+RPC propagates that closing through every known later period in ascending
+month order using each period's complete component movement set. If any
+successor would be negative, the predecessor-changing command fails atomically
+with `23514 owner_close_correction_downstream_negative`.
+
+Retained literal evidence covers both the immediate inverse order and a full
+chain where the immediate successor remains `5.00` but a second successor
+would become `-5.00`. Crossing rejection leaves no correction, allocation,
+movement, idempotency, duplicate-revision, or negative-component residue. The
+safe compensated chain succeeds at exact opening `55.00`, movement `-50.00`,
+closing `5.00`.
+
+| Focused gate | Result |
+| --- | --- |
+| Track 4A pgTAP | 80/80 |
+| Safe and crossing predecessor/correction races | 4/4 |
+| Complete owner-close concurrency file | 13/13 |
+| Clean migration reset and guarded fixture | pass |
+| Database lint | zero errors; same five legacy warnings |
+| Production build | pass; known multiple-lockfile warning only |
+| Diff check | pass |
+
+The two crossing races prove both serialized outcomes: predecessor-first makes
+the later command lose with `owner_close_correction_negative_component`, while
+later-first makes the predecessor-lowering command lose with
+`owner_close_correction_downstream_negative`. The retained `-50.00` controls
+still allow both commands to succeed. No browser or expensive full-matrix
+rerun is claimed. Focused independent re-review remains required; Track 4B is
+still blocked.
