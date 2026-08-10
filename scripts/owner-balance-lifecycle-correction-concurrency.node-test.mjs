@@ -93,6 +93,96 @@ async function waitForMarker(session, marker, timeoutMs = 10_000) {
   assert.fail(`timed out waiting for ${marker}: ${session.stdout}\n${session.stderr}`);
 }
 
+async function observedBlockingRelationship(
+  waiterApplicationName,
+  blockerApplicationName,
+  timeoutMs = 1_500,
+) {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    const observed = run(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_stat_activity AS waiter
+        JOIN pg_catalog.pg_stat_activity AS blocker
+          ON blocker.pid = ANY(pg_catalog.pg_blocking_pids(waiter.pid))
+        WHERE waiter.application_name = '${waiterApplicationName}'
+          AND blocker.application_name = '${blockerApplicationName}'
+      );
+    `);
+    if (observed === "t") return true;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return false;
+}
+
+async function observedWaitingOnFinancialMonth(
+  applicationName,
+  monthStart,
+  timeoutMs = 1_500,
+) {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    const observed = run(`
+      WITH expected AS (
+        SELECT pg_catalog.hashtextextended(
+          pg_catalog.concat_ws(
+            ':',
+            'financial_month_v1',
+            '${organizationId}',
+            '${monthStart}'
+          ),
+          0
+        ) AS lock_key
+      )
+      SELECT EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_stat_activity AS activity
+        JOIN pg_catalog.pg_locks AS held_or_waiting
+          ON held_or_waiting.pid = activity.pid
+        CROSS JOIN expected
+        WHERE activity.application_name = '${applicationName}'
+          AND held_or_waiting.locktype = 'advisory'
+          AND held_or_waiting.granted = false
+          AND held_or_waiting.classid = (
+            (expected.lock_key >> 32) & 4294967295
+          )::bigint::oid
+          AND held_or_waiting.objid = (
+            expected.lock_key & 4294967295
+          )::bigint::oid
+          AND held_or_waiting.objsubid = 1
+      );
+    `);
+    if (observed === "t") return true;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return false;
+}
+
+function lifecycleBarrierSession(applicationName, propertyId, ownerId) {
+  return spawnSession(`BEGIN;
+    SET LOCAL statement_timeout = '10s';
+    SET LOCAL application_name = '${applicationName}';
+    SELECT pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        pg_catalog.concat_ws(
+          ':',
+          'owner_balance_lifecycle_v1',
+          '${organizationId}',
+          '${propertyId}',
+          '${ownerId}',
+          'USD'
+        ),
+        0
+      )
+    );
+    DO $barrier$ BEGIN
+      RAISE NOTICE 'n1_lifecycle_barrier_ready';
+    END $barrier$;
+    SELECT pg_catalog.pg_sleep(4);
+    COMMIT;`);
+}
+
 async function raceAfterMarker(firstSql, secondSql) {
   const first = spawnSession(firstSql);
   await waitForMarker(first, "owner_balance_correction_pause_ready", 15_000);
@@ -223,6 +313,55 @@ function createRiversideDepositSource(reference) {
     WHERE organization_id = '${organizationId}' AND reference = '${reference}';`);
   assert.match(sourceLineId, /^[0-9a-f-]{36}$/);
   return sourceLineId;
+}
+
+function prepareOwnerBalanceLockOrderAuthority(suffix) {
+  run(`
+    INSERT INTO public.properties (id, organization_id, name, code, property_type)
+    VALUES (
+      '${correctionChainPropertyId}', '${organizationId}',
+      'Owner balance lock-order property', 'LOCK-ORDER', 'Apartment'
+    );
+    INSERT INTO public.people (id, organization_id, display_name)
+    VALUES ('${correctionChainOwnerId}', '${organizationId}', 'Lock-order owner');
+    INSERT INTO public.person_roles (organization_id, person_id, role, status)
+    VALUES ('${organizationId}', '${correctionChainOwnerId}', 'owner', 'active');
+    INSERT INTO public.property_owners (
+      id, organization_id, property_id, person_id, ownership_percent, started_on
+    ) VALUES (
+      '${correctionChainAssignmentId}', '${organizationId}', '${correctionChainPropertyId}',
+      '${correctionChainOwnerId}', 100.000, date_trunc('month', current_date)::date
+    );
+  `);
+  run(authenticatedSql(financeMemberId, `
+    SELECT public.submit_owner_opening_balance(
+      '${organizationId}', '${correctionChainPropertyId}', '${correctionChainOwnerId}',
+      'USD', date_trunc('month', current_date)::date,
+      requested.component, requested.amount,
+      'N1 lock-order opening authority',
+      'LOCK-ORDER-${suffix}-' || requested.label,
+      NULL, repeat(requested.hash_character, 64), NULL,
+      'lock-order-${suffix}-' || lower(requested.label) || '-submit'
+    )
+    FROM (VALUES
+      ('ips_due_to_owner'::public.owner_balance_component, 0.00::numeric, 'DUE', '1'),
+      ('ips_held_owner_cash'::public.owner_balance_component, 100.00::numeric, 'HELD', '2'),
+      ('owner_due_to_ips'::public.owner_balance_component, 0.00::numeric, 'OWED', '3'),
+      ('security_deposit_custody'::public.owner_balance_component, 0.00::numeric, 'DEPOSIT', '4')
+    ) AS requested(component, amount, label, hash_character);
+  `));
+  run(authenticatedSql(superAdminId, `
+    SELECT public.review_owner_opening_balance(
+      request.organization_id, request.id, 'approve', NULL,
+      'lock-order-${suffix}-' || lower(request.component::text) || '-approve'
+    )
+    FROM public.owner_opening_balance_requests AS request
+    WHERE request.organization_id = '${organizationId}'
+      AND request.property_id = '${correctionChainPropertyId}'
+      AND request.source_reference LIKE 'LOCK-ORDER-${suffix}-%'
+    ORDER BY request.component;
+  `));
+  return run(`SELECT date_trunc('month', current_date)::date;`);
 }
 
 function prepareLateOpeningCorrection(suffix) {
@@ -572,4 +711,158 @@ test("next-period generation waits behind late allocation and cannot commit read
   } finally {
     removePauseTrigger();
   }
+});
+
+test("same-month source first serializes generation behind the canonical month then lifecycle order", async () => {
+  const currentMonth = prepareOwnerBalanceLockOrderAuthority("N1-SOURCE-FIRST");
+  const controllerName = "n1_source_first_controller";
+  const sourceName = "n1_source_first_source";
+  const generationName = "n1_source_first_generation";
+  const controller = lifecycleBarrierSession(
+    controllerName,
+    correctionChainPropertyId,
+    correctionChainOwnerId,
+  );
+  await waitForMarker(controller, "n1_lifecycle_barrier_ready");
+
+  const source = spawnSession(authenticatedSql(financeManagerId, `
+    SET LOCAL application_name = '${sourceName}';
+    SELECT public.record_owner_cash_event(
+      '${organizationId}', '${correctionChainPropertyId}', '${correctionChainOwnerId}',
+      'USD', 'owner_contribution', '${currentMonth}', 10.00,
+      'N1 same-month source-first contribution',
+      'n1-source-first-contribution'
+    );
+  `));
+  const sourceWaitedForLifecycle = await observedBlockingRelationship(
+    sourceName,
+    controllerName,
+  );
+
+  const generation = spawnSession(authenticatedSql(financeManagerId, `
+    SET LOCAL application_name = '${generationName}';
+    SELECT public.generate_owner_balance_period(
+      '${organizationId}', '${correctionChainPropertyId}', '${correctionChainOwnerId}',
+      'USD', '${currentMonth}', 'n1-source-first-generation'
+    );
+  `));
+  const generationWaitedForSourceMonth = await observedBlockingRelationship(
+    generationName,
+    sourceName,
+  );
+  const generationWaitedOnFinancialMonth = await observedWaitingOnFinancialMonth(
+    generationName,
+    currentMonth,
+  );
+
+  await Promise.all([controller.done, source.done, generation.done]);
+  const transcript = [
+    controller.stdout, controller.stderr,
+    source.stdout, source.stderr,
+    generation.stdout, generation.stderr,
+  ].join("\n");
+
+  assert.equal(sourceWaitedForLifecycle, true, transcript);
+  assert.equal(generationWaitedForSourceMonth, true, transcript);
+  assert.equal(generationWaitedOnFinancialMonth, true, transcript);
+  assert.doesNotMatch(transcript, /40P01|deadlock detected/i);
+  assert.equal(controller.status, 0, controller.stderr);
+  assert.equal(source.status, 0, source.stderr);
+  assert.equal(generation.status, 0, generation.stderr);
+  assert.equal(run(`
+    SELECT period.status || '|' || period.input_watermark
+    FROM public.owner_balance_periods AS period
+    WHERE period.organization_id = '${organizationId}'
+      AND period.property_id = '${correctionChainPropertyId}'
+      AND period.owner_person_id = '${correctionChainOwnerId}'
+      AND period.currency = 'USD'
+      AND period.month_start = '${currentMonth}';
+  `), `ready|sources=1;movements=1;month=${currentMonth}`);
+  assert.equal(run(`
+    SELECT count(*)
+    FROM public.owner_event_allocation_sets AS allocation_set
+    JOIN public.owner_cash_events AS event
+      ON event.organization_id = allocation_set.organization_id
+     AND event.id = allocation_set.source_line_id
+    WHERE allocation_set.organization_id = '${organizationId}'
+      AND allocation_set.source_type = 'owner_contribution'
+      AND event.idempotency_key = 'n1-source-first-contribution';
+  `), "1");
+});
+
+test("same-month generation first makes the later source type-stale the committed period", async () => {
+  const currentMonth = prepareOwnerBalanceLockOrderAuthority("N1-GENERATION-FIRST");
+  const controllerName = "n1_generation_first_controller";
+  const generationName = "n1_generation_first_generation";
+  const sourceName = "n1_generation_first_source";
+  const controller = lifecycleBarrierSession(
+    controllerName,
+    correctionChainPropertyId,
+    correctionChainOwnerId,
+  );
+  await waitForMarker(controller, "n1_lifecycle_barrier_ready");
+
+  const generation = spawnSession(authenticatedSql(financeManagerId, `
+    SET LOCAL application_name = '${generationName}';
+    SELECT public.generate_owner_balance_period(
+      '${organizationId}', '${correctionChainPropertyId}', '${correctionChainOwnerId}',
+      'USD', '${currentMonth}', 'n1-generation-first-period'
+    );
+  `));
+  const generationWaitedForLifecycle = await observedBlockingRelationship(
+    generationName,
+    controllerName,
+  );
+
+  const source = spawnSession(authenticatedSql(financeManagerId, `
+    SET LOCAL application_name = '${sourceName}';
+    SELECT public.record_owner_cash_event(
+      '${organizationId}', '${correctionChainPropertyId}', '${correctionChainOwnerId}',
+      'USD', 'owner_contribution', '${currentMonth}', 10.00,
+      'N1 same-month generation-first contribution',
+      'n1-generation-first-contribution'
+    );
+  `));
+  const sourceWaitedForGenerationMonth = await observedBlockingRelationship(
+    sourceName,
+    generationName,
+  );
+  const sourceWaitedOnFinancialMonth = await observedWaitingOnFinancialMonth(
+    sourceName,
+    currentMonth,
+  );
+
+  await Promise.all([controller.done, generation.done, source.done]);
+  const transcript = [
+    controller.stdout, controller.stderr,
+    generation.stdout, generation.stderr,
+    source.stdout, source.stderr,
+  ].join("\n");
+
+  assert.equal(generationWaitedForLifecycle, true, transcript);
+  assert.equal(sourceWaitedForGenerationMonth, true, transcript);
+  assert.equal(sourceWaitedOnFinancialMonth, true, transcript);
+  assert.doesNotMatch(transcript, /40P01|deadlock detected/i);
+  assert.equal(controller.status, 0, controller.stderr);
+  assert.equal(generation.status, 0, generation.stderr);
+  assert.equal(source.status, 0, source.stderr);
+  assert.equal(run(`
+    SELECT period.status || '|' || period.stale_reason || '|' || period.input_watermark
+    FROM public.owner_balance_periods AS period
+    WHERE period.organization_id = '${organizationId}'
+      AND period.property_id = '${correctionChainPropertyId}'
+      AND period.owner_person_id = '${correctionChainOwnerId}'
+      AND period.currency = 'USD'
+      AND period.month_start = '${currentMonth}';
+  `), `stale|source_allocation_changed|sources=0;movements=0;month=${currentMonth}`);
+  assert.equal(run(`
+    SELECT count(*)
+    FROM public.owner_event_allocation_sets AS allocation_set
+    JOIN public.owner_cash_events AS event
+      ON event.organization_id = allocation_set.organization_id
+     AND event.id = allocation_set.source_line_id
+    WHERE allocation_set.organization_id = '${organizationId}'
+      AND allocation_set.source_type = 'owner_contribution'
+      AND event.idempotency_key = 'n1-generation-first-contribution';
+  `), "1");
 });

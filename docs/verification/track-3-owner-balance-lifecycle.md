@@ -118,3 +118,11 @@ Final affected evidence after the correction migration:
 - database lint zero errors with five existing unused-variable warnings; error-level local advisors zero findings.
 
 The live matrix proves all nine tables RLS plus FORCE RLS, authenticated tenant-scoped SELECT only, complete direct-DML denial, checked public RPC/private helper grants, and real Super Admin, Finance, Operations, unaffiliated, cross-organization, anonymous, and service-role behavior. The historical raw browser/full-matrix evidence limitation remains explicit; neither expensive gate was rerun. Track 4 remains blocked pending fresh independent approval.
+
+## Correction round 2 verification
+
+Re-review finding N1 is corrected locally from base `e7e204fe7d1c28b7239b6dac045c76be93829c4c` by CLI-generated migration `20260810103823_enforce_owner_balance_global_lock_order.sql`. Every affected owner-balance writer now acquires the shared financial-month key before owner lifecycle and stable source/consumer keys. Authorization and completed replay remain before mutation locking, the three new chain helpers are revoked `app_private` functions with locked search paths, and a live definition audit reports zero direct lifecycle-before-month inversions.
+
+The retained two-session same-owner/same-month race uses an exact advisory-key barrier between acquisitions in both winner orderings. RED reproduced PostgreSQL `deadlock detected` and an obsolete ready `sources=0;movements=0` watermark when the source began first; the reverse ordering proved the later source waited on lifecycle instead of month. GREEN is 2/2 with no `40P01`, a current `ready|sources=1;movements=1` source-first result, a typed `stale|source_allocation_changed` generation-first result, and exactly one allocation set in each case.
+
+Affected evidence is clean reset, focused database/security 194/194, original lifecycle concurrency 6/6, expanded correction concurrency 8/8, live catalog/role 22/22, zero-error database lint with the same five warnings, zero error-level advisor findings, local-variable production build, and diff checks. No browser/full-matrix or unrelated broad gate was rerun. This is correction evidence, not approval; Track 4 remains blocked for focused independent re-review.
