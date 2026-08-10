@@ -208,3 +208,45 @@ later-first makes the predecessor-lowering command lose with
 still allow both commands to succeed. No browser or expensive full-matrix
 rerun is claimed. Focused independent re-review remains required; Track 4B is
 still blocked.
+
+## Correction round 4 verification addendum
+
+The remaining focused C2 review found that round 3 discovered downstream
+months only through `owner_balance_periods`. A supported immutable future
+movement could therefore exist before its period row: Garden Court owner 009
+had zero next-month periods, a `-500.00` held-cash transfer movement, and a
+current `500.00` closing. A current-month `-1.00` correction was incorrectly
+accepted even though first generation would project `-1.00` next month.
+
+CLI-generated migration `20260810144252_owner_close_movement_only_scope.sql`
+adds movement months to the existing recovery scope. Financial-month and
+owner-period advisory locks are still acquired in ascending month order before
+the lifecycle and stable movement-row locks. Downstream propagation now
+iterates the union of period months and immutable component-movement months,
+summing each month's complete component movements exactly once. A negative
+movement-only successor raises the existing typed
+`23514 owner_close_correction_downstream_negative` before lasting effects.
+
+Retained sequential evidence proves the exact `[0 period rows, -500.00 future
+movement, 500.00 current closing]` fixture and atomic rejection of `-1.00` with
+zero correction, allocation, movement, or idempotency residue. The round-3
+immediate and second-successor period-chain oracles remain green.
+
+| Focused gate | Result |
+| --- | --- |
+| Track 4A pgTAP | 83/83 |
+| Movement-only correction/generation races | 2/2 |
+| Complete owner-close concurrency file | 15/15 |
+| Clean migration reset and guarded fixture | pass |
+| Function owner/search-path/grants catalog | pass |
+| Database lint | zero errors; same five legacy warnings |
+| Production build | pass; known multiple-lockfile warning only |
+| Diff check | pass |
+
+Both real-session start orders serialize without `40P01`: correction-first
+holds the discovered future movement month before first generation, and
+generation-first holds it before correction. In both orders the correction is
+the atomic loser, first generation retains its expected blocked predecessor
+state, and there is no pending claim, loser residue, duplicate, or negative
+component. No browser or expensive full-matrix rerun is claimed. Focused
+independent re-review remains required; Track 4B is still blocked.

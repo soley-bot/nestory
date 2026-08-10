@@ -2398,6 +2398,149 @@ SELECT pg_catalog.set_config(
   'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
 );
 
+SAVEPOINT track_4a_c2_movement_only_future_month;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      (SELECT count(*)
+       FROM public.owner_balance_periods AS future_period
+       WHERE future_period.organization_id = '00000000-0000-0000-0000-000000000001'
+         AND future_period.property_id = '10000000-0000-0000-0000-000000000003'
+         AND future_period.owner_person_id = '80000000-0000-0000-0000-000000000009'
+         AND future_period.currency = 'USD'
+         AND future_period.month_start = (
+           pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month'
+         )::date),
+      (SELECT pg_catalog.to_char(
+         pg_catalog.sum(movement.signed_amount), 'FM999999999990.00'
+       )
+       FROM public.owner_component_movements AS movement
+       WHERE movement.organization_id = '00000000-0000-0000-0000-000000000001'
+         AND movement.property_id = '10000000-0000-0000-0000-000000000003'
+         AND movement.owner_person_id = '80000000-0000-0000-0000-000000000009'
+         AND movement.currency = 'USD'
+         AND movement.month_start = (
+           pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month'
+         )::date
+         AND movement.component = 'ips_held_owner_cash'),
+      (SELECT pg_catalog.to_char(component.closing_amount, 'FM999999999990.00')
+       FROM public.owner_balance_periods AS current_period
+       JOIN public.owner_balance_period_components AS component
+         ON component.organization_id = current_period.organization_id
+        AND component.owner_balance_period_id = current_period.id
+       WHERE current_period.organization_id = '00000000-0000-0000-0000-000000000001'
+         AND current_period.property_id = '10000000-0000-0000-0000-000000000003'
+         AND current_period.owner_person_id = '80000000-0000-0000-0000-000000000009'
+         AND current_period.currency = 'USD'
+         AND current_period.month_start = pg_catalog.date_trunc('month', current_date)::date
+         AND component.component = 'ips_held_owner_cash')
+    )::text
+  ),
+  '[0, "-500.00", "500.00"]',
+  'future transfer movement exists without a future owner period row'
+);
+
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  pg_catalog.date_trunc('month', current_date)::date,
+  true,
+  'Lock movement-only future-month close correction proof'
+);
+
+CREATE TEMP TABLE owner_close_c2_movement_only_runtime (
+  series_id uuid,
+  preparing_revision_id uuid
+) ON COMMIT DROP;
+GRANT ALL ON TABLE owner_close_c2_movement_only_runtime TO authenticated;
+INSERT INTO owner_close_c2_movement_only_runtime DEFAULT VALUES;
+
+WITH closed AS (
+  SELECT public.close_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000003',
+    '80000000-0000-0000-0000-000000000009', 'USD',
+    pg_catalog.date_trunc('month', current_date)::date,
+    'Close Garden Court predecessor before movement-only proof',
+    'track-4a-c2-movement-only-close-r1'
+  ) AS payload
+)
+UPDATE owner_close_c2_movement_only_runtime
+SET series_id = (closed.payload->>'series_id')::uuid
+FROM closed;
+
+WITH reopened AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001', runtime.series_id,
+    'Movement-only future month must remain nonnegative',
+    'track-4a-c2-movement-only-reopen-r2'
+  ) AS payload
+  FROM owner_close_c2_movement_only_runtime AS runtime
+)
+UPDATE owner_close_c2_movement_only_runtime
+SET preparing_revision_id = (reopened.payload->>'revision_id')::uuid
+FROM reopened;
+
+SELECT throws_ok(
+  $statement$
+    DO $oracle$
+    DECLARE
+      v_revision_id uuid;
+    BEGIN
+      SELECT preparing_revision_id INTO STRICT v_revision_id
+      FROM owner_close_c2_movement_only_runtime;
+      PERFORM public.record_owner_close_correction(
+        '00000000-0000-0000-0000-000000000001',
+        v_revision_id, 'ips_held_owner_cash',
+        pg_catalog.date_trunc('month', current_date)::date,
+        -1.00,
+        'Must not make future transfer movement authority negative',
+        'TRACK-4A-C2-MOVEMENT-ONLY-CROSSING', repeat('4', 64),
+        'track-4a-c2-movement-only-crossing'
+      );
+      RAISE EXCEPTION 'owner_close_correction_downstream_negative_missing'
+        USING ERRCODE = 'P0001';
+    END;
+    $oracle$;
+  $statement$,
+  '23514',
+  'owner_close_correction_downstream_negative',
+  'future movement-only month rejects a predecessor correction that would make it negative'
+);
+
+RESET ROLE;
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      (SELECT count(*) FROM public.owner_close_corrections
+       WHERE idempotency_key = 'track-4a-c2-movement-only-crossing'),
+      (SELECT count(*) FROM public.owner_event_allocation_sets
+       WHERE idempotency_key = 'track-4a-c2-movement-only-crossing'),
+      (SELECT count(*) FROM public.owner_component_movements AS movement
+       JOIN public.owner_event_owner_allocations AS owner_allocation
+         ON owner_allocation.organization_id = movement.organization_id
+        AND owner_allocation.id = movement.owner_event_owner_allocation_id
+       JOIN public.owner_event_allocation_sets AS allocation_set
+         ON allocation_set.organization_id = owner_allocation.organization_id
+        AND allocation_set.id = owner_allocation.allocation_set_id
+       WHERE allocation_set.idempotency_key = 'track-4a-c2-movement-only-crossing'),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests
+       WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+         AND operation = 'record_owner_close_correction'
+         AND idempotency_key = 'track-4a-c2-movement-only-crossing')
+    )::text
+  ),
+  '[0, 0, 0, 0]',
+  'movement-only downstream rejection leaves no correction authority residue'
+);
+
+ROLLBACK TO SAVEPOINT track_4a_c2_movement_only_future_month;
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
 
 SELECT lives_ok(
   $$

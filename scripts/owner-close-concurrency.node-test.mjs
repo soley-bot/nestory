@@ -11,6 +11,8 @@ const superAdminId = "00000000-0000-0000-0000-000000000101";
 const financeMemberId = "00000000-0000-0000-0000-000000000801";
 const centralPropertyId = "10000000-0000-0000-0000-000000000001";
 const centralOwnerId = "80000000-0000-0000-0000-000000000004";
+const gardenPropertyId = "10000000-0000-0000-0000-000000000003";
+const gardenCurrentOwnerId = "80000000-0000-0000-0000-000000000009";
 
 function databaseContainer() {
   const result = spawnSync(
@@ -135,6 +137,10 @@ function removePauseHarness() {
       ON public.owner_close_corrections;
     DROP TRIGGER IF EXISTS _test_pause_owner_balance_period_update
       ON public.owner_balance_periods;
+    DROP TRIGGER IF EXISTS _test_pause_owner_balance_period_insert
+      ON public.owner_balance_periods;
+    DROP TRIGGER IF EXISTS test_pause_owner_close_idempotency_insert
+      ON app_private.financial_idempotency_requests;
     DROP FUNCTION IF EXISTS app_private.test_pause_owner_close_write();
   `);
 }
@@ -149,13 +155,30 @@ function installPauseHarness() {
     AS $pause$
     BEGIN
       IF pg_catalog.current_setting('app.owner_close_test_pause', true)
+          = 'idempotency_insert'
+          AND TG_TABLE_NAME = 'financial_idempotency_requests'
+          AND pg_catalog.to_jsonb(NEW)->>'operation'
+            = 'record_owner_close_correction' THEN
+        PERFORM pg_catalog.set_config('app.owner_close_test_pause', '', true);
+        RAISE NOTICE 'owner_close_idempotency_pause_ready';
+        PERFORM pg_catalog.pg_sleep(2);
+      ELSIF pg_catalog.current_setting('app.owner_close_test_pause', true)
+          = 'future_period_insert'
+          AND TG_TABLE_NAME = 'owner_balance_periods'
+          AND TG_OP = 'INSERT'
+          AND (pg_catalog.to_jsonb(NEW)->>'month_start')::date
+            = (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date THEN
+        PERFORM pg_catalog.set_config('app.owner_close_test_pause', '', true);
+        RAISE NOTICE 'owner_close_future_period_pause_ready';
+        PERFORM pg_catalog.pg_sleep(2);
+      ELSIF pg_catalog.current_setting('app.owner_close_test_pause', true)
           IN ('revision_insert', 'correction_insert') THEN
         PERFORM pg_catalog.set_config('app.owner_close_test_pause', '', true);
         RAISE NOTICE 'owner_close_write_pause_ready';
         PERFORM pg_catalog.pg_sleep(2);
       ELSIF pg_catalog.current_setting('app.owner_close_test_pause', true)
           = 'later_period_update'
-          AND NEW.month_start = (
+          AND (pg_catalog.to_jsonb(NEW)->>'month_start')::date = (
             pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month'
           )::date THEN
         PERFORM pg_catalog.set_config('app.owner_close_test_pause', '', true);
@@ -181,6 +204,12 @@ function installPauseHarness() {
       FOR EACH ROW EXECUTE FUNCTION app_private.test_pause_owner_close_write();
     CREATE TRIGGER _test_pause_owner_balance_period_update
       BEFORE UPDATE ON public.owner_balance_periods
+      FOR EACH ROW EXECUTE FUNCTION app_private.test_pause_owner_close_write();
+    CREATE TRIGGER _test_pause_owner_balance_period_insert
+      BEFORE INSERT ON public.owner_balance_periods
+      FOR EACH ROW EXECUTE FUNCTION app_private.test_pause_owner_close_write();
+    CREATE TRIGGER test_pause_owner_close_idempotency_insert
+      BEFORE INSERT ON app_private.financial_idempotency_requests
       FOR EACH ROW EXECUTE FUNCTION app_private.test_pause_owner_close_write();
   `);
 }
@@ -667,6 +696,207 @@ async function runCrossingPredecessorCorrectionRace({
   `), `${expectedAmounts.slice(0, -1)}, 0, 0, 0, 0, 0, 1, 0]`);
 }
 
+function prepareMovementOnlyFutureRace() {
+  run(authenticatedSql(superAdminId, `
+    SELECT public.set_financial_month_lock(
+      '${organizationId}', date_trunc('month', current_date)::date, true,
+      'Movement-only future month concurrency proof'
+    );
+    SELECT public.close_owner_month(
+      '${organizationId}', '${gardenPropertyId}', '${gardenCurrentOwnerId}', 'USD',
+      date_trunc('month', current_date)::date,
+      'Close Garden Court before movement-only race',
+      'owner-close-c2-movement-only-race-close-r1'
+    );
+    SELECT public.reopen_owner_month(
+      '${organizationId}',
+      (
+        SELECT series.id
+        FROM public.owner_close_series AS series
+        WHERE series.organization_id = '${organizationId}'
+          AND series.property_id = '${gardenPropertyId}'
+          AND series.owner_person_id = '${gardenCurrentOwnerId}'
+          AND series.currency = 'USD'
+          AND series.month_start = date_trunc('month', current_date)::date
+      ),
+      'Movement-only future month concurrency correction',
+      'owner-close-c2-movement-only-race-reopen-r2'
+    );
+  `));
+  assert.equal(run(`
+    SELECT jsonb_build_array(
+      (SELECT count(*)
+       FROM public.owner_balance_periods AS period
+       WHERE period.organization_id = '${organizationId}'
+         AND period.property_id = '${gardenPropertyId}'
+         AND period.owner_person_id = '${gardenCurrentOwnerId}'
+         AND period.currency = 'USD'
+         AND period.month_start = (
+           date_trunc('month', current_date) + interval '1 month'
+         )::date),
+      to_char(sum(movement.signed_amount), 'FM999999999990.00')
+    )
+    FROM public.owner_component_movements AS movement
+    WHERE movement.organization_id = '${organizationId}'
+      AND movement.property_id = '${gardenPropertyId}'
+      AND movement.owner_person_id = '${gardenCurrentOwnerId}'
+      AND movement.currency = 'USD'
+      AND movement.month_start = (
+        date_trunc('month', current_date) + interval '1 month'
+      )::date
+      AND movement.component = 'ips_held_owner_cash';
+  `), '[0, "-500.00"]');
+  return run(`
+    SELECT active_revision_id::text
+    FROM public.owner_close_series
+    WHERE organization_id = '${organizationId}'
+      AND property_id = '${gardenPropertyId}'
+      AND owner_person_id = '${gardenCurrentOwnerId}'
+      AND currency = 'USD'
+      AND month_start = date_trunc('month', current_date)::date;
+  `);
+}
+
+function movementOnlyCorrectionSql(revisionId, label, pause = false) {
+  return authenticatedSql(superAdminId, `
+    ${pause ? "SELECT set_config('app.owner_close_test_pause', 'idempotency_insert', true);" : ""}
+    SELECT public.record_owner_close_correction(
+      '${organizationId}', '${revisionId}', 'ips_held_owner_cash',
+      date_trunc('month', current_date)::date, -1.00,
+      'Movement-only future month race must reject',
+      'OWNER-CLOSE-C2-${label}-MOVEMENT-ONLY', repeat('5', 64),
+      'owner-close-c2-${label}-movement-only-correction'
+    );
+  `);
+}
+
+function movementOnlyGenerationSql(label, pause = false) {
+  return authenticatedSql(superAdminId, `
+    ${pause ? "SELECT set_config('app.owner_close_test_pause', 'future_period_insert', true);" : ""}
+    SELECT public.generate_owner_balance_period(
+      '${organizationId}', '${gardenPropertyId}', '${gardenCurrentOwnerId}', 'USD',
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      'owner-close-c2-${label}-movement-only-generation'
+    );
+  `);
+}
+
+async function runMovementOnlyGenerationRace({
+  correctionFirst,
+  firstSql,
+  label,
+  marker,
+  secondSql,
+}) {
+  installPauseHarness();
+  const first = spawnSession(firstSql);
+  await waitForMarker(first, marker, 15_000);
+
+  const startedAt = performance.now();
+  const second = spawnSync("docker", psqlArgs(secondSql), {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+    timeout: 20_000,
+  });
+  const secondElapsedMs = performance.now() - startedAt;
+  await first.done;
+
+  const correction = correctionFirst ? first : second;
+  const generation = correctionFirst ? second : first;
+  const combinedErrors = `${first.stderr}\n${second.stderr}`;
+  assert.notEqual(correction.status, 0, `${label} correction unexpectedly succeeded`);
+  assert.match(correction.stderr, /owner_close_correction_downstream_negative/i);
+  assert.equal(generation.status, 0, `${label} generation: ${generation.stderr}`);
+  assert.match(generation.stdout, /"status": "blocked"/i);
+  assert.doesNotMatch(combinedErrors, /40P01|deadlock detected/i);
+  assert.ok(
+    secondElapsedMs >= 1_500,
+    `${label} second session waited only ${secondElapsedMs}ms`,
+  );
+
+  const loserKey = `owner-close-c2-${label}-movement-only-correction`;
+  assert.equal(run(`
+    SELECT jsonb_build_array(
+      period.status,
+      period.blocked_reason_code,
+      (SELECT count(*)
+       FROM public.owner_balance_period_components AS component
+       WHERE component.organization_id = period.organization_id
+         AND component.owner_balance_period_id = period.id),
+      (SELECT to_char(sum(movement.signed_amount), 'FM999999999990.00')
+       FROM public.owner_component_movements AS movement
+       WHERE movement.organization_id = period.organization_id
+         AND movement.property_id = period.property_id
+         AND movement.owner_person_id = period.owner_person_id
+         AND movement.currency = period.currency
+         AND movement.month_start = period.month_start
+         AND movement.component = 'ips_held_owner_cash'),
+      (SELECT count(*)
+       FROM app_private.financial_idempotency_requests AS request
+       WHERE request.organization_id = '${organizationId}'
+         AND request.status = 'pending'),
+      (SELECT count(*) FROM public.owner_close_corrections
+       WHERE organization_id = '${organizationId}'
+         AND idempotency_key = '${loserKey}'),
+      (SELECT count(*) FROM public.owner_event_allocation_sets
+       WHERE organization_id = '${organizationId}'
+         AND idempotency_key = '${loserKey}'),
+      (SELECT count(*)
+       FROM public.owner_component_movements AS correction_movement
+       JOIN public.owner_event_owner_allocations AS owner_allocation
+         ON owner_allocation.organization_id = correction_movement.organization_id
+        AND owner_allocation.id = correction_movement.owner_event_owner_allocation_id
+       JOIN public.owner_event_allocation_sets AS allocation_set
+         ON allocation_set.organization_id = owner_allocation.organization_id
+        AND allocation_set.id = owner_allocation.allocation_set_id
+       WHERE allocation_set.organization_id = '${organizationId}'
+         AND allocation_set.idempotency_key = '${loserKey}'),
+      (SELECT count(*)
+       FROM app_private.financial_idempotency_requests AS request
+       WHERE request.organization_id = '${organizationId}'
+         AND request.operation = 'record_owner_close_correction'
+         AND request.idempotency_key = '${loserKey}'),
+      (SELECT count(*)
+       FROM public.owner_balance_period_components AS invalid_component
+       JOIN public.owner_balance_periods AS invalid_period
+         ON invalid_period.organization_id = invalid_component.organization_id
+        AND invalid_period.id = invalid_component.owner_balance_period_id
+       WHERE invalid_period.organization_id = '${organizationId}'
+         AND invalid_period.property_id = '${gardenPropertyId}'
+         AND invalid_period.owner_person_id = '${gardenCurrentOwnerId}'
+         AND invalid_component.closing_amount < 0),
+      (SELECT count(*)
+       FROM public.owner_balance_periods AS future_period
+       WHERE future_period.organization_id = '${organizationId}'
+         AND future_period.property_id = '${gardenPropertyId}'
+         AND future_period.owner_person_id = '${gardenCurrentOwnerId}'
+         AND future_period.currency = 'USD'
+         AND future_period.month_start = (
+           date_trunc('month', current_date) + interval '1 month'
+         )::date),
+      (SELECT count(*)
+       FROM public.owner_close_revisions AS revision
+       JOIN public.owner_close_series AS series
+         ON series.organization_id = revision.organization_id
+        AND series.id = revision.owner_close_series_id
+       WHERE series.organization_id = '${organizationId}'
+         AND series.property_id = '${gardenPropertyId}'
+         AND series.owner_person_id = '${gardenCurrentOwnerId}'
+         AND series.month_start = date_trunc('month', current_date)::date
+         AND revision.status = 'preparing')
+    )
+    FROM public.owner_balance_periods AS period
+    WHERE period.organization_id = '${organizationId}'
+      AND period.property_id = '${gardenPropertyId}'
+      AND period.owner_person_id = '${gardenCurrentOwnerId}'
+      AND period.currency = 'USD'
+      AND period.month_start = (
+        date_trunc('month', current_date) + interval '1 month'
+      )::date;
+  `), '["blocked", "prior_period_not_ready", 0, "-500.00", 0, 0, 0, 0, 0, 0, 1, 1]');
+}
+
 async function runPredecessorCorrectionRace({
   firstSql,
   label,
@@ -1046,6 +1276,38 @@ test("later crossing correction first makes predecessor lowering lose atomically
     loserCorrectionKey:
       "owner-close-c2-crossing-later-first-earlier-correction",
     expectedAmounts: '["1855.00", "-100.00", "1755.00"]',
+  });
+});
+
+test("movement-only correction first serializes before first future generation", async () => {
+  const revisionId = prepareMovementOnlyFutureRace();
+  await runMovementOnlyGenerationRace({
+    firstSql: movementOnlyCorrectionSql(
+      revisionId,
+      "movement-only-correction-first",
+      true,
+    ),
+    secondSql: movementOnlyGenerationSql("movement-only-correction-first"),
+    marker: "owner_close_idempotency_pause_ready",
+    label: "movement-only-correction-first",
+    correctionFirst: true,
+  });
+});
+
+test("first future generation serializes before movement-only correction", async () => {
+  const revisionId = prepareMovementOnlyFutureRace();
+  await runMovementOnlyGenerationRace({
+    firstSql: movementOnlyGenerationSql(
+      "movement-only-generation-first",
+      true,
+    ),
+    secondSql: movementOnlyCorrectionSql(
+      revisionId,
+      "movement-only-generation-first",
+    ),
+    marker: "owner_close_future_period_pause_ready",
+    label: "movement-only-generation-first",
+    correctionFirst: false,
   });
 });
 

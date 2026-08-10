@@ -126,3 +126,14 @@
   concurrency 13/13; clean reset/fixture, DB lint, production build, and diff
   checks green. Browser and the expensive full matrix were not rerun. Focused
   independent re-review remains mandatory and Track 4B stays blocked.
+- Independent-review correction round 4: the remaining C2 proof found a
+  movement-only future month omitted by period-anchored recovery. CLI-generated
+  migration `20260810144252_owner_close_movement_only_scope.sql` now discovers,
+  locks, and propagates immutable component-movement months even when no owner
+  period row exists, preserving ascending financial-month/period then
+  lifecycle/source order and exact-once movement arithmetic.
+- Round 4 evidence: literal owner009 movement-only oracle and Track 4A 83/83;
+  both correction/first-generation start orders 2/2; complete owner-close
+  concurrency 15/15; clean reset/fixture, catalog/grants, DB lint, production
+  build, and diff checks green. Browser and full matrix were not rerun.
+  Focused independent re-review remains mandatory and Track 4B stays blocked.
