@@ -534,7 +534,11 @@ describe("FinanceOperationsScreen", () => {
         view="balances"
       />,
     );
-    expect(screen.getByRole("button", { name: "Withdrawal" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Withdrawal" }));
+    const dialog = screen.getByRole("dialog", { name: "Owner withdrawal" });
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="ownerPersonId"]')?.value,
+    ).toBe("person-owner");
   });
 
   it("keeps the dominant finance table unframed while retaining row separators", () => {

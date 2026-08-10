@@ -95,9 +95,16 @@ SELECT is(
 
 SELECT is(
   (SELECT count(*)::integer
-   FROM app_private.financial_idempotency_requests
-   WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-     AND operation IN (
+   FROM app_private.financial_idempotency_requests AS idem
+   JOIN public.activity_logs AS activity
+     ON activity.new_values->>'financial_idempotency_request_id' = idem.id::text
+    AND activity.entity_type = 'owner_opening_balance_request'
+   JOIN public.owner_opening_balance_requests AS request
+     ON request.organization_id = idem.organization_id
+    AND request.id = activity.entity_id
+   WHERE idem.organization_id = '00000000-0000-0000-0000-000000000001'
+     AND request.property_id = '10000000-0000-0000-0000-000000000001'
+     AND idem.operation IN (
        'submit_owner_opening_balance',
        'review_owner_opening_balance',
        'submit_owner_opening_balance_correction'
@@ -108,10 +115,14 @@ SELECT is(
 
 SELECT is(
   (SELECT count(*)::integer
-   FROM public.activity_logs
-   WHERE organization_id = '00000000-0000-0000-0000-000000000001'
-     AND entity_type = 'owner_opening_balance_request'
-     AND new_values->>'source' = 'checked_rpc'),
+   FROM public.activity_logs AS activity
+   JOIN public.owner_opening_balance_requests AS request
+     ON request.organization_id = activity.organization_id
+    AND request.id = activity.entity_id
+   WHERE activity.organization_id = '00000000-0000-0000-0000-000000000001'
+     AND request.property_id = '10000000-0000-0000-0000-000000000001'
+     AND activity.entity_type = 'owner_opening_balance_request'
+     AND activity.new_values->>'source' = 'checked_rpc'),
   15,
   'every fixture transition has checked-RPC activity provenance'
 );
@@ -128,8 +139,20 @@ SELECT is(
 SELECT is(
   (SELECT count(*)::integer
    FROM public.owner_opening_balance_requests
-   WHERE organization_id <> '00000000-0000-0000-0000-000000000001'
-      OR property_id <> '10000000-0000-0000-0000-000000000001'),
+   WHERE source_reference IN (
+       'FIXTURE-DEPOSIT-CORRECTION-001',
+       'FIXTURE-OPENING-CASH-001',
+       'FIXTURE-OPENING-DEPOSIT-001',
+       'FIXTURE-OPENING-DUE-001',
+       'FIXTURE-OPENING-DUE-RESUBMIT-001',
+       'FIXTURE-OPENING-ZERO-001',
+       'FIXTURE-ZERO-CORRECTION-001',
+       'FIXTURE-ZERO-CORRECTION-RESUBMIT-001'
+     )
+     AND (
+       organization_id <> '00000000-0000-0000-0000-000000000001'
+       OR property_id <> '10000000-0000-0000-0000-000000000001'
+     )),
   0,
   'owner-opening fixture rows never leak into another tenant or property'
 );
@@ -310,7 +333,8 @@ LEFT JOIN public.activity_logs AS activity
  AND activity.entity_type = 'owner_opening_balance_request'
 LEFT JOIN pg_temp.fixture_contract_requests AS request ON request.id = activity.entity_id
 WHERE idem.organization_id = '00000000-0000-0000-0000-000000000001'
-  AND idem.operation IN ('submit_owner_opening_balance', 'review_owner_opening_balance', 'submit_owner_opening_balance_correction');
+  AND idem.operation IN ('submit_owner_opening_balance', 'review_owner_opening_balance', 'submit_owner_opening_balance_correction')
+  AND request.id IS NOT NULL;
 
 CREATE TEMP TABLE fixture_expected_transitions (
   idempotency_key text PRIMARY KEY,
@@ -625,6 +649,47 @@ SELECT throws_ok(
 );
 RESET ROLE;
 
+INSERT INTO public.properties (id, organization_id, name, code, property_type)
+VALUES (
+  'f5500000-0000-4000-8000-000000000002',
+  '00000000-0000-0000-0000-000000000001',
+  'Self-review authority property',
+  'SELF-REVIEW',
+  'Apartment'
+);
+
+INSERT INTO public.people (id, organization_id, display_name)
+VALUES (
+  'f5500000-0000-4000-8000-000000000003',
+  '00000000-0000-0000-0000-000000000001',
+  'Self-review authority owner'
+);
+
+INSERT INTO public.person_roles (organization_id, person_id, role, status)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'f5500000-0000-4000-8000-000000000003',
+  'owner',
+  'active'
+);
+
+INSERT INTO public.property_owners (
+  id,
+  organization_id,
+  property_id,
+  person_id,
+  ownership_percent,
+  started_on
+)
+VALUES (
+  'f5500000-0000-4000-8000-000000000004',
+  '00000000-0000-0000-0000-000000000001',
+  'f5500000-0000-4000-8000-000000000002',
+  'f5500000-0000-4000-8000-000000000003',
+  100.000,
+  '2024-01-01'
+);
+
 CREATE TEMP TABLE self_review_probe (request_id uuid);
 GRANT SELECT, INSERT ON self_review_probe TO authenticated;
 SET LOCAL ROLE authenticated;
@@ -632,8 +697,8 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101
 INSERT INTO self_review_probe
 SELECT (public.submit_owner_opening_balance(
   '00000000-0000-0000-0000-000000000001',
-  '10000000-0000-0000-0000-000000000002',
-  '80000000-0000-0000-0000-000000000005',
+  'f5500000-0000-4000-8000-000000000002',
+  'f5500000-0000-4000-8000-000000000003',
   'USD', date_trunc('month', current_date)::date,
   'ips_held_owner_cash', 1.00, 'Self review fixture probe',
   'SELF-REVIEW-PROBE', NULL, repeat('a', 64), NULL,

@@ -74,6 +74,7 @@ describe("granular Finance contexts", () => {
 
   it("allows Finance Manager through ordinary Finance contexts but never month unlock", async () => {
     const allowedContexts = [
+      authContext.requireFinanceCorrectionContext,
       authContext.requireFinanceOperationContext,
       authContext.requireFinancePettyCashContext,
       authContext.requireFinanceReportContext,

@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  financeData: vi.fn(),
+  balanceData: vi.fn(),
   openingData: vi.fn(),
   requireFinanceContext: vi.fn(),
 }));
@@ -12,8 +12,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/auth/context", () => ({
   requireFinanceContext: mocks.requireFinanceContext,
 }));
-vi.mock("@/features/finance-operations/data/finance-operations", () => ({
-  getFinanceOperationsData: mocks.financeData,
+vi.mock("@/features/owner-balances/data/owner-balances", () => ({
+  getOwnerBalanceData: mocks.balanceData,
 }));
 vi.mock("@/features/owner-balances/data/opening-balances", () => ({
   getOpeningBalanceAuthorityData: mocks.openingData,
@@ -25,20 +25,24 @@ vi.mock("@/features/owner-balances/components/opening-balance-screen", () => ({
     </div>
   ),
 }));
-vi.mock(
-  "@/features/finance-operations/components/finance-operations-screen",
-  () => ({
-    FinanceOperationsScreen: (props: { openingAuthority?: React.ReactNode }) => (
-      <main>
-        {props.openingAuthority}
-        <section>
-          <h2>Current balance projection</h2>
-          <p>Operational view only. This is not an official owner statement.</p>
-        </section>
-      </main>
-    ),
-  }),
-);
+vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
+  OwnerBalanceLedger: (props: {
+    canAllocate?: boolean;
+    canCorrect?: boolean;
+    canTransfer?: boolean;
+    openingAuthority?: React.ReactNode;
+  }) => (
+    <main
+      data-can-allocate={String(props.canAllocate)}
+      data-can-correct={String(props.canCorrect)}
+      data-can-transfer={String(props.canTransfer)}
+      data-testid="authoritative-ledger"
+    >
+      <h1>Authoritative owner balance</h1>
+      {props.openingAuthority}
+    </main>
+  ),
+}));
 
 import BalancesPage from "./page";
 
@@ -68,9 +72,11 @@ describe("BalancesPage opening authority integration", () => {
       role: "super_admin",
       userId: "00000000-0000-4000-8000-000000000004",
     });
-    mocks.financeData.mockResolvedValue({
-      peopleOptions: [{ id: ownerId, label: "Nora Owner" }],
+    mocks.balanceData.mockResolvedValue({
+      ownerOptions: [{ id: ownerId, label: "Nora Owner" }],
+      periods: [],
       propertyOptions: [{ id: propertyId, label: "Riverside / RS-01" }],
+      queue: [],
     });
     mocks.openingData.mockResolvedValue({
       effectiveDate: "2026-08-01",
@@ -79,7 +85,7 @@ describe("BalancesPage opening authority integration", () => {
     });
   });
 
-  it("loads exact search scope and makes Opening authority directly visible", async () => {
+  it("loads exact authoritative scope and retires the current-primary projection", async () => {
     render(
       await BalancesPage({
         searchParams: Promise.resolve({
@@ -96,11 +102,22 @@ describe("BalancesPage opening authority integration", () => {
       ownerPersonId: ownerId,
       propertyId,
     });
+    expect(mocks.balanceData).toHaveBeenCalledWith({
+      currency: "USD",
+      ownerPersonId: ownerId,
+      periodEnd: "2026-08-01",
+      periodStart: "2026-08-01",
+      propertyId,
+    });
     expect(screen.getByTestId("opening-authority").getAttribute("data-can-review"))
       .toBe("true");
-    expect(screen.getByRole("heading", { name: "Current balance projection" }))
+    expect(screen.getByRole("heading", { name: "Authoritative owner balance" }))
       .toBeTruthy();
-    expect(screen.getByText(/not an official owner statement/i)).toBeTruthy();
+    expect(screen.queryByText(/current balance projection/i)).toBeNull();
+    expect(screen.getByTestId("authoritative-ledger").getAttribute("data-can-allocate"))
+      .toBe("true");
+    expect(screen.getByTestId("authoritative-ledger").getAttribute("data-can-transfer"))
+      .toBe("true");
   });
 
   it("fails closed on invalid filters instead of passing guessed identifiers", async () => {
@@ -114,9 +131,10 @@ describe("BalancesPage opening authority integration", () => {
       }),
     );
 
-    const scope = mocks.openingData.mock.calls[0]?.[0];
+    const scope = mocks.balanceData.mock.calls[0]?.[0];
     expect(scope.propertyId).toBeUndefined();
     expect(scope.ownerPersonId).toBeUndefined();
-    expect(scope.effectiveDate).toMatch(/^\d{4}-\d{2}-01$/);
+    expect(scope.periodStart).toMatch(/^\d{4}-\d{2}-01$/);
+    expect(scope.periodEnd).toBe(scope.periodStart);
   });
 });

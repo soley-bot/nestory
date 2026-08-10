@@ -1,5 +1,5 @@
-import { FinanceOperationsScreen } from "@/features/finance-operations/components/finance-operations-screen";
-import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
+import { OwnerBalanceLedger } from "@/features/owner-balances/components/owner-balance-ledger";
+import { getOwnerBalanceData } from "@/features/owner-balances/data/owner-balances";
 import { OpeningBalanceScreen } from "@/features/owner-balances/components/opening-balance-screen";
 import { getOpeningBalanceAuthorityData } from "@/features/owner-balances/data/opening-balances";
 import { requireFinanceContext } from "@/lib/auth/context";
@@ -17,28 +17,28 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const selectedMonth = validMonth(first(query.month)) ?? getBusinessMonthValue();
   const selectedPropertyId = validUuid(first(query.propertyId));
   const selectedOwnerPersonId = validUuid(first(query.ownerPersonId));
+  const periodStart = `${selectedMonth}-01`;
   const [data, openingData] = await Promise.all([
-    getFinanceOperationsData(context.organizationId),
+    getOwnerBalanceData({
+      currency: "USD",
+      ownerPersonId: selectedOwnerPersonId,
+      periodEnd: periodStart,
+      periodStart,
+      propertyId: selectedPropertyId,
+    }),
     getOpeningBalanceAuthorityData({
       currency: "USD",
-      effectiveDate: `${selectedMonth}-01`,
+      effectiveDate: periodStart,
       ownerPersonId: selectedOwnerPersonId,
       propertyId: selectedPropertyId,
     }),
   ]);
   return (
-    <FinanceOperationsScreen
-      {...data}
-      canConfigureRent={context.capabilities.canConfigureLeases}
-      canCorrectFinance={context.capabilities.canCorrectFinance}
-      canRecordOwnerCash={context.capabilities.canOperateFinance}
-      canRecordPayments={context.capabilities.canOperateFinance}
-      canReadFinanceReports={context.capabilities.canReadFinanceReports}
-      canRecoverRent={context.capabilities.canConfigureLeases}
-      canReviewExpense={context.capabilities.canReviewExpense}
-      canReverseExpense={context.capabilities.canReverseExpense}
-      canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
-      canSubmitExpense={context.capabilities.canSubmitExpense}
+    <OwnerBalanceLedger
+      canAllocate={context.capabilities.canOperateFinance}
+      canCorrect={context.capabilities.canCorrectFinance}
+      canTransfer={context.role === "super_admin"}
+      data={data}
       openingAuthority={
         <OpeningBalanceScreen
           actorUserId={context.userId}
@@ -47,7 +47,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
           canSubmitInitial={context.capabilities.canSubmitOwnerOpeningBalance}
           data={openingData}
           isSuperAdmin={context.role === "super_admin"}
-          ownerOptions={data.peopleOptions}
+          ownerOptions={data.ownerOptions}
           propertyOptions={data.propertyOptions}
           selectedMonth={selectedMonth}
           selectedOwnerPersonId={selectedOwnerPersonId}
@@ -55,7 +55,9 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
         />
       }
       organizationName={context.organizationName}
-      view="balances"
+      selectedMonth={selectedMonth}
+      selectedOwnerPersonId={selectedOwnerPersonId}
+      selectedPropertyId={selectedPropertyId}
     />
   );
 }

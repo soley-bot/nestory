@@ -1820,6 +1820,475 @@ SELECT public.review_owner_opening_balance(
 )
 FROM owner_opening_fixture_runtime;
 
+-- Guarded Track 3 owner-balance lifecycle. The fixed person and roster rows
+-- below are foundational fixture facts. Every financial source, allocation,
+-- reversal, transfer, and roll-forward is authored through its checked public
+-- command. The intentionally short Riverside co-owner interval leaves one
+-- 116.00 management-fee source visibly blocked at the event-date roster.
+RESET ROLE;
+
+INSERT INTO public.people (
+  id,
+  organization_id,
+  display_name,
+  legal_name,
+  party_type,
+  primary_email,
+  primary_phone,
+  notes,
+  created_by,
+  updated_by
+) VALUES (
+  '80000000-0000-0000-0000-000000000012',
+  '00000000-0000-0000-0000-000000000001',
+  'Nary Chhim', 'Chhim Nary', 'individual',
+  'nary.chhim@example.test', '+855 12 555 112',
+  'Successor owner in the guarded Garden Court transfer story.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.person_roles (
+  organization_id,
+  person_id,
+  role,
+  status,
+  created_by,
+  updated_by
+) VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000012',
+  'owner', 'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+UPDATE public.property_owners
+SET
+  ended_on = (date_trunc('month', current_date) + interval '1 month')::date,
+  updated_by = '00000000-0000-0000-0000-000000000101'
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND id = '90000000-0000-0000-0000-000000000003';
+
+INSERT INTO public.property_owners (
+  id,
+  organization_id,
+  property_id,
+  person_id,
+  ownership_label,
+  ownership_percent,
+  is_primary,
+  started_on,
+  ended_on,
+  created_by,
+  updated_by
+) VALUES
+  (
+    '90000000-0000-0000-0000-000000000004',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000003',
+    '80000000-0000-0000-0000-000000000012',
+    'Successor owner', 100.000, true,
+    (date_trunc('month', current_date) + interval '1 month')::date,
+    NULL,
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '90000000-0000-0000-0000-000000000005',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000002',
+    '80000000-0000-0000-0000-000000000012',
+    'Deliberate event-date remediation vector', 10.000, false,
+    date_trunc('month', current_date)::date,
+    (date_trunc('month', current_date) + interval '1 day')::date,
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
+
+SET LOCAL ROLE authenticated;
+
+CREATE TEMP TABLE owner_balance_fixture_runtime (
+  runtime_key text PRIMARY KEY,
+  runtime_id uuid NOT NULL
+) ON COMMIT DROP;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000801',
+  true
+);
+
+INSERT INTO owner_balance_fixture_runtime (runtime_key, runtime_id)
+SELECT
+  opening.opening_key,
+  (public.submit_owner_opening_balance(
+    '00000000-0000-0000-0000-000000000001',
+    opening.property_id,
+    opening.owner_person_id,
+    'USD',
+    opening.effective_date,
+    opening.component,
+    opening.amount,
+    opening.reason,
+    opening.source_reference,
+    NULL,
+    opening.evidence_sha256,
+    NULL,
+    opening.idempotency_key
+  )->>'request_id')::uuid
+FROM (
+  VALUES
+    (
+      'garden-current-held',
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '80000000-0000-0000-0000-000000000009'::uuid,
+      date_trunc('month', current_date)::date,
+      'ips_held_owner_cash'::public.owner_balance_component,
+      0.00::numeric,
+      'Garden Court verified zero held-cash opening',
+      'FIXTURE-GARDEN-OPENING-HELD-001', repeat('a', 64),
+      'fixture-garden-opening-held-v1'
+    ),
+    (
+      'garden-current-owner-due',
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '80000000-0000-0000-0000-000000000009'::uuid,
+      date_trunc('month', current_date)::date,
+      'owner_due_to_ips'::public.owner_balance_component,
+      0.00::numeric,
+      'Garden Court verified zero owner payable opening',
+      'FIXTURE-GARDEN-OPENING-OWNER-DUE-001', repeat('b', 64),
+      'fixture-garden-opening-owner-due-v1'
+    ),
+    (
+      'garden-current-ips-due',
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '80000000-0000-0000-0000-000000000009'::uuid,
+      date_trunc('month', current_date)::date,
+      'ips_due_to_owner'::public.owner_balance_component,
+      0.00::numeric,
+      'Garden Court verified zero IPS payable opening',
+      'FIXTURE-GARDEN-OPENING-IPS-DUE-001', repeat('c', 64),
+      'fixture-garden-opening-ips-due-v1'
+    ),
+    (
+      'garden-current-deposit',
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '80000000-0000-0000-0000-000000000009'::uuid,
+      date_trunc('month', current_date)::date,
+      'security_deposit_custody'::public.owner_balance_component,
+      0.00::numeric,
+      'Garden Court verified zero deposit-custody opening',
+      'FIXTURE-GARDEN-OPENING-DEPOSIT-001', repeat('d', 64),
+      'fixture-garden-opening-deposit-v1'
+    ),
+    (
+      'garden-next-held',
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '80000000-0000-0000-0000-000000000012'::uuid,
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      'ips_held_owner_cash'::public.owner_balance_component,
+      0.00::numeric,
+      'Successor verified zero held-cash opening before transfer',
+      'FIXTURE-GARDEN-SUCCESSOR-HELD-001', repeat('e', 64),
+      'fixture-garden-successor-held-v1'
+    ),
+    (
+      'garden-next-owner-due',
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '80000000-0000-0000-0000-000000000012'::uuid,
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      'owner_due_to_ips'::public.owner_balance_component,
+      0.00::numeric,
+      'Successor verified zero owner payable opening before transfer',
+      'FIXTURE-GARDEN-SUCCESSOR-OWNER-DUE-001', repeat('f', 64),
+      'fixture-garden-successor-owner-due-v1'
+    ),
+    (
+      'garden-next-ips-due',
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '80000000-0000-0000-0000-000000000012'::uuid,
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      'ips_due_to_owner'::public.owner_balance_component,
+      0.00::numeric,
+      'Successor verified zero IPS payable opening before transfer',
+      'FIXTURE-GARDEN-SUCCESSOR-IPS-DUE-001', repeat('1', 64),
+      'fixture-garden-successor-ips-due-v1'
+    ),
+    (
+      'garden-next-deposit',
+      '10000000-0000-0000-0000-000000000003'::uuid,
+      '80000000-0000-0000-0000-000000000012'::uuid,
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      'security_deposit_custody'::public.owner_balance_component,
+      0.00::numeric,
+      'Successor verified zero deposit-custody opening before transfer',
+      'FIXTURE-GARDEN-SUCCESSOR-DEPOSIT-001', repeat('2', 64),
+      'fixture-garden-successor-deposit-v1'
+    )
+) AS opening(
+  opening_key,
+  property_id,
+  owner_person_id,
+  effective_date,
+  component,
+  amount,
+  reason,
+  source_reference,
+  evidence_sha256,
+  idempotency_key
+)
+ORDER BY opening.opening_key;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+
+SELECT public.review_owner_opening_balance(
+  '00000000-0000-0000-0000-000000000001',
+  runtime.runtime_id,
+  'approve',
+  'Fixture opening component independently verified',
+  'fixture-owner-balance-approve-' || runtime.runtime_key
+)
+FROM owner_balance_fixture_runtime AS runtime
+WHERE runtime.runtime_key LIKE 'garden-%'
+ORDER BY runtime.runtime_key;
+
+INSERT INTO owner_balance_fixture_runtime (runtime_key, runtime_id)
+SELECT
+  'central-deposit-receipt',
+  public.record_lease_deposit_event(
+    '00000000-0000-0000-0000-000000000001',
+    deposit.id,
+    'received',
+    current_date,
+    100.00,
+    'FIXTURE-OWNER-BALANCE-DEPOSIT-RECEIPT'
+  )
+FROM public.lease_deposits AS deposit
+JOIN public.leases AS lease
+  ON lease.organization_id = deposit.organization_id
+ AND lease.id = deposit.lease_id
+WHERE deposit.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND lease.property_id = '10000000-0000-0000-0000-000000000001'
+  AND deposit.amount = 850.00;
+
+INSERT INTO owner_balance_fixture_runtime (runtime_key, runtime_id)
+SELECT
+  'central-deposit-refund',
+  public.record_lease_deposit_event(
+    '00000000-0000-0000-0000-000000000001',
+    deposit.id,
+    'refunded',
+    current_date,
+    40.00,
+    'FIXTURE-OWNER-BALANCE-DEPOSIT-REFUND'
+  )
+FROM public.lease_deposits AS deposit
+JOIN public.leases AS lease
+  ON lease.organization_id = deposit.organization_id
+ AND lease.id = deposit.lease_id
+WHERE deposit.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND lease.property_id = '10000000-0000-0000-0000-000000000001'
+  AND deposit.amount = 850.00;
+
+INSERT INTO owner_balance_fixture_runtime (runtime_key, runtime_id)
+SELECT
+  'garden-owner-payment',
+  public.record_owner_invoice_payment(
+    '00000000-0000-0000-0000-000000000001',
+    invoice.id,
+    85.00,
+    current_date,
+    'FIXTURE-OWNER-BALANCE-PAYMENT',
+    'fixture-owner-balance-payment-v1'
+  )
+FROM public.owner_invoices AS invoice
+WHERE invoice.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND invoice.property_id = '10000000-0000-0000-0000-000000000003'
+  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+
+SELECT public.allocate_owner_event(
+  '00000000-0000-0000-0000-000000000001',
+  queue.source_type,
+  queue.source_line_id,
+  'fixture-owner-balance-allocate-' || queue.source_type || '-' || queue.source_line_id::text
+)
+FROM public.get_owner_event_allocation_queue(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'USD',
+  date_trunc('month', current_date)::date,
+  (date_trunc('month', current_date) + interval '1 month - 1 day')::date
+) AS queue
+WHERE queue.allocation_state = 'pending'
+ORDER BY queue.event_date, queue.source_type, queue.source_line_id;
+
+SELECT public.allocate_owner_event(
+  '00000000-0000-0000-0000-000000000001',
+  'owner_invoice_payment',
+  allocation.id,
+  'fixture-owner-balance-allocate-owner-payment-' || allocation.id::text
+)
+FROM owner_balance_fixture_runtime AS runtime
+JOIN public.owner_payment_allocations AS allocation
+  ON allocation.organization_id = '00000000-0000-0000-0000-000000000001'
+ AND allocation.owner_payment_id = runtime.runtime_id
+WHERE runtime.runtime_key = 'garden-owner-payment';
+
+SELECT public.reverse_owner_invoice_payment(
+  '00000000-0000-0000-0000-000000000001',
+  runtime.runtime_id,
+  current_date,
+  'Fixture payment reversal preserves exact source lineage',
+  'fixture-owner-balance-payment-reversal-v1'
+)
+FROM owner_balance_fixture_runtime AS runtime
+WHERE runtime.runtime_key = 'garden-owner-payment';
+
+SELECT public.record_owner_cash_event(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD', 'owner_contribution', current_date, 300.00,
+  'Fixture owner contribution',
+  'fixture-owner-balance-central-contribution-v1'
+);
+
+SELECT public.record_owner_cash_event(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD', 'owner_reimbursement', current_date, 40.00,
+  'Fixture owner reimbursement',
+  'fixture-owner-balance-central-reimbursement-v1'
+);
+
+INSERT INTO owner_balance_fixture_runtime (runtime_key, runtime_id)
+SELECT
+  'central-distribution-retained',
+  (public.record_owner_distribution(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004',
+    'USD', 250.00, current_date,
+    'FIXTURE-OWNER-BALANCE-DISTRIBUTION-250',
+    'fixture-owner-balance-distribution-250-v1'
+  )->>'property_withdrawal_id')::uuid;
+
+INSERT INTO owner_balance_fixture_runtime (runtime_key, runtime_id)
+SELECT
+  'central-distribution-reversed',
+  (public.record_owner_distribution(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004',
+    'USD', 50.00, current_date,
+    'FIXTURE-OWNER-BALANCE-DISTRIBUTION-50',
+    'fixture-owner-balance-distribution-50-v1'
+  )->>'property_withdrawal_id')::uuid;
+
+SELECT public.reverse_property_withdrawal(
+  '00000000-0000-0000-0000-000000000001',
+  runtime.runtime_id,
+  current_date,
+  'Fixture safe distribution reversal',
+  'fixture-owner-balance-distribution-reversal-v1'
+)
+FROM owner_balance_fixture_runtime AS runtime
+WHERE runtime.runtime_key = 'central-distribution-reversed';
+
+SELECT public.allocate_owner_event(
+  '00000000-0000-0000-0000-000000000001',
+  queue.source_type,
+  queue.source_line_id,
+  'fixture-owner-balance-allocate-' || queue.source_type || '-' || queue.source_line_id::text
+)
+FROM public.get_owner_event_allocation_queue(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000003',
+  'USD',
+  date_trunc('month', current_date)::date,
+  (date_trunc('month', current_date) + interval '1 month - 1 day')::date
+) AS queue
+WHERE queue.allocation_state = 'pending'
+ORDER BY queue.event_date, queue.source_type, queue.source_line_id;
+
+SELECT public.record_owner_cash_event(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000003',
+  '80000000-0000-0000-0000-000000000009',
+  'USD', 'owner_contribution', current_date, 500.00,
+  'Fixture Garden Court owner contribution',
+  'fixture-owner-balance-garden-contribution-v1'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD',
+  date_trunc('month', current_date)::date,
+  'fixture-owner-balance-central-current-v1'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD',
+  (date_trunc('month', current_date) + interval '1 month')::date,
+  'fixture-owner-balance-central-next-v1'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000003',
+  '80000000-0000-0000-0000-000000000009',
+  'USD',
+  date_trunc('month', current_date)::date,
+  'fixture-owner-balance-garden-current-v1'
+);
+
+SELECT public.transfer_owner_balance_component(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000003',
+  '80000000-0000-0000-0000-000000000009',
+  '80000000-0000-0000-0000-000000000012',
+  'USD',
+  (date_trunc('month', current_date) + interval '1 month')::date,
+  'ips_held_owner_cash', 500.00,
+  'Explicit Garden Court held-cash transfer',
+  'FIXTURE-GARDEN-TRANSFER-HELD-001', repeat('3', 64),
+  'fixture-owner-balance-transfer-held-v1'
+);
+
+SELECT public.transfer_owner_balance_component(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000003',
+  '80000000-0000-0000-0000-000000000009',
+  '80000000-0000-0000-0000-000000000012',
+  'USD',
+  (date_trunc('month', current_date) + interval '1 month')::date,
+  'owner_due_to_ips', 102.80,
+  'Explicit Garden Court owner-payable transfer',
+  'FIXTURE-GARDEN-TRANSFER-OWNER-DUE-001', repeat('4', 64),
+  'fixture-owner-balance-transfer-owner-due-v1'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000003',
+  '80000000-0000-0000-0000-000000000012',
+  'USD',
+  (date_trunc('month', current_date) + interval '1 month')::date,
+  'fixture-owner-balance-garden-next-v1'
+);
+
 RESET ROLE;
 
 COMMIT;

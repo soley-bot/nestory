@@ -66,7 +66,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
   },
   finance_manager: {
     canConfigureLeases: false,
-    canCorrectFinance: false,
+    canCorrectFinance: true,
     canExecuteOperations: false,
     canLockFinancialMonth: true,
     canManageAccess: false,

@@ -244,6 +244,13 @@ export const requireFinanceOperationContext = cache(async () =>
   })),
 );
 
+export const requireFinanceCorrectionContext = cache(async () =>
+  requireCapability("canCorrectFinance").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
 export const requireFinancePettyCashContext = cache(async () =>
   requireCapability("canManagePettyCash").then((context) => ({
     ...context,

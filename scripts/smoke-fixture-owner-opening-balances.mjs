@@ -330,6 +330,7 @@ WITH fixture_request_links AS (
   LEFT JOIN fixture_requests AS request ON request.id = activity.entity_id
   WHERE idem.organization_id = '00000000-0000-0000-0000-000000000001'
     AND idem.operation IN ('submit_owner_opening_balance', 'review_owner_opening_balance', 'submit_owner_opening_balance_correction')
+    AND request.id IS NOT NULL
 )
 SELECT json_build_object(
   'organizationId', '00000000-0000-0000-0000-000000000001',

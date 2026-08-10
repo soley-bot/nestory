@@ -20,6 +20,7 @@ describe("resolveActivityEntityTarget", () => {
       "tenant_invoice_payment",
       "owner_collection_confirmation",
       "owner_payment",
+      "property_withdrawal",
       "owner_opening_balance_request",
       "petty_cash_entry",
       "petty_cash_account",
@@ -213,6 +214,22 @@ describe("resolveActivityEntityTarget", () => {
       focusMode: "module",
       href: "/balances",
       recordLabel: "Owner payment recorded",
+    });
+  });
+
+  it("routes owner distribution activity to Balances", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "property_withdrawal",
+        recordLabel: "Owner withdrawal reversed",
+      }),
+    ).toEqual({
+      actionLabel: "Open Balances",
+      entityLabel: "Owner distribution",
+      focusMode: "module",
+      href: "/balances",
+      recordLabel: "Owner withdrawal reversed",
     });
   });
 

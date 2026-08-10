@@ -65,7 +65,8 @@ SELECT ok(
   has_function_privilege('authenticated', 'public.record_tenant_invoice_payment(uuid,uuid,numeric,date,uuid,text,jsonb,text)', 'EXECUTE')
   AND has_function_privilege('authenticated', 'public.confirm_owner_collected_rent(uuid,uuid,numeric,date,text,jsonb,text)', 'EXECUTE')
   AND has_function_privilege('authenticated', 'public.record_owner_invoice_payment(uuid,uuid,numeric,date,text,text)', 'EXECUTE')
-  AND has_function_privilege('authenticated', 'public.record_property_withdrawal(uuid,uuid,numeric,date,text,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.record_property_withdrawal(uuid,uuid,numeric,date,text,text)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.record_owner_distribution(uuid,uuid,uuid,public.currency_code,numeric,date,text,text)', 'EXECUTE')
   AND has_function_privilege('authenticated', 'public.recover_rent_generation_exception(uuid,uuid)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.record_tenant_invoice_payment_internal(uuid,uuid,numeric,date,uuid,text,jsonb,text)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.confirm_owner_collected_rent_internal(uuid,uuid,numeric,date,text,jsonb,text)', 'EXECUTE')
@@ -82,7 +83,7 @@ SELECT ok(
       ('public', 'confirm_owner_collected_rent'),
       ('public', 'confirm_owner_collected_rent_internal'),
       ('public', 'record_owner_invoice_payment'),
-      ('public', 'record_property_withdrawal'),
+      ('public', 'record_owner_distribution'),
       ('public', 'record_tenant_invoice_payment'),
       ('public', 'record_tenant_invoice_payment_internal')
     )
@@ -279,8 +280,8 @@ SELECT pg_temp.checked_granular_authority_results_eq(
       app_private.can_correct_finance(organization_id)
     FROM granular_authority_state
   $$,
-  $$ VALUES (true, true, false, true, true, false, true, false) $$,
-  'Finance Manager receives ordinary operation authority without configuration, unlock, or correction authority'
+  $$ VALUES (true, true, false, true, true, false, true, true) $$,
+  'Finance Manager receives ordinary operation and accepted Track 3 correction authority without configuration or unlock authority'
 );
 
 SELECT throws_ok(

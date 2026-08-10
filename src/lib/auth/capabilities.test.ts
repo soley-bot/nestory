@@ -61,7 +61,7 @@ describe("workspace role capabilities", () => {
     [
       "finance_manager",
       {
-        canCorrectFinance: false,
+        canCorrectFinance: true,
         canLockFinancialMonth: true,
         canManagePettyCash: true,
         canManageReconciliationSources: false,
@@ -114,10 +114,10 @@ describe("workspace role capabilities", () => {
     expect(getWorkspaceCapabilities(role)).toMatchObject(expected);
   });
 
-  it("keeps Finance Manager outside paid-cost submission and structural or correction authority", () => {
+  it("delegates only guarded ordinary correction while keeping structural authority denied", () => {
     expect(getWorkspaceCapabilities("finance_manager")).toMatchObject({
       canConfigureLeases: false,
-      canCorrectFinance: false,
+      canCorrectFinance: true,
       canManageAccess: false,
       canManageReconciliationSources: false,
       canReverseExpense: false,

@@ -381,7 +381,9 @@ function getScreen(
     return {
       activeRoute: "/balances" as const,
       actions:
-        props.canRecordOwnerCash && position && position.availableWithdrawal > 0 ? (
+        props.canRecordOwnerCash &&
+        position?.ownerPersonId &&
+        position.availableWithdrawal > 0 ? (
           <Button
             onClick={() => openModal({ mode: "withdrawal", position })}
             variant="default"
@@ -1312,7 +1314,9 @@ function BalancesView({
                             Owner payment
                           </Button>
                         ) : null}
-                        {canRecordOwnerCash && position.availableWithdrawal > 0 ? (
+                        {canRecordOwnerCash &&
+                        position.ownerPersonId &&
+                        position.availableWithdrawal > 0 ? (
                           <Button
                             onClick={() =>
                               openModal({ mode: "withdrawal", position })
@@ -2524,6 +2528,11 @@ function WithdrawalForm({
         ]}
       />
       <input name="propertyId" type="hidden" value={position.propertyId} />
+      <input
+        name="ownerPersonId"
+        type="hidden"
+        value={position.ownerPersonId ?? ""}
+      />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount">
@@ -2541,7 +2550,7 @@ function WithdrawalForm({
           />
         </Field>
         <Field label="Reference">
-          <Input name="reference" placeholder="Bank transfer or note" />
+          <Input name="reference" placeholder="Bank transfer or note" required />
         </Field>
       </div>
       <ActionMessage state={state} />

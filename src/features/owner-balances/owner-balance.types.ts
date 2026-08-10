@@ -145,3 +145,72 @@ export type OpeningBalanceAuthorityData = {
   groups: OwnerOpeningAuthorityGroup[];
   readiness: OwnerRosterReadinessRecord[];
 };
+
+export type OwnerBalancePeriodStatus = "blocked" | "closed" | "ready" | "stale";
+
+export type OwnerBalancePeriodComponentRecord = {
+  component: OwnerBalanceComponent;
+  openingAmount: CanonicalOwnerBalanceAmount;
+  movementAmount: CanonicalOwnerBalanceAmount;
+  closingAmount: CanonicalOwnerBalanceAmount;
+};
+
+export type OwnerBalancePeriodRecord = {
+  id: string;
+  monthStart: string;
+  status: OwnerBalancePeriodStatus;
+  components: OwnerBalancePeriodComponentRecord[];
+  availableWithdrawal: CanonicalOwnerBalanceAmount | null;
+  inputWatermark: string | null;
+  inputHash: string | null;
+  blockedReasonCode: string | null;
+  blockedReasonDetail: unknown;
+};
+
+export type OwnerEventAllocationQueueRecord = {
+  sourceType: string;
+  sourceId: string;
+  sourceLineId: string;
+  eventDate: string;
+  grossSignedAmount: CanonicalOwnerBalanceAmount;
+  allocationState: string;
+  remediationCode: string | null;
+  remediationDetail: unknown;
+  allocationSetId: string | null;
+};
+
+export type OwnerBalanceSourceMovementRecord = {
+  id: string;
+  component: OwnerBalanceComponent;
+  signedAmount: CanonicalOwnerBalanceAmount;
+  reversalOfMovementId: string | null;
+};
+
+export type OwnerBalanceSourceRecord = {
+  allocationSetId: string;
+  eventDate: string;
+  sourceType: string;
+  sourceId: string;
+  sourceLineId: string;
+  grossSignedAmount: CanonicalOwnerBalanceAmount;
+  sourceFingerprint: string;
+  allocationBasis: string;
+  allocatedGrossSignedAmount: CanonicalOwnerBalanceAmount;
+  ownershipPercentSnapshot: string;
+  ownershipRosterHash: string;
+  reversalOfAllocationSetId: string | null;
+  movements: OwnerBalanceSourceMovementRecord[];
+};
+
+export type OwnerBalanceOption = {
+  id: string;
+  label: string;
+};
+
+export type OwnerBalanceData = {
+  periods: OwnerBalancePeriodRecord[];
+  queue: OwnerEventAllocationQueueRecord[];
+  sources: OwnerBalanceSourceRecord[];
+  propertyOptions: OwnerBalanceOption[];
+  ownerOptions: OwnerBalanceOption[];
+};

@@ -3587,6 +3587,247 @@ export type Database = {
         }
         Relationships: []
       }
+      owner_balance_period_components: {
+        Row: {
+          closing_amount: number
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          created_at: string
+          created_by: string
+          id: string
+          movement_amount: number
+          opening_amount: number
+          organization_id: string
+          owner_balance_period_id: string
+        }
+        Insert: {
+          closing_amount: number
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          created_at?: string
+          created_by: string
+          id?: string
+          movement_amount: number
+          opening_amount: number
+          organization_id: string
+          owner_balance_period_id: string
+        }
+        Update: {
+          closing_amount?: number
+          component?: Database["public"]["Enums"]["owner_balance_component"]
+          created_at?: string
+          created_by?: string
+          id?: string
+          movement_amount?: number
+          opening_amount?: number
+          organization_id?: string
+          owner_balance_period_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_balance_period_components_period_fk"
+            columns: ["organization_id", "owner_balance_period_id"]
+            isOneToOne: false
+            referencedRelation: "owner_balance_periods"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      owner_balance_periods: {
+        Row: {
+          blocked_reason_code: string | null
+          blocked_reason_detail: Json | null
+          closed_revision_id: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          generated_at: string
+          generated_by: string
+          id: string
+          input_hash: string
+          input_watermark: string
+          month_start: string
+          organization_id: string
+          owner_person_id: string
+          property_id: string
+          stale_at: string | null
+          stale_reason: string | null
+          status: string
+        }
+        Insert: {
+          blocked_reason_code?: string | null
+          blocked_reason_detail?: Json | null
+          closed_revision_id?: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
+          generated_at: string
+          generated_by: string
+          id?: string
+          input_hash: string
+          input_watermark: string
+          month_start: string
+          organization_id: string
+          owner_person_id: string
+          property_id: string
+          stale_at?: string | null
+          stale_reason?: string | null
+          status: string
+        }
+        Update: {
+          blocked_reason_code?: string | null
+          blocked_reason_detail?: Json | null
+          closed_revision_id?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          input_hash?: string
+          input_watermark?: string
+          month_start?: string
+          organization_id?: string
+          owner_person_id?: string
+          property_id?: string
+          stale_at?: string | null
+          stale_reason?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_balance_periods_owner_fk"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_balance_periods_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_balance_periods_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+        ]
+      }
+      owner_cash_events: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          event_date: string
+          event_type: string
+          id: string
+          idempotency_key: string
+          organization_id: string
+          owner_person_id: string
+          payload_hash: string
+          property_id: string
+          reason: string
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          event_date: string
+          event_type: string
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          owner_person_id: string
+          payload_hash: string
+          property_id: string
+          reason: string
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          event_date?: string
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          owner_person_id?: string
+          payload_hash?: string
+          property_id?: string
+          reason?: string
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_cash_events_owner_fk"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_cash_events_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_cash_events_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+        ]
+      }
+      owner_cash_source_consumptions: {
+        Row: {
+          consumed_amount: number
+          consumer_movement_id: string
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+          source_movement_id: string
+        }
+        Insert: {
+          consumed_amount: number
+          consumer_movement_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          organization_id: string
+          source_movement_id: string
+        }
+        Update: {
+          consumed_amount?: number
+          consumer_movement_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id?: string
+          source_movement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_cash_source_consumptions_consumer_fk"
+            columns: ["organization_id", "consumer_movement_id"]
+            isOneToOne: false
+            referencedRelation: "owner_component_movements"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_cash_source_consumptions_source_fk"
+            columns: ["organization_id", "source_movement_id"]
+            isOneToOne: false
+            referencedRelation: "owner_component_movements"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       owner_charge_cash_allocations: {
         Row: {
           allocation_date: string
@@ -3927,6 +4168,386 @@ export type Database = {
             columns: ["organization_id", "reversal_of_id"]
             isOneToOne: false
             referencedRelation: "owner_collection_confirmations"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      owner_component_movements: {
+        Row: {
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          event_date: string
+          id: string
+          month_start: string
+          movement_order: number
+          organization_id: string
+          owner_event_owner_allocation_id: string
+          owner_person_id: string
+          property_id: string
+          reversal_of_movement_id: string | null
+          signed_amount: number
+        }
+        Insert: {
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          created_at?: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          event_date: string
+          id?: string
+          month_start: string
+          movement_order: number
+          organization_id: string
+          owner_event_owner_allocation_id: string
+          owner_person_id: string
+          property_id: string
+          reversal_of_movement_id?: string | null
+          signed_amount: number
+        }
+        Update: {
+          component?: Database["public"]["Enums"]["owner_balance_component"]
+          created_at?: string
+          created_by?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          event_date?: string
+          id?: string
+          month_start?: string
+          movement_order?: number
+          organization_id?: string
+          owner_event_owner_allocation_id?: string
+          owner_person_id?: string
+          property_id?: string
+          reversal_of_movement_id?: string | null
+          signed_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_component_movements_allocation_fk"
+            columns: ["organization_id", "owner_event_owner_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "owner_event_owner_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_component_movements_owner_fk"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_component_movements_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_component_movements_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_component_movements_reversal_fk"
+            columns: ["organization_id", "reversal_of_movement_id"]
+            isOneToOne: false
+            referencedRelation: "owner_component_movements"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      owner_component_transfer_instructions: {
+        Row: {
+          amount: number
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          effective_date: string
+          evidence_reference: string
+          evidence_sha256: string
+          from_owner_person_id: string
+          id: string
+          idempotency_key: string
+          organization_id: string
+          payload_hash: string
+          property_id: string
+          reason: string
+          to_owner_person_id: string
+        }
+        Insert: {
+          amount: number
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          created_at?: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          effective_date: string
+          evidence_reference: string
+          evidence_sha256: string
+          from_owner_person_id: string
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          payload_hash: string
+          property_id: string
+          reason: string
+          to_owner_person_id: string
+        }
+        Update: {
+          amount?: number
+          component?: Database["public"]["Enums"]["owner_balance_component"]
+          created_at?: string
+          created_by?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          effective_date?: string
+          evidence_reference?: string
+          evidence_sha256?: string
+          from_owner_person_id?: string
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          payload_hash?: string
+          property_id?: string
+          reason?: string
+          to_owner_person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_component_transfer_instructions_from_owner_fk"
+            columns: ["organization_id", "from_owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_component_transfer_instructions_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_component_transfer_instructions_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_component_transfer_instructions_to_owner_fk"
+            columns: ["organization_id", "to_owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      owner_component_transfer_lines: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          line_direction: string
+          organization_id: string
+          owner_person_id: string
+          signed_amount: number
+          transfer_instruction_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          line_direction: string
+          organization_id: string
+          owner_person_id: string
+          signed_amount: number
+          transfer_instruction_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          line_direction?: string
+          organization_id?: string
+          owner_person_id?: string
+          signed_amount?: number
+          transfer_instruction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_component_transfer_lines_instruction_fk"
+            columns: ["organization_id", "transfer_instruction_id"]
+            isOneToOne: false
+            referencedRelation: "owner_component_transfer_instructions"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_component_transfer_lines_owner_fk"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      owner_event_allocation_sets: {
+        Row: {
+          allocation_basis: string
+          command_payload_hash: string
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          event_date: string
+          explicit_owner_person_id: string | null
+          gross_signed_amount: number
+          id: string
+          idempotency_key: string
+          organization_id: string
+          property_id: string
+          reversal_of_allocation_set_id: string | null
+          source_fingerprint: string
+          source_id: string
+          source_line_id: string
+          source_type: string
+        }
+        Insert: {
+          allocation_basis: string
+          command_payload_hash: string
+          created_at?: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          event_date: string
+          explicit_owner_person_id?: string | null
+          gross_signed_amount: number
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          property_id: string
+          reversal_of_allocation_set_id?: string | null
+          source_fingerprint: string
+          source_id: string
+          source_line_id: string
+          source_type: string
+        }
+        Update: {
+          allocation_basis?: string
+          command_payload_hash?: string
+          created_at?: string
+          created_by?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          event_date?: string
+          explicit_owner_person_id?: string | null
+          gross_signed_amount?: number
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          property_id?: string
+          reversal_of_allocation_set_id?: string | null
+          source_fingerprint?: string
+          source_id?: string
+          source_line_id?: string
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_event_allocation_sets_explicit_owner_fk"
+            columns: ["organization_id", "explicit_owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_event_allocation_sets_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_event_allocation_sets_property_fk"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_event_allocation_sets_reversal_fk"
+            columns: ["organization_id", "reversal_of_allocation_set_id"]
+            isOneToOne: false
+            referencedRelation: "owner_event_allocation_sets"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      owner_event_owner_allocations: {
+        Row: {
+          allocated_gross_signed_amount: number
+          allocation_order: number
+          allocation_set_id: string
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+          owner_person_id: string
+          ownership_ended_on_snapshot: string | null
+          ownership_percent_snapshot: number
+          ownership_roster_hash: string
+          ownership_started_on_snapshot: string
+          property_owner_id: string
+        }
+        Insert: {
+          allocated_gross_signed_amount: number
+          allocation_order: number
+          allocation_set_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          organization_id: string
+          owner_person_id: string
+          ownership_ended_on_snapshot?: string | null
+          ownership_percent_snapshot: number
+          ownership_roster_hash: string
+          ownership_started_on_snapshot: string
+          property_owner_id: string
+        }
+        Update: {
+          allocated_gross_signed_amount?: number
+          allocation_order?: number
+          allocation_set_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id?: string
+          owner_person_id?: string
+          ownership_ended_on_snapshot?: string | null
+          ownership_percent_snapshot?: number
+          ownership_roster_hash?: string
+          ownership_started_on_snapshot?: string
+          property_owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_event_owner_allocations_owner_fk"
+            columns: ["organization_id", "owner_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_event_owner_allocations_property_owner_fk"
+            columns: ["organization_id", "property_owner_id"]
+            isOneToOne: false
+            referencedRelation: "property_owners"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_event_owner_allocations_set_fk"
+            columns: ["organization_id", "allocation_set_id"]
+            isOneToOne: false
+            referencedRelation: "owner_event_allocation_sets"
             referencedColumns: ["organization_id", "id"]
           },
         ]
@@ -4425,6 +5046,8 @@ export type Database = {
           owner_invoice_id: string
           owner_invoice_line_id: string
           owner_payment_id: string
+          reversal_of_allocation_id: string | null
+          signed_amount: number
         }
         Insert: {
           allocation_order: number
@@ -4436,6 +5059,8 @@ export type Database = {
           owner_invoice_id: string
           owner_invoice_line_id: string
           owner_payment_id: string
+          reversal_of_allocation_id?: string | null
+          signed_amount: number
         }
         Update: {
           allocation_order?: number
@@ -4447,6 +5072,8 @@ export type Database = {
           owner_invoice_id?: string
           owner_invoice_line_id?: string
           owner_payment_id?: string
+          reversal_of_allocation_id?: string | null
+          signed_amount?: number
         }
         Relationships: [
           {
@@ -4484,11 +5111,19 @@ export type Database = {
             referencedRelation: "owner_payments"
             referencedColumns: ["organization_id", "id"]
           },
+          {
+            foreignKeyName: "owner_payment_allocations_reversal_fk"
+            columns: ["organization_id", "reversal_of_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "owner_payment_allocations"
+            referencedColumns: ["organization_id", "id"]
+          },
         ]
       }
       owner_payments: {
         Row: {
           amount: number
+          command_payload_hash: string | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -4502,9 +5137,12 @@ export type Database = {
           property_id: string
           received_date: string
           reference: string | null
+          reversal_of_id: string | null
+          reversal_reason: string | null
         }
         Insert: {
           amount: number
+          command_payload_hash?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -4518,9 +5156,12 @@ export type Database = {
           property_id: string
           received_date: string
           reference?: string | null
+          reversal_of_id?: string | null
+          reversal_reason?: string | null
         }
         Update: {
           amount?: number
+          command_payload_hash?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -4534,6 +5175,8 @@ export type Database = {
           property_id?: string
           received_date?: string
           reference?: string | null
+          reversal_of_id?: string | null
+          reversal_reason?: string | null
         }
         Relationships: [
           {
@@ -4584,6 +5227,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_payments_reversal_fk"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "owner_payments"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -5242,6 +5892,7 @@ export type Database = {
       property_withdrawals: {
         Row: {
           amount: number
+          command_payload_hash: string | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -5252,10 +5903,13 @@ export type Database = {
           owner_person_id: string
           property_id: string
           reference: string | null
+          reversal_of_id: string | null
+          reversal_reason: string | null
           withdrawal_date: string
         }
         Insert: {
           amount: number
+          command_payload_hash?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -5266,10 +5920,13 @@ export type Database = {
           owner_person_id: string
           property_id: string
           reference?: string | null
+          reversal_of_id?: string | null
+          reversal_reason?: string | null
           withdrawal_date: string
         }
         Update: {
           amount?: number
+          command_payload_hash?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -5280,6 +5937,8 @@ export type Database = {
           owner_person_id?: string
           property_id?: string
           reference?: string | null
+          reversal_of_id?: string | null
+          reversal_reason?: string | null
           withdrawal_date?: string
         }
         Relationships: [
@@ -5317,6 +5976,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "property_withdrawals_reversal_fk"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "property_withdrawals"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -6921,6 +7587,15 @@ export type Database = {
         Args: { p_invitation_id: string }
         Returns: string
       }
+      allocate_owner_event: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_source_line_id: string
+          p_source_type: string
+        }
+        Returns: Json
+      }
       approve_rent_policy_version: {
         Args: { p_organization_id: string; p_policy_id: string }
         Returns: string
@@ -7293,6 +7968,17 @@ export type Database = {
         }
         Returns: string
       }
+      generate_owner_balance_period: {
+        Args: {
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_idempotency_key: string
+          p_month_start: string
+          p_organization_id: string
+          p_owner_person_id: string
+          p_property_id: string
+        }
+        Returns: Json
+      }
       get_expense_submission_evidence: {
         Args: { p_organization_id: string; p_submission_ids: string[] }
         Returns: {
@@ -7441,6 +8127,88 @@ export type Database = {
           staff_name: string
         }[]
       }
+      get_owner_available_withdrawal: {
+        Args: {
+          p_as_of_date: string
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_organization_id: string
+          p_owner_person_id: string
+          p_property_id: string
+        }
+        Returns: Json
+      }
+      get_owner_balance_ledger: {
+        Args: {
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_organization_id: string
+          p_owner_person_id: string
+          p_period_end: string
+          p_period_start: string
+          p_property_id: string
+        }
+        Returns: {
+          available_withdrawal: string
+          blocked_reason_code: string
+          blocked_reason_detail: Json
+          closing_amount: string
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          input_hash: string
+          input_watermark: string
+          month_start: string
+          movement_amount: string
+          opening_amount: string
+          period_id: string
+          period_status: string
+        }[]
+      }
+      get_owner_balance_source_ledger: {
+        Args: {
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_organization_id: string
+          p_owner_person_id: string
+          p_period_end: string
+          p_period_start: string
+          p_property_id: string
+        }
+        Returns: {
+          allocated_gross_signed_amount: string
+          allocation_basis: string
+          allocation_set_id: string
+          component: Database["public"]["Enums"]["owner_balance_component"]
+          event_date: string
+          gross_signed_amount: string
+          movement_id: string
+          ownership_percent_snapshot: string
+          ownership_roster_hash: string
+          reversal_of_allocation_set_id: string
+          reversal_of_movement_id: string
+          signed_amount: string
+          source_fingerprint: string
+          source_id: string
+          source_line_id: string
+          source_type: string
+        }[]
+      }
+      get_owner_event_allocation_queue: {
+        Args: {
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_organization_id: string
+          p_period_end: string
+          p_period_start: string
+          p_property_id: string
+        }
+        Returns: {
+          allocation_set_id: string
+          allocation_state: string
+          event_date: string
+          gross_signed_amount: string
+          remediation_code: string
+          remediation_detail: Json
+          source_id: string
+          source_line_id: string
+          source_type: string
+        }[]
+      }
       get_owner_roster_readiness: {
         Args: { p_cutover_date: string; p_organization_id: string }
         Returns: {
@@ -7564,6 +8332,33 @@ export type Database = {
           p_reference: string
         }
         Returns: string
+      }
+      record_owner_cash_event: {
+        Args: {
+          p_amount: number
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_event_date: string
+          p_event_type: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_person_id: string
+          p_property_id: string
+          p_reason: string
+        }
+        Returns: Json
+      }
+      record_owner_distribution: {
+        Args: {
+          p_amount: number
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_distribution_date: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_person_id: string
+          p_property_id: string
+          p_reference: string
+        }
+        Returns: Json
       }
       record_owner_invoice_payment: {
         Args: {
@@ -7800,6 +8595,26 @@ export type Database = {
         }
         Returns: string
       }
+      reverse_owner_invoice_payment: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_payment_id: string
+          p_reason: string
+          p_reversal_date: string
+        }
+        Returns: Json
+      }
+      reverse_property_withdrawal: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_reversal_date: string
+          p_withdrawal_id: string
+        }
+        Returns: Json
+      }
       reverse_tenant_invoice_payment: {
         Args: {
           p_idempotency_key: string
@@ -8005,6 +8820,23 @@ export type Database = {
           p_reason: string
           p_resubmission_of_request_id: string
           p_source_reference: string
+        }
+        Returns: Json
+      }
+      transfer_owner_balance_component: {
+        Args: {
+          p_amount: number
+          p_component: Database["public"]["Enums"]["owner_balance_component"]
+          p_currency: Database["public"]["Enums"]["currency_code"]
+          p_effective_date: string
+          p_evidence_reference: string
+          p_evidence_sha256: string
+          p_from_owner_person_id: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_property_id: string
+          p_reason: string
+          p_to_owner_person_id: string
         }
         Returns: Json
       }

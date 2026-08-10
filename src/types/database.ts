@@ -135,6 +135,50 @@ type RpcFunctionOverrides = {
       p_review_reason: string | null;
     }
   >;
+  record_owner_cash_event: WithArgs<
+    "record_owner_cash_event",
+    {
+      p_amount: string;
+      p_currency: CurrencyCode;
+      p_event_date: string;
+      p_event_type: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+      p_reason: string;
+    }
+  >;
+  record_owner_distribution: WithArgs<
+    "record_owner_distribution",
+    {
+      p_amount: string;
+      p_currency: CurrencyCode;
+      p_distribution_date: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+      p_reference: string;
+    }
+  >;
+  transfer_owner_balance_component: WithArgs<
+    "transfer_owner_balance_component",
+    {
+      p_amount: string;
+      p_component: OwnerBalanceComponent;
+      p_currency: CurrencyCode;
+      p_effective_date: string;
+      p_evidence_reference: string;
+      p_evidence_sha256: string;
+      p_from_owner_person_id: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_property_id: string;
+      p_reason: string;
+      p_to_owner_person_id: string;
+    }
+  >;
   get_owner_roster_readiness: WithReturns<
     "get_owner_roster_readiness",
     {

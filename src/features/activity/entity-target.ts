@@ -119,6 +119,13 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
     getHref: () => "/balances",
     mode: "module",
   },
+  property_withdrawal: {
+    actionLabel: "Open Balances",
+    entityLabel: "Owner distribution",
+    fallbackRecordLabel: "Owner distribution",
+    getHref: () => "/balances",
+    mode: "module",
+  },
   petty_cash_entry: {
     actionLabel: "Open Petty Cash row",
     entityLabel: "Petty Cash",

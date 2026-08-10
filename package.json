@@ -26,6 +26,7 @@
     "leases:test-relationships": "node scripts/lease-relationship-concurrency.mjs",
     "owners:test-readiness": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/report-owner-roster-preflight.node-test.mjs scripts/owner-roster-readiness-concurrency.node-test.mjs",
     "owners:test-workflow": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/owner-opening-balance-workflow-concurrency.node-test.mjs",
+    "owners:test-lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/owner-balance-lifecycle-concurrency.node-test.mjs",
     "documents:test-evidence-storage": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/document-evidence-storage-cleanup.node-test.mjs scripts/document-evidence-storage.node-test.mjs scripts/document-replacement-concurrency.node-test.mjs scripts/document-storage-lifecycle-concurrency.node-test.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
@@ -33,7 +34,9 @@
     "db:reset": "supabase db reset --local --no-seed",
     "db:test:fixture": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/load-test-fixture.mjs",
     "test:fixture-owner-opening-balances": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/smoke-fixture-owner-opening-balances.mjs",
+    "test:fixture-owner-balance-lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/smoke-fixture-owner-balance-lifecycle.mjs",
     "test:owner-opening-browser-acceptance": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/smoke-owner-opening-browser-acceptance.mjs",
+    "test:owner-balance-browser-acceptance": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/smoke-owner-balance-browser-acceptance.mjs",
     "test:demo-tools": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/hosted-demo-cutover-plan.node-test.mjs scripts/load-test-fixture.node-test.mjs scripts/migration-newline-portability.node-test.mjs scripts/owner-opening-fixture-contract.node-test.mjs scripts/smoke-authenticated-route-discoverability.node-test.mjs scripts/smoke-fixture-finance-manager-day.node-test.mjs scripts/smoke-fixture-role-journeys.node-test.mjs scripts/target-org-dump.node-test.mjs scripts/unit-profit-loss-comparison.node-test.mjs scripts/verify-authenticated-route-discoverability.node-test.mjs",
     "demo:cutover:plan": "node scripts/hosted-demo-cutover-plan.mjs",
     "db:types": "supabase gen types --local --schema public > src/types/database.generated.ts && node -e \"const fs=require('fs');const p='src/types/database.generated.ts';fs.writeFileSync(p,fs.readFileSync(p,'utf8').trimEnd()+'\\n');\""

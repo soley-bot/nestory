@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   requireCurrentRentRetryContext,
+  requireFinanceCorrectionContext,
   requireFinanceOperationContext,
   requireSuperAdminContext,
   requireFinanceReviewContext,
@@ -12,6 +13,7 @@ const {
   rpc,
 } = vi.hoisted(() => ({
   requireCurrentRentRetryContext: vi.fn(),
+  requireFinanceCorrectionContext: vi.fn(),
   requireFinanceOperationContext: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   requireFinanceReviewContext: vi.fn(),
@@ -25,6 +27,7 @@ const {
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
   requireCurrentRentRetryContext,
+  requireFinanceCorrectionContext,
   requireFinanceOperationContext,
   requireSuperAdminContext,
   requireFinanceReviewContext,
@@ -43,6 +46,8 @@ import {
   recordWithdrawalAction,
   recoverLeaseRentPeriodAction,
   recoverRentGenerationExceptionAction,
+  reverseOwnerCollectionConfirmationAction,
+  reverseTenantInvoicePaymentAction,
   reverseExpenseAction,
   reviewExpenseAction,
   submitExpenseAction,
@@ -170,11 +175,15 @@ describe("rent generation recovery action", () => {
 
 describe("ordinary finance operation actions", () => {
   beforeEach(() => {
+    requireFinanceCorrectionContext.mockReset();
     requireFinanceOperationContext.mockReset();
+    requireFinanceReversalContext.mockReset();
     requireSuperAdminContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
     requireFinanceOperationContext.mockResolvedValue({ organizationId });
+    requireFinanceCorrectionContext.mockResolvedValue({ organizationId });
+    requireFinanceReversalContext.mockResolvedValue({ organizationId });
     rpc.mockResolvedValue({ data: "operation-id", error: null });
   });
 
@@ -182,13 +191,57 @@ describe("ordinary finance operation actions", () => {
     [recordTenantInvoicePaymentAction, tenantPaymentForm(), "record_tenant_invoice_payment"],
     [confirmOwnerCollectionAction, ownerCollectionForm(), "confirm_owner_collected_rent"],
     [recordOwnerPaymentAction, ownerPaymentForm(), "record_owner_invoice_payment"],
-    [recordWithdrawalAction, withdrawalForm(), "record_property_withdrawal"],
+    [recordWithdrawalAction, withdrawalForm(), "record_owner_distribution"],
   ] as const)(
     "uses operation authority for %s",
     async (action, formData, rpcName) => {
       await expect(action({}, formData)).resolves.toMatchObject({ status: "success" });
       expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
       expect(requireSuperAdminContext).not.toHaveBeenCalled();
+      expect(rpc).toHaveBeenCalledWith(rpcName, expect.objectContaining({
+        p_organization_id: organizationId,
+      }));
+    },
+  );
+
+  it("records a withdrawal through the explicit-owner authoritative command", async () => {
+    await expect(recordWithdrawalAction({}, withdrawalForm())).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("record_owner_distribution", {
+      p_amount: "50.00",
+      p_currency: "USD",
+      p_distribution_date: "2026-08-09",
+      p_idempotency_key: "owner-withdrawal-1",
+      p_organization_id: organizationId,
+      p_owner_person_id: sourceId,
+      p_property_id: propertyId,
+      p_reference: "Owner transfer",
+    });
+  });
+
+  it("rejects an over-scale owner withdrawal before authorization", async () => {
+    const formData = withdrawalForm();
+    formData.set("amount", "50.001");
+
+    await expect(recordWithdrawalAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+    });
+    expect(requireFinanceOperationContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [reverseTenantInvoicePaymentAction, "reverse_tenant_invoice_payment"],
+    [reverseOwnerCollectionConfirmationAction, "reverse_owner_collection_confirmation"],
+  ] as const)(
+    "uses guarded ordinary-correction authority for %s",
+    async (action, rpcName) => {
+      await expect(action({}, settlementReversalForm())).resolves.toMatchObject({
+        status: "success",
+      });
+      expect(requireFinanceCorrectionContext).toHaveBeenCalledOnce();
+      expect(requireFinanceReversalContext).not.toHaveBeenCalled();
       expect(rpc).toHaveBeenCalledWith(rpcName, expect.objectContaining({
         p_organization_id: organizationId,
       }));
@@ -394,8 +447,18 @@ function withdrawalForm() {
   const formData = new FormData();
   formData.set("amount", "50");
   formData.set("idempotencyKey", "owner-withdrawal-1");
+  formData.set("ownerPersonId", sourceId);
   formData.set("propertyId", propertyId);
   formData.set("reference", "Owner transfer");
   formData.set("withdrawalDate", "2026-08-09");
+  return formData;
+}
+
+function settlementReversalForm() {
+  const formData = new FormData();
+  formData.set("idempotencyKey", "settlement-reversal-1");
+  formData.set("reason", "Duplicate settlement");
+  formData.set("reversalDate", "2026-08-09");
+  formData.set("settlementId", submissionId);
   return formData;
 }

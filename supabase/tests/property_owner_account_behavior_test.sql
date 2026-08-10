@@ -409,25 +409,30 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
-SELECT lives_ok(
+SELECT throws_ok(
   $$
-    UPDATE owner_account_state
-    SET withdrawal_id = public.record_property_withdrawal(
+    SELECT public.record_property_withdrawal(
       organization_id,
       through_property_id,
       400,
       current_date,
       'Owner bank transfer',
       'account-withdrawal-0001'
-    )
+    ) FROM owner_account_state
   $$,
-  'Finance Manager can withdraw only valid available property cash'
+  '42501',
+  'permission denied for function record_property_withdrawal',
+  'Finance Manager cannot use the retired owner-ambiguous withdrawal command'
 );
 
 SELECT is(
-  (SELECT created_by FROM public.property_withdrawals WHERE id = (SELECT withdrawal_id FROM owner_account_state)),
-  '00000000-0000-0000-0000-000000000701'::uuid,
-  'property withdrawal records the Finance Manager actor'
+  (
+    SELECT count(*)
+    FROM public.property_withdrawals
+    WHERE idempotency_key = 'account-withdrawal-0001'
+  ),
+  0::bigint,
+  'denied ambiguous withdrawal leaves no partial source row'
 );
 
 SELECT ok(
@@ -445,7 +450,7 @@ SET withdrawal_id = public.record_property_withdrawal(
   400,
   current_date,
   'Owner bank transfer',
-  'account-withdrawal-admin-fallback'
+  'account-withdrawal-0001'
 )
 WHERE withdrawal_id IS NULL;
 
@@ -484,6 +489,9 @@ SELECT ok(
   ),
   'withdrawal owns one source-linked operational Ledger event'
 );
+
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM owner_account_state), true);
 
 SELECT results_eq(
   $$

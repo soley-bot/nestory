@@ -6,7 +6,17 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for invoice and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(34);
+SELECT plan(36);
+
+SELECT ok(
+  pg_catalog.strpos(
+    pg_catalog.pg_get_functiondef(
+      'app_private.reverse_tenant_invoice_payment_after_date_validation(uuid,uuid,date,text,text)'::regprocedure
+    ),
+    'public.property_owners'
+  ) = 0,
+  'tenant payment reversal locks persisted allocation owners without a current-roster primary-owner guess'
+);
 
 CREATE TEMP TABLE tenant_invoice_state (
   organization_id uuid NOT NULL,
@@ -363,16 +373,29 @@ SELECT throws_ok(
     )
     FROM tenant_invoice_state
   $$,
-  '42501',
-  'Not authorized',
-  'Finance Manager cannot reverse a tenant payment'
+  '23514',
+  'tenant_payment_owner_allocation_required',
+  'Finance Manager tenant correction fails closed until its owner source is allocated'
 );
-SELECT set_config(
-  'request.jwt.claim.sub',
-  (SELECT admin_id::text FROM tenant_invoice_state),
-  true
-);
-RESET ROLE;
+
+SELECT public.allocate_owner_event(
+  state.organization_id,
+  'tenant_rent_receipt',
+  allocation.id,
+  pg_catalog.concat(
+    'invoice-through-source-',
+    pg_catalog.lpad(allocation.allocation_order::text, 3, '0')
+  )
+)
+FROM tenant_invoice_state AS state
+JOIN public.tenant_invoice_payment_allocations AS allocation
+  ON allocation.organization_id = state.organization_id
+  AND allocation.payment_id = state.payment_id
+  AND allocation.reversal_of_allocation_id IS NULL
+JOIN public.tenant_invoice_lines AS line
+  ON line.organization_id = allocation.organization_id
+  AND line.id = allocation.invoice_line_id
+  AND line.line_type = 'rent';
 
 SELECT lives_ok(
   $$
@@ -385,7 +408,7 @@ SELECT lives_ok(
       'invoice-through-reverse-0001'
     )
   $$,
-  'Super Admin can reverse the invoice payment through its domain command'
+  'Finance Manager can reverse an allocated invoice payment through its guarded domain command'
 );
 
 SELECT is(
@@ -451,6 +474,13 @@ SELECT results_eq(
   $$VALUES (-400.00::numeric, -400.00::numeric, true, true)$$,
   'tenant reversal appends exact negative cash and Ledger evidence'
 );
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM tenant_invoice_state),
+  true
+);
+RESET ROLE;
 
 SELECT lives_ok(
   $$
@@ -583,9 +613,9 @@ SELECT throws_ok(
     )
     FROM tenant_invoice_state
   $$,
-  '42501',
-  'Not authorized',
-  'Finance Manager cannot reverse an existing owner collection confirmation'
+  '23514',
+  'owner_collection_owner_allocation_required',
+  'Finance Manager direct-owner correction fails closed until its owner source is allocated'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
@@ -630,6 +660,25 @@ SELECT is(
   'direct-owner confirmation does not issue an IPS cash receipt'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT public.allocate_owner_event(
+  state.organization_id,
+  'owner_direct_rent_receipt',
+  allocation.id,
+  'invoice-owner-source-0001'
+)
+FROM tenant_invoice_state AS state
+JOIN public.owner_collection_confirmation_allocations AS allocation
+  ON allocation.organization_id = state.organization_id
+  AND allocation.confirmation_id = state.confirmation_id
+  AND allocation.reversal_of_allocation_id IS NULL;
+
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
@@ -642,7 +691,7 @@ SELECT lives_ok(
         'invoice-owner-reverse-0001'
       )
   $$,
-  'Super Admin can reverse a direct-owner collection confirmation'
+  'Finance Manager can reverse an allocated direct-owner collection confirmation'
 );
 
 SELECT is(
@@ -657,6 +706,31 @@ SELECT is(
   'an exact owner-confirmation reversal retry returns the first result'
 )
 FROM tenant_invoice_state;
+
+SELECT results_eq(
+  $$
+    SELECT
+      allocation_set.source_type,
+      allocation_set.reversal_of_allocation_set_id IS NOT NULL,
+      count(movement.id)::integer
+    FROM tenant_invoice_state AS state
+    JOIN public.owner_collection_confirmation_allocations AS reversal_allocation
+      ON reversal_allocation.confirmation_id = state.reversal_confirmation_id
+    JOIN public.owner_event_allocation_sets AS allocation_set
+      ON allocation_set.organization_id = reversal_allocation.organization_id
+      AND allocation_set.source_type = 'reversal'
+      AND allocation_set.source_line_id = reversal_allocation.id
+    JOIN public.owner_event_owner_allocations AS owner_allocation
+      ON owner_allocation.organization_id = allocation_set.organization_id
+      AND owner_allocation.allocation_set_id = allocation_set.id
+    LEFT JOIN public.owner_component_movements AS movement
+      ON movement.organization_id = owner_allocation.organization_id
+      AND movement.owner_event_owner_allocation_id = owner_allocation.id
+    GROUP BY allocation_set.source_type, allocation_set.reversal_of_allocation_set_id
+  $$,
+  $$VALUES ('reversal'::text, true, 0::integer)$$,
+  'direct-owner reversal persists exact source lineage and remains activity-only'
+);
 
 SELECT results_eq(
   $$

@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { canonicalizeOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 import {
   requireCurrentRentRetryContext,
+  requireFinanceCorrectionContext,
   requireFinanceOperationContext,
   requireFinanceReviewContext,
   requireFinanceReversalContext,
@@ -24,6 +26,25 @@ const uuid = z
   );
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.");
 const amount = z.coerce.number().positive("Enter an amount greater than zero.");
+const authoritativeOwnerAmount = z.string().transform((value, context) => {
+  try {
+    const canonical = canonicalizeOwnerOpeningAmount(value);
+    if (canonical === "0.00") {
+      context.addIssue({
+        code: "custom",
+        message: "Enter an amount greater than zero.",
+      });
+      return z.NEVER;
+    }
+    return canonical;
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : "Enter a valid exact amount.",
+    });
+    return z.NEVER;
+  }
+});
 const optionalAmount = z.preprocess(
   (value) => (value === "" || value === undefined ? null : value),
   z.coerce.number().nonnegative().nullable(),
@@ -127,10 +148,11 @@ const ownerPaymentSchema = z.object({
 });
 
 const withdrawalSchema = z.object({
-  amount,
+  amount: authoritativeOwnerAmount,
   idempotencyKey: z.string().min(8),
+  ownerPersonId: uuid,
   propertyId: uuid,
-  reference: z.string().trim().max(160),
+  reference: z.string().trim().min(1).max(160),
   withdrawalDate: date,
 });
 
@@ -310,7 +332,7 @@ export async function reverseTenantInvoicePaymentAction(
   );
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireFinanceReversalContext();
+  const context = await requireFinanceCorrectionContext();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("reverse_tenant_invoice_payment", {
     p_idempotency_key: parsed.data.idempotencyKey,
@@ -333,7 +355,7 @@ export async function reverseOwnerCollectionConfirmationAction(
   );
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireFinanceReversalContext();
+  const context = await requireFinanceCorrectionContext();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc(
     "reverse_owner_collection_confirmation",
@@ -470,13 +492,15 @@ export async function recordWithdrawalAction(
   if (!parsed.success) return validationError(parsed.error);
   const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("record_property_withdrawal", {
+  const { error } = await supabase.rpc("record_owner_distribution", {
     p_amount: parsed.data.amount,
+    p_currency: "USD",
+    p_distribution_date: parsed.data.withdrawalDate,
     p_idempotency_key: parsed.data.idempotencyKey,
     p_organization_id: context.organizationId,
+    p_owner_person_id: parsed.data.ownerPersonId,
     p_property_id: parsed.data.propertyId,
     p_reference: parsed.data.reference,
-    p_withdrawal_date: parsed.data.withdrawalDate,
   });
   if (error) return actionError(error.message);
   revalidateFinance();
