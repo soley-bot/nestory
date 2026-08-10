@@ -4,6 +4,7 @@ import {
   publishOwnerStatementAction,
   recordOwnerCloseCorrectionAction,
   reopenOwnerMonthAction,
+  resumeOwnerStatementPublicationAction,
 } from "@/features/owner-close/actions";
 import {
   OWNER_BALANCE_COMPONENT_LABELS,
@@ -181,6 +182,34 @@ function PublicationAuthority({
             type="submit"
           >
             Publish Owner Statement
+          </button>
+        </form>
+      ) : canPublish &&
+        readiness?.existingPublicationId &&
+        readiness.blockers.some((blocker) =>
+          blocker.code === "owner_statement_artifacts_incomplete"
+        ) ? (
+        <form
+          action={resumeOwnerStatementPublicationAction}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300/70 bg-amber-50/60 p-4"
+        >
+          <input name="publicationId" type="hidden" value={readiness.existingPublicationId} />
+          <input
+            name="idempotencyKey"
+            type="hidden"
+            value={`owner-statement-resume-${readiness.existingPublicationId}-${randomUUID()}`}
+          />
+          <div>
+            <p className="font-semibold">Publication incomplete</p>
+            <p className="text-sm text-muted-foreground">
+              Resume verifies retained bytes and creates only the missing official format.
+            </p>
+          </div>
+          <button
+            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+            type="submit"
+          >
+            Resume Owner Statement
           </button>
         </form>
       ) : readiness && readiness.blockers.length > 0 ? (

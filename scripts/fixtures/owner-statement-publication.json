@@ -7,12 +7,23 @@
     "artifactFormats": ["pdf", "xlsx"]
   },
   "reconciliation": {
-    "closingComponents": {
-      "ips_held_owner_cash": "975.00",
-      "owner_due_to_ips": "0.00",
-      "ips_due_to_owner": "0.00",
-      "security_deposit_custody": "0.00"
-    },
+    "components": [
+      { "component": "ips_held_owner_cash", "opening": "1000.00", "movement": "-25.00", "closing": "975.00" },
+      { "component": "owner_due_to_ips", "opening": "0.00", "movement": "0.00", "closing": "0.00" },
+      { "component": "ips_due_to_owner", "opening": "0.00", "movement": "0.00", "closing": "0.00" },
+      { "component": "security_deposit_custody", "opening": "0.00", "movement": "0.00", "closing": "0.00" }
+    ],
+    "lines": [
+      { "number": 1, "kind": "opening", "component": "ips_held_owner_cash", "amount": "1000.00", "sourceCount": 1, "sourceTypes": ["opening_balance_entry"], "sourceReferences": ["opening:ips_held_owner_cash"] },
+      { "number": 2, "kind": "opening", "component": "owner_due_to_ips", "amount": "0.00", "sourceCount": 1, "sourceTypes": ["opening_balance_entry"], "sourceReferences": ["opening:owner_due_to_ips"] },
+      { "number": 3, "kind": "opening", "component": "ips_due_to_owner", "amount": "0.00", "sourceCount": 1, "sourceTypes": ["opening_balance_entry"], "sourceReferences": ["opening:ips_due_to_owner"] },
+      { "number": 4, "kind": "opening", "component": "security_deposit_custody", "amount": "0.00", "sourceCount": 1, "sourceTypes": ["opening_balance_entry"], "sourceReferences": ["opening:security_deposit_custody"] },
+      { "number": 5, "kind": "movement", "component": "ips_held_owner_cash", "amount": "-25.00", "sourceCount": 1, "sourceTypes": ["owner_close_correction"], "sourceReferences": ["correction:ips_held_owner_cash:-25.00"] },
+      { "number": 6, "kind": "closing", "component": "ips_held_owner_cash", "amount": "975.00", "sourceCount": 1, "sourceTypes": ["period_component"], "sourceReferences": ["closing:ips_held_owner_cash"] },
+      { "number": 7, "kind": "closing", "component": "owner_due_to_ips", "amount": "0.00", "sourceCount": 1, "sourceTypes": ["period_component"], "sourceReferences": ["closing:owner_due_to_ips"] },
+      { "number": 8, "kind": "closing", "component": "ips_due_to_owner", "amount": "0.00", "sourceCount": 1, "sourceTypes": ["period_component"], "sourceReferences": ["closing:ips_due_to_owner"] },
+      { "number": 9, "kind": "closing", "component": "security_deposit_custody", "amount": "0.00", "sourceCount": 1, "sourceTypes": ["period_component"], "sourceReferences": ["closing:security_deposit_custody"] }
+    ],
     "unexplainedDifference": "0.00"
   }
 }

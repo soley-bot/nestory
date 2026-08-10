@@ -12,12 +12,16 @@ import type { Database } from "../src/types/database";
 const organizationId = "00000000-0000-0000-0000-000000000001";
 const propertyId = "10000000-0000-0000-0000-000000000004";
 const ownerId = "80000000-0000-0000-0000-000000000014";
+const actorId = "00000000-0000-0000-0000-000000000101";
 let fixturePhase = "initialize";
 
 async function main() {
   fixturePhase = "runtime";
   const runtime = localRuntime();
   const client = createClient<Database>(runtime.apiUrl, runtime.anonKey, {
+    auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
+  });
+  const service = createClient<Database>(runtime.apiUrl, runtime.serviceRoleKey, {
     auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
   });
   await signInFixture(client);
@@ -63,15 +67,41 @@ async function main() {
       upsert: false,
     });
     if (uploaded.error) throw uploaded.error;
-    const sha256 = createHash("sha256").update(artifact.bytes).digest("hex");
-    fixturePhase = `register ${artifact.format}`;
-    const registered = await client.rpc("register_owner_statement_artifact", {
+    const object = await service.rpc("get_owner_statement_artifact_object", {
+      p_actor_id: actorId,
       p_format: artifact.format,
-      p_idempotency_key: `fixture-owner-statement-register-${artifact.format}`,
+      p_organization_id: organizationId,
+      p_publication_id: publicationId,
+      p_storage_path: path,
+    });
+    if (object.error) throw object.error;
+    const storageObjectId = required(object.data, "storage_object_id");
+    const storageObjectVersion = required(object.data, "storage_object_version");
+    const contentType = required(object.data, "content_type");
+    const authoritative = await service.storage.from("owner-statements").download(path);
+    if (authoritative.error || !authoritative.data) {
+      throw authoritative.error ?? new Error("Missing authoritative fixture artifact");
+    }
+    const authoritativeBytes = new Uint8Array(await authoritative.data.arrayBuffer());
+    const sha256 = createHash("sha256").update(authoritativeBytes).digest("hex");
+    if (
+      authoritativeBytes.byteLength !== artifact.bytes.byteLength ||
+      sha256 !== createHash("sha256").update(artifact.bytes).digest("hex")
+    ) throw new Error(`Fixture ${artifact.format} authoritative bytes differ from renderer`);
+    fixturePhase = `register ${artifact.format}`;
+    const registered = await service.rpc("register_owner_statement_artifact_verified", {
+      p_actor_id: actorId,
+      p_content_type: contentType,
+      p_format: artifact.format,
+      p_idempotency_key: artifactReplayKey(
+        "fixture-owner-statement-publish-r3", publicationId, artifact.format,
+      ),
       p_organization_id: organizationId,
       p_publication_id: publicationId,
       p_sha256: sha256,
-      p_size_bytes: artifact.bytes.byteLength,
+      p_size_bytes: authoritativeBytes.byteLength,
+      p_storage_object_id: storageObjectId,
+      p_storage_object_version: storageObjectVersion,
       p_storage_path: path,
     });
     if (registered.error) throw registered.error;
@@ -155,8 +185,17 @@ function localRuntime() {
     .map((match) => [match[1], match[2].replace(/"$/, "")]));
   const apiUrl = values.API_URL;
   const anonKey = values.ANON_KEY ?? values.PUBLISHABLE_KEY;
-  if (!apiUrl || !anonKey) throw new Error("Local Supabase API runtime is unavailable");
-  return { anonKey, apiUrl };
+  const serviceRoleKey = values.SERVICE_ROLE_KEY ?? values.SECRET_KEY;
+  if (!apiUrl || !anonKey || !serviceRoleKey) {
+    throw new Error("Local Supabase API runtime is unavailable");
+  }
+  return { anonKey, apiUrl, serviceRoleKey };
+}
+
+function artifactReplayKey(key: string, publicationId: string, format: "pdf" | "xlsx") {
+  return "owner-statement-artifact-v2:" + createHash("sha256")
+    .update(`owner-statement-artifact-v2\0${key}\0${publicationId}\0${format}`)
+    .digest("hex");
 }
 
 function required(value: unknown, key: string) {

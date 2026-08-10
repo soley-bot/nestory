@@ -60,18 +60,35 @@ const publication = await client.rpc("get_owner_statement_publication", {
   p_publication_id: summary.id,
 });
 assert.ifError(publication.error);
-assert.equal(publication.data.lines.length, 9);
-assert.equal(
-  publication.data.lines.reduce((total, line) => total + line.sources.length, 0),
-  9,
+assert.deepEqual(
+  publication.data.components.map((component) => ({
+    closing: component.closing_amount,
+    component: component.component,
+    movement: component.movement_amount,
+    opening: component.opening_amount,
+  })),
+  manifest.reconciliation.components,
 );
 assert.deepEqual(
-  Object.fromEntries(publication.data.components.map((component) => [
-    component.component,
-    component.closing_amount,
-  ])),
-  manifest.reconciliation.closingComponents,
+  publication.data.lines.map((line) => ({
+    amount: line.signed_amount,
+    component: line.component,
+    kind: line.line_kind,
+    number: line.line_number,
+    sourceCount: line.source_count,
+    sourceReferences: line.sources.map(() => semanticSourceReference(line)),
+    sourceTypes: line.sources.map((source) => source.source_type),
+  })),
+  manifest.reconciliation.lines,
 );
+
+const unexplainedDifference = publication.data.components.reduce(
+  (total, component) => total + cents(component.opening_amount) +
+    cents(component.movement_amount) - cents(component.closing_amount),
+  0,
+);
+assert.equal(unexplainedDifference, 0);
+assert.equal(manifest.reconciliation.unexplainedDifference, "0.00");
 
 for (const artifact of publication.data.artifacts) {
   const downloaded = await client.storage.from("owner-statements")
@@ -87,6 +104,19 @@ process.stdout.write(
   `Owner Statement fixture reconciled ${summary.statement_number}: ` +
   `9 lines, 9 sources, 4 components, PDF/XLSX retained, difference 0.00.\n`,
 );
+
+function semanticSourceReference(line) {
+  if (line.line_kind === "opening") return `opening:${line.component}`;
+  if (line.line_kind === "closing") return `closing:${line.component}`;
+  return `correction:${line.component}:${line.signed_amount}`;
+}
+
+function cents(value) {
+  const match = value.match(/^(-?)(\d+)\.(\d{2})$/);
+  assert.ok(match, `noncanonical fixture amount ${value}`);
+  const magnitude = Number(match[2]) * 100 + Number(match[3]);
+  return match[1] === "-" ? -magnitude : magnitude;
+}
 
 function localRuntime() {
   const result = spawnSync(

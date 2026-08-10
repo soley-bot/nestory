@@ -1,5 +1,5 @@
 import { strFromU8, unzipSync } from "fflate";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildOwnerStatementXlsx,
@@ -85,6 +85,27 @@ describe("official owner statement workbook", () => {
     );
     expect(statement).toMatch(/<c r="[A-Z]+\d+" s="\d+"><v>1250\.00<\/v><\/c>/);
     expect(statement).not.toContain("#REF!");
+  });
+
+  it("is byte-identical across ZIP timestamp buckets and host time zones", () => {
+    const model = mapOwnerStatementPublicationPayload(
+      structuredClone(ownerStatementPublicationPayload),
+    );
+    const originalTimezone = process.env.TZ;
+    vi.useFakeTimers();
+    try {
+      process.env.TZ = "Pacific/Kiritimati";
+      vi.setSystemTime(new Date("2026-08-10T00:00:00.000Z"));
+      const first = buildOwnerStatementXlsx(model);
+
+      process.env.TZ = "America/Adak";
+      vi.setSystemTime(new Date("2026-08-10T00:00:05.000Z"));
+      expect(buildOwnerStatementXlsx(model)).toEqual(first);
+    } finally {
+      vi.useRealTimers();
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    }
   });
 });
 

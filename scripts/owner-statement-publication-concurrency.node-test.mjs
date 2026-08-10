@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { after, beforeEach, test } from "node:test";
@@ -67,6 +68,14 @@ function authenticated(command) {
     SET LOCAL statement_timeout = '15s';
     SELECT set_config('request.jwt.claim.sub', '${superAdminId}', true);
     SET LOCAL ROLE authenticated;
+    ${command}
+    COMMIT;`;
+}
+
+function service(command) {
+  return `BEGIN;
+    SET LOCAL statement_timeout = '15s';
+    SET LOCAL ROLE service_role;
     ${command}
     COMMIT;`;
 }
@@ -184,13 +193,23 @@ function preparePublishedWithPdf() {
     WHERE id = '${revisionId}';`).split(/\r?\n/).at(-1);
   const pdfPath = `${organizationId}/${publicationId}/pdf/owner-statement-${statementNumber}.pdf`;
   const xlsxPath = `${organizationId}/${publicationId}/xlsx/owner-statement-${statementNumber}.xlsx`;
-  run(`INSERT INTO storage.objects (bucket_id, name) VALUES
-    ('owner-statements', '${pdfPath}'), ('owner-statements', '${xlsxPath}');`);
-  run(authenticated(`SELECT public.register_owner_statement_artifact(
-    '${organizationId}', '${publicationId}', 'pdf', '${pdfPath}', repeat('1', 64), 4,
+  const pdfObjectId = randomUUID();
+  const xlsxObjectId = randomUUID();
+  const pdfVersion = "owner-statement-race-pdf-v1";
+  const xlsxVersion = "owner-statement-race-xlsx-v1";
+  run(`INSERT INTO storage.objects (id, bucket_id, name, version, metadata) VALUES
+    ('${pdfObjectId}', 'owner-statements', '${pdfPath}', '${pdfVersion}',
+      '{"mimetype":"application/pdf","size":4}'),
+    ('${xlsxObjectId}', 'owner-statements', '${xlsxPath}', '${xlsxVersion}',
+      '{"mimetype":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","size":5}');`);
+  run(service(`SELECT public.register_owner_statement_artifact_verified(
+    '${organizationId}', '${publicationId}', '${superAdminId}', 'pdf', '${pdfPath}',
+    '${pdfObjectId}', '${pdfVersion}', 'application/pdf', repeat('1', 64), 4,
     'owner-statement-race-register-pdf'
   );`));
-  return { publicationId, revisionId, seriesId, xlsxPath };
+  return {
+    publicationId, revisionId, seriesId, xlsxObjectId, xlsxPath, xlsxVersion,
+  };
 }
 
 beforeEach(() => {
@@ -225,12 +244,14 @@ test("same actor/key/payload concurrent publish returns one publication ID", asy
     WHERE operation = 'publish_owner_statement' AND status = 'pending';`).split(/\r?\n/).at(-1), "0");
 });
 
-test("same actor/key/payload concurrent artifact registration returns one artifact ID", async () => {
+test("same actor/key/payload concurrent verified registration returns one artifact ID", async () => {
   const fixture = preparePublishedWithPdf();
-  const command = (pause) => authenticated(`
+  const command = (pause) => service(`
     ${pause ? "SELECT set_config('app.owner_statement_test_pause', 'artifact_insert', true);" : ""}
-    SELECT public.register_owner_statement_artifact(
-      '${organizationId}', '${fixture.publicationId}', 'xlsx', '${fixture.xlsxPath}',
+    SELECT public.register_owner_statement_artifact_verified(
+      '${organizationId}', '${fixture.publicationId}', '${superAdminId}', 'xlsx',
+      '${fixture.xlsxPath}', '${fixture.xlsxObjectId}', '${fixture.xlsxVersion}',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       repeat('2', 64), 5, 'owner-statement-race-register-xlsx'
     )->>'artifact_id';
   `);
@@ -245,15 +266,17 @@ test("same actor/key/payload concurrent artifact registration returns one artifa
   assert.equal(run(`SELECT count(*) FROM public.owner_statement_artifacts
     WHERE publication_id = '${fixture.publicationId}' AND format = 'xlsx';`).split(/\r?\n/).at(-1), "1");
   assert.equal(run(`SELECT count(*) FROM app_private.financial_idempotency_requests
-    WHERE operation = 'register_owner_statement_artifact' AND status = 'pending';`).split(/\r?\n/).at(-1), "0");
+    WHERE operation = 'register_owner_statement_artifact_verified' AND status = 'pending';`).split(/\r?\n/).at(-1), "0");
 });
 
 test("register-first completion serializes reopen and both commands succeed", async () => {
   const fixture = preparePublishedWithPdf();
-  const register = session(authenticated(`
+  const register = session(service(`
     SELECT set_config('app.owner_statement_test_pause', 'artifact_insert', true);
-    SELECT public.register_owner_statement_artifact(
-      '${organizationId}', '${fixture.publicationId}', 'xlsx', '${fixture.xlsxPath}',
+    SELECT public.register_owner_statement_artifact_verified(
+      '${organizationId}', '${fixture.publicationId}', '${superAdminId}', 'xlsx',
+      '${fixture.xlsxPath}', '${fixture.xlsxObjectId}', '${fixture.xlsxVersion}',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       repeat('2', 64), 5, 'owner-statement-race-register-first-xlsx'
     );
   `));
@@ -268,7 +291,7 @@ test("register-first completion serializes reopen and both commands succeed", as
   assert.equal(a.status, 0, a.stderr);
   assert.equal(b.status, 0, b.stderr);
   assert.equal(run(`SELECT count(*) FROM app_private.financial_idempotency_requests
-    WHERE status = 'pending' AND operation IN ('register_owner_statement_artifact','reopen_owner_month');`).split(/\r?\n/).at(-1), "0");
+    WHERE status = 'pending' AND operation IN ('register_owner_statement_artifact_verified','reopen_owner_month');`).split(/\r?\n/).at(-1), "0");
 });
 
 test("reopen-first loses atomically while the waiting registration completes", async () => {
@@ -281,8 +304,10 @@ test("reopen-first loses atomically while the waiting registration completes", a
     );
   `));
   await waitFor(reopen, "owner_statement_reopen_pause_ready");
-  const register = session(authenticated(`SELECT public.register_owner_statement_artifact(
-    '${organizationId}', '${fixture.publicationId}', 'xlsx', '${fixture.xlsxPath}',
+  const register = session(service(`SELECT public.register_owner_statement_artifact_verified(
+    '${organizationId}', '${fixture.publicationId}', '${superAdminId}', 'xlsx',
+    '${fixture.xlsxPath}', '${fixture.xlsxObjectId}', '${fixture.xlsxVersion}',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     repeat('2', 64), 5, 'owner-statement-race-reopen-first-xlsx'
   );`));
   await new Promise((resolve) => setTimeout(resolve, 150));
@@ -295,5 +320,5 @@ test("reopen-first loses atomically while the waiting registration completes", a
   assert.equal(run(`SELECT count(*) FROM public.owner_close_revisions
     WHERE owner_close_series_id = '${fixture.seriesId}' AND status = 'preparing';`).split(/\r?\n/).at(-1), "0");
   assert.equal(run(`SELECT count(*) FROM app_private.financial_idempotency_requests
-    WHERE status = 'pending' AND operation IN ('register_owner_statement_artifact','reopen_owner_month');`).split(/\r?\n/).at(-1), "0");
+    WHERE status = 'pending' AND operation IN ('register_owner_statement_artifact_verified','reopen_owner_month');`).split(/\r?\n/).at(-1), "0");
 });

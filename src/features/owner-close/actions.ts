@@ -10,6 +10,7 @@ import {
   requireOwnerMonthReopenContext,
   requireOwnerStatementPublicationContext,
 } from "@/lib/auth/context";
+import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { buildOwnerStatementXlsx } from "@/features/reports/data/excel";
 import { buildOwnerStatementPdf } from "@/features/reports/data/pdf";
@@ -63,6 +64,11 @@ const correctionSchema = z.object({
 const publishSchema = z.object({
   idempotencyKey,
   revisionId: uuid,
+});
+
+const resumePublicationSchema = z.object({
+  idempotencyKey,
+  publicationId: uuid,
 });
 
 export async function closeOwnerMonthAction(formData: FormData): Promise<void> {
@@ -130,14 +136,50 @@ export async function publishOwnerStatementAction(formData: FormData): Promise<v
     throw new Error(publication.error.message ?? "Owner Statement publication failed.");
   }
 
-  const publicationId = requiredRpcString(publication.data, "publication_id");
-  const statementNumber = requiredRpcString(publication.data, "statement_number");
-  const model = await loadOwnerStatementPublication(
+  await completeOwnerStatementPublication(
     supabase,
     context.organizationId,
-    publicationId,
+    context.userId,
+    input.idempotencyKey,
+    publication.data,
   );
-  if (model.statementNumber !== statementNumber) {
+}
+
+export async function resumeOwnerStatementPublicationAction(
+  formData: FormData,
+): Promise<void> {
+  const input = parse(resumePublicationSchema, formData);
+  const context = await requireOwnerStatementPublicationContext();
+  const supabase = await createSupabaseServerClient();
+  const publication = await supabase.rpc("resume_owner_statement_publication", {
+    p_idempotency_key: input.idempotencyKey,
+    p_organization_id: context.organizationId,
+    p_publication_id: input.publicationId,
+  });
+  if (publication.error) {
+    throw new Error(publication.error.message ?? "Owner Statement recovery failed.");
+  }
+
+  await completeOwnerStatementPublication(
+    supabase,
+    context.organizationId,
+    context.userId,
+    input.idempotencyKey,
+    publication.data,
+  );
+}
+
+async function completeOwnerStatementPublication(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  actorId: string,
+  commandKey: string,
+  publicationResult: unknown,
+) {
+  const publicationId = requiredRpcString(publicationResult, "publication_id");
+  const statementNumber = requiredRpcString(publicationResult, "statement_number");
+  const model = await loadOwnerStatementPublication(supabase, organizationId, publicationId);
+  if (model.statementNumber !== statementNumber || model.publicationId !== publicationId) {
     throw new Error("Owner Statement publication identity changed during rendering.");
   }
 
@@ -154,30 +196,75 @@ export async function publishOwnerStatementAction(formData: FormData): Promise<v
     },
   ];
   const bucket = supabase.storage.from("owner-statements");
+  const admin = createSupabaseAdminClient();
+  const adminBucket = admin.storage.from("owner-statements");
+  const registeredFormats = new Set((model.artifacts ?? []).map((artifact) => artifact.format));
 
   for (const artifact of artifacts) {
+    if (registeredFormats.has(artifact.format)) continue;
     const storagePath = ownerStatementStoragePath(
-      context.organizationId,
+      organizationId,
       publicationId,
       statementNumber,
       artifact.format,
     );
-    const sha256 = sha256Hex(artifact.bytes);
-    await uploadOrVerifyArtifact(bucket, storagePath, artifact.bytes, artifact.contentType, sha256);
+    const expectedHash = sha256Hex(artifact.bytes);
+    const newlyUploaded = await uploadOrVerifyArtifact(
+      bucket,
+      storagePath,
+      artifact.bytes,
+      artifact.contentType,
+      expectedHash,
+    );
 
-    const registration = await supabase.rpc("register_owner_statement_artifact", {
-      p_format: artifact.format,
-      p_idempotency_key: artifactReplayKey(input.idempotencyKey, artifact.format),
-      p_organization_id: context.organizationId,
-      p_publication_id: publicationId,
-      p_sha256: sha256,
-      p_size_bytes: artifact.bytes.byteLength,
-      p_storage_path: storagePath,
-    });
-    if (registration.error) {
-      throw new Error(
-        registration.error.message ?? `Owner Statement ${artifact.format} registration failed.`,
-      );
+    try {
+      const object = await admin.rpc("get_owner_statement_artifact_object", {
+        p_actor_id: actorId,
+        p_format: artifact.format,
+        p_organization_id: organizationId,
+        p_publication_id: publicationId,
+        p_storage_path: storagePath,
+      });
+      if (object.error) {
+        throw new Error(object.error.message ?? "Artifact object verification failed.");
+      }
+      const objectIdentity = requiredArtifactObject(object.data);
+      const retained = await adminBucket.download(storagePath);
+      if (retained.error || !retained.data) {
+        throw new Error("Owner Statement retained bytes could not be verified.");
+      }
+      const retainedBytes = new Uint8Array(await retained.data.arrayBuffer());
+      const retainedHash = sha256Hex(retainedBytes);
+      if (
+        retainedBytes.byteLength !== artifact.bytes.byteLength ||
+        retainedHash !== expectedHash ||
+        objectIdentity.metadataSizeBytes !== retainedBytes.byteLength ||
+        objectIdentity.contentType !== artifact.contentType
+      ) {
+        throw new Error("Owner Statement retained bytes do not match the frozen renderer.");
+      }
+
+      const registration = await admin.rpc("register_owner_statement_artifact_verified", {
+        p_actor_id: actorId,
+        p_content_type: objectIdentity.contentType,
+        p_format: artifact.format,
+        p_idempotency_key: artifactReplayKey(commandKey, publicationId, artifact.format),
+        p_organization_id: organizationId,
+        p_publication_id: publicationId,
+        p_sha256: retainedHash,
+        p_size_bytes: retainedBytes.byteLength,
+        p_storage_object_id: objectIdentity.storageObjectId,
+        p_storage_object_version: objectIdentity.storageObjectVersion,
+        p_storage_path: storagePath,
+      });
+      if (registration.error) {
+        throw new Error(
+          registration.error.message ?? `Owner Statement ${artifact.format} registration failed.`,
+        );
+      }
+    } catch (error) {
+      if (newlyUploaded) await bucket.remove([storagePath]);
+      throw error;
     }
   }
 
@@ -193,8 +280,15 @@ function ownerStatementStoragePath(
   return `${organizationId}/${publicationId}/${format}/owner-statement-${statementNumber}.${format}`;
 }
 
-function artifactReplayKey(key: string, format: "pdf" | "xlsx") {
-  return `${key.slice(0, 155)}:${format}`;
+function artifactReplayKey(
+  key: string,
+  publicationId: string,
+  format: "pdf" | "xlsx",
+) {
+  const digest = sha256Hex(
+    new TextEncoder().encode(`owner-statement-artifact-v2\0${key}\0${publicationId}\0${format}`),
+  );
+  return `owner-statement-artifact-v2:${digest}`;
 }
 
 function sha256Hex(bytes: Uint8Array) {
@@ -205,6 +299,9 @@ async function uploadOrVerifyArtifact(
   bucket: {
     download(path: string): PromiseLike<{
       data: Blob | null;
+      error: { message?: string; statusCode?: string } | null;
+    }>;
+    remove(paths: string[]): PromiseLike<{
       error: { message?: string; statusCode?: string } | null;
     }>;
     upload(
@@ -219,7 +316,7 @@ async function uploadOrVerifyArtifact(
   expectedHash: string,
 ) {
   const upload = await bucket.upload(path, bytes, { contentType, upsert: false });
-  if (!upload.error) return;
+  if (!upload.error) return true;
   if (!isExistingObjectError(upload.error)) {
     throw new Error("Owner Statement artifact upload failed.");
   }
@@ -232,6 +329,22 @@ async function uploadOrVerifyArtifact(
   if (existingBytes.byteLength !== bytes.byteLength || sha256Hex(existingBytes) !== expectedHash) {
     throw new Error("Existing Owner Statement artifact bytes do not match this publication.");
   }
+  return false;
+}
+
+function requiredArtifactObject(value: unknown) {
+  if (!value || typeof value !== "object") {
+    throw new Error("Owner Statement artifact object returned an invalid response.");
+  }
+  const row = value as Record<string, unknown>;
+  const storageObjectId = requiredRpcString(row, "storage_object_id");
+  const storageObjectVersion = requiredRpcString(row, "storage_object_version");
+  const contentType = requiredRpcString(row, "content_type");
+  const metadataSizeBytes = row.metadata_size_bytes;
+  if (typeof metadataSizeBytes !== "number" || !Number.isSafeInteger(metadataSizeBytes)) {
+    throw new Error("Owner Statement artifact object returned an invalid response.");
+  }
+  return { contentType, metadataSizeBytes, storageObjectId, storageObjectVersion };
 }
 
 function isExistingObjectError(error: { message?: string; statusCode?: string }) {

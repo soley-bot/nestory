@@ -66,7 +66,9 @@ export function buildOwnerStatementXlsx(model: OwnerStatementPublicationModel) {
     "xl/worksheets/sheet2.xml": strToU8(ownerStatementSourceSheetXml(model)),
     "xl/worksheets/sheet3.xml": strToU8(ownerStatementChecksSheetXml(model)),
   };
-  return zipSync(files, { level: 6 });
+  // ZIP stores local DOS date fields. A fixed local calendar value keeps the
+  // official workbook byte-identical across clock buckets and host time zones.
+  return zipSync(files, { level: 6, mtime: new Date(1980, 0, 1, 0, 0, 0) });
 }
 
 type OwnerWorkbookCell = {

@@ -8,6 +8,7 @@ vi.mock("@/features/owner-close/actions", () => ({
   publishOwnerStatementAction: vi.fn(),
   recordOwnerCloseCorrectionAction: vi.fn(),
   reopenOwnerMonthAction: vi.fn(),
+  resumeOwnerStatementPublicationAction: vi.fn(),
 }));
 
 import { OwnerCloseScreen } from "@/features/owner-close/components/owner-close-screen";
@@ -198,6 +199,40 @@ describe("OwnerCloseScreen", () => {
       .toBe("/api/reports/pdf?artifactId=00000000-0000-4000-8000-000000000020");
     expect(screen.getByRole("link", { name: "Download Excel" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Publish Owner Statement" })).toBeNull();
+  });
+
+  it("offers Super Admin a fresh-key resume control for an incomplete publication", () => {
+    const data = closedData();
+    data.publicationReadiness = {
+      blockers: [{ code: "owner_statement_artifacts_incomplete" }],
+      existingPublicationId: publicationId,
+      isReady: false,
+      revisionId: revisionOneId,
+    };
+    data.publications = [{
+      artifacts: [{ format: "pdf", id: "00000000-0000-4000-8000-000000000020" }],
+      contentHash: "f".repeat(64),
+      generatedAt: "2026-09-01T05:00:00Z",
+      id: publicationId,
+      revisionId: revisionOneId,
+      revisionNumber: 1,
+      statementNumber: "OS-202608-000000000000",
+      supersededByPublicationId: null,
+      supersedesPublicationId: null,
+    }];
+
+    render(<OwnerCloseScreen
+      canClose
+      canPublish
+      canReopen
+      data={data}
+      monthStart="2026-08-01"
+      ownerPersonId={ownerId}
+      propertyId={propertyId}
+    />);
+
+    expect(screen.getByText("Publication incomplete")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Resume Owner Statement" })).toBeTruthy();
   });
 });
 

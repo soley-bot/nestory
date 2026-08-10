@@ -5683,6 +5683,7 @@ export type Database = {
       }
       owner_statement_artifacts: {
         Row: {
+          content_type: string
           created_at: string
           created_by: string
           format: string
@@ -5691,9 +5692,12 @@ export type Database = {
           publication_id: string
           sha256: string
           size_bytes: number
+          storage_object_id: string
+          storage_object_version: string
           storage_path: string
         }
         Insert: {
+          content_type: string
           created_at?: string
           created_by: string
           format: string
@@ -5702,9 +5706,12 @@ export type Database = {
           publication_id: string
           sha256: string
           size_bytes: number
+          storage_object_id: string
+          storage_object_version: string
           storage_path: string
         }
         Update: {
+          content_type?: string
           created_at?: string
           created_by?: string
           format?: string
@@ -5713,6 +5720,8 @@ export type Database = {
           publication_id?: string
           sha256?: string
           size_bytes?: number
+          storage_object_id?: string
+          storage_object_version?: string
           storage_path?: string
         }
         Relationships: [
@@ -8797,6 +8806,16 @@ export type Database = {
         Args: { p_artifact_id: string; p_organization_id: string }
         Returns: Json
       }
+      get_owner_statement_artifact_object: {
+        Args: {
+          p_actor_id: string
+          p_format: string
+          p_organization_id: string
+          p_publication_id: string
+          p_storage_path: string
+        }
+        Returns: Json
+      }
       get_owner_statement_publication: {
         Args: { p_organization_id: string; p_publication_id: string }
         Returns: Json
@@ -9045,6 +9064,22 @@ export type Database = {
         }
         Returns: Json
       }
+      register_owner_statement_artifact_verified: {
+        Args: {
+          p_actor_id: string
+          p_content_type: string
+          p_format: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_publication_id: string
+          p_sha256: string
+          p_size_bytes: number
+          p_storage_object_id: string
+          p_storage_object_version: string
+          p_storage_path: string
+        }
+        Returns: Json
+      }
       remove_organization_member_access: {
         Args: { p_member_id: string; p_organization_id: string }
         Returns: string
@@ -9192,6 +9227,14 @@ export type Database = {
       restore_unit: {
         Args: { p_organization_id: string; p_unit_id: string }
         Returns: string
+      }
+      resume_owner_statement_publication: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_publication_id: string
+        }
+        Returns: Json
       }
       reverse_expense: {
         Args: {
