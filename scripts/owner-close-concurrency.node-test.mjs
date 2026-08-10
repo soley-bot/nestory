@@ -161,6 +161,14 @@ function installPauseHarness() {
         PERFORM pg_catalog.set_config('app.owner_close_test_pause', '', true);
         RAISE NOTICE 'owner_close_later_period_pause_ready';
         PERFORM pg_catalog.pg_sleep(2);
+      ELSIF pg_catalog.current_setting('app.owner_close_test_pause', true)
+          = 'earlier_period_close'
+          AND (pg_catalog.to_jsonb(NEW)->>'month_start')::date
+            = pg_catalog.date_trunc('month', current_date)::date
+          AND pg_catalog.to_jsonb(NEW)->>'status' = 'closed' THEN
+        PERFORM pg_catalog.set_config('app.owner_close_test_pause', '', true);
+        RAISE NOTICE 'owner_close_predecessor_close_pause_ready';
+        PERFORM pg_catalog.pg_sleep(2);
       END IF;
       RETURN NEW;
     END;
@@ -474,6 +482,127 @@ function earlierCorrectionSql(revisionId, idempotencyKey, pause = false) {
   `);
 }
 
+function preparePredecessorRecloseRace() {
+  const scope = prepareNestedLaterRevision();
+  const laterRevisionId = run(`
+    SELECT active_revision_id::text
+    FROM public.owner_close_series
+    WHERE organization_id = '${organizationId}'
+      AND id = '${scope.laterSeriesId}';
+  `);
+  return { ...scope, laterRevisionId };
+}
+
+function predecessorRecloseSql(seriesId, label, pause = false) {
+  return authenticatedSql(superAdminId, `
+    SELECT public.reopen_owner_month(
+      '${organizationId}', '${seriesId}',
+      'Predecessor reclose race ${label}',
+      'owner-close-c2-${label}-earlier-reopen'
+    );
+    SELECT public.record_owner_close_correction(
+      '${organizationId}', active_revision_id, 'ips_held_owner_cash',
+      date_trunc('month', current_date)::date, -1800.00,
+      'Reduce predecessor before concurrent later correction',
+      'OWNER-CLOSE-C2-${label}-EARLIER', repeat('7', 64),
+      'owner-close-c2-${label}-earlier-correction'
+    )
+    FROM public.owner_close_series
+    WHERE organization_id = '${organizationId}' AND id = '${seriesId}';
+    SELECT public.generate_owner_balance_period(
+      '${organizationId}', '${centralPropertyId}', '${centralOwnerId}', 'USD',
+      date_trunc('month', current_date)::date,
+      'owner-close-c2-${label}-earlier-reroll'
+    );
+    ${pause ? "SELECT set_config('app.owner_close_test_pause', 'earlier_period_close', true);" : ""}
+    SELECT public.close_owner_month(
+      '${organizationId}', '${centralPropertyId}', '${centralOwnerId}', 'USD',
+      date_trunc('month', current_date)::date,
+      'Reclose predecessor after exact correction',
+      'owner-close-c2-${label}-earlier-close'
+    );
+  `);
+}
+
+function laterSafeCorrectionSql(revisionId, label, pause = false) {
+  return authenticatedSql(superAdminId, `
+    ${pause ? "SELECT set_config('app.owner_close_test_pause', 'correction_insert', true);" : ""}
+    SELECT public.record_owner_close_correction(
+      '${organizationId}', '${revisionId}', 'ips_held_owner_cash',
+      (date_trunc('month', current_date) + interval '1 month')::date, -50.00,
+      'Safe later correction races predecessor reclose',
+      'OWNER-CLOSE-C2-${label}-LATER', repeat('8', 64),
+      'owner-close-c2-${label}-later-correction'
+    );
+  `);
+}
+
+async function runPredecessorCorrectionRace({
+  firstSql,
+  label,
+  marker,
+  secondSql,
+}) {
+  installPauseHarness();
+  const first = spawnSession(firstSql);
+  await waitForMarker(first, marker, 15_000);
+
+  const startedAt = performance.now();
+  const second = spawnSync("docker", psqlArgs(secondSql), {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+    timeout: 20_000,
+  });
+  const secondElapsedMs = performance.now() - startedAt;
+  await first.done;
+
+  assert.equal(first.status, 0, `${label} first session: ${first.stderr}`);
+  assert.equal(second.status, 0, `${label} second session: ${second.stderr}`);
+  assert.doesNotMatch(`${first.stderr}\n${second.stderr}`, /40P01|deadlock detected/i);
+  assert.ok(secondElapsedMs >= 1_500, `${label} second session waited only ${secondElapsedMs}ms`);
+
+  run(authenticatedSql(superAdminId, `
+    SELECT public.generate_owner_balance_period(
+      '${organizationId}', '${centralPropertyId}', '${centralOwnerId}', 'USD',
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      'owner-close-c2-${label}-later-reroll'
+    );
+  `));
+  assert.equal(run(`
+    SELECT jsonb_build_array(
+      to_char(component.opening_amount, 'FM999999999990.00'),
+      to_char(component.movement_amount, 'FM999999999990.00'),
+      to_char(component.closing_amount, 'FM999999999990.00'),
+      (SELECT count(*)
+       FROM app_private.financial_idempotency_requests AS request
+       WHERE request.organization_id = '${organizationId}'
+         AND request.status = 'pending'),
+      (SELECT count(*)
+       FROM public.owner_balance_period_components AS invalid_component
+       JOIN public.owner_balance_periods AS invalid_period
+         ON invalid_period.organization_id = invalid_component.organization_id
+        AND invalid_period.id = invalid_component.owner_balance_period_id
+       WHERE invalid_period.organization_id = '${organizationId}'
+         AND invalid_period.property_id = '${centralPropertyId}'
+         AND invalid_period.owner_person_id = '${centralOwnerId}'
+         AND invalid_component.closing_amount < 0)
+    )
+    FROM public.owner_balance_periods AS period
+    JOIN public.owner_balance_period_components AS component
+      ON component.organization_id = period.organization_id
+     AND component.owner_balance_period_id = period.id
+     AND component.component = 'ips_held_owner_cash'
+    WHERE period.organization_id = '${organizationId}'
+      AND period.property_id = '${centralPropertyId}'
+      AND period.owner_person_id = '${centralOwnerId}'
+      AND period.currency = 'USD'
+      AND period.month_start = (
+        date_trunc('month', current_date) + interval '1 month'
+      )::date;
+  `), '["55.00", "-50.00", "5.00", 0, 0]');
+}
+
 async function runCrossMonthRace({
   firstSql,
   secondSql,
@@ -709,6 +838,40 @@ test("later-month reroll first serializes before an earlier correction", async (
     ),
     expectedLaterStatus: "stale",
     label: "reroll-first-correction",
+  });
+});
+
+test("predecessor reclose first serializes before a later correction", async () => {
+  const scope = preparePredecessorRecloseRace();
+  await runPredecessorCorrectionRace({
+    firstSql: predecessorRecloseSql(
+      scope.earlierSeriesId,
+      "predecessor-first",
+      true,
+    ),
+    secondSql: laterSafeCorrectionSql(
+      scope.laterRevisionId,
+      "predecessor-first",
+    ),
+    marker: "owner_close_predecessor_close_pause_ready",
+    label: "predecessor-first",
+  });
+});
+
+test("later correction first serializes before a predecessor reclose", async () => {
+  const scope = preparePredecessorRecloseRace();
+  await runPredecessorCorrectionRace({
+    firstSql: laterSafeCorrectionSql(
+      scope.laterRevisionId,
+      "later-first",
+      true,
+    ),
+    secondSql: predecessorRecloseSql(
+      scope.earlierSeriesId,
+      "later-first",
+    ),
+    marker: "owner_close_write_pause_ready",
+    label: "later-first",
   });
 });
 

@@ -125,3 +125,46 @@ Verified corrections:
 No browser or complete-matrix rerun is claimed for the correction round. A
 focused independent re-review remains required before Track 4A approval or
 Track 4B work.
+
+## Correction round 2 verification addendum
+
+Focused re-review accepted C1/C3/C4/C5/I1 and retained one C2 gap: a preserved
+later preparing revision could evaluate correction capacity from its stale
+stored opening after the predecessor closing changed.
+
+New migration `20260810135907_owner_close_predecessor_authority.sql` corrects
+only that gap:
+
+- a first-month correction derives opening from the locked approved
+  opening-entry chain for the exact component;
+- a later-month correction locks from the immediate predecessor month forward
+  in ascending order and requires that predecessor period and close series to
+  be closed and current;
+- correction capacity is current opening authority plus the complete target-
+  month movement set plus the proposal exactly once;
+- missing/stale predecessor authority returns typed
+  `owner_close_correction_predecessor_not_current` before lasting effects.
+
+Retained evidence:
+
+| Focused gate | Result |
+| --- | --- |
+| Track 4A pgTAP | 72/72 |
+| Affected finance/security/role pgTAP | 7 files, 293/293 |
+| Owner-close concurrency | 11/11 |
+| Database lint | zero errors; same five legacy warnings |
+| Clean migration reset and guarded fixture | pass |
+| Production build | pass; known multiple-lockfile warning only |
+
+The new literal oracles cover negative-first correction/reroll/safe-second/
+crossing rejection, typed rejection while the predecessor is not current, and
+the reviewer sequence where predecessor held cash changes from `1855.00` to
+`55.00`. The stale later N+1 rejects `-100.00` atomically, accepts safe
+`-50.00`, and rerolls to exact opening `55.00`, movement `-50.00`, closing
+`5.00`.
+
+Two real-session tests cover predecessor-reclose first and later-correction
+first. Both serialize without `40P01`, leave no pending request or negative
+component, and end at the same exact `5.00` later closing. No application/type
+surface changed; the production build is green. No browser or full-matrix rerun is claimed. Focused
+independent re-review is still required; Track 4B remains blocked.

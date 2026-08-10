@@ -99,3 +99,17 @@
   repeated corrections, nested N+1 recovery, cross-month lock order, and exact
   concurrent replay have literal/race coverage. Browser acceptance and the
   expensive full matrix were not rerun under the correction brief.
+- Independent-review correction round 2: the focused re-review accepted
+  C1/C3/C4/C5/I1 and retained only C2 predecessor drift. CLI-generated
+  migration `20260810135907_owner_close_predecessor_authority.sql` now derives
+  first-month opening from the approved entry chain and later-month opening
+  from the immediate closed/current predecessor under ascending multi-month
+  locks. A stale or non-current predecessor rejects atomically with a typed
+  continuity error.
+- Round 2 evidence: Track 4A 72/72; affected finance/security/role pgTAP
+  293/293; owner-close concurrency 11/11 including both predecessor-reclose
+  start orders; clean reset/fixture, DB lint, and production build green. The reviewer sequence
+  now rejects stale-opening `-100.00`, accepts safe `-50.00`, and rerolls exact
+  `55.00 - 50.00 = 5.00`. No application/type API changed; browser and full
+  matrix were not rerun. Focused independent re-review remains mandatory and
+  Track 4B is still blocked.

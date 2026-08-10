@@ -1363,6 +1363,140 @@ SELECT is(
 
 ROLLBACK TO SAVEPOINT track_4a_c2_positive_first;
 
+SAVEPOINT track_4a_c2_negative_first;
+
+UPDATE owner_close_test_runtime AS runtime
+SET revision_three_id = (
+  SELECT series.active_revision_id
+  FROM public.owner_close_series AS series
+  WHERE series.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND series.property_id = '10000000-0000-0000-0000-000000000004'
+    AND series.owner_person_id = '80000000-0000-0000-0000-000000000014'
+    AND series.currency = 'USD'
+    AND series.month_start = (
+      pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months'
+    )::date
+    AND series.state = 'preparing'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.record_owner_close_correction(
+      '00000000-0000-0000-0000-000000000001',
+      revision_three_id, 'ips_held_owner_cash',
+      (pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months')::date,
+      -100.00,
+      'Negative first correction before deterministic reroll',
+      'TRACK-4A-C2-NEGATIVE-FIRST', repeat('4', 64),
+      'track-4a-c2-negative-first'
+    )
+    FROM owner_close_test_runtime
+  $$,
+  'a non-crossing negative first correction is accepted'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000004',
+  '80000000-0000-0000-0000-000000000014',
+  'USD', (pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months')::date,
+  'track-4a-c2-negative-first-reroll'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.record_owner_close_correction(
+      '00000000-0000-0000-0000-000000000001',
+      revision_three_id, 'ips_held_owner_cash',
+      (pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months')::date,
+      -800.00,
+      'Safe second correction after negative first reroll',
+      'TRACK-4A-C2-NEGATIVE-SAFE', repeat('5', 64),
+      'track-4a-c2-negative-safe'
+    )
+    FROM owner_close_test_runtime
+  $$,
+  'a safe negative second correction is accepted after reroll'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000004',
+  '80000000-0000-0000-0000-000000000014',
+  'USD', (pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months')::date,
+  'track-4a-c2-negative-safe-reroll'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.to_char(component.closing_amount, 'FM999999999990.00')
+    FROM public.owner_balance_periods AS period
+    JOIN public.owner_balance_period_components AS component
+      ON component.organization_id = period.organization_id
+     AND component.owner_balance_period_id = period.id
+    WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND period.property_id = '10000000-0000-0000-0000-000000000004'
+      AND period.owner_person_id = '80000000-0000-0000-0000-000000000014'
+      AND period.month_start = (
+        pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months'
+      )::date
+      AND component.component = 'ips_held_owner_cash'
+  ),
+  '75.00',
+  'negative-first and safe-second movements are each counted exactly once'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.record_owner_close_correction(
+      '00000000-0000-0000-0000-000000000001',
+      revision_three_id, 'ips_held_owner_cash',
+      (pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months')::date,
+      -100.00,
+      'Crossing correction after two negative rerolls must fail',
+      'TRACK-4A-C2-NEGATIVE-CROSSING', repeat('6', 64),
+      'track-4a-c2-negative-crossing'
+    )
+    FROM owner_close_test_runtime
+  $$,
+  '23514',
+  'owner_close_correction_negative_component',
+  'a crossing third correction is rejected after negative-first rerolls'
+);
+
+RESET ROLE;
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      (SELECT count(*) FROM public.owner_close_corrections
+       WHERE idempotency_key = 'track-4a-c2-negative-crossing'),
+      (SELECT count(*) FROM public.owner_event_allocation_sets
+       WHERE idempotency_key = 'track-4a-c2-negative-crossing'),
+      (SELECT count(*) FROM public.owner_component_movements AS movement
+       JOIN public.owner_event_owner_allocations AS owner_allocation
+         ON owner_allocation.organization_id = movement.organization_id
+        AND owner_allocation.id = movement.owner_event_owner_allocation_id
+       JOIN public.owner_event_allocation_sets AS allocation_set
+         ON allocation_set.organization_id = owner_allocation.organization_id
+        AND allocation_set.id = owner_allocation.allocation_set_id
+       WHERE allocation_set.idempotency_key = 'track-4a-c2-negative-crossing'),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests
+       WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+         AND operation = 'record_owner_close_correction'
+         AND idempotency_key = 'track-4a-c2-negative-crossing')
+    )::text
+  ),
+  '[0, 0, 0, 0]',
+  'negative-first crossing rejection leaves no correction authority residue'
+);
+
+ROLLBACK TO SAVEPOINT track_4a_c2_negative_first;
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
 SAVEPOINT track_4a_c3_nested_preparing;
 
 SELECT public.generate_owner_balance_period(
@@ -1536,6 +1670,263 @@ SELECT results_eq(
 );
 
 ROLLBACK TO SAVEPOINT track_4a_c3_nested_preparing;
+
+SAVEPOINT track_4a_c2_predecessor_drift;
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'track-4a-c2-drift-later-r1-ready'
+);
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  true,
+  'Lock predecessor-drift correction test month'
+);
+
+CREATE TEMP TABLE owner_close_c2_drift_runtime (
+  later_series_id uuid,
+  later_revision_two_id uuid,
+  earlier_revision_three_id uuid
+) ON COMMIT DROP;
+GRANT ALL ON TABLE owner_close_c2_drift_runtime TO authenticated;
+INSERT INTO owner_close_c2_drift_runtime DEFAULT VALUES;
+
+WITH closed AS (
+  SELECT public.close_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004', 'USD',
+    (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+    'Close later month before predecessor-drift proof',
+    'track-4a-c2-drift-later-close-r1'
+  ) AS payload
+)
+UPDATE owner_close_c2_drift_runtime
+SET later_series_id = (closed.payload->>'series_id')::uuid
+FROM closed;
+
+WITH reopened AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    runtime.later_series_id,
+    'Preserve later N plus 1 while predecessor closing changes',
+    'track-4a-c2-drift-later-reopen-r2'
+  ) AS payload
+  FROM owner_close_c2_drift_runtime AS runtime
+)
+UPDATE owner_close_c2_drift_runtime
+SET later_revision_two_id = (reopened.payload->>'revision_id')::uuid
+FROM reopened;
+
+WITH reopened AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    runtime.series_id,
+    'Change predecessor closing before later correction',
+    'track-4a-c2-drift-earlier-reopen-r3'
+  ) AS payload
+  FROM owner_close_test_runtime AS runtime
+)
+UPDATE owner_close_c2_drift_runtime
+SET earlier_revision_three_id = (reopened.payload->>'revision_id')::uuid
+FROM reopened;
+
+SELECT public.record_owner_close_correction(
+  '00000000-0000-0000-0000-000000000001',
+  runtime.earlier_revision_three_id, 'ips_held_owner_cash',
+  pg_catalog.date_trunc('month', current_date)::date,
+  -1800.00,
+  'Reduce predecessor held cash before later correction',
+  'TRACK-4A-C2-DRIFT-EARLIER', repeat('7', 64),
+  'track-4a-c2-drift-earlier-correction'
+)
+FROM owner_close_c2_drift_runtime AS runtime;
+
+SELECT throws_ok(
+  $statement$
+    DO $oracle$
+    DECLARE
+      v_revision_id uuid;
+    BEGIN
+      SELECT later_revision_two_id INTO STRICT v_revision_id
+      FROM owner_close_c2_drift_runtime;
+      PERFORM public.record_owner_close_correction(
+        '00000000-0000-0000-0000-000000000001',
+        v_revision_id, 'ips_held_owner_cash',
+        (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+        -1.00,
+        'Predecessor not current must reject before correction effects',
+        'TRACK-4A-C2-DRIFT-NOT-CURRENT', repeat('8', 64),
+        'track-4a-c2-drift-not-current'
+      );
+      RAISE EXCEPTION 'owner_close_correction_predecessor_not_current_missing'
+        USING ERRCODE = 'P0001';
+    END;
+    $oracle$;
+  $statement$,
+  '23514',
+  'owner_close_correction_predecessor_not_current',
+  'later correction rejects while its immediate predecessor is not closed current authority'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  pg_catalog.date_trunc('month', current_date)::date,
+  'track-4a-c2-drift-earlier-reroll'
+);
+SELECT public.close_owner_month(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  pg_catalog.date_trunc('month', current_date)::date,
+  'Reclose predecessor at exact reduced held cash',
+  'track-4a-c2-drift-earlier-close-r3'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.concat_ws(
+      '|', period.status,
+      pg_catalog.to_char(component.closing_amount, 'FM999999999990.00')
+    )
+    FROM public.owner_balance_periods AS period
+    JOIN public.owner_balance_period_components AS component
+      ON component.organization_id = period.organization_id
+     AND component.owner_balance_period_id = period.id
+    WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND period.property_id = '10000000-0000-0000-0000-000000000001'
+      AND period.owner_person_id = '80000000-0000-0000-0000-000000000004'
+      AND period.month_start = pg_catalog.date_trunc('month', current_date)::date
+      AND component.component = 'ips_held_owner_cash'
+  ),
+  'closed|55.00',
+  'the immediate predecessor is reclosed current at exact held cash 55.00'
+);
+
+SELECT throws_ok(
+  $statement$
+    DO $oracle$
+    DECLARE
+      v_revision_id uuid;
+    BEGIN
+      SELECT later_revision_two_id INTO STRICT v_revision_id
+      FROM owner_close_c2_drift_runtime;
+      PERFORM public.record_owner_close_correction(
+        '00000000-0000-0000-0000-000000000001',
+        v_revision_id, 'ips_held_owner_cash',
+        (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+        -100.00,
+        'Crossing later correction must use current predecessor closing',
+        'TRACK-4A-C2-DRIFT-CROSSING', repeat('9', 64),
+        'track-4a-c2-drift-crossing'
+      );
+      RAISE EXCEPTION 'owner_close_correction_negative_component_missing'
+        USING ERRCODE = 'P0001';
+    END;
+    $oracle$;
+  $statement$,
+  '23514',
+  'owner_close_correction_negative_component',
+  'crossing later correction rejects against current predecessor closing, not stale target opening'
+);
+
+RESET ROLE;
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      (SELECT count(*) FROM public.owner_close_corrections
+       WHERE idempotency_key IN (
+         'track-4a-c2-drift-not-current', 'track-4a-c2-drift-crossing'
+       )),
+      (SELECT count(*) FROM public.owner_event_allocation_sets
+       WHERE idempotency_key IN (
+         'track-4a-c2-drift-not-current', 'track-4a-c2-drift-crossing'
+       )),
+      (SELECT count(*) FROM public.owner_component_movements AS movement
+       JOIN public.owner_event_owner_allocations AS owner_allocation
+         ON owner_allocation.organization_id = movement.organization_id
+        AND owner_allocation.id = movement.owner_event_owner_allocation_id
+       JOIN public.owner_event_allocation_sets AS allocation_set
+         ON allocation_set.organization_id = owner_allocation.organization_id
+        AND allocation_set.id = owner_allocation.allocation_set_id
+       WHERE allocation_set.idempotency_key IN (
+         'track-4a-c2-drift-not-current', 'track-4a-c2-drift-crossing'
+       )),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests
+       WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+         AND operation = 'record_owner_close_correction'
+         AND idempotency_key IN (
+           'track-4a-c2-drift-not-current', 'track-4a-c2-drift-crossing'
+         ))
+    )::text
+  ),
+  '[0, 0, 0, 0]',
+  'continuity and crossing rejection leave no correction authority residue'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+SELECT lives_ok(
+  $$
+    SELECT public.record_owner_close_correction(
+      '00000000-0000-0000-0000-000000000001',
+      later_revision_two_id, 'ips_held_owner_cash',
+      (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+      -50.00,
+      'Safe later correction uses current predecessor closing',
+      'TRACK-4A-C2-DRIFT-SAFE', repeat('a', 64),
+      'track-4a-c2-drift-safe'
+    )
+    FROM owner_close_c2_drift_runtime
+  $$,
+  'safe later correction is accepted against current predecessor authority'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004', 'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'track-4a-c2-drift-later-safe-reroll'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      pg_catalog.to_char(component.opening_amount, 'FM999999999990.00'),
+      pg_catalog.to_char(component.movement_amount, 'FM999999999990.00'),
+      pg_catalog.to_char(component.closing_amount, 'FM999999999990.00')
+    FROM public.owner_balance_periods AS period
+    JOIN public.owner_balance_period_components AS component
+      ON component.organization_id = period.organization_id
+     AND component.owner_balance_period_id = period.id
+    WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND period.property_id = '10000000-0000-0000-0000-000000000001'
+      AND period.owner_person_id = '80000000-0000-0000-0000-000000000004'
+      AND period.month_start = (
+        pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month'
+      )::date
+      AND component.component = 'ips_held_owner_cash'
+  $$,
+  $$ VALUES ('55.00'::text, '-50.00'::text, '5.00'::text) $$,
+  'later reroll uses current predecessor closing and remains nonnegative'
+);
+
+ROLLBACK TO SAVEPOINT track_4a_c2_predecessor_drift;
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
 
 
 SELECT lives_ok(
