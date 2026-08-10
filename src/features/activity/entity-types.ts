@@ -10,6 +10,7 @@ export const activityEntityTypes = [
   "tenant_invoice_payment",
   "owner_collection_confirmation",
   "owner_payment",
+  "owner_opening_balance_request",
   "petty_cash_entry",
   "petty_cash_account",
   "petty_cash_period",

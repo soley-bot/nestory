@@ -548,6 +548,7 @@ VALUES (
 );
 
 INSERT INTO public.property_owners (
+  id,
   organization_id,
   property_id,
   person_id,
@@ -562,6 +563,7 @@ INSERT INTO public.property_owners (
 -- Each fixture property is authored as 100.000 percent from the stated date.
 VALUES
   (
+    '90000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000001',
     '10000000-0000-0000-0000-000000000001',
     '80000000-0000-0000-0000-000000000004',
@@ -571,6 +573,7 @@ VALUES
     '00000000-0000-0000-0000-000000000101'
   ),
   (
+    '90000000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000001',
     '10000000-0000-0000-0000-000000000002',
     '80000000-0000-0000-0000-000000000005',
@@ -580,6 +583,7 @@ VALUES
     '00000000-0000-0000-0000-000000000101'
   ),
   (
+    '90000000-0000-0000-0000-000000000003',
     '00000000-0000-0000-0000-000000000001',
     '10000000-0000-0000-0000-000000000003',
     '80000000-0000-0000-0000-000000000009',
@@ -1616,6 +1620,205 @@ FROM public.petty_cash_periods AS period
 WHERE period.organization_id = runtime.organization_id
   AND period.account_id = runtime.petty_cash_account_id
   AND period.period_start = date_trunc('month', current_date)::date;
+
+-- Guarded owner-opening acceptance fixture. Foundational identities and the
+-- explicit effective-dated ownership roster are authored above; every
+-- financial request, decision, correction, and lineage edge below is created
+-- through the checked public workflow. Evidence is reference-only, so loading
+-- or cancelling this fixture never creates a document row or Storage object.
+CREATE TEMP TABLE owner_opening_fixture_runtime (
+  held_request_id uuid,
+  held_entry_id uuid,
+  zero_request_id uuid,
+  zero_entry_id uuid,
+  due_rejected_request_id uuid,
+  due_resubmitted_request_id uuid,
+  due_entry_id uuid,
+  deposit_request_id uuid,
+  deposit_entry_id uuid,
+  zero_rejected_correction_id uuid,
+  zero_resubmitted_correction_id uuid,
+  deposit_pending_correction_id uuid
+) ON COMMIT DROP;
+
+INSERT INTO owner_opening_fixture_runtime DEFAULT VALUES;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000801',
+  true
+);
+
+UPDATE owner_opening_fixture_runtime
+SET held_request_id = (public.submit_owner_opening_balance(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      '80000000-0000-0000-0000-000000000004',
+      'USD', date_trunc('month', current_date)::date,
+      'ips_held_owner_cash', 1250.00,
+      'Audited owner cash held at opening',
+      'FIXTURE-OPENING-CASH-001', NULL, repeat('1', 64), NULL,
+      'fixture-opening-held-submit-v1'
+    )->>'request_id')::uuid,
+    zero_request_id = (public.submit_owner_opening_balance(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      '80000000-0000-0000-0000-000000000004',
+      'USD', date_trunc('month', current_date)::date,
+      'owner_due_to_ips', 0.00,
+      'Audited owner payable is explicitly zero',
+      'FIXTURE-OPENING-ZERO-001', NULL, repeat('2', 64), NULL,
+      'fixture-opening-zero-submit-v1'
+    )->>'request_id')::uuid,
+    due_rejected_request_id = (public.submit_owner_opening_balance(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      '80000000-0000-0000-0000-000000000004',
+      'USD', date_trunc('month', current_date)::date,
+      'ips_due_to_owner', 240.50,
+      'Owner receivable opening under review',
+      'FIXTURE-OPENING-DUE-001', NULL, repeat('3', 64), NULL,
+      'fixture-opening-due-submit-v1'
+    )->>'request_id')::uuid,
+    deposit_request_id = (public.submit_owner_opening_balance(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      '80000000-0000-0000-0000-000000000004',
+      'USD', date_trunc('month', current_date)::date,
+      'security_deposit_custody', 800.00,
+      'Security deposit custody opening verified',
+      'FIXTURE-OPENING-DEPOSIT-001', NULL, repeat('4', 64), NULL,
+      'fixture-opening-deposit-submit-v1'
+    )->>'request_id')::uuid;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+
+UPDATE owner_opening_fixture_runtime AS state
+SET held_entry_id = (public.review_owner_opening_balance(
+      '00000000-0000-0000-0000-000000000001', state.held_request_id,
+      'approve', 'Opening cash evidence independently verified',
+      'fixture-opening-held-approve-v1'
+    )->'entry_ids'->>0)::uuid,
+    zero_entry_id = (public.review_owner_opening_balance(
+      '00000000-0000-0000-0000-000000000001', state.zero_request_id,
+      'approve', 'Authoritative zero independently verified',
+      'fixture-opening-zero-approve-v1'
+    )->'entry_ids'->>0)::uuid,
+    deposit_entry_id = (public.review_owner_opening_balance(
+      '00000000-0000-0000-0000-000000000001', state.deposit_request_id,
+      'approve', 'Deposit custody independently verified',
+      'fixture-opening-deposit-approve-v1'
+    )->'entry_ids'->>0)::uuid;
+
+SELECT public.review_owner_opening_balance(
+  '00000000-0000-0000-0000-000000000001',
+  due_rejected_request_id,
+  'reject', 'Source reference requires linked resubmission',
+  'fixture-opening-due-reject-v1'
+)
+FROM owner_opening_fixture_runtime;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000801',
+  true
+);
+
+UPDATE owner_opening_fixture_runtime AS state
+SET due_resubmitted_request_id = (public.submit_owner_opening_balance(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      '80000000-0000-0000-0000-000000000004',
+      'USD', date_trunc('month', current_date)::date,
+      'ips_due_to_owner', 240.50,
+      'Owner receivable opening source clarified',
+      'FIXTURE-OPENING-DUE-RESUBMIT-001', NULL, repeat('5', 64),
+      state.due_rejected_request_id,
+      'fixture-opening-due-resubmit-v1'
+    )->>'request_id')::uuid;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+
+UPDATE owner_opening_fixture_runtime AS state
+SET due_entry_id = (public.review_owner_opening_balance(
+      '00000000-0000-0000-0000-000000000001',
+      state.due_resubmitted_request_id, 'approve',
+      'Clarified receivable source independently verified',
+      'fixture-opening-due-resubmit-approve-v1'
+    )->'entry_ids'->>0)::uuid;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+
+UPDATE owner_opening_fixture_runtime AS state
+SET zero_rejected_correction_id = (public.submit_owner_opening_balance_correction(
+      '00000000-0000-0000-0000-000000000001', state.zero_entry_id,
+      0.00, 'Reconfirm authoritative zero after reconciliation',
+      'FIXTURE-ZERO-CORRECTION-001', NULL, repeat('6', 64), NULL,
+      'fixture-zero-correction-submit-v1'
+    )->>'request_id')::uuid,
+    deposit_pending_correction_id = (public.submit_owner_opening_balance_correction(
+      '00000000-0000-0000-0000-000000000001', state.deposit_entry_id,
+      825.00, 'Pending deposit custody correction for independent review',
+      'FIXTURE-DEPOSIT-CORRECTION-001', NULL, repeat('7', 64), NULL,
+      'fixture-deposit-correction-submit-v1'
+    )->>'request_id')::uuid;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+
+SELECT public.review_owner_opening_balance(
+  '00000000-0000-0000-0000-000000000001',
+  zero_rejected_correction_id,
+  'reject', 'Zero evidence narration needs clarification',
+  'fixture-zero-correction-reject-v1'
+)
+FROM owner_opening_fixture_runtime;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+
+UPDATE owner_opening_fixture_runtime AS state
+SET zero_resubmitted_correction_id = (
+  public.submit_owner_opening_balance_correction(
+    '00000000-0000-0000-0000-000000000001', state.zero_entry_id,
+    0.00, 'Reconfirmed authoritative zero with clarified source',
+    'FIXTURE-ZERO-CORRECTION-RESUBMIT-001', NULL, repeat('8', 64),
+    state.zero_rejected_correction_id,
+    'fixture-zero-correction-resubmit-v1'
+  )->>'request_id'
+)::uuid;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+
+SELECT public.review_owner_opening_balance(
+  '00000000-0000-0000-0000-000000000001',
+  zero_resubmitted_correction_id,
+  'approve', 'Clarified authoritative zero independently verified',
+  'fixture-zero-correction-resubmit-approve-v1'
+)
+FROM owner_opening_fixture_runtime;
 
 RESET ROLE;
 

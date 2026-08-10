@@ -637,7 +637,8 @@ SELECT results_eq(
 );
 
 SELECT is(
-  (SELECT count(*) FROM public.owner_opening_balance_entries),
+  (SELECT count(*) FROM public.owner_opening_balance_entries
+   WHERE organization_id = 'b2200000-0000-4000-8000-000000000001'),
   0::bigint,
   'submit creates no approved entry'
 );

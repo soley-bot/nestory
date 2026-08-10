@@ -20,6 +20,7 @@ describe("resolveActivityEntityTarget", () => {
       "tenant_invoice_payment",
       "owner_collection_confirmation",
       "owner_payment",
+      "owner_opening_balance_request",
       "petty_cash_entry",
       "petty_cash_account",
       "petty_cash_period",
@@ -212,6 +213,22 @@ describe("resolveActivityEntityTarget", () => {
       focusMode: "module",
       href: "/balances",
       recordLabel: "Owner payment recorded",
+    });
+  });
+
+  it("routes owner-opening workflow activity to Owner balances", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "owner_opening_balance_request",
+        recordLabel: "Opening balance approved",
+      }),
+    ).toEqual({
+      actionLabel: "Open Owner balances",
+      entityLabel: "Owner opening balance",
+      focusMode: "module",
+      href: "/balances",
+      recordLabel: "Opening balance approved",
     });
   });
 

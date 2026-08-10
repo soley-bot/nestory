@@ -178,6 +178,13 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
     getHref: () => "/leases",
     mode: "module",
   },
+  owner_opening_balance_request: {
+    actionLabel: "Open Owner balances",
+    entityLabel: "Owner opening balance",
+    fallbackRecordLabel: "Owner opening request",
+    getHref: () => "/balances",
+    mode: "module",
+  },
   lease_occupancy: {
     actionLabel: "Open Leases",
     entityLabel: "Lease occupancy",

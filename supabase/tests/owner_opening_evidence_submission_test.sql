@@ -292,7 +292,8 @@ SELECT results_eq(
     SELECT
       count(*) FILTER (WHERE document.storage_path = 'b23b0000-0000-4000-8000-000000000001/owner-opening/df76be6a-a789-83d1-e5e0-1b5555b01bc6')::bigint,
       (SELECT count(*) FROM public.owner_opening_balance_requests AS request
-       WHERE request.component = 'owner_due_to_ips')::bigint
+       WHERE request.organization_id = 'b23b0000-0000-4000-8000-000000000001'
+         AND request.component = 'owner_due_to_ips')::bigint
     FROM public.documents AS document
   $$,
   $$ VALUES (0::bigint, 0::bigint) $$,
