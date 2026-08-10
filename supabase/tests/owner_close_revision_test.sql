@@ -150,6 +150,7 @@ SELECT ok(
 CREATE TEMP TABLE owner_close_test_runtime (
   revision_one_id uuid,
   revision_two_id uuid,
+  revision_three_id uuid,
   series_id uuid,
   revision_one_snapshot text,
   revision_one_content_hash text
@@ -413,6 +414,391 @@ SELECT results_eq(
   $$,
   'readiness exposes the literal four-component reconciliation without floating point'
 );
+
+SAVEPOINT track_4a_c1_zero_line_constraint;
+
+RESET ROLE;
+SELECT pg_catalog.set_config(
+  'app.owner_close_write_context', 'checked-owner-close-v1', true
+);
+
+INSERT INTO public.owner_close_series (
+  id, organization_id, property_id, owner_person_id, currency, month_start,
+  state, created_by, state_changed_by
+) VALUES (
+  'c1000000-0000-0000-0000-000000000010',
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD', pg_catalog.date_trunc('month', current_date)::date,
+  'open',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.owner_close_revisions (
+  id, owner_close_series_id, organization_id, property_id, owner_person_id,
+  currency, month_start, revision_number, status, prepared_by
+) VALUES (
+  'c1000000-0000-0000-0000-000000000011',
+  'c1000000-0000-0000-0000-000000000010',
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD', pg_catalog.date_trunc('month', current_date)::date,
+  1, 'preparing',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+UPDATE public.owner_close_series
+SET state = 'preparing',
+    active_revision_id = 'c1000000-0000-0000-0000-000000000011',
+    state_changed_at = pg_catalog.now(),
+    state_changed_by = '00000000-0000-0000-0000-000000000101'
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND id = 'c1000000-0000-0000-0000-000000000010';
+
+SELECT lives_ok(
+  $$
+    INSERT INTO public.owner_close_lines (
+      owner_close_revision_id, organization_id, line_number, line_kind,
+      component, description, business_date, signed_amount, source_count,
+      created_by
+    ) VALUES (
+      'c1000000-0000-0000-0000-000000000011',
+      '00000000-0000-0000-0000-000000000001',
+      1, 'movement', 'ips_held_owner_cash',
+      'Exact zero-cent source movement evidence',
+      pg_catalog.date_trunc('month', current_date)::date,
+      0.00, 1,
+      '00000000-0000-0000-0000-000000000101'
+    )
+  $$,
+  'a checked preparing revision accepts an exact zero-cent movement evidence line'
+);
+
+ROLLBACK TO SAVEPOINT track_4a_c1_zero_line_constraint;
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
+SAVEPOINT track_4a_c1_zero_source_freeze;
+
+RESET ROLE;
+DELETE FROM public.property_owners
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND id = '90000000-0000-0000-0000-000000000005';
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  pg_catalog.date_trunc('month', current_date)::date,
+  false,
+  'Create Track 4A zero-cent source evidence'
+);
+SELECT public.allocate_owner_event(
+  '00000000-0000-0000-0000-000000000001', queue.source_type,
+  queue.source_line_id, 'track-4a-clear-fixture-source-' || queue.source_line_id::text
+)
+FROM public.get_owner_event_allocation_queue(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000002', 'USD',
+  pg_catalog.date_trunc('month', current_date)::date,
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date
+) AS queue
+WHERE queue.allocation_state <> 'allocated';
+
+RESET ROLE;
+UPDATE public.property_owners
+SET ownership_percent = 50.000,
+  updated_by = '00000000-0000-0000-0000-000000000101'
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND id = '90000000-0000-0000-0000-000000000002';
+
+INSERT INTO public.people (
+  id, organization_id, display_name, legal_name, party_type,
+  primary_email, created_by, updated_by
+) VALUES (
+  'c1000000-0000-0000-0000-000000000020',
+  '00000000-0000-0000-0000-000000000001',
+  'Track 4A zero-cent owner', 'Track 4A zero-cent owner', 'individual',
+  'track4a.zero@example.test',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+INSERT INTO public.person_roles (
+  organization_id, person_id, role, status, created_by, updated_by
+) VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'c1000000-0000-0000-0000-000000000020',
+  'owner', 'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+INSERT INTO public.property_owners (
+  id, organization_id, property_id, person_id, ownership_label,
+  ownership_percent, is_primary, started_on, created_by, updated_by
+) VALUES
+  (
+    'c1000000-0000-0000-0000-000000000022',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000002',
+    'c1000000-0000-0000-0000-000000000020',
+    'Equal owner B', 50.000, false,
+    '2024-01-01'::date,
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+SELECT public.record_lease_deposit_event(
+  '00000000-0000-0000-0000-000000000001', deposit.id, 'received',
+  current_date,
+  0.01, 'TRACK4A-ZERO-MOVEMENT'
+)
+FROM public.lease_deposits AS deposit
+JOIN public.leases AS lease
+  ON lease.organization_id = deposit.organization_id
+ AND lease.id = deposit.lease_id
+WHERE deposit.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND lease.property_id = '10000000-0000-0000-0000-000000000002'
+LIMIT 1;
+
+SELECT public.allocate_owner_event(
+  '00000000-0000-0000-0000-000000000001',
+  'security_deposit_receipt', event.id,
+  'track-4a-zero-movement-allocation'
+)
+FROM public.lease_deposit_events AS event
+WHERE event.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND event.reference = 'TRACK4A-ZERO-MOVEMENT';
+
+SELECT public.record_lease_deposit_event(
+  '00000000-0000-0000-0000-000000000001', deposit.id, 'received',
+  current_date,
+  0.01, 'TRACK4A-ZERO-ACTIVITY'
+)
+FROM public.lease_deposits AS deposit
+JOIN public.leases AS lease
+  ON lease.organization_id = deposit.organization_id
+ AND lease.id = deposit.lease_id
+WHERE deposit.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND lease.property_id = '10000000-0000-0000-0000-000000000002'
+LIMIT 1;
+
+RESET ROLE;
+SELECT pg_catalog.set_config(
+  'app.owner_balance_write_context', 'checked-owner-balance-v1', true
+);
+
+WITH source AS (
+  SELECT resolved.*
+  FROM public.lease_deposit_events AS event
+  CROSS JOIN LATERAL app_private.resolve_owner_event_source(
+    event.organization_id, 'security_deposit_receipt', event.id
+  ) AS resolved
+  WHERE event.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND event.reference = 'TRACK4A-ZERO-ACTIVITY'
+)
+INSERT INTO public.owner_event_allocation_sets (
+  id, organization_id, property_id, currency, event_date, source_type,
+  source_id, source_line_id, gross_signed_amount, source_fingerprint,
+  allocation_basis, explicit_owner_person_id, idempotency_key,
+  command_payload_hash, created_by
+)
+SELECT
+  'c1000000-0000-0000-0000-000000000023',
+  '00000000-0000-0000-0000-000000000001', source.property_id,
+  source.currency, source.event_date, 'security_deposit_receipt',
+  source.source_id, event.id, source.gross_signed_amount,
+  source.source_fingerprint, source.allocation_basis,
+  source.explicit_owner_person_id, 'track-4a-zero-activity-allocation',
+  app_private.canonical_financial_payload_hash(
+    pg_catalog.jsonb_build_object('oracle', 'track-4a-zero-activity')
+  ),
+  '00000000-0000-0000-0000-000000000101'
+FROM public.lease_deposit_events AS event
+CROSS JOIN source
+WHERE event.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND event.reference = 'TRACK4A-ZERO-ACTIVITY';
+
+INSERT INTO public.owner_event_owner_allocations (
+  id, allocation_set_id, organization_id, property_owner_id, owner_person_id,
+  ownership_percent_snapshot, ownership_started_on_snapshot,
+  ownership_ended_on_snapshot, ownership_roster_hash,
+  allocated_gross_signed_amount, allocation_order, created_by
+)
+SELECT
+  CASE roster.owner_person_id
+    WHEN '80000000-0000-0000-0000-000000000005'::uuid
+      THEN 'c1000000-0000-0000-0000-000000000024'::uuid
+    ELSE 'c1000000-0000-0000-0000-000000000025'::uuid
+  END,
+  'c1000000-0000-0000-0000-000000000023',
+  '00000000-0000-0000-0000-000000000001',
+  roster.property_owner_id, roster.owner_person_id, roster.ownership_percent,
+  roster.started_on, roster.ended_on, roster.ownership_roster_hash,
+  CASE roster.owner_person_id
+    WHEN '80000000-0000-0000-0000-000000000005'::uuid THEN 0.01
+    ELSE 0.00
+  END,
+  pg_catalog.row_number() OVER (ORDER BY roster.property_owner_id),
+  '00000000-0000-0000-0000-000000000101'
+FROM app_private.validate_owner_roster_on_date(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000002',
+  current_date
+) AS roster;
+
+INSERT INTO public.owner_component_movements (
+  id, organization_id, owner_event_owner_allocation_id, property_id,
+  owner_person_id, currency, event_date, month_start, component,
+  signed_amount, movement_order, created_by
+) VALUES (
+  'c1000000-0000-0000-0000-000000000026',
+  '00000000-0000-0000-0000-000000000001',
+  'c1000000-0000-0000-0000-000000000024',
+  '10000000-0000-0000-0000-000000000002',
+  '80000000-0000-0000-0000-000000000005', 'USD',
+  current_date,
+  pg_catalog.date_trunc('month', current_date)::date,
+  'security_deposit_custody', 0.01, 1,
+  '00000000-0000-0000-0000-000000000101'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  pg_catalog.date_trunc('month', current_date)::date,
+  true,
+  'Track 4A zero-cent frozen evidence oracle'
+);
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000002',
+  'c1000000-0000-0000-0000-000000000020', 'USD',
+  pg_catalog.date_trunc('month', current_date)::date,
+  'track-4a-zero-owner-period'
+);
+
+RESET ROLE;
+SELECT pg_catalog.set_config(
+  'app.owner_balance_period_write_context', 'checked-rollforward-v1', true
+);
+UPDATE public.owner_balance_periods AS period
+SET status = 'ready',
+  blocked_reason_code = NULL,
+  blocked_reason_detail = NULL
+WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND period.property_id = '10000000-0000-0000-0000-000000000002'
+  AND period.owner_person_id = 'c1000000-0000-0000-0000-000000000020'
+  AND period.month_start = pg_catalog.date_trunc('month', current_date)::date;
+INSERT INTO public.owner_balance_period_components (
+  owner_balance_period_id, organization_id, component,
+  opening_amount, movement_amount, closing_amount, created_by
+)
+SELECT period.id, period.organization_id, component.component,
+  0.00, 0.00, 0.00,
+  '00000000-0000-0000-0000-000000000101'
+FROM public.owner_balance_periods AS period
+CROSS JOIN (
+  VALUES
+    ('ips_held_owner_cash'::public.owner_balance_component),
+    ('owner_due_to_ips'::public.owner_balance_component),
+    ('ips_due_to_owner'::public.owner_balance_component),
+    ('security_deposit_custody'::public.owner_balance_component)
+) AS component(component)
+WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND period.property_id = '10000000-0000-0000-0000-000000000002'
+  AND period.owner_person_id = 'c1000000-0000-0000-0000-000000000020'
+  AND period.month_start = pg_catalog.date_trunc('month', current_date)::date;
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.close_owner_month(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000002',
+      'c1000000-0000-0000-0000-000000000020', 'USD',
+      pg_catalog.date_trunc('month', current_date)::date,
+      'Freeze zero-cent split evidence exactly',
+      'track-4a-zero-owner-close'
+    )
+  $$,
+  'a split-cent losing owner closes with zero movement and activity evidence'
+);
+
+SELECT results_eq(
+  $$
+    SELECT line.line_kind, pg_catalog.to_char(line.signed_amount, 'FM999999999990.00'),
+      count(source.id)::integer
+    FROM public.owner_close_series AS series
+    JOIN public.owner_close_lines AS line
+      ON line.organization_id = series.organization_id
+     AND line.owner_close_revision_id = series.current_closed_revision_id
+    JOIN public.owner_close_line_sources AS source
+      ON source.organization_id = line.organization_id
+     AND source.close_line_id = line.id
+    WHERE series.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND series.property_id = '10000000-0000-0000-0000-000000000002'
+      AND series.owner_person_id = 'c1000000-0000-0000-0000-000000000020'
+      AND line.line_kind IN ('movement', 'activity')
+    GROUP BY line.line_kind, line.signed_amount
+    ORDER BY line.line_kind
+  $$,
+  $$ VALUES
+    ('activity'::text, '0.00'::text, 1),
+    ('movement'::text, '0.00'::text, 1)
+  $$,
+  'zero movement and activity allocations freeze once with exact source lineage'
+);
+
+SELECT results_eq(
+  $$
+    SELECT component.component::text,
+      pg_catalog.to_char(component.opening_amount, 'FM999999999990.00'),
+      pg_catalog.to_char(component.movement_amount, 'FM999999999990.00'),
+      pg_catalog.to_char(component.closing_amount, 'FM999999999990.00')
+    FROM public.owner_balance_periods AS period
+    JOIN public.owner_balance_period_components AS component
+      ON component.organization_id = period.organization_id
+     AND component.owner_balance_period_id = period.id
+    WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND period.property_id = '10000000-0000-0000-0000-000000000002'
+      AND period.owner_person_id = 'c1000000-0000-0000-0000-000000000020'
+    ORDER BY component.component::text
+  $$,
+  $$ VALUES
+    ('ips_due_to_owner'::text, '0.00'::text, '0.00'::text, '0.00'::text),
+    ('ips_held_owner_cash'::text, '0.00'::text, '0.00'::text, '0.00'::text),
+    ('owner_due_to_ips'::text, '0.00'::text, '0.00'::text, '0.00'::text),
+    ('security_deposit_custody'::text, '0.00'::text, '0.00'::text, '0.00'::text)
+  $$,
+  'zero-value evidence leaves every authoritative component total unchanged'
+);
+
+ROLLBACK TO SAVEPOINT track_4a_c1_zero_source_freeze;
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
 
 WITH result AS (
   SELECT public.close_owner_month(
@@ -797,6 +1183,360 @@ SELECT is(
   (SELECT revision_one_snapshot FROM owner_close_test_runtime),
   'reopen, correction, reroll, and reclose preserve revision 1 byte-for-byte at the database-value boundary'
 );
+
+RESET ROLE;
+
+SELECT has_column(
+  'public',
+  'owner_close_revisions',
+  'input_canonical',
+  'closed revisions retain the immutable canonical input bytes behind input_hash'
+);
+
+WITH live_snapshot AS (
+  SELECT snapshot.*
+  FROM app_private.owner_close_input_snapshot(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004',
+    'USD', pg_catalog.date_trunc('month', current_date)::date
+  ) AS snapshot
+)
+SELECT is(
+  (
+    SELECT (
+      revision.input_hash = live_snapshot.input_hash
+      AND live_snapshot.input_hash = pg_catalog.encode(
+        extensions.digest(live_snapshot.input_canonical, 'sha256'), 'hex'
+      )
+    )::text
+    FROM public.owner_close_revisions AS revision
+    JOIN owner_close_test_runtime AS runtime
+      ON runtime.revision_two_id = revision.id
+    CROSS JOIN live_snapshot
+  ),
+  'true',
+  'the independent live canonical oracle reproduces revision 2 input_hash shape'
+);
+
+WITH live_snapshot AS (
+  SELECT snapshot.*
+  FROM app_private.owner_close_input_snapshot(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004',
+    'USD', pg_catalog.date_trunc('month', current_date)::date
+  ) AS snapshot
+)
+SELECT is(
+  (
+    SELECT (revision.input_hash = live_snapshot.input_hash)::text
+    FROM public.owner_close_revisions AS revision
+    JOIN owner_close_test_runtime AS runtime
+      ON runtime.revision_one_id = revision.id
+    CROSS JOIN live_snapshot
+  ),
+  'false',
+  'the mutable live snapshot can no longer reproduce revision 1 after reroll and R2 close'
+);
+
+SELECT lives_ok(
+  $statement$
+    DO $oracle$
+    DECLARE
+      v_unreproducible integer;
+    BEGIN
+      SELECT count(*)::integer
+      INTO v_unreproducible
+      FROM public.owner_close_revisions AS revision
+      JOIN owner_close_test_runtime AS runtime
+        ON revision.id IN (runtime.revision_one_id, runtime.revision_two_id)
+      WHERE revision.input_canonical IS NULL
+        OR revision.input_hash IS DISTINCT FROM pg_catalog.encode(
+          extensions.digest(revision.input_canonical, 'sha256'), 'hex'
+        );
+
+      IF v_unreproducible <> 0 THEN
+        RAISE EXCEPTION 'retained owner-close input canonical mismatch';
+      END IF;
+    END;
+    $oracle$;
+  $statement$,
+  'independent retained canonical bytes reproduce both R1 and R2 input hashes'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true
+);
+
+SAVEPOINT track_4a_c2_positive_first;
+
+UPDATE owner_close_test_runtime AS runtime
+SET revision_three_id = (
+  SELECT series.active_revision_id
+  FROM public.owner_close_series AS series
+  WHERE series.organization_id = '00000000-0000-0000-0000-000000000001'
+    AND series.property_id = '10000000-0000-0000-0000-000000000004'
+    AND series.owner_person_id = '80000000-0000-0000-0000-000000000014'
+    AND series.currency = 'USD'
+    AND series.month_start = (
+      pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months'
+    )::date
+    AND series.state = 'preparing'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.record_owner_close_correction(
+      '00000000-0000-0000-0000-000000000001',
+      revision_three_id, 'ips_held_owner_cash',
+      (pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months')::date,
+      100.00,
+      'Positive first correction before deterministic reroll',
+      'TRACK-4A-C2-POSITIVE-FIRST', repeat('c', 64),
+      'track-4a-c2-positive-first'
+    )
+    FROM owner_close_test_runtime
+  $$,
+  'a non-crossing positive first correction is accepted'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.generate_owner_balance_period(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000004',
+      '80000000-0000-0000-0000-000000000014',
+      'USD', (pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months')::date,
+      'track-4a-c2-positive-reroll'
+    )
+  $$,
+  'the positive first correction is incorporated by one reroll'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.record_owner_close_correction(
+      '00000000-0000-0000-0000-000000000001',
+      revision_three_id, 'ips_held_owner_cash',
+      (pg_catalog.date_trunc('month', current_date) + INTERVAL '24 months')::date,
+      -1100.00,
+      'Crossing second correction must fail against authoritative movements',
+      'TRACK-4A-C2-POSITIVE-CROSSING', repeat('d', 64),
+      'track-4a-c2-positive-crossing'
+    )
+    FROM owner_close_test_runtime
+  $$,
+  '23514',
+  'owner_close_correction_negative_component',
+  'a positive correction already incorporated by reroll is counted exactly once'
+);
+
+RESET ROLE;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      (SELECT count(*) FROM public.owner_close_corrections
+       WHERE idempotency_key = 'track-4a-c2-positive-crossing'),
+      (SELECT count(*) FROM public.owner_event_allocation_sets
+       WHERE idempotency_key = 'track-4a-c2-positive-crossing'),
+      (SELECT count(*)
+       FROM public.owner_component_movements AS movement
+       JOIN public.owner_event_owner_allocations AS owner_allocation
+         ON owner_allocation.organization_id = movement.organization_id
+        AND owner_allocation.id = movement.owner_event_owner_allocation_id
+       JOIN public.owner_event_allocation_sets AS allocation_set
+         ON allocation_set.organization_id = owner_allocation.organization_id
+        AND allocation_set.id = owner_allocation.allocation_set_id
+       WHERE allocation_set.idempotency_key = 'track-4a-c2-positive-crossing'),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests
+       WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+         AND operation = 'record_owner_close_correction'
+         AND idempotency_key = 'track-4a-c2-positive-crossing')
+    )::text
+  ),
+  '[0, 0, 0, 0]',
+  'a rejected crossing correction leaves no correction, allocation, movement, or idempotency row'
+);
+
+ROLLBACK TO SAVEPOINT track_4a_c2_positive_first;
+
+SAVEPOINT track_4a_c3_nested_preparing;
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'track-4a-c3-later-r1-ready'
+);
+
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  true,
+  'Lock later nested-close test month'
+);
+
+CREATE TEMP TABLE owner_close_c3_runtime (
+  later_series_id uuid,
+  later_revision_one_id uuid,
+  later_revision_two_id uuid
+) ON COMMIT DROP;
+GRANT ALL ON TABLE owner_close_c3_runtime TO authenticated;
+INSERT INTO owner_close_c3_runtime DEFAULT VALUES;
+
+WITH result AS (
+  SELECT public.close_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000004',
+    'USD',
+    (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+    'Close later month before nested recovery',
+    'track-4a-c3-later-close-r1'
+  ) AS payload
+)
+UPDATE owner_close_c3_runtime
+SET later_series_id = (result.payload->>'series_id')::uuid,
+    later_revision_one_id = (result.payload->>'revision_id')::uuid
+FROM result;
+
+WITH result AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    runtime.later_series_id,
+    'Prepare later revision before earlier recovery',
+    'track-4a-c3-later-reopen-r2'
+  ) AS payload
+  FROM owner_close_c3_runtime AS runtime
+)
+UPDATE owner_close_c3_runtime
+SET later_revision_two_id = (result.payload->>'revision_id')::uuid
+FROM result;
+
+WITH result AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    runtime.series_id,
+    'Earlier source correction must preserve later preparing lineage',
+    'track-4a-c3-earlier-reopen-r3'
+  ) AS payload
+  FROM owner_close_test_runtime AS runtime
+)
+UPDATE owner_close_test_runtime
+SET revision_three_id = (result.payload->>'revision_id')::uuid
+FROM result;
+
+SELECT public.record_owner_close_correction(
+  '00000000-0000-0000-0000-000000000001',
+  runtime.revision_three_id,
+  'owner_due_to_ips',
+  pg_catalog.date_trunc('month', current_date)::date,
+  1.00,
+  'Checked earlier correction in nested recovery',
+  'TRACK-4A-C3-EARLIER-CORRECTION',
+  repeat('3', 64),
+  'track-4a-c3-earlier-correction'
+)
+FROM owner_close_test_runtime AS runtime;
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD', pg_catalog.date_trunc('month', current_date)::date,
+  'track-4a-c3-earlier-r3-reroll'
+);
+
+SELECT public.close_owner_month(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD', pg_catalog.date_trunc('month', current_date)::date,
+  'Reclose earlier month after nested checked correction',
+  'track-4a-c3-earlier-close-r3'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000004',
+  'USD',
+  (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+  'track-4a-c3-later-r2-reroll'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      series.state,
+      series.active_revision_id,
+      count(*) FILTER (WHERE revision.status = 'preparing')::integer,
+      public.get_owner_close_readiness(
+        series.organization_id, series.property_id, series.owner_person_id,
+        series.currency, series.month_start
+      )->>'is_ready'
+    FROM public.owner_close_series AS series
+    JOIN public.owner_close_revisions AS revision
+      ON revision.organization_id = series.organization_id
+     AND revision.owner_close_series_id = series.id
+    JOIN owner_close_c3_runtime AS runtime
+      ON runtime.later_series_id = series.id
+    GROUP BY series.id, runtime.later_revision_two_id
+  $$,
+  $$
+    SELECT
+      'preparing'::text,
+      later_revision_two_id,
+      1::integer,
+      'true'::text
+    FROM owner_close_c3_runtime
+  $$,
+  'later state, active pointer, preparing count, and readiness retain one usable N plus 1'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.close_owner_month(
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001',
+      '80000000-0000-0000-0000-000000000004',
+      'USD',
+      (pg_catalog.date_trunc('month', current_date) + INTERVAL '1 month')::date,
+      'Reclose the preserved later preparing revision',
+      'track-4a-c3-later-close-r2'
+    )
+  $$,
+  'later N plus 1 can close after ordered earlier recovery and later reroll'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      series.state,
+      series.current_closed_revision_id,
+      count(*) FILTER (WHERE revision.status = 'preparing')::integer
+    FROM public.owner_close_series AS series
+    JOIN public.owner_close_revisions AS revision
+      ON revision.organization_id = series.organization_id
+     AND revision.owner_close_series_id = series.id
+    JOIN owner_close_c3_runtime AS runtime
+      ON runtime.later_series_id = series.id
+    GROUP BY series.id, runtime.later_revision_two_id
+  $$,
+  $$
+    SELECT 'closed'::text, later_revision_two_id, 0::integer
+    FROM owner_close_c3_runtime
+  $$,
+  'later reclose consumes the same N plus 1 without an orphan preparing revision'
+);
+
+ROLLBACK TO SAVEPOINT track_4a_c3_nested_preparing;
+
 
 SELECT lives_ok(
   $$

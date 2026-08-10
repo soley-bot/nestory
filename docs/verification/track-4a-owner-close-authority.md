@@ -86,3 +86,42 @@ No full-app accessibility pass is claimed.
 Independent review must still validate accounting, authorization, tenant
 isolation, evidence/source integrity, idempotency, concurrency, immutable
 history, scope, and test validity. Track 4B remains blocked until that review.
+
+## Correction round 1 verification addendum
+
+Review base `aadf6cf9` produced C1-C5 and I1. The coordinated correction uses
+new migration `20260810131852_owner_close_correction_round.sql` and preserves
+all previously approved migrations.
+
+Verified corrections:
+
+- a split atomic cent freezes one zero movement and one zero activity line for
+  the losing owner, each with one immutable source link, while all component
+  totals remain unchanged;
+- positive-first and negative-first correction/reroll/correction sequences use
+  opening plus the complete movement set exactly once and reject negative
+  closing authority atomically;
+- later N+1 preparing state survives an earlier reopen/correction, ordered
+  reroll, and later reclose without an orphan or false-ready UI;
+- cross-month reopen/correction versus later reroll serializes in both start
+  orders without `40P01`;
+- exact concurrent duplicates for close, reopen, and correction replay the same
+  IDs; payload/actor conflicts remain atomic;
+- retained canonical input bytes independently reproduce both R1 and R2 input
+  hashes after reroll.
+
+| Focused affected gate | Correction result |
+| --- | --- |
+| Clean reset and guarded fixture | pass |
+| Track 4A pgTAP | 61/61 |
+| Affected finance/security/role pgTAP | 7 files, 282/282 |
+| Owner-close concurrency | 9/9 |
+| Focused owner-close application | 3 files, 11/11 |
+| Database lint | zero errors; same five legacy warnings |
+| TypeScript / ESLint | pass / pass |
+| Production build | pass with root local env; known lockfile warning only |
+| Diff check | pass |
+
+No browser or complete-matrix rerun is claimed for the correction round. A
+focused independent re-review remains required before Track 4A approval or
+Track 4B work.

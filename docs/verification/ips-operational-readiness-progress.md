@@ -86,3 +86,16 @@
 - Scope: local only. No statement number, publication, PDF, Excel, email,
   Storage, hosted mutation, real IPS data, push, merge, or deployment.
 - Verification report: `docs/verification/track-4a-owner-close-authority.md`.
+- Independent review correction round 1: review base `aadf6cf9` returned C1-C5
+  and I1. All six findings are implemented together in CLI-generated migration
+  `20260810131852_owner_close_correction_round.sql`, retained database and
+  two-session race oracles, generated types, and the stale/readiness UI fix.
+  Focused independent re-review remains pending; Track 4B stays blocked and no
+  approval is claimed.
+- Correction evidence: clean reset/fixture; Track 4A 61/61; affected finance,
+  security, and role pgTAP 282/282; owner-close concurrency 9/9; focused app
+  11/11; TypeScript, ESLint, DB lint, build, and diff checks green. Both R1/R2
+  input hashes reproduce from retained canonical bytes; exact zero evidence,
+  repeated corrections, nested N+1 recovery, cross-month lock order, and exact
+  concurrent replay have literal/race coverage. Browser acceptance and the
+  expensive full matrix were not rerun under the correction brief.

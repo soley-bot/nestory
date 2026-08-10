@@ -110,6 +110,33 @@ describe("OwnerCloseScreen", () => {
     expect(screen.getByText("Revision 1 - Closed")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reopen month" })).toBeNull();
   });
+
+  it("does not label a stale series ready when the financial inputs have rerolled", () => {
+    const data = closedData();
+    data.series = {
+      ...data.series!,
+      state: "stale",
+    };
+    data.readiness = {
+      ...data.readiness!,
+      blockers: [],
+      isReady: true,
+      seriesState: "stale",
+    };
+
+    render(<OwnerCloseScreen
+      canClose
+      canReopen
+      data={data}
+      monthStart="2026-08-01"
+      ownerPersonId={ownerId}
+      propertyId={propertyId}
+    />);
+
+    expect(screen.getByText("Close readiness blocked")).toBeTruthy();
+    expect(screen.queryByText(/Ready to close revision/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /close revision/i })).toBeNull();
+  });
 });
 
 function closedData(): OwnerCloseData {

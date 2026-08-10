@@ -4163,6 +4163,7 @@ export type Database = {
           content_hash: string | null
           currency: Database["public"]["Enums"]["currency_code"]
           id: string
+          input_canonical: string | null
           input_hash: string | null
           input_watermark: string | null
           month_start: string
@@ -4184,6 +4185,7 @@ export type Database = {
           content_hash?: string | null
           currency: Database["public"]["Enums"]["currency_code"]
           id?: string
+          input_canonical?: string | null
           input_hash?: string | null
           input_watermark?: string | null
           month_start: string
@@ -4205,6 +4207,7 @@ export type Database = {
           content_hash?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
           id?: string
+          input_canonical?: string | null
           input_hash?: string | null
           input_watermark?: string | null
           month_start?: string

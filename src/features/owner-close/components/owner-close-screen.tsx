@@ -12,6 +12,7 @@ import type {
   OwnerCloseBlocker,
   OwnerCloseData,
   OwnerCloseLine,
+  OwnerCloseSeriesState,
 } from "@/features/owner-close/owner-close.types";
 
 type OwnerCloseScreenProps = {
@@ -36,8 +37,9 @@ export function OwnerCloseScreen({
     (revision) => revision.status === "preparing",
   );
   const closeRevisionNumber = preparingRevision?.revisionNumber ?? 1;
-  const mayClose = hasExactScope && canClose && data.readiness?.isReady === true &&
-    (!data.series || data.series.state === "open" || data.series.state === "preparing");
+  const scopeIsCloseReady = data.readiness?.isReady === true &&
+    isCloseableSeriesState(data.series?.state);
+  const mayClose = hasExactScope && canClose && scopeIsCloseReady;
   const mayReopen = canReopen && data.series !== null &&
     (data.series.state === "closed" || data.series.state === "stale");
 
@@ -140,6 +142,8 @@ function ReadinessCard({
   data: OwnerCloseData;
 }) {
   const readiness = data.readiness!;
+  const scopeIsCloseReady = readiness.isReady &&
+    isCloseableSeriesState(data.series?.state);
   return (
     <article
       className="overflow-hidden rounded-2xl border border-border/80 bg-card"
@@ -148,7 +152,7 @@ function ReadinessCard({
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 px-4 py-3">
         <div>
           <h3 className="font-semibold">
-            {readiness.isReady
+            {scopeIsCloseReady
               ? `Ready to close revision ${closeRevisionNumber}`
               : "Close readiness blocked"}
           </h3>
@@ -213,6 +217,10 @@ function ReadinessCard({
       </div>
     </article>
   );
+}
+
+function isCloseableSeriesState(state: OwnerCloseSeriesState | undefined) {
+  return state === undefined || state === "open" || state === "preparing";
 }
 
 function CorrectionForm({
