@@ -3,7 +3,8 @@
 ## Decision status
 
 - Implementation status: correction round 1 complete on `codex/ips-operational-readiness`; correction base `3bc20304062b0499c759132338e1c83280d9e8d4`.
-- Review status: pending fresh independent approval; Track 4 remains blocked.
+- Review status: approved by final focused independent re-review at
+  `5688bafb0e9242f1ff0284a4ada7e5a8d5bc7462`; Track 4 is unblocked locally.
 - Execution boundary: local worktree and local Supabase only. No hosted Supabase, Vercel, email, push, merge, deploy, or real IPS data operation occurred.
 
 Track 3 replaces presentation-time owner-balance inference with persisted authority: one immutable allocation per atomic source, the exact roster or explicit owner snapshot used, immutable component movements and reversal lineage, serialized held-cash consumption, explicit component transfers, and deterministic four-component monthly roll-forward.
@@ -94,7 +95,12 @@ The expensive program-wide matrix was run once after browser acceptance and was 
 
 ## Residuals and next gate
 
-Track 4 must not start until a fresh reviewer approves accounting, authorization, tenant isolation, source integrity, idempotency, concurrency, irreversible history, scope, and test validity. The final commit has affected-gate evidence rather than a prohibited second full-matrix run. The unrelated `/users-roles` SSR issue, program-wide accessibility backlog, and five no-error database-lint warnings remain outside this milestone. Hosted and production truth remains unverified and unchanged.
+The final commit has affected-gate evidence rather than a prohibited second
+full-matrix run. Independent review accepted C1-C3 and I1-I3 after correction,
+then accepted the N1 lock-order correction with zero new Critical, Important, or
+Minor findings. The unrelated `/users-roles` SSR issue, program-wide
+accessibility backlog, and five no-error database-lint warnings remain outside
+this milestone. Hosted and production truth remains unverified and unchanged.
 
 ## Correction round 1 verification
 
@@ -117,7 +123,7 @@ Final affected evidence after the correction migration:
 - focused application 35/35, TypeScript, focused ESLint, build, and `git diff --check` green;
 - database lint zero errors with five existing unused-variable warnings; error-level local advisors zero findings.
 
-The live matrix proves all nine tables RLS plus FORCE RLS, authenticated tenant-scoped SELECT only, complete direct-DML denial, checked public RPC/private helper grants, and real Super Admin, Finance, Operations, unaffiliated, cross-organization, anonymous, and service-role behavior. The historical raw browser/full-matrix evidence limitation remains explicit; neither expensive gate was rerun. Track 4 remains blocked pending fresh independent approval.
+The live matrix proves all nine tables RLS plus FORCE RLS, authenticated tenant-scoped SELECT only, complete direct-DML denial, checked public RPC/private helper grants, and real Super Admin, Finance, Operations, unaffiliated, cross-organization, anonymous, and service-role behavior. The historical raw browser/full-matrix evidence limitation remains explicit; neither expensive gate was rerun.
 
 ## Correction round 2 verification
 
@@ -125,4 +131,4 @@ Re-review finding N1 is corrected locally from base `e7e204fe7d1c28b7239b6dac045
 
 The retained two-session same-owner/same-month race uses an exact advisory-key barrier between acquisitions in both winner orderings. RED reproduced PostgreSQL `deadlock detected` and an obsolete ready `sources=0;movements=0` watermark when the source began first; the reverse ordering proved the later source waited on lifecycle instead of month. GREEN is 2/2 with no `40P01`, a current `ready|sources=1;movements=1` source-first result, a typed `stale|source_allocation_changed` generation-first result, and exactly one allocation set in each case.
 
-Affected evidence is clean reset, focused database/security 194/194, original lifecycle concurrency 6/6, expanded correction concurrency 8/8, live catalog/role 22/22, zero-error database lint with the same five warnings, zero error-level advisor findings, local-variable production build, and diff checks. No browser/full-matrix or unrelated broad gate was rerun. This is correction evidence, not approval; Track 4 remains blocked for focused independent re-review.
+Affected evidence is clean reset, focused database/security 194/194, original lifecycle concurrency 6/6, expanded correction concurrency 8/8, live catalog/role 22/22, zero-error database lint with the same five warnings, zero error-level advisor findings, local-variable production build, and diff checks. No browser/full-matrix or unrelated broad gate was rerun. Final focused independent re-review approved the correction.
