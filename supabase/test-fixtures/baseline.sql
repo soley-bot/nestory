@@ -2131,6 +2131,61 @@ ORDER BY queue.event_date, queue.source_type, queue.source_line_id;
 SELECT public.allocate_owner_event(
   '00000000-0000-0000-0000-000000000001',
   'owner_invoice_payment',
+  cash.id,
+  'fixture-owner-balance-legacy-cash-' || cash.id::text
+)
+FROM public.owner_charge_cash_allocations AS cash
+WHERE cash.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND cash.property_id = '10000000-0000-0000-0000-000000000001'
+  AND cash.reversal_of_id IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.owner_event_allocation_sets AS allocation_set
+    WHERE allocation_set.organization_id = cash.organization_id
+      AND allocation_set.source_type = 'owner_invoice_payment'
+      AND allocation_set.source_line_id = cash.id
+  )
+ORDER BY cash.allocation_date, cash.id;
+
+SELECT public.allocate_owner_event(
+  '00000000-0000-0000-0000-000000000001',
+  'reversal',
+  cash.id,
+  'fixture-owner-balance-legacy-cash-reversal-' || cash.id::text
+)
+FROM public.owner_charge_cash_allocations AS cash
+WHERE cash.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND cash.property_id = '10000000-0000-0000-0000-000000000001'
+  AND cash.reversal_of_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.owner_event_allocation_sets AS allocation_set
+    WHERE allocation_set.organization_id = cash.organization_id
+      AND allocation_set.source_type = 'reversal'
+      AND allocation_set.source_line_id = cash.id
+  );
+
+SELECT public.allocate_owner_event(
+  '00000000-0000-0000-0000-000000000001',
+  'reversal',
+  adjustment.id,
+  'fixture-owner-balance-expense-reversal-' || adjustment.id::text
+)
+FROM public.expense_customer_adjustments AS adjustment
+WHERE adjustment.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND adjustment.property_id = '10000000-0000-0000-0000-000000000001'
+  AND adjustment.responsibility = 'owner'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.owner_event_allocation_sets AS allocation_set
+    WHERE allocation_set.organization_id = adjustment.organization_id
+      AND allocation_set.source_type = 'reversal'
+      AND allocation_set.source_line_id = adjustment.id
+  );
+
+SELECT public.allocate_owner_event(
+  '00000000-0000-0000-0000-000000000001',
+  'owner_invoice_payment',
   allocation.id,
   'fixture-owner-balance-allocate-owner-payment-' || allocation.id::text
 )

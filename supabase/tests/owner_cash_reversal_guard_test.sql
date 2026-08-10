@@ -87,23 +87,39 @@ SELECT ok(
 
 SELECT ok(
   (
+    WITH command_boundaries(command_name, baseline_name) AS (
+      VALUES
+        ('record_owner_distribution'::text, 'record_owner_distribution_baseline'::text),
+        ('reverse_property_withdrawal'::text, 'reverse_property_withdrawal_baseline'::text),
+        ('reverse_owner_invoice_payment'::text, 'reverse_owner_invoice_payment_baseline'::text)
+    ), definitions AS (
+      SELECT
+        boundary.command_name,
+        boundary.baseline_name,
+        public_procedure.prosrc AS public_source,
+        public_procedure.prosrc || private_procedure.prosrc AS effective_source
+      FROM command_boundaries AS boundary
+      JOIN pg_catalog.pg_proc AS public_procedure
+        ON public_procedure.proname = boundary.command_name
+      JOIN pg_catalog.pg_namespace AS public_namespace
+        ON public_namespace.oid = public_procedure.pronamespace
+       AND public_namespace.nspname = 'public'
+      JOIN pg_catalog.pg_proc AS private_procedure
+        ON private_procedure.proname = boundary.baseline_name
+      JOIN pg_catalog.pg_namespace AS private_namespace
+        ON private_namespace.oid = private_procedure.pronamespace
+       AND private_namespace.nspname = 'app_private'
+    )
     SELECT count(*) = 3
       AND pg_catalog.bool_and(
-        procedure.prosrc LIKE '%app_private.get_financial_idempotency_replay%'
-        AND procedure.prosrc LIKE '%app_private.claim_financial_idempotency%'
-        AND procedure.prosrc LIKE '%app_private.complete_financial_idempotency%'
+        effective_source LIKE '%app_private.get_financial_idempotency_replay%'
+        AND effective_source LIKE '%app_private.claim_financial_idempotency%'
+        AND effective_source LIKE '%app_private.complete_financial_idempotency%'
+        AND public_source LIKE '%' || baseline_name || '%'
       )
-    FROM pg_catalog.pg_proc AS procedure
-    JOIN pg_catalog.pg_namespace AS namespace
-      ON namespace.oid = procedure.pronamespace
-    WHERE namespace.nspname = 'public'
-      AND procedure.proname IN (
-        'record_owner_distribution',
-        'reverse_property_withdrawal',
-        'reverse_owner_invoice_payment'
-      )
+    FROM definitions
   ),
-  'Track 3 cash and reversal commands reuse the single financial idempotency authority'
+  'Track 3 cash and reversal public/private-baseline boundaries reuse the single financial idempotency authority'
 );
 
 SELECT has_function(
@@ -593,6 +609,42 @@ SELECT ok(
   ),
   'only the checked explicit-owner distribution command is application executable'
 );
+
+RESET ROLE;
+SELECT set_config(
+  'app.owner_balance_period_write_context',
+  'checked-rollforward-v1',
+  true
+);
+INSERT INTO public.owner_balance_periods (
+  id, organization_id, property_id, owner_person_id, currency, month_start,
+  status, input_watermark, input_hash, generated_at, generated_by
+)
+VALUES (
+  'd4400000-0000-4000-8000-000000000030',
+  'd4400000-0000-4000-8000-000000000001',
+  'd4400000-0000-4000-8000-000000000002',
+  'd4400000-0000-4000-8000-000000000003',
+  'USD', '2026-08-01', 'ready', 'cash-guard-transfer-predecessor',
+  repeat('3', 64), now(), 'd4400000-0000-4000-8000-000000000011'
+);
+INSERT INTO public.owner_balance_period_components (
+  id, owner_balance_period_id, organization_id, component,
+  opening_amount, movement_amount, closing_amount, created_by
+)
+VALUES (
+  'd4400000-0000-4000-8000-000000000031',
+  'd4400000-0000-4000-8000-000000000030',
+  'd4400000-0000-4000-8000-000000000001',
+  'ips_held_owner_cash', 30.00, 0.00, 30.00,
+  'd4400000-0000-4000-8000-000000000011'
+);
+SELECT set_config(
+  'request.jwt.claim.sub',
+  'd4400000-0000-4000-8000-000000000010',
+  true
+);
+SET LOCAL ROLE authenticated;
 
 CREATE OR REPLACE FUNCTION pg_temp.transfer_probe()
 RETURNS text

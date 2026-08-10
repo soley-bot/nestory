@@ -2,7 +2,7 @@
 
 ## Decision status
 
-- Implementation status: complete on `codex/ips-operational-readiness` from base `4eeac99ba969f0dfe40c7695a850a9137ee35cb5`.
+- Implementation status: correction round 1 complete on `codex/ips-operational-readiness`; correction base `3bc20304062b0499c759132338e1c83280d9e8d4`.
 - Review status: pending fresh independent approval; Track 4 remains blocked.
 - Execution boundary: local worktree and local Supabase only. No hosted Supabase, Vercel, email, push, merge, deploy, or real IPS data operation occurred.
 
@@ -23,8 +23,9 @@ Created with `npx supabase migration new <descriptive-name>` under Supabase CLI 
 9. `20260810070356_enforce_unresolved_owner_transfer_period_block.sql`
 10. `20260810073324_owner_distribution_ledger_activity_parity.sql`
 11. `20260810073506_project_owner_distribution_reversals.sql`
+12. `20260810091218_harden_owner_balance_lifecycle_corrections.sql`
 
-The final local reset applied the baseline and all 11 migrations cleanly.
+The final local reset applied the baseline and all 12 Track 3 migrations cleanly. Migration 12 was created with `npx supabase migration new harden_owner_balance_lifecycle_corrections` under the same installed CLI; no timestamp was hand-authored.
 
 ## Authority contract
 
@@ -36,7 +37,7 @@ The exact source registry is complete:
 | `owner_direct_rent_receipt` | explicit owner | activity only |
 | `management_fee_occurrence` | effective roster | `+owner_due_to_ips` |
 | `owner_paid_cost` | effective roster | `+owner_due_to_ips` |
-| `owner_invoice_payment` | explicit owner | `-owner_due_to_ips` |
+| `owner_invoice_payment` | explicit owner | direct payment: `-owner_due_to_ips`; automatic held-cash settlement: `-owner_due_to_ips` and `-ips_held_owner_cash` |
 | `owner_contribution` | explicit owner | `+ips_held_owner_cash` |
 | `owner_reimbursement` | explicit owner | `-ips_due_to_owner` |
 | `owner_distribution` | explicit owner | `-ips_held_owner_cash` |
@@ -61,9 +62,9 @@ New-request order is replay/conflict lookup, organization financial-month lock, 
 
 ## Guarded fixture and browser acceptance
 
-The literal fixture contains 16 component rows across two properties and two months, all 12 source types, explicit transfers, and one deliberately blocked `116.00` management-fee source with `owner_share_total_not_100`. Central Residence closes the current month at held cash `2125.00`, owner due to IPS `370.00`, IPS due to owner `200.50`, and custody `860.00`, and the next month opens with those exact values. Garden carries only explicitly transferred `500.00` held cash and `102.80` owner due to IPS. The opening semantic manifest hash remains `1f28cceda852baeebe7878edf71ec09375ebb7d2958e572cc047f73b955fc4b0`.
+The corrected literal fixture contains 16 component rows across two properties and two months, all 12 source types, explicit transfers, and one deliberately blocked `116.00` management-fee source with `owner_share_total_not_100`. Central Residence closes the current month at held cash `1855.00`, owner due to IPS `0.00`, IPS due to owner `200.50`, and custody `860.00`, and the next month opens with those exact values. Garden carries only explicitly transferred `500.00` held cash and `102.80` owner due to IPS. The opening semantic manifest hash remains `1f28cceda852baeebe7878edf71ec09375ebb7d2958e572cc047f73b955fc4b0`.
 
-The complete authenticated browser flow was run exactly once against the isolated exact-worktree server. Real local actors started at `/workspace`, entered by visible navigation, and completed opening visibility, supported allocation, canonical contribution, safe distribution/reversal, current and next regeneration, four-component continuity, transfer/remediation visibility, Finance Member denial, and both Operations-role denials. All 11 phases passed with database assertions. Browser changes left the reversed distribution net zero and produced exact current/next held cash `2250.25` and custody `870.00`.
+The complete authenticated browser flow was run exactly once before correction round 1 against the isolated worktree server. Real local actors started at `/workspace`, entered by visible navigation, and completed opening visibility, supported allocation, canonical contribution, safe distribution/reversal, current and next regeneration, four-component continuity, transfer/remediation visibility, Finance Member denial, and both Operations-role denials. The implementation report records all 11 summarized phases. Correction round 1 did not rerun the browser or full matrix. No retained raw browser/full-matrix command log, exit-code/head/database-identity file, or artifact-SHA correlation was found, so those historical summarized executions are not claimed as independently correlated exact-head proof.
 
 ## Verification summary
 
@@ -94,3 +95,26 @@ The expensive program-wide matrix was run once after browser acceptance and was 
 ## Residuals and next gate
 
 Track 4 must not start until a fresh reviewer approves accounting, authorization, tenant isolation, source integrity, idempotency, concurrency, irreversible history, scope, and test validity. The final commit has affected-gate evidence rather than a prohibited second full-matrix run. The unrelated `/users-roles` SSR issue, program-wide accessibility backlog, and five no-error database-lint warnings remain outside this milestone. Hosted and production truth remains unverified and unchanged.
+
+## Correction round 1 verification
+
+Independent review findings C1-C3 and I1-I3 are corrected at the local application/database boundary:
+
+- baseline automatic held-cash settlement and paid-cost reversal atoms are registered with exact two-component/original-reversal lineage, while unmappable legacy rows remain typed blocking remediation;
+- one canonical property/owner/currency lifecycle lock serializes chronological producers, consumers, reversals, transfers, opening corrections, and period publication; reversed positives are ineligible and exact consumption must reach zero remaining;
+- predecessor state is validated under the shared lock, four later openings cannot restart a missing chain, and both allocation/generation and opening-correction/generation winner orderings are covered;
+- transfers require an immediate ready/closed predecessor and its exact remaining amount derived from immutable equal-opposite lines; stale/missing/partial/over/wrong/duplicate cases block;
+- historical period closing is labelled separately from one current checked capacity with status/as-of/deductions;
+- owner-invoice payment crosses the application boundary as an exact canonical decimal string, including `900719925474.09`.
+
+Final affected evidence after the correction migration:
+
+- clean reset through all 12 Track 3 migrations and regenerated database types;
+- correction pgTAP 40/40 and retained executable live catalog/role matrix 22/22;
+- original allocation/cash 72/72, roll-forward 24/24, tenant behavior 36/36, and affected opening suites 220/220;
+- guarded opening hash plus lifecycle fixture 16 component rows/12 source types/2 properties/2 months;
+- original lifecycle concurrency 6/6 and correction lifecycle concurrency 6/6;
+- focused application 35/35, TypeScript, focused ESLint, build, and `git diff --check` green;
+- database lint zero errors with five existing unused-variable warnings; error-level local advisors zero findings.
+
+The live matrix proves all nine tables RLS plus FORCE RLS, authenticated tenant-scoped SELECT only, complete direct-DML denial, checked public RPC/private helper grants, and real Super Admin, Finance, Operations, unaffiliated, cross-organization, anonymous, and service-role behavior. The historical raw browser/full-matrix evidence limitation remains explicit; neither expensive gate was rerun. Track 4 remains blocked pending fresh independent approval.

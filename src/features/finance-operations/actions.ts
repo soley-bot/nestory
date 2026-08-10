@@ -140,7 +140,7 @@ const expenseReversalSchema = z.object({
 });
 
 const ownerPaymentSchema = z.object({
-  amount,
+  amount: authoritativeOwnerAmount,
   idempotencyKey: z.string().min(8),
   ownerInvoiceId: uuid,
   receivedDate: date,

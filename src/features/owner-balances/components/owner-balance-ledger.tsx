@@ -132,6 +132,8 @@ export function OwnerBalanceLedger({
             </form>
           ) : null}
 
+          <WithdrawalCapacityCard capacity={data.withdrawalCapacity} />
+
           <section aria-labelledby="owner-periods-heading" className="space-y-3">
             <div>
               <h2 className="text-lg font-semibold" id="owner-periods-heading">Four-component periods</h2>
@@ -149,7 +151,7 @@ export function OwnerBalanceLedger({
                     <p className="text-xs text-muted-foreground">Status: <span className="font-medium uppercase">{period.status}</span></p>
                   </div>
                   <div className="text-right text-sm">
-                    <p className="font-semibold">Available withdrawal: {period.availableWithdrawal === null ? "Unavailable" : formatExactMoney(period.availableWithdrawal)}</p>
+                    <p className="font-semibold">Held cash closing: {period.availableWithdrawal === null ? "Unavailable" : formatExactMoney(period.availableWithdrawal)}</p>
                     <p className="text-xs text-muted-foreground">Input watermark: {period.inputWatermark ?? "Not ready"}</p>
                   </div>
                 </div>
@@ -279,6 +281,42 @@ export function OwnerBalanceLedger({
         </>
       )}
     </main>
+  );
+}
+
+function WithdrawalCapacityCard({
+  capacity,
+}: {
+  capacity: OwnerBalanceData["withdrawalCapacity"];
+}) {
+  const available = capacity?.status === "available" &&
+    capacity.availableWithdrawal !== null;
+
+  return (
+    <section
+      className="rounded-2xl border border-border/80 bg-card p-4"
+      data-testid="owner-withdrawal-capacity"
+    >
+      <h2 className="font-semibold">
+        {available
+          ? "Current checked withdrawal capacity"
+          : "Withdrawal capacity unavailable"}
+      </h2>
+      {available ? (
+        <>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">
+            {formatExactMoney(capacity.availableWithdrawal!)}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            As of {capacity.asOfDate} · Committed or reserved: {formatExactMoney(capacity.committedReserved)}
+          </p>
+        </>
+      ) : (
+        <p className="mt-1 text-sm text-muted-foreground">
+          This period is not eligible for a current withdrawal check.
+        </p>
+      )}
+    </section>
   );
 }
 

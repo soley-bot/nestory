@@ -151,6 +151,19 @@ describe("authoritative owner balance loader", () => {
       if (name === "get_owner_balance_source_ledger") {
         return query({ data: sourceLedgerRows(), error: null });
       }
+      if (name === "get_owner_available_withdrawal") {
+        return query({
+          data: {
+            as_of_date: "2026-09-30",
+            authoritative_held_cash: "900719925474.09",
+            available_withdrawal: "900719925374.09",
+            committed_reserved: "100.00",
+            period_status: "ready",
+            status: "available",
+          },
+          error: null,
+        });
+      }
       throw new Error(`Unexpected RPC ${name}`);
     });
   });
@@ -186,6 +199,21 @@ describe("authoritative owner balance loader", () => {
       p_period_end: "2026-09-01",
       p_period_start: "2026-08-01",
       p_property_id: propertyId,
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("get_owner_available_withdrawal", {
+      p_as_of_date: "2026-09-30",
+      p_currency: "USD",
+      p_organization_id: organizationId,
+      p_owner_person_id: ownerId,
+      p_property_id: propertyId,
+    });
+    expect(result.withdrawalCapacity).toEqual({
+      asOfDate: "2026-09-30",
+      authoritativeHeldCash: "900719925474.09",
+      availableWithdrawal: "900719925374.09",
+      committedReserved: "100.00",
+      periodStatus: "ready",
+      status: "available",
     });
     expect(result.periods).toEqual([
       expect.objectContaining({

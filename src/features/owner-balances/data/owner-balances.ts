@@ -9,6 +9,7 @@ import {
   type OwnerBalancePeriodRecord,
   type OwnerBalancePeriodStatus,
   type OwnerBalanceSourceRecord,
+  type OwnerWithdrawalCapacity,
 } from "@/features/owner-balances/owner-balance.types";
 import type { Database } from "@/types/database";
 
@@ -108,10 +109,18 @@ export async function getOwnerBalanceData(
     .map((person) => ({ id: person.id, label: person.display_name }));
 
   if (!scope.propertyId || !scope.ownerPersonId) {
-    return { ownerOptions, periods: [], propertyOptions, queue: [], sources: [] };
+    return {
+      ownerOptions,
+      periods: [],
+      propertyOptions,
+      queue: [],
+      sources: [],
+      withdrawalCapacity: null,
+    };
   }
 
-  const [ledgerResult, queueResult, sourcesResult] = await Promise.all([
+  const asOfDate = endOfMonth(scope.periodEnd);
+  const [ledgerResult, queueResult, sourcesResult, capacityResult] = await Promise.all([
     supabase.rpc("get_owner_balance_ledger", {
       p_currency: scope.currency,
       p_organization_id: context.organizationId,
@@ -135,9 +144,21 @@ export async function getOwnerBalanceData(
       p_period_start: scope.periodStart,
       p_property_id: scope.propertyId,
     }),
+    supabase.rpc("get_owner_available_withdrawal", {
+      p_as_of_date: asOfDate,
+      p_currency: scope.currency,
+      p_organization_id: context.organizationId,
+      p_owner_person_id: scope.ownerPersonId,
+      p_property_id: scope.propertyId,
+    }),
   ]);
 
-  if (ledgerResult.error || queueResult.error || sourcesResult.error) {
+  if (
+    ledgerResult.error ||
+    queueResult.error ||
+    sourcesResult.error ||
+    capacityResult.error
+  ) {
     throw new Error("Unable to load authoritative owner balances.");
   }
 
@@ -157,6 +178,39 @@ export async function getOwnerBalanceData(
       sourceType: row.source_type,
     })),
     sources: mapSources((sourcesResult.data ?? []) as OwnerBalanceSourceRow[]),
+    withdrawalCapacity: mapWithdrawalCapacity(capacityResult.data),
+  };
+}
+
+function mapWithdrawalCapacity(value: unknown): OwnerWithdrawalCapacity {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Invalid authoritative owner withdrawal capacity.");
+  }
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.as_of_date !== "string" ||
+    typeof row.authoritative_held_cash !== "string" ||
+    (row.available_withdrawal !== null &&
+      typeof row.available_withdrawal !== "string") ||
+    typeof row.committed_reserved !== "string" ||
+    (row.period_status !== null && typeof row.period_status !== "string") ||
+    typeof row.status !== "string"
+  ) {
+    throw new Error("Invalid authoritative owner withdrawal capacity.");
+  }
+  return {
+    asOfDate: row.as_of_date,
+    authoritativeHeldCash: canonicalizeSignedOwnerOpeningAmount(
+      row.authoritative_held_cash,
+    ),
+    availableWithdrawal: row.available_withdrawal === null
+      ? null
+      : canonicalizeSignedOwnerOpeningAmount(row.available_withdrawal),
+    committedReserved: canonicalizeSignedOwnerOpeningAmount(
+      row.committed_reserved,
+    ),
+    periodStatus: row.period_status,
+    status: row.status,
   };
 }
 

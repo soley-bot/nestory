@@ -220,6 +220,44 @@ describe("ordinary finance operation actions", () => {
     });
   });
 
+  it.each([
+    ["65", "65.00"],
+    ["65.5", "65.50"],
+    ["900719925474.09", "900719925474.09"],
+  ])(
+    "preserves owner invoice payment %s as canonical decimal text",
+    async (input, expected) => {
+      const formData = ownerPaymentForm();
+      formData.set("amount", input);
+
+      await expect(recordOwnerPaymentAction({}, formData)).resolves.toMatchObject({
+        status: "success",
+      });
+      expect(rpc).toHaveBeenCalledWith("record_owner_invoice_payment", {
+        p_amount: expected,
+        p_idempotency_key: "owner-payment-1",
+        p_organization_id: organizationId,
+        p_owner_invoice_id: submissionId,
+        p_received_date: "2026-08-09",
+        p_reference: "Owner transfer",
+      });
+    },
+  );
+
+  it.each(["65.001", "6.5e1", " 65.00 ", "01.00"])(
+    "rejects noncanonical owner invoice payment input %s before authorization",
+    async (input) => {
+      const formData = ownerPaymentForm();
+      formData.set("amount", input);
+
+      await expect(recordOwnerPaymentAction({}, formData)).resolves.toMatchObject({
+        status: "error",
+      });
+      expect(requireFinanceOperationContext).not.toHaveBeenCalled();
+      expect(rpc).not.toHaveBeenCalled();
+    },
+  );
+
   it("rejects an over-scale owner withdrawal before authorization", async () => {
     const formData = withdrawalForm();
     formData.set("amount", "50.001");

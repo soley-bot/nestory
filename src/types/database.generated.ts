@@ -3791,7 +3791,8 @@ export type Database = {
           created_by: string
           id: string
           organization_id: string
-          source_movement_id: string
+          source_movement_id: string | null
+          source_opening_entry_id: string | null
         }
         Insert: {
           consumed_amount: number
@@ -3800,7 +3801,8 @@ export type Database = {
           created_by: string
           id?: string
           organization_id: string
-          source_movement_id: string
+          source_movement_id?: string | null
+          source_opening_entry_id?: string | null
         }
         Update: {
           consumed_amount?: number
@@ -3809,7 +3811,8 @@ export type Database = {
           created_by?: string
           id?: string
           organization_id?: string
-          source_movement_id?: string
+          source_movement_id?: string | null
+          source_opening_entry_id?: string | null
         }
         Relationships: [
           {
@@ -3817,6 +3820,13 @@ export type Database = {
             columns: ["organization_id", "consumer_movement_id"]
             isOneToOne: false
             referencedRelation: "owner_component_movements"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_cash_source_consumptions_opening_fk"
+            columns: ["organization_id", "source_opening_entry_id"]
+            isOneToOne: false
+            referencedRelation: "owner_opening_balance_entries"
             referencedColumns: ["organization_id", "id"]
           },
           {

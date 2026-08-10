@@ -14,11 +14,16 @@ const riversidePropertyId = "10000000-0000-0000-0000-000000000002";
 const gardenPropertyId = "10000000-0000-0000-0000-000000000003";
 const centralOwnerId = "80000000-0000-0000-0000-000000000004";
 const riversideOwnerId = "80000000-0000-0000-0000-000000000005";
-const gardenOwnerId = "80000000-0000-0000-0000-000000000009";
 const gardenSuccessorId = "80000000-0000-0000-0000-000000000012";
 const remainderOwnerId = "80000000-0000-0000-0000-000000000013";
 const remainderFirstAssignmentId = "90000000-0000-0000-0000-000000000006";
 const remainderSecondAssignmentId = "90000000-0000-0000-0000-000000000007";
+const transferRacePropertyId = "c6000000-0000-4000-8000-000000000001";
+const transferRaceOwnerId = "c6000000-0000-4000-8000-000000000002";
+const transferRaceSuccessorId = "c6000000-0000-4000-8000-000000000003";
+const transferRaceOwnerAssignmentId = "c6000000-0000-4000-8000-000000000004";
+const transferRaceSuccessorAssignmentId = "c6000000-0000-4000-8000-000000000005";
+const transferRacePeriodId = "c6000000-0000-4000-8000-000000000006";
 
 function databaseContainer() {
   const result = spawnSync(
@@ -351,9 +356,12 @@ test("two sessions serialize withdrawal capacity and prevent a negative held bal
     assert.equal(race.second.status, 1, race.second.stderr);
     assert.match(race.second.stderr, /insufficient_authoritative_held_cash/i);
     assert.ok(race.secondElapsedMs >= 1_500, `second session waited only ${race.secondElapsedMs}ms`);
-    assert.match(run(authenticatedSql(superAdminId, `SELECT public.get_owner_available_withdrawal(
-      '${organizationId}', '${centralPropertyId}', '${centralOwnerId}', 'USD', current_date
-    )->>'available_withdrawal';`)), /525\.00/);
+    assert.match(run(`BEGIN;
+      SELECT set_config('request.jwt.claim.sub', '${superAdminId}', true);
+      SELECT app_private.get_owner_available_withdrawal_baseline(
+        '${organizationId}', '${centralPropertyId}', '${centralOwnerId}', 'USD', current_date
+      )->>'available_withdrawal';
+      COMMIT;`), /255\.00/);
   } finally {
     removePauseTrigger();
   }
@@ -379,7 +387,8 @@ test("distribution versus tenant reversal returns the exact committed downstream
       WHERE organization_id = '${organizationId}' AND code = 'OPS-USD'
     )
     SELECT public.record_tenant_invoice_payment(
-      '${organizationId}', target.invoice_id, 100.00, current_date - 1,
+      '${organizationId}', target.invoice_id, 100.00,
+      (date_trunc('month', current_date) + interval '1 month')::date,
       source.id, 'CONCURRENCY-TENANT-REVERSAL',
       jsonb_build_array(jsonb_build_object('lineId', target.line_id, 'amount', 100.00)),
       'concurrency-tenant-reversal-payment'
@@ -404,6 +413,15 @@ test("distribution versus tenant reversal returns the exact committed downstream
       AND allocation.payment_id = '${paymentId}'
       AND allocation.reversal_of_allocation_id IS NULL;
   `));
+  const capacityOutput = run(`BEGIN;
+    SELECT set_config('request.jwt.claim.sub', '${superAdminId}', true);
+    SELECT app_private.get_owner_available_withdrawal_baseline(
+      '${organizationId}', '${gardenPropertyId}', '${gardenSuccessorId}',
+      'USD', (date_trunc('month', current_date) + interval '1 month')::date
+    )->>'available_withdrawal';
+    COMMIT;`);
+  const dependentAmount = capacityOutput.split(/\r?\n/).at(-1);
+  assert.match(dependentAmount, /^\d+\.\d{2}$/);
 
   installPauseTrigger();
   try {
@@ -412,13 +430,16 @@ test("distribution versus tenant reversal returns the exact committed downstream
       SELECT set_config('app.owner_balance_test_pause_table', 'property_withdrawals', true);
       SELECT set_config('app.owner_balance_test_pause_scope', '${firstKey}', true);
       SELECT public.record_owner_distribution(
-        '${organizationId}', '${gardenPropertyId}', '${gardenOwnerId}',
-        'USD', 100.00, current_date, 'Concurrency dependent cash', '${firstKey}'
+        '${organizationId}', '${gardenPropertyId}', '${gardenSuccessorId}',
+        'USD', ${dependentAmount},
+        (date_trunc('month', current_date) + interval '1 month')::date,
+        'Concurrency dependent cash', '${firstKey}'
       );
     `);
     const second = authenticatedSql(financeManagerId, `
       SELECT public.reverse_tenant_invoice_payment(
-        '${organizationId}', '${paymentId}', current_date,
+        '${organizationId}', '${paymentId}',
+        (date_trunc('month', current_date) + interval '1 month')::date,
         'Concurrency dependent cash reversal',
         'concurrency-dependent-tenant-reversal'
       );
@@ -494,13 +515,67 @@ test("two sessions serialize next-period generation to one four-component rowset
 });
 
 test("two sessions serialize the same transfer component against remaining authority", async () => {
+  run(`
+    INSERT INTO public.properties (id, organization_id, name, code, property_type)
+    VALUES (
+      '${transferRacePropertyId}', '${organizationId}',
+      'Transfer race property', 'TRANSFER-RACE', 'Apartment'
+    );
+    INSERT INTO public.people (id, organization_id, display_name)
+    VALUES
+      ('${transferRaceOwnerId}', '${organizationId}', 'Transfer race predecessor'),
+      ('${transferRaceSuccessorId}', '${organizationId}', 'Transfer race successor');
+    INSERT INTO public.person_roles (organization_id, person_id, role, status)
+    VALUES
+      ('${organizationId}', '${transferRaceOwnerId}', 'owner', 'active'),
+      ('${organizationId}', '${transferRaceSuccessorId}', 'owner', 'active');
+    INSERT INTO public.property_owners (
+      id, organization_id, property_id, person_id, ownership_percent, started_on, ended_on
+    ) VALUES (
+      '${transferRaceOwnerAssignmentId}', '${organizationId}', '${transferRacePropertyId}',
+      '${transferRaceOwnerId}', 100.000, date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '2 months')::date
+    );
+    INSERT INTO public.property_owners (
+      id, organization_id, property_id, person_id, ownership_percent, started_on
+    ) VALUES (
+      '${transferRaceSuccessorAssignmentId}', '${organizationId}', '${transferRacePropertyId}',
+      '${transferRaceSuccessorId}', 100.000,
+      (date_trunc('month', current_date) + interval '2 months')::date
+    );
+  `);
   run(authenticatedSql(financeManagerId, `
     SELECT public.record_owner_cash_event(
-      '${organizationId}', '${gardenPropertyId}', '${gardenOwnerId}', 'USD',
-      'owner_contribution', current_date, 1000.00,
+      '${organizationId}', '${transferRacePropertyId}', '${transferRaceOwnerId}', 'USD',
+      'owner_contribution',
+      (date_trunc('month', current_date) + interval '1 month')::date, 600.00,
       'Concurrency transfer funding', 'concurrency-transfer-funding'
     );
   `));
+  run(`
+    SELECT set_config('app.owner_balance_period_write_context', 'checked-rollforward-v1', true);
+    INSERT INTO public.owner_balance_periods (
+      id, organization_id, property_id, owner_person_id, currency, month_start,
+      status, input_watermark, input_hash, generated_at, generated_by
+    ) VALUES (
+      '${transferRacePeriodId}', '${organizationId}', '${transferRacePropertyId}',
+      '${transferRaceOwnerId}', 'USD',
+      (date_trunc('month', current_date) + interval '1 month')::date,
+      'ready', 'concurrency-transfer-predecessor', repeat('6', 64),
+      now(), '${financeManagerId}'
+    );
+    INSERT INTO public.owner_balance_period_components (
+      owner_balance_period_id, organization_id, component,
+      opening_amount, movement_amount, closing_amount, created_by
+    )
+    SELECT
+      '${transferRacePeriodId}', '${organizationId}', component,
+      0.00,
+      CASE component WHEN 'ips_held_owner_cash' THEN 600.00 ELSE 0.00 END,
+      CASE component WHEN 'ips_held_owner_cash' THEN 600.00 ELSE 0.00 END,
+      '${financeManagerId}'
+    FROM pg_catalog.unnest(enum_range(NULL::public.owner_balance_component)) AS component;
+  `);
   installPauseTrigger();
   try {
     const firstKey = "concurrency-transfer-held-a";
@@ -508,18 +583,18 @@ test("two sessions serialize the same transfer component against remaining autho
       SELECT set_config('app.owner_balance_test_pause_table', 'owner_component_transfer_instructions', true);
       SELECT set_config('app.owner_balance_test_pause_scope', '${firstKey}', true);
       SELECT public.transfer_owner_balance_component(
-        '${organizationId}', '${gardenPropertyId}', '${gardenOwnerId}',
-        '${gardenSuccessorId}', 'USD',
-        (date_trunc('month', current_date) + interval '1 month')::date,
+        '${organizationId}', '${transferRacePropertyId}', '${transferRaceOwnerId}',
+        '${transferRaceSuccessorId}', 'USD',
+        (date_trunc('month', current_date) + interval '2 months')::date,
         'ips_held_owner_cash', 600.00, 'Concurrency transfer A',
         'CONCURRENCY-TRANSFER-A', repeat('a', 64), '${firstKey}'
       );
     `);
     const second = authenticatedSql(superAdminId, `
       SELECT public.transfer_owner_balance_component(
-        '${organizationId}', '${gardenPropertyId}', '${gardenOwnerId}',
-        '${gardenSuccessorId}', 'USD',
-        (date_trunc('month', current_date) + interval '1 month')::date,
+        '${organizationId}', '${transferRacePropertyId}', '${transferRaceOwnerId}',
+        '${transferRaceSuccessorId}', 'USD',
+        (date_trunc('month', current_date) + interval '2 months')::date,
         'ips_held_owner_cash', 600.00, 'Concurrency transfer B',
         'CONCURRENCY-TRANSFER-B', repeat('b', 64),
         'concurrency-transfer-held-b'
@@ -528,7 +603,7 @@ test("two sessions serialize the same transfer component against remaining autho
     const race = await raceAfterMarker(first, second);
     assert.equal(race.first.status, 0, race.first.stderr);
     assert.equal(race.second.status, 1, race.second.stderr);
-    assert.match(race.second.stderr, /insufficient_authoritative_component_balance/i);
+    assert.match(race.second.stderr, /owner_transfer_no_remaining_balance/i);
     assert.ok(race.secondElapsedMs >= 1_500, `transfer waited only ${race.secondElapsedMs}ms`);
     assert.equal(run(`SELECT count(*) FROM public.owner_component_transfer_instructions
       WHERE organization_id = '${organizationId}'

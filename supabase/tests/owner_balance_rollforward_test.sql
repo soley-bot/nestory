@@ -699,6 +699,8 @@ SELECT results_eq(
       blocked_reason_code,
       blocked_reason_detail->>'previous_owner_person_id',
       blocked_reason_detail->>'ownership_started_on',
+      blocked_reason_detail->>'predecessor_status',
+      blocked_reason_detail->>'remediation_code',
       blocked_reason_detail->>'unsettled_component_count'
     FROM public.owner_balance_periods
     WHERE organization_id = 'e5500000-0000-4000-8000-000000000001'
@@ -711,10 +713,12 @@ SELECT results_eq(
       'unresolved_transfer'::text,
       'e5500000-0000-4000-8000-000000000003'::text,
       '2026-10-01'::text,
-      '4'::text
+      'stale'::text,
+      'owner_transfer_predecessor_not_authoritative'::text,
+      '0'::text
     )
   $$,
-  'absent explicit transfer instructions expose exact typed successor remediation'
+  'a stale predecessor exposes exact typed recomputation remediation without treating stale amounts as authoritative'
 );
 
 SELECT is(

@@ -149,6 +149,17 @@ type RpcFunctionOverrides = {
       p_reason: string;
     }
   >;
+  record_owner_invoice_payment: WithArgs<
+    "record_owner_invoice_payment",
+    {
+      p_amount: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_invoice_id: string;
+      p_received_date: string;
+      p_reference: string;
+    }
+  >;
   record_owner_distribution: WithArgs<
     "record_owner_distribution",
     {

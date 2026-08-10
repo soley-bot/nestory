@@ -47,8 +47,15 @@ describe("OwnerBalanceLedger", () => {
     expect(within(period).getByText("USD 900,719,925,474.09")).toBeTruthy();
     expect(within(period).getByText("USD 0.09")).toBeTruthy();
     expect(within(period).getByText("USD 2.00")).toBeTruthy();
-    expect(within(period).getByText(/Available withdrawal: USD 900,719,925,474.09/)).toBeTruthy();
+    expect(within(period).getByText(/Held cash closing: USD 900,719,925,474.09/)).toBeTruthy();
+    expect(within(period).queryByText(/Available withdrawal/)).toBeNull();
     expect(within(period).getByText(/Input watermark: 2026-08-31T00:00:00Z/)).toBeTruthy();
+
+    const capacity = screen.getByTestId("owner-withdrawal-capacity");
+    expect(within(capacity).getByText("Current checked withdrawal capacity")).toBeTruthy();
+    expect(within(capacity).getByText("USD 900,719,925,374.09")).toBeTruthy();
+    expect(within(capacity).getByText(/As of 2026-08-31/)).toBeTruthy();
+    expect(within(capacity).getByText(/Committed or reserved: USD 100.00/)).toBeTruthy();
 
     const source = screen.getByTestId(`owner-source-${allocationSetId}`);
     expect(within(source).getByText("Tenant rent receipt")).toBeTruthy();
@@ -117,6 +124,40 @@ describe("OwnerBalanceLedger", () => {
     expect(screen.getByText(/Select an exact property and owner assignment/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Generate month" })).toBeNull();
   });
+
+  it.each(["historical_not_eligible", "period_stale"])(
+    "does not present %s closing cash as current withdrawal capacity",
+    (status) => {
+      const blocked = data() as unknown as {
+        withdrawalCapacity: Record<string, unknown>;
+      };
+      blocked.withdrawalCapacity = {
+        asOfDate: "2026-07-31",
+        authoritativeHeldCash: "500.00",
+        availableWithdrawal: null,
+        committedReserved: "25.00",
+        periodStatus: status === "period_stale" ? "stale" : "ready",
+        status,
+      };
+
+      render(
+        <OwnerBalanceLedger
+          canAllocate
+          canCorrect
+          canTransfer={false}
+          data={blocked as unknown as OwnerBalanceData}
+          organizationName="IPS"
+          selectedMonth="2026-07"
+          selectedOwnerPersonId={ownerId}
+          selectedPropertyId={propertyId}
+        />,
+      );
+
+      const capacity = screen.getByTestId("owner-withdrawal-capacity");
+      expect(within(capacity).getByText("Withdrawal capacity unavailable")).toBeTruthy();
+      expect(within(capacity).queryByText("USD 500.00")).toBeNull();
+    },
+  );
 });
 
 function data(): OwnerBalanceData {
@@ -170,5 +211,13 @@ function data(): OwnerBalanceData {
       sourceLineId,
       sourceType: "tenant_rent_receipt",
     }],
-  };
+    withdrawalCapacity: {
+      asOfDate: "2026-08-31",
+      authoritativeHeldCash: "900719925474.09" as never,
+      availableWithdrawal: "900719925374.09" as never,
+      committedReserved: "100.00" as never,
+      periodStatus: "ready",
+      status: "available",
+    },
+  } as unknown as OwnerBalanceData;
 }

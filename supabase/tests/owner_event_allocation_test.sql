@@ -435,23 +435,45 @@ SET LOCAL ROLE authenticated;
 
 SELECT ok(
   (
+    WITH command_boundaries(command_name, baseline_name) AS (
+      VALUES
+        ('record_owner_cash_event'::text, 'record_owner_cash_event_baseline'::text),
+        ('allocate_owner_event'::text, NULL::text),
+        (
+          'transfer_owner_balance_component'::text,
+          'transfer_owner_balance_component_baseline'::text
+        )
+    ), definitions AS (
+      SELECT
+        boundary.command_name,
+        boundary.baseline_name,
+        public_procedure.prosrc AS public_source,
+        public_procedure.prosrc || coalesce(private_procedure.prosrc, '') AS effective_source
+      FROM command_boundaries AS boundary
+      JOIN pg_catalog.pg_proc AS public_procedure
+        ON public_procedure.proname = boundary.command_name
+      JOIN pg_catalog.pg_namespace AS public_namespace
+        ON public_namespace.oid = public_procedure.pronamespace
+       AND public_namespace.nspname = 'public'
+      LEFT JOIN pg_catalog.pg_proc AS private_procedure
+        ON private_procedure.proname = boundary.baseline_name
+      LEFT JOIN pg_catalog.pg_namespace AS private_namespace
+        ON private_namespace.oid = private_procedure.pronamespace
+       AND private_namespace.nspname = 'app_private'
+    )
     SELECT count(*) = 3
       AND pg_catalog.bool_and(
-        procedure.prosrc LIKE '%app_private.get_financial_idempotency_replay%'
-        AND procedure.prosrc LIKE '%app_private.claim_financial_idempotency%'
-        AND procedure.prosrc LIKE '%app_private.complete_financial_idempotency%'
+        effective_source LIKE '%app_private.get_financial_idempotency_replay%'
+        AND effective_source LIKE '%app_private.claim_financial_idempotency%'
+        AND effective_source LIKE '%app_private.complete_financial_idempotency%'
+        AND (
+          baseline_name IS NULL
+          OR public_source LIKE '%' || baseline_name || '%'
+        )
       )
-    FROM pg_catalog.pg_proc AS procedure
-    JOIN pg_catalog.pg_namespace AS namespace
-      ON namespace.oid = procedure.pronamespace
-    WHERE namespace.nspname = 'public'
-      AND procedure.proname IN (
-        'record_owner_cash_event',
-        'allocate_owner_event',
-        'transfer_owner_balance_component'
-      )
+    FROM definitions
   ),
-  'Track 3 allocation commands reuse the single financial idempotency authority'
+  'Track 3 public and private-baseline command boundaries reuse the single financial idempotency authority'
 );
 
 SELECT throws_ok(

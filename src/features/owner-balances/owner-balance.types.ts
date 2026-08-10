@@ -207,10 +207,20 @@ export type OwnerBalanceOption = {
   label: string;
 };
 
+export type OwnerWithdrawalCapacity = {
+  asOfDate: string;
+  authoritativeHeldCash: CanonicalOwnerBalanceAmount;
+  availableWithdrawal: CanonicalOwnerBalanceAmount | null;
+  committedReserved: CanonicalOwnerBalanceAmount;
+  periodStatus: string | null;
+  status: string;
+};
+
 export type OwnerBalanceData = {
   periods: OwnerBalancePeriodRecord[];
   queue: OwnerEventAllocationQueueRecord[];
   sources: OwnerBalanceSourceRecord[];
   propertyOptions: OwnerBalanceOption[];
   ownerOptions: OwnerBalanceOption[];
+  withdrawalCapacity: OwnerWithdrawalCapacity | null;
 };
