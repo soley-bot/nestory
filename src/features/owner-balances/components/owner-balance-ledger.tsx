@@ -21,6 +21,7 @@ type OwnerBalanceLedgerProps = {
   canAllocate: boolean;
   canCorrect: boolean;
   canTransfer: boolean;
+  closingAuthority?: ReactNode;
   data: OwnerBalanceData;
   openingAuthority?: ReactNode;
   organizationName: string;
@@ -33,6 +34,7 @@ export function OwnerBalanceLedger({
   canAllocate,
   canCorrect,
   canTransfer,
+  closingAuthority,
   data,
   openingAuthority,
   organizationName,
@@ -106,6 +108,8 @@ export function OwnerBalanceLedger({
       </form>
 
       {openingAuthority}
+
+      {closingAuthority}
 
       {!hasExactScope ? (
         <section className="rounded-2xl border border-amber-300/60 bg-amber-50/70 p-5 text-sm text-amber-950">

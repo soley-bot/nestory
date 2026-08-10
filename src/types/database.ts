@@ -55,6 +55,41 @@ type WithReturns<Name extends keyof GeneratedFunctions, Returns> = Omit<
 };
 
 type RpcFunctionOverrides = {
+  close_owner_month: WithArgs<
+    "close_owner_month",
+    {
+      p_close_reason: string;
+      p_currency: CurrencyCode;
+      p_idempotency_key: string;
+      p_month_start: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+    }
+  >;
+  reopen_owner_month: WithArgs<
+    "reopen_owner_month",
+    {
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_close_series_id: string;
+      p_reopen_reason: string;
+    }
+  >;
+  record_owner_close_correction: WithArgs<
+    "record_owner_close_correction",
+    {
+      p_component: OwnerBalanceComponent;
+      p_effective_date: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_close_revision_id: string;
+      p_reason: string;
+      p_signed_amount: string;
+      p_source_reference: string;
+    }
+  >;
   submit_owner_opening_balance: WithArgs<
     "submit_owner_opening_balance",
     {

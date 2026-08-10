@@ -2344,6 +2344,244 @@ SELECT public.generate_owner_balance_period(
   'fixture-owner-balance-garden-next-v1'
 );
 
+-- Guarded Track 4A close/reopen/reclose fixture. This separate property keeps
+-- the approved Track 3 literal balance oracle unchanged while leaving a real
+-- immutable R1 and corrected R2 plus a ready preparing R3 for operator use.
+-- Its month is deliberately 24 months ahead so the retained locked close story
+-- cannot contaminate current operating-month regression fixtures.
+RESET ROLE;
+
+INSERT INTO public.properties (
+  id, organization_id, name, code, property_type, address, status,
+  acquisition_date, notes, created_by, updated_by
+) VALUES (
+  '10000000-0000-0000-0000-000000000004',
+  '00000000-0000-0000-0000-000000000001',
+  'Close Readiness House', 'CLS-RDY', 'Residential house',
+  'Street 95, Boeung Trabek, Phnom Penh', 'active', DATE '2024-01-01',
+  'Isolated guarded fixture for immutable owner-close revision acceptance.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.people (
+  id, organization_id, display_name, legal_name, party_type, primary_email,
+  primary_phone, notes, created_by, updated_by
+) VALUES (
+  '80000000-0000-0000-0000-000000000014',
+  '00000000-0000-0000-0000-000000000001',
+  'Maly Close Owner', 'Close Maly', 'individual',
+  'maly.close@example.test', '+855 12 555 114',
+  'Owner in the guarded revision-one to revision-two close story.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.person_roles (
+  organization_id, person_id, role, status, created_by, updated_by
+) VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  '80000000-0000-0000-0000-000000000014',
+  'owner', 'active',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.property_owners (
+  id, organization_id, property_id, person_id, ownership_label,
+  ownership_percent, is_primary, started_on, created_by, updated_by
+) VALUES (
+  '90000000-0000-0000-0000-000000000008',
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000004',
+  '80000000-0000-0000-0000-000000000014',
+  'Sole owner', 100.000, true, DATE '2024-01-01',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+CREATE TEMP TABLE owner_close_fixture_runtime (
+  runtime_key text PRIMARY KEY,
+  runtime_id uuid NOT NULL
+) ON COMMIT DROP;
+GRANT SELECT, INSERT, UPDATE ON owner_close_fixture_runtime TO authenticated;
+
+CREATE TEMP TABLE owner_close_fixture_scope (
+  month_start date PRIMARY KEY
+) ON COMMIT DROP;
+INSERT INTO owner_close_fixture_scope (month_start)
+VALUES ((date_trunc('month', current_date) + interval '24 months')::date);
+GRANT SELECT ON owner_close_fixture_scope TO authenticated;
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000801',
+  true
+);
+
+INSERT INTO owner_close_fixture_runtime (runtime_key, runtime_id)
+SELECT
+  opening.runtime_key,
+  (public.submit_owner_opening_balance(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000004',
+    '80000000-0000-0000-0000-000000000014',
+    'USD', (SELECT month_start FROM owner_close_fixture_scope),
+    opening.component, opening.amount, opening.reason,
+    opening.source_reference, NULL, opening.evidence_sha256, NULL,
+    opening.idempotency_key
+  )->>'request_id')::uuid
+FROM (
+  VALUES
+    (
+      'opening-held'::text,
+      'ips_held_owner_cash'::public.owner_balance_component,
+      1000.00::numeric,
+      'Verified opening cash for the close revision fixture',
+      'FIXTURE-CLOSE-OPENING-HELD-001', repeat('5', 64),
+      'fixture-close-opening-held-v1'
+    ),
+    (
+      'opening-owner-due',
+      'owner_due_to_ips'::public.owner_balance_component,
+      0.00::numeric,
+      'Verified zero owner payable for the close revision fixture',
+      'FIXTURE-CLOSE-OPENING-OWNER-DUE-001', repeat('6', 64),
+      'fixture-close-opening-owner-due-v1'
+    ),
+    (
+      'opening-ips-due',
+      'ips_due_to_owner'::public.owner_balance_component,
+      0.00::numeric,
+      'Verified zero IPS payable for the close revision fixture',
+      'FIXTURE-CLOSE-OPENING-IPS-DUE-001', repeat('7', 64),
+      'fixture-close-opening-ips-due-v1'
+    ),
+    (
+      'opening-deposit',
+      'security_deposit_custody'::public.owner_balance_component,
+      0.00::numeric,
+      'Verified zero deposit custody for the close revision fixture',
+      'FIXTURE-CLOSE-OPENING-DEPOSIT-001', repeat('8', 64),
+      'fixture-close-opening-deposit-v1'
+    )
+) AS opening(
+  runtime_key, component, amount, reason, source_reference,
+  evidence_sha256, idempotency_key
+)
+ORDER BY opening.runtime_key;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000101',
+  true
+);
+
+SELECT public.review_owner_opening_balance(
+  '00000000-0000-0000-0000-000000000001',
+  runtime.runtime_id,
+  'approve',
+  'Close fixture opening component independently verified',
+  'fixture-close-opening-approve-' || runtime.runtime_key
+)
+FROM owner_close_fixture_runtime AS runtime
+WHERE runtime.runtime_key LIKE 'opening-%'
+ORDER BY runtime.runtime_key;
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000004',
+  '80000000-0000-0000-0000-000000000014',
+  'USD', (SELECT month_start FROM owner_close_fixture_scope),
+  'fixture-close-period-r1-ready'
+);
+
+SELECT public.set_financial_month_lock(
+  '00000000-0000-0000-0000-000000000001',
+  (SELECT month_start FROM owner_close_fixture_scope),
+  true,
+  'Guarded owner-close fixture month lock'
+);
+
+WITH result AS (
+  SELECT public.close_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000004',
+    '80000000-0000-0000-0000-000000000014',
+    'USD', (SELECT month_start FROM owner_close_fixture_scope),
+    'Fixture revision one reconciled close',
+    'fixture-close-revision-one'
+  ) AS payload
+)
+INSERT INTO owner_close_fixture_runtime (runtime_key, runtime_id)
+SELECT 'close-series', (payload->>'series_id')::uuid FROM result
+UNION ALL
+SELECT 'revision-one', (payload->>'revision_id')::uuid FROM result;
+
+WITH result AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT runtime_id FROM owner_close_fixture_runtime
+      WHERE runtime_key = 'close-series'),
+    'Late bank charge belongs to the closed owner month',
+    'fixture-close-reopen-r2'
+  ) AS payload
+)
+INSERT INTO owner_close_fixture_runtime (runtime_key, runtime_id)
+SELECT 'revision-two', (payload->>'revision_id')::uuid FROM result;
+
+SELECT public.record_owner_close_correction(
+  '00000000-0000-0000-0000-000000000001',
+  (SELECT runtime_id FROM owner_close_fixture_runtime
+    WHERE runtime_key = 'revision-two'),
+  'ips_held_owner_cash',
+  ((SELECT month_start FROM owner_close_fixture_scope)
+    + interval '1 month - 1 day')::date,
+  -25.00,
+  'Record late bank charge after revision one',
+  'FIXTURE-CLOSE-CORRECTION-001',
+  repeat('9', 64),
+  'fixture-close-correction-r2'
+);
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000004',
+  '80000000-0000-0000-0000-000000000014',
+  'USD', (SELECT month_start FROM owner_close_fixture_scope),
+  'fixture-close-period-r2-reroll'
+);
+
+SELECT public.close_owner_month(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000004',
+  '80000000-0000-0000-0000-000000000014',
+  'USD', (SELECT month_start FROM owner_close_fixture_scope),
+  'Fixture revision two reconciled after correction',
+  'fixture-close-revision-two'
+);
+
+WITH result AS (
+  SELECT public.reopen_owner_month(
+    '00000000-0000-0000-0000-000000000001',
+    (SELECT runtime_id FROM owner_close_fixture_runtime
+      WHERE runtime_key = 'close-series'),
+    'Leave a ready preparing revision for operator acceptance',
+    'fixture-close-reopen-r3'
+  ) AS payload
+)
+INSERT INTO owner_close_fixture_runtime (runtime_key, runtime_id)
+SELECT 'revision-three', (payload->>'revision_id')::uuid FROM result;
+
+SELECT public.generate_owner_balance_period(
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000004',
+  '80000000-0000-0000-0000-000000000014',
+  'USD', (SELECT month_start FROM owner_close_fixture_scope),
+  'fixture-close-period-r3-ready'
+);
+
 RESET ROLE;
 
 COMMIT;

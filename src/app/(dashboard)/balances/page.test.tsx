@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   balanceData: vi.fn(),
+  closeData: vi.fn(),
   openingData: vi.fn(),
   requireFinanceContext: vi.fn(),
 }));
@@ -18,6 +19,20 @@ vi.mock("@/features/owner-balances/data/owner-balances", () => ({
 vi.mock("@/features/owner-balances/data/opening-balances", () => ({
   getOpeningBalanceAuthorityData: mocks.openingData,
 }));
+vi.mock("@/features/owner-close/data/owner-close", () => ({
+  getOwnerCloseData: mocks.closeData,
+}));
+vi.mock("@/features/owner-close/components/owner-close-screen", () => ({
+  OwnerCloseScreen: (props: Record<string, unknown>) => (
+    <div
+      data-can-close={String(props.canClose)}
+      data-can-reopen={String(props.canReopen)}
+      data-testid="owner-close-authority"
+    >
+      Owner close authority
+    </div>
+  ),
+}));
 vi.mock("@/features/owner-balances/components/opening-balance-screen", () => ({
   OpeningBalanceScreen: (props: Record<string, unknown>) => (
     <div data-can-review={String(props.canReview)} data-testid="opening-authority">
@@ -30,6 +45,7 @@ vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
     canAllocate?: boolean;
     canCorrect?: boolean;
     canTransfer?: boolean;
+    closingAuthority?: React.ReactNode;
     openingAuthority?: React.ReactNode;
   }) => (
     <main
@@ -40,6 +56,7 @@ vi.mock("@/features/owner-balances/components/owner-balance-ledger", () => ({
     >
       <h1>Authoritative owner balance</h1>
       {props.openingAuthority}
+      {props.closingAuthority}
     </main>
   ),
 }));
@@ -55,10 +72,12 @@ describe("BalancesPage opening authority integration", () => {
     vi.clearAllMocks();
     mocks.requireFinanceContext.mockResolvedValue({
       capabilities: {
+        canCloseOwnerMonth: true,
         canConfigureLeases: true,
         canCorrectFinance: false,
         canOperateFinance: true,
         canReadFinanceReports: true,
+        canReopenOwnerMonth: true,
         canRequestOwnerOpeningBalanceCorrection: true,
         canReviewExpense: true,
         canReviewOwnerOpeningBalance: true,
@@ -82,6 +101,12 @@ describe("BalancesPage opening authority integration", () => {
       effectiveDate: "2026-08-01",
       groups: [],
       readiness: [],
+    });
+    mocks.closeData.mockResolvedValue({
+      corrections: [],
+      readiness: null,
+      revisions: [],
+      series: null,
     });
   });
 
@@ -109,6 +134,12 @@ describe("BalancesPage opening authority integration", () => {
       periodStart: "2026-08-01",
       propertyId,
     });
+    expect(mocks.closeData).toHaveBeenCalledWith({
+      currency: "USD",
+      monthStart: "2026-08-01",
+      ownerPersonId: ownerId,
+      propertyId,
+    });
     expect(screen.getByTestId("opening-authority").getAttribute("data-can-review"))
       .toBe("true");
     expect(screen.getByRole("heading", { name: "Authoritative owner balance" }))
@@ -117,6 +148,10 @@ describe("BalancesPage opening authority integration", () => {
     expect(screen.getByTestId("authoritative-ledger").getAttribute("data-can-allocate"))
       .toBe("true");
     expect(screen.getByTestId("authoritative-ledger").getAttribute("data-can-transfer"))
+      .toBe("true");
+    expect(screen.getByTestId("owner-close-authority").getAttribute("data-can-close"))
+      .toBe("true");
+    expect(screen.getByTestId("owner-close-authority").getAttribute("data-can-reopen"))
       .toBe("true");
   });
 

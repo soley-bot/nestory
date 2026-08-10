@@ -2,6 +2,8 @@ import { OwnerBalanceLedger } from "@/features/owner-balances/components/owner-b
 import { getOwnerBalanceData } from "@/features/owner-balances/data/owner-balances";
 import { OpeningBalanceScreen } from "@/features/owner-balances/components/opening-balance-screen";
 import { getOpeningBalanceAuthorityData } from "@/features/owner-balances/data/opening-balances";
+import { OwnerCloseScreen } from "@/features/owner-close/components/owner-close-screen";
+import { getOwnerCloseData } from "@/features/owner-close/data/owner-close";
 import { requireFinanceContext } from "@/lib/auth/context";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
 
@@ -18,7 +20,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
   const selectedPropertyId = validUuid(first(query.propertyId));
   const selectedOwnerPersonId = validUuid(first(query.ownerPersonId));
   const periodStart = `${selectedMonth}-01`;
-  const [data, openingData] = await Promise.all([
+  const [data, openingData, closeData] = await Promise.all([
     getOwnerBalanceData({
       currency: "USD",
       ownerPersonId: selectedOwnerPersonId,
@@ -32,12 +34,28 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
       ownerPersonId: selectedOwnerPersonId,
       propertyId: selectedPropertyId,
     }),
+    getOwnerCloseData({
+      currency: "USD",
+      monthStart: periodStart,
+      ownerPersonId: selectedOwnerPersonId,
+      propertyId: selectedPropertyId,
+    }),
   ]);
   return (
     <OwnerBalanceLedger
       canAllocate={context.capabilities.canOperateFinance}
       canCorrect={context.capabilities.canCorrectFinance}
       canTransfer={context.role === "super_admin"}
+      closingAuthority={
+        <OwnerCloseScreen
+          canClose={context.capabilities.canCloseOwnerMonth}
+          canReopen={context.capabilities.canReopenOwnerMonth}
+          data={closeData}
+          monthStart={periodStart}
+          ownerPersonId={selectedOwnerPersonId}
+          propertyId={selectedPropertyId}
+        />
+      }
       data={data}
       openingAuthority={
         <OpeningBalanceScreen

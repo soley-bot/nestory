@@ -97,11 +97,12 @@ SELECT results_eq(
   $$,
   $$
     VALUES
+      ('CLS-RDY'::text, 'active'::text),
       ('CTR-RES'::text, 'active'::text),
       ('GDN-CRT'::text, 'active'::text),
       ('RIV-SHP'::text, 'active'::text)
   $$,
-  'the compact fixture contains the three named operating stories'
+  'the compact fixture contains three operating stories and one isolated close story'
 );
 
 SELECT is(
@@ -135,7 +136,7 @@ SELECT is(
         AND count(*) FILTER (WHERE owners.is_primary) = 1
     ) AS complete_ownership
   ),
-  3::bigint,
+  4::bigint,
   'each property has one complete current ownership record'
 );
 
@@ -473,10 +474,22 @@ SELECT is(
   'one active pooled source supports IPS and approved-cost cash flows'
 );
 
-SELECT is(
-  (SELECT count(*) FROM public.financial_month_locks),
-  0::bigint,
-  'the fixture starts with every financial month open'
+SELECT ok(
+  (SELECT count(*) = 1 FROM public.financial_month_locks)
+  AND EXISTS (
+    SELECT 1
+    FROM public.financial_month_locks AS month_lock
+    WHERE month_lock.month_start =
+      (date_trunc('month', current_date) + interval '24 months')::date
+      AND month_lock.is_locked
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.financial_month_locks AS month_lock
+    WHERE month_lock.month_start = date_trunc('month', current_date)::date
+      AND month_lock.is_locked
+  ),
+  'only the isolated future owner-close story is locked; the operating month is open'
 );
 
 SELECT set_config(

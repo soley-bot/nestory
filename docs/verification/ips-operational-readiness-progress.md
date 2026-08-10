@@ -56,3 +56,33 @@
 - Evidence limitation: the retained accessibility summary exists, but no raw historical browser/full-matrix command log, explicit exit-code/head/database-identity file, or artifact-SHA correlation was found. Those expensive gates were not rerun in the correction round, and their prior summarized results are not promoted to independent exact-head proof.
 - Independent-review correction round 2: N1 is fixed from base `e7e204fe7d1c28b7239b6dac045c76be93829c4c` by CLI-generated migration `20260810103823_enforce_owner_balance_global_lock_order.sql`. Allocator, cash, distribution, transfer, reversal, and legacy cash-effect paths now share financial-month then lifecycle then stable-key ordering with replay-before-lock proof and private-helper denial.
 - N1 evidence: deterministic same-owner/same-month source/generation RED reproduced `deadlock detected` and the wrong reverse-order wait key; GREEN is 2/2 with no `40P01`, current ready/typed-stale watermarks, and one allocation. Focused database/security is 194/194, original/correction concurrency is 6/6 and 8/8, reset/lint/advisors/build/diff are green. Final focused re-review accepted N1 with zero new Critical, Important, or Minor findings. No browser/full matrix was rerun.
+
+## Track 4A - immutable owner close authority
+
+- Status: local implementation and self-review complete on 2026-08-10;
+  independent milestone review remains required. Track 4B is not started.
+- Outcome: Super Admin can inspect typed readiness, close immutable revision 1,
+  reopen for a reason into N+1, record a checked evidenced correction, reroll
+  affected periods in order, and close revision 2 without changing revision 1.
+  Finance roles are read-only; Operations, unaffiliated, cross-tenant,
+  anonymous, and service-role paths fail closed.
+- Integrity: five authority tables use RLS plus FORCE RLS and checked immutable
+  writes. Frozen lines retain exact source identities/fingerprints, four
+  components reconcile exactly, decimal strings never cross through JavaScript
+  number coercion, and a literal oracle reproduces both closed content hashes.
+- Browser evidence: one retained exact-worktree flow passed 14 phases from
+  visible Finance navigation through R1, reopen, `-25.00` correction, ordered
+  reroll to held cash `1830.00`, R2, Finance read-only, Operations denial, and
+  final database/idempotency checks.
+- Final verification: clean reset; all pgTAP 1,603/1,603; Track 4A 46/46;
+  finance integration 88/88; lifecycle concurrency 6/6; close concurrency 2/2;
+  complete application 1,461 pass plus one intentional skip; demo tools 45/45;
+  TypeScript, ESLint, build, route/copy, five role journeys, lint/advisors, and
+  diff checks green.
+- Matrix residual: the complete accessibility crawl remains non-green on the
+  same 98 cross-module backlog findings. `/balances` has zero axe, navigation,
+  page-error, overflow, or 200%-keyboard failure. No unrelated accessibility
+  repair was pulled into Track 4A.
+- Scope: local only. No statement number, publication, PDF, Excel, email,
+  Storage, hosted mutation, real IPS data, push, merge, or deployment.
+- Verification report: `docs/verification/track-4a-owner-close-authority.md`.
