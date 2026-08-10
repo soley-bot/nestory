@@ -1,9 +1,11 @@
 import { getReportPdf } from "@/features/reports/data/pdf";
+import { downloadOwnerStatementArtifact } from "@/features/reports/data/owner-statement-artifacts";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
 import {
   getCurrentUser,
   getFinanceReportMembershipForUser,
 } from "@/lib/auth/context";
+import { createSupabaseServerClient } from "@/lib/db/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,7 +23,26 @@ export async function GET(request: Request) {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const searchParams = Object.fromEntries(new URL(request.url).searchParams);
+  const url = new URL(request.url);
+  const artifactId = url.searchParams.get("artifactId");
+  if (artifactId) {
+    try {
+      const supabase = await createSupabaseServerClient();
+      const artifact = await downloadOwnerStatementArtifact(
+        supabase,
+        membership.organizationId,
+        artifactId,
+      );
+      if (artifact.format !== "pdf") {
+        return new Response("Owner Statement artifact format mismatch.", { status: 409 });
+      }
+      return attachment(artifact.bytes, artifact.filename, artifact.contentType);
+    } catch {
+      return new Response("Official Owner Statement artifact is unavailable.", { status: 409 });
+    }
+  }
+
+  const searchParams = Object.fromEntries(url.searchParams);
   const viewQuery = parseReportSearchParams(searchParams);
   const pdf = await getReportPdf(
     membership.organizationId,
@@ -34,16 +55,19 @@ export async function GET(request: Request) {
       status: pdf.validation.status,
     });
   }
-  const body = pdf.body.buffer.slice(
-    pdf.body.byteOffset,
-    pdf.body.byteOffset + pdf.body.byteLength,
-  ) as ArrayBuffer;
+  return attachment(pdf.body, pdf.filename, "application/pdf");
+}
 
+function attachment(bodyBytes: Uint8Array, filename: string, contentType: string) {
+  const body = bodyBytes.buffer.slice(
+    bodyBytes.byteOffset,
+    bodyBytes.byteOffset + bodyBytes.byteLength,
+  ) as ArrayBuffer;
   return new Response(body, {
     headers: {
-      "Content-Disposition": `attachment; filename="${pdf.filename}"`,
-      "Content-Length": String(pdf.body.byteLength),
-      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(bodyBytes.byteLength),
+      "Content-Type": contentType,
     },
   });
 }

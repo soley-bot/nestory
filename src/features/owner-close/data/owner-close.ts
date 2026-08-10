@@ -16,6 +16,8 @@ import type {
   OwnerCloseScope,
   OwnerCloseSeries,
   OwnerCloseSeriesState,
+  OwnerStatementPublicationReadiness,
+  OwnerStatementPublicationSummary,
 } from "@/features/owner-close/owner-close.types";
 import { requireOwnerCloseReadinessContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -61,14 +63,90 @@ export async function getOwnerCloseData(
   const historyResult = await supabase.rpc("get_owner_close_history", rpcScope);
   if (historyResult.error) throw new Error("Unable to load frozen owner close evidence.");
   try {
-    return { ...mapHistory(historyResult.data), readiness };
+    const history = mapHistory(historyResult.data);
+    const currentRevisionId = history.series?.currentClosedRevisionId;
+    if (!history.series || !currentRevisionId) return { ...history, readiness };
+
+    const [publicationReadinessResult, publicationsResult] = await Promise.all([
+      supabase.rpc("get_owner_statement_readiness", {
+        p_organization_id: context.organizationId,
+        p_owner_close_revision_id: currentRevisionId,
+      }),
+      supabase.rpc("get_owner_statement_publications_for_series", {
+        p_organization_id: context.organizationId,
+        p_owner_close_series_id: history.series.id,
+      }),
+    ]);
+    if (publicationReadinessResult.error || publicationsResult.error) {
+      throw new Error("Unable to load Owner Statement publication history.");
+    }
+    return {
+      ...history,
+      publicationReadiness: mapPublicationReadiness(publicationReadinessResult.data),
+      publications: mapPublications(publicationsResult.data),
+      readiness,
+    };
   } catch {
     throw new Error("Invalid owner close evidence returned by the database.");
   }
 }
 
+function mapPublicationReadiness(value: unknown): OwnerStatementPublicationReadiness {
+  const row = object(value);
+  if (typeof row.is_ready !== "boolean" || !Array.isArray(row.blockers)) {
+    throw new Error("Invalid Owner Statement readiness.");
+  }
+  return {
+    blockers: row.blockers.map((value) => {
+      const blocker = object(value);
+      if (typeof blocker.code !== "string") throw new Error("Invalid publication blocker.");
+      return blocker as OwnerCloseBlocker;
+    }),
+    existingPublicationId: nullableString(row.existing_publication_id),
+    isReady: row.is_ready,
+    revisionId: requiredString(row.revision_id),
+  };
+}
+
+function mapPublications(value: unknown): OwnerStatementPublicationSummary[] {
+  if (!Array.isArray(value)) throw new Error("Invalid Owner Statement publication list.");
+  return value.map((item) => {
+    const row = object(item);
+    if (!Array.isArray(row.artifacts)) throw new Error("Invalid publication artifacts.");
+    const revisionNumber = positiveInteger(row.revision_number);
+    const artifacts = row.artifacts.map((item) => {
+      const artifact = object(item);
+      if (artifact.format !== "pdf" && artifact.format !== "xlsx") {
+        throw new Error("Invalid Owner Statement artifact format.");
+      }
+      return {
+        format: artifact.format as "pdf" | "xlsx",
+        id: requiredString(artifact.id),
+      };
+    }).sort((left, right) => left.format.localeCompare(right.format));
+    return {
+      artifacts,
+      contentHash: requiredHash(row.content_hash),
+      generatedAt: requiredString(row.generated_at),
+      id: requiredString(row.id),
+      revisionId: requiredString(row.owner_close_revision_id),
+      revisionNumber,
+      statementNumber: requiredString(row.statement_number),
+      supersededByPublicationId: nullableString(row.superseded_by_publication_id),
+      supersedesPublicationId: nullableString(row.supersedes_publication_id),
+    };
+  }).sort((left, right) => right.revisionNumber - left.revisionNumber);
+}
+
 function emptyData(): OwnerCloseData {
-  return { corrections: [], readiness: null, revisions: [], series: null };
+  return {
+    corrections: [],
+    publicationReadiness: null,
+    publications: [],
+    readiness: null,
+    revisions: [],
+    series: null,
+  };
 }
 
 function mapReadiness(value: unknown): OwnerCloseReadiness {
@@ -129,6 +207,8 @@ function mapHistory(value: unknown): Omit<OwnerCloseData, "readiness"> {
   }
   return {
     corrections: envelope.corrections.map(mapCorrection),
+    publicationReadiness: null,
+    publications: [],
     revisions: envelope.revisions.map(mapRevision).sort(
       (left, right) => right.revisionNumber - left.revisionNumber,
     ),

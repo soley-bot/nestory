@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   closeOwnerMonthAction,
+  publishOwnerStatementAction,
   recordOwnerCloseCorrectionAction,
   reopenOwnerMonthAction,
 } from "@/features/owner-close/actions";
@@ -17,6 +18,7 @@ import type {
 
 type OwnerCloseScreenProps = {
   canClose: boolean;
+  canPublish?: boolean;
   canReopen: boolean;
   data: OwnerCloseData;
   monthStart: string;
@@ -26,6 +28,7 @@ type OwnerCloseScreenProps = {
 
 export function OwnerCloseScreen({
   canClose,
+  canPublish = false,
   canReopen,
   data,
   monthStart,
@@ -127,8 +130,109 @@ export function OwnerCloseScreen({
             <CorrectionForm monthStart={monthStart} revisionId={preparingRevision.id} />
           ) : null}
 
+          <PublicationAuthority canPublish={canPublish} data={data} />
+
           <RevisionHistory data={data} />
         </>
+      )}
+    </section>
+  );
+}
+
+function PublicationAuthority({
+  canPublish,
+  data,
+}: {
+  canPublish: boolean;
+  data: OwnerCloseData;
+}) {
+  const readiness = data.publicationReadiness;
+  const publications = data.publications ?? [];
+  return (
+    <section aria-labelledby="owner-statement-publication-heading" className="space-y-3">
+      <div>
+        <h3 className="font-semibold" id="owner-statement-publication-heading">
+          Official Owner Statements
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Numbered publications and retained PDF and Excel bytes from immutable close evidence.
+        </p>
+      </div>
+
+      {canPublish && readiness?.isReady ? (
+        <form
+          action={publishOwnerStatementAction}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-300/70 bg-emerald-50/60 p-4"
+        >
+          <input name="revisionId" type="hidden" value={readiness.revisionId} />
+          <input
+            name="idempotencyKey"
+            type="hidden"
+            value={`owner-statement-${readiness.revisionId}-${randomUUID()}`}
+          />
+          <div>
+            <p className="font-semibold">Ready to publish official Owner Statement</p>
+            <p className="text-sm text-muted-foreground">
+              Publication freezes a permanent statement number and retained artifacts.
+            </p>
+          </div>
+          <button
+            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+            type="submit"
+          >
+            Publish Owner Statement
+          </button>
+        </form>
+      ) : readiness && readiness.blockers.length > 0 ? (
+        <div className="rounded-2xl border border-border/80 bg-card p-4 text-sm">
+          <p className="font-semibold">Publication blocked</p>
+          <ul className="mt-2 space-y-1 text-muted-foreground">
+            {readiness.blockers.map((blocker, index) => (
+              <li key={`${blocker.code}:${index}`}>{blockerLabel(blocker)}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {publications.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+          No official Owner Statement has been published for this owner month.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {publications.map((publication) => (
+            <article
+              className="rounded-2xl border border-border/80 bg-card p-4"
+              key={publication.id}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-mono text-sm font-semibold">{publication.statementNumber}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Revision {publication.revisionNumber} · {publication.generatedAt}
+                  </p>
+                  <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+                    {publication.contentHash}
+                  </p>
+                </div>
+                <span className="rounded-full border border-border px-2 py-1 text-xs font-medium">
+                  {publication.supersededByPublicationId ? "Superseded" : "Current"}
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {publication.artifacts.map((artifact) => (
+                  <a
+                    className="rounded-lg border border-border px-3 py-2 text-sm font-semibold"
+                    href={`/api/reports/${artifact.format === "pdf" ? "pdf" : "excel"}?artifactId=${artifact.id}`}
+                    key={artifact.id}
+                  >
+                    Download {artifact.format === "pdf" ? "PDF" : "Excel"}
+                  </a>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
       )}
     </section>
   );

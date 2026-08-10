@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "evidenceBoundary": "Redacted local manual reconciliation fixture; not real IPS or DoorLoop evidence.",
+  "runtimeAuthority": {
+    "statementNumberPattern": "^OS-[0-9]{6}-[0-9A-F]{12}$",
+    "sha256Pattern": "^[0-9a-f]{64}$",
+    "artifactFormats": ["pdf", "xlsx"]
+  },
+  "reconciliation": {
+    "closingComponents": {
+      "ips_held_owner_cash": "975.00",
+      "owner_due_to_ips": "0.00",
+      "ips_due_to_owner": "0.00",
+      "security_deposit_custody": "0.00"
+    },
+    "unexplainedDifference": "0.00"
+  }
+}

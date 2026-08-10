@@ -161,8 +161,24 @@ async function main() {
     );
   }
 
+  const publicationFixture = spawnSync(
+    process.execPath,
+    [
+      path.join(cwd, "node_modules", "tsx", "dist", "cli.mjs"),
+      path.join(cwd, "scripts", "load-owner-statement-publication-fixture.ts"),
+    ],
+    { cwd, encoding: "utf8", shell: false },
+  );
+  if (publicationFixture.error) throw publicationFixture.error;
+  if (publicationFixture.status !== 0) {
+    throw new Error(
+      publicationFixture.stderr.trim() || "Could not load official Owner Statement fixture.",
+    );
+  }
+
   process.stdout.write("Database test baseline loaded.\n");
   process.stdout.write("Fixture activity targets verified.\n");
+  process.stdout.write(publicationFixture.stdout);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

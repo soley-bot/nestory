@@ -144,3 +144,33 @@
   function ownership, grants, locked search paths, and all five RLS plus FORCE
   RLS tables passed. Track 4A is approved locally and the Track 4B gate is
   open. Hosted and production readiness remain unverified.
+
+## Track 4B - official Owner Statement publication
+
+- Status: local implementation and criterion self-review complete on 2026-08-10;
+  independent milestone review pending. No approval is claimed.
+- Outcome: Super Admin publishes an immutable non-PII numbered statement from a
+  current closed revision, downloads retained byte-verified PDF/XLSX, and can
+  publish N+1 after reopen/reclose with explicit supersession while N remains
+  unchanged. Finance is read-only; Operations is denied.
+- Integrity: canonical statement authority consumes only frozen close revision,
+  line, and source evidence. Publication/artifact tables use RLS plus FORCE RLS,
+  checked immutable writes, actor-bound idempotency, create-only private paths,
+  exact hash/size verification, and typed incomplete-artifact remediation that
+  blocks reopen/supersession until both artifacts are complete.
+- Browser evidence: one exact-worktree flow passed Super Admin R3 download and
+  R4 publication/supersession, Finance read/download without controls,
+  Operations denial, database/hash effects, prior-byte preservation, and fixture
+  restoration.
+- Matrix evidence: complete application 1,477 pass plus one intentional skip;
+  final demo tools 47/47; routes 47/47; roles 5/5; concurrency 13/13, 4/4, 6/6,
+  15/15, and 4/4; affected pgTAP 96/96; reset/fixture, types, lint/advisors,
+  build, and diff checks green. Bundled workbook inspection rendered all three
+  sheets with no formula errors or material clipping; Poppler rendered the two-
+  page PDF.
+- Residual: the expensive accessibility crawl retains the same 98 unrelated
+  backlog findings and zero changed `/balances` findings. Hosted Supabase,
+  Vercel, email, cron, backups/recovery, real IPS data, cutover, push/merge, and
+  Track 5 remain outside this milestone.
+- Verification: `docs/verification/track-4b-owner-statement-publication.md` and
+  `docs/verification/owner-statement-redacted-reconciliation.md`.

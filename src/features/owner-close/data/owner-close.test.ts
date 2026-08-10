@@ -28,6 +28,8 @@ const lineId = "00000000-0000-4000-8000-000000000007";
 const sourceId = "00000000-0000-4000-8000-000000000008";
 const sourceLineId = "00000000-0000-4000-8000-000000000009";
 const movementId = "00000000-0000-4000-8000-000000000010";
+const publicationId = "00000000-0000-4000-8000-000000000020";
+const artifactId = "00000000-0000-4000-8000-000000000021";
 
 describe("owner close authority loader", () => {
   beforeEach(() => {
@@ -154,6 +156,33 @@ describe("owner close authority loader", () => {
           error: null,
         });
       }
+      if (name === "get_owner_statement_readiness") {
+        return Promise.resolve({
+          data: {
+            blockers: [{ code: "owner_statement_revision_not_current_closed" }],
+            existing_publication_id: publicationId,
+            is_ready: false,
+            revision_id: revisionOneId,
+          },
+          error: null,
+        });
+      }
+      if (name === "get_owner_statement_publications_for_series") {
+        return Promise.resolve({
+          data: [{
+            artifacts: [{ format: "pdf", id: artifactId }],
+            content_hash: "f".repeat(64),
+            generated_at: "2026-09-01T05:00:00Z",
+            id: publicationId,
+            owner_close_revision_id: revisionOneId,
+            revision_number: 1,
+            statement_number: "OS-202608-000000000000",
+            superseded_by_publication_id: null,
+            supersedes_publication_id: null,
+          }],
+          error: null,
+        });
+      }
       throw new Error(`Unexpected RPC ${name}`);
     });
   });
@@ -181,6 +210,17 @@ describe("owner close authority loader", () => {
       p_property_id: propertyId,
     });
     expect(mocks.from).not.toHaveBeenCalled();
+    expect(result.publicationReadiness).toEqual({
+      blockers: [{ code: "owner_statement_revision_not_current_closed" }],
+      existingPublicationId: publicationId,
+      isReady: false,
+      revisionId: revisionOneId,
+    });
+    expect(result.publications).toEqual([expect.objectContaining({
+      artifacts: [{ format: "pdf", id: artifactId }],
+      id: publicationId,
+      statementNumber: "OS-202608-000000000000",
+    })]);
     expect(result.readiness).toEqual(expect.objectContaining({
       blockers: [expect.objectContaining({ code: "owner_close_reopen_required" })],
       components: [
@@ -228,7 +268,10 @@ describe("owner close authority loader", () => {
     expect(mocks.requireReadiness).toHaveBeenCalledOnce();
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.from).not.toHaveBeenCalled();
-    expect(result).toEqual({ corrections: [], readiness: null, revisions: [], series: null });
+    expect(result).toEqual({
+      corrections: [], publicationReadiness: null, publications: [], readiness: null,
+      revisions: [], series: null,
+    });
   });
 
   it("fails closed on malformed money instead of coercing through Number", async () => {

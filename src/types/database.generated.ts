@@ -5681,6 +5681,98 @@ export type Database = {
           },
         ]
       }
+      owner_statement_artifacts: {
+        Row: {
+          created_at: string
+          created_by: string
+          format: string
+          id: string
+          organization_id: string
+          publication_id: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          format: string
+          id?: string
+          organization_id: string
+          publication_id: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          format?: string
+          id?: string
+          organization_id?: string
+          publication_id?: string
+          sha256?: string
+          size_bytes?: number
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_statement_artifacts_publication_fk"
+            columns: ["organization_id", "publication_id"]
+            isOneToOne: false
+            referencedRelation: "owner_statement_publications"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      owner_statement_publications: {
+        Row: {
+          content_hash: string
+          generated_at: string
+          generated_by: string
+          id: string
+          organization_id: string
+          owner_close_revision_id: string
+          statement_number: string
+          supersedes_publication_id: string | null
+        }
+        Insert: {
+          content_hash: string
+          generated_at?: string
+          generated_by: string
+          id?: string
+          organization_id: string
+          owner_close_revision_id: string
+          statement_number: string
+          supersedes_publication_id?: string | null
+        }
+        Update: {
+          content_hash?: string
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          organization_id?: string
+          owner_close_revision_id?: string
+          statement_number?: string
+          supersedes_publication_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_statement_publications_revision_fk"
+            columns: ["organization_id", "owner_close_revision_id"]
+            isOneToOne: false
+            referencedRelation: "owner_close_revisions"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "owner_statement_publications_supersedes_fk"
+            columns: ["organization_id", "supersedes_publication_id"]
+            isOneToOne: false
+            referencedRelation: "owner_statement_publications"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       people: {
         Row: {
           archived_at: string | null
@@ -8701,6 +8793,22 @@ export type Database = {
           setup_path: string
         }[]
       }
+      get_owner_statement_artifact_download: {
+        Args: { p_artifact_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      get_owner_statement_publication: {
+        Args: { p_organization_id: string; p_publication_id: string }
+        Returns: Json
+      }
+      get_owner_statement_publications_for_series: {
+        Args: { p_organization_id: string; p_owner_close_series_id: string }
+        Returns: Json
+      }
+      get_owner_statement_readiness: {
+        Args: { p_organization_id: string; p_owner_close_revision_id: string }
+        Returns: Json
+      }
       get_property_cash_events_page: {
         Args: {
           p_after_event_date: string
@@ -8793,6 +8901,14 @@ export type Database = {
           organization_name: string
           workspace_slug: string
         }[]
+      }
+      publish_owner_statement: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_close_revision_id: string
+        }
+        Returns: Json
       }
       record_auth_password_credential_proof: {
         Args: { p_auth_user_id: string; p_proof_method: string }
@@ -8916,6 +9032,18 @@ export type Database = {
           email: string
           invitation_id: string
         }[]
+      }
+      register_owner_statement_artifact: {
+        Args: {
+          p_format: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_publication_id: string
+          p_sha256: string
+          p_size_bytes: number
+          p_storage_path: string
+        }
+        Returns: Json
       }
       remove_organization_member_access: {
         Args: { p_member_id: string; p_organization_id: string }

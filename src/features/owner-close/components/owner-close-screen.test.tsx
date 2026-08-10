@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/features/owner-close/actions", () => ({
   closeOwnerMonthAction: vi.fn(),
+  publishOwnerStatementAction: vi.fn(),
   recordOwnerCloseCorrectionAction: vi.fn(),
   reopenOwnerMonthAction: vi.fn(),
 }));
@@ -20,6 +21,7 @@ const ownerId = "00000000-0000-4000-8000-000000000003";
 const seriesId = "00000000-0000-4000-8000-000000000004";
 const revisionOneId = "00000000-0000-4000-8000-000000000005";
 const revisionTwoId = "00000000-0000-4000-8000-000000000006";
+const publicationId = "00000000-0000-4000-8000-000000000019";
 const amount = canonicalizeSignedOwnerOpeningAmount;
 
 describe("OwnerCloseScreen", () => {
@@ -137,11 +139,73 @@ describe("OwnerCloseScreen", () => {
     expect(screen.queryByText(/Ready to close revision/)).toBeNull();
     expect(screen.queryByRole("button", { name: /close revision/i })).toBeNull();
   });
+
+  it("gives Super Admin publication and retained artifact controls for the current close", () => {
+    const data = closedData();
+    data.publicationReadiness = {
+      blockers: [],
+      existingPublicationId: null,
+      isReady: true,
+      revisionId: revisionOneId,
+    };
+    data.publications = [];
+
+    render(<OwnerCloseScreen
+      canClose
+      canPublish
+      canReopen
+      data={data}
+      monthStart="2026-08-01"
+      ownerPersonId={ownerId}
+      propertyId={propertyId}
+    />);
+
+    expect(screen.getByText("Ready to publish official Owner Statement")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Publish Owner Statement" })).toBeTruthy();
+  });
+
+  it("keeps superseded publications and downloads visible to read-only Finance", () => {
+    const data = closedData();
+    data.publicationReadiness = null;
+    data.publications = [{
+      artifacts: [
+        { format: "pdf", id: "00000000-0000-4000-8000-000000000020" },
+        { format: "xlsx", id: "00000000-0000-4000-8000-000000000021" },
+      ],
+      contentHash: "f".repeat(64),
+      generatedAt: "2026-09-01T05:00:00Z",
+      id: publicationId,
+      revisionId: revisionOneId,
+      revisionNumber: 1,
+      statementNumber: "OS-202608-000000000000",
+      supersededByPublicationId: "00000000-0000-4000-8000-000000000022",
+      supersedesPublicationId: null,
+    }];
+
+    render(<OwnerCloseScreen
+      canClose={false}
+      canPublish={false}
+      canReopen={false}
+      data={data}
+      monthStart="2026-08-01"
+      ownerPersonId={ownerId}
+      propertyId={propertyId}
+    />);
+
+    expect(screen.getByText("OS-202608-000000000000")).toBeTruthy();
+    expect(screen.getByText("Superseded")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Download PDF" }).getAttribute("href"))
+      .toBe("/api/reports/pdf?artifactId=00000000-0000-4000-8000-000000000020");
+    expect(screen.getByRole("link", { name: "Download Excel" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Publish Owner Statement" })).toBeNull();
+  });
 });
 
 function closedData(): OwnerCloseData {
   return {
     corrections: [],
+    publicationReadiness: null,
+    publications: [],
     readiness: {
       blockers: [{ code: "owner_close_reopen_required", series_id: seriesId, state: "closed" }],
       components: [

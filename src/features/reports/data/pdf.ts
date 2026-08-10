@@ -4,6 +4,7 @@ import {
   getReportExportFilename,
 } from "@/features/reports/data/report-format";
 import { formatDate } from "@/lib/dates/format";
+import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
 import type {
   OccupancyReport,
   OccupancyReportRow,
@@ -254,6 +255,170 @@ export function buildTrustedReportPdf({
   );
 
   return createPdfDocument(pageCommands);
+}
+
+export function buildOwnerStatementPdf(model: OwnerStatementPublicationModel) {
+  const bodyGroups = chunk(model.lines, 20);
+  const sourceRows = model.lines.flatMap((line) =>
+    line.sources.map((source) => ({ line, source })),
+  );
+  const sourceGroups = chunk(sourceRows, 16);
+  const totalPages = bodyGroups.length + sourceGroups.length;
+  const pages = [
+    ...bodyGroups.map((lines, index) =>
+      renderOwnerStatementBodyPage(model, lines, index + 1, totalPages, index === 0),
+    ),
+    ...sourceGroups.map((sources, index) =>
+      renderOwnerStatementSourcePage(
+        model,
+        sources,
+        bodyGroups.length + index + 1,
+        totalPages,
+      ),
+    ),
+  ];
+  return createPdfDocument(pages, portraitA4PageSize);
+}
+
+function renderOwnerStatementBodyPage(
+  model: OwnerStatementPublicationModel,
+  lines: OwnerStatementPublicationModel["lines"],
+  pageNumber: number,
+  totalPages: number,
+  firstPage: boolean,
+) {
+  const commands: string[] = [];
+  drawText(commands, "Official Owner Statement", 36, 798, {
+    bold: true, color: colors.ink, fontSize: 18, width: 523,
+  });
+  drawText(commands, model.statementNumber, 36, 778, {
+    bold: true, color: colors.accent, fontSize: 10, width: 523,
+  });
+  drawText(
+    commands,
+    `Period ${model.monthStart.slice(0, 7)} | Currency ${model.currency} | Revision ${model.revisionNumber}`,
+    36,
+    760,
+    { color: colors.muted, fontSize: 8.5, width: 523 },
+  );
+  drawText(commands, `Property ${model.propertyId}`, 36, 744, {
+    color: colors.muted, fontSize: 7.5, width: 523,
+  });
+  drawText(commands, `Owner ${model.ownerPersonId}`, 36, 730, {
+    color: colors.muted, fontSize: 7.5, width: 523,
+  });
+
+  let y = 702;
+  if (firstPage) {
+    drawText(commands, "COMPONENT SUMMARY", 36, y, {
+      bold: true, color: colors.muted, fontSize: 7.5, width: 523,
+    });
+    y -= 18;
+    for (const component of model.components) {
+      drawText(commands, sanitizeText(component.component.replaceAll("_", " ")), 42, y, {
+        fontSize: 8, width: 225,
+      });
+      drawText(
+        commands,
+        `${model.currency} ${component.openingAmount} + ${component.movementAmount} = ${component.closingAmount}`,
+        270,
+        y,
+        { align: "right", fontSize: 8, width: 285 },
+      );
+      y -= 17;
+    }
+    y -= 8;
+  }
+  drawText(commands, firstPage ? "FROZEN STATEMENT LINES" : "FROZEN STATEMENT LINES - CONTINUED", 36, y, {
+    bold: true, color: colors.muted, fontSize: 7.5, width: 523,
+  });
+  y -= 20;
+  for (const line of lines) {
+    drawText(
+      commands,
+      `${line.lineNumber}. ${line.businessDate} | ${sanitizeText(line.description)}`,
+      42,
+      y,
+      { bold: true, fontSize: 7.6, width: 370 },
+    );
+    drawText(commands, `${model.currency} ${line.signedAmount}`, 420, y, {
+      align: "right", fontSize: 7.6, width: 135,
+    });
+    y -= 13;
+    drawText(
+      commands,
+      `${line.lineKind}${line.component ? ` | ${line.component}` : ""} | ${line.sourceCount} source${line.sourceCount === 1 ? "" : "s"}`,
+      42,
+      y,
+      { color: colors.muted, fontSize: 6.8, width: 510 },
+    );
+    y -= 18;
+  }
+  drawOwnerStatementFooter(commands, model, pageNumber, totalPages);
+  return commands.join("\n");
+}
+
+function renderOwnerStatementSourcePage(
+  model: OwnerStatementPublicationModel,
+  sources: Array<{
+    line: OwnerStatementPublicationModel["lines"][number];
+    source: OwnerStatementPublicationModel["lines"][number]["sources"][number];
+  }>,
+  pageNumber: number,
+  totalPages: number,
+) {
+  const commands: string[] = [];
+  drawText(commands, "Official Owner Statement", 36, 798, {
+    bold: true, fontSize: 15, width: 523,
+  });
+  drawText(commands, `${model.statementNumber} | SOURCE TRACE`, 36, 774, {
+    bold: true, color: colors.accent, fontSize: 9, width: 523,
+  });
+  let y = 744;
+  for (const { line, source } of sources) {
+    drawText(commands, `Line ${line.lineNumber} | ${sanitizeText(source.sourceType)}`, 42, y, {
+      bold: true, fontSize: 7.4, width: 510,
+    });
+    y -= 12;
+    drawText(commands, `Source line ${source.sourceLineId}`, 42, y, {
+      fontSize: 6.8, width: 510,
+    });
+    y -= 12;
+    drawText(commands, `Source ${source.sourceId}`, 42, y, {
+      fontSize: 6.8, width: 510,
+    });
+    y -= 12;
+    drawText(commands, `SHA-256 ${source.sourceFingerprint}`, 42, y, {
+      color: colors.muted, fontSize: 6.4, width: 510,
+    });
+    y -= 20;
+  }
+  drawOwnerStatementFooter(commands, model, pageNumber, totalPages);
+  return commands.join("\n");
+}
+
+function drawOwnerStatementFooter(
+  commands: string[],
+  model: OwnerStatementPublicationModel,
+  pageNumber: number,
+  totalPages: number,
+) {
+  drawLine(commands, 36, 38, 559, 38, colors.border, 0.6);
+  drawText(commands, `Content ${model.contentHash}`, 36, 24, {
+    color: colors.muted, fontSize: 5.8, width: 410,
+  });
+  drawText(commands, `Page ${pageNumber} of ${totalPages}`, 450, 24, {
+    align: "right", color: colors.muted, fontSize: 7, width: 109,
+  });
+}
+
+function chunk<T>(items: T[], size: number) {
+  if (items.length === 0) return [[]] as T[][];
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    result.push(items.slice(index, index + size));
+  }
+  return result;
 }
 
 function buildTrustedReportSourceTraceRows(

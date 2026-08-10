@@ -49,6 +49,7 @@ export default async function BalancesPage({ searchParams }: BalancesPageProps =
       closingAuthority={
         <OwnerCloseScreen
           canClose={context.capabilities.canCloseOwnerMonth}
+          canPublish={context.capabilities.canPublishOwnerStatement}
           canReopen={context.capabilities.canReopenOwnerMonth}
           data={closeData}
           monthStart={periodStart}

@@ -43,11 +43,12 @@ export function validateOwnerCloseFixture(report) {
     revisions: [
       { contentHashValid: true, inputHashValid: true, lineCount: 8, revisionNumber: 1, sourceCount: 8, status: "closed", supersedesRevisionNumber: null },
       { contentHashValid: true, inputHashValid: true, lineCount: 9, revisionNumber: 2, sourceCount: 9, status: "closed", supersedesRevisionNumber: 1 },
-      { contentHashValid: false, inputHashValid: false, lineCount: 0, revisionNumber: 3, sourceCount: 0, status: "preparing", supersedesRevisionNumber: 2 },
+      { contentHashValid: true, inputHashValid: true, lineCount: 9, revisionNumber: 3, sourceCount: 9, status: "closed", supersedesRevisionNumber: 2 },
+      { contentHashValid: false, inputHashValid: false, lineCount: 0, revisionNumber: 4, sourceCount: 0, status: "preparing", supersedesRevisionNumber: 3 },
     ],
     series: {
-      activeRevisionNumber: 3,
-      closedRevisionNumber: 2,
+      activeRevisionNumber: 4,
+      closedRevisionNumber: 3,
       fixtureMonthLocked: true,
       isolatedFromOperatingMonth: true,
       operatingMonthOpen: true,
@@ -60,7 +61,7 @@ export async function main() {
   const report = queryOwnerCloseFixture();
   validateOwnerCloseFixture(report);
   process.stdout.write(
-    "Owner-close fixture reconciled: immutable R1, corrected R2, and ready preparing R3\n",
+    "Owner-close fixture reconciled: immutable R1/R2/R3, retained statement, and preparing R4\n",
   );
 }
 

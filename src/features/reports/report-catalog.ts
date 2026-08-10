@@ -14,6 +14,14 @@ export type ReportCatalogItem = {
   title: string;
 };
 
+export const ownerStatementCatalogItem = {
+  description:
+    "Numbered PDF and Excel artifacts retained from an immutable closed owner-month revision.",
+  kind: "owner-statement",
+  tabLabel: "Owner Statement",
+  title: "Official Owner Statement",
+} as const;
+
 const reportDefinitions: ReportCatalogItem[] = [
   {
     description:
@@ -45,7 +53,7 @@ export function isReportKind(value: string): value is CurrentReportKind {
 }
 
 export function buildReportBuilderHref(
-  report: ReportKind,
+  report: CurrentReportKind,
   query?: URLSearchParams,
 ) {
   const params = new URLSearchParams(query);
@@ -62,4 +70,37 @@ export function buildReportBuilderHref(
   const suffix = params.toString();
 
   return suffix ? `/reports/${report}?${suffix}` : `/reports/${report}`;
+}
+
+export function buildOwnerStatementAuthorityHref(input: {
+  month: string;
+  ownerPersonId: string;
+  propertyId: string;
+  publicationId?: string;
+  revisionId?: string;
+}) {
+  const immutableIds = [input.publicationId, input.revisionId].filter(Boolean);
+  if (immutableIds.length !== 1) {
+    throw new Error("Choose exactly one immutable publication or closed revision.");
+  }
+  if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(input.month) ||
+      !isUuid(input.ownerPersonId) || !isUuid(input.propertyId) ||
+      !isUuid(immutableIds[0]!)) {
+    throw new Error("Invalid official Owner Statement authority scope.");
+  }
+  const params = new URLSearchParams({
+    month: input.month,
+    propertyId: input.propertyId,
+    ownerPersonId: input.ownerPersonId,
+  });
+  if (input.publicationId) {
+    params.set("ownerStatementPublicationId", input.publicationId);
+  } else {
+    params.set("ownerCloseRevisionId", input.revisionId!);
+  }
+  return `/balances?${params.toString()}`;
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

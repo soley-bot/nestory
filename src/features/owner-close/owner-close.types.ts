@@ -92,8 +92,34 @@ export type OwnerCloseCorrection = {
   sourceReference: string;
 };
 
+export type OwnerStatementPublicationReadiness = {
+  blockers: OwnerCloseBlocker[];
+  existingPublicationId: string | null;
+  isReady: boolean;
+  revisionId: string;
+};
+
+export type OwnerStatementPublicationArtifact = {
+  format: "pdf" | "xlsx";
+  id: string;
+};
+
+export type OwnerStatementPublicationSummary = {
+  artifacts: OwnerStatementPublicationArtifact[];
+  contentHash: string;
+  generatedAt: string;
+  id: string;
+  revisionId: string;
+  revisionNumber: number;
+  statementNumber: string;
+  supersededByPublicationId: string | null;
+  supersedesPublicationId: string | null;
+};
+
 export type OwnerCloseData = {
   corrections: OwnerCloseCorrection[];
+  publicationReadiness: OwnerStatementPublicationReadiness | null;
+  publications: OwnerStatementPublicationSummary[];
   readiness: OwnerCloseReadiness | null;
   revisions: OwnerCloseRevision[];
   series: OwnerCloseSeries | null;

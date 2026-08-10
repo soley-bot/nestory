@@ -1,9 +1,11 @@
 import { getReportExcel } from "@/features/reports/data/excel";
+import { downloadOwnerStatementArtifact } from "@/features/reports/data/owner-statement-artifacts";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
 import {
   getCurrentUser,
   getFinanceReportMembershipForUser,
 } from "@/lib/auth/context";
+import { createSupabaseServerClient } from "@/lib/db/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,7 +23,26 @@ export async function GET(request: Request) {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const searchParams = Object.fromEntries(new URL(request.url).searchParams);
+  const url = new URL(request.url);
+  const artifactId = url.searchParams.get("artifactId");
+  if (artifactId) {
+    try {
+      const supabase = await createSupabaseServerClient();
+      const artifact = await downloadOwnerStatementArtifact(
+        supabase,
+        membership.organizationId,
+        artifactId,
+      );
+      if (artifact.format !== "xlsx") {
+        return new Response("Owner Statement artifact format mismatch.", { status: 409 });
+      }
+      return attachment(artifact.bytes, artifact.filename, artifact.contentType);
+    } catch {
+      return new Response("Official Owner Statement artifact is unavailable.", { status: 409 });
+    }
+  }
+
+  const searchParams = Object.fromEntries(url.searchParams);
   const viewQuery = parseReportSearchParams(searchParams);
   const excel = await getReportExcel(membership.organizationId, viewQuery);
 
@@ -29,17 +50,23 @@ export async function GET(request: Request) {
     return textValidation(excel.validation);
   }
 
-  const body = excel.body.buffer.slice(
-    excel.body.byteOffset,
-    excel.body.byteOffset + excel.body.byteLength,
-  ) as ArrayBuffer;
+  return attachment(
+    excel.body,
+    excel.filename,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+}
 
+function attachment(bodyBytes: Uint8Array, filename: string, contentType: string) {
+  const body = bodyBytes.buffer.slice(
+    bodyBytes.byteOffset,
+    bodyBytes.byteOffset + bodyBytes.byteLength,
+  ) as ArrayBuffer;
   return new Response(body, {
     headers: {
-      "Content-Disposition": `attachment; filename="${excel.filename}"`,
-      "Content-Length": String(excel.body.byteLength),
-      "Content-Type":
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(bodyBytes.byteLength),
+      "Content-Type": contentType,
     },
   });
 }

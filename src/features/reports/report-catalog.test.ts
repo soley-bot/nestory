@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildReportBuilderHref,
+  buildOwnerStatementAuthorityHref,
+  ownerStatementCatalogItem,
   reportCatalog,
   reportKindValues,
 } from "@/features/reports/report-catalog";
@@ -16,6 +18,33 @@ describe("report catalog", () => {
       "Owner activity",
       "Monthly Unit Profit & Loss",
     ]);
+  });
+});
+
+describe("official Owner Statement catalog boundary", () => {
+  it("catalogs the statement only as immutable publication authority", () => {
+    expect(ownerStatementCatalogItem).toEqual(expect.objectContaining({
+      kind: "owner-statement",
+      title: "Official Owner Statement",
+    }));
+    expect(() => buildOwnerStatementAuthorityHref({
+      month: "2026-08",
+      ownerPersonId: "00000000-0000-0000-0000-000000000003",
+      propertyId: "00000000-0000-0000-0000-000000000002",
+    })).toThrow("publication or closed revision");
+  });
+
+  it("links only an immutable publication or closed revision to close authority", () => {
+    expect(buildOwnerStatementAuthorityHref({
+      month: "2026-08",
+      ownerPersonId: "00000000-0000-0000-0000-000000000003",
+      propertyId: "00000000-0000-0000-0000-000000000002",
+      publicationId: "00000000-0000-0000-0000-000000000004",
+    })).toBe(
+      "/balances?month=2026-08&propertyId=00000000-0000-0000-0000-000000000002" +
+      "&ownerPersonId=00000000-0000-0000-0000-000000000003" +
+      "&ownerStatementPublicationId=00000000-0000-0000-0000-000000000004",
+    );
   });
 });
 
