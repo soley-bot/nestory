@@ -741,7 +741,8 @@ function HistoricalRentRecoveryForm({
     <form action={action} className="space-y-4 p-4">
       <p className="text-sm text-muted-foreground">
         Generate one missed completed month, including a month before a lease
-        ended. This never fills earlier or later months automatically.
+        ended. This never fills earlier or later months automatically. Adjacent
+        gaps remain visible in the attention queue.
       </p>
       <Field label="Lease">
         <SelectControl
@@ -873,7 +874,11 @@ function RentView({
                       <Money amount={invoice.balanceDue} />
                     </Td>
                     <Td>
-                      <StatusBadge status={invoice.paymentStatus} />
+                      <StatusBadge
+                        dueDate={invoice.dueDate}
+                        settlements={invoice.settlements}
+                        status={invoice.paymentStatus}
+                      />
                     </Td>
                     <Td align="right">
                       {canRecordPayments || canCorrectFinance ? (
@@ -2759,15 +2764,42 @@ function Td({
 function Money({ amount }: { amount: number }) {
   return <MoneyDisplay align="right" value={formatMoneyDisplay(amount)} />;
 }
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  dueDate,
+  settlements = [],
+  status,
+}: {
+  dueDate?: string;
+  settlements?: TenantInvoiceSummary["settlements"];
+  status: string;
+}) {
+  const activeSettlementDates = settlements
+    .filter((settlement) => !settlement.isReversed)
+    .map((settlement) => settlement.date)
+    .sort();
+  const paidLate =
+    status === "paid" &&
+    dueDate !== undefined &&
+    activeSettlementDates.at(-1) !== undefined &&
+    activeSettlementDates.at(-1)! > dueDate;
+  const overdue =
+    (status === "unpaid" || status === "partly_paid") &&
+    dueDate !== undefined &&
+    dueDate < getBusinessDateValue();
   const label =
-    status === "partly_paid"
-      ? "Partly paid"
-      : status === "paid"
-        ? "Paid"
-        : status === "voided"
-          ? "Voided"
-          : "Unpaid";
+    paidLate
+      ? "Paid late"
+      : overdue && status === "partly_paid"
+        ? "Partly paid · overdue"
+        : overdue
+          ? "Overdue"
+          : status === "partly_paid"
+            ? "Partly paid"
+            : status === "paid"
+              ? "Paid"
+              : status === "voided"
+                ? "Voided"
+                : "Unpaid";
   return (
     <Badge
       tone={

@@ -109,6 +109,72 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByText(/journal|month close|uuid/i)).toBeNull();
   });
 
+  it("distinguishes overdue rent from a payment completed after its due date", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-11T05:00:00Z"));
+
+    try {
+      const input = data();
+      const overdue = tenantInvoice();
+      overdue.id = "invoice-overdue";
+      overdue.invoiceNumber = "INV-OVERDUE";
+      overdue.dueDate = "2026-08-05";
+      overdue.paymentStatus = "unpaid";
+
+      const paidLate = tenantInvoice();
+      paidLate.id = "invoice-paid-late";
+      paidLate.invoiceNumber = "INV-PAID-LATE";
+      paidLate.balanceDue = 0;
+      paidLate.dueDate = "2026-08-05";
+      paidLate.paidThroughIps = 640;
+      paidLate.paymentStatus = "paid";
+      paidLate.settlements = [
+        {
+          amount: 640,
+          date: "2026-08-09",
+          id: "payment-late",
+          isReversed: false,
+          reference: "Bank receipt",
+          reversalReason: null,
+          route: "through_ips",
+        },
+      ];
+      const partialOverdue = tenantInvoice();
+      partialOverdue.id = "invoice-partial-overdue";
+      partialOverdue.invoiceNumber = "INV-PARTIAL-OVERDUE";
+      partialOverdue.balanceDue = 25;
+      partialOverdue.dueDate = "2026-08-05";
+      partialOverdue.paidThroughIps = 615;
+      partialOverdue.paymentStatus = "partly_paid";
+      input.tenantInvoices = [overdue, partialOverdue, paidLate];
+
+      render(
+        <FinanceOperationsScreen
+          {...input}
+          {...financeCapabilities()}
+          organizationName="Sokha Property Services"
+          view="rent"
+        />,
+      );
+
+      const overdueRow = screen.getByText("INV-OVERDUE").closest("tr");
+      const paidLateRow = screen.getByText("INV-PAID-LATE").closest("tr");
+      const partialOverdueRow = screen
+        .getByText("INV-PARTIAL-OVERDUE")
+        .closest("tr");
+      expect(overdueRow).not.toBeNull();
+      expect(paidLateRow).not.toBeNull();
+      expect(partialOverdueRow).not.toBeNull();
+      expect(within(overdueRow!).getByText("Overdue")).not.toBeNull();
+      expect(
+        within(partialOverdueRow!).getByText("Partly paid · overdue"),
+      ).not.toBeNull();
+      expect(within(paidLateRow!).getByText("Paid late")).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reserves selected-period rent recovery for Super Admin", () => {
     const readOnly = render(
       <FinanceOperationsScreen
@@ -144,6 +210,9 @@ describe("FinanceOperationsScreen", () => {
       screen.getByRole("button", { name: "Generate selected month" }),
     ).not.toBeNull();
     expect(screen.getByText(/never fills earlier or later months/i)).not.toBeNull();
+    expect(
+      screen.getByText(/adjacent gaps remain visible in the attention queue/i),
+    ).not.toBeNull();
   });
 
   it("starts from a compact finance work queue and opens the four-step lease setup", () => {

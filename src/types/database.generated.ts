@@ -7258,6 +7258,76 @@ export type Database = {
           },
         ]
       }
+      tenant_invoice_rent_segments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          full_period_amount: number
+          id: string
+          invoice_id: string
+          lease_id: string
+          lease_term_id: string
+          organization_id: string
+          proration_rule: string
+          segment_end: string
+          segment_order: number
+          segment_start: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          full_period_amount: number
+          id?: string
+          invoice_id: string
+          lease_id: string
+          lease_term_id: string
+          organization_id: string
+          proration_rule: string
+          segment_end: string
+          segment_order: number
+          segment_start: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          full_period_amount?: number
+          id?: string
+          invoice_id?: string
+          lease_id?: string
+          lease_term_id?: string
+          organization_id?: string
+          proration_rule?: string
+          segment_end?: string
+          segment_order?: number
+          segment_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invoice_rent_segments_invoice_fk"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_rent_segments_invoice_fk"
+            columns: ["organization_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_rent_segments_term_fk"
+            columns: ["organization_id", "lease_id", "lease_term_id"]
+            isOneToOne: false
+            referencedRelation: "lease_terms"
+            referencedColumns: ["organization_id", "lease_id", "id"]
+          },
+        ]
+      }
       tenant_invoices: {
         Row: {
           base_rent_amount: number | null

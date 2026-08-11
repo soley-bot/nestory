@@ -196,3 +196,42 @@
   `0f678b1b7469e6de9ec351dbd4faa4555327e3d6`, with no new Critical, Important,
   or Minor finding. Track 5 is open; hosted and production readiness remain
   unverified.
+
+## Track 5 - lease-to-rent-to-payment lifecycle
+
+- Status: local implementation, complete browser acceptance, one full matrix,
+  and criterion self-review are complete on 2026-08-11. Independent milestone
+  review is pending; no approval is claimed.
+- Outcome: the retained matrix covers full month, mid-month move-in and
+  move-out, unpaid, partial, late, owner-direct, selected historical recovery,
+  renewal, and rent-change scenarios. Finance Manager works ordinary payments;
+  structural rent changes remain Super Admin-only; Finance Member is read-only;
+  Operations is denied.
+- Authority: CLI-created migration
+  `20260811023549_support_mid_period_rent_change_segments.sql` freezes exact
+  per-term rent segments under RLS plus FORCE RLS and rejects structural term
+  drift after an immutable obligation exists. The approved rent-change policy
+  is `next_full_period`: September stays `1450.00` and October becomes
+  `1550.00`.
+- Browser evidence: one `/workspace`-first authenticated flow passed the ten
+  literal scenarios, exact late `25.00` payment, selected July-only recovery,
+  Ledger/property-cash/owner allocation, owner period reroll, close, numbered
+  official PDF/XLSX publication, retained-byte hash/size checks, Finance
+  read-only, Operations denial, and zero pending financial idempotency.
+- Matrix evidence: database 46 files and 1,707/1,707 assertions; application
+  198 files and 1,485 pass plus one intentional skip; tool contracts 50/50;
+  owner readiness/opening/lifecycle/close 13/13, 4/4, 6/6, 15/15; statement
+  4/4 plus real Storage 1/1; document Storage 6/6; rent races 2/2; types,
+  ESLint, database lint/advisors, build, routes 47/47, discoverability 38/38,
+  UI copy, and role journeys 5/5 green.
+- Matrix correction: the rent concurrency harness initially left its final
+  fixture mutation behind. Its final hook now restores the guarded baseline;
+  affected reruns pass rent races 2/2, all owner fixture oracles, then the
+  10/10 rent smoke. No production financial authority changed after the full
+  matrix.
+- Residual: the complete accessibility crawl retains the same 98 program-wide
+  backlog findings. The `/rent-income` contrast rule exists in all four prior
+  Track 4 artifacts and is not a Track 5 regression.
+- Verification: `docs/verification/track-5-rent-to-payment.md`.
+- Scope: local only. No hosted Supabase/Vercel mutation, real IPS data, email,
+  cron, backup, deploy, push, or merge.
