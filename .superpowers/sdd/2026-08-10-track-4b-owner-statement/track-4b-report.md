@@ -170,9 +170,11 @@ can verify/reuse it. Retained real Storage coverage executes cleanup-first and
 registration-first orderings; neither removes the object, both registrations
 retain matching bytes, and the final baseline has no missing registered object,
 orphan, duplicate, deadlock, or pending request. Final independent focused
-re-review remains required.
+re-review approved Track 4B at
+`0f678b1b7469e6de9ec351dbd4faa4555327e3d6`: C4 addressed, no new
+Critical/Important/Minor findings, and Track 5 open.
 
-- Independent milestone review remains mandatory.
+- Independent milestone approval: complete at `0f678b1b`.
 - The 98 unrelated accessibility findings, five legacy DB-lint warnings, and
   Next.js multiple-lockfile warning remain backlog.
 - Hosted Supabase/Vercel parity, email, cron, backups/recovery, real IPS data,

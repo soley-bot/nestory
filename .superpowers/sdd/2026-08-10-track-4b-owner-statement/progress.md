@@ -5,9 +5,10 @@
 - Branch: `codex/ips-operational-readiness`.
 - Approved Track 4A base: `384cd946c8d014b6930d35a7950d9cf5ec9902ca`.
 - Implementer: `/root/track4a_implementer`.
-- Status: initial implementation review found six load-bearing issues. The
-  coordinated correction batch is complete; focused independent re-review is
-  pending. No approval is claimed.
+- Status: **APPROVED** by final independent focused re-review at implementation
+  head `0f678b1b7469e6de9ec351dbd4faa4555327e3d6`. All six original findings and
+  correction finding C4 are addressed; no new Critical, Important, or Minor
+  finding remains in scope. Track 5 is open.
 - Outcome: Super Admin can publish a closed current revision, retain and
   download its official numbered PDF/XLSX, reopen/reclose, and publish N+1
   superseding N without changing N. Finance is read-only; Operations is denied.
@@ -91,5 +92,5 @@
 ## Boundary
 
 Local Supabase/worktree only. No hosted mutation, deploy, email, cron, backup,
-real IPS/DoorLoop evidence, push, merge, or Track 5 work occurred. Independent
-focused correction re-review remains mandatory.
+real IPS/DoorLoop evidence, push, merge, or Track 5 work occurred. Final
+independent approval is recorded in `track-4b-c4-final-approval-review.md`.

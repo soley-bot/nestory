@@ -192,4 +192,7 @@
   retains ambiguous uploaded objects for checked resume. Focused RED/GREEN is
   action 9/10 to 10/10, pgTAP 37/39 to 39/39, real Storage both-order proof 1/1,
   publication concurrency 4/4, and zero missing registered bytes or pending
-  authority. Final independent re-review is pending; Track 5 remains blocked.
+  authority. Final independent C4 re-review approved Track 4B at
+  `0f678b1b7469e6de9ec351dbd4faa4555327e3d6`, with no new Critical, Important,
+  or Minor finding. Track 5 is open; hosted and production readiness remain
+  unverified.

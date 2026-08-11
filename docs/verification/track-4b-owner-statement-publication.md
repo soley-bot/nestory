@@ -6,7 +6,8 @@
 - Approved Track 4A base: `384cd946c8d014b6930d35a7950d9cf5ec9902ca`.
 - Date: 2026-08-11.
 - Scope: local worktree and local Supabase only.
-- Status: independent review findings corrected; focused re-review pending.
+- Status: **APPROVED** by final independent focused re-review at
+  `0f678b1b7469e6de9ec351dbd4faa4555327e3d6`.
 
 No hosted mutation, deploy, email, cron, backup/recovery, real IPS/DoorLoop
 evidence, push, merge, or Track 5 work is claimed.
@@ -101,6 +102,11 @@ action 10/10, pgTAP 39/39, real Storage 1/1 with both start orders, publication
 concurrency 4/4, and a final baseline of two objects/two artifacts with zero
 unregistered, missing-registered, or pending rows.
 
+Final independent C4 re-review repeated the prescribed 39/39, 1/1, and 4/4
+gates, confirmed no Owner Statement DELETE policy or application delete path,
+and found no Critical, Important, or Minor regression. Track 4B is approved and
+the Track 5 gate is open. Hosted/production readiness remains unverified.
+
 The expensive accessibility crawl completed in 392.9 seconds. It retained the
 same 98 unrelated cross-module findings; `/balances` is clean at four viewports
 with zero axe, page, navigation, or overflow findings. The summary is under the
@@ -109,7 +115,6 @@ ignored local artifact path
 
 ## Review handoff
 
-Independent re-review must validate publication/close lock integration, tenant and
-role isolation, immutable supersession, partial-publication recovery, artifact
-byte retention, frozen-only canonical authority, and the retained test oracles.
-No milestone approval is claimed here.
+Independent review validated publication/close lock integration, tenant and role
+isolation, immutable supersession, partial-publication recovery, artifact byte
+retention, frozen-only canonical authority, and the retained test oracles.
