@@ -297,8 +297,9 @@ SELECT results_eq(
   $$,
   $$
     VALUES
-      ('general'::text, 'rejected'::text, 1),
-      ('general'::text, 'reversed'::text, 1),
+      ('general'::text, 'approved'::text, 5),
+      ('general'::text, 'rejected'::text, 2),
+      ('general'::text, 'reversed'::text, 3),
       ('general'::text, 'submitted'::text, 1),
       ('maintenance_task'::text, 'approved'::text, 1),
       ('maintenance_task'::text, 'submitted'::text, 1)

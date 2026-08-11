@@ -415,7 +415,7 @@ async function assertFinanceWork(page, baseUrl) {
 async function assertPaidCostReview(page, baseUrl) {
   await gotoPath(page, baseUrl, "/bills-expenses", "paid-cost-review");
   await requireVisible(page.getByRole("button", { name: /^Approve / }), "review-paid-cost-control");
-  await requireAbsent(page.getByRole("button", { name: "Add expense" }), "submit-paid-cost");
+  await requireAbsent(page.getByRole("button", { name: "Record paid cost" }), "submit-paid-cost");
   await requireAbsent(page.getByRole("button", { name: /Reverse/i }), "finance-correction-or-reversal-expense");
 
   const paidCostRow = page.getByRole("row").filter({
@@ -423,11 +423,11 @@ async function assertPaidCostReview(page, baseUrl) {
     hasText: "Ref: GDN-PUMP-2088",
   });
   await paidCostRow.getByRole("button", { name: /^Approve / }).click();
-  const dialog = page.getByRole("dialog", { name: "Approve expense" });
+  const dialog = page.getByRole("dialog", { name: "Approve paid cost" });
   await dialog.getByRole("textbox", { name: "Review note" }).fill("FM day review");
   const paidCostRequest = await readFormRequest(dialog);
-  await dialog.getByRole("button", { name: "Approve expense" }).click();
-  await requireVisible(page.getByText("Expense approved and recorded.", { exact: true }), "review-paid-cost");
+  await dialog.getByRole("button", { name: "Approve paid cost" }).click();
+  await requireVisible(page.getByText("Paid cost approved and recorded.", { exact: true }), "review-paid-cost");
   return paidCostRequest;
 }
 
