@@ -3,9 +3,10 @@
 - Outcome: Super Admin stages, corrects, reconciles, freezes, and replays one
   redacted IPS cutover manifest with exact import counts and tenant/owner
   opening authority.
-- Status: implementation, focused gates, two rehearsals, browser acceptance,
-  the single full matrix, and one review correction batch are complete.
-  Focused re-review is pending.
+- Status: independently approved at
+  `fba0b2cc71b8e089d074688643b32d2c30a8a95b` after implementation, focused
+  gates, two rehearsals, browser acceptance, one full matrix, and one review
+  correction batch.
 - Local authority: synthetic `2026-09-01`, `REDACTED-IPS-DATA-OWNER`; no hosted
   or real IPS authority was chosen.
 - RED: missing four authority tables/five RPCs, verifier, app modules, fixture,
@@ -25,5 +26,6 @@
   signed-exception time. GREEN: pgTAP 55/55, cutover 5/5, rent 4/4, verifier
   5/5, app 13/13, clean reset/types/lint/advisors/build, and two identical
   currency-bound rehearsals.
-- Gate: do not start the next milestone or hosted activation. One focused
-  independent Track 9 re-review is next.
+- Re-review: I1-I4 addressed; no new Critical, Important, or Minor finding
+  requiring expansion. The next local milestone gate is open.
+- Gate: hosted activation remains unauthorized and belongs to Track 12.

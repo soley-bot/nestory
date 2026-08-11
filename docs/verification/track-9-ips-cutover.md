@@ -2,8 +2,9 @@
 
 ## Status
 
-Implementation and the independent-review correction batch are complete
-locally. Focused independent re-review is pending.
+Implementation and the independent-review correction batch are complete and
+independently approved locally at `fba0b2cc71b8e089d074688643b32d2c30a8a95b`.
+Hosted activation remains unauthorized.
 No hosted environment, real IPS data, deployment, backup, or activation was
 mutated or claimed.
 
@@ -71,6 +72,10 @@ loader/panel 3/5 to 5/5. The affected rent lock-order suite remains 4/4. Clean
 reset, generated types, focused application 13/13, TypeScript, ESLint, DB
 lint/advisors, production build, and diff checks are green. Browser and the
 full matrix were not rerun.
+
+Focused re-review disposition: I1-I4 addressed, no new Critical, Important, or
+Minor finding requiring expansion; Track 9 approved and the next local
+milestone gate opened.
 
 ## Browser acceptance
 

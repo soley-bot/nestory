@@ -252,9 +252,10 @@
 
 ## Track 9 - IPS migration and cutover
 
-- Status: implementation, two clean rehearsals, authenticated browser
-  acceptance, the single full matrix, and the independent-review correction
-  batch are complete locally; focused re-review is pending.
+- Status: independently approved locally at
+  `fba0b2cc71b8e089d074688643b32d2c30a8a95b` after implementation, two clean
+  rehearsals, authenticated browser acceptance, the single full matrix, and
+  one correction batch.
 - Outcome: Super Admin can stage one redacted manifest, see exact blockers,
   stage a corrected manifest, reconcile/freeze import counts plus tenant and all
   four owner opening components, and replay without duplicate invoices or
@@ -283,4 +284,5 @@
   multi-property/multi-tenant verification, and canonical signed-exception
   time. Affected gates are pgTAP 55/55, cutover races 5/5, rent races 4/4,
   verifier 5/5, focused application 13/13, reset/types/lint/advisors/build and
-  two identical correction rehearsals. Focused independent re-review remains.
+  two identical correction rehearsals. Re-review approved I1-I4 with no new
+  Critical/Important/Minor finding requiring expansion.

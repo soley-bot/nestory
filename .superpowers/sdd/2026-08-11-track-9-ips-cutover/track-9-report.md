@@ -1,13 +1,11 @@
 # Track 9 IPS migration and cutover implementation report
 
-## Verdict before focused correction re-review
+## Final verdict
 
 All local acceptance criteria and the four Important first-review findings are
-implemented and verified. No known critical
+implemented, verified, and independently approved at `fba0b2c`. No critical
 accounting, authorization, tenant-isolation, evidence-integrity, idempotency,
-concurrency, or irreversible-data defect remains in Track 9 scope. Approval is
-not claimed until the independent reviewer completes a fresh diff/evidence
-re-review.
+concurrency, or irreversible-data defect remains in Track 9 scope.
 
 ## Review correction disposition
 
