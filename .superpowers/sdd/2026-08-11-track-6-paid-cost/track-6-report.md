@@ -2,7 +2,13 @@
 
 ## Verdict before independent review
 
-Implementation complete; approval not yet claimed. The operator outcome, retained browser flow, one full matrix, and one coordinated correction batch are complete. No known Critical or Important Track 6 accounting, authorization, tenant-isolation, evidence-integrity, idempotency, concurrency, or irreversible-data defect remains.
+Independently approved and locally complete at
+`380797a90a494abefbe387c34ee89a2b0b88ede5`. The operator outcome, retained
+browser flow, one full matrix, coordinated correction batch, exclusive
+registrar correction, and exact-head final re-review are complete. No known
+Critical or Important Track 6 accounting, authorization, tenant-isolation,
+evidence-integrity, idempotency, concurrency, or irreversible-data defect
+remains.
 
 ## Delivered authority
 
@@ -49,4 +55,16 @@ All work used synthetic local data. No hosted Supabase/Vercel mutation, real IPS
 
 The first independent review blocked Track 6 on C1: generic or unhashed documents could bypass the application registrar through the authenticated public RPC. Additive migration `20260811102356_bind_paid_cost_evidence_authority.sql` now makes registrar-grade evidence a database precondition for both general submission and approval and serializes one-document use. Exact replay remains valid; unrelated sequential or concurrent reuse fails atomically.
 
-Focused correction evidence is clean reset/fixture, pgTAP 201/201, application 52/52, paid-cost concurrency 7/7, document Storage 6/6, lifecycle contract 2/2, exact paid-cost fixture reconciliation, database lint/advisors, focused ESLint, catalog/grant/search-path checks, zero unregistered fixture evidence, and zero pending financial idempotency. Browser and the full matrix were intentionally not rerun. Focused re-review remains the final gate.
+The blocked re-review then reproduced a Super Admin forgery of the registrar
+activity shape through ordinary authenticated Storage and `create_document`.
+Final correction `380797a` replaces that signal with an exclusive private
+service-registrar record, reserves ordinary upload/document/activity paths,
+and makes the concurrency evidence unique per run.
+
+Final affected evidence is clean reset/fixture, pgTAP 205/205, application
+52/52, paid-cost concurrency 7/7 twice consecutively, document Storage 6/6,
+lifecycle contract 2/2, exact paid-cost fixture reconciliation, TypeScript,
+database lint/advisors, focused ESLint, catalog/grant/RLS checks, zero missing
+fixture bindings, and zero pending financial idempotency. Exact-head final
+re-review approved with no Critical, Important, or Minor finding. Browser and
+the full matrix were intentionally not rerun.

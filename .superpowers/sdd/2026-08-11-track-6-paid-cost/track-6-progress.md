@@ -4,7 +4,9 @@
 
 - Branch: `codex/ips-operational-readiness`
 - Approved base: `7a0cdb51b72976b2f7c00a08a3930dc25f24058f`
-- Status: implementation, browser acceptance, one full matrix, the coordinated matrix correction, and independent-review C1 correction are complete through `14f3f4e`; focused re-review is next.
+- Status: independently approved and locally complete at
+  `380797a90a494abefbe387c34ee89a2b0b88ede5` after the exclusive-registrar
+  correction and exact-head final focused re-review.
 - Preserved approvals: Tracks 1-5 and Track 9.
 - Scope: local synthetic authority only. No hosted Supabase/Vercel mutation, real IPS data, deploy, push, merge, or `main` cleanup.
 
@@ -95,3 +97,31 @@ A Finance Member records an already-paid cost with exact paid amount/date, fundi
 - One document-scoped transaction lock serializes evidence use. Exact same-key replay returns the original submission; a different-key concurrent attempt waits and fails `paid_cost_evidence_already_used` with no request/submission residue.
 - Final affected evidence at correction commit `14f3f4e`: clean reset and guarded fixture; pgTAP 201/201; application 52/52; paid-cost concurrency 7/7; document Storage 6/6; lifecycle contract 2/2; literal fixture reconciliation; database lint zero errors with the same five warnings; advisors zero; focused ESLint; catalog ownership/search-path/grants; zero unregistered fixture evidence and zero pending financial requests.
 - Browser and full matrix were not rerun. Focused independent re-review is required before approval.
+
+### 2026-08-11 - exclusive registrar correction and final approval
+
+- The blocked focused re-review reproduced a second C1 path: Super Admin could
+  imitate the registrar activity shape through ordinary authenticated Storage
+  and `create_document`.
+- Retained RED passed only 32/37; the four new forgery/residue assertions and
+  the aggregate invalid-evidence residue assertion failed with one forged
+  document, submission, idempotency request, and activity row.
+- CLI-generated migration
+  `20260811112839_bind_paid_cost_exclusive_registrar.sql` adds a private
+  forced-RLS registrar binding with no application-role grants, requires its
+  exact current document/object identity during submission and approval, and
+  reserves the paid-cost namespace/category/action from ordinary authenticated
+  upload, document, and activity paths.
+- The Super Admin forgery regression is GREEN with typed denial and zero
+  document/submission/idempotency/activity residue. The concurrency harness
+  uses per-run evidence bytes, hashes, paths, and registrar keys.
+- Final coordinator evidence: clean reset/fixture; pgTAP 205/205; app 52/52;
+  paid-cost races 7/7 twice consecutively; Storage 6/6; lifecycle 2/2; exact
+  nine-scenario reconciliation; TypeScript; focused ESLint; lint with only the
+  same five warnings; error-level advisors zero; catalog/grant/RLS probes;
+  zero missing bindings and zero pending requests.
+- Independent read-only review of exact range `7e028a29..380797a` reran the
+  four focused pgTAP files at 205/205, found no Critical, Important, or Minor
+  issue, and approved Track 6 for local closure. Browser/full matrix were not
+  rerun. Hosted activation, push, merge, deploy, and production readiness
+  remain outside scope.

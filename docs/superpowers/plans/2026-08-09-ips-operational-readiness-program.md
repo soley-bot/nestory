@@ -524,7 +524,11 @@ projection retirement are not modified or relabelled in Track 2.
 
 **Purpose:** Make paid-cost intent unmistakable and prove every responsibility/funding/reversal outcome.
 
-**Local milestone status (2026-08-11):** Implementation, one complete authenticated browser flow, one full regression matrix, and the coordinated affected-gate correction batch are complete at `7da8562`. Exact-head independent review remains the approval gate; hosted activation remains outside scope.
+**Local milestone status (2026-08-11):** Independently approved and locally
+complete at `380797a90a494abefbe387c34ee89a2b0b88ede5` after one complete
+authenticated browser flow, one full regression matrix, the coordinated
+affected-gate correction, the exclusive-registrar correction, and exact-head
+focused re-review. Hosted activation remains outside scope.
 
 **Files:**
 
@@ -535,13 +539,13 @@ projection retirement are not modified or relabelled in Track 2.
 - Create: `supabase/tests/ips_paid_cost_acceptance_test.sql`
 - Create: `scripts/smoke-ips-paid-cost-scenarios.mjs`
 
-- [ ] Replace ambiguous “expense” creation copy with “Record paid cost” wherever users could infer an unpaid bill.
-- [ ] Show the required paid date, funding/reconciliation source, receipt/payment reference, evidence, responsible party, and the warning that submission has no financial effect until approval.
-- [ ] Add failing contracts for normal owner/property cost, tenant-responsible cost, owner-responsible cost, petty-cash-paid cost, rejection, reversal, wrong amount correction, and missing evidence.
-- [ ] Preserve Finance Member submit / Finance Manager review separation and immutable review snapshot.
-- [ ] Prove approved effects, rejected no-effect, reversal symmetry, owner allocation, tenant charge, petty-cash effect, Ledger identity, close readiness, and statement line source links.
-- [ ] Add evidence immutability and storage/reference failure recovery tests.
-- [ ] Run a browser journey for submit, reject/resubmit, approve, inspect effect, reverse, and inspect the superseding statement revision.
+- [x] Replace ambiguous “expense” creation copy with “Record paid cost” wherever users could infer an unpaid bill.
+- [x] Show the required paid date, funding/reconciliation source, receipt/payment reference, evidence, responsible party, and the warning that submission has no financial effect until approval.
+- [x] Add failing contracts for normal owner/property cost, tenant-responsible cost, owner-responsible cost, petty-cash-paid cost, rejection, reversal, wrong amount correction, and missing evidence.
+- [x] Preserve Finance Member submit / Finance Manager review separation and immutable review snapshot.
+- [x] Prove approved effects, rejected no-effect, reversal symmetry, owner allocation, tenant charge, petty-cash effect, Ledger identity, close readiness, and statement line source links.
+- [x] Add evidence immutability and storage/reference failure recovery tests.
+- [x] Run a browser journey for submit, reject/resubmit, approve, inspect effect, reverse, and inspect the superseding statement revision.
 
 **Named verification:** `finance_expense_approval_test.sql`, `ips_expense_responsibility_test.sql`, `maintenance_cost_handoff_test.sql`, new paid-cost acceptance pgTAP, component/action tests, Playwright smoke.
 
