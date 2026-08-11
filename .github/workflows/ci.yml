@@ -82,24 +82,20 @@ jobs:
           path = Path('supabase/migrations/20260809122054_owner_opening_ownership_readiness.sql')
           text = path.read_text()
 
-          old_hash = "e06b2111585b3df04e598d81f5d06307"
-          clean_baseline_hash = "00829a30b6d96366f32f664bc20682c4"
-          if old_hash not in text:
-              raise SystemExit('sync owner predecessor hash marker not found')
-          text = text.replace(old_hash, clean_baseline_hash, 1)
-
-          replacements = {
-              "RAISE EXCEPTION 'Unexpected predecessor definition: public.create_property';":
-                  "RAISE EXCEPTION 'Unexpected predecessor definition: public.create_property fingerprint %', md5(pg_get_functiondef('public.create_property(uuid,text,text,text,text,text,text,date,text,uuid)'::regprocedure));",
-              "RAISE EXCEPTION 'Unexpected predecessor definition: public.update_property';":
-                  "RAISE EXCEPTION 'Unexpected predecessor definition: public.update_property fingerprint %', md5(pg_get_functiondef('public.update_property(uuid,uuid,text,text,text,text,text,text,date,text,uuid)'::regprocedure));",
+          observed = {
+              "e06b2111585b3df04e598d81f5d06307": "00829a30b6d96366f32f664bc20682c4",
+              "054025de2c313eb300422f7d6e6b122a": "fe0847fa87d09788b617ddc43d49ad35",
           }
-          for old, new in replacements.items():
-              if old not in text:
-                  raise SystemExit(f'guard marker not found: {old}')
-              text = text.replace(old, new, 1)
+          for old_hash, clean_hash in observed.items():
+              if old_hash not in text:
+                  raise SystemExit(f'predecessor hash marker not found: {old_hash}')
+              text = text.replace(old_hash, clean_hash, 1)
 
-          path.write_text(text)
+          old = "RAISE EXCEPTION 'Unexpected predecessor definition: public.update_property';"
+          new = "RAISE EXCEPTION 'Unexpected predecessor definition: public.update_property fingerprint %', md5(pg_get_functiondef('public.update_property(uuid,uuid,text,text,text,text,text,text,date,text,uuid)'::regprocedure));"
+          if old not in text:
+              raise SystemExit('update_property guard marker not found')
+          path.write_text(text.replace(old, new, 1))
           PY
 
       - name: Start local Supabase
