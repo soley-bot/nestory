@@ -134,8 +134,12 @@ wrapper and renamed baseline are postgres-owned, SECURITY DEFINER, locked to
 an empty search path, and not executable by anon, authenticated, or service
 roles. Browser acceptance and the full matrix were intentionally not rerun.
 
-Focused independent correction re-review is still required before Track 5 is
-approved.
+Focused independent correction re-review approved Track 5 at
+`6413ba0e8bdcbe0c8450fd472bf04d8dd2e64dc3`. C1 is addressed, no
+correction-caused Critical or Important issue was found, and the reviewer
+freshly confirmed the 28/28 pgTAP, 4/4 concurrency, 10/10 guarded smoke,
+private function catalog/grants, canonical lock order, and zero pending
+idempotency evidence. This is local milestone approval only.
 
 This is local milestone evidence only. No hosted Supabase or Vercel mutation,
 real IPS data access, email, cron, backup, deploy, push, or merge was performed.

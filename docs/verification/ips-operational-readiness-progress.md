@@ -199,11 +199,10 @@
 
 ## Track 5 - lease-to-rent-to-payment lifecycle
 
-- Status: local implementation, complete browser acceptance, one full matrix,
-  and criterion self-review are complete on 2026-08-11. Independent review
-  found one Critical generator/scheduler lock inversion; its focused additive
-  correction and affected gates are complete. Focused re-review is pending;
-  no approval is claimed.
+- Status: locally approved by focused independent re-review on 2026-08-11 at
+  correction commit `6413ba0e8bdcbe0c8450fd472bf04d8dd2e64dc3`.
+  The reproduced Critical generator/scheduler lock inversion is addressed and
+  the reviewer found no correction-caused Critical or Important issue.
 - Outcome: the retained matrix covers full month, mid-month move-in and
   move-out, unpaid, partial, late, owner-direct, selected historical recovery,
   renewal, and rent-change scenarios. Finance Manager works ordinary payments;
@@ -240,6 +239,10 @@
   (zero errors, same five warnings), advisors (zero errors), live private
   function catalog/grants, and diff check are green. Browser and full matrix
   were not rerun.
+- Final review: C1 addressed; fresh Track 5 pgTAP 28/28, rent concurrency 4/4,
+  guarded smoke 10/10, private owner/search-path/grant checks, and zero pending
+  financial idempotency passed. Track 5 is complete locally. Hosted and
+  production readiness remain unverified.
 - Residual: the complete accessibility crawl retains the same 98 program-wide
   backlog findings. The `/rent-income` contrast rule exists in all four prior
   Track 4 artifacts and is not a Track 5 regression.

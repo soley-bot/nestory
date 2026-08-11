@@ -92,3 +92,9 @@ the same five warning-only unused variables; error-level advisors zero; live
 function owner/grant/search-path catalog checks; and diff check. Per milestone
 discipline, the browser and full matrix were not rerun. Focused independent
 re-review remains required; this report does not claim approval.
+
+Focused independent re-review subsequently approved the correction at
+`6413ba0e8bdcbe0c8450fd472bf04d8dd2e64dc3`: C1 addressed, no new Critical or
+Important finding, and fresh 28/28 pgTAP, 4/4 concurrency, 10/10 guarded smoke,
+function catalog/grant/lock-order, and zero-pending-idempotency evidence. Track
+5 is complete locally; hosted readiness is not claimed.
