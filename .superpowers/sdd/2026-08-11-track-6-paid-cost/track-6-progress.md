@@ -4,7 +4,7 @@
 
 - Branch: `codex/ips-operational-readiness`
 - Approved base: `7a0cdb51b72976b2f7c00a08a3930dc25f24058f`
-- Status: plan frozen; implementation has not started.
+- Status: verified evidence authority and operator paid-cost workflow are implemented; retained scenario/concurrency evidence is next.
 - Preserved approvals: Tracks 1-5 and Track 9.
 - Scope: local synthetic authority only. No hosted Supabase/Vercel mutation, real IPS data, deploy, push, merge, or `main` cleanup.
 
@@ -47,3 +47,14 @@ A Finance Member records an already-paid cost with exact paid amount/date, fundi
 - Application GREEN: evidence/action tests 30/30 and `npx tsc --noEmit` pass. The server uploads create-only bytes, downloads and hashes retained bytes, verifies Storage identity/version/MIME/size, uses a service-only actor-scoped registrar, verifies the registrar response, and never deletes ambiguous evidence.
 - Exact-money boundary: paid cost and markup now pass canonical two-decimal strings through a narrow generated-type override; no JavaScript number coercion remains on the changed submission path.
 - Catalog contract proves authenticated callers cannot inspect/register raw evidence, service role is the only evidence registrar, the baseline command is private, the wrapper is authenticated-only, and paid-cost evidence paths are excluded from authenticated Storage update/delete policies.
+
+### 2026-08-11 - unambiguous operator workflow GREEN
+
+- Retained UI/action RED: focused Vitest passed 42/49; seven failures were exactly the legacy Add/Approve/Reject/Reverse Expense labels, absent already-paid guidance/file input, and legacy success messages. Data mapping remained green.
+- Retained fingerprint RED: `ips_paid_cost_acceptance_test.sql` passed 14/16; only the missing Finance-readable fingerprint RPC and its explicit role grant failed.
+- Additive CLI migration: `20260811071944_expose_paid_cost_evidence_fingerprint.sql`.
+- Clean `npm run db:reset` applied every migration through the new fingerprint reader; generated database types expose its exact result fields.
+- Database focused gate: paid-cost catalog/authority 16/16.
+- Application focused gates: component/actions/data 50/50; `npx tsc --noEmit`; focused ESLint; `git diff --check` all pass.
+- Operator surface now says `Record paid cost`, marks it `Already paid`, states submission does not create a new payment, requires paid date/source/reference/file, and uses paid-cost-specific approval/rejection/reversal language.
+- Finance history now shows the retained evidence filename, byte size, and full SHA-256 through an authenticated Finance-only, search-path-locked read RPC; unavailable or unfingerprinted evidence is not presented as verified.

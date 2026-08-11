@@ -258,7 +258,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getAllByText("Collected by owner").length).toBeGreaterThan(0);
   });
 
-  it("keeps the expense drawer plain and reveals billing only when needed", () => {
+  it("makes the already-paid cost workflow explicit and requires receipt evidence", () => {
     render(
       <FinanceOperationsScreen
         {...data()}
@@ -268,9 +268,15 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add expense" }));
-    expect(screen.getByRole("dialog", { name: "Add expense" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Record paid cost" }));
+    expect(
+      screen.getByRole("dialog", { name: "Record paid cost" }),
+    ).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
+    expect(screen.getByText("Already paid")).not.toBeNull();
+    expect(
+      screen.getByText(/submitting does not record a new payment/i),
+    ).not.toBeNull();
     expect(screen.getByText("Charge this to")).not.toBeNull();
     expect(
       screen.getByRole("button", { name: "Property owner" }),
@@ -279,10 +285,18 @@ describe("FinanceOperationsScreen", () => {
       screen.getByRole("button", { name: "Tenant or company" }),
     ).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    expect(screen.getByLabelText("Paid-cost category")).not.toBeNull();
     expect(screen.getByLabelText("Amount paid")).not.toBeNull();
+    expect(screen.getByLabelText("Paid date")).not.toBeNull();
+    expect(screen.getByLabelText("Paid from")).not.toBeNull();
     expect(screen.getByLabelText("Receipt or payment reference")).toHaveProperty(
       "required",
       true,
+    );
+    const evidence = screen.getByLabelText("Receipt evidence");
+    expect(evidence).toHaveProperty("required", true);
+    expect(evidence.getAttribute("accept")).toBe(
+      "application/pdf,image/jpeg,image/png,image/webp",
     );
     expect(screen.queryByText("Internal breakdown")).toBeNull();
     expect(screen.queryByText("Service fee")).toBeNull();
@@ -293,7 +307,7 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByText("No open invoice")).not.toBeNull();
   });
 
-  it("lets Finance Members submit expenses without exposing review controls", () => {
+  it("lets Finance Members submit paid costs without exposing review controls", () => {
     const input = data();
     input.expenseSubmissions = [expenseSubmission("submitted")];
 
@@ -306,7 +320,9 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Add expense" })).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Record paid cost" }),
+    ).not.toBeNull();
     expect(screen.getByText("Awaiting approval")).not.toBeNull();
     expect(screen.getByText("Read only")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /approve sokha repairs/i })).toBeNull();
@@ -327,16 +343,18 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    expect(screen.queryByRole("button", { name: "Add expense" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Record paid cost" }),
+    ).toBeNull();
     expect(
       screen.getByRole("button", { name: "Approve Sokha Repairs" }),
     ).not.toBeNull();
     await user.click(
       screen.getByRole("button", { name: "Reject Sokha Repairs" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Reject expense" });
+    const dialog = screen.getByRole("dialog", { name: "Reject paid cost" });
     const rejectButton = within(dialog).getByRole("button", {
-      name: "Reject expense",
+      name: "Reject paid cost",
     });
     expect(rejectButton.hasAttribute("disabled")).toBe(true);
     await user.type(
@@ -357,6 +375,8 @@ describe("FinanceOperationsScreen", () => {
           fileName: "receipt.pdf",
           href: "https://example.test/signed-receipt",
           mimeType: "application/pdf",
+          sha256:
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           sizeBytes: 128,
         },
         fundingSourceLabel: "Choose at approval",
@@ -378,22 +398,28 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       screen.getByRole("button", { name: "Approve Sokha Repairs" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Approve expense" });
+    const dialog = screen.getByRole("dialog", { name: "Approve paid cost" });
     expect(
       within(dialog).getByRole("link", { name: "receipt.pdf" }),
     ).not.toBeNull();
+    expect(
+      within(dialog).getByText(
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      ),
+    ).not.toBeNull();
+    expect(within(dialog).getByText("128 bytes")).not.toBeNull();
     expect(within(dialog).getByText("Receipt 42")).not.toBeNull();
     expect(
       within(dialog).getByRole("combobox", { name: "Paid from" }),
     ).not.toBeNull();
     expect(
       within(dialog)
-        .getByRole("button", { name: "Approve expense" })
+        .getByRole("button", { name: "Approve paid cost" })
         .hasAttribute("disabled"),
     ).toBe(true);
   });
 
-  it("shows approved-expense reversal only to Super Admin", async () => {
+  it("shows paid-cost reversal only to Super Admin", async () => {
     const user = userEvent.setup();
     const input = data();
     input.expenseSubmissions = [expenseSubmission("approved")];
@@ -414,6 +440,15 @@ describe("FinanceOperationsScreen", () => {
     await user.click(screen.getByRole("tab", { name: "Approved (1)" }));
     expect(
       screen.getByRole("button", { name: "Reverse Sokha Repairs" }),
+    ).not.toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Reverse Sokha Repairs" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Reverse paid cost" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Reverse paid cost" }),
     ).not.toBeNull();
   });
 

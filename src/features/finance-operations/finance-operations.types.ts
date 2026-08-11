@@ -118,6 +118,7 @@ export type ExpenseSubmissionSummary = {
     fileName: string;
     href?: string;
     mimeType: string;
+    sha256: string;
     sizeBytes: number;
   };
   fundingSourceLabel: string;

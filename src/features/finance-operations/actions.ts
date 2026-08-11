@@ -471,8 +471,8 @@ export async function reviewExpenseAction(
   return {
     message:
       parsed.data.decision === "approve"
-        ? "Expense approved and recorded."
-        : "Expense rejected.",
+        ? "Paid cost approved and recorded."
+        : "Paid cost rejected.",
     status: "success",
   };
 }
@@ -495,7 +495,7 @@ export async function reverseExpenseAction(
   });
   if (error) return expenseWorkflowError(error.message);
   revalidateFinance();
-  return { message: "Expense reversed.", status: "success" };
+  return { message: "Paid cost reversed.", status: "success" };
 }
 
 export async function recordOwnerPaymentAction(
@@ -597,7 +597,7 @@ function revalidateFinance() {
 function expenseWorkflowError(message: string) {
   if (message.includes("period is locked")) {
     return actionError(
-      "This expense month is locked. Super Admin must reopen it before approval.",
+      "This paid-cost month is locked. Super Admin must reopen it before approval.",
     );
   }
   if (message.includes("already settled this charge")) {

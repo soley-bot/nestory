@@ -477,7 +477,7 @@ describe("expense approval actions", () => {
     const formData = expenseDecisionForm("approve", "Reviewed receipt");
 
     await expect(reviewExpenseAction({}, formData)).resolves.toEqual({
-      message: "Expense approved and recorded.",
+      message: "Paid cost approved and recorded.",
       status: "success",
     });
     expect(requireFinanceReviewContext).toHaveBeenCalledOnce();
@@ -504,6 +504,16 @@ describe("expense approval actions", () => {
       "review_expense",
       expect.objectContaining({ p_reconciliation_source_id: sourceId }),
     );
+  });
+
+  it("uses paid-cost language for a completed rejection", async () => {
+    rpc.mockResolvedValue({ data: submissionId, error: null });
+    const formData = expenseDecisionForm("reject", "Receipt does not match");
+
+    await expect(reviewExpenseAction({}, formData)).resolves.toEqual({
+      message: "Paid cost rejected.",
+      status: "success",
+    });
   });
 
   it("rejects a too-short optional approval note before database access", async () => {
@@ -537,7 +547,7 @@ describe("expense approval actions", () => {
     formData.set("submissionId", submissionId);
 
     await expect(reverseExpenseAction({}, formData)).resolves.toEqual({
-      message: "Expense reversed.",
+      message: "Paid cost reversed.",
       status: "success",
     });
     expect(requireFinanceReversalContext).toHaveBeenCalledOnce();

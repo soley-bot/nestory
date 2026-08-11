@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(14);
+SELECT plan(16);
 
 SELECT has_function(
   'public',
@@ -41,6 +41,32 @@ SELECT ok(
     'public.register_paid_cost_evidence_verified(uuid,uuid,uuid,text,text,text,bigint,text,uuid,text,text)'
   ) IS NOT NULL,
   'service verification can register one immutable paid-cost document'
+);
+
+SELECT ok(
+  to_regprocedure(
+    'public.get_paid_cost_submission_evidence(uuid,uuid[])'
+  ) IS NOT NULL,
+  'Finance history can read the immutable paid-cost evidence fingerprint'
+);
+
+SELECT ok(
+  has_function_privilege(
+    'authenticated',
+    to_regprocedure('public.get_paid_cost_submission_evidence(uuid,uuid[])'),
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'anon',
+    to_regprocedure('public.get_paid_cost_submission_evidence(uuid,uuid[])'),
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'service_role',
+    to_regprocedure('public.get_paid_cost_submission_evidence(uuid,uuid[])'),
+    'EXECUTE'
+  ),
+  'paid-cost evidence history is exposed only through Finance-authenticated reads'
 );
 
 SELECT ok(

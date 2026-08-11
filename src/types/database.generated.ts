@@ -9163,6 +9163,18 @@ export type Database = {
         }
         Returns: Json
       }
+      get_paid_cost_submission_evidence: {
+        Args: { p_organization_id: string; p_submission_ids: string[] }
+        Returns: {
+          content_sha256: string
+          document_id: string
+          file_name: string
+          mime_type: string
+          size_bytes: number
+          storage_path: string
+          submission_id: string
+        }[]
+      }
       get_property_cash_events_page: {
         Args: {
           p_after_event_date: string

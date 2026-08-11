@@ -334,7 +334,7 @@ function getScreen(
           onClick={() => openDrawer({ mode: "expense" })}
           variant="default"
         >
-          <Plus size={15} /> Add expense
+          <Plus size={15} /> Record paid cost
         </Button>
       ) : undefined,
       body: (
@@ -347,7 +347,7 @@ function getScreen(
       ),
       context: `${props.expenseSubmissions.length} submissions`,
       contextHref: "/bills-expenses",
-      title: "Expenses",
+      title: "Paid costs",
       toolbar: undefined,
     };
   }
@@ -960,7 +960,7 @@ function ExpensesView({
         body="Submit a paid property cost for Finance review. Nothing affects balances until approval."
         className="h-full"
         kind="empty"
-        title="No expenses"
+        title="No paid costs"
       />
     );
   }
@@ -973,7 +973,7 @@ function ExpensesView({
         }
         value={status}
       >
-        <TabsList aria-label="Expense status">
+        <TabsList aria-label="Paid cost status">
           {(
             ["submitted", "approved", "rejected", "reversed"] as const
           ).map((value) => (
@@ -1020,10 +1020,10 @@ function ExpenseSubmissionTable({
   if (submissions.length === 0) {
     return (
       <EmptyState
-        body="There are no expenses in this status."
+        body="There are no paid costs in this status."
         className="min-h-56"
         kind="empty"
-        title={`No ${expenseStatusLabel(status).toLowerCase()} expenses`}
+        title={`No ${expenseStatusLabel(status).toLowerCase()} paid costs`}
       />
     );
   }
@@ -1034,7 +1034,7 @@ function ExpenseSubmissionTable({
         <thead className="bg-[var(--table-header-bg)]">
           <tr>
             <Th>Date</Th>
-            <Th>Expense</Th>
+            <Th>Paid cost</Th>
             <Th>Property</Th>
             <Th>Charged to</Th>
             <Th>Paid</Th>
@@ -1067,20 +1067,28 @@ function ExpenseSubmissionTable({
                   </p>
                 ) : null}
                 {submission.evidence ? (
-                  submission.evidence.href ? (
-                    <a
-                      className="text-xs text-primary underline-offset-2 hover:underline"
-                      href={submission.evidence.href}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      {submission.evidence.fileName}
-                    </a>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      {submission.evidence.fileName} (file unavailable)
+                  <div className="mt-1 space-y-0.5 text-xs">
+                    {submission.evidence.href ? (
+                      <a
+                        className="text-primary underline-offset-2 hover:underline"
+                        href={submission.evidence.href}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {submission.evidence.fileName}
+                      </a>
+                    ) : (
+                      <p className="text-muted-foreground">
+                        {submission.evidence.fileName} (file unavailable)
+                      </p>
+                    )}
+                    <p className="font-mono text-muted-foreground">
+                      SHA-256 {shortEvidenceHash(submission.evidence.sha256)}
                     </p>
-                  )
+                    <p className="text-muted-foreground">
+                      {formatEvidenceSize(submission.evidence.sizeBytes)}
+                    </p>
+                  </div>
                 ) : null}
               </Td>
               <Td>
@@ -1968,6 +1976,13 @@ function ExpenseForm({
         value={effectiveResponsibility === "tenant" ? tenantInvoiceId : ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+        <p className="font-semibold">Already paid</p>
+        <p className="mt-1 text-muted-foreground">
+          Record the cost and its receipt for review. Submitting does not record
+          a new payment or change balances before approval.
+        </p>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Property">
           <SelectControl
@@ -2009,8 +2024,9 @@ function ExpenseForm({
             value={unitId}
           />
         </Field>
-        <Field label="Expense">
+        <Field label="Paid-cost category">
           <SelectControl
+            ariaLabel="Paid-cost category"
             onValueChange={setCategory}
             options={[
               { label: "Cleaning", value: "cleaning" },
@@ -2039,7 +2055,7 @@ function ExpenseForm({
             value={cost}
           />
         </Field>
-        <Field label="Date">
+        <Field label="Paid date">
           <Input
             onChange={(event) => setExpenseDate(event.target.value)}
             type="date"
@@ -2048,6 +2064,7 @@ function ExpenseForm({
         </Field>
         <Field label="Paid from">
           <SelectControl
+            ariaLabel="Paid from"
             onValueChange={setReconciliationSourceId}
             options={matchingSources.map((source) => ({
               label: source.label,
@@ -2143,9 +2160,17 @@ function ExpenseForm({
           value={reference}
         />
       </Field>
+      <Field label="Receipt evidence">
+        <Input
+          accept="application/pdf,image/jpeg,image/png,image/webp"
+          name="evidenceFile"
+          required
+          type="file"
+        />
+      </Field>
       <p className="text-xs text-muted-foreground">
-        This stays awaiting approval and does not affect balances until a
-        Finance Manager approves it.
+        This paid cost stays awaiting approval and does not affect balances
+        until a Finance Manager approves it.
       </p>
       <ActionMessage state={state} />
       <FormFooter>
@@ -2243,6 +2268,17 @@ function ExpenseReviewForm({
               "No document attached"
             ),
           ],
+          ...(submission.evidence
+            ? ([
+                ["Evidence size", formatEvidenceSize(submission.evidence.sizeBytes)],
+                [
+                  "Evidence SHA-256",
+                  <span className="font-mono" key="evidence-sha256">
+                    {submission.evidence.sha256}
+                  </span>,
+                ],
+              ] satisfies [string, ReactNode][])
+            : []),
           ["Paid from", submission.fundingSourceLabel],
         ]}
       />
@@ -2288,7 +2324,9 @@ function ExpenseReviewForm({
             (decision === "reject" && reason.trim().length < 3) ||
             (needsFundingSource && !reconciliationSourceId)
           }
-          label={decision === "approve" ? "Approve expense" : "Reject expense"}
+          label={
+            decision === "approve" ? "Approve paid cost" : "Reject paid cost"
+          }
         />
       </FormFooter>
     </form>
@@ -2347,7 +2385,7 @@ function ExpenseReversalForm({
         <span />
         <SubmitButton
           disabled={reason.trim().length < 3}
-          label="Reverse expense"
+          label="Reverse paid cost"
         />
       </FormFooter>
     </form>
@@ -2574,9 +2612,11 @@ function getModalTitle(modal: ModalState) {
       : "Confirm owner collection";
   if (modal.mode === "owner-payment") return "Owner payment";
   if (modal.mode === "expense-review") {
-    return modal.decision === "approve" ? "Approve expense" : "Reject expense";
+    return modal.decision === "approve"
+      ? "Approve paid cost"
+      : "Reject paid cost";
   }
-  if (modal.mode === "expense-reversal") return "Reverse expense";
+  if (modal.mode === "expense-reversal") return "Reverse paid cost";
   if (modal.mode === "settlement-reversal") return "Correct settlement";
   return "Owner withdrawal";
 }
@@ -2610,7 +2650,16 @@ function canRenderFinanceModal(
 function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "billing") return "Set up lease billing";
   if (drawer.mode === "rent-recovery") return "Recover missed rent";
-  return "Add expense";
+  return "Record paid cost";
+}
+
+function shortEvidenceHash(hash: string) {
+  return `${hash.slice(0, 12)}…${hash.slice(-8)}`;
+}
+
+function formatEvidenceSize(sizeBytes: number) {
+  if (sizeBytes < 1024) return `${sizeBytes} bytes`;
+  return `${(sizeBytes / 1024).toFixed(1)} KB`;
 }
 function useSuccess(
   state: FinanceOperationsActionState,

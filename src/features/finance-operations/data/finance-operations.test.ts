@@ -101,12 +101,29 @@ describe("toExpenseSubmissionSummary", () => {
         ],
       ]),
       new Map([["source-1", "BANK · Archived operating account"]]),
-      new Map(),
+      new Map([
+        [
+          "submission-1",
+          {
+            documentId: "document-1",
+            fileName: "receipt.pdf",
+            mimeType: "application/pdf",
+            sha256:
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            sizeBytes: 128,
+          },
+        ],
+      ]),
     );
 
     expect(summary).toMatchObject({
       fundingSourceLabel: "BANK · Archived operating account",
       id: "submission-1",
+      evidence: {
+        sha256:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        sizeBytes: 128,
+      },
       status: "submitted",
     });
     expect(summary.propertyLabel).toContain("Archived Property");

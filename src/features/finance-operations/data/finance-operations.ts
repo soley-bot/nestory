@@ -58,6 +58,7 @@ type FinanceUnitRow = {
 type RentGenerationExceptionRow =
   Database["public"]["Tables"]["rent_generation_exceptions"]["Row"];
 type ExpenseEvidenceRow = {
+  content_sha256: string;
   document_id: string;
   file_name: string;
   mime_type: string;
@@ -391,6 +392,7 @@ export async function getFinanceOperationsData(
         fileName: row.file_name,
         href: signedUrlByPath.get(row.storage_path),
         mimeType: row.mime_type,
+        sha256: row.content_sha256,
         sizeBytes: Number(row.size_bytes),
       },
     ]),
@@ -772,7 +774,7 @@ async function getExpenseEvidenceRows(
 
   for (let index = 0; index < submissionIds.length; index += 500) {
     const { data, error } = await supabase.rpc(
-      "get_expense_submission_evidence",
+      "get_paid_cost_submission_evidence",
       {
         p_organization_id: organizationId,
         p_submission_ids: submissionIds.slice(index, index + 500),
