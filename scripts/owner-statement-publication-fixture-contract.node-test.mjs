@@ -34,7 +34,7 @@ test("guarded fixture declares runtime authority and a zero-difference manual or
   );
   assert.deepEqual(
     manifest.reconciliation.lines.map(({ number }) => number),
-    [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
   );
   assert.deepEqual(
     manifest.reconciliation.lines.map(({ kind, amount, sourceCount }) => ({
@@ -47,9 +47,17 @@ test("guarded fixture declares runtime authority and a zero-difference manual or
       { amount: "0.00", kind: "opening", sourceCount: 1 },
       { amount: "0.00", kind: "opening", sourceCount: 1 },
       { amount: "0.00", kind: "opening", sourceCount: 1 },
+      { amount: "120.00", kind: "movement", sourceCount: 1 },
+      { amount: "25.00", kind: "movement", sourceCount: 1 },
+      { amount: "40.00", kind: "movement", sourceCount: 1 },
+      { amount: "100.00", kind: "movement", sourceCount: 1 },
+      { amount: "-100.00", kind: "movement", sourceCount: 1 },
+      { amount: "60.00", kind: "movement", sourceCount: 1 },
+      { amount: "-60.00", kind: "movement", sourceCount: 1 },
+      { amount: "50.00", kind: "movement", sourceCount: 1 },
       { amount: "-25.00", kind: "movement", sourceCount: 1 },
       { amount: "975.00", kind: "closing", sourceCount: 1 },
-      { amount: "0.00", kind: "closing", sourceCount: 1 },
+      { amount: "235.00", kind: "closing", sourceCount: 1 },
       { amount: "0.00", kind: "closing", sourceCount: 1 },
       { amount: "0.00", kind: "closing", sourceCount: 1 },
     ],

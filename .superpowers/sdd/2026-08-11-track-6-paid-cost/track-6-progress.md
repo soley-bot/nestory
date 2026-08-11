@@ -4,7 +4,7 @@
 
 - Branch: `codex/ips-operational-readiness`
 - Approved base: `7a0cdb51b72976b2f7c00a08a3930dc25f24058f`
-- Status: verified evidence authority and operator paid-cost workflow are implemented; retained scenario/concurrency evidence is next.
+- Status: verified evidence authority, operator workflow, literal scenarios, and real-session concurrency are implemented; authenticated browser acceptance is next.
 - Preserved approvals: Tracks 1-5 and Track 9.
 - Scope: local synthetic authority only. No hosted Supabase/Vercel mutation, real IPS data, deploy, push, merge, or `main` cleanup.
 
@@ -58,3 +58,13 @@ A Finance Member records an already-paid cost with exact paid amount/date, fundi
 - Application focused gates: component/actions/data 50/50; `npx tsc --noEmit`; focused ESLint; `git diff --check` all pass.
 - Operator surface now says `Record paid cost`, marks it `Already paid`, states submission does not create a new payment, requires paid date/source/reference/file, and uses paid-cost-specific approval/rejection/reversal language.
 - Finance history now shows the retained evidence filename, byte size, and full SHA-256 through an authenticated Finance-only, search-path-locked read RPC; unavailable or unfingerprinted evidence is not presented as verified.
+
+### 2026-08-11 - retained paid-cost lifecycle GREEN
+
+- Retained contract RED was 0/2 before the scenario manifest, literal database smoke, and real-session race harness existed. The guarded baseline then failed closed because its legacy general costs had no immutable Storage evidence.
+- The corrected guarded loader now uploads and verifies real local evidence bytes, uses only checked paid-cost submit/review/reverse commands, and retains nine literal scenarios: owner approval, tenant responsibility, petty cash, rejection/resubmission, approval/reversal, wrong-amount correction, pending review, and missing-evidence denial.
+- Tenant responsibility is isolated on Garden G-02, so all ten previously approved rent scenarios remain unchanged. The prior Central reversed cost, Riverside rejection, and Garden pending cost are restored through the same verified-evidence boundary.
+- Literal fixture GREEN: 9 persisted scenario submissions, 7 accepted payment/allocation/responsibility/Ledger identities, 2 exact reversals, 4 owner components, 17 immutable statement lines/source links, retained PDF/XLSX hashes and sizes, and `0.00` statement difference.
+- Previous approved fixture gates remain GREEN: owner opening hash; 16 owner-balance components / 12 source types / 2 properties / 2 months; immutable owner-close R1/R2/R3 plus preparing R4; 17-line official statement; rent lifecycle 10/10.
+- Real-session concurrency GREEN 6/6: duplicate submit, approve-vs-reject, approve-vs-reversal, reversal-vs-resubmit, evidence registration-vs-mutation, and paid-cost source-vs-close. The close contender waits, then fails typed on incomplete allocation without deadlock or pending idempotency residue.
+- Static gates GREEN: Track 6 contract 2/2, TypeScript, focused ESLint, affected Owner Statement fixture contract 2/2, and `git diff --check`.

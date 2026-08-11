@@ -102,7 +102,7 @@ for (const artifact of publication.data.artifacts) {
 
 process.stdout.write(
   `Owner Statement fixture reconciled ${summary.statement_number}: ` +
-  `9 lines, 9 sources, 4 components, PDF/XLSX retained, difference 0.00.\n`,
+  `17 lines, 17 sources, 4 components, PDF/XLSX retained, difference 0.00.\n`,
 );
 
 function semanticSourceReference(line) {

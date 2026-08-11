@@ -161,6 +161,21 @@ async function main() {
     );
   }
 
+  const paidCostFixture = spawnSync(
+    process.execPath,
+    [
+      path.join(cwd, "node_modules", "tsx", "dist", "cli.mjs"),
+      path.join(cwd, "scripts", "load-paid-cost-scenarios-fixture.ts"),
+    ],
+    { cwd, encoding: "utf8", shell: false },
+  );
+  if (paidCostFixture.error) throw paidCostFixture.error;
+  if (paidCostFixture.status !== 0) {
+    throw new Error(
+      paidCostFixture.stderr.trim() || "Could not load paid-cost scenarios.",
+    );
+  }
+
   const publicationFixture = spawnSync(
     process.execPath,
     [
@@ -178,6 +193,7 @@ async function main() {
 
   process.stdout.write("Database test baseline loaded.\n");
   process.stdout.write("Fixture activity targets verified.\n");
+  process.stdout.write(paidCostFixture.stdout);
   process.stdout.write(publicationFixture.stdout);
 }
 

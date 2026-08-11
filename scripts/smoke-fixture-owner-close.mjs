@@ -43,7 +43,7 @@ export function validateOwnerCloseFixture(report) {
     revisions: [
       { contentHashValid: true, inputHashValid: true, lineCount: 8, revisionNumber: 1, sourceCount: 8, status: "closed", supersedesRevisionNumber: null },
       { contentHashValid: true, inputHashValid: true, lineCount: 9, revisionNumber: 2, sourceCount: 9, status: "closed", supersedesRevisionNumber: 1 },
-      { contentHashValid: true, inputHashValid: true, lineCount: 9, revisionNumber: 3, sourceCount: 9, status: "closed", supersedesRevisionNumber: 2 },
+      { contentHashValid: true, inputHashValid: true, lineCount: 17, revisionNumber: 3, sourceCount: 17, status: "closed", supersedesRevisionNumber: 2 },
       { contentHashValid: false, inputHashValid: false, lineCount: 0, revisionNumber: 4, sourceCount: 0, status: "preparing", supersedesRevisionNumber: 3 },
     ],
     series: {
