@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  adminDownload,
+  adminFrom,
+  adminRpc,
+  adminUpload,
   requireCurrentRentRetryContext,
   requireFinanceCorrectionContext,
   requireFinanceOperationContext,
@@ -12,6 +16,10 @@ const {
   revalidatePath,
   rpc,
 } = vi.hoisted(() => ({
+  adminDownload: vi.fn(),
+  adminFrom: vi.fn(),
+  adminRpc: vi.fn(),
+  adminUpload: vi.fn(),
   requireCurrentRentRetryContext: vi.fn(),
   requireFinanceCorrectionContext: vi.fn(),
   requireFinanceOperationContext: vi.fn(),
@@ -38,6 +46,12 @@ vi.mock("@/lib/auth/context", () => ({
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ rpc }),
 }));
+vi.mock("@/lib/db/admin", () => ({
+  createSupabaseAdminClient: () => ({
+    rpc: adminRpc,
+    storage: { from: adminFrom },
+  }),
+}));
 
 import {
   confirmOwnerCollectionAction,
@@ -59,9 +73,16 @@ const leaseId = "00000000-0000-4000-8000-000000000006";
 const propertyId = "00000000-0000-4000-8000-000000000003";
 const sourceId = "00000000-0000-4000-8000-000000000004";
 const submissionId = "00000000-0000-4000-8000-000000000005";
+const actorId = "00000000-0000-4000-8000-000000000007";
+const evidenceDocumentId = "00000000-0000-4000-8000-000000000008";
+const evidenceObjectId = "00000000-0000-4000-8000-000000000009";
 
 describe("rent generation recovery action", () => {
   beforeEach(() => {
+    adminDownload.mockReset();
+    adminFrom.mockReset();
+    adminRpc.mockReset();
+    adminUpload.mockReset();
     requireCurrentRentRetryContext.mockReset();
     requireFinanceOperationContext.mockReset();
     requireSuperAdminContext.mockReset();
@@ -74,7 +95,7 @@ describe("rent generation recovery action", () => {
     requireLeaseConfigurationContext.mockResolvedValue({ organizationId });
     requireCurrentRentRetryContext.mockResolvedValue({ organizationId });
     requireFinanceOperationContext.mockResolvedValue({ organizationId });
-    requireFinanceSubmissionContext.mockResolvedValue({ organizationId });
+    requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
   });
@@ -184,6 +205,34 @@ describe("ordinary finance operation actions", () => {
     requireFinanceOperationContext.mockResolvedValue({ organizationId });
     requireFinanceCorrectionContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
+    adminFrom.mockReturnValue({
+      download: adminDownload,
+      upload: adminUpload,
+    });
+    adminUpload.mockResolvedValue({ data: {}, error: null });
+    adminDownload.mockResolvedValue({
+      data: new Blob(["paid-cost-receipt"], { type: "application/pdf" }),
+      error: null,
+    });
+    adminRpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
+      data:
+        name === "get_paid_cost_evidence_object"
+          ? {
+              content_type: "application/pdf",
+              metadata_size_bytes: 17,
+              storage_object_id: evidenceObjectId,
+              storage_object_version: "paid-cost-object-v1",
+            }
+          : {
+              content_sha256:
+                "ce67cf246af90faa45cd4b6cde1627da5683d1dbfa53ed5f7ca8a2805543be0d",
+              document_id: evidenceDocumentId,
+              size_bytes: 17,
+              status: "registered",
+              storage_path: args.p_storage_path,
+            },
+      error: null,
+    }));
     rpc.mockResolvedValue({ data: "operation-id", error: null });
   });
 
@@ -294,7 +343,7 @@ describe("expense approval actions", () => {
     requireFinanceSubmissionContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireFinanceSubmissionContext.mockResolvedValue({ organizationId });
+    requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
   });
@@ -314,9 +363,15 @@ describe("expense approval actions", () => {
     formData.set("tenantInvoiceId", "");
     formData.set("unitId", "");
     formData.set("vendorLabel", "Sokha Repairs");
+    formData.set(
+      "evidenceFile",
+      new File(["paid-cost-receipt"], "receipt-42.pdf", {
+        type: "application/pdf",
+      }),
+    );
 
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({
-      message: "Expense submitted for Finance review.",
+      message: "Paid cost submitted for Finance review.",
       status: "success",
     });
     expect(requireFinanceSubmissionContext).toHaveBeenCalledOnce();
@@ -326,8 +381,8 @@ describe("expense approval actions", () => {
       p_customer_category: "cleaning",
       p_expense_date: "2026-08-08",
       p_idempotency_key: "expense-submit-1",
-      p_internal_cost_amount: 200,
-      p_internal_markup_amount: 20,
+      p_internal_cost_amount: "200.00",
+      p_internal_markup_amount: "20.00",
       p_organization_id: organizationId,
       p_property_id: propertyId,
       p_reconciliation_source_id: sourceId,
@@ -335,12 +390,57 @@ describe("expense approval actions", () => {
       p_responsibility: "owner",
       p_source_id: null,
       p_source_type: "general",
-      p_supporting_document_id: null,
+      p_supporting_document_id: evidenceDocumentId,
       p_tenant_invoice_id: null,
       p_unit_id: null,
       p_vendor_label: "Sokha Repairs",
       p_vendor_person_id: null,
     });
+    expect(adminUpload).toHaveBeenCalledOnce();
+    expect(adminRpc).toHaveBeenCalledWith(
+      "get_paid_cost_evidence_object",
+      expect.objectContaining({
+        p_actor_id: actorId,
+        p_organization_id: organizationId,
+        p_property_id: propertyId,
+      }),
+    );
+    expect(adminRpc).toHaveBeenCalledWith(
+      "register_paid_cost_evidence_verified",
+      expect.objectContaining({
+        p_actor_id: actorId,
+        p_content_type: "application/pdf",
+        p_file_name: "receipt-42.pdf",
+        p_organization_id: organizationId,
+        p_property_id: propertyId,
+        p_size_bytes: 17,
+        p_storage_object_id: evidenceObjectId,
+        p_storage_object_version: "paid-cost-object-v1",
+      }),
+    );
+  });
+
+  it("rejects a paid cost without a retained evidence file before authorization", async () => {
+    rpc.mockResolvedValue({ data: submissionId, error: null });
+    const formData = new FormData();
+    formData.set("category", "cleaning");
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "paid-cost-missing-file");
+    formData.set("internalCost", "200.00");
+    formData.set("internalMarkup", "0.00");
+    formData.set("propertyId", propertyId);
+    formData.set("reconciliationSourceId", sourceId);
+    formData.set("reference", "Receipt 42");
+    formData.set("responsibility", "owner");
+    formData.set("tenantInvoiceId", "");
+    formData.set("unitId", "");
+    formData.set("vendorLabel", "Sokha Repairs");
+    await expect(submitExpenseAction({}, formData)).resolves.toEqual({
+      message: "Choose a receipt evidence file.",
+      status: "error",
+    });
+    expect(requireFinanceSubmissionContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("rejects an expense without a receipt reference before authorization", async () => {
@@ -357,6 +457,12 @@ describe("expense approval actions", () => {
     formData.set("tenantInvoiceId", "");
     formData.set("unitId", "");
     formData.set("vendorLabel", "Sokha Repairs");
+    formData.set(
+      "evidenceFile",
+      new File(["paid-cost-receipt"], "receipt-42.pdf", {
+        type: "application/pdf",
+      }),
+    );
 
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({
       message: "Enter a receipt or payment reference.",

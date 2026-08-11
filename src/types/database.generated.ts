@@ -9154,6 +9154,15 @@ export type Database = {
         Args: { p_organization_id: string; p_owner_close_revision_id: string }
         Returns: Json
       }
+      get_paid_cost_evidence_object: {
+        Args: {
+          p_actor_id: string
+          p_organization_id: string
+          p_property_id: string
+          p_storage_path: string
+        }
+        Returns: Json
+      }
       get_property_cash_events_page: {
         Args: {
           p_after_event_date: string
@@ -9399,6 +9408,22 @@ export type Database = {
           p_organization_id: string
           p_publication_id: string
           p_sha256: string
+          p_size_bytes: number
+          p_storage_object_id: string
+          p_storage_object_version: string
+          p_storage_path: string
+        }
+        Returns: Json
+      }
+      register_paid_cost_evidence_verified: {
+        Args: {
+          p_actor_id: string
+          p_content_sha256: string
+          p_content_type: string
+          p_file_name: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_property_id: string
           p_size_bytes: number
           p_storage_object_id: string
           p_storage_object_version: string

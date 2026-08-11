@@ -36,3 +36,14 @@ A Finance Member records an already-paid cost with exact paid amount/date, fundi
 - `npx supabase test db --local supabase/tests/ips_paid_cost_acceptance_test.sql` exited 1: 3/6 passed and assertions 4-6 failed exactly because `get_paid_cost_evidence_object`, `register_paid_cost_evidence_verified`, and strict document-required submission behavior do not exist.
 - `npx supabase test db --local supabase/tests/finance_expense_approval_test.sql` exited 1: 86/88 passed. Assertion 87 caught no exception instead of typed `23514 Paid cost evidence document is required`; assertion 88 found one reference-only submission instead of zero.
 - Both test files rolled back. No production financial or evidence row remains from the probe.
+
+### 2026-08-11 - verified evidence authority GREEN
+
+- CLI-generated migration: `20260811070217_harden_paid_cost_evidence.sql`.
+- Clean `npm run db:reset` applied every migration through the Track 6 evidence migration.
+- Database focused gates: paid-cost catalog/authority 14/14; existing expense approval 88/88.
+- Application RED: 26/28 actions passed; failures proved missing evidence-file validation and legacy response/canonical-money behavior.
+- Evidence-integrity RED: 1/2 direct evidence tests passed; a registrar response with a mismatched frozen hash incorrectly succeeded.
+- Application GREEN: evidence/action tests 30/30 and `npx tsc --noEmit` pass. The server uploads create-only bytes, downloads and hashes retained bytes, verifies Storage identity/version/MIME/size, uses a service-only actor-scoped registrar, verifies the registrar response, and never deletes ambiguous evidence.
+- Exact-money boundary: paid cost and markup now pass canonical two-decimal strings through a narrow generated-type override; no JavaScript number coercion remains on the changed submission path.
+- Catalog contract proves authenticated callers cannot inspect/register raw evidence, service role is the only evidence registrar, the baseline command is private, the wrapper is authenticated-only, and paid-cost evidence paths are excluded from authenticated Storage update/delete policies.

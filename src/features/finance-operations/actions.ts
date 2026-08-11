@@ -13,6 +13,10 @@ import {
   requireLeaseConfigurationContext,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  preparePaidCostEvidence,
+  validatePaidCostEvidenceFile,
+} from "@/features/finance-operations/paid-cost-evidence";
 import type { Json } from "@/types/database";
 import type { FinanceOperationsActionState } from "@/features/finance-operations/finance-operations.types";
 
@@ -37,6 +41,17 @@ const authoritativeOwnerAmount = z.string().transform((value, context) => {
       return z.NEVER;
     }
     return canonical;
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : "Enter a valid exact amount.",
+    });
+    return z.NEVER;
+  }
+});
+const authoritativeNonnegativeAmount = z.string().transform((value, context) => {
+  try {
+    return canonicalizeOwnerOpeningAmount(value);
   } catch (error) {
     context.addIssue({
       code: "custom",
@@ -100,8 +115,8 @@ const expenseSchema = z.object({
   category: z.enum(["cleaning", "utility", "repairs_maintenance", "other"]),
   expenseDate: date,
   idempotencyKey: z.string().min(8),
-  internalCost: amount,
-  internalMarkup: z.coerce.number().nonnegative(),
+  internalCost: authoritativeOwnerAmount,
+  internalMarkup: authoritativeNonnegativeAmount,
   propertyId: uuid,
   reconciliationSourceId: uuid,
   reference: z
@@ -376,12 +391,32 @@ export async function submitExpenseAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
+  const evidenceFile = formData.get("evidenceFile");
+  const evidenceError = validatePaidCostEvidenceFile(evidenceFile);
+  if (evidenceError) return actionError(evidenceError);
   const parsed = expenseSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
   if (parsed.data.responsibility === "tenant" && !parsed.data.tenantInvoiceId) {
     return actionError("Choose the tenant invoice for this charge.");
   }
   const context = await requireFinanceSubmissionContext();
+  let evidenceDocumentId: string;
+  try {
+    const evidence = await preparePaidCostEvidence({
+      actorId: context.userId,
+      file: evidenceFile as File,
+      idempotencyKey: parsed.data.idempotencyKey,
+      organizationId: context.organizationId,
+      propertyId: parsed.data.propertyId,
+    });
+    evidenceDocumentId = evidence.documentId;
+  } catch (error) {
+    return actionError(
+      error instanceof Error
+        ? error.message
+        : "Receipt evidence could not be verified.",
+    );
+  }
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("submit_expense", {
     p_currency: "USD",
@@ -397,7 +432,7 @@ export async function submitExpenseAction(
     p_responsibility: parsed.data.responsibility,
     p_source_id: null,
     p_source_type: "general",
-    p_supporting_document_id: null,
+    p_supporting_document_id: evidenceDocumentId,
     p_tenant_invoice_id: parsed.data.tenantInvoiceId,
     p_unit_id: parsed.data.unitId,
     p_vendor_label: parsed.data.vendorLabel,
@@ -406,7 +441,7 @@ export async function submitExpenseAction(
   if (error) return actionError(error.message);
   revalidateFinance();
   return {
-    message: "Expense submitted for Finance review.",
+    message: "Paid cost submitted for Finance review.",
     status: "success",
   };
 }

@@ -276,8 +276,8 @@ type RpcFunctionOverrides = {
       p_customer_category: string;
       p_expense_date: string;
       p_idempotency_key: string;
-      p_internal_cost_amount: number;
-      p_internal_markup_amount: number;
+      p_internal_cost_amount: string;
+      p_internal_markup_amount: string;
       p_organization_id: string;
       p_property_id: string;
       p_reconciliation_source_id: string;

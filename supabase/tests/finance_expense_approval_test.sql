@@ -215,6 +215,7 @@ CREATE TEMP TABLE expense_approval_state (
   billing_id uuid NOT NULL DEFAULT 'b6000000-0000-0000-0000-000000000001',
   invoice_id uuid NOT NULL DEFAULT 'b7000000-0000-0000-0000-000000000001',
   source_id uuid,
+  evidence_document_id uuid,
   submission_id uuid,
   rejection_submission_id uuid,
   locked_submission_id uuid,
@@ -538,7 +539,31 @@ SELECT set_config(
   (SELECT super_admin_id::text FROM expense_approval_state),
   true
 );
+
+INSERT INTO storage.objects (bucket_id, name, version, metadata)
+SELECT
+  'nestory-documents',
+  organization_id::text || '/expense-approval/retained-receipt.pdf',
+  pg_catalog.gen_random_uuid()::text,
+  pg_catalog.jsonb_build_object(
+    'mimetype', 'application/pdf',
+    'size', 22
+  )
+FROM expense_approval_state;
+
 SET LOCAL ROLE authenticated;
+
+UPDATE expense_approval_state
+SET evidence_document_id = public.create_document(
+  organization_id,
+  'Paid cost evidence',
+  'retained-receipt.pdf',
+  organization_id::text || '/expense-approval/retained-receipt.pdf',
+  'application/pdf',
+  22,
+  pg_catalog.repeat('a', 64),
+  property_id
+);
 
 SELECT lives_ok(
   $$
@@ -597,7 +622,7 @@ SELECT lives_ok(
         'owner',
         NULL,
         source_id,
-        NULL,
+        evidence_document_id,
         NULL,
         'Move-out cleaning',
         'expense-submit-owner-0001'
@@ -658,7 +683,7 @@ SELECT is(
       'owner',
       NULL,
       source_id,
-      NULL,
+      evidence_document_id,
       NULL,
       'Move-out cleaning',
       'expense-submit-owner-0001'
@@ -709,7 +734,7 @@ SELECT is(
       'owner',
       NULL,
       source_id,
-      NULL,
+      evidence_document_id,
       NULL,
       'Move-out cleaning',
       'expense-submit-owner-0001'
@@ -1121,7 +1146,7 @@ SELECT lives_ok(
         'owner',
         NULL,
         source_id,
-        NULL,
+        evidence_document_id,
         NULL,
         'Needs review',
         'expense-submit-reject-0001'
@@ -1526,14 +1551,15 @@ SELECT throws_ok(
       SELECT public.submit_expense(
         %L, %L, NULL, 'general', NULL, 'utility', 'Utility Vendor',
         '2026-08-12', 20, 5, 'USD', 'tenant', %L, %L,
-        NULL, NULL, 'Tenant utility without unit',
+        %L, NULL, 'Tenant utility without unit',
         'expense-submit-tenant-null-unit'
       )
     $sql$,
     organization_id,
     property_id,
     invoice_id,
-    source_id
+    source_id,
+    evidence_document_id
   ),
   '23503',
   'Tenant invoice does not belong to this property, unit, and currency',
@@ -1560,7 +1586,7 @@ SELECT lives_ok(
         'tenant',
         invoice_id,
         source_id,
-        NULL,
+        evidence_document_id,
         NULL,
         'Tenant utility recovery',
         'expense-submit-tenant-0001'
@@ -1847,7 +1873,7 @@ SELECT lives_ok(
         'owner',
         NULL,
         source_id,
-        NULL,
+        evidence_document_id,
         NULL,
         'Locked period expense',
         'expense-submit-locked-0001'
