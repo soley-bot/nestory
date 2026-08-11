@@ -201,9 +201,7 @@
         "src/features/property-setup/components/property-setup-screen.test.tsx",
         "src/features/property-setup/property-setup.test.ts"
       ],
-      "limitations": [
-        "Implementation-backed route evidence only; the focused task did not rerun the browser route sweep."
-      ]
+      "limitations": []
     }
   },
   {

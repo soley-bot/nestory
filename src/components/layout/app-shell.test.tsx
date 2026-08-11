@@ -130,6 +130,25 @@ describe("AppShell Shadcn dashboard block", () => {
     ).toBe("page");
   });
 
+  it.each([
+    ["/maintenance", "Cases"],
+    ["/recurring-tasks", "Recurring work"],
+    ["/inspections", "Inspections"],
+    ["/work-orders", "Work orders"],
+  ])("keeps Operations Manager navigation active on %s", (pathname, child) => {
+    navigation.pathname = pathname;
+    render(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
+
+    expect(
+      screen
+        .getByRole("button", { name: "Collapse Maintenance navigation" })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("link", { name: child }).getAttribute("aria-current"),
+    ).toBe("page");
+  });
+
   it("shows organization theme control only to the Super Admin", () => {
     const theme = { accentPreset: "neutral" as const, accentSeed: null, mode: "system" as const };
     const { rerender } = render(

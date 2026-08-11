@@ -114,8 +114,8 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
   },
   owner_payment: {
     actionLabel: "Open Balances",
-    entityLabel: "Owner payment",
-    fallbackRecordLabel: "Owner payment",
+    entityLabel: "Owner invoice payment",
+    fallbackRecordLabel: "Owner invoice payment",
     getHref: () => "/balances",
     mode: "module",
   },

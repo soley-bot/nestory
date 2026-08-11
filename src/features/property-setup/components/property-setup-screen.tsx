@@ -216,6 +216,7 @@ export function PropertySetupScreen({
                   lease={lease}
                   owner={owner}
                   property={property}
+                  readiness={data.readiness ?? null}
                   tenant={tenant}
                   unit={unit}
                 />
@@ -466,23 +467,19 @@ function ReviewStep({
   lease,
   owner,
   property,
+  readiness,
   tenant,
   unit,
 }: {
   lease: PropertySetupData["leases"][number];
   owner: PropertySetupData["owners"][number];
   property: PropertySetupData["properties"][number];
+  readiness: PropertySetupData["readiness"];
   tenant: PropertySetupData["tenants"][number];
   unit: PropertySetupData["units"][number];
 }) {
-  const rentParams = new URLSearchParams({
-    action: "create",
-    incomeType: "rent",
-    leaseId: lease.id,
-    payerPersonId: tenant.id,
-    propertyId: property.id,
-    unitId: unit.id,
-  });
+  const firstBlocker = readiness?.items.find((item) => !item.ready);
+  const ready = readiness?.ready === true;
 
   return (
     <section className="space-y-4">
@@ -497,9 +494,55 @@ function ReviewStep({
             value: formatMoney(lease.monthlyRentAmount, "USD"),
           },
         ]}
-        summary="The owner, property, unit, tenant, and lease are persisted and linked. The next action creates the first rent obligation; it does not record cash."
-        title="Setup complete"
+        summary={
+          ready
+            ? "The authoritative owner, unit, lease, occupancy, billing, policy, opening-balance, and deposit checks are ready for rent operations."
+            : "The core records are linked, but rent operations stay blocked until every authority below is complete."
+        }
+        title={ready ? "Rent ready" : "Setup needs attention"}
       />
+      {readiness ? (
+        <section
+          aria-label="Rent readiness checklist"
+          className="rounded-md border border-border bg-muted/35"
+        >
+          <header className="border-b border-border px-3 py-2.5">
+            <h3 className="text-sm font-semibold">
+              {readiness.items.length} readiness checks
+            </h3>
+          </header>
+          <ul className="divide-y divide-border">
+            {readiness.items.map((item) => (
+              <li className="flex items-center justify-between gap-3 px-3 py-2.5" key={item.code}>
+                <span className="flex min-w-0 items-center gap-2 text-sm">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "grid size-5 shrink-0 place-items-center rounded-full border text-[11px]",
+                      item.ready
+                        ? "border-success/40 bg-success-soft text-success"
+                        : "border-warning/40 bg-warning-soft text-warning",
+                    )}
+                  >
+                    {item.ready ? <Check size={12} /> : "!"}
+                  </span>
+                  <span className="truncate font-medium">{item.label}</span>
+                </span>
+                {item.ready ? (
+                  <span className="text-xs text-muted-foreground">Ready</span>
+                ) : (
+                  <Link
+                    className="shrink-0 text-xs font-medium text-foreground underline underline-offset-4"
+                    href={item.repairHref}
+                  >
+                    Repair
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <div className="grid gap-2 sm:grid-cols-2">
         <SummaryLink href={`/people/${owner.id}`} label="Owner" value={owner.label} />
         <SummaryLink href={`/properties/${property.id}`} label="Property" value={property.label} />
@@ -507,13 +550,23 @@ function ReviewStep({
         <SummaryLink href={`/people/${tenant.id}`} label="Tenant" value={tenant.label} />
         <SummaryLink href={`/leases?leaseId=${lease.id}`} label="Lease" value={lease.label} />
       </div>
-      <Link
-        className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        href={`/rent-income?${rentParams.toString()}`}
-      >
-        <KeyRound size={15} />
-        Create first rent charge
-      </Link>
+      {ready ? (
+        <Link
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          href={`/rent-income?leaseId=${lease.id}`}
+        >
+          <KeyRound size={15} />
+          Open rent workspace
+        </Link>
+      ) : firstBlocker ? (
+        <Link
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          href={firstBlocker.repairHref}
+        >
+          <ArrowRight size={15} />
+          Complete {firstBlocker.label}
+        </Link>
+      ) : null}
     </section>
   );
 }

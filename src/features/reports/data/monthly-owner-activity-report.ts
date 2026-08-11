@@ -201,7 +201,7 @@ export function buildMonthlyOwnerActivityReport({
       { align: "right", key: "rent", label: "Rent" },
       { align: "right", key: "managementFees", label: "Management fee" },
       { align: "right", key: "propertyCosts", label: "Property costs" },
-      { align: "right", key: "withdrawals", label: "Withdrawals" },
+      { align: "right", key: "withdrawals", label: "Owner distributions" },
       { align: "right", key: "netChange", label: "Net change" },
     ],
     description:
@@ -221,7 +221,7 @@ export function buildMonthlyOwnerActivityReport({
       metric("Rent", totalRent, entries, "rent_income"),
       metric("Management fee", totalFees, entries, "management_fee_expense"),
       metric("Property costs", totalCosts, entries, "owner_expense"),
-      metric("Withdrawals", totalWithdrawals, entries, "withdrawal"),
+      metric("Owner distributions", totalWithdrawals, entries, "withdrawal"),
     ],
     title: "Owner activity",
     totalsTraceLabel: `Totals trace to ${entries.length} property account ${entries.length === 1 ? "entry" : "entries"}.`,

@@ -64,6 +64,7 @@ import {
   reverseTenantInvoicePaymentAction,
   reverseExpenseAction,
   reviewExpenseAction,
+  saveLeaseBillingAction,
   submitExpenseAction,
 } from "@/features/finance-operations/actions";
 
@@ -192,6 +193,50 @@ describe("rent generation recovery action", () => {
     expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
+
+  it("rejects lease billing when explicit fee choices are missing", async () => {
+    const formData = new FormData();
+    formData.set("billingRecipientKind", "individual");
+    formData.set("billingRecipientPersonId", actorId);
+    formData.set("collectionRoute", "through_ips");
+    formData.set("effectiveFrom", "2026-08-11");
+    formData.set("idempotencyKey", "billing-test-key");
+    formData.set("leaseId", leaseId);
+    formData.set("managementFeeMode", "percentage");
+    formData.set("managementFeeValue", "10");
+
+    await expect(saveLeaseBillingAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+    });
+    expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("maps explicit lease billing fee choices to authoritative booleans", async () => {
+    rpc.mockResolvedValue({ data: "billing-1", error: null });
+    const formData = new FormData();
+    formData.set("billingRecipientKind", "individual");
+    formData.set("billingRecipientPersonId", actorId);
+    formData.set("chargeManagementFeeWhenActive", "yes");
+    formData.set("collectionRoute", "through_ips");
+    formData.set("effectiveFrom", "2026-08-11");
+    formData.set("fullManagementFeeDuringProration", "no");
+    formData.set("idempotencyKey", "billing-test-key");
+    formData.set("leaseId", leaseId);
+    formData.set("managementFeeMode", "percentage");
+    formData.set("managementFeeValue", "10");
+
+    await expect(saveLeaseBillingAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "set_lease_billing_term",
+      expect.objectContaining({
+        p_charge_management_fee_when_active: true,
+        p_full_management_fee_during_proration: false,
+      }),
+    );
+  });
 });
 
 describe("ordinary finance operation actions", () => {
@@ -307,7 +352,7 @@ describe("ordinary finance operation actions", () => {
     },
   );
 
-  it("rejects an over-scale owner withdrawal before authorization", async () => {
+  it("rejects an over-scale owner distribution before authorization", async () => {
     const formData = withdrawalForm();
     formData.set("amount", "50.001");
 

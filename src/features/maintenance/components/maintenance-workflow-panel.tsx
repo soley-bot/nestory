@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
-import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
 import {
   executeAssignedMaintenanceTaskAction,
@@ -25,6 +24,7 @@ import {
   getMaintenanceWorkflowState,
 } from "@/features/maintenance/maintenance.workflow";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { formatDate } from "@/lib/dates/format";
 
 const initialState: MaintenanceActionState = {};
 
@@ -144,6 +144,35 @@ function MaintenanceCostHandoffPanel({
         </div>
       ) : null}
 
+      {maintenanceCase.costSubmissionHistory &&
+      maintenanceCase.costSubmissionHistory.length > 1 ? (
+        <section className="rounded-md border border-border bg-card">
+          <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+            <p className="text-sm font-medium">Cost review history</p>
+            <span className="text-xs text-muted-foreground">
+              {maintenanceCase.costSubmissionHistory.length} finance decisions
+            </span>
+          </header>
+          <ul className="divide-y divide-border">
+            {maintenanceCase.costSubmissionHistory.map((item) => (
+              <li className="space-y-1 px-3 py-2 text-xs" key={item.id}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium">
+                    {maintenanceCostStatusLabel(item.status)}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {formatDate(item.submittedAt.slice(0, 10))}
+                  </span>
+                </div>
+                {item.reviewReason ? (
+                  <p className="text-muted-foreground">{item.reviewReason}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {isLocked ? (
         <p className="text-xs leading-5 text-muted-foreground">
           The submitted amount and vendor are locked. Operational completion can
@@ -172,18 +201,13 @@ function MaintenanceCostHandoffPanel({
               />
             </label>
             <label className="space-y-1.5 text-sm font-medium">
-              <span>Receipt or evidence</span>
-              <SelectControl
-                ariaLabel="Receipt or evidence"
-                defaultValue={maintenanceCase.actualCostDocumentId ?? ""}
-                name="supportingDocumentId"
-                options={[
-                  { label: "No linked document", value: "" },
-                  ...maintenanceCase.documents.map((document) => ({
-                    label: document.fileName,
-                    value: document.id,
-                  })),
-                ]}
+              <span>Receipt evidence</span>
+              <Input
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                aria-label="Receipt evidence"
+                name="evidenceFile"
+                required
+                type="file"
               />
             </label>
           </div>
@@ -197,7 +221,8 @@ function MaintenanceCostHandoffPanel({
             />
           </label>
           <p className="text-xs text-muted-foreground">
-            Choose a linked document or enter a reference.
+            Upload the receipt used for this submission. It is retained and
+            registered exclusively before Finance can review the cost.
           </p>
           {state.fieldErrors?.reference?.[0] ? (
             <p className="text-xs text-danger">

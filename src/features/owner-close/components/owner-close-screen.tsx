@@ -51,7 +51,7 @@ export function OwnerCloseScreen({
     <section aria-labelledby="owner-close-heading" className="space-y-4">
       <header>
         <h2 className="text-lg font-semibold" id="owner-close-heading">
-          Owner close authority
+          Close owner month
         </h2>
         <p className="text-sm text-muted-foreground">
           Readiness, reasoned revisions, frozen lines, and source evidence for this exact owner month.
@@ -93,7 +93,7 @@ export function OwnerCloseScreen({
                 className="self-end rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
                 type="submit"
               >
-                Close revision {closeRevisionNumber}
+                Close owner month · revision {closeRevisionNumber}
               </button>
             </form>
           ) : null}
@@ -286,7 +286,7 @@ function ReadinessCard({
         <div>
           <h3 className="font-semibold">
             {scopeIsCloseReady
-              ? `Ready to close revision ${closeRevisionNumber}`
+      ? `Ready to close owner month · revision ${closeRevisionNumber}`
               : "Close readiness blocked"}
           </h3>
           <p className="text-xs text-muted-foreground">
@@ -443,7 +443,7 @@ function RevisionHistory({ data }: { data: OwnerCloseData }) {
       </div>
       {data.revisions.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-          No close revision exists for this scope yet.
+        No close owner month record exists for this scope yet.
         </p>
       ) : data.revisions.map((revision) => (
         <article
@@ -529,7 +529,7 @@ function blockerLabel(blocker: OwnerCloseBlocker) {
   if (blocker.code === "financial_month_not_locked") return "Financial month is not locked";
   if (blocker.code === "owner_balance_period_missing") return "Owner balance period is missing";
   if (blocker.code === "owner_balance_period_stale") return "Owner balance period must be rerolled";
-  if (blocker.code === "pending_owner_opening_or_correction") return "Opening authority review is pending";
+  if (blocker.code === "pending_owner_opening_or_correction") return "Opening balance review is pending";
   if (blocker.code === "source_allocation_incomplete") return "Source allocation is incomplete";
   if (blocker.code === "pending_financial_idempotency") return "A financial command is still pending";
   return blocker.code.replaceAll("_", " ");

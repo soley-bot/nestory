@@ -14,7 +14,7 @@ test("defines the local Finance Manager day journey and every required allowed s
     "record-payment",
     "confirm-owner-direct-collection",
     "record-owner-invoice-payment",
-    "record-capacity-withdrawal",
+    "record-owner-distribution",
     "retry-current-rent",
     "review-paid-cost",
     "create-petty-cash-entry",
@@ -24,6 +24,7 @@ test("defines the local Finance Manager day journey and every required allowed s
     "navigate-to-reports",
     "export-pdf",
     "export-excel",
+    "read-owner-statement-publications",
   ]);
 });
 
@@ -39,7 +40,7 @@ test("declares every forbidden structural, maker-checker, and correction control
     "petty-cash-update",
     "petty-cash-void",
     "unlock-financial-month",
-    "owner-statement-unavailable",
+    "publish-owner-statement",
     "reconciliation-source-configuration",
   ]);
 });
@@ -50,7 +51,7 @@ test("declares same-request replay coverage for every keyed ordinary create or r
       "record-payment",
       "confirm-owner-direct-collection",
       "record-owner-invoice-payment",
-      "record-capacity-withdrawal",
+      "record-owner-distribution",
       "review-paid-cost",
       "create-petty-cash-entry",
     ],

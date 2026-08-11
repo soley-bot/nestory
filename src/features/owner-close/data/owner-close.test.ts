@@ -31,7 +31,7 @@ const movementId = "00000000-0000-4000-8000-000000000010";
 const publicationId = "00000000-0000-4000-8000-000000000020";
 const artifactId = "00000000-0000-4000-8000-000000000021";
 
-describe("owner close authority loader", () => {
+describe("close owner month loader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireReadiness.mockResolvedValue({ organizationId });

@@ -9,8 +9,8 @@ type BadgeTone = "neutral" | "success" | "warning" | "danger" | "accent"
 const toneClasses: Record<BadgeTone, string> = {
   neutral: "border-border bg-secondary text-secondary-foreground",
   success: "border-emerald-600/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  warning: "border-amber-600/20 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  danger: "border-destructive/20 bg-destructive/10 text-destructive",
+  warning: "border-warning/30 bg-warning-soft text-warning",
+  danger: "border-danger/30 bg-danger-soft text-danger",
   accent: "border-primary/20 bg-primary/10 text-primary",
 }
 

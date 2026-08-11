@@ -692,7 +692,7 @@ function databaseError(error: unknown): OwnerBalanceActionState {
     normalized.includes("correction target")
   ) {
     errorCode = "stale_target";
-    message = "The correction target is no longer the current opening authority.";
+      message = "The correction target is no longer the current opening balance.";
   } else if (
     normalized.includes("roster") ||
     normalized.includes("owner_share") ||

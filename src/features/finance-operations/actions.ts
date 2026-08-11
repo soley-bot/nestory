@@ -64,16 +64,21 @@ const optionalAmount = z.preprocess(
   (value) => (value === "" || value === undefined ? null : value),
   z.coerce.number().nonnegative().nullable(),
 );
+const explicitBooleanChoice = z
+  .enum(["yes", "no"], {
+    message: "Choose yes or no.",
+  })
+  .transform((value) => value === "yes");
 
 const billingSchema = z.object({
   billingRecipientKind: z.enum(["individual", "company"]),
   billingRecipientPersonId: uuid,
-  chargeManagementFeeWhenActive: z.coerce.boolean(),
+  chargeManagementFeeWhenActive: explicitBooleanChoice,
   collectionRoute: z.enum(["through_ips", "direct_to_owner"]),
   effectiveFrom: date,
   finalPeriodProratedAmount: optionalAmount,
   firstPeriodProratedAmount: optionalAmount,
-  fullManagementFeeDuringProration: z.coerce.boolean(),
+  fullManagementFeeDuringProration: explicitBooleanChoice,
   idempotencyKey: z.string().min(8),
   leaseId: uuid,
   managementFeeMode: z.enum(["flat", "percentage"]),
@@ -178,14 +183,16 @@ export async function saveLeaseBillingAction(
   const parsed = billingSchema.safeParse({
     billingRecipientKind: formData.get("billingRecipientKind"),
     billingRecipientPersonId: formData.get("billingRecipientPersonId"),
-    chargeManagementFeeWhenActive:
-      formData.get("chargeManagementFeeWhenActive") === "on",
+    chargeManagementFeeWhenActive: formData.get(
+      "chargeManagementFeeWhenActive",
+    ),
     collectionRoute: formData.get("collectionRoute"),
     effectiveFrom: formData.get("effectiveFrom"),
     finalPeriodProratedAmount: formData.get("finalPeriodProratedAmount"),
     firstPeriodProratedAmount: formData.get("firstPeriodProratedAmount"),
-    fullManagementFeeDuringProration:
-      formData.get("fullManagementFeeDuringProration") === "on",
+    fullManagementFeeDuringProration: formData.get(
+      "fullManagementFeeDuringProration",
+    ),
     idempotencyKey: formData.get("idempotencyKey"),
     leaseId: formData.get("leaseId"),
     managementFeeMode: formData.get("managementFeeMode"),
@@ -516,7 +523,7 @@ export async function recordOwnerPaymentAction(
   });
   if (error) return actionError(error.message);
   revalidateFinance();
-  return { message: "Owner payment recorded.", status: "success" };
+  return { message: "Owner invoice payment recorded.", status: "success" };
 }
 
 export async function recordWithdrawalAction(
@@ -539,7 +546,7 @@ export async function recordWithdrawalAction(
   });
   if (error) return actionError(error.message);
   revalidateFinance();
-  return { message: "Withdrawal recorded.", status: "success" };
+  return { message: "Owner distribution recorded.", status: "success" };
 }
 
 function parseAllocations(formData: FormData) {

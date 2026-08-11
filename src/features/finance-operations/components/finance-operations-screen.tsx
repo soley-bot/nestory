@@ -21,7 +21,6 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox as CheckboxPrimitive } from "@/components/ui/checkbox";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -108,6 +107,8 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canReverseExpense: boolean;
   canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
+  initialBillingLeaseId?: string;
+  initialRentLeaseId?: string;
   openingAuthority?: ReactNode;
   organizationName: string;
   selectedPropertyId?: string | null;
@@ -123,7 +124,14 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
 
 export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
   const organizationName = props.organizationName.trim() || "our company";
-  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const initialBillingLease = props.initialBillingLeaseId
+    ? props.leases.find((lease) => lease.id === props.initialBillingLeaseId)
+    : undefined;
+  const [drawer, setDrawer] = useState<DrawerState | null>(() =>
+    initialBillingLease
+      ? { lease: initialBillingLease, mode: "billing" }
+      : null,
+  );
   const [modal, setModal] = useState<ModalState | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const closeDrawer = () => setDrawer(null);
@@ -281,6 +289,11 @@ function getScreen(
   const canRecoverRent = props.canRecoverRent;
 
   if (props.view === "rent") {
+    const invoices = props.initialRentLeaseId
+      ? props.tenantInvoices.filter(
+          (invoice) => invoice.leaseId === props.initialRentLeaseId,
+        )
+      : props.tenantInvoices;
     return {
       activeRoute: "/rent-income" as const,
       actions:
@@ -314,12 +327,12 @@ function getScreen(
         <RentView
           canCorrectFinance={props.canCorrectFinance}
           canRecordPayments={props.canRecordPayments}
-          invoices={props.tenantInvoices}
+          invoices={invoices}
           openModal={openModal}
           organizationName={props.organizationName}
         />
       ),
-      context: `${props.tenantInvoices.length} invoices`,
+      context: `${invoices.length} ${invoices.length === 1 ? "invoice" : "invoices"}`,
       contextHref: "/rent-income",
       title: "Rent",
       toolbar: undefined,
@@ -593,7 +606,7 @@ function FinanceWorkView({
                     key={`owner-${invoice.id}`}
                   >
                     <Td>
-                      <p className="font-medium">Owner payment</p>
+                      <p className="font-medium">Owner invoice payment</p>
                       <p className="text-xs text-muted-foreground">
                         {invoice.ownerLabel} · {invoice.invoiceNumber}
                       </p>
@@ -1052,11 +1065,21 @@ function ExpenseSubmissionTable({
                   {categoryLabel(submission.category)}
                 </p>
                 {submission.sourceType === "maintenance_task" ? (
-                  <Badge className="mt-1" tone="neutral">
-                    {submission.adjustsSubmissionId
-                      ? "Maintenance adjustment"
-                      : "Maintenance cost"}
-                  </Badge>
+                  <div className="mt-1 space-y-1">
+                    <Badge tone="neutral">
+                      {submission.adjustsSubmissionId
+                        ? "Maintenance adjustment"
+                        : "Maintenance cost"}
+                    </Badge>
+                    {submission.maintenanceTask ? (
+                      <Link
+                        className="block text-xs font-medium text-primary underline-offset-2 hover:underline"
+                        href={submission.maintenanceTask.href}
+                      >
+                        {submission.maintenanceTask.title}
+                      </Link>
+                    ) : null}
+                  </div>
                 ) : null}
                 <p className="text-xs text-muted-foreground">
                   {submission.vendorLabel}
@@ -1324,7 +1347,7 @@ function BalancesView({
                               })
                             }
                           >
-                            Owner payment
+                            Owner invoice payment
                           </Button>
                         ) : null}
                         {canRecordOwnerCash &&
@@ -1335,7 +1358,7 @@ function BalancesView({
                               openModal({ mode: "withdrawal", position })
                             }
                           >
-                            Withdrawal
+                            Owner distribution
                           </Button>
                         ) : null}
                       </div>
@@ -1436,7 +1459,10 @@ function PropertyAccountView({
         />
       ) : (
         <TableFrame>
-          <Table className="min-w-[820px]">
+          <Table
+            className="min-w-[820px]"
+            scrollRegionLabel="Property account activity"
+          >
             <thead className="bg-[var(--table-header-bg)]">
               <tr>
                 <Th>Date</Th>
@@ -1494,11 +1520,16 @@ function BillingSetupForm({
     saveLeaseBillingAction,
     actionInitialState,
   );
-  const [recipientKind, setRecipientKind] = useState<"company" | "individual">(
-    lease.billing?.billingRecipientKind ?? "individual",
+  const [recipientKind, setRecipientKind] = useState<
+    "" | "company" | "individual"
+  >(
+    lease.billing?.billingRecipientKind ?? "",
   );
   const [recipientId, setRecipientId] = useState(
-    lease.billing?.billingRecipientPersonId ?? lease.tenantPersonId ?? "",
+    lease.billing?.billingRecipientPersonId ?? "",
+  );
+  const [effectiveFrom, setEffectiveFrom] = useState(
+    lease.billing?.effectiveFrom ?? "",
   );
   const [firstProrata, setFirstProrata] = useState(
     lease.billing?.firstPeriodProratedAmount?.toString() ?? "",
@@ -1506,22 +1537,33 @@ function BillingSetupForm({
   const [finalProrata, setFinalProrata] = useState(
     lease.billing?.finalPeriodProratedAmount?.toString() ?? "",
   );
-  const [route, setRoute] = useState<"direct_to_owner" | "through_ips">(
-    lease.billing?.collectionRoute ?? "through_ips",
+  const [route, setRoute] = useState<
+    "" | "direct_to_owner" | "through_ips"
+  >(
+    lease.billing?.collectionRoute ?? "",
   );
-  const [feeMode, setFeeMode] = useState<"flat" | "percentage">(
-    lease.billing?.managementFeeMode ?? "percentage",
+  const [feeMode, setFeeMode] = useState<"" | "flat" | "percentage">(
+    lease.billing?.managementFeeMode ?? "",
   );
   const [feeValue, setFeeValue] = useState(
-    lease.billing?.managementFeeValue.toString() ?? "10",
+    lease.billing?.managementFeeValue.toString() ?? "",
   );
-  const [chargeFee, setChargeFee] = useState(
-    lease.billing?.chargeManagementFeeWhenActive ?? true,
+  const [chargeFee, setChargeFee] = useState<"" | "no" | "yes">(
+    lease.billing
+      ? lease.billing.chargeManagementFeeWhenActive
+        ? "yes"
+        : "no"
+      : "",
   );
-  const [fullFeeDuringProration, setFullFeeDuringProration] = useState(
-    lease.billing?.fullManagementFeeDuringProration ?? true,
+  const [fullFeeDuringProration, setFullFeeDuringProration] = useState<
+    "" | "no" | "yes"
+  >(
+    lease.billing
+      ? lease.billing.fullManagementFeeDuringProration
+        ? "yes"
+        : "no"
+      : "",
   );
-  const today = getBusinessDateValue();
   useSuccess(state, onSuccess);
   return (
     <form action={action} className="space-y-4 p-4">
@@ -1535,11 +1577,7 @@ function BillingSetupForm({
         ]}
       />
       <input name="leaseId" type="hidden" value={lease.id} />
-      <input
-        name="effectiveFrom"
-        type="hidden"
-        value={lease.billing?.effectiveFrom ?? lease.startDate ?? today}
-      />
+      <input name="effectiveFrom" type="hidden" value={effectiveFrom} />
       <input name="billingRecipientKind" type="hidden" value={recipientKind} />
       <input
         name="billingRecipientPersonId"
@@ -1562,12 +1600,12 @@ function BillingSetupForm({
       <input
         name="chargeManagementFeeWhenActive"
         type="hidden"
-        value={chargeFee ? "on" : ""}
+        value={chargeFee}
       />
       <input
         name="fullManagementFeeDuringProration"
         type="hidden"
-        value={fullFeeDuringProration ? "on" : ""}
+        value={fullFeeDuringProration}
       />
       <input
         name="supersedesBillingTermId"
@@ -1594,20 +1632,37 @@ function BillingSetupForm({
                 setRecipientKind(value as "company" | "individual")
               }
               options={[
+                { label: "Choose who is billed", value: "" },
                 { label: "Individual tenant", value: "individual" },
                 { label: "Company", value: "company" },
               ]}
+              placeholder="Choose who is billed"
               value={recipientKind}
             />
           </Field>
-          <Field label={recipientKind === "company" ? "Company" : "Tenant"}>
+          <Field
+            label={recipientKind === "company" ? "Company" : "Recipient"}
+          >
             <SelectControl
               onValueChange={setRecipientId}
-              options={peopleOptions.map((option) => ({
-                label: option.label,
-                value: option.id,
-              }))}
+              options={[
+                { label: "Choose a recipient", value: "" },
+                ...peopleOptions.map((option) => ({
+                  label: option.label,
+                  value: option.id,
+                })),
+              ]}
+              placeholder="Choose a recipient"
               value={recipientId}
+            />
+          </Field>
+          <Field label="Billing effective date">
+            <Input
+              aria-label="Billing effective date"
+              onChange={(event) => setEffectiveFrom(event.target.value)}
+              required
+              type="date"
+              value={effectiveFrom}
             />
           </Field>
           <Field label="First month amount (optional)">
@@ -1632,12 +1687,14 @@ function BillingSetupForm({
             <SelectControl
               onValueChange={(value) => setRoute(value as typeof route)}
               options={[
+                { label: "Choose who collects rent", value: "" },
                 {
                   label: `Collected by ${organizationName}`,
                   value: "through_ips",
                 },
                 { label: "Collected by owner", value: "direct_to_owner" },
               ]}
+              placeholder="Choose who collects rent"
               value={route}
             />
           </Field>
@@ -1645,9 +1702,11 @@ function BillingSetupForm({
             <SelectControl
               onValueChange={(value) => setFeeMode(value as typeof feeMode)}
               options={[
+                { label: "Choose fee type", value: "" },
                 { label: "Percentage", value: "percentage" },
                 { label: "Flat amount", value: "flat" },
               ]}
+              placeholder="Choose fee type"
               value={feeMode}
             />
           </Field>
@@ -1660,18 +1719,32 @@ function BillingSetupForm({
               value={feeValue}
             />
           </Field>
-          <div className="space-y-2 pt-5">
-            <Checkbox
-              checked={chargeFee}
-              label="Charge fee while lease is active"
-              onChange={setChargeFee}
+          <Field label="Charge fee while lease is active?">
+            <SelectControl
+              onValueChange={(value) => setChargeFee(value as typeof chargeFee)}
+              options={[
+                { label: "Choose yes or no", value: "" },
+                { label: "Yes", value: "yes" },
+                { label: "No", value: "no" },
+              ]}
+              value={chargeFee}
             />
-            <Checkbox
-              checked={fullFeeDuringProration}
-              label="Keep full fee in pro-rata months"
-              onChange={setFullFeeDuringProration}
+          </Field>
+          <Field label="Keep full fee in pro-rata months?">
+            <SelectControl
+              onValueChange={(value) =>
+                setFullFeeDuringProration(
+                  value as typeof fullFeeDuringProration,
+                )
+              }
+              options={[
+                { label: "Choose yes or no", value: "" },
+                { label: "Yes", value: "yes" },
+                { label: "No", value: "no" },
+              ]}
+              value={fullFeeDuringProration}
             />
-          </div>
+          </Field>
         </div>
       ) : null}
       {step === 4 ? (
@@ -1706,7 +1779,10 @@ function BillingSetupForm({
       <ActionMessage state={state} />
       <FormFooter>
         {step > 1 ? (
-          <Button onClick={() => setStep((current) => current - 1)}>
+          <Button
+            onClick={() => setStep((current) => current - 1)}
+            type="button"
+          >
             Back
           </Button>
         ) : (
@@ -1714,8 +1790,17 @@ function BillingSetupForm({
         )}
         {step < 4 ? (
           <Button
-            disabled={step === 2 && !recipientId}
+            disabled={
+              (step === 2 && (!recipientKind || !recipientId || !effectiveFrom)) ||
+              (step === 3 &&
+                (!route ||
+                  !feeMode ||
+                  feeValue === "" ||
+                  !chargeFee ||
+                  !fullFeeDuringProration))
+            }
             onClick={() => setStep((current) => current + 1)}
+            type="button"
             variant="default"
           >
             Continue <ChevronRight size={14} />
@@ -2229,6 +2314,28 @@ function ExpenseReviewForm({
         rows={[
           ["Vendor", submission.vendorLabel],
           ["Property", submission.propertyLabel],
+          ...(submission.maintenanceTask
+            ? ([
+                [
+                  "Maintenance task",
+                  <Link
+                    className="text-primary underline-offset-2 hover:underline"
+                    href={submission.maintenanceTask.href}
+                    key={submission.maintenanceTask.href}
+                  >
+                    {submission.maintenanceTask.title}
+                  </Link>,
+                ],
+                [
+                  "Work completed",
+                  submission.maintenanceTask.description ?? "No work note recorded",
+                ],
+                [
+                  "Task status",
+                  maintenanceStatusLabel(submission.maintenanceTask.status),
+                ],
+              ] satisfies [string, ReactNode][])
+            : []),
           [
             submission.adjustsSubmissionId ? "Additional paid" : "Paid",
             formatMoneyDisplay(submission.internalCost).primary,
@@ -2539,7 +2646,7 @@ function OwnerPaymentForm({
       <ActionMessage state={state} />
       <FormFooter>
         <span />
-        <SubmitButton label="Record owner payment" />
+          <SubmitButton label="Record owner invoice payment" />
       </FormFooter>
     </form>
   );
@@ -2610,7 +2717,7 @@ function getModalTitle(modal: ModalState) {
     return !modal.invoice || modal.invoice.collectionRoute === "through_ips"
       ? "Record payment"
       : "Confirm owner collection";
-  if (modal.mode === "owner-payment") return "Owner payment";
+  if (modal.mode === "owner-payment") return "Owner invoice payment";
   if (modal.mode === "expense-review") {
     return modal.decision === "approve"
       ? "Approve paid cost"
@@ -2618,7 +2725,7 @@ function getModalTitle(modal: ModalState) {
   }
   if (modal.mode === "expense-reversal") return "Reverse paid cost";
   if (modal.mode === "settlement-reversal") return "Correct settlement";
-  return "Owner withdrawal";
+  return "Owner distribution";
 }
 
 function canRenderFinanceModal(
@@ -2660,6 +2767,12 @@ function shortEvidenceHash(hash: string) {
 function formatEvidenceSize(sizeBytes: number) {
   if (sizeBytes < 1024) return `${sizeBytes} bytes`;
   return `${(sizeBytes / 1024).toFixed(1)} KB`;
+}
+function maintenanceStatusLabel(status: string) {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 function useSuccess(
   state: FinanceOperationsActionState,
@@ -2870,25 +2983,6 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
     <label className="block space-y-1.5 text-sm">
       <span className="font-medium">{label}</span>
       {children}
-    </label>
-  );
-}
-function Checkbox({
-  checked,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  label: string;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm">
-      <CheckboxPrimitive
-        checked={checked}
-        onCheckedChange={(value) => onChange(value === true)}
-      />
-      {label}
     </label>
   );
 }

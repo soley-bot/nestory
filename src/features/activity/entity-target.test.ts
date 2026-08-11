@@ -201,19 +201,19 @@ describe("resolveActivityEntityTarget", () => {
     });
   });
 
-  it("routes owner payment activity to Balances", () => {
+  it("routes owner invoice payment activity to Balances", () => {
     expect(
       resolveActivityEntityTarget({
         entityId: id,
         entityType: "owner_payment",
-        recordLabel: "Owner payment recorded",
+        recordLabel: "Owner invoice payment recorded",
       }),
     ).toEqual({
       actionLabel: "Open Balances",
-      entityLabel: "Owner payment",
+      entityLabel: "Owner invoice payment",
       focusMode: "module",
       href: "/balances",
-      recordLabel: "Owner payment recorded",
+      recordLabel: "Owner invoice payment recorded",
     });
   });
 
@@ -222,14 +222,14 @@ describe("resolveActivityEntityTarget", () => {
       resolveActivityEntityTarget({
         entityId: id,
         entityType: "property_withdrawal",
-        recordLabel: "Owner withdrawal reversed",
+        recordLabel: "Owner distribution reversed",
       }),
     ).toEqual({
       actionLabel: "Open Balances",
       entityLabel: "Owner distribution",
       focusMode: "module",
       href: "/balances",
-      recordLabel: "Owner withdrawal reversed",
+      recordLabel: "Owner distribution reversed",
     });
   });
 

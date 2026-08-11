@@ -44,6 +44,14 @@ async function main() {
   await verifyPriorEvidenceNamespace(service);
 
   const bankSourceId = await requiredSource(admin, "bank");
+  fixturePhase = "load task-bound maintenance paid-cost evidence";
+  await loadMaintenancePaidCosts({
+    admin,
+    bankSourceId,
+    manager,
+    preparePaidCostEvidence,
+    service,
+  });
   fixturePhase = "create petty-cash funding source";
   const pettyCashSourceId = requiredScalar(
     await rpc(admin, "create_financial_reconciliation_source", {
@@ -383,6 +391,68 @@ async function main() {
   process.stdout.write(
     "Track 6 paid-cost fixture loaded: owner, tenant, petty cash, rejection, reversal, correction, pending, and missing evidence.\n",
   );
+}
+
+async function loadMaintenancePaidCosts({
+  admin,
+  bankSourceId,
+  manager,
+  preparePaidCostEvidence,
+  service,
+}: {
+  admin: SupabaseClient<Database>;
+  bankSourceId: string;
+  manager: SupabaseClient<Database>;
+  preparePaidCostEvidence: typeof import("../src/features/finance-operations/paid-cost-evidence").preparePaidCostEvidence;
+  service: SupabaseClient<Database>;
+}) {
+  const taskResult = await service
+    .from("tasks")
+    .select("id, property_id, title")
+    .eq("organization_id", organizationId)
+    .in("title", ["Kitchen sink repair", "Garden Court pump replacement"]);
+  if (taskResult.error || taskResult.data.length !== 2) {
+    throw taskResult.error ?? new Error("Maintenance paid-cost tasks are missing");
+  }
+  const tasks = taskResult.data;
+
+  for (const task of tasks) {
+    const approved = task.title === "Kitchen sink repair";
+    const key = approved ? "fixture-maintenance-cost" : "fixture-maintenance-pending-review";
+    const reference = approved ? "KH-INV-1042" : "GDN-PUMP-2088";
+    const file = new File(
+      [`Nestory local maintenance receipt\n${task.id}\n${reference}\n`],
+      `${key}.pdf`,
+      { type: "application/pdf" },
+    );
+    const evidence = await preparePaidCostEvidence({
+      actorId: "00000000-0000-0000-0000-000000000101",
+      file,
+      idempotencyKey: `${key}-evidence`,
+      organizationId,
+      propertyId: requiredScalar(task.property_id, "maintenance property"),
+      taskId: task.id,
+    });
+    const submitted = await rpc(admin, "submit_maintenance_cost", {
+      p_expense_date: dateOffset(approved ? -1 : 0),
+      p_idempotency_key: key,
+      p_organization_id: organizationId,
+      p_reference: reference,
+      p_supporting_document_id: evidence.documentId,
+      p_task_id: task.id,
+    });
+
+    if (approved) {
+      await rpc(manager, "review_expense", {
+        p_decision: "approve",
+        p_idempotency_key: "fixture-maintenance-approval",
+        p_organization_id: organizationId,
+        p_reconciliation_source_id: bankSourceId,
+        p_reason: "Maintenance invoice and work record verified",
+        p_submission_id: requiredString(submitted, "submission_id"),
+      });
+    }
+  }
 }
 
 function client(url: string, key: string) {

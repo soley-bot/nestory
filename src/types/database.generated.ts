@@ -3416,6 +3416,191 @@ export type Database = {
           },
         ]
       }
+      maintenance_recurrence_revisions: {
+        Row: {
+          assignee_person_id: string | null
+          category: string
+          checklist: Json
+          cost_estimate_amount: number | null
+          cost_estimate_currency:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          created_at: string
+          created_by: string
+          description: string | null
+          effective_from: string
+          frequency: string
+          id: string
+          next_occurrence_at: string
+          organization_id: string
+          priority: string
+          reminder_offset_minutes: number | null
+          revision_number: number
+          series_id: string
+          superseded_at: string | null
+          superseded_by: string | null
+          timezone: string
+          title: string
+          vendor_person_id: string | null
+        }
+        Insert: {
+          assignee_person_id?: string | null
+          category: string
+          checklist?: Json
+          cost_estimate_amount?: number | null
+          cost_estimate_currency?:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          effective_from: string
+          frequency: string
+          id?: string
+          next_occurrence_at: string
+          organization_id: string
+          priority: string
+          reminder_offset_minutes?: number | null
+          revision_number: number
+          series_id: string
+          superseded_at?: string | null
+          superseded_by?: string | null
+          timezone: string
+          title: string
+          vendor_person_id?: string | null
+        }
+        Update: {
+          assignee_person_id?: string | null
+          category?: string
+          checklist?: Json
+          cost_estimate_amount?: number | null
+          cost_estimate_currency?:
+            | Database["public"]["Enums"]["currency_code"]
+            | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          effective_from?: string
+          frequency?: string
+          id?: string
+          next_occurrence_at?: string
+          organization_id?: string
+          priority?: string
+          reminder_offset_minutes?: number | null
+          revision_number?: number
+          series_id?: string
+          superseded_at?: string | null
+          superseded_by?: string | null
+          timezone?: string
+          title?: string
+          vendor_person_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_recurrence_revisions_assignee_person_id_fkey"
+            columns: ["assignee_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_recurrence_revisions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_recurrence_revisions_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_recurrence_series"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_recurrence_revisions_vendor_person_id_fkey"
+            columns: ["vendor_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_recurrence_series: {
+        Row: {
+          branch_id: string | null
+          created_at: string
+          created_by: string
+          id: string
+          lifecycle: string
+          organization_id: string
+          property_id: string
+          retired_at: string | null
+          retired_by: string | null
+          unit_id: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          lifecycle?: string
+          organization_id: string
+          property_id: string
+          retired_at?: string | null
+          retired_by?: string | null
+          unit_id?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          lifecycle?: string
+          organization_id?: string
+          property_id?: string
+          retired_at?: string | null
+          retired_by?: string | null
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_recurrence_series_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "organization_branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_recurrence_series_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_recurrence_series_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_recurrence_series_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "maintenance_recurrence_series_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       management_fee_occurrences: {
         Row: {
           amount: number
@@ -3521,6 +3706,133 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
+          },
+        ]
+      }
+      notification_delivery_attempts: {
+        Row: {
+          attempt_number: number
+          attempted_at: string
+          error_message: string | null
+          id: string
+          outbox_id: string
+          outcome: string
+        }
+        Insert: {
+          attempt_number: number
+          attempted_at?: string
+          error_message?: string | null
+          id?: string
+          outbox_id: string
+          outcome: string
+        }
+        Update: {
+          attempt_number?: number
+          attempted_at?: string
+          error_message?: string | null
+          id?: string
+          outbox_id?: string
+          outcome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_delivery_attempts_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "notification_outbox"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_outbox: {
+        Row: {
+          attempt_count: number
+          branch_id: string | null
+          channel: string
+          claimed_at: string | null
+          created_at: string
+          delivered_at: string | null
+          event_key: string
+          event_type: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          organization_id: string
+          payload: Json
+          recipient_person_id: string | null
+          scheduled_for: string
+          status: string
+          task_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          branch_id?: string | null
+          channel?: string
+          claimed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          event_key: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at: string
+          organization_id: string
+          payload: Json
+          recipient_person_id?: string | null
+          scheduled_for: string
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          branch_id?: string | null
+          channel?: string
+          claimed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          event_key?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          organization_id?: string
+          payload?: Json
+          recipient_person_id?: string | null
+          scheduled_for?: string
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "organization_branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_outbox_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_outbox_recipient_person_id_fkey"
+            columns: ["recipient_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_outbox_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3786,6 +4098,7 @@ export type Database = {
           id: string
           khr_per_usd: number
           name: string
+          operational_timezone: string
           preferred_currency: Database["public"]["Enums"]["currency_code"]
           slug: string
           theme_mode: string
@@ -3798,6 +4111,7 @@ export type Database = {
           id?: string
           khr_per_usd?: number
           name: string
+          operational_timezone?: string
           preferred_currency?: Database["public"]["Enums"]["currency_code"]
           slug: string
           theme_mode?: string
@@ -3810,6 +4124,7 @@ export type Database = {
           id?: string
           khr_per_usd?: number
           name?: string
+          operational_timezone?: string
           preferred_currency?: Database["public"]["Enums"]["currency_code"]
           slug?: string
           theme_mode?: string
@@ -7049,6 +7364,9 @@ export type Database = {
           priority: string
           property_id: string
           recurrence_frequency: string
+          recurrence_occurrence_at: string | null
+          recurrence_revision_id: string | null
+          recurrence_series_id: string | null
           reminder_date: string | null
           reminder_time: string | null
           status: string
@@ -7090,6 +7408,9 @@ export type Database = {
           priority?: string
           property_id: string
           recurrence_frequency?: string
+          recurrence_occurrence_at?: string | null
+          recurrence_revision_id?: string | null
+          recurrence_series_id?: string | null
           reminder_date?: string | null
           reminder_time?: string | null
           status?: string
@@ -7131,6 +7452,9 @@ export type Database = {
           priority?: string
           property_id?: string
           recurrence_frequency?: string
+          recurrence_occurrence_at?: string | null
+          recurrence_revision_id?: string | null
+          recurrence_series_id?: string | null
           reminder_date?: string | null
           reminder_time?: string | null
           status?: string
@@ -7184,6 +7508,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "tasks_recurrence_revision_id_fkey"
+            columns: ["recurrence_revision_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_recurrence_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_recurrence_series_id_fkey"
+            columns: ["recurrence_series_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_recurrence_series"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "tasks_request_fk"
@@ -8931,6 +9269,16 @@ export type Database = {
         Args: { p_batch_id: string; p_organization_id: string }
         Returns: Json
       }
+      get_ips_setup_readiness: {
+        Args: {
+          p_effective_date: string
+          p_lease_id: string
+          p_organization_id: string
+          p_property_id: string
+          p_unit_id: string
+        }
+        Returns: Json
+      }
       get_leases_with_effective_rent: {
         Args: { p_effective_date: string; p_organization_id: string }
         Returns: {
@@ -8949,6 +9297,16 @@ export type Database = {
           unit_id: string
         }[]
       }
+      get_maintenance_cost_status_history: {
+        Args: { p_organization_id: string; p_task_ids: string[] }
+        Returns: {
+          review_reason: string
+          status: string
+          submission_id: string
+          submitted_at: string
+          task_id: string
+        }[]
+      }
       get_maintenance_cost_statuses: {
         Args: { p_organization_id: string; p_task_ids: string[] }
         Returns: {
@@ -8964,6 +9322,17 @@ export type Database = {
         Returns: {
           branch_id: string
           person_id: string
+        }[]
+      }
+      get_maintenance_notification_feed: {
+        Args: { p_limit?: number; p_organization_id: string }
+        Returns: {
+          event_type: string
+          href: string
+          id: string
+          scheduled_for: string
+          status: string
+          title: string
         }[]
       }
       get_maintenance_task_documents: {
@@ -9280,6 +9649,18 @@ export type Database = {
         Args: { p_auth_user_id: string; p_proof_method: string }
         Returns: string
       }
+      record_current_lease_occupancy_evidence: {
+        Args: {
+          p_actual_move_in_date: string
+          p_expected_occupancy_id: string
+          p_lease_id: string
+          p_organization_id: string
+          p_reason: string
+          p_scheduled_move_in_date: string | null
+          p_scheduled_move_out_date: string | null
+        }
+        Returns: string
+      }
       record_lease_deposit_event: {
         Args: {
           p_amount: number
@@ -9427,22 +9808,40 @@ export type Database = {
         }
         Returns: Json
       }
-      register_paid_cost_evidence_verified: {
-        Args: {
-          p_actor_id: string
-          p_content_sha256: string
-          p_content_type: string
-          p_file_name: string
-          p_idempotency_key: string
-          p_organization_id: string
-          p_property_id: string
-          p_size_bytes: number
-          p_storage_object_id: string
-          p_storage_object_version: string
-          p_storage_path: string
-        }
-        Returns: Json
-      }
+      register_paid_cost_evidence_verified:
+        | {
+            Args: {
+              p_actor_id: string
+              p_content_sha256: string
+              p_content_type: string
+              p_file_name: string
+              p_idempotency_key: string
+              p_organization_id: string
+              p_property_id: string
+              p_size_bytes: number
+              p_storage_object_id: string
+              p_storage_object_version: string
+              p_storage_path: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_actor_id: string
+              p_content_sha256: string
+              p_content_type: string
+              p_file_name: string
+              p_idempotency_key: string
+              p_organization_id: string
+              p_property_id: string
+              p_size_bytes: number
+              p_storage_object_id: string
+              p_storage_object_version: string
+              p_storage_path: string
+              p_task_id: string
+            }
+            Returns: Json
+          }
       remove_organization_member_access: {
         Args: { p_member_id: string; p_organization_id: string }
         Returns: string
@@ -9691,6 +10090,10 @@ export type Database = {
       revoke_organization_invitation: {
         Args: { p_invitation_id: string }
         Returns: string
+      }
+      run_maintenance_automation: {
+        Args: { p_limit?: number; p_run_at: string }
+        Returns: Json
       }
       schedule_authoritative_lease_term: {
         Args: {

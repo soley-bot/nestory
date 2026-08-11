@@ -1207,18 +1207,6 @@ SELECT public.update_maintenance_task(
 )
 FROM fixture_runtime AS runtime;
 
-UPDATE fixture_runtime
-SET maintenance_submission_id = (
-  public.submit_maintenance_cost(
-    organization_id,
-    maintenance_task_id,
-    current_date - 1,
-    NULL,
-    'KH-INV-1042',
-    'fixture-maintenance-cost'
-  ) ->> 'submission_id'
-)::uuid;
-
 SELECT public.create_maintenance_task(
   runtime.organization_id,
   '10000000-0000-0000-0000-000000000002',
@@ -1392,18 +1380,6 @@ SELECT public.update_maintenance_task(
 )
 FROM fixture_runtime AS runtime;
 
-UPDATE fixture_runtime
-SET pending_maintenance_submission_id = (
-  public.submit_maintenance_cost(
-    organization_id,
-    pending_maintenance_task_id,
-    current_date,
-    NULL,
-    'GDN-PUMP-2088',
-    'fixture-maintenance-pending-review'
-  ) ->> 'submission_id'
-)::uuid;
-
 SELECT set_config(
   'request.jwt.claim.sub',
   '00000000-0000-0000-0000-000000000601',
@@ -1419,22 +1395,6 @@ SELECT public.execute_assigned_maintenance_task(
   NULL
 )
 FROM fixture_runtime;
-
-SELECT set_config(
-  'request.jwt.claim.sub',
-  '00000000-0000-0000-0000-000000000701',
-  true
-);
-
-SELECT public.review_expense(
-  runtime.organization_id,
-  runtime.maintenance_submission_id,
-  'approve',
-  'Maintenance invoice and work record verified',
-  'fixture-maintenance-approval',
-  runtime.source_id
-)
-FROM fixture_runtime AS runtime;
 
 SELECT set_config(
   'request.jwt.claim.sub',

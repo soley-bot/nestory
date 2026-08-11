@@ -92,7 +92,7 @@ describe("OpeningBalanceScreen", () => {
   it("renders the four fixed components and distinguishes Unknown from Known zero", () => {
     renderScreen(superAdminProps());
 
-    expect(screen.getByRole("heading", { name: "Opening authority" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Opening balance" })).toBeTruthy();
     expect(screen.getAllByText("Unknown").length).toBeGreaterThan(0);
     expect(screen.getByText("Known zero")).toBeTruthy();
     expect(screen.getByText("$0.00")).toBeTruthy();
@@ -468,7 +468,7 @@ describe("OpeningBalanceScreen", () => {
   it("keeps its table usable as a labelled keyboard-scroll region at narrow widths", () => {
     renderScreen(superAdminProps());
 
-    const region = screen.getByRole("region", { name: "Opening authority components" });
+    const region = screen.getByRole("region", { name: "Opening balance components" });
     expect(region.getAttribute("tabindex")).toBe("0");
     expect(region.className).toContain("overflow-x-auto");
     expect(within(region).getByRole("table")).toBeTruthy();

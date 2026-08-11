@@ -85,7 +85,7 @@ function ownerStatementSheetXml(model: OwnerStatementPublicationModel) {
     [{ value: "Currency / units" }, { value: `${model.currency} exact units` }],
     [{ value: "Property ID" }, { value: model.propertyId }],
     [{ value: "Owner ID" }, { value: model.ownerPersonId }],
-    [{ value: "Close revision" }, { value: String(model.revisionNumber) }],
+    [{ value: "Close owner month revision" }, { value: String(model.revisionNumber) }],
     [{ value: "Publication content SHA-256" }, { value: model.contentHash }],
     [],
     [

@@ -29,14 +29,14 @@ vi.mock("@/features/owner-close/components/owner-close-screen", () => ({
       data-can-reopen={String(props.canReopen)}
       data-testid="owner-close-authority"
     >
-      Owner close authority
+      Close owner month
     </div>
   ),
 }));
 vi.mock("@/features/owner-balances/components/opening-balance-screen", () => ({
   OpeningBalanceScreen: (props: Record<string, unknown>) => (
     <div data-can-review={String(props.canReview)} data-testid="opening-authority">
-      Opening authority
+      Opening balance
     </div>
   ),
 }));
@@ -67,7 +67,7 @@ const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "00000000-0000-4000-8000-000000000002";
 const ownerId = "00000000-0000-4000-8000-000000000003";
 
-describe("BalancesPage opening authority integration", () => {
+describe("BalancesPage opening balance integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireFinanceContext.mockResolvedValue({

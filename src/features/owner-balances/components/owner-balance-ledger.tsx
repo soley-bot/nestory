@@ -145,7 +145,7 @@ export function OwnerBalanceLedger({
             </div>
             {data.periods.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
-                No authoritative period exists for this scope. Generate the month after opening authority and source remediation are complete.
+                    No authoritative period exists for this scope. Generate the month after the opening balance and source remediation are complete.
               </p>
             ) : data.periods.map((period) => (
               <article className="overflow-hidden rounded-2xl border border-border/80 bg-card" data-testid={`owner-period-${period.monthStart}`} key={period.id}>
@@ -385,8 +385,8 @@ function OwnerCashActions({ scopedHiddenFields, selectedMonth }: { scopedHiddenF
         </form>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
-        <ReversalForm action={reverseOwnerInvoicePaymentAction} idLabel="Owner payment ID" idName="ownerPaymentId" selectedMonth={selectedMonth} submitLabel="Reverse owner invoice payment" />
-        <ReversalForm action={reversePropertyWithdrawalAction} idLabel="Distribution / withdrawal ID" idName="withdrawalId" selectedMonth={selectedMonth} submitLabel="Reverse property withdrawal" />
+        <ReversalForm action={reverseOwnerInvoicePaymentAction} idLabel="Owner invoice payment ID" idName="ownerPaymentId" selectedMonth={selectedMonth} submitLabel="Reverse owner invoice payment" />
+        <ReversalForm action={reversePropertyWithdrawalAction} idLabel="Owner distribution ID" idName="withdrawalId" selectedMonth={selectedMonth} submitLabel="Reverse owner distribution" />
       </div>
     </section>
   );

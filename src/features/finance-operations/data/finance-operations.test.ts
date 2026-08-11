@@ -114,11 +114,30 @@ describe("toExpenseSubmissionSummary", () => {
           },
         ],
       ]),
+      new Map([
+        [
+          "task-1",
+          {
+            completed_at: "2026-08-08T07:30:00Z",
+            description: "Replace the failed pump and verify pressure.",
+            id: "task-1",
+            status: "completed",
+            title: "Garden Court pump replacement",
+          },
+        ],
+      ]),
     );
 
     expect(summary).toMatchObject({
       fundingSourceLabel: "BANK · Archived operating account",
       id: "submission-1",
+      maintenanceTask: {
+        completedAt: "2026-08-08T07:30:00Z",
+        description: "Replace the failed pump and verify pressure.",
+        href: "/maintenance?archiveState=all&taskId=task-1",
+        status: "completed",
+        title: "Garden Court pump replacement",
+      },
       evidence: {
         sha256:
           "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

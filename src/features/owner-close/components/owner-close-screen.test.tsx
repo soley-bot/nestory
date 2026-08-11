@@ -36,7 +36,7 @@ describe("OwnerCloseScreen", () => {
       propertyId={propertyId}
     />);
 
-    expect(screen.getByRole("heading", { name: "Owner close authority" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Close owner month" })).toBeTruthy();
     expect(screen.getByText("Reopen is required before another close")).toBeTruthy();
     expect(screen.getByText("owner_close_reopen_required")).toBeTruthy();
     expect(screen.getByText("Revision 1 - Closed")).toBeTruthy();
@@ -45,7 +45,7 @@ describe("OwnerCloseScreen", () => {
     expect(screen.getByText(/Tenant rent receipt - IPS-held owner cash/)).toBeTruthy();
     expect(screen.getByText(/source line .*000000000009/i)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reopen month" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /close revision/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /close owner month/i })).toBeNull();
     expect(screen.queryByRole("button", { name: "Record correction" })).toBeNull();
   });
 
@@ -61,7 +61,7 @@ describe("OwnerCloseScreen", () => {
 
     expect(screen.getByRole("button", { name: "Reopen month" })).toBeTruthy();
     expect(screen.getByLabelText("Reopen reason")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /close revision/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /close owner month/i })).toBeNull();
     expect(screen.getByText("Revision 1 - Closed")).toBeTruthy();
   });
 
@@ -105,8 +105,8 @@ describe("OwnerCloseScreen", () => {
       propertyId={propertyId}
     />);
 
-    expect(screen.getByText("Ready to close revision 2")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Close revision 2" })).toBeTruthy();
+    expect(screen.getByText("Ready to close owner month · revision 2")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Close owner month · revision 2" })).toBeTruthy();
     expect(screen.getByLabelText("Close reason")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Record correction" })).toBeTruthy();
     expect(screen.getByLabelText("Signed correction amount")).toBeTruthy();
@@ -137,8 +137,8 @@ describe("OwnerCloseScreen", () => {
     />);
 
     expect(screen.getByText("Close readiness blocked")).toBeTruthy();
-    expect(screen.queryByText(/Ready to close revision/)).toBeNull();
-    expect(screen.queryByRole("button", { name: /close revision/i })).toBeNull();
+    expect(screen.queryByText(/Ready to close owner month/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /close owner month/i })).toBeNull();
   });
 
   it("gives Super Admin publication and retained artifact controls for the current close", () => {

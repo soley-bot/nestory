@@ -236,7 +236,7 @@ function mapRevision(value: unknown): OwnerCloseRevision {
     typeof row.status !== "string" ||
     !REVISION_STATUSES.has(row.status as OwnerCloseRevisionStatus) ||
     !Array.isArray(row.lines)
-  ) throw new Error("Invalid owner close revision.");
+    ) throw new Error("Invalid close owner month revision.");
   const revisionNumber = positiveInteger(row.revision_number);
   const lines = row.lines.map(mapLine).sort(
     (left, right) => left.lineNumber - right.lineNumber,

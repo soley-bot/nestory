@@ -26,6 +26,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/features/leases/actions", () => ({
   archiveLeaseAction: async () => ({}),
   createLeaseAction: async () => ({}),
+  recordCurrentLeaseOccupancyEvidenceAction: async () => ({}),
   recordLeaseDepositEventAction: async () => ({}),
   restoreLeaseAction: async () => ({}),
   reverseLeaseDepositEventAction: async () => ({}),
@@ -377,7 +378,7 @@ describe("LeaseScreen redesign contract", () => {
     ).toBe(true);
   });
 
-  it("requires explicit due day, frequency, and term lifecycle in the create drawer", async () => {
+  it("requires explicit lease, term, and occupancy choices in the create drawer", async () => {
     const user = userEvent.setup();
     renderLeases();
 
@@ -394,10 +395,109 @@ describe("LeaseScreen redesign contract", () => {
       within(drawer).getByRole("group", { name: /Term status/ }),
     ).not.toBeNull();
     expect(
+      within(drawer).getByRole("combobox", { name: /Status/ }).textContent,
+    ).toContain("Choose lease status");
+    expect(
+      drawer.querySelector<HTMLInputElement>('input[name="status"]')?.value,
+    ).toBe("");
+    expect(
+      within(drawer).getByRole("group", { name: /Scheduled move-in/ }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("group", { name: /Confirmed move-in/ }),
+    ).not.toBeNull();
+    expect(
       within(drawer).getByText(
         /no policy default is inferred/i,
       ),
     ).not.toBeNull();
+  });
+
+  it("offers the narrow occupancy evidence repair on the selected current lease", () => {
+    const lease = makeLease("lease-1", "Alice Tenant", "Unit 2A");
+    lease.occupancies = [
+      {
+      actualLabel: "Not recorded",
+      datesLabel: "Not recorded",
+      evidenceLabel: "Accepted",
+        evidenceState: "accepted",
+        id: "occupancy-1",
+        residentLabel: "Resident evidence missing",
+        scheduledLabel: "Not recorded",
+        statusLabel: "Occupied",
+        unitHref: "/units/unit-1",
+        unitLabel: "Unit 2A",
+      },
+    ];
+    renderLeases({ leases: [lease] });
+
+    fireEvent.click(screen.getAllByRole("row")[1]!);
+    const quickView = screen.getByRole("dialog", {
+      name: "Alice Tenant lease quick view",
+    });
+    const occupancySection = within(quickView).getByRole("region", {
+      name: "Occupancy evidence",
+    });
+
+    expect(within(occupancySection).getByText("Resident evidence missing")).not.toBeNull();
+    expect(
+      within(occupancySection).getByRole("button", {
+        name: "Record occupancy evidence",
+      }),
+    ).not.toBeNull();
+    expect(
+      occupancySection.querySelector<HTMLInputElement>(
+        'input[name="occupancyId"]',
+      )?.value,
+    ).toBe("occupancy-1");
+  });
+
+  it("hides repair after an accepted successor supersedes stale evidence", () => {
+    const lease = makeLease("lease-1", "Alice Tenant", "Unit 2A");
+    lease.occupancies = [
+      {
+        actualLabel: "Not recorded",
+        datesLabel: "Not recorded",
+        evidenceLabel: "Superseded",
+        evidenceState: "superseded",
+        id: "occupancy-predecessor",
+        residentLabel: "Resident evidence missing",
+        scheduledLabel: "20 Jan 2026 - Current",
+        statusLabel: "Reserved",
+        unitHref: "/units/unit-1",
+        unitLabel: "Unit 2A",
+      },
+      {
+        actualLabel: "01 Feb 2026 - Current",
+        datesLabel: "01 Feb 2026 - Current",
+        evidenceLabel: "Accepted",
+        evidenceState: "accepted",
+        id: "occupancy-successor",
+        residentLabel: "Confirmed resident",
+        scheduledLabel: "20 Jan 2026 - Current",
+        statusLabel: "Occupied",
+        unitHref: "/units/unit-1",
+        unitLabel: "Unit 2A",
+      },
+    ];
+    renderLeases({ leases: [lease] });
+
+    fireEvent.click(screen.getAllByRole("row")[1]!);
+    const occupancySection = within(
+      screen.getByRole("dialog", {
+        name: "Alice Tenant lease quick view",
+      }),
+    ).getByRole("region", { name: "Occupancy evidence" });
+
+    expect(within(occupancySection).getByText("Confirmed resident")).not.toBeNull();
+    expect(
+      within(occupancySection).queryByRole("button", {
+        name: "Record occupancy evidence",
+      }),
+    ).toBeNull();
+    expect(
+      occupancySection.querySelector('input[name="occupancyId"]'),
+    ).toBeNull();
   });
 
   it("distinguishes filtered and true empty states and hides unauthorized actions", () => {

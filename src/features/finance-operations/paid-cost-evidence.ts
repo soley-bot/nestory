@@ -15,6 +15,7 @@ type PaidCostEvidenceInput = {
   idempotencyKey: string;
   organizationId: string;
   propertyId: string;
+  taskId?: string;
 };
 
 export type PaidCostEvidenceResult = {
@@ -42,6 +43,7 @@ export async function preparePaidCostEvidence({
   idempotencyKey,
   organizationId,
   propertyId,
+  taskId,
 }: PaidCostEvidenceInput): Promise<PaidCostEvidenceResult> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const contentSha256 = sha256Hex(bytes);
@@ -110,6 +112,7 @@ export async function preparePaidCostEvidence({
       p_storage_object_id: objectIdentity.storageObjectId,
       p_storage_object_version: objectIdentity.storageObjectVersion,
       p_storage_path: storagePath,
+      ...(taskId ? { p_task_id: taskId } : {}),
     },
   );
   if (registration.error) {

@@ -7,6 +7,10 @@ import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.c
 import { getMaintenanceExecutionMode } from "@/features/maintenance/maintenance.execution";
 import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
 import type { MaintenanceStatus } from "@/features/maintenance/maintenance.types";
+import {
+  preparePaidCostEvidence,
+  validatePaidCostEvidenceFile,
+} from "@/features/finance-operations/paid-cost-evidence";
 import type { Json } from "@/types/database";
 import {
   requireOperationsExecutionContext,
@@ -111,17 +115,7 @@ const maintenanceCostSubmissionSchema = z
       .string()
       .trim()
       .max(160, "Keep the reference under 160 characters."),
-    supportingDocumentId: optionalUuidSchema,
     taskId: uuidShapeSchema,
-  })
-  .superRefine((submission, context) => {
-    if (!submission.supportingDocumentId && !submission.reference) {
-      context.addIssue({
-        code: "custom",
-        message: "Choose a receipt document or enter a reference.",
-        path: ["reference"],
-      });
-    }
   });
 const maintenanceSchema = z
   .object({
@@ -173,6 +167,14 @@ const maintenanceSchema = z
         code: "custom",
         message: "Choose a reminder date before adding a reminder time.",
         path: ["reminderDate"],
+      });
+    }
+
+    if (data.recurrenceFrequency !== "none" && !data.dueDate) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose the first due date for recurring work.",
+        path: ["dueDate"],
       });
     }
   });
@@ -335,11 +337,18 @@ export async function submitMaintenanceCostAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
+  const evidenceFile = formData.get("evidenceFile");
+  const evidenceError = validatePaidCostEvidenceFile(evidenceFile);
+  if (evidenceError) {
+    return {
+      fieldErrors: { supportingDocumentId: [evidenceError] },
+      status: "error",
+    };
+  }
   const parsed = maintenanceCostSubmissionSchema.safeParse({
     expenseDate: readString(formData, "expenseDate"),
     idempotencyKey: readString(formData, "idempotencyKey"),
     reference: readString(formData, "reference"),
-    supportingDocumentId: readString(formData, "supportingDocumentId"),
     taskId: readString(formData, "taskId"),
   });
 
@@ -354,12 +363,35 @@ export async function submitMaintenanceCostAction(
     context.organizationId,
     parsed.data.taskId,
   );
+  if (!pathContext?.property_id) {
+    return { message: "Maintenance task scope is unavailable.", status: "error" };
+  }
+  let evidenceDocumentId: string;
+  try {
+    const evidence = await preparePaidCostEvidence({
+      actorId: context.userId,
+      file: evidenceFile as File,
+      idempotencyKey: parsed.data.idempotencyKey,
+      organizationId: context.organizationId,
+      propertyId: pathContext.property_id,
+      taskId: parsed.data.taskId,
+    });
+    evidenceDocumentId = evidence.documentId;
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Receipt evidence could not be retained.",
+      status: "error",
+    };
+  }
   const { error } = await supabase.rpc("submit_maintenance_cost", {
     p_expense_date: parsed.data.expenseDate,
     p_idempotency_key: parsed.data.idempotencyKey,
     p_organization_id: context.organizationId,
     p_reference: parsed.data.reference || null,
-    p_supporting_document_id: parsed.data.supportingDocumentId,
+    p_supporting_document_id: evidenceDocumentId,
     p_task_id: parsed.data.taskId,
   });
 

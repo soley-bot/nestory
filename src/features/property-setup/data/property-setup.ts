@@ -11,6 +11,7 @@ import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
 } from "@/lib/entity-option-labels";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 
 type PropertyRow = {
   code: string;
@@ -111,8 +112,28 @@ export async function getPropertySetupData({
     tenants,
     units,
   });
+  let readiness: PropertySetupData["readiness"] = null;
+  if (
+    selection.propertyId &&
+    selection.unitId &&
+    selection.leaseId
+  ) {
+    const readinessResult = await supabase.rpc("get_ips_setup_readiness", {
+      p_effective_date: getBusinessDateValue(),
+      p_lease_id: selection.leaseId,
+      p_organization_id: organizationId,
+      p_property_id: selection.propertyId,
+      p_unit_id: selection.unitId,
+    });
+    if (readinessResult.error) {
+      throw new Error(
+        `Could not load setup readiness: ${readinessResult.error.message}`,
+      );
+    }
+    readiness = readinessResult.data as PropertySetupData["readiness"];
+  }
 
-  return { leases, owners, properties, selection, tenants, units };
+  return { leases, owners, properties, readiness, selection, tenants, units };
 }
 
 export function validateSelection({

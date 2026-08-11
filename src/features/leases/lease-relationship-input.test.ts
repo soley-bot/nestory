@@ -60,6 +60,70 @@ describe("new Lease relationship payload", () => {
     });
   });
 
+  it("keeps scheduled dates distinct from confirmed physical occupancy", () => {
+    expect(
+      buildNewLeaseRelationshipPayload({
+        actualMoveInDate: "2027-05-03",
+        leaseStatus: "active",
+        recordSource: "operator_confirmed",
+        scheduledMoveInDate: "2027-05-01",
+        scheduledMoveOutDate: "2028-04-30",
+        tenantPersonId,
+      }),
+    ).toMatchObject({
+      occupancy: {
+        actualMoveIn: {
+          confidence: "confirmed",
+          date: "2027-05-03",
+          kind: "known",
+        },
+        actualMoveOut: {
+          confidence: "confirmed",
+          date: null,
+          kind: "open_current",
+        },
+        scheduledMoveIn: {
+          confidence: "confirmed",
+          date: "2027-05-01",
+          kind: "known",
+        },
+        scheduledMoveOut: {
+          confidence: "confirmed",
+          date: "2028-04-30",
+          kind: "known",
+        },
+      },
+      participants: [
+        {
+          endedOn: {
+            confidence: "confirmed",
+            date: null,
+            kind: "open_current",
+          },
+          lifecycle: "present",
+          personId: tenantPersonId,
+          startedOn: {
+            confidence: "confirmed",
+            date: "2027-05-03",
+            kind: "known",
+          },
+        },
+      ],
+      primaryParty: {
+        endedOn: {
+          confidence: "unknown",
+          date: null,
+          kind: "unknown",
+        },
+        startedOn: {
+          confidence: "unknown",
+          date: null,
+          kind: "unknown",
+        },
+      },
+    });
+  });
+
   it("preserves explicit planned facts while leaving actual dates unknown", () => {
     expect(
       buildPlannedLeaseRelationshipPayload({

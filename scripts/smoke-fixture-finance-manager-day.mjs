@@ -14,7 +14,7 @@ export const financeManagerDaySmokeContract = Object.freeze({
     "record-payment",
     "confirm-owner-direct-collection",
     "record-owner-invoice-payment",
-    "record-capacity-withdrawal",
+    "record-owner-distribution",
     "retry-current-rent",
     "review-paid-cost",
     "create-petty-cash-entry",
@@ -24,6 +24,7 @@ export const financeManagerDaySmokeContract = Object.freeze({
     "navigate-to-reports",
     "export-pdf",
     "export-excel",
+    "read-owner-statement-publications",
   ]),
   forbidden: Object.freeze([
     "lease-configuration",
@@ -36,7 +37,7 @@ export const financeManagerDaySmokeContract = Object.freeze({
     "petty-cash-update",
     "petty-cash-void",
     "unlock-financial-month",
-    "owner-statement-unavailable",
+    "publish-owner-statement",
     "reconciliation-source-configuration",
   ]),
   replayCoverage: Object.freeze({
@@ -44,7 +45,7 @@ export const financeManagerDaySmokeContract = Object.freeze({
       "record-payment",
       "confirm-owner-direct-collection",
       "record-owner-invoice-payment",
-      "record-capacity-withdrawal",
+      "record-owner-distribution",
       "review-paid-cost",
       "create-petty-cash-entry",
     ]),
@@ -108,6 +109,7 @@ async function main() {
     const financeRequests = await assertFinanceWork(page, config.baseUrl);
     const paidCostRequest = await assertPaidCostReview(page, config.baseUrl);
     const ownerCashRequest = await assertOwnerCash(page, config.baseUrl);
+    await assertOwnerStatementPublications(page, config.baseUrl, cwd);
     const pettyCashRequests = await createAndPostPettyCash(page, config.baseUrl);
     const authenticatedRpc = await createAuthenticatedRpcClient(cwd, config);
     await replayOrdinaryFinanceRequests(cwd, authenticatedRpc, {
@@ -137,8 +139,8 @@ async function main() {
         "1|true",
       ],
       [
-        "record-capacity-withdrawal",
-        `SELECT count(*)::text || '|' || bool_and(created_by = '00000000-0000-0000-0000-000000000701'::uuid)::text FROM public.property_withdrawals WHERE reference = 'FM-DAY-WITHDRAWAL'`,
+        "record-owner-distribution",
+        `SELECT count(*)::text || '|' || bool_and(created_by = '00000000-0000-0000-0000-000000000701'::uuid)::text FROM public.property_withdrawals WHERE reference = 'FM-DAY-DISTRIBUTION'`,
         "1|true",
       ],
       [
@@ -361,7 +363,7 @@ async function assertFinanceWork(page, baseUrl) {
   await gotoPath(page, baseUrl, "/finance", "finance-work");
   await requireVisible(page.getByRole("button", { name: "Record payment" }), "record-payment-control");
   await requireVisible(page.getByText("Confirm owner collection", { exact: true }), "confirm-owner-direct-collection-control");
-  await requireVisible(page.getByText("Owner payment", { exact: true }), "record-owner-invoice-payment-control");
+  await requireVisible(page.getByText("Owner invoice payment", { exact: true }), "record-owner-invoice-payment-control");
   await requireVisible(page.getByRole("button", { name: /^Retry rent for / }), "retry-current-rent-control");
   await requireAbsent(page.getByRole("button", { name: "Set up" }), "lease-configuration");
   await requireAbsent(page.getByRole("button", { name: "Recover missed month" }), "historical-rent-recovery");
@@ -385,13 +387,13 @@ async function assertFinanceWork(page, baseUrl) {
   await dialog.getByRole("button", { name: "Confirm collected" }).click();
   await requireVisible(page.getByText("Owner collection confirmed.", { exact: true }), "confirm-owner-direct-collection");
 
-  const ownerRow = page.getByRole("row").filter({ hasText: "Owner payment" }).first();
+  const ownerRow = page.getByRole("row").filter({ hasText: "Owner invoice payment" }).first();
   await ownerRow.getByRole("button", { name: "Record" }).click();
-  dialog = page.getByRole("dialog", { name: "Owner payment" });
+  dialog = page.getByRole("dialog", { name: "Owner invoice payment" });
   await dialog.locator('input[name="reference"]').fill("FM-DAY-OWNER-PAYMENT");
   const ownerPaymentRequest = await readFormRequest(dialog);
-  await dialog.getByRole("button", { name: "Record owner payment" }).click();
-  await requireVisible(page.getByText("Owner payment recorded.", { exact: true }), "record-owner-invoice-payment");
+  await dialog.getByRole("button", { name: "Record owner invoice payment" }).click();
+  await requireVisible(page.getByText("Owner invoice payment recorded.", { exact: true }), "record-owner-invoice-payment");
 
   const retryButton = page.getByRole("button", { name: /^Retry rent for / });
   const retryRequest = await readFormRequest(
@@ -432,16 +434,51 @@ async function assertPaidCostReview(page, baseUrl) {
 }
 
 async function assertOwnerCash(page, baseUrl) {
-  await gotoPath(page, baseUrl, "/balances", "owner-balances");
-  await requireVisible(page.getByRole("button", { name: "Withdrawal" }), "record-capacity-withdrawal-control");
-  await page.getByRole("button", { name: "Withdrawal" }).first().click();
-  const dialog = page.getByRole("dialog", { name: "Owner withdrawal" });
-  await dialog.locator('input[name="amount"]').fill("1");
-  await dialog.locator('input[name="reference"]').fill("FM-DAY-WITHDRAWAL");
-  const ownerCashRequest = await readFormRequest(dialog);
-  await dialog.getByRole("button", { name: "Record withdrawal" }).click();
-  await requireVisible(page.getByText("Withdrawal recorded.", { exact: true }), "record-capacity-withdrawal");
+  await gotoPath(
+    page,
+    baseUrl,
+    "/balances?propertyId=10000000-0000-0000-0000-000000000001&ownerPersonId=80000000-0000-0000-0000-000000000004",
+    "owner-balances",
+  );
+  const submit = page.getByRole("button", { name: "Record owner distribution" });
+  await requireVisible(submit, "record-owner-distribution-control");
+  const form = submit.locator("xpath=ancestor::form");
+  await form.locator('input[name="amount"]').fill("1");
+  await form
+    .locator('input[name="distributionDate"]')
+    .fill(new Date().toISOString().slice(0, 10));
+  await form.locator('input[name="reference"]').fill("FM-DAY-DISTRIBUTION");
+  const ownerCashRequest = await readFormRequest(form);
+  await submit.click();
+  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
+  pass("record-owner-distribution");
   return ownerCashRequest;
+}
+
+async function assertOwnerStatementPublications(page, baseUrl, cwd) {
+  const month = queryDatabaseValue(
+    cwd,
+    `SELECT to_char(month_start, 'YYYY-MM')
+       FROM public.owner_close_series
+      WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+        AND property_id = '10000000-0000-0000-0000-000000000004'
+        AND owner_person_id = '80000000-0000-0000-0000-000000000014'`,
+    "read-owner-statement-publications",
+  );
+  await gotoPath(
+    page,
+    baseUrl,
+    `/balances?month=${month}&propertyId=10000000-0000-0000-0000-000000000004&ownerPersonId=80000000-0000-0000-0000-000000000014`,
+    "read-owner-statement-publications",
+  );
+  await requireVisible(
+    page.getByRole("heading", { name: "Official Owner Statements" }),
+    "read-owner-statement-publications",
+  );
+  await requireAbsent(
+    page.getByRole("button", { name: /(?:Publish|Resume) Owner Statement/ }),
+    "publish-owner-statement",
+  );
 }
 
 async function createAndPostPettyCash(page, baseUrl) {
@@ -542,17 +579,19 @@ async function replayOrdinaryFinanceRequests(cwd, client, requests) {
   await assertStableRpcReplay(
     cwd,
     client,
-    "record-capacity-withdrawal",
-    "record_property_withdrawal",
+    "record-owner-distribution",
+    "record_owner_distribution",
     {
       p_amount: requestNumber(requests.ownerCashRequest, "amount"),
+      p_currency: requestValue(requests.ownerCashRequest, "currency"),
+      p_distribution_date: requestValue(requests.ownerCashRequest, "distributionDate"),
       p_idempotency_key: requestValue(requests.ownerCashRequest, "idempotencyKey"),
       p_organization_id: organizationId,
+      p_owner_person_id: requestValue(requests.ownerCashRequest, "ownerPersonId"),
       p_property_id: requestValue(requests.ownerCashRequest, "propertyId"),
       p_reference: requestValue(requests.ownerCashRequest, "reference"),
-      p_withdrawal_date: requestValue(requests.ownerCashRequest, "withdrawalDate"),
     },
-    `SELECT id::text FROM public.property_withdrawals WHERE reference = 'FM-DAY-WITHDRAWAL'`,
+    `SELECT id::text FROM public.property_withdrawals WHERE idempotency_key = '${requestValue(requests.ownerCashRequest, "idempotencyKey")}'`,
   );
 
   await assertStableRpcReplay(
@@ -700,7 +739,6 @@ async function assertReportExports(page, baseUrl) {
   await page.waitForURL((url) => url.pathname === "/reports/unit-profit-loss", {
     timeout: 20_000,
   });
-  await requireAbsent(page.getByText("Owner Statement", { exact: true }), "owner-statement-unavailable");
   await page.getByRole("button", { name: "Export" }).click();
   const pdfHref = await page.getByRole("menuitem", { name: "PDF" }).getAttribute("href");
   const excelHref = await page.getByRole("menuitem", { name: "Excel" }).getAttribute("href");

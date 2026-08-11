@@ -296,13 +296,30 @@ describe("buildLeaseSummary", () => {
       occupancies: [
         {
           actual_move_in_date: "2026-02-01",
+          actual_move_in_confidence: "confirmed",
+          actual_move_in_kind: "known",
           actual_move_out_date: null,
+          actual_move_out_confidence: "confirmed",
+          actual_move_out_kind: "open_current",
           archived_at: null,
+          business_lifecycle: "occupied",
+          evidence_state: "accepted",
           id: "occupancy-1",
           lease_id: "lease-1",
+          participants: [
+            {
+              business_lifecycle: "present",
+              evidence_state: "accepted",
+              id: "participant-1",
+            },
+          ],
           scheduled_move_in_date: null,
+          scheduled_move_in_confidence: "unknown",
+          scheduled_move_in_kind: "unknown",
           scheduled_move_out_date: null,
-          status: "active",
+          scheduled_move_out_confidence: "unknown",
+          scheduled_move_out_kind: "unknown",
+          status: "occupied",
           unit_id: "unit-1",
         },
       ],
@@ -376,6 +393,12 @@ describe("buildLeaseSummary", () => {
       rentLabel: "USD 850.00",
       statusLabel: "Active",
     });
+    expect(summary.occupancies[0]).toMatchObject({
+      actualLabel: "01 Feb 2026 - Current",
+      evidenceLabel: "Accepted",
+      residentLabel: "Confirmed resident",
+      scheduledLabel: "Not recorded",
+    });
     expect(summary.deposits[0]).toMatchObject({
       amountLabel: "USD 1,200.00",
       statusLabel: "Held",
@@ -406,6 +429,101 @@ describe("buildLeaseSummary", () => {
     expect(summary.activity[0]).toMatchObject({
       actionLabel: "Updated",
       id: "activity-1",
+    });
+  });
+
+  it("keeps scheduled occupancy separate and does not call unknown actual evidence current", () => {
+    const summary = buildLeaseSummary({
+      lease,
+      occupancies: [
+        {
+          actual_move_in_date: null,
+          actual_move_in_confidence: "unknown",
+          actual_move_in_kind: "unknown",
+          actual_move_out_date: null,
+          actual_move_out_confidence: "unknown",
+          actual_move_out_kind: "unknown",
+          archived_at: null,
+          business_lifecycle: "reserved",
+          evidence_state: "accepted",
+          id: "occupancy-scheduled",
+          lease_id: "lease-1",
+          participants: [],
+          scheduled_move_in_date: "2026-01-20",
+          scheduled_move_in_confidence: "confirmed",
+          scheduled_move_in_kind: "known",
+          scheduled_move_out_date: "2027-01-20",
+          scheduled_move_out_confidence: "confirmed",
+          scheduled_move_out_kind: "known",
+          status: "reserved",
+          unit_id: "unit-1",
+        },
+      ],
+      property,
+      unit,
+    });
+
+    expect(summary.occupancies[0]).toMatchObject({
+      actualLabel: "Not recorded",
+      evidenceLabel: "Accepted",
+      residentLabel: "Resident evidence missing",
+      scheduledLabel: "20 Jan 2026 - 20 Jan 2027",
+    });
+  });
+
+  it("places the accepted repair successor before its superseded predecessor", () => {
+    const summary = buildLeaseSummary({
+      lease,
+      occupancies: [
+        {
+          actual_move_in_date: null,
+          actual_move_out_date: null,
+          archived_at: null,
+          business_lifecycle: "reserved",
+          evidence_state: "superseded",
+          id: "occupancy-predecessor",
+          lease_id: "lease-1",
+          participants: [],
+          scheduled_move_in_date: "2026-01-20",
+          scheduled_move_out_date: null,
+          status: "reserved",
+          unit_id: "unit-1",
+        },
+        {
+          actual_move_in_date: "2026-02-01",
+          actual_move_in_kind: "known",
+          actual_move_out_date: null,
+          actual_move_out_kind: "open_current",
+          archived_at: null,
+          business_lifecycle: "occupied",
+          evidence_state: "accepted",
+          id: "occupancy-successor",
+          lease_id: "lease-1",
+          participants: [
+            {
+              business_lifecycle: "present",
+              evidence_state: "accepted",
+              id: "participant-successor",
+            },
+          ],
+          scheduled_move_in_date: "2026-01-20",
+          scheduled_move_out_date: null,
+          status: "occupied",
+          unit_id: "unit-1",
+        },
+      ],
+      property,
+      unit,
+    });
+
+    expect(summary.occupancies.map((occupancy) => occupancy.id)).toEqual([
+      "occupancy-successor",
+      "occupancy-predecessor",
+    ]);
+    expect(summary.occupancies[0]).toMatchObject({
+      actualLabel: "01 Feb 2026 - Current",
+      evidenceState: "accepted",
+      residentLabel: "Confirmed resident",
     });
   });
 });

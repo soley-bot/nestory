@@ -101,7 +101,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
           <div className="min-w-0 max-w-3xl">
             <h2 className="text-base font-semibold" id="opening-authority-heading">
-              Opening authority
+              Opening balance
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Approved cutover balances with immutable ownership and evidence history.
@@ -184,7 +184,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
       ) : null}
 
       <div
-        aria-label="Opening authority components"
+        aria-label="Opening balance components"
         className="overflow-x-auto"
         data-slot="opening-authority-components"
         role="region"
@@ -224,7 +224,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
         {groups.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-6">
             {blockers.length > 0
-              ? "Resolve the ownership roster before submitting opening authority."
+              ? "Resolve the ownership roster before submitting the opening balance."
               : "No effective property-owner assignments match this month and filter scope."}
           </div>
         ) : null}

@@ -33,6 +33,10 @@ type AccountEntryRow =
   Database["public"]["Views"]["property_account_entries"]["Row"];
 type ExpenseSubmissionRow =
   Database["public"]["Tables"]["expense_submissions"]["Row"];
+type MaintenanceTaskRow = Pick<
+  Database["public"]["Tables"]["tasks"]["Row"],
+  "completed_at" | "description" | "id" | "status" | "title"
+>;
 type InvoiceSettlementRow = {
   amount: number;
   date: string;
@@ -110,11 +114,16 @@ export function toExpenseSubmissionSummary(
     string,
     NonNullable<ExpenseSubmissionSummary["evidence"]>
   >,
+  maintenanceTaskById: ReadonlyMap<string, MaintenanceTaskRow> = new Map(),
 ): ExpenseSubmissionSummary {
   const property = propertyById.get(submission.property_id);
   const unit = submission.unit_id
     ? unitById.get(submission.unit_id)
     : undefined;
+  const maintenanceTask =
+    submission.source_type === "maintenance_task" && submission.source_id
+      ? maintenanceTaskById.get(submission.source_id)
+      : undefined;
 
   return {
     adjustsSubmissionId: submission.adjusts_submission_id,
@@ -133,6 +142,15 @@ export function toExpenseSubmissionSummary(
     id: submission.id,
     internalCost: Number(submission.internal_cost_amount),
     internalMarkup: Number(submission.internal_markup_amount),
+    maintenanceTask: maintenanceTask
+      ? {
+          completedAt: maintenanceTask.completed_at,
+          description: maintenanceTask.description,
+          href: `/maintenance?archiveState=all&taskId=${maintenanceTask.id}`,
+          status: maintenanceTask.status,
+          title: maintenanceTask.title,
+        }
+      : undefined,
     propertyId: submission.property_id,
     propertyLabel: property ? propertyLabel(property) : "Property unavailable",
     previouslyApproved:
@@ -369,6 +387,28 @@ export async function getFinanceOperationsData(
       `Could not load finance expense evidence: ${evidenceResult.error.message}`,
     );
   }
+  const maintenanceTaskIds = (expenseSubmissionsResult.data ?? []).flatMap(
+    (submission) =>
+      submission.source_type === "maintenance_task" && submission.source_id
+        ? [submission.source_id]
+        : [],
+  );
+  const maintenanceTaskResult =
+    maintenanceTaskIds.length > 0
+      ? await supabase
+          .from("tasks")
+          .select("id, title, description, status, completed_at")
+          .eq("organization_id", organizationId)
+          .in("id", [...new Set(maintenanceTaskIds)])
+      : { data: [] as MaintenanceTaskRow[], error: null };
+  if (maintenanceTaskResult.error) {
+    throw new Error(
+      `Could not load maintenance review context: ${maintenanceTaskResult.error.message}`,
+    );
+  }
+  const maintenanceTaskById = new Map(
+    (maintenanceTaskResult.data ?? []).map((task) => [task.id, task]),
+  );
 
   const evidenceRows = evidenceResult.data ?? [];
   const evidencePaths = [...new Set(evidenceRows.map((row) => row.storage_path))];
@@ -409,6 +449,7 @@ export async function getFinanceOperationsData(
           unitById,
           sourceById,
           evidenceBySubmissionId,
+          maintenanceTaskById,
         ),
     ),
     leases: (leasesResult.data ?? []).flatMap((lease) => {

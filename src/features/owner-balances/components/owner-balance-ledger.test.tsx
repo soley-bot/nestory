@@ -33,7 +33,7 @@ describe("OwnerBalanceLedger", () => {
         canCorrect
         canTransfer
         data={data()}
-        openingAuthority={<div>Opening authority queue</div>}
+        openingAuthority={<div>Opening balance queue</div>}
         organizationName="IPS"
         selectedMonth="2026-08"
         selectedOwnerPersonId={ownerId}
@@ -42,7 +42,7 @@ describe("OwnerBalanceLedger", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Authoritative owner balance" })).toBeTruthy();
-    expect(screen.getByText("Opening authority queue")).toBeTruthy();
+    expect(screen.getByText("Opening balance queue")).toBeTruthy();
     const period = screen.getByTestId("owner-period-2026-08-01");
     expect(within(period).getByText("USD 900,719,925,474.09")).toBeTruthy();
     expect(within(period).getByText("USD 0.09")).toBeTruthy();

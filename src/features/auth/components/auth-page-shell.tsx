@@ -89,7 +89,7 @@ export function AuthPageShell({
               className={cn(
                 "hidden text-[11px] font-medium uppercase tracking-[0.16em] transition-colors sm:inline-flex",
                 visualSrc
-                  ? "text-[var(--auth-page-subtle)] hover:text-[var(--auth-page-fg)]"
+                  ? "text-[var(--auth-page-fg)] hover:opacity-80"
                   : "text-muted-foreground hover:text-foreground",
               )}
               href={switchHref ?? "/"}

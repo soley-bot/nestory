@@ -794,7 +794,7 @@ function MaintenanceCasesCommandBar({
                   "inline-flex h-[26px] shrink-0 items-center rounded-md border border-transparent px-1.5 text-xs font-medium outline-none transition-all hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50",
                   tab.active
                     ? "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30"
-                    : "text-muted-foreground",
+                    : "text-foreground/80",
                 )}
                 aria-current={tab.active ? "page" : undefined}
                 data-maintenance-queue-tab="true"

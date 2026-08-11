@@ -184,7 +184,7 @@ export async function getOwnerBalanceData(
 
 function mapWithdrawalCapacity(value: unknown): OwnerWithdrawalCapacity {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("Invalid authoritative owner withdrawal capacity.");
+    throw new Error("Invalid authoritative owner distribution capacity.");
   }
   const row = value as Record<string, unknown>;
   if (
@@ -196,7 +196,7 @@ function mapWithdrawalCapacity(value: unknown): OwnerWithdrawalCapacity {
     (row.period_status !== null && typeof row.period_status !== "string") ||
     typeof row.status !== "string"
   ) {
-    throw new Error("Invalid authoritative owner withdrawal capacity.");
+    throw new Error("Invalid authoritative owner distribution capacity.");
   }
   return {
     asOfDate: row.as_of_date,

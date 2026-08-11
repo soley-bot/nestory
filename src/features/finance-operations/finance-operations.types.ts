@@ -125,6 +125,13 @@ export type ExpenseSubmissionSummary = {
   id: string;
   internalCost: number;
   internalMarkup: number;
+  maintenanceTask?: {
+    completedAt: string | null;
+    description: string | null;
+    href: string;
+    status: string;
+    title: string;
+  };
   propertyId: string;
   propertyLabel: string;
   previouslyApproved?: number | null;

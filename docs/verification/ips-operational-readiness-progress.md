@@ -310,3 +310,68 @@
   verifier 5/5, focused application 13/13, reset/types/lint/advisors/build and
   two identical correction rehearsals. Re-review approved I1-I4 with no new
   Critical/Important/Minor finding requiring expansion.
+
+## Tracks 7, 8, 10, 11, and 12 - coordinated local batch
+
+- Status on 2026-08-11: Tracks 7, 8, 10, and 11 are locally green. Track 12's
+  local release kit is green, while the release decision remains blocked.
+- Track 7: setup readiness reports exact property, unit, owner, lease,
+  occupancy, billing, policy, opening-balance, and deposit blockers. Scheduled
+  and confirmed occupancy are separate lifecycle evidence; import accepts only
+  explicit occupancy fields and never infers actual dates from lease terms; the
+  append-only repair action preserves accepted/superseded lineage. Billing
+  requires explicit operational answers and deposits fail closed instead of
+  inventing received evidence. The mutation-gated local golden browser flow
+  passed all nine phases: it created and reused one Owner -> Property -> Unit ->
+  Tenant -> Lease chain, activated billing, independently approved four
+  known-zero opening components, reached 9/9 rent readiness, and carried the
+  exact property/unit scope into rent, maintenance, and owner-activity reports.
+- Track 8: maintenance paid-cost submission and approval require exclusive,
+  task-bound service-registrar evidence. Ordinary Storage upload, generic
+  document creation, and reference-only records cannot imitate acceptance.
+- Track 10: stable recurrence revisions, exact-once catch-up, advisory locking,
+  durable notification outbox/delivery attempts, durable in-app feed, signed
+  cron route, and redacted local runner are implemented. Hosted scheduling and
+  external delivery remain inactive.
+- Track 11: navigation, terminology, role, browser, keyboard, zoom, and
+  accessibility checks passed, including all five fixture roles and the Finance
+  Manager day. The complete local crawl passed 188 route/viewport pairs, 235
+  role checks, and 6 keyboard/zoom audits with zero axe, navigation, page,
+  console, overflow, query, role, or traversal failures.
+- Track 12: the fail-closed parity CLI and contract tests, production runbook,
+  readiness template, and pilot reconciliation template are present. A release
+  remains blocked until an immutable runtime candidate is deployed, exact-SHA
+  CI succeeds, a later evidence commit reaches remote parity, and hosted/pilot
+  evidence is complete.
+- Evidence: `docs/verification/tracks-7-8-10-11-12-local-batch.md`.
+- Scope: local only. No push, merge, deploy, hosted migration, cron activation,
+  pilot invitation, or production-data change was performed.
+- Review correction: the first independent manual review found six Major
+  blockers and the second found three residual Major blockers plus stale
+  evidence. The database corrections now cover immutable recurrence edits and
+  retirement, series-wide occurrence uniqueness without orphan requests,
+  active-owner/same-currency opening readiness, event-derived deposit status,
+  recipient-scoped member notifications, and exact-branch manager
+  notifications. Track 8 now proves the exact task-bound expense reaches the
+  authoritative published Owner Statement source once. The release checker
+  rejects placeholder evidence, requires the canonical tracked readiness and
+  pilot records to be byte-identical to the evidence commit, separates runtime
+  candidate and evidence SHAs, permits only those two evidence paths after the
+  runtime candidate, and binds safe exact-SHA CI provenance. Final correction
+  gates include batch pgTAP 28/28, occupancy repair/readiness/import 13/13,
+  lease relationships 35/35, handoff 71/71, adjacent maintenance/deposit
+  126/126, consolidated app 84/84, release parity 16/16, types, lint,
+  production build, and the complete accessibility matrix above. Tracks 7 and
+  11 are locally green; the hosted/production/pilot Track 12 decision remains
+  blocked.
+- Final re-review correction: accepted occupancy successors are selected by raw
+  evidence state and sorted ahead of superseded predecessors, so a completed
+  repair cannot leave the stale repair form visible or target the old evidence.
+  The property-setup route manifest now agrees with its completed 4/4 browser
+  captures. Post-review lease summary/component tests passed 24/24, route
+  coverage passed 47/47, and independent read-only re-review approved with no
+  residual finding. The subsequent golden-setup smoke contract passed 5/5 and
+  the fail-closed real local browser acceptance passed as `GLD-137479`; no
+  hosted operation was performed. Independent read-only re-review approved the
+  corrected locality and exact-rent scope with no residual finding after
+  rerunning guard contracts 5/5 and route/rent/component tests 26/26.

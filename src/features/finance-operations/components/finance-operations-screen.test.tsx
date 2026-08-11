@@ -109,6 +109,33 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.queryByText(/journal|month close|uuid/i)).toBeNull();
   });
 
+  it("focuses rent-ready handoff on invoices for the exact lease", () => {
+    const input = data();
+    const focused = tenantInvoice();
+    focused.invoiceNumber = "INV-FOCUSED";
+    focused.recipientLabel = "Focused Tenant";
+    const unrelated = tenantInvoice();
+    unrelated.id = "invoice-2";
+    unrelated.invoiceNumber = "INV-UNRELATED";
+    unrelated.leaseId = "lease-2";
+    unrelated.recipientLabel = "Other Tenant";
+    input.tenantInvoices = [focused, unrelated];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        initialRentLeaseId="lease-1"
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+
+    expect(screen.getByText("INV-FOCUSED")).not.toBeNull();
+    expect(screen.queryByText("INV-UNRELATED")).toBeNull();
+    expect(screen.getAllByText("1 invoice", { exact: true }).length).toBeGreaterThan(0);
+  });
+
   it("distinguishes overdue rent from a payment completed after its due date", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-11T05:00:00Z"));
@@ -251,11 +278,56 @@ describe("FinanceOperationsScreen", () => {
     ).toBe("step");
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getAllByText("Choose who is billed").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(
-      screen.getAllByText("Collected by Sokha Property Services").length,
-    ).toBeGreaterThan(0);
-    expect(screen.getAllByText("Collected by owner").length).toBeGreaterThan(0);
+      screen.getByRole("button", { name: "Continue" }).hasAttribute("disabled"),
+    ).toBe(true);
+
+  });
+
+  it("does not invent billing choices for a new lease setup", async () => {
+    const user = userEvent.setup();
+    render(
+      <FinanceOperationsScreen
+        {...data()}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Set up" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getAllByText("Choose who is billed").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Choose a recipient").length).toBeGreaterThan(0);
+    expect(
+      screen.getByLabelText("Billing effective date").getAttribute("value"),
+    ).toBe("");
+    expect(
+      screen.getByRole("button", { name: "Continue" }).hasAttribute("disabled"),
+    ).toBe(true);
+  });
+
+  it("opens the exact lease billing repair supplied by setup readiness", () => {
+    render(
+      <FinanceOperationsScreen
+        {...data()}
+        {...financeCapabilities({ canConfigureRent: true })}
+        initialBillingLeaseId="lease-1"
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+
+    const drawer = screen.getByRole("dialog", {
+      name: "Set up lease billing",
+    });
+    expect(
+      drawer.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value,
+    ).toBe("lease-1");
   });
 
   it("makes the already-paid cost workflow explicit and requires receipt evidence", () => {
@@ -380,6 +452,13 @@ describe("FinanceOperationsScreen", () => {
           sizeBytes: 128,
         },
         fundingSourceLabel: "Choose at approval",
+        maintenanceTask: {
+          completedAt: "2026-08-08T07:30:00Z",
+          description: "Replace the failed pump and verify pressure.",
+          href: "/maintenance?archiveState=all&taskId=task-1",
+          status: "completed",
+          title: "Garden Court pump replacement",
+        },
         sourceId: "task-1",
         sourceType: "maintenance_task",
       },
@@ -409,6 +488,13 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(within(dialog).getByText("128 bytes")).not.toBeNull();
     expect(within(dialog).getByText("Receipt 42")).not.toBeNull();
+    expect(
+      within(dialog).getByRole("link", { name: "Garden Court pump replacement" }),
+    ).not.toBeNull();
+    expect(
+      within(dialog).getByText("Replace the failed pump and verify pressure."),
+    ).not.toBeNull();
+    expect(within(dialog).getByText("Completed")).not.toBeNull();
     expect(
       within(dialog).getByRole("combobox", { name: "Paid from" }),
     ).not.toBeNull();
@@ -623,8 +709,8 @@ describe("FinanceOperationsScreen", () => {
         .getByRole("link", { name: "HOME — Riverside Home" })
         .getAttribute("href"),
     ).toBe("/properties/property-1/account");
-    expect(screen.queryByRole("button", { name: "Owner payment" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Withdrawal" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Owner invoice payment" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Owner distribution" })).toBeNull();
     expect(screen.queryByRole("button", { name: "More" })).toBeNull();
     await user.click(screen.getByRole("tab", { name: "Tenants & companies" }));
     expect(screen.getByText("Partly paid")).not.toBeNull();
@@ -638,8 +724,8 @@ describe("FinanceOperationsScreen", () => {
         view="balances"
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Withdrawal" }));
-    const dialog = screen.getByRole("dialog", { name: "Owner withdrawal" });
+    await user.click(screen.getByRole("button", { name: "Owner distribution" }));
+    const dialog = screen.getByRole("dialog", { name: "Owner distribution" });
     expect(
       dialog.querySelector<HTMLInputElement>('input[name="ownerPersonId"]')?.value,
     ).toBe("person-owner");
@@ -692,6 +778,36 @@ describe("FinanceOperationsScreen", () => {
       "table-container",
     );
     expect(table.parentElement?.parentElement).toBe(tableFrame);
+  });
+
+  it("names the property account activity scroll region for keyboard users", () => {
+    const input = data();
+    input.accountEntries = [
+      {
+        amount: 780,
+        category: "rent_income",
+        date: "2026-08-05",
+        id: "entry-1",
+        label: "Rent income",
+        note: "August rent",
+        propertyId: "property-1",
+        runningBalance: 780,
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        selectedPropertyId="property-1"
+        view="account"
+      />,
+    );
+
+    expect(
+      screen.getByRole("region", { name: "Property account activity" }),
+    ).not.toBeNull();
   });
 });
 

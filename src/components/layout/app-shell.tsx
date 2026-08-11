@@ -227,19 +227,19 @@ function getGlobalDestinations(
     return FINANCE_GLOBAL_DESTINATIONS;
   }
 
+  const maintenanceChildren =
+    role === "operations_manager"
+      ? MAINTENANCE_CHILDREN
+      : [MAINTENANCE_CHILDREN[1]];
+
   return [
     {
-      children:
-        role === "operations_manager"
-          ? MAINTENANCE_CHILDREN
-          : [MAINTENANCE_CHILDREN[1]],
+      children: maintenanceChildren,
       id: "maintenance",
       href: role === "operations_manager" ? "/maintenance" : "/tasks",
       icon: Wrench,
       label: "Maintenance",
-      routes: [
-        "/tasks",
-      ],
+      routes: maintenanceChildren.flatMap((child) => child.routes),
     },
   ];
 }
