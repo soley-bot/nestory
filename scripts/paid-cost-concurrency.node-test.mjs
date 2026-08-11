@@ -125,6 +125,42 @@ function submissionScope(reference = "GDN-PUMP-2088") {
   return { documentId, propertyId, sourceId, submissionId, unitId };
 }
 
+function registerRaceEvidence(label, propertyId) {
+  const bytes = Buffer.from(`Track 6 race evidence: ${label}`, "utf8");
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  const storagePath = `${organizationId}/paid-cost-evidence/races/${hash}.pdf`;
+  const result = JSON.parse(run(`
+    WITH object AS (
+      INSERT INTO storage.objects (bucket_id, name, version, metadata)
+      VALUES (
+        'nestory-documents',
+        '${storagePath}',
+        pg_catalog.gen_random_uuid()::text,
+        pg_catalog.jsonb_build_object(
+          'mimetype', 'application/pdf',
+          'size', ${bytes.byteLength}
+        )
+      )
+      RETURNING id, version
+    )
+    SELECT public.register_paid_cost_evidence_verified(
+      '${organizationId}',
+      '${financeMemberId}',
+      '${propertyId}',
+      'track6-race-${label}.pdf',
+      '${storagePath}',
+      'application/pdf',
+      ${bytes.byteLength},
+      '${hash}',
+      object.id,
+      object.version,
+      'track6-race-evidence-${hash.slice(0, 16)}'
+    )
+    FROM object;
+  `));
+  return result.document_id;
+}
+
 function closeMonth() {
   return run(`SELECT (date_trunc('month', current_date) + interval '24 months')::date;`);
 }
@@ -214,10 +250,11 @@ after(() => {
 
 test("duplicate submit returns one exact actor-bound paid-cost identity", async () => {
   const scope = submissionScope();
+  const documentId = registerRaceEvidence("duplicate-submit", scope.propertyId);
   const body = `SELECT public.submit_expense(
     '${organizationId}', '${scope.propertyId}', '${scope.unitId}', 'general', NULL,
     'other', 'Race Vendor', current_date - 1, 12.00, 0.00, 'USD', 'owner',
-    NULL, '${scope.sourceId}', '${scope.documentId}', '${vendorId}',
+    NULL, '${scope.sourceId}', '${documentId}', '${vendorId}',
     'TRACK6-RACE-DUPLICATE', 'track6-race-duplicate-submit'
   );`;
   const first = spawnSession(actorSql(financeMemberId, body, "duplicate_submit"));
@@ -235,6 +272,45 @@ test("duplicate submit returns one exact actor-bound paid-cost identity", async 
     run(`SELECT count(*)::text || '|' || count(DISTINCT id)::text
       FROM public.expense_submissions WHERE reference='TRACK6-RACE-DUPLICATE';`),
     "1|1",
+  );
+});
+
+test("one evidence identity cannot fund two concurrent paid costs", async () => {
+  const scope = submissionScope();
+  const documentId = registerRaceEvidence("conflicting-submit", scope.propertyId);
+  const firstBody = `SELECT public.submit_expense(
+    '${organizationId}', '${scope.propertyId}', '${scope.unitId}', 'general', NULL,
+    'other', 'Race Vendor', current_date - 1, 12.00, 0.00, 'USD', 'owner',
+    NULL, '${scope.sourceId}', '${documentId}', '${vendorId}',
+    'TRACK6-RACE-DUPLICATE', 'track6-race-evidence-first'
+  );`;
+  const secondBody = `SELECT public.submit_expense(
+    '${organizationId}', '${scope.propertyId}', '${scope.unitId}', 'general', NULL,
+    'other', 'Other Race Vendor', current_date - 1, 13.00, 0.00, 'USD', 'owner',
+    NULL, '${scope.sourceId}', '${documentId}', '${vendorId}',
+    'TRACK6-RACE-DUPLICATE-CONFLICT', 'track6-race-evidence-second'
+  );`;
+  const first = spawnSession(actorSql(financeMemberId, firstBody, "duplicate_submit"));
+  await waitForMarker(first, "paid_cost_duplicate_submit_ready");
+  const startedAt = performance.now();
+  const second = spawnSession(actorSql(financeMemberId, secondBody));
+  const [firstResult, secondResult] = await Promise.all([first.done, second.done]);
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.equal(firstResult.status, 0, firstResult.stderr);
+  assert.notEqual(secondResult.status, 0, "conflicting evidence reuse unexpectedly succeeded");
+  assert.match(secondResult.stderr, /paid_cost_evidence_already_used/);
+  assert.ok(elapsedMs >= 1_500, `evidence reuse loser waited only ${elapsedMs.toFixed(0)}ms`);
+  assert.doesNotMatch(`${firstResult.stderr}\n${secondResult.stderr}`, /40P01|deadlock detected/i);
+  assert.equal(
+    run(`SELECT count(*)::text FROM public.expense_submissions
+      WHERE supporting_document_id='${documentId}';`),
+    "1",
+  );
+  assert.equal(
+    run(`SELECT count(*)::text FROM app_private.financial_idempotency_requests
+      WHERE idempotency_key='track6-race-evidence-second';`),
+    "0",
   );
 });
 
@@ -290,6 +366,7 @@ test("approve versus reversal does not reverse an uncommitted approval", async (
 
 test("reversal versus resubmit serializes append-only correction", async () => {
   const scope = submissionScope();
+  const documentId = registerRaceEvidence("correction-resubmit", scope.propertyId);
   run(actorSql(financeManagerId, `SELECT public.review_expense('${organizationId}',
     '${scope.submissionId}', 'approve', 'Prepare correction race',
     'track6-race-correction-approve', NULL);`));
@@ -298,7 +375,7 @@ test("reversal versus resubmit serializes append-only correction", async () => {
   const resubmit = `SELECT public.submit_expense(
     '${organizationId}', '${scope.propertyId}', '${scope.unitId}', 'general', NULL,
     'repairs_maintenance', 'Khmer Home Services', current_date - 2, 200.00, 20.00,
-    'USD', 'owner', NULL, '${scope.sourceId}', '${scope.documentId}', '${vendorId}',
+    'USD', 'owner', NULL, '${scope.sourceId}', '${documentId}', '${vendorId}',
     'TRACK6-RACE-CORRECTED', 'track6-race-correction-resubmit'
   );`;
   const first = spawnSession(actorSql(superAdminId, reversal, "reversal_insert"));
@@ -382,12 +459,13 @@ test("evidence registration versus mutation retains verified bytes", async () =>
 test("source versus close serializes and blocks an incomplete close", async () => {
   const month = closeMonth();
   const scope = submissionScope("TRACK6-OWNER-APPROVED");
+  const documentId = registerRaceEvidence("source-close", closePropertyId);
   run(actorSql(superAdminId, `SELECT public.set_financial_month_lock(
     '${organizationId}', '${month}', false, 'Prepare Track 6 source-close race');`));
   const pending = run(actorSql(financeMemberId, `SELECT public.submit_expense(
     '${organizationId}', '${closePropertyId}', NULL, 'general', NULL, 'other',
     'Source Close Race Vendor', '${month}'::date + 11, 1.00, 0.00, 'USD', 'owner',
-    NULL, '${scope.sourceId}', '${scope.documentId}', '${vendorId}',
+    NULL, '${scope.sourceId}', '${documentId}', '${vendorId}',
     'TRACK6-RACE-SOURCE-CLOSE', 'track6-race-source-close-submit'
   );`));
   const pendingId = JSON.parse(pending.split(/\r?\n/).filter(Boolean).at(-1)).submission_id;

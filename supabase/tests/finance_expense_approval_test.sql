@@ -126,7 +126,7 @@ SELECT ok(
         < strpos(definition, 'approve_expense_submission')
     FROM (
       SELECT pg_catalog.pg_get_functiondef(
-        'public.review_expense(uuid,uuid,text,text,text,uuid)'::regprocedure
+        'app_private.review_expense_baseline_track6_evidence(uuid,uuid,text,text,text,uuid)'::regprocedure
       ) AS definition
     ) AS reviewed
   ),
@@ -216,6 +216,9 @@ CREATE TEMP TABLE expense_approval_state (
   invoice_id uuid NOT NULL DEFAULT 'b7000000-0000-0000-0000-000000000001',
   source_id uuid,
   evidence_document_id uuid,
+  rejection_evidence_document_id uuid,
+  tenant_evidence_document_id uuid,
+  locked_evidence_document_id uuid,
   submission_id uuid,
   rejection_submission_id uuid,
   locked_submission_id uuid,
@@ -543,27 +546,75 @@ SELECT set_config(
 INSERT INTO storage.objects (bucket_id, name, version, metadata)
 SELECT
   'nestory-documents',
-  organization_id::text || '/expense-approval/retained-receipt.pdf',
+  organization_id::text || '/paid-cost-evidence/finance-expense-approval/' || evidence.file_name,
   pg_catalog.gen_random_uuid()::text,
   pg_catalog.jsonb_build_object(
     'mimetype', 'application/pdf',
-    'size', 22
+    'size', evidence.size_bytes
   )
-FROM expense_approval_state;
+FROM expense_approval_state
+CROSS JOIN (
+  VALUES
+    ('retained-receipt.pdf', 22::bigint),
+    ('rejection-receipt.pdf', 23::bigint),
+    ('tenant-receipt.pdf', 24::bigint),
+    ('locked-receipt.pdf', 25::bigint)
+) AS evidence(file_name, size_bytes);
 
-SET LOCAL ROLE authenticated;
+CREATE TEMP TABLE expense_approval_evidence ON COMMIT DROP AS
+SELECT
+  evidence.kind,
+  public.register_paid_cost_evidence_verified(
+    state.organization_id,
+    state.finance_member_id,
+    state.property_id,
+    evidence.file_name,
+    object.name,
+    'application/pdf',
+    evidence.size_bytes,
+    pg_catalog.repeat(evidence.hash_character, 64),
+    object.id,
+    object.version,
+    'expense-approval-evidence-' || evidence.kind
+  ) AS result
+FROM expense_approval_state AS state
+CROSS JOIN (
+  VALUES
+    ('owner', 'retained-receipt.pdf', 22::bigint, 'a'),
+    ('rejection', 'rejection-receipt.pdf', 23::bigint, 'b'),
+    ('tenant', 'tenant-receipt.pdf', 24::bigint, 'c'),
+    ('locked', 'locked-receipt.pdf', 25::bigint, 'd')
+) AS evidence(kind, file_name, size_bytes, hash_character)
+JOIN storage.objects AS object
+  ON object.bucket_id = 'nestory-documents'
+ AND object.name =
+   state.organization_id::text ||
+   '/paid-cost-evidence/finance-expense-approval/' || evidence.file_name;
 
 UPDATE expense_approval_state
-SET evidence_document_id = public.create_document(
-  organization_id,
-  'Paid cost evidence',
-  'retained-receipt.pdf',
-  organization_id::text || '/expense-approval/retained-receipt.pdf',
-  'application/pdf',
-  22,
-  pg_catalog.repeat('a', 64),
-  property_id
-);
+SET
+  evidence_document_id = (
+    SELECT (evidence.result->>'document_id')::uuid
+    FROM expense_approval_evidence AS evidence
+    WHERE evidence.kind = 'owner'
+  ),
+  rejection_evidence_document_id = (
+    SELECT (evidence.result->>'document_id')::uuid
+    FROM expense_approval_evidence AS evidence
+    WHERE evidence.kind = 'rejection'
+  ),
+  tenant_evidence_document_id = (
+    SELECT (evidence.result->>'document_id')::uuid
+    FROM expense_approval_evidence AS evidence
+    WHERE evidence.kind = 'tenant'
+  ),
+  locked_evidence_document_id = (
+    SELECT (evidence.result->>'document_id')::uuid
+    FROM expense_approval_evidence AS evidence
+    WHERE evidence.kind = 'locked'
+  );
+
+SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
   $$
@@ -1146,7 +1197,7 @@ SELECT lives_ok(
         'owner',
         NULL,
         source_id,
-        evidence_document_id,
+        rejection_evidence_document_id,
         NULL,
         'Needs review',
         'expense-submit-reject-0001'
@@ -1559,7 +1610,7 @@ SELECT throws_ok(
     property_id,
     invoice_id,
     source_id,
-    evidence_document_id
+    tenant_evidence_document_id
   ),
   '23503',
   'Tenant invoice does not belong to this property, unit, and currency',
@@ -1586,7 +1637,7 @@ SELECT lives_ok(
         'tenant',
         invoice_id,
         source_id,
-        evidence_document_id,
+        tenant_evidence_document_id,
         NULL,
         'Tenant utility recovery',
         'expense-submit-tenant-0001'
@@ -1873,7 +1924,7 @@ SELECT lives_ok(
         'owner',
         NULL,
         source_id,
-        evidence_document_id,
+        locked_evidence_document_id,
         NULL,
         'Locked period expense',
         'expense-submit-locked-0001'

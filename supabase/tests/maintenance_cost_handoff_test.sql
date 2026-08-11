@@ -617,8 +617,8 @@ SELECT throws_ok(
     )
     FROM maintenance_cost_state
   $$,
-  '23503',
-  'Supporting receipt does not belong to property',
+  '23514',
+  'paid_cost_evidence_invalid',
   'forged document metadata cannot enter the expense approval workflow'
 );
 

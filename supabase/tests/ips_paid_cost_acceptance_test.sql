@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(31);
+SELECT plan(33);
 
 SELECT has_function(
   'public',
@@ -503,6 +503,98 @@ SELECT is(
 )
 FROM paid_cost_c1_state AS state
 CROSS JOIN paid_cost_c1_registration AS registration;
+
+RESET ROLE;
+
+INSERT INTO public.expense_submissions (
+  id,
+  organization_id,
+  property_id,
+  unit_id,
+  source_type,
+  source_id,
+  customer_category,
+  vendor_label,
+  expense_date,
+  internal_cost_amount,
+  internal_markup_amount,
+  currency,
+  responsibility,
+  tenant_invoice_id,
+  reconciliation_source_id,
+  supporting_document_id,
+  vendor_person_id,
+  reference,
+  idempotency_key,
+  request_payload_hash,
+  submitted_by
+)
+SELECT
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0db1'::uuid,
+  state.organization_id,
+  state.property_id,
+  state.unit_id,
+  'general',
+  NULL,
+  'other',
+  'C1 direct malformed review',
+  CURRENT_DATE,
+  12,
+  0,
+  'USD',
+  'owner',
+  NULL,
+  state.source_id,
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da1'::uuid,
+  NULL,
+  'C1 malformed review',
+  'paid-cost-c1-review-source',
+  pg_catalog.repeat('c', 64),
+  state.finance_member_id
+FROM paid_cost_c1_state AS state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    SELECT public.review_expense(
+      '00000000-0000-0000-0000-000000000001',
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0db1',
+      'approve',
+      NULL,
+      'paid-cost-c1-review-denied',
+      NULL
+    )
+  $$,
+  '23514',
+  'paid_cost_evidence_invalid',
+  'approval revalidates registrar-grade evidence before financial effects'
+);
+
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      (
+        SELECT count(*)
+        FROM public.expense_submissions
+        WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0db1'
+          AND status = 'submitted'
+          AND approved_finance_expense_item_id IS NULL
+          AND approved_payment_id IS NULL
+          AND approved_ledger_entry_id IS NULL
+      ),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests WHERE idempotency_key = 'paid-cost-c1-review-denied')
+  $$,
+  $$VALUES (1::bigint, 0::bigint)$$,
+  'malformed-evidence approval leaves no financial or idempotency residue'
+);
 
 SELECT * FROM finish();
 ROLLBACK;
