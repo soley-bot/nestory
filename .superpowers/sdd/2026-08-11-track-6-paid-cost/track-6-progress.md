@@ -4,7 +4,7 @@
 
 - Branch: `codex/ips-operational-readiness`
 - Approved base: `7a0cdb51b72976b2f7c00a08a3930dc25f24058f`
-- Status: verified evidence authority, operator workflow, literal scenarios, and real-session concurrency are implemented; authenticated browser acceptance is next.
+- Status: verified evidence authority, operator workflow, literal scenarios, real-session concurrency, and authenticated browser acceptance are complete; the one full milestone matrix is next.
 - Preserved approvals: Tracks 1-5 and Track 9.
 - Scope: local synthetic authority only. No hosted Supabase/Vercel mutation, real IPS data, deploy, push, merge, or `main` cleanup.
 
@@ -68,3 +68,11 @@ A Finance Member records an already-paid cost with exact paid amount/date, fundi
 - Previous approved fixture gates remain GREEN: owner opening hash; 16 owner-balance components / 12 source types / 2 properties / 2 months; immutable owner-close R1/R2/R3 plus preparing R4; 17-line official statement; rent lifecycle 10/10.
 - Real-session concurrency GREEN 6/6: duplicate submit, approve-vs-reject, approve-vs-reversal, reversal-vs-resubmit, evidence registration-vs-mutation, and paid-cost source-vs-close. The close contender waits, then fails typed on incomplete allocation without deadlock or pending idempotency residue.
 - Static gates GREEN: Track 6 contract 2/2, TypeScript, focused ESLint, affected Owner Statement fixture contract 2/2, and `git diff --check`.
+
+### 2026-08-11 - complete authenticated browser acceptance GREEN
+
+- Browser contract RED was 0/1 because no retained Track 6 lifecycle script existed; the completed contract is GREEN 1/1 and is wired into the demo-tools suite.
+- One isolated exact-worktree server ran on port 3013 with the existing local Supabase environment. Its verified process tree was stopped afterward; no other server was touched.
+- The single complete flow passed seven phases: Finance Member submits an already-paid owner cost with real file bytes; remains read-only; Finance Manager reviews the exact SHA-256/file identity and approves; Super Admin appends an exact reversal; Finance Member submits corrected bytes/amount; Finance Manager approves once; Operations Manager is redirected to `/no-access`.
+- Database acceptance proved original `100.00` is retained as `reversed`, corrected `90.00` is retained as `approved`, both preserve distinct evidence documents and payment/allocation/responsibility/Ledger identities, the exact reversal customer adjustment is `-100.00`, and pending financial idempotency is zero.
+- The guarded fixture was restored in `finally`, including after any failure path.
