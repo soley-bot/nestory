@@ -44,3 +44,9 @@ Implementation complete; approval not yet claimed. The operator outcome, retaine
 ## Scope boundary
 
 All work used synthetic local data. No hosted Supabase/Vercel mutation, real IPS data, email, cron, backup, deploy, push, merge, or `main` operation occurred. Independent exact-head review is the remaining approval gate.
+
+## Independent review correction
+
+The first independent review blocked Track 6 on C1: generic or unhashed documents could bypass the application registrar through the authenticated public RPC. Additive migration `20260811102356_bind_paid_cost_evidence_authority.sql` now makes registrar-grade evidence a database precondition for both general submission and approval and serializes one-document use. Exact replay remains valid; unrelated sequential or concurrent reuse fails atomically.
+
+Focused correction evidence is clean reset/fixture, pgTAP 201/201, application 52/52, paid-cost concurrency 7/7, document Storage 6/6, lifecycle contract 2/2, exact paid-cost fixture reconciliation, database lint/advisors, focused ESLint, catalog/grant/search-path checks, zero unregistered fixture evidence, and zero pending financial idempotency. Browser and the full matrix were intentionally not rerun. Focused re-review remains the final gate.

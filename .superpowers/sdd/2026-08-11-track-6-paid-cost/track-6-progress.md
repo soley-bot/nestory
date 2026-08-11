@@ -4,7 +4,7 @@
 
 - Branch: `codex/ips-operational-readiness`
 - Approved base: `7a0cdb51b72976b2f7c00a08a3930dc25f24058f`
-- Status: implementation, browser acceptance, one full matrix, and the coordinated correction batch are complete at `7da8562`; independent review is next.
+- Status: implementation, browser acceptance, one full matrix, the coordinated matrix correction, and independent-review C1 correction are complete through `14f3f4e`; focused re-review is next.
 - Preserved approvals: Tracks 1-5 and Track 9.
 - Scope: local synthetic authority only. No hosted Supabase/Vercel mutation, real IPS data, deploy, push, merge, or `main` cleanup.
 
@@ -86,3 +86,12 @@ A Finance Member records an already-paid cost with exact paid amount/date, fundi
 - The affected Finance Manager rerun passes every Track 6 phase through submit, evidence review, approval, and correction/reversal before stopping on the unrelated legacy withdrawal-capacity control. The route-discoverability rerun passes the expense route and 20 journeys before the same unrelated property-account link timeout. Both are backlog items and do not alter Track 6 authority.
 - The single accessibility crawl retains the existing 98 cross-module findings. `/bills-expenses` is clean across four viewports: zero axe violations, navigation/page errors, horizontal overflow, or action-reachability failures. Artifact: `artifacts/ui-redesign/ui-redesign-2026-08-11T08-38-44.543Z-axe-p31900/summary.json`.
 - The guarded fixture was restored after affected role tests and isolated port 3013 was stopped. No hosted system, real IPS data, push, merge, deploy, or `main` change occurred.
+
+### 2026-08-11 - independent C1 correction GREEN
+
+- Independent review at `2309db0` found one Critical evidence-integrity defect: the public submit/review authority accepted a generic, unhashed same-property document that had never passed the verified paid-cost registrar. No other Critical or Important finding was confirmed.
+- Retained RED expanded paid-cost pgTAP to 31 assertions with 12 expected failures across generic, property-null, wrong-category/path/property/uploader, null-fingerprint, missing-object, metadata-mismatch, reuse, and residue behavior. Approval revalidation was then added as an explicit 33-assertion oracle.
+- CLI-generated migration `20260811102356_bind_paid_cost_evidence_authority.sql` adds one private, search-path-locked assertion shared by general submit and approval. It requires exact organization/property/uploader, category, namespace, MIME, bounded size, SHA-256, current Storage metadata, and the registrar's immutable activity identity. Maintenance-task evidence remains separate.
+- One document-scoped transaction lock serializes evidence use. Exact same-key replay returns the original submission; a different-key concurrent attempt waits and fails `paid_cost_evidence_already_used` with no request/submission residue.
+- Final affected evidence at correction commit `14f3f4e`: clean reset and guarded fixture; pgTAP 201/201; application 52/52; paid-cost concurrency 7/7; document Storage 6/6; lifecycle contract 2/2; literal fixture reconciliation; database lint zero errors with the same five warnings; advisors zero; focused ESLint; catalog ownership/search-path/grants; zero unregistered fixture evidence and zero pending financial requests.
+- Browser and full matrix were not rerun. Focused independent re-review is required before approval.

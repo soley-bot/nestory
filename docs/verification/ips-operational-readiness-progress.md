@@ -252,7 +252,7 @@
 
 ## Track 6 - verified paid-cost lifecycle
 
-- Status: local implementation, authenticated acceptance, one full matrix, and the coordinated correction batch are complete at `7da8562`; independent milestone review is pending and approval is not yet claimed.
+- Status: local implementation, authenticated acceptance, one full matrix, the coordinated matrix correction, and independent-review C1 correction are complete through `14f3f4e`; focused re-review is pending and approval is not yet claimed.
 - Outcome: Finance Member records an already-paid cost with exact amount/date, source, responsibility, reference, and immutable evidence; Finance Manager independently reviews the frozen fingerprint; Super Admin appends reversals; corrections are new submissions. No payable, due-date, or payment-execution authority was added.
 - Authority: general submissions fail closed without both verified evidence and a reference. Exact-money strings, maker-checker roles, tenant scope, actor-bound idempotency, immutable snapshots, generalized evidence Storage locks, canonical source/month ordering, downstream payment/Ledger/owner/tenant/petty-cash effects, close lines, and official statement source links are covered.
 - Retained story: 9 submissions, 7 accepted effects, 2 reversals, 4 owner components, 17 statement lines/source links, PDF/XLSX retention, and `0.00` difference. Paid-cost concurrency passes 6/6; corrected document Storage lifecycle passes 6/6.
@@ -260,6 +260,7 @@
 - Matrix: database 48 files/1,733 assertions reached; application 202 files/1,497 pass plus one intentional skip; demo tools 59/59; five role journeys 5/5; all named financial concurrency suites, types, ESLint, database lint/advisors, routes 47/47, UI copy, production build, and diff checks completed. The three scoped database integration drifts were corrected together; affected pgTAP passes 173/173.
 - Accessibility and backlog: the existing 98-item cross-module crawl remains. `/bills-expenses` is clean across four viewports. A property-account discoverability timeout and legacy withdrawal-capacity control remain unrelated backlog after their reruns passed all Track 6 assertions.
 - Verification: `docs/verification/track-6-paid-cost.md`. Scope is synthetic local only; no hosted Supabase/Vercel mutation, real IPS data, email, cron, backup, deploy, push, merge, or `main` change.
+- Independent review correction: a reproduced generic-document evidence bypass is closed by a shared submit/approval registrar-grade assertion and one-document serialization. Focused evidence is pgTAP 201/201, app 52/52, paid-cost races 7/7, Storage 6/6, lifecycle 2/2, exact fixture reconciliation, lint/advisors/catalog green, and zero pending requests. Focused re-review remains mandatory; browser/full matrix were not rerun.
 
 ## Track 9 - IPS migration and cutover
 

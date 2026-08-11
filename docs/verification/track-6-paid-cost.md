@@ -31,3 +31,9 @@ Two affected role-harness reruns progressed through all Track 6 assertions and t
 ## Scope and gate
 
 No hosted Supabase or Vercel mutation, real IPS data, email, cron, backup, deployment, push, merge, or `main` cleanup was performed. Independent review of the exact clean milestone head is still required before Track 6 is approved and the next milestone opens.
+
+## Independent review correction
+
+The initial independent review reproduced one Critical authority bypass: an authenticated submitter could reference a generic, unhashed document that never passed the paid-cost registrar. Correction commit `14f3f4e` adds a private assertion shared by submit and approval. It requires the exact organization, property, submitting actor, paid-cost category/namespace, allowed MIME, bounded size, canonical SHA-256, retained Storage metadata, and matching immutable registrar activity. A document-scoped transaction lock prevents concurrent double use while preserving exact idempotent replay.
+
+The retained correction suite rejects generic, property-null, wrong-category/path/property/uploader, unhashed, missing-object, metadata-mismatched, sequentially reused, and concurrently reused evidence with no submission, financial, or pending-request residue. Final affected gates are pgTAP 201/201, application 52/52, paid-cost races 7/7, document Storage 6/6, lifecycle contract 2/2, and exact fixture reconciliation. Focused independent re-review is pending; browser and the full matrix were not rerun.
