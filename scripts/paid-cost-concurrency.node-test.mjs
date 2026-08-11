@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { after, before, beforeEach, test } from "node:test";
@@ -15,6 +15,7 @@ const financeMemberId = "00000000-0000-0000-0000-000000000801";
 const closePropertyId = "10000000-0000-0000-0000-000000000004";
 const closeOwnerId = "80000000-0000-0000-0000-000000000014";
 const vendorId = "80000000-0000-0000-0000-000000000006";
+const runNonce = randomUUID();
 
 function databaseContainer() {
   const result = spawnSync(
@@ -126,7 +127,10 @@ function submissionScope(reference = "GDN-PUMP-2088") {
 }
 
 function registerRaceEvidence(label, propertyId) {
-  const bytes = Buffer.from(`Track 6 race evidence: ${label}`, "utf8");
+  const bytes = Buffer.from(
+    `Track 6 race evidence: ${label}:${runNonce}`,
+    "utf8",
+  );
   const hash = createHash("sha256").update(bytes).digest("hex");
   const storagePath = `${organizationId}/paid-cost-evidence/races/${hash}.pdf`;
   const result = JSON.parse(run(`
@@ -406,7 +410,9 @@ test("evidence registration versus mutation retains verified bytes", async () =>
     password: "123456789",
   });
   assert.equal(signedIn.error, null, signedIn.error?.message);
-  const bytes = new TextEncoder().encode("track6 registration mutation race bytes");
+  const bytes = new TextEncoder().encode(
+    `track6 registration mutation race bytes:${runNonce}`,
+  );
   const hash = createHash("sha256").update(bytes).digest("hex");
   const storagePath = `${organizationId}/paid-cost-evidence/${hash}`;
   const uploaded = await service.storage.from("nestory-documents").upload(
@@ -432,7 +438,7 @@ test("evidence registration versus mutation retains verified bytes", async () =>
       'track6-race-evidence.pdf', '${storagePath}', 'application/pdf',
       ${bytes.byteLength}, '${hash}', '${identity.storage_object_id}',
       '${identity.storage_object_version}',
-      'track6-race-evidence-register'
+      'track6-race-evidence-register-${hash.slice(0, 16)}'
     );`;
   const first = spawnSession(`BEGIN; SET LOCAL statement_timeout='20s'; ${register} COMMIT;`);
   await waitForMarker(first, "paid_cost_evidence_insert_ready");

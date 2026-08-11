@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(33);
+SELECT plan(37);
 
 SELECT has_function(
   'public',
@@ -201,6 +201,7 @@ SELECT
   '10000000-0000-0000-0000-000000000002'::uuid AS other_property_id,
   '20000000-0000-0000-0000-000000000001'::uuid AS unit_id,
   '00000000-0000-0000-0000-000000000801'::uuid AS finance_member_id,
+  '00000000-0000-0000-0000-000000000101'::uuid AS super_admin_id,
   '00000000-0000-0000-0000-000000000701'::uuid AS other_uploader_id,
   (
     SELECT source.id
@@ -233,7 +234,8 @@ CROSS JOIN (
     ('paid-cost-evidence/wrong-uploader.pdf', 26),
     ('paid-cost-evidence/null-hash.pdf', 27),
     ('paid-cost-evidence/metadata-mismatch.pdf', 999),
-    ('paid-cost-evidence/registered.pdf', 29)
+    ('paid-cost-evidence/registered.pdf', 29),
+    ('paid-cost-evidence/forged-by-super-admin.pdf', 31)
 ) AS candidate(path_suffix, object_size);
 
 SELECT set_config('app.document_content_write_context', 'checked-v1', true);
@@ -385,6 +387,105 @@ SELECT throws_ok(
 ) FROM paid_cost_c1_state;
 
 RESET ROLE;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM paid_cost_c1_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_like(
+  format(
+    $sql$INSERT INTO storage.objects (bucket_id, name, version, metadata)
+      VALUES ('nestory-documents', %L, pg_catalog.gen_random_uuid()::text,
+        pg_catalog.jsonb_build_object('mimetype', 'application/pdf', 'size', 30))$sql$,
+    organization_id::text || '/paid-cost-evidence/direct-upload.pdf'
+  ),
+  '%row-level security policy%',
+  'ordinary authenticated Storage upload cannot enter the paid-cost evidence namespace'
+) FROM paid_cost_c1_state;
+
+SELECT throws_ok(
+  format(
+    $sql$WITH forged AS (
+      SELECT public.create_document(
+        %L,
+        'Paid cost evidence',
+        'forged-by-super-admin.pdf',
+        %L,
+        'application/pdf',
+        31,
+        %L,
+        %L,
+        NULL, NULL, NULL, NULL, NULL, NULL,
+        'document',
+        NULL,
+        'paid_cost_evidence_registered',
+        pg_catalog.jsonb_build_object(
+          'property_id', %L::text,
+          'storage_path', %L,
+          'content_sha256', %L,
+          'size_bytes', 31,
+          'content_type', 'application/pdf'
+        )
+      ) AS document_id
+    )
+    SELECT public.submit_expense(
+      %L, %L, %L, 'general', NULL, 'other', 'C1 forged vendor',
+      CURRENT_DATE, 31, 0, 'USD', 'owner', NULL, %L,
+      forged.document_id, NULL, 'C1 forged evidence',
+      'paid-cost-c1-forged-submit'
+    )
+    FROM forged$sql$,
+    organization_id,
+    organization_id::text || '/paid-cost-evidence/forged-by-super-admin.pdf',
+    pg_catalog.repeat('f', 64),
+    property_id,
+    property_id,
+    organization_id::text || '/paid-cost-evidence/forged-by-super-admin.pdf',
+    pg_catalog.repeat('f', 64),
+    organization_id,
+    property_id,
+    unit_id,
+    source_id
+  ),
+  '42501',
+  'paid_cost_evidence_service_only',
+  'Super Admin cannot forge registrar evidence through create_document and submit it'
+) FROM paid_cost_c1_state;
+
+SELECT throws_like(
+  format(
+    $sql$INSERT INTO public.activity_logs (
+      organization_id, actor_id, entity_type, entity_id, action, new_values
+    ) VALUES (%L, %L, 'document', %L, 'paid_cost_evidence_registered', '{}'::jsonb)$sql$,
+    organization_id,
+    super_admin_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0daf'::uuid
+  ),
+  '%row-level security policy%',
+  'ordinary authenticated activity insertion cannot imitate registrar authority'
+) FROM paid_cost_c1_state;
+
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*) FROM public.documents
+        WHERE storage_path LIKE '%/paid-cost-evidence/forged-by-super-admin.pdf'),
+      (SELECT count(*) FROM public.expense_submissions
+        WHERE idempotency_key = 'paid-cost-c1-forged-submit'),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests
+        WHERE idempotency_key = 'paid-cost-c1-forged-submit'),
+      (SELECT count(*) FROM public.activity_logs
+        WHERE action = 'paid_cost_evidence_registered'
+          AND entity_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0daf'::uuid)
+  $$,
+  $$VALUES (0::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
+  'forgery attempts leave no document, submission, idempotency, or activity residue'
+);
 
 SELECT results_eq(
   $$
