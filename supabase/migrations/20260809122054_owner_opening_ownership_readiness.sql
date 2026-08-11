@@ -6,21 +6,21 @@ DO $$
 BEGIN
   IF to_regprocedure('app_private.sync_property_primary_owner(uuid,uuid,uuid)') IS NULL
     OR md5(pg_get_functiondef('app_private.sync_property_primary_owner(uuid,uuid,uuid)'::regprocedure))
-      <> 'e06b2111585b3df04e598d81f5d06307'
+      <> '00829a30b6d96366f32f664bc20682c4'
   THEN
     RAISE EXCEPTION 'Unexpected predecessor definition: app_private.sync_property_primary_owner(uuid,uuid,uuid)';
   END IF;
 
   IF to_regprocedure('public.create_property(uuid,text,text,text,text,text,text,date,text,uuid)') IS NULL
     OR md5(pg_get_functiondef('public.create_property(uuid,text,text,text,text,text,text,date,text,uuid)'::regprocedure))
-      <> '054025de2c313eb300422f7d6e6b122a'
+      <> 'fe0847fa87d09788b617ddc43d49ad35'
   THEN
     RAISE EXCEPTION 'Unexpected predecessor definition: public.create_property';
   END IF;
 
   IF to_regprocedure('public.update_property(uuid,uuid,text,text,text,text,text,text,date,text,uuid)') IS NULL
     OR md5(pg_get_functiondef('public.update_property(uuid,uuid,text,text,text,text,text,text,date,text,uuid)'::regprocedure))
-      <> '7e51865729ffa84b1a2eaab7cbd76c16'
+      <> '29b5654d1d8667e261d4b32778d7288d'
   THEN
     RAISE EXCEPTION 'Unexpected predecessor definition: public.update_property';
   END IF;
