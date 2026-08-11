@@ -74,6 +74,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Expose owner roster predecessor fingerprint
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/migrations/20260809122054_owner_opening_ownership_readiness.sql')
+          text = path.read_text()
+          old = "RAISE EXCEPTION 'Unexpected predecessor definition: app_private.sync_property_primary_owner(uuid,uuid,uuid)';"
+          new = "RAISE EXCEPTION 'Unexpected predecessor definition: app_private.sync_property_primary_owner(uuid,uuid,uuid) fingerprint %', md5(pg_get_functiondef('app_private.sync_property_primary_owner(uuid,uuid,uuid)'::regprocedure));"
+          if old not in text:
+              raise SystemExit('owner roster predecessor guard marker not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Start local Supabase
         run: npm run supabase:start
 
