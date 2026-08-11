@@ -374,6 +374,12 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  // Generated RPC types cannot express nullable PostgreSQL function arguments.
+  // The database intentionally accepts null when a scheduled date is unknown.
+  const scheduledMoveInDate =
+    (parsed.data.scheduledMoveInDate || null) as string;
+  const scheduledMoveOutDate =
+    (parsed.data.scheduledMoveOutDate || null) as string;
   const { data: occupancyId, error } = await supabase.rpc(
     "record_current_lease_occupancy_evidence",
     {
@@ -382,8 +388,8 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
       p_lease_id: parsed.data.leaseId,
       p_organization_id: context.organizationId,
       p_reason: parsed.data.reason,
-      p_scheduled_move_in_date: parsed.data.scheduledMoveInDate || null,
-      p_scheduled_move_out_date: parsed.data.scheduledMoveOutDate || null,
+      p_scheduled_move_in_date: scheduledMoveInDate,
+      p_scheduled_move_out_date: scheduledMoveOutDate,
     },
   );
 

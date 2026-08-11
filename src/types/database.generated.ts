@@ -9656,8 +9656,8 @@ export type Database = {
           p_lease_id: string
           p_organization_id: string
           p_reason: string
-          p_scheduled_move_in_date: string | null
-          p_scheduled_move_out_date: string | null
+          p_scheduled_move_in_date: string
+          p_scheduled_move_out_date: string
         }
         Returns: string
       }
