@@ -64,3 +64,31 @@ This report records deterministic local Supabase and exact-worktree evidence.
 It makes no hosted parity, real IPS, production email, cron, backup, deployment,
 push, or merge claim. Independent milestone review remains required before
 Track 5 approval.
+
+## Independent review correction round
+
+The first independent review blocked Track 5 with one Critical concurrency
+finding: rent generation locked lease/person rows before the financial month,
+while structural term scheduling locked the financial month before the lease.
+A deterministic three-session probe reproduced PostgreSQL `40P01`.
+
+The correction is isolated in CLI-generated additive migration
+`20260811040806_enforce_rent_generation_global_lock_order.sql`. It preserves
+the existing immutable generator body behind a private renamed function and
+adds a private wrapper that performs a non-locking scope discovery, acquires
+the financial-month lock, then re-reads and locks lease/person, the complete
+applicable term set, billing authority, and policy before executing the
+baseline. Preliminary scope values are revalidated under those locks.
+
+The retained race suite now has four cases. Its two new pre-financial cases
+prove both winners: generator-first yields one `1450.00` segment and typed
+schedule rejection; scheduler-first yields exact `1450.00,0.00` segments and
+two authoritative terms. Both assert no deadlock, no pending idempotency,
+exactly one invoice, exact segment sums, and no duplicate authority.
+
+Affected evidence is green: clean reset and guarded fixture; concurrency 4/4;
+Track 5 pgTAP 28/28; guarded rent smoke 10/10; database lint zero errors with
+the same five warning-only unused variables; error-level advisors zero; live
+function owner/grant/search-path catalog checks; and diff check. Per milestone
+discipline, the browser and full matrix were not rerun. Focused independent
+re-review remains required; this report does not claim approval.

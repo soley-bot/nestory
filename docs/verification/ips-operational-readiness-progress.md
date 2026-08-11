@@ -200,8 +200,10 @@
 ## Track 5 - lease-to-rent-to-payment lifecycle
 
 - Status: local implementation, complete browser acceptance, one full matrix,
-  and criterion self-review are complete on 2026-08-11. Independent milestone
-  review is pending; no approval is claimed.
+  and criterion self-review are complete on 2026-08-11. Independent review
+  found one Critical generator/scheduler lock inversion; its focused additive
+  correction and affected gates are complete. Focused re-review is pending;
+  no approval is claimed.
 - Outcome: the retained matrix covers full month, mid-month move-in and
   move-out, unpaid, partial, late, owner-direct, selected historical recovery,
   renewal, and rent-change scenarios. Finance Manager works ordinary payments;
@@ -229,6 +231,15 @@
   affected reruns pass rent races 2/2, all owner fixture oracles, then the
   10/10 rent smoke. No production financial authority changed after the full
   matrix.
+- Review correction: CLI-generated migration
+  `20260811040806_enforce_rent_generation_global_lock_order.sql` establishes
+  financial-month -> lease/person -> complete term/billing/policy lock order.
+  Expanded real-session races pass 4/4, covering both pre-financial winners
+  with exact invoice/segment/term and zero-pending-idempotency oracles. Clean
+  reset, guarded fixture, Track 5 pgTAP 28/28, rent smoke 10/10, database lint
+  (zero errors, same five warnings), advisors (zero errors), live private
+  function catalog/grants, and diff check are green. Browser and full matrix
+  were not rerun.
 - Residual: the complete accessibility crawl retains the same 98 program-wide
   backlog findings. The `/rent-income` contrast rule exists in all four prior
   Track 4 artifacts and is not a Track 5 regression.

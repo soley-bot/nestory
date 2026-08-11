@@ -85,6 +85,22 @@ async function waitForMarker(session, marker, timeoutMs = 10_000) {
   assert.fail(`timed out waiting for ${marker}: ${session.stdout}\n${session.stderr}`);
 }
 
+async function waitForDatabaseLock(applicationName, timeoutMs = 10_000) {
+  const deadline = performance.now() + timeoutMs;
+  while (performance.now() < deadline) {
+    const wait = run(`
+      SELECT coalesce(activity.wait_event_type, '') || '|' ||
+        coalesce(activity.wait_event, '')
+      FROM pg_catalog.pg_stat_activity AS activity
+      WHERE activity.application_name = '${applicationName}'
+        AND activity.state <> 'idle';
+    `);
+    if (wait.startsWith("Lock|")) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.fail(`${applicationName} did not reach a database lock wait`);
+}
+
 function reloadFixture() {
   const result = spawnSync(process.execPath, ["scripts/load-test-fixture.mjs"], {
     cwd: repoRoot,
@@ -147,32 +163,38 @@ function installPauseHarness() {
 }
 
 function rentScope() {
-  const [leaseId, termId] = run(`
-    SELECT invoice.lease_id::text || '|' || invoice.lease_term_id::text
+  const [leaseId, termId, propertyId] = run(`
+    SELECT invoice.lease_id::text || '|' || invoice.lease_term_id::text || '|' ||
+      invoice.property_id::text
     FROM public.tenant_invoices AS invoice
     JOIN public.properties AS property ON property.id = invoice.property_id
     WHERE property.code = 'RIV-SHP'
       AND invoice.billing_period_start = '2026-08-01';
   `).split("|");
-  return { leaseId, termId };
+  return { leaseId, propertyId, termId };
 }
 
-function scheduleSql({ leaseId, termId }) {
+function scheduleSql(
+  { leaseId, termId },
+  { applicationName = "", pause = true, suffix = "schedule" } = {},
+) {
   return `BEGIN;
-    SET LOCAL statement_timeout = '15s';
+    SET LOCAL statement_timeout = '20s';
+    ${applicationName ? `SET LOCAL application_name = '${applicationName}';` : ""}
     SELECT pg_catalog.set_config('request.jwt.claim.sub', '${superAdminId}', true);
     SET LOCAL ROLE authenticated;
-    SELECT pg_catalog.set_config('app.ips_rent_test_pause', 'term_update', true);
+    ${pause ? "SELECT pg_catalog.set_config('app.ips_rent_test_pause', 'term_update', true);" : ""}
     SELECT public.schedule_authoritative_lease_term(
       '${organizationId}', '${leaseId}', '2026-09-15', '2027-11-30',
-      1550.00, 'USD', 5, 'monthly', '${termId}', 'track-5-race-schedule'
+      1550.00, 'USD', 5, 'monthly', '${termId}', 'track-5-race-${suffix}'
     );
     COMMIT;`;
 }
 
-function generationSql(leaseId, pause = false) {
+function generationSql(leaseId, pause = false, applicationName = "") {
   return `BEGIN;
-    SET LOCAL statement_timeout = '15s';
+    SET LOCAL statement_timeout = '20s';
+    ${applicationName ? `SET LOCAL application_name = '${applicationName}';` : ""}
     ${pause ? "SELECT pg_catalog.set_config('app.ips_rent_test_pause', 'invoice_insert', true);" : ""}
     SELECT app_private.generate_lease_rent_invoice(
       '${organizationId}', '${leaseId}', '2026-09-01', '2026-09-01',
@@ -246,5 +268,160 @@ test("generation-first term change waits then rejects immutable obligation drift
         AND invoice.billing_period_start = '2026-09-01';
     `),
     "1|1|1|1450.00",
+  );
+});
+
+test("pre-financial generator wins without a lease/month deadlock", async () => {
+  const scope = rentScope();
+  const blocker = spawnSession(`BEGIN;
+    SET LOCAL statement_timeout = '20s';
+    SELECT lease.id FROM public.leases AS lease
+    WHERE lease.organization_id = '${organizationId}'
+      AND lease.id = '${scope.leaseId}'
+    FOR UPDATE;
+    DO $block$ BEGIN RAISE NOTICE 'ips_rent_lease_blocker_ready'; END $block$;
+    SELECT pg_catalog.pg_sleep(5);
+    COMMIT;`);
+  await waitForMarker(blocker, "ips_rent_lease_blocker_ready");
+
+  const generator = spawnSession(
+    generationSql(scope.leaseId, false, "track5-pre-financial-generator"),
+  );
+  await waitForDatabaseLock("track5-pre-financial-generator");
+  const scheduler = spawnSession(scheduleSql(scope, {
+    applicationName: "track5-pre-financial-scheduler",
+    pause: false,
+    suffix: "pre-financial-generator-wins",
+  }));
+  await waitForDatabaseLock("track5-pre-financial-scheduler");
+
+  const [blockerResult, generatorResult, schedulerResult] = await Promise.all([
+    blocker.done,
+    generator.done,
+    scheduler.done,
+  ]);
+  const combined = `${blockerResult.stderr}\n${generatorResult.stderr}\n${schedulerResult.stderr}`;
+
+  assert.equal(blockerResult.status, 0, blockerResult.stderr);
+  assert.equal(generatorResult.status, 0, generatorResult.stderr);
+  assert.notEqual(schedulerResult.status, 0, "same-period term change unexpectedly succeeded");
+  assert.match(schedulerResult.stderr, /rent_obligation_already_generated/);
+  assert.doesNotMatch(combined, /deadlock detected|40P01/i);
+  assert.equal(
+    run(`
+      WITH invoice_scope AS (
+        SELECT invoice.id, invoice.lease_id
+        FROM public.tenant_invoices AS invoice
+        WHERE invoice.lease_id = '${scope.leaseId}'
+          AND invoice.billing_period_start = '2026-09-01'
+      ), segment_scope AS (
+        SELECT
+          count(segment.id) AS segment_count,
+          sum(segment.amount) AS segment_total
+        FROM invoice_scope
+        JOIN public.tenant_invoice_rent_segments AS segment
+          ON segment.invoice_id = invoice_scope.id
+      ), term_scope AS (
+        SELECT count(term.id) AS term_count
+        FROM public.lease_terms AS term
+        WHERE term.lease_id = '${scope.leaseId}'
+          AND term.status IN ('active', 'upcoming')
+      )
+      SELECT (SELECT count(*) FROM invoice_scope)::text || '|' ||
+        segment_scope.segment_count::text || '|' ||
+        to_char(segment_scope.segment_total, 'FM999999999990.00') || '|' ||
+        term_scope.term_count::text
+      FROM segment_scope, term_scope;
+    `),
+    "1|1|1450.00|1",
+  );
+  assert.equal(
+    run(`
+      SELECT count(*)
+      FROM app_private.financial_idempotency_requests
+      WHERE organization_id = '${organizationId}'
+        AND idempotency_key LIKE 'track-5-race-pre-financial-%'
+        AND status = 'pending';
+    `),
+    "0",
+  );
+});
+
+test("pre-financial scheduler wins and generation freezes the complete term set", async () => {
+  const scope = rentScope();
+  const blocker = spawnSession(`BEGIN;
+    SET LOCAL statement_timeout = '20s';
+    SELECT app_private.lock_open_property_financial_month(
+      '${organizationId}', '${scope.propertyId}', 'USD', '2026-09-01'
+    );
+    DO $block$ BEGIN RAISE NOTICE 'ips_rent_month_blocker_ready'; END $block$;
+    SELECT pg_catalog.pg_sleep(5);
+    COMMIT;`);
+  await waitForMarker(blocker, "ips_rent_month_blocker_ready");
+
+  const scheduler = spawnSession(scheduleSql(scope, {
+    applicationName: "track5-pre-financial-scheduler-first",
+    pause: false,
+    suffix: "pre-financial-scheduler-wins",
+  }));
+  await waitForDatabaseLock("track5-pre-financial-scheduler-first");
+  const generator = spawnSession(
+    generationSql(scope.leaseId, false, "track5-pre-financial-generator-second"),
+  );
+  await waitForDatabaseLock("track5-pre-financial-generator-second");
+
+  const [blockerResult, schedulerResult, generatorResult] = await Promise.all([
+    blocker.done,
+    scheduler.done,
+    generator.done,
+  ]);
+  const combined = `${blockerResult.stderr}\n${schedulerResult.stderr}\n${generatorResult.stderr}`;
+
+  assert.equal(blockerResult.status, 0, blockerResult.stderr);
+  assert.equal(schedulerResult.status, 0, schedulerResult.stderr);
+  assert.equal(generatorResult.status, 0, generatorResult.stderr);
+  assert.doesNotMatch(combined, /deadlock detected|40P01/i);
+  assert.equal(
+    run(`
+      WITH invoice_scope AS (
+        SELECT invoice.id, invoice.lease_id
+        FROM public.tenant_invoices AS invoice
+        WHERE invoice.lease_id = '${scope.leaseId}'
+          AND invoice.billing_period_start = '2026-09-01'
+      ), segment_scope AS (
+        SELECT
+          count(segment.id) AS segment_count,
+          sum(segment.amount) AS segment_total,
+          string_agg(
+            to_char(segment.amount, 'FM999999999990.00'),
+            ',' ORDER BY segment.segment_start
+          ) AS segment_amounts
+        FROM invoice_scope
+        JOIN public.tenant_invoice_rent_segments AS segment
+          ON segment.invoice_id = invoice_scope.id
+      ), term_scope AS (
+        SELECT count(term.id) AS term_count
+        FROM public.lease_terms AS term
+        WHERE term.lease_id = '${scope.leaseId}'
+          AND term.status IN ('active', 'upcoming')
+      )
+      SELECT (SELECT count(*) FROM invoice_scope)::text || '|' ||
+        segment_scope.segment_count::text || '|' ||
+        to_char(segment_scope.segment_total, 'FM999999999990.00') || '|' ||
+        segment_scope.segment_amounts || '|' ||
+        term_scope.term_count::text
+      FROM segment_scope, term_scope;
+    `),
+    "1|2|1450.00|1450.00,0.00|2",
+  );
+  assert.equal(
+    run(`
+      SELECT count(*)
+      FROM app_private.financial_idempotency_requests
+      WHERE organization_id = '${organizationId}'
+        AND idempotency_key LIKE 'track-5-race-pre-financial-%'
+        AND status = 'pending';
+    `),
+    "0",
   );
 });

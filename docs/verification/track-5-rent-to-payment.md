@@ -44,6 +44,23 @@ races prove both lock orders: term-first generation waits and sees both terms;
 generation-first term mutation waits and is rejected after the immutable
 obligation wins.
 
+Independent review then reproduced a pre-financial generator/scheduler
+deadlock omitted by those two terminal-state races. Additive migration
+`20260811040806_enforce_rent_generation_global_lock_order.sql` now makes rent
+generation discover its scope without row locks, acquire the financial-month
+authority first, and only then re-read and lock the lease, tenant, complete
+term set, billing term, and rent policy before delegating to the immutable
+generator. The former generator body is private and has no application-role
+execute grant.
+
+The retained concurrency contract now covers four orders. In the two new
+pre-financial three-session cases, generator-first produces exactly one
+`1450.00` segment and the waiting schedule command receives typed
+`rent_obligation_already_generated`; scheduler-first produces the exact
+`1450.00,0.00` segment set after waiting. Both prove no `40P01`, no pending
+idempotency request, one invoice, exact segment totals, and no duplicate term
+or segment authority.
+
 The Track 5 contract proves exact management-fee snapshots through the guarded
 rent fixture and the complete retained database suite. Existing checked tenant
 collection tests in the same 1,707-assertion matrix prove exact append-only
@@ -84,7 +101,7 @@ The harness restored the guarded baseline in `finally`.
 - lease authority/history/relationship concurrency: pass;
 - owner readiness 13/13, opening 4/4, lifecycle 6/6, close 15/15;
 - statement publication 4/4 and real statement Storage 1/1;
-- document evidence Storage 6/6 and Track 5 rent races 2/2;
+- document evidence Storage 6/6 and initial Track 5 rent races 2/2;
 - Track 5 database scenario contract 28/28 and literal contract 2/2;
 - TypeScript, generated database types, ESLint, and production build: pass;
 - application tests: 198 files, 1,485 pass plus one intentional skip;
@@ -106,6 +123,19 @@ mutation in the shared local database. The correction restores the guarded
 fixture in the final hook. Only the affected rent concurrency and ordered
 fixture smokes were rerun; they pass 2/2, then all owner fixture oracles, then
 the 10/10 rent scenario smoke.
+
+The later independent review found one Critical lock inversion. That finding
+was corrected in one scoped additive batch. A clean reset and guarded fixture
+load pass; the expanded rent concurrency suite passes 4/4; the Track 5 pgTAP
+contract passes 28/28; the guarded rent smoke passes 10/10; database lint has
+zero errors with the same five warning-only unused variables; error-level
+database advisors have zero findings; and live catalog checks confirm the
+wrapper and renamed baseline are postgres-owned, SECURITY DEFINER, locked to
+an empty search path, and not executable by anon, authenticated, or service
+roles. Browser acceptance and the full matrix were intentionally not rerun.
+
+Focused independent correction re-review is still required before Track 5 is
+approved.
 
 This is local milestone evidence only. No hosted Supabase or Vercel mutation,
 real IPS data access, email, cron, backup, deploy, push, or merge was performed.
