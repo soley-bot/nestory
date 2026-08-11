@@ -5,8 +5,9 @@
 - Branch: `codex/ips-operational-readiness`.
 - Approved Track 4A base: `384cd946c8d014b6930d35a7950d9cf5ec9902ca`.
 - Implementer: `/root/track4a_implementer`.
-- Status: implementation and criterion self-review complete; independent
-  milestone review pending. No approval is claimed.
+- Status: initial implementation review found six load-bearing issues. The
+  coordinated correction batch is complete; focused independent re-review is
+  pending. No approval is claimed.
 - Outcome: Super Admin can publish a closed current revision, retain and
   download its official numbered PDF/XLSX, reopen/reclose, and publish N+1
   superseding N without changing N. Finance is read-only; Operations is denied.
@@ -50,8 +51,35 @@
   matches, and renders without clipped material content. Both PDF pages render
   legibly with stable numbering and source trace.
 
+## Independent-review correction batch
+
+- C1: authenticated callers can no longer freeze claimed artifact metadata.
+  Server-only verification binds registration to the exact Storage object ID,
+  version, MIME type, downloaded SHA-256, and byte length. The legacy registrar
+  is revoked; registered objects remain create-only.
+- C2: an incomplete publication has a checked fresh-key resume RPC and visible
+  Super Admin recovery control. Retry renders the same frozen publication,
+  skips registered formats, verifies existing create-only bytes, and creates
+  only the missing format.
+- C3: XLSX ZIP modification time is fixed and retained fake-clock/cross-timezone
+  tests prove byte-identical output.
+- I1/I2/I3: supersession selects the nearest prior retained publication even
+  across an unpublished revision; artifact idempotency hashes the complete
+  command/publication/format tuple without truncation; the guarded manual oracle
+  now asserts every component and all nine ordered line/source facts.
+- The guarded fixture now removes prior artifacts for only its explicit local
+  organization through the Storage API and refuses non-loopback targets. Every
+  reset ends at one publication, two registered Storage objects, zero
+  unregistered objects, and zero pending statement requests.
+- Focused evidence after correction: publication pgTAP 38/38; real Storage 1/1;
+  publication concurrency 4/4; focused application 10 files/83 tests; demo
+  tooling 48/48; TypeScript, ESLint, build, DB lint, and diff checks pass. The
+  affected four-phase authenticated browser lifecycle was rerun successfully
+  and restored the exact guarded baseline. The expensive full matrix was not
+  rerun.
+
 ## Boundary
 
 Local Supabase/worktree only. No hosted mutation, deploy, email, cron, backup,
 real IPS/DoorLoop evidence, push, merge, or Track 5 work occurred. Independent
-review remains mandatory.
+focused correction re-review remains mandatory.

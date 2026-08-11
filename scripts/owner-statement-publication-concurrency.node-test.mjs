@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
-import { after, beforeEach, test } from "node:test";
+import { after, afterEach, beforeEach, test } from "node:test";
 
 import { selectLocalDatabaseContainer } from "./load-test-fixture.mjs";
 
@@ -11,6 +11,7 @@ const organizationId = "00000000-0000-0000-0000-000000000001";
 const superAdminId = "00000000-0000-0000-0000-000000000101";
 const propertyId = "10000000-0000-0000-0000-000000000001";
 const ownerId = "80000000-0000-0000-0000-000000000004";
+const syntheticStorageObjectIds = new Set();
 
 const selected = spawnSync(
   "docker",
@@ -197,6 +198,8 @@ function preparePublishedWithPdf() {
   const xlsxObjectId = randomUUID();
   const pdfVersion = "owner-statement-race-pdf-v1";
   const xlsxVersion = "owner-statement-race-xlsx-v1";
+  syntheticStorageObjectIds.add(pdfObjectId);
+  syntheticStorageObjectIds.add(xlsxObjectId);
   run(`INSERT INTO storage.objects (id, bucket_id, name, version, metadata) VALUES
     ('${pdfObjectId}', 'owner-statements', '${pdfPath}', '${pdfVersion}',
       '{"mimetype":"application/pdf","size":4}'),
@@ -215,6 +218,23 @@ function preparePublishedWithPdf() {
 beforeEach(() => {
   reload();
   installHarness();
+});
+
+afterEach(() => {
+  removeHarness();
+  if (syntheticStorageObjectIds.size > 0) {
+    const ids = [...syntheticStorageObjectIds].map((id) => `'${id}'`).join(",");
+    run(`BEGIN;
+      SET LOCAL storage.allow_delete_query = 'true';
+      DELETE FROM storage.objects WHERE id = ANY (ARRAY[${ids}]::uuid[]);
+      COMMIT;`);
+    const residue = run(
+      `SELECT count(*) FROM storage.objects WHERE id = ANY (ARRAY[${ids}]::uuid[]);`,
+    ).split(/\r?\n/).at(-1);
+    assert.equal(residue, "0", "synthetic Storage metadata must be removed");
+    syntheticStorageObjectIds.clear();
+  }
+  reload();
 });
 
 after(() => {

@@ -26,6 +26,9 @@ async function main() {
   });
   await signInFixture(client);
 
+  fixturePhase = "remove prior local artifacts";
+  await removePriorFixtureArtifacts(service);
+
   fixturePhase = "close";
   const monthStart = fixtureMonthStart();
   const closed = await client.rpc("close_owner_month", {
@@ -163,6 +166,56 @@ async function signInFixture(client: SupabaseClient<Database>) {
   throw lastError ?? new Error("Fixture Super Admin sign-in failed");
 }
 
+async function removePriorFixtureArtifacts(service: SupabaseClient<Database>) {
+  const bucket = service.storage.from("owner-statements");
+  const paths: string[] = [];
+
+  async function visit(folder: string, depth: number): Promise<void> {
+    if (depth > 4) throw new Error(`Owner Statement fixture Storage depth exceeded at ${folder}`);
+    for (let offset = 0; ; offset += 100) {
+      const listed = await bucket.list(folder, { limit: 100, offset, sortBy: { column: "name", order: "asc" } });
+      if (listed.error) throw listed.error;
+      for (const entry of listed.data ?? []) {
+        const entryPath = `${folder}/${entry.name}`;
+        if (!entryPath.startsWith(`${organizationId}/`)) {
+          throw new Error(`Refusing out-of-scope Owner Statement cleanup: ${entryPath}`);
+        }
+        if (entry.id) paths.push(entryPath);
+        else await visit(entryPath, depth + 1);
+      }
+      if ((listed.data?.length ?? 0) < 100) break;
+    }
+  }
+
+  await visit(organizationId, 0);
+  for (let index = 0; index < paths.length; index += 100) {
+    const batch = paths.slice(index, index + 100);
+    const removed = await bucket.remove(batch);
+    if (removed.error) throw removed.error;
+    const confirmed = new Set((removed.data ?? []).map((entry) => entry.name));
+    for (const path of batch) {
+      if (!confirmed.has(path)) throw new Error(`Storage cleanup did not confirm ${path}`);
+    }
+  }
+
+  await visit(organizationId, 0);
+  if (paths.length > 0) {
+    const residue: string[] = [];
+    async function findResidue(folder: string, depth: number): Promise<void> {
+      if (depth > 4) throw new Error(`Owner Statement fixture residue depth exceeded at ${folder}`);
+      const listed = await bucket.list(folder, { limit: 1 });
+      if (listed.error) throw listed.error;
+      for (const entry of listed.data ?? []) {
+        const entryPath = `${folder}/${entry.name}`;
+        if (entry.id) residue.push(entryPath);
+        else await findResidue(entryPath, depth + 1);
+      }
+    }
+    await findResidue(organizationId, 0);
+    if (residue.length > 0) throw new Error(`Owner Statement fixture cleanup residue: ${residue[0]}`);
+  }
+}
+
 function fixtureMonthStart() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 24, 1))
@@ -188,6 +241,10 @@ function localRuntime() {
   const serviceRoleKey = values.SERVICE_ROLE_KEY ?? values.SECRET_KEY;
   if (!apiUrl || !anonKey || !serviceRoleKey) {
     throw new Error("Local Supabase API runtime is unavailable");
+  }
+  const hostname = new URL(apiUrl).hostname;
+  if (hostname !== "127.0.0.1" && hostname !== "localhost") {
+    throw new Error(`Refusing non-local Owner Statement fixture target: ${hostname}`);
   }
   return { anonKey, apiUrl, serviceRoleKey };
 }

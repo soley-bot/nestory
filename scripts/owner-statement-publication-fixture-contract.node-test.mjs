@@ -7,6 +7,7 @@ const manifestPath = join(
   process.cwd(),
   "scripts/fixtures/owner-statement-publication.json",
 );
+const loaderPath = join(process.cwd(), "scripts/load-owner-statement-publication-fixture.ts");
 
 test("guarded fixture declares runtime authority and a zero-difference manual oracle", () => {
   assert.equal(
@@ -53,4 +54,13 @@ test("guarded fixture declares runtime authority and a zero-difference manual or
       { amount: "0.00", kind: "closing", sourceCount: 1 },
     ],
   );
+});
+
+test("guarded fixture removes prior organization artifacts through the Storage API", () => {
+  const source = readFileSync(loaderPath, "utf8");
+  assert.match(source, /removePriorFixtureArtifacts\(service\)/);
+  assert.match(source, /service\.storage\.from\("owner-statements"\)/);
+  assert.match(source, /await bucket\.remove\(batch\)/);
+  assert.match(source, /Refusing non-local Owner Statement fixture target/);
+  assert.doesNotMatch(source, /DELETE\s+FROM\s+storage\.objects/i);
 });

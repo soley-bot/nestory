@@ -29,6 +29,7 @@
     "owners:test-lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/owner-balance-lifecycle-concurrency.node-test.mjs",
     "owners:test-close": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/owner-close-concurrency.node-test.mjs",
     "owners:test-statement-publication": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/owner-statement-publication-concurrency.node-test.mjs",
+    "owners:test-statement-storage": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/owner-statement-artifact-storage.node-test.mjs",
     "documents:test-evidence-storage": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-concurrency=1 scripts/document-evidence-storage-cleanup.node-test.mjs scripts/document-evidence-storage.node-test.mjs scripts/document-replacement-concurrency.node-test.mjs scripts/document-storage-lifecycle-concurrency.node-test.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",

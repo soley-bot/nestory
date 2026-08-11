@@ -4,9 +4,9 @@
 
 - Branch: `codex/ips-operational-readiness`.
 - Approved Track 4A base: `384cd946c8d014b6930d35a7950d9cf5ec9902ca`.
-- Date: 2026-08-10.
+- Date: 2026-08-11.
 - Scope: local worktree and local Supabase only.
-- Status: implementation evidence complete; independent review pending.
+- Status: independent review findings corrected; focused re-review pending.
 
 No hosted mutation, deploy, email, cron, backup/recovery, real IPS/DoorLoop
 evidence, push, merge, or Track 5 work is claimed.
@@ -66,6 +66,31 @@ Operations Manager could neither discover nor enter the workflow.
 | Browser acceptance | four complete role phases; fixture restored |
 | Workbook/PDF inspection | 3 sheets and 2 pages rendered; no material clipping or formula errors |
 
+## Independent-review correction evidence
+
+The first review found six integrity/recovery gaps at `bb7284d`. The additive
+correction introduces server-verified object identity/version registration,
+fresh-key partial-publication resume, fixed XLSX ZIP time, nearest-prior retained
+supersession, full-input hashed artifact claims, and a literal line/source manual
+oracle. No earlier migration was edited.
+
+| Affected correction gate | Result |
+| --- | --- |
+| Owner Statement pgTAP | 38/38 |
+| Real private Storage verification | 1/1; wrong version/size/MIME and caller metadata denied |
+| Publication concurrency | 4/4 |
+| Focused application | 10 files; 83/83 |
+| Fixture contract / reconciliation | 2/2; 9 lines, 9 sources, 4 components, 0.00 difference |
+| Demo tooling | 48/48 |
+| TypeScript / ESLint / build / diff | pass / pass / pass / pass |
+| Database lint | zero errors; five unchanged warning-only unused variables |
+| Affected browser lifecycle | four phases pass; exact baseline restored |
+| Post-flow residue | 1 publication, 2 artifacts/objects, 0 unregistered, 0 pending |
+
+The full matrix and accessibility crawl were not rerun after this correction.
+Their single milestone run remains the matrix evidence above. Final independent
+focused re-review is required before Track 4B approval or Track 5 work.
+
 The expensive accessibility crawl completed in 392.9 seconds. It retained the
 same 98 unrelated cross-module findings; `/balances` is clean at four viewports
 with zero axe, page, navigation, or overflow findings. The summary is under the
@@ -74,7 +99,7 @@ ignored local artifact path
 
 ## Review handoff
 
-Independent review must validate publication/close lock integration, tenant and
+Independent re-review must validate publication/close lock integration, tenant and
 role isolation, immutable supersession, partial-publication recovery, artifact
 byte retention, frozen-only canonical authority, and the retained test oracles.
 No milestone approval is claimed here.

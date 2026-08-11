@@ -130,6 +130,36 @@ and PDF/XLSX inspection. No second full matrix or browser cycle is claimed.
 
 ## Residuals and handoff
 
+The initial independent review at `bb7284d19683fd012c1e0a84c70702452febf0ab`
+reported 3 Critical and 3 Important findings. One coordinated additive
+correction batch now addresses all six without editing prior migrations:
+
+- verified artifact registration is service-only and bound to the exact
+  Storage object identity/version, MIME, server-downloaded hash, and length;
+- partial publications resume by publication identity with a fresh actor-bound
+  key, visible Super Admin remediation, create-only recovery, and registered-
+  format skipping;
+- XLSX ZIP timestamps are fixed across delayed and cross-timezone rendering;
+- skipped unpublished revisions retain nearest-prior official supersession;
+- artifact claim keys hash the complete command/publication/format tuple;
+- the manual fixture asserts four exact component equations and all nine
+  ordered line/source facts.
+
+The retained real Storage proof rejects authenticated metadata registration,
+wrong object version, wrong size, wrong MIME, and replacement, then independently
+reproduces the accepted SHA-256 and length. Publication races remain 4/4. The
+fixture cleanup itself is now guarded to loopback and removes only the fixture
+organization's prior objects through the Storage API, leaving exactly two
+registered files, zero unregistered files, and zero pending statement requests.
+
+Affected correction gates passed: publication pgTAP 38/38, real Storage 1/1,
+focused application 10 files/83 tests, demo tools 48/48, fixture contract 2/2,
+fixture reconciliation, TypeScript, ESLint, DB lint, production build, and diff
+check. Because the correction changed the server-side publish boundary, the
+single four-phase authenticated browser lifecycle was rerun and passed; its
+`finally` restoration returned the exact guarded baseline. The expensive full
+matrix and accessibility crawl were not rerun.
+
 - Independent milestone review remains mandatory.
 - The 98 unrelated accessibility findings, five legacy DB-lint warnings, and
   Next.js multiple-lockfile warning remain backlog.

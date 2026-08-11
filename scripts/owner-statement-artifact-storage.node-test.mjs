@@ -11,6 +11,7 @@ const actorId = "00000000-0000-0000-0000-000000000101";
 const runtime = localRuntime();
 const user = createClient(runtime.apiUrl, runtime.anonKey, clientOptions());
 const service = createClient(runtime.apiUrl, runtime.serviceKey, clientOptions());
+const uploadedPaths = new Set();
 
 function restoreFixture() {
   const restored = spawnSync(process.execPath, ["scripts/load-test-fixture.mjs"], {
@@ -23,7 +24,19 @@ function restoreFixture() {
 }
 
 before(restoreFixture);
-after(restoreFixture);
+after(async () => {
+  for (const path of uploadedPaths) {
+    const removed = await service.storage.from("owner-statements").remove([path]);
+    assert.ifError(removed.error);
+    assert.ok(
+      removed.data?.some((object) => object.name === path),
+      `cleanup must confirm removal of ${path}`,
+    );
+    const absent = await service.storage.from("owner-statements").download(path);
+    assert.ok(absent.error, `cleaned Storage path must not download: ${path}`);
+  }
+  restoreFixture();
+});
 
 test("only trusted byte verification can complete retained artifact authority", async () => {
   const signedIn = await user.auth.signInWithPassword({
@@ -66,6 +79,7 @@ test("only trusted byte verification can complete retained artifact authority", 
     upsert: false,
   });
   assert.ifError(uploaded.error);
+  uploadedPaths.add(path);
 
   const forged = await user.rpc("register_owner_statement_artifact", {
     p_format: "pdf",
@@ -105,6 +119,36 @@ test("only trusted byte verification can complete retained artifact authority", 
     p_storage_path: path,
   });
   assert.ok(wrongVersion.error);
+
+  const wrongSize = await service.rpc("register_owner_statement_artifact_verified", {
+    p_actor_id: actorId,
+    p_content_type: "application/pdf",
+    p_format: "pdf",
+    p_idempotency_key: "track-4b-correction-wrong-object-size",
+    p_organization_id: organizationId,
+    p_publication_id: publicationId,
+    p_sha256: sha256,
+    p_size_bytes: retainedBytes.byteLength + 1,
+    p_storage_object_id: object.data.storage_object_id,
+    p_storage_object_version: object.data.storage_object_version,
+    p_storage_path: path,
+  });
+  assert.match(wrongSize.error?.message ?? "", /owner_statement_artifact_metadata_mismatch/);
+
+  const wrongContentType = await service.rpc("register_owner_statement_artifact_verified", {
+    p_actor_id: actorId,
+    p_content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    p_format: "pdf",
+    p_idempotency_key: "track-4b-correction-wrong-content-type",
+    p_organization_id: organizationId,
+    p_publication_id: publicationId,
+    p_sha256: sha256,
+    p_size_bytes: retainedBytes.byteLength,
+    p_storage_object_id: object.data.storage_object_id,
+    p_storage_object_version: object.data.storage_object_version,
+    p_storage_path: path,
+  });
+  assert.match(wrongContentType.error?.message ?? "", /owner_statement_artifact_invalid/);
 
   const registered = await service.rpc("register_owner_statement_artifact_verified", {
     p_actor_id: actorId,

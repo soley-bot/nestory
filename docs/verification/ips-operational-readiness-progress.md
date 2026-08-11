@@ -174,3 +174,14 @@
   Track 5 remain outside this milestone.
 - Verification: `docs/verification/track-4b-owner-statement-publication.md` and
   `docs/verification/owner-statement-redacted-reconciliation.md`.
+- Review correction: the initial Track 4B review's 3 Critical and 3 Important
+  findings have been corrected locally in one additive batch. Verified object
+  registration now binds server-downloaded bytes to Storage identity/version;
+  incomplete publications resume from a fresh key and visible control; XLSX is
+  byte-stable across delayed/timezone renders; supersession skips unpublished
+  revisions correctly; artifact claims hash full inputs; and the redacted manual
+  oracle checks every line/source. Affected evidence is pgTAP 38/38, real
+  Storage 1/1, publication concurrency 4/4, focused app 83/83, demo tools 48/48,
+  fixture contract 2/2, TypeScript/ESLint/build/diff green, and a rerun of the
+  affected four-phase browser lifecycle with exact fixture restoration. Final
+  independent correction re-review is pending; Track 5 remains blocked.
