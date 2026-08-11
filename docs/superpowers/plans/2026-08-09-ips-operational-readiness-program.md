@@ -603,8 +603,9 @@ projection retirement are not modified or relabelled in Track 2.
 
 ## Track 9: Make IPS Migration And Cutover Safe
 
-**Local status (2026-08-11):** implemented and full-matrix verified; independent
-milestone review pending. Hosted approval/activation remains open.
+**Local status (2026-08-11):** implemented and full-matrix verified; four
+Important review findings are corrected with affected gates green and focused
+independent re-review pending. Hosted approval/activation remains open.
 
 **Purpose:** Establish an explicit cutover date, stage only required history, and reconcile opening tenant/owner positions.
 

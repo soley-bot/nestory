@@ -99,11 +99,15 @@ node scripts/compare-ips-cutover-rehearsals.mjs `
 The approved local redacted evidence is:
 
 - manifest SHA-256: `8de15aefa1becebc11d82e77db7510f2b2f1a87c62fa01cf244f14f17efa8af4`;
-- reconciliation SHA-256: `b469a833c36d0fdc9b6e83968ae1f737baaea1072116233e21663c42203ea79c`;
-- durations: `38029 ms` and `39615 ms`;
+- reconciliation SHA-256: `a7ff1050ba8d23954c73068c5131336175f713d909c6b5c294a39d666e72309e`;
+- durations: `40296 ms` and `40778 ms`;
 - selected tenant balance: `875.00 USD`;
 - owner components: `1250.00`, `0.00`, `240.50`, and `800.00 USD`;
 - selected invoices: July and August 2026; June count is zero.
+
+Every reconciled money value freezes both canonical amount and currency. The
+current authority is USD-only; any KHR or other unsupported currency remains a
+typed staging blocker rather than expanding the live ledger during cutover.
 
 ## Stop and recovery rules
 

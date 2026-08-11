@@ -16,13 +16,18 @@ export type CutoverPanelDetail = {
   dataOwner: string;
   importCounts: Array<{ actual: string | null; expected: string; label: string }>;
   manifestSha256: string;
-  ownerOpeningTotal: string;
+  ownerOpeningTotals: Array<{ amount: string; currency: string }>;
   reconciliationDifferences: string[];
   reconciliationSha256: string | null;
   selectedRentMonths: string[];
-  signedExceptions: string[];
+  signedExceptions: Array<{
+    approvedAt: string;
+    approvedBy: string;
+    reason: string;
+    sourceKey: string;
+  }>;
   status: "staged" | "blocked" | "reconciled" | "abandoned";
-  tenantOpeningTotal: string;
+  tenantOpeningTotals: Array<{ amount: string; currency: string }>;
 };
 
 export function CutoverPanel({
@@ -60,8 +65,16 @@ export function CutoverPanel({
           <Field label="Data owner">{detail.dataOwner}</Field>
           <Field label="Manifest SHA-256">{detail.manifestSha256}</Field>
           <Field label="Selected rent months">{detail.selectedRentMonths.join(", ")}</Field>
-          <Field label="Tenant opening total">{detail.tenantOpeningTotal} USD</Field>
-          <Field label="Owner opening total">{detail.ownerOpeningTotal} USD</Field>
+          {detail.tenantOpeningTotals.map((total) => (
+            <Field key={`tenant-${total.currency}`} label={`Tenant opening total (${total.currency})`}>
+              {total.amount} {total.currency}
+            </Field>
+          ))}
+          {detail.ownerOpeningTotals.map((total) => (
+            <Field key={`owner-${total.currency}`} label={`Owner opening total (${total.currency})`}>
+              {total.amount} {total.currency}
+            </Field>
+          ))}
           <Field label="Status">{detail.status}</Field>
           {detail.reconciliationSha256 ? (
             <Field label="Reconciliation SHA-256">{detail.reconciliationSha256}</Field>
@@ -104,7 +117,11 @@ export function CutoverPanel({
         <p className="font-medium">Signed exceptions</p>
         {detail?.signedExceptions.length ? (
           <ul className="list-disc pl-5 text-muted-foreground">
-            {detail.signedExceptions.map((exception) => <li key={exception}>{exception}</li>)}
+            {detail.signedExceptions.map((exception) => (
+              <li key={exception.sourceKey}>
+                {exception.sourceKey}: {exception.reason} ({exception.approvedBy}, {exception.approvedAt})
+              </li>
+            ))}
           </ul>
         ) : (
           <p className="text-muted-foreground">None recorded.</p>

@@ -2,7 +2,8 @@
 
 ## Status
 
-Implementation is complete locally and awaiting independent milestone review.
+Implementation and the independent-review correction batch are complete
+locally. Focused independent re-review is pending.
 No hosted environment, real IPS data, deployment, backup, or activation was
 mutated or claimed.
 
@@ -34,9 +35,9 @@ evidence. Finance and Operations cannot reach the authority route.
 
 | Evidence | Rehearsal 1 | Rehearsal 2 |
 | --- | ---: | ---: |
-| Duration | 38029 ms | 39615 ms |
+| Duration | 40296 ms | 40778 ms |
 | Manifest SHA-256 | `8de15aefa1becebc11d82e77db7510f2b2f1a87c62fa01cf244f14f17efa8af4` | same |
-| Reconciliation SHA-256 | `b469a833c36d0fdc9b6e83968ae1f737baaea1072116233e21663c42203ea79c` | same |
+| Reconciliation SHA-256 | `a7ff1050ba8d23954c73068c5131336175f713d909c6b5c294a39d666e72309e` | same |
 | Selected invoice count | 2 | 2 |
 | Unselected June count | 0 | 0 |
 | Tenant balance | 875.00 | 875.00 |
@@ -44,6 +45,32 @@ evidence. Finance and Operations cannot reach the authority route.
 
 Every import count and all four owner totals were identical. Raw retained
 records are under `artifacts/ips-cutover-rehearsal/`.
+
+The manifest hash stayed unchanged in the correction rehearsal. The
+reconciliation hash changed once because expected and actual money now freeze
+`{ amount, currency }` rather than an amount with implicit currency.
+
+## Independent-review correction
+
+The first review blocked Track 9 with four Important findings and no Critical
+finding. One coordinated correction batch now:
+
+- materializes every selected tenant month and acquires the global financial
+  month set in ascending order before lease locks;
+- rejects non-USD authority with `cutover_currency_unsupported`, verifies the
+  active lease currency, constrains invoice reconciliation by currency, and
+  freezes amount plus currency in reconciliation evidence;
+- validates four owner components per property/currency and month uniqueness
+  per tenant source while allowing normal multi-tenant/month overlap;
+- requires a canonical real UTC approval timestamp and displays the frozen
+  approval time with every signed exception.
+
+Retained RED/GREEN evidence: database 46/51 to 55/55; reverse-order cutover
+races 3/5 with two real `40P01` failures to 5/5; verifier 1/5 to 5/5; focused
+loader/panel 3/5 to 5/5. The affected rent lock-order suite remains 4/4. Clean
+reset, generated types, focused application 13/13, TypeScript, ESLint, DB
+lint/advisors, production build, and diff checks are green. Browser and the
+full matrix were not rerun.
 
 ## Browser acceptance
 

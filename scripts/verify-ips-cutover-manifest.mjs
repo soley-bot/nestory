@@ -48,9 +48,26 @@ export function inspectIpsCutoverManifest(value) {
       throw new Error("Every import run requires one immutable source claim hash.");
     }
   }
-  const actualComponents = openings.map((opening) => String(opening.component)).sort();
-  if (JSON.stringify(actualComponents) !== JSON.stringify(ownerComponents)) {
-    throw new Error("Manifest must contain all four owner opening components.");
+  for (const item of [...tenantBalances, ...openings]) {
+    if (String(item.currency) !== "USD") {
+      throw new Error(`Unsupported currency: ${String(item.currency)}`);
+    }
+  }
+  const openingGroups = new Map();
+  for (const opening of openings) {
+    const groupKey = `${String(opening.propertyCode)}\u0000${String(opening.currency)}`;
+    const group = openingGroups.get(groupKey) ?? [];
+    group.push(String(opening.component));
+    openingGroups.set(groupKey, group);
+  }
+  if (
+    openingGroups.size === 0 ||
+    [...openingGroups.values()].some(
+      (components) =>
+        JSON.stringify(components.sort()) !== JSON.stringify(ownerComponents),
+    )
+  ) {
+    throw new Error("Manifest must contain all four owner opening components for each property and currency.");
   }
   const sourceKeys = [
     ...runs,
@@ -61,29 +78,67 @@ export function inspectIpsCutoverManifest(value) {
   if (new Set(sourceKeys).size !== sourceKeys.length) {
     throw new Error("Cutover source keys must be unique.");
   }
-  const selectedRentMonths = tenantBalances
-    .flatMap((balance) => requireArray(balance.selectedRentMonths, "selectedRentMonths"))
-    .map(String)
-    .sort();
-  if (new Set(selectedRentMonths).size !== selectedRentMonths.length) {
-    throw new Error("Selected rent months must be explicit and unique.");
+  for (const balance of tenantBalances) {
+    const months = requireArray(
+      balance.selectedRentMonths,
+      "selectedRentMonths",
+    ).map(String);
+    if (new Set(months).size !== months.length) {
+      throw new Error("Selected rent months must be unique within each tenant opening.");
+    }
   }
-  const tenantOpeningTotal = centsToMoney(
-    tenantBalances.reduce(
-      (total, balance) => total + moneyToCents(balance.expectedBalance),
-      0n,
+  for (const exception of exceptions) {
+    if (
+      String(exception.sourceKey).length < 3 ||
+      String(exception.reason).trim().length < 8 ||
+      String(exception.approvedBy).trim().length < 3 ||
+      !isCanonicalApprovalTimestamp(exception.approvedAt)
+    ) {
+      throw new Error("Every signed exception requires a canonical approval timestamp and complete approval evidence.");
+    }
+  }
+  const selectedRentMonths = [
+    ...new Set(
+      tenantBalances.flatMap((balance) =>
+        balance.selectedRentMonths.map(String),
+      ),
     ),
-  );
+  ].sort();
 
   return {
     authorityStartDate: String(value.authorityStartDate),
     dataOwner: String(value.dataOwner),
     importTypes: actualImportTypes,
     ownerComponentCount: openings.length,
+    ownerOpeningTotals: moneyTotalsByCurrency(openings, "amount"),
     selectedRentMonths,
     signedExceptionCount: exceptions.length,
-    tenantOpeningTotal,
+    tenantOpeningTotals: moneyTotalsByCurrency(
+      tenantBalances,
+      "expectedBalance",
+    ),
   };
+}
+
+function moneyTotalsByCurrency(items, amountKey) {
+  const totals = new Map();
+  for (const item of items) {
+    const currency = String(item.currency);
+    totals.set(
+      currency,
+      (totals.get(currency) ?? 0n) + moneyToCents(item[amountKey]),
+    );
+  }
+  return [...totals.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([currency, amount]) => ({ amount: centsToMoney(amount), currency }));
+}
+
+function isCanonicalApprovalTimestamp(value) {
+  const text = String(value);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(text)) return false;
+  const parsed = new Date(text);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === text.replace(/Z$/, ".000Z");
 }
 
 function moneyToCents(value) {

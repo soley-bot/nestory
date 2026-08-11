@@ -1,12 +1,25 @@
 # Track 9 IPS migration and cutover implementation report
 
-## Verdict before independent review
+## Verdict before focused correction re-review
 
-All local acceptance criteria are implemented and verified. No known critical
+All local acceptance criteria and the four Important first-review findings are
+implemented and verified. No known critical
 accounting, authorization, tenant-isolation, evidence-integrity, idempotency,
 concurrency, or irreversible-data defect remains in Track 9 scope. Approval is
 not claimed until the independent reviewer completes a fresh diff/evidence
-review.
+re-review.
+
+## Review correction disposition
+
+- I1 global selected-month lock order: addressed by one private global
+  month-set helper plus both-start-order real-session races.
+- I2 unsupported/lost currency: addressed by USD-only typed staging,
+  authoritative lease/invoice currency checks, currency-bound reconciliation,
+  and per-currency UI totals.
+- I3 multi-entity verifier rejection: addressed by per-property/currency owner
+  groups and per-tenant month uniqueness.
+- I4 signed-exception time: addressed by canonical UTC parsing at the checked
+  boundary, mirrored verifier validation, and visible frozen approval time.
 
 ## Acceptance disposition
 

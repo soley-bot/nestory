@@ -82,9 +82,7 @@ function mapCutoverDetail(value: unknown): CutoverPanelDetail {
       };
     }),
     manifestSha256: requiredString(value.manifest_sha256),
-    ownerOpeningTotal: sumMoney(
-      ownerOpenings.map((opening) => requiredMoney(opening.amount)),
-    ),
+    ownerOpeningTotals: moneyTotalsByCurrency(ownerOpenings, "amount"),
     reconciliationDifferences,
     reconciliationSha256: reconciliation
       ? requiredString(reconciliation.sha256)
@@ -95,15 +93,37 @@ function mapCutoverDetail(value: unknown): CutoverPanelDetail {
           ? balance.selectedRentMonths.map(requiredString)
           : [],
       )
+      .filter((month, index, months) => months.indexOf(month) === index)
       .sort(),
-    signedExceptions: signedExceptions.map((exception) =>
-      `${requiredString(exception.sourceKey)}: ${requiredString(exception.reason)} (${requiredString(exception.approvedBy)})`,
-    ),
+    signedExceptions: signedExceptions.map((exception) => ({
+      approvedAt: requiredString(exception.approvedAt),
+      approvedBy: requiredString(exception.approvedBy),
+      reason: requiredString(exception.reason),
+      sourceKey: requiredString(exception.sourceKey),
+    })),
     status: cutoverStatus(value.status),
-    tenantOpeningTotal: sumMoney(
-      tenantBalances.map((balance) => requiredMoney(balance.expectedBalance)),
+    tenantOpeningTotals: moneyTotalsByCurrency(
+      tenantBalances,
+      "expectedBalance",
     ),
   };
+}
+
+function moneyTotalsByCurrency(
+  items: Array<Record<string, unknown>>,
+  amountKey: string,
+) {
+  const grouped = new Map<string, string[]>();
+  for (const item of items) {
+    const currency = requiredCurrency(item.currency);
+    grouped.set(currency, [
+      ...(grouped.get(currency) ?? []),
+      requiredMoney(item[amountKey]),
+    ]);
+  }
+  return [...grouped.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([currency, values]) => ({ amount: sumMoney(values), currency }));
 }
 
 function requiredCount(value: unknown) {
@@ -138,6 +158,14 @@ function requiredMoney(value: unknown) {
   const text = requiredString(value);
   if (!/^(0|[1-9][0-9]{0,11})\.[0-9]{2}$/.test(text)) {
     throw new Error("Cutover money is not canonical.");
+  }
+  return text;
+}
+
+function requiredCurrency(value: unknown) {
+  const text = requiredString(value);
+  if (!/^[A-Z]{3}$/.test(text)) {
+    throw new Error("Cutover currency is not canonical.");
   }
   return text;
 }

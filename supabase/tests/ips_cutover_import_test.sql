@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(45);
+SELECT plan(55);
 
 SELECT is(
   (
@@ -178,6 +178,93 @@ SELECT is(
   'ready manifest reports typed ready state'
 );
 
+SELECT has_function(
+  'app_private',
+  'lock_ips_cutover_selected_months',
+  ARRAY['uuid', 'uuid'],
+  'cutover has one private globally ordered selected-month lock helper'
+);
+
+SELECT is(
+  public.stage_ips_cutover_batch(
+    '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+    jsonb_set(pg_temp.cutover_manifest(),'{tenantOpeningBalances,0,currency}','"KHR"'::jsonb),
+    'cutover-unsupported-currency-v1'
+  )->>'status',
+  'blocked',
+  'unsupported tenant currency stages as a typed blocker'
+);
+SELECT is(
+  public.get_ips_cutover_readiness(
+    '00000000-0000-0000-0000-000000000001',
+    (public.stage_ips_cutover_batch(
+      '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+      jsonb_set(pg_temp.cutover_manifest(),'{tenantOpeningBalances,0,currency}','"KHR"'::jsonb),
+      'cutover-unsupported-currency-v1'
+    )->>'batch_id')::uuid
+  )#>>'{blockers,0,issue_code}',
+  'cutover_currency_unsupported',
+  'unsupported currency blocker is exact and operator-visible'
+);
+
+SELECT is(
+  public.stage_ips_cutover_batch(
+    '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+    jsonb_set(
+      pg_temp.cutover_manifest(),
+      '{signedExceptions}',
+      jsonb_build_array(jsonb_build_object(
+        'sourceKey','cutover-valid-exception-v1',
+        'reason','Redacted source exception independently approved',
+        'approvedBy','REDACTED-DATA-OWNER',
+        'approvedAt','2026-08-10T01:02:03Z'
+      ))
+    ),
+    'cutover-valid-exception-v1'
+  )->>'status',
+  'staged',
+  'canonical signed-exception approval timestamp remains ready'
+);
+SELECT is(
+  public.stage_ips_cutover_batch(
+    '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+    jsonb_set(
+      pg_temp.cutover_manifest(),
+      '{signedExceptions}',
+      jsonb_build_array(jsonb_build_object(
+        'sourceKey','cutover-invalid-exception-v1',
+        'reason','Redacted source exception independently approved',
+        'approvedBy','REDACTED-DATA-OWNER',
+        'approvedAt','2026-99-99Tnot-a-timestamp'
+      ))
+    ),
+    'cutover-invalid-exception-v1'
+  )->>'status',
+  'blocked',
+  'impossible signed-exception approval timestamp cannot freeze ready evidence'
+);
+SELECT is(
+  public.get_ips_cutover_readiness(
+    '00000000-0000-0000-0000-000000000001',
+    (public.stage_ips_cutover_batch(
+      '00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',
+      jsonb_set(
+        pg_temp.cutover_manifest(),
+        '{signedExceptions}',
+        jsonb_build_array(jsonb_build_object(
+          'sourceKey','cutover-invalid-exception-v1',
+          'reason','Redacted source exception independently approved',
+          'approvedBy','REDACTED-DATA-OWNER',
+          'approvedAt','2026-99-99Tnot-a-timestamp'
+        ))
+      ),
+      'cutover-invalid-exception-v1'
+    )->>'batch_id')::uuid
+  )#>>'{blockers,0,issue_code}',
+  'cutover_exception_unsigned',
+  'invalid signed-exception timestamp has the exact typed blocker'
+);
+
 SELECT throws_ok(
   $$SELECT public.stage_ips_cutover_batch('00000000-0000-0000-0000-000000000001','2026-09-01','REDACTED-IPS-DATA-OWNER',pg_temp.cutover_manifest() #- '{importRuns,3}','cutover-missing-import-kind-v1')$$,
   '22023','cutover_manifest_import_types_invalid','manifest requires exactly one reconciled run for each import type'
@@ -271,6 +358,21 @@ SELECT is(
   (SELECT expected_totals = actual_totals FROM public.ips_cutover_reconciliations WHERE id=(SELECT (commit_result->>'reconciliation_id')::uuid FROM cutover_test_state)),
   true,
   'tenant and all four owner totals match exact source totals'
+);
+SELECT is(
+  (SELECT expected_totals->'cutover-central-a01-tenant-balance-v1' FROM public.ips_cutover_reconciliations WHERE id=(SELECT (commit_result->>'reconciliation_id')::uuid FROM cutover_test_state)),
+  jsonb_build_object('amount','875.00','currency','USD'),
+  'tenant reconciliation freezes exact amount plus currency identity'
+);
+SELECT is(
+  (SELECT actual_totals->'cutover-central-held-v1' FROM public.ips_cutover_reconciliations WHERE id=(SELECT (commit_result->>'reconciliation_id')::uuid FROM cutover_test_state)),
+  jsonb_build_object('amount','1250.00','currency','USD'),
+  'owner reconciliation freezes exact amount plus currency identity'
+);
+SELECT is(
+  (SELECT count(DISTINCT invoice.currency)::integer FROM public.tenant_invoices AS invoice JOIN public.leases AS lease ON lease.id=invoice.lease_id JOIN public.units AS unit ON unit.id=lease.unit_id JOIN public.properties AS property ON property.id=lease.property_id WHERE property.code='CTR-RES' AND unit.unit_number='A-01' AND invoice.billing_period_start IN ('2026-07-01','2026-08-01') AND invoice.currency='USD'),
+  1,
+  'selected invoice reconciliation is constrained to the frozen USD authority'
 );
 SELECT is(
   (SELECT to_jsonb(reconciliation)->'expected_counts' FROM public.ips_cutover_reconciliations AS reconciliation WHERE id=(SELECT (commit_result->>'reconciliation_id')::uuid FROM cutover_test_state)),
@@ -383,6 +485,20 @@ SELECT is(
   ),
   5,
   'cutover implementation helpers remain private to database authority'
+);
+SELECT is(
+  (
+    SELECT count(*)::integer FROM (
+      VALUES
+        ('app_private.is_canonical_ips_cutover_approval_timestamp(text)'::regprocedure),
+        ('app_private.lock_ips_cutover_selected_months(uuid,uuid)'::regprocedure)
+    ) AS helper(procedure_oid)
+    WHERE NOT has_function_privilege('anon', helper.procedure_oid, 'EXECUTE')
+      AND NOT has_function_privilege('authenticated', helper.procedure_oid, 'EXECUTE')
+      AND NOT has_function_privilege('service_role', helper.procedure_oid, 'EXECUTE')
+  ),
+  2,
+  'correction helpers remain private to database authority'
 );
 SELECT is(
   (SELECT count(*)::integer FROM app_private.financial_idempotency_requests WHERE operation LIKE '%ips_cutover_batch' AND status='pending'),

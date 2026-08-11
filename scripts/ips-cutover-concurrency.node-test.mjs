@@ -140,7 +140,11 @@ function installSyntheticImportAuthority() {
 }
 
 function stageBatch(suffix) {
-  const manifestSql = JSON.stringify(manifest).replaceAll("'", "''");
+  return stageManifest(suffix, manifest);
+}
+
+function stageManifest(suffix, value) {
+  const manifestSql = JSON.stringify(value).replaceAll("'", "''");
   const output = run(`
     BEGIN;
     SELECT pg_catalog.set_config('request.jwt.claim.sub','${superAdminId}',true);
@@ -152,6 +156,29 @@ function stageBatch(suffix) {
     COMMIT;
   `).split(/\r?\n/).filter(Boolean);
   return output.at(-2) ?? output.at(-1);
+}
+
+function reverseMonthManifest() {
+  const value = structuredClone(manifest);
+  value.tenantOpeningBalances = [
+    {
+      currency: "USD",
+      expectedBalance: "25.00",
+      propertyCode: "CTR-RES",
+      selectedRentMonths: ["2026-08-01"],
+      sourceKey: "cutover-a-august-a01-v1",
+      unitNumber: "A-01",
+    },
+    {
+      currency: "USD",
+      expectedBalance: "925.00",
+      propertyCode: "CTR-RES",
+      selectedRentMonths: ["2026-07-01"],
+      sourceKey: "cutover-z-july-a02-v1",
+      unitNumber: "A-02",
+    },
+  ];
+  return value;
 }
 
 function commitSql(batchId, key, { pause = "", applicationName = "" } = {}) {
@@ -180,6 +207,30 @@ function generatorSql(leaseId, { pause = "", applicationName = "" } = {}) {
     COMMIT;`;
 }
 
+function financialMonthLock(monthStart) {
+  return `pg_catalog.hashtextextended(pg_catalog.concat_ws(':','financial_month_v1','${organizationId}','${monthStart}'::date),0)`;
+}
+
+function ascendingFinanceMonthSql({ applicationName = "", pauseAfterJuly = false } = {}) {
+  return `BEGIN;
+    SET LOCAL statement_timeout='20s';
+    ${applicationName ? `SET LOCAL application_name='${applicationName}';` : ""}
+    SELECT pg_catalog.pg_advisory_xact_lock(${financialMonthLock("2026-07-01")});
+    ${pauseAfterJuly ? "DO $pause$ BEGIN RAISE NOTICE 'ips_cutover_finance_july_paused'; END $pause$; SELECT pg_catalog.pg_sleep(3);" : ""}
+    SELECT pg_catalog.pg_advisory_xact_lock(${financialMonthLock("2026-08-01")});
+    COMMIT;`;
+}
+
+function augustBlockerSql() {
+  return `BEGIN;
+    SET LOCAL statement_timeout='20s';
+    SET LOCAL application_name='ips-cutover-august-blocker';
+    SELECT pg_catalog.pg_advisory_xact_lock(${financialMonthLock("2026-08-01")});
+    DO $pause$ BEGIN RAISE NOTICE 'ips_cutover_august_blocker_paused'; END $pause$;
+    SELECT pg_catalog.pg_sleep(3);
+    COMMIT;`;
+}
+
 function assertFinalState(batchId) {
   assert.equal(
     run(`
@@ -198,6 +249,29 @@ function assertFinalState(batchId) {
       GROUP BY batch.status;
     `),
     "reconciled|1|2|875.00|0",
+  );
+}
+
+function assertReverseMonthFinalState(batchId) {
+  assert.equal(
+    run(`
+      SELECT batch.status || '|' || count(DISTINCT reconciliation.id)::text || '|' ||
+        count(DISTINCT invoice.id)::text || '|' ||
+        to_char(sum(DISTINCT balance.balance_due),'FM999999999990.00') || '|' ||
+        (SELECT count(*) FROM app_private.financial_idempotency_requests WHERE status='pending' AND operation LIKE '%ips_cutover_batch')::text
+      FROM public.ips_cutover_batches AS batch
+      JOIN public.ips_cutover_reconciliations AS reconciliation ON reconciliation.batch_id=batch.id
+      JOIN public.leases AS lease ON lease.organization_id=batch.organization_id
+      JOIN public.units AS unit ON unit.id=lease.unit_id
+      JOIN public.properties AS property ON property.id=lease.property_id
+      JOIN public.tenant_invoices AS invoice ON invoice.lease_id=lease.id
+        AND ((unit.unit_number='A-01' AND invoice.billing_period_start='2026-08-01')
+          OR (unit.unit_number='A-02' AND invoice.billing_period_start='2026-07-01'))
+      JOIN public.tenant_invoice_balances AS balance ON balance.id=invoice.id
+      WHERE batch.id='${batchId}' AND property.code='CTR-RES'
+      GROUP BY batch.status;
+    `),
+    "reconciled|1|2|950.00|0",
   );
 }
 
@@ -254,4 +328,45 @@ test("cutover generation first makes a duplicate historical generator wait and r
   assert.ok(generatorResult.durationMs >= 1500, `generator waited ${generatorResult.durationMs}ms`);
   assert.doesNotMatch(`${generatorResult.stderr}\n${commitResult.stderr}`, /deadlock detected|40P01/i);
   assertFinalState(batchId);
+});
+
+test("ascending finance-month locks first make a reverse-source cutover wait without deadlock", async () => {
+  const batchId = stageManifest("reverse-finance-first", reverseMonthManifest());
+  const finance = spawnSession(ascendingFinanceMonthSql({ pauseAfterJuly: true }));
+  await waitForMarker(finance, "ips_cutover_finance_july_paused");
+  const commit = spawnSession(commitSql(batchId, "cutover-concurrency-reverse-finance-first", {
+    applicationName: "ips-cutover-reverse-finance-first",
+  }));
+  await waitForDatabaseLock("ips-cutover-reverse-finance-first");
+  const [financeResult, commitResult] = await Promise.all([finance.done, commit.done]);
+  assert.equal(financeResult.status, 0, financeResult.stderr);
+  assert.equal(commitResult.status, 0, commitResult.stderr);
+  assert.ok(commitResult.durationMs >= 1500, `cutover waited ${commitResult.durationMs}ms`);
+  assert.doesNotMatch(`${financeResult.stderr}\n${commitResult.stderr}`, /deadlock detected|40P01/i);
+  assertReverseMonthFinalState(batchId);
+});
+
+test("reverse-source cutover first holds July before August and serializes an ascending finance operation", async () => {
+  const batchId = stageManifest("reverse-cutover-first", reverseMonthManifest());
+  const blocker = spawnSession(augustBlockerSql());
+  await waitForMarker(blocker, "ips_cutover_august_blocker_paused");
+  const commit = spawnSession(commitSql(batchId, "cutover-concurrency-reverse-cutover-first", {
+    applicationName: "ips-cutover-reverse-cutover-first",
+  }));
+  await waitForDatabaseLock("ips-cutover-reverse-cutover-first");
+  const finance = spawnSession(ascendingFinanceMonthSql({
+    applicationName: "ips-cutover-ascending-finance-second",
+  }));
+  await waitForDatabaseLock("ips-cutover-ascending-finance-second");
+  const [blockerResult, commitResult, financeResult] = await Promise.all([
+    blocker.done,
+    commit.done,
+    finance.done,
+  ]);
+  assert.equal(blockerResult.status, 0, blockerResult.stderr);
+  assert.equal(commitResult.status, 0, commitResult.stderr);
+  assert.equal(financeResult.status, 0, financeResult.stderr);
+  assert.ok(commitResult.durationMs >= 1500, `cutover waited ${commitResult.durationMs}ms`);
+  assert.doesNotMatch(`${blockerResult.stderr}\n${commitResult.stderr}\n${financeResult.stderr}`, /deadlock detected|40P01/i);
+  assertReverseMonthFinalState(batchId);
 });

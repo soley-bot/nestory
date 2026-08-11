@@ -95,11 +95,11 @@ try {
   assert.equal(authority.selectedInvoiceCount, 2);
   assert.equal(authority.unselectedJuneCount, 0);
   assert.equal(authority.pendingIdempotency, 0);
-  assert.equal(authority.actualTotals["cutover-central-a01-tenant-balance-v1"], "875.00");
-  assert.equal(authority.actualTotals["cutover-central-held-v1"], "1250.00");
-  assert.equal(authority.actualTotals["cutover-central-owner-due-v1"], "0.00");
-  assert.equal(authority.actualTotals["cutover-central-ips-due-v1"], "240.50");
-  assert.equal(authority.actualTotals["cutover-central-deposit-v1"], "800.00");
+  assert.deepEqual(authority.actualTotals["cutover-central-a01-tenant-balance-v1"], { amount: "875.00", currency: "USD" });
+  assert.deepEqual(authority.actualTotals["cutover-central-held-v1"], { amount: "1250.00", currency: "USD" });
+  assert.deepEqual(authority.actualTotals["cutover-central-owner-due-v1"], { amount: "0.00", currency: "USD" });
+  assert.deepEqual(authority.actualTotals["cutover-central-ips-due-v1"], { amount: "240.50", currency: "USD" });
+  assert.deepEqual(authority.actualTotals["cutover-central-deposit-v1"], { amount: "800.00", currency: "USD" });
 
   evidence = {
     ...authority,

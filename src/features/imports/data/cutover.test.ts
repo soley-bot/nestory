@@ -43,19 +43,27 @@ describe("getLatestIpsCutoverDetail", () => {
             },
           ],
           ownerOpeningComponents: [
-            { amount: "1250.00" },
-            { amount: "0.00" },
-            { amount: "240.50" },
-            { amount: "800.00" },
+            { amount: "1250.00", currency: "USD" },
+            { amount: "0.00", currency: "USD" },
+            { amount: "240.50", currency: "USD" },
+            { amount: "800.00", currency: "USD" },
+            { amount: "4000000.00", currency: "KHR" },
           ],
           tenantOpeningBalances: [
             {
+              currency: "USD",
               expectedBalance: "875.00",
               selectedRentMonths: ["2026-08-01", "2026-07-01"],
+            },
+            {
+              currency: "KHR",
+              expectedBalance: "500000.00",
+              selectedRentMonths: ["2026-08-01"],
             },
           ],
           signedExceptions: [
             {
+              approvedAt: "2026-08-10T01:02:03Z",
               approvedBy: "REDACTED-DATA-OWNER",
               reason: "Redacted source exception independently approved",
               sourceKey: "cutover-exception-v1",
@@ -85,15 +93,26 @@ describe("getLatestIpsCutoverDetail", () => {
         { actual: null, expected: "1", label: "properties" },
       ],
       manifestSha256: "a".repeat(64),
-      ownerOpeningTotal: "2290.50",
+      ownerOpeningTotals: [
+        { amount: "4000000.00", currency: "KHR" },
+        { amount: "2290.50", currency: "USD" },
+      ],
       reconciliationDifferences: [],
       reconciliationSha256: null,
       selectedRentMonths: ["2026-07-01", "2026-08-01"],
       signedExceptions: [
-        "cutover-exception-v1: Redacted source exception independently approved (REDACTED-DATA-OWNER)",
+        {
+          approvedAt: "2026-08-10T01:02:03Z",
+          approvedBy: "REDACTED-DATA-OWNER",
+          reason: "Redacted source exception independently approved",
+          sourceKey: "cutover-exception-v1",
+        },
       ],
       status: "blocked",
-      tenantOpeningTotal: "875.00",
+      tenantOpeningTotals: [
+        { amount: "500000.00", currency: "KHR" },
+        { amount: "875.00", currency: "USD" },
+      ],
     });
     expect(rpc).toHaveBeenCalledWith("get_ips_cutover_batch", {
       p_batch_id: "10000000-0000-4000-8000-000000000001",

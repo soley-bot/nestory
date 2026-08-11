@@ -253,16 +253,17 @@
 ## Track 9 - IPS migration and cutover
 
 - Status: implementation, two clean rehearsals, authenticated browser
-  acceptance, and the single full matrix are complete locally; independent
-  milestone review is pending.
+  acceptance, the single full matrix, and the independent-review correction
+  batch are complete locally; focused re-review is pending.
 - Outcome: Super Admin can stage one redacted manifest, see exact blockers,
   stage a corrected manifest, reconcile/freeze import counts plus tenant and all
   four owner opening components, and replay without duplicate invoices or
   evidence. Finance and Operations are denied.
-- Rehearsals: `38029 ms` and `39615 ms`; manifest hash
+- Rehearsals after currency-bound correction: `40296 ms` and `40778 ms`;
+  manifest hash
   `8de15aefa1becebc11d82e77db7510f2b2f1a87c62fa01cf244f14f17efa8af4`;
   reconciliation hash
-  `b469a833c36d0fdc9b6e83968ae1f737baaea1072116233e21663c42203ea79c`;
+  `a7ff1050ba8d23954c73068c5131336175f713d909c6b5c294a39d666e72309e`;
   exact counts/totals, two selected invoices, zero June, and zero differences.
 - Verification: Track 9 pgTAP 45/45, races 3/3, focused app 24/24, final
   action-key/UI subset 13/13, manifest 2/2, and one complete browser flow.
@@ -277,3 +278,9 @@
   and unauthorized.
 - Verification: `docs/verification/track-9-ips-cutover.md` and
   `docs/runbooks/ips-cutover.md`.
+- Review correction: four Important findings were reproduced and corrected in
+  one batch—global month locks, USD-only/currency-bound truth, normal
+  multi-property/multi-tenant verification, and canonical signed-exception
+  time. Affected gates are pgTAP 55/55, cutover races 5/5, rent races 4/4,
+  verifier 5/5, focused application 13/13, reset/types/lint/advisors/build and
+  two identical correction rehearsals. Focused independent re-review remains.

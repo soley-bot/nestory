@@ -26,13 +26,26 @@ describe("CutoverPanel", () => {
             { actual: "1", expected: "1", label: "properties" },
           ],
           manifestSha256: "a".repeat(64),
-          ownerOpeningTotal: "2290.50",
+          ownerOpeningTotals: [
+            { amount: "2290.50", currency: "USD" },
+            { amount: "4000000.00", currency: "KHR" },
+          ],
           reconciliationDifferences: [],
           reconciliationSha256: null,
           selectedRentMonths: ["2026-07-01", "2026-08-01"],
-          signedExceptions: [],
+          signedExceptions: [
+            {
+              approvedAt: "2026-08-10T01:02:03Z",
+              approvedBy: "REDACTED-DATA-OWNER",
+              reason: "Redacted source exception independently approved",
+              sourceKey: "cutover-exception-v1",
+            },
+          ],
           status: "staged",
-          tenantOpeningTotal: "875.00",
+          tenantOpeningTotals: [
+            { amount: "875.00", currency: "USD" },
+            { amount: "500000.00", currency: "KHR" },
+          ],
         }}
       />,
     );
@@ -42,7 +55,14 @@ describe("CutoverPanel", () => {
     expect(screen.getByText("One lease relationship is ambiguous")).toBeTruthy();
     expect(screen.getByText("2026-07-01, 2026-08-01")).toBeTruthy();
     expect(screen.getByText("875.00 USD")).toBeTruthy();
+    expect(screen.getByText("500000.00 KHR")).toBeTruthy();
     expect(screen.getByText("2290.50 USD")).toBeTruthy();
+    expect(screen.getByText("4000000.00 KHR")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "cutover-exception-v1: Redacted source exception independently approved (REDACTED-DATA-OWNER, 2026-08-10T01:02:03Z)",
+      ),
+    ).toBeTruthy();
     expect(screen.getByText("properties: 1 expected / 1 actual")).toBeTruthy();
     expect(
       (screen.getByRole("button", {
@@ -69,13 +89,13 @@ describe("CutoverPanel", () => {
           dataOwner: "REDACTED-IPS-DATA-OWNER",
           importCounts: [],
           manifestSha256: "a".repeat(64),
-          ownerOpeningTotal: "2290.50",
+          ownerOpeningTotals: [{ amount: "2290.50", currency: "USD" }],
           reconciliationDifferences: [],
           reconciliationSha256: null,
           selectedRentMonths: ["2026-07-01", "2026-08-01"],
           signedExceptions: [],
           status: "staged",
-          tenantOpeningTotal: "875.00",
+          tenantOpeningTotals: [{ amount: "875.00", currency: "USD" }],
         }}
       />,
     );
