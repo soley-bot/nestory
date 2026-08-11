@@ -4,7 +4,7 @@
 
 - Branch: `codex/ips-operational-readiness`
 - Approved base: `7a0cdb51b72976b2f7c00a08a3930dc25f24058f`
-- Status: verified evidence authority, operator workflow, literal scenarios, real-session concurrency, and authenticated browser acceptance are complete; the one full milestone matrix is next.
+- Status: implementation, browser acceptance, one full matrix, and the coordinated correction batch are complete at `7da8562`; independent review is next.
 - Preserved approvals: Tracks 1-5 and Track 9.
 - Scope: local synthetic authority only. No hosted Supabase/Vercel mutation, real IPS data, deploy, push, merge, or `main` cleanup.
 
@@ -76,3 +76,13 @@ A Finance Member records an already-paid cost with exact paid amount/date, fundi
 - The single complete flow passed seven phases: Finance Member submits an already-paid owner cost with real file bytes; remains read-only; Finance Manager reviews the exact SHA-256/file identity and approves; Super Admin appends an exact reversal; Finance Member submits corrected bytes/amount; Finance Manager approves once; Operations Manager is redirected to `/no-access`.
 - Database acceptance proved original `100.00` is retained as `reversed`, corrected `90.00` is retained as `approved`, both preserve distinct evidence documents and payment/allocation/responsibility/Ledger identities, the exact reversal customer adjustment is `-100.00`, and pending financial idempotency is zero.
 - The guarded fixture was restored in `finally`, including after any failure path.
+
+### 2026-08-11 - one full matrix and coordinated correction GREEN
+
+- The expensive matrix ran once at browser-accepted head `e3ba774`. It reached 48 pgTAP files and 1,733 assertions; 202 application files with 1,497 passing tests and one intentional skip; demo tooling 59/59; five real-role journeys 5/5; all retained owner, close, publication, rent, cutover, paid-cost, and document concurrency suites; TypeScript, ESLint, generated types, routes 47/47, UI copy, static discoverability 38/38, production build, database lint, advisors, and diff checks.
+- The findings batch contained three scoped integration drifts: stale guarded-fixture submission counts, Storage policy-time access to the retired expense-only lock helper, and the corresponding owner-opening evidence policy contract. The Finance Manager day harness also retained legacy paid-cost labels. They were corrected together in additive migration `20260811084825_restore_general_financial_evidence_storage_lock.sql`, the literal fixture contract, and the role harness.
+- Affected database rerun is GREEN 173/173 across demo seed, maintenance handoff, opening evidence fingerprints, and paid-cost acceptance. Document Storage is GREEN 6/6, including both cleanup/reference start orders. Paid-cost fixture remains exact at 9 submissions, 7 accepted effects, 2 reversals, 17 statement lines/source links, retained PDF/XLSX, and `0.00` difference.
+- Catalog proof: the generalized financial-evidence predicate is executable by `authenticated` only, not `anon` or `service_role`; the retired expense-only helper is not executable by `authenticated`; exactly two paid-cost Storage policies remain; pending financial idempotency is zero. Database lint has zero errors and the same five legacy unused-variable warnings; error-level advisors return zero findings.
+- The affected Finance Manager rerun passes every Track 6 phase through submit, evidence review, approval, and correction/reversal before stopping on the unrelated legacy withdrawal-capacity control. The route-discoverability rerun passes the expense route and 20 journeys before the same unrelated property-account link timeout. Both are backlog items and do not alter Track 6 authority.
+- The single accessibility crawl retains the existing 98 cross-module findings. `/bills-expenses` is clean across four viewports: zero axe violations, navigation/page errors, horizontal overflow, or action-reachability failures. Artifact: `artifacts/ui-redesign/ui-redesign-2026-08-11T08-38-44.543Z-axe-p31900/summary.json`.
+- The guarded fixture was restored after affected role tests and isolated port 3013 was stopped. No hosted system, real IPS data, push, merge, deploy, or `main` change occurred.

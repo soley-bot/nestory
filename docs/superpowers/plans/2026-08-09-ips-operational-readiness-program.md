@@ -524,6 +524,8 @@ projection retirement are not modified or relabelled in Track 2.
 
 **Purpose:** Make paid-cost intent unmistakable and prove every responsibility/funding/reversal outcome.
 
+**Local milestone status (2026-08-11):** Implementation, one complete authenticated browser flow, one full regression matrix, and the coordinated affected-gate correction batch are complete at `7da8562`. Exact-head independent review remains the approval gate; hosted activation remains outside scope.
+
 **Files:**
 
 - Modify: `src/features/finance-operations/actions.ts`
