@@ -2009,7 +2009,8 @@ SELECT throws_ok(
       SELECT public.submit_expense(
         %L, %L, %L, 'general', NULL, 'cleaning', 'No Evidence Vendor',
         '2026-09-08', 25, 0, 'USD', 'owner', NULL, %L,
-        NULL, NULL, NULL, 'expense-submit-no-evidence-0001'
+        NULL, NULL, 'Receipt reference without retained bytes',
+        'paid-cost-submit-no-document-0001'
       )
     $sql$,
     organization_id,
@@ -2017,9 +2018,9 @@ SELECT throws_ok(
     unit_id,
     source_id
   ),
-  '22023',
-  'Add a supporting document or receipt reference',
-  'a human-entered expense cannot be submitted without evidence'
+  '23514',
+  'Paid cost evidence document is required',
+  'a human-entered paid cost cannot use a reference in place of immutable evidence'
 )
 FROM expense_approval_state;
 
@@ -2027,7 +2028,7 @@ SELECT is(
   (
     SELECT count(*)
     FROM public.expense_submissions
-    WHERE idempotency_key = 'expense-submit-no-evidence-0001'
+    WHERE idempotency_key = 'paid-cost-submit-no-document-0001'
   ),
   0::bigint,
   'an evidence-free submission creates no review record'

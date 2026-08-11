@@ -29,3 +29,10 @@ A Finance Member records an already-paid cost with exact paid amount/date, fundi
 - Inspected the parent program, progress report, actions, form/review UI, expense database RPCs, evidence projections/immutability guards, current pgTAP coverage, and existing Track 4 service-verified artifact pattern.
 - Supabase changelog check: explicit table/function grants remain required independently of RLS; no relevant breaking change invalidates the local design.
 - Binding plan: `docs/superpowers/plans/2026-08-11-track-6-paid-cost.md`.
+
+### 2026-08-11 - paid-cost evidence RED
+
+- Production code remained unchanged.
+- `npx supabase test db --local supabase/tests/ips_paid_cost_acceptance_test.sql` exited 1: 3/6 passed and assertions 4-6 failed exactly because `get_paid_cost_evidence_object`, `register_paid_cost_evidence_verified`, and strict document-required submission behavior do not exist.
+- `npx supabase test db --local supabase/tests/finance_expense_approval_test.sql` exited 1: 86/88 passed. Assertion 87 caught no exception instead of typed `23514 Paid cost evidence document is required`; assertion 88 found one reference-only submission instead of zero.
+- Both test files rolled back. No production financial or evidence row remains from the probe.
