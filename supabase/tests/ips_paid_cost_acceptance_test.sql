@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(16);
+SELECT plan(31);
 
 SELECT has_function(
   'public',
@@ -186,6 +186,323 @@ SELECT ok(
   ),
   'authenticated document cleanup cannot delete the paid-cost evidence namespace'
 );
+
+SELECT ok(
+  to_regprocedure(
+    'app_private.assert_paid_cost_evidence_eligible(uuid,uuid,uuid,uuid,text,uuid)'
+  ) IS NOT NULL,
+  'one private assertion binds submit and approval to verified paid-cost evidence'
+);
+
+CREATE TEMP TABLE paid_cost_c1_state ON COMMIT DROP AS
+SELECT
+  '00000000-0000-0000-0000-000000000001'::uuid AS organization_id,
+  '10000000-0000-0000-0000-000000000001'::uuid AS property_id,
+  '10000000-0000-0000-0000-000000000002'::uuid AS other_property_id,
+  '20000000-0000-0000-0000-000000000001'::uuid AS unit_id,
+  '00000000-0000-0000-0000-000000000801'::uuid AS finance_member_id,
+  '00000000-0000-0000-0000-000000000701'::uuid AS other_uploader_id,
+  (
+    SELECT source.id
+    FROM public.financial_reconciliation_sources AS source
+    WHERE source.organization_id =
+      '00000000-0000-0000-0000-000000000001'::uuid
+      AND source.currency = 'USD'
+      AND source.archived_at IS NULL
+    ORDER BY source.id
+    LIMIT 1
+  ) AS source_id;
+
+INSERT INTO storage.objects (bucket_id, name, version, metadata)
+SELECT
+  'nestory-documents',
+  state.organization_id::text || '/' || candidate.path_suffix,
+  pg_catalog.gen_random_uuid()::text,
+  pg_catalog.jsonb_build_object(
+    'mimetype', 'application/pdf',
+    'size', candidate.object_size
+  )
+FROM paid_cost_c1_state AS state
+CROSS JOIN (
+  VALUES
+    ('general-documents/generic.pdf', 21),
+    ('paid-cost-evidence/property-null.pdf', 22),
+    ('paid-cost-evidence/wrong-category.pdf', 23),
+    ('general-documents/wrong-path.pdf', 24),
+    ('paid-cost-evidence/wrong-property.pdf', 25),
+    ('paid-cost-evidence/wrong-uploader.pdf', 26),
+    ('paid-cost-evidence/null-hash.pdf', 27),
+    ('paid-cost-evidence/metadata-mismatch.pdf', 999),
+    ('paid-cost-evidence/registered.pdf', 29)
+) AS candidate(path_suffix, object_size);
+
+SELECT set_config('app.document_content_write_context', 'checked-v1', true);
+
+INSERT INTO public.documents (
+  id,
+  organization_id,
+  property_id,
+  category,
+  file_name,
+  storage_path,
+  mime_type,
+  size_bytes,
+  content_sha256,
+  uploaded_by
+)
+SELECT
+  candidate.document_id,
+  state.organization_id,
+  candidate.property_id,
+  candidate.category,
+  candidate.file_name,
+  state.organization_id::text || '/' || candidate.path_suffix,
+  'application/pdf',
+  candidate.document_size,
+  candidate.content_sha256,
+  candidate.uploaded_by
+FROM paid_cost_c1_state AS state
+CROSS JOIN LATERAL (
+  VALUES
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da1'::uuid, state.property_id, 'Lease agreement', 'generic.pdf', 'general-documents/generic.pdf', 21::bigint, NULL::text, state.finance_member_id),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da2'::uuid, NULL::uuid, 'Paid cost evidence', 'property-null.pdf', 'paid-cost-evidence/property-null.pdf', 22::bigint, pg_catalog.repeat('2', 64), state.finance_member_id),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da3'::uuid, state.property_id, 'Receipt', 'wrong-category.pdf', 'paid-cost-evidence/wrong-category.pdf', 23::bigint, pg_catalog.repeat('3', 64), state.finance_member_id),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da4'::uuid, state.property_id, 'Paid cost evidence', 'wrong-path.pdf', 'general-documents/wrong-path.pdf', 24::bigint, pg_catalog.repeat('4', 64), state.finance_member_id),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da5'::uuid, state.other_property_id, 'Paid cost evidence', 'wrong-property.pdf', 'paid-cost-evidence/wrong-property.pdf', 25::bigint, pg_catalog.repeat('5', 64), state.finance_member_id),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da6'::uuid, state.property_id, 'Paid cost evidence', 'wrong-uploader.pdf', 'paid-cost-evidence/wrong-uploader.pdf', 26::bigint, pg_catalog.repeat('6', 64), state.other_uploader_id),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da7'::uuid, state.property_id, 'Paid cost evidence', 'null-hash.pdf', 'paid-cost-evidence/null-hash.pdf', 27::bigint, NULL::text, state.finance_member_id),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da8'::uuid, state.property_id, 'Paid cost evidence', 'missing-object.pdf', 'paid-cost-evidence/missing-object.pdf', 28::bigint, pg_catalog.repeat('8', 64), state.finance_member_id),
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da9'::uuid, state.property_id, 'Paid cost evidence', 'metadata-mismatch.pdf', 'paid-cost-evidence/metadata-mismatch.pdf', 29::bigint, pg_catalog.repeat('9', 64), state.finance_member_id)
+) AS candidate(
+  document_id,
+  property_id,
+  category,
+  file_name,
+  path_suffix,
+  document_size,
+  content_sha256,
+  uploaded_by
+);
+
+SELECT set_config('app.document_content_write_context', 'off', true);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_member_id::text FROM paid_cost_c1_state),
+  true
+);
+GRANT SELECT ON paid_cost_c1_state TO authenticated;
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor',CURRENT_DATE,10,0,'USD','owner',NULL,%L,%L,NULL,'C1 generic','paid-cost-c1-generic')$sql$,
+    organization_id, property_id, unit_id, source_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da1'::uuid
+  ),
+  '23514', 'paid_cost_evidence_invalid',
+  'a generic unhashed document cannot satisfy paid-cost evidence'
+) FROM paid_cost_c1_state;
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor',CURRENT_DATE,10,0,'USD','owner',NULL,%L,%L,NULL,'C1 null property','paid-cost-c1-null-property')$sql$,
+    organization_id, property_id, unit_id, source_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da2'::uuid
+  ),
+  '23514', 'paid_cost_evidence_invalid',
+  'property-null evidence cannot satisfy a property paid cost'
+) FROM paid_cost_c1_state;
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor',CURRENT_DATE,10,0,'USD','owner',NULL,%L,%L,NULL,'C1 category','paid-cost-c1-category')$sql$,
+    organization_id, property_id, unit_id, source_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da3'::uuid
+  ),
+  '23514', 'paid_cost_evidence_invalid',
+  'wrong-category evidence cannot satisfy a paid cost'
+) FROM paid_cost_c1_state;
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor',CURRENT_DATE,10,0,'USD','owner',NULL,%L,%L,NULL,'C1 path','paid-cost-c1-path')$sql$,
+    organization_id, property_id, unit_id, source_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da4'::uuid
+  ),
+  '23514', 'paid_cost_evidence_invalid',
+  'wrong-namespace evidence cannot satisfy a paid cost'
+) FROM paid_cost_c1_state;
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor',CURRENT_DATE,10,0,'USD','owner',NULL,%L,%L,NULL,'C1 property','paid-cost-c1-property')$sql$,
+    organization_id, property_id, unit_id, source_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da5'::uuid
+  ),
+  '23514', 'paid_cost_evidence_invalid',
+  'wrong-property evidence cannot satisfy a paid cost'
+) FROM paid_cost_c1_state;
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor',CURRENT_DATE,10,0,'USD','owner',NULL,%L,%L,NULL,'C1 uploader','paid-cost-c1-uploader')$sql$,
+    organization_id, property_id, unit_id, source_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da6'::uuid
+  ),
+  '23514', 'paid_cost_evidence_invalid',
+  'evidence registered for another uploader cannot satisfy a paid cost'
+) FROM paid_cost_c1_state;
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor',CURRENT_DATE,10,0,'USD','owner',NULL,%L,%L,NULL,'C1 hash','paid-cost-c1-hash')$sql$,
+    organization_id, property_id, unit_id, source_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da7'::uuid
+  ),
+  '23514', 'paid_cost_evidence_invalid',
+  'unfingerprinted evidence cannot satisfy a paid cost'
+) FROM paid_cost_c1_state;
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor',CURRENT_DATE,10,0,'USD','owner',NULL,%L,%L,NULL,'C1 object','paid-cost-c1-object')$sql$,
+    organization_id, property_id, unit_id, source_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da8'::uuid
+  ),
+  '23514', 'paid_cost_evidence_invalid',
+  'missing retained bytes cannot satisfy a paid cost'
+) FROM paid_cost_c1_state;
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor',CURRENT_DATE,10,0,'USD','owner',NULL,%L,%L,NULL,'C1 metadata','paid-cost-c1-metadata')$sql$,
+    organization_id, property_id, unit_id, source_id,
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0da9'::uuid
+  ),
+  '23514', 'paid_cost_evidence_invalid',
+  'Storage metadata mismatch cannot satisfy a paid cost'
+) FROM paid_cost_c1_state;
+
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*) FROM public.expense_submissions WHERE idempotency_key LIKE 'paid-cost-c1-%'),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests WHERE idempotency_key LIKE 'paid-cost-c1-%')
+  $$,
+  $$VALUES (0::bigint, 0::bigint)$$,
+  'invalid evidence attempts leave no submission or idempotency residue'
+);
+
+CREATE TEMP TABLE paid_cost_c1_registration ON COMMIT DROP AS
+SELECT public.register_paid_cost_evidence_verified(
+  state.organization_id,
+  state.finance_member_id,
+  state.property_id,
+  'registered.pdf',
+  state.organization_id::text || '/paid-cost-evidence/registered.pdf',
+  'application/pdf',
+  29,
+  pg_catalog.repeat('b', 64),
+  object.id,
+  object.version,
+  'paid-cost-c1-register'
+) AS result
+FROM paid_cost_c1_state AS state
+JOIN storage.objects AS object
+  ON object.bucket_id = 'nestory-documents'
+ AND object.name =
+   state.organization_id::text || '/paid-cost-evidence/registered.pdf';
+
+SELECT ok(
+  (SELECT result->>'status' FROM paid_cost_c1_registration) IN (
+    'registered', 'existing'
+  ),
+  'the trusted registrar creates one actor-bound evidence identity'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_member_id::text FROM paid_cost_c1_state),
+  true
+);
+GRANT SELECT ON paid_cost_c1_registration TO authenticated;
+SET LOCAL ROLE authenticated;
+
+CREATE TEMP TABLE paid_cost_c1_result ON COMMIT DROP AS
+SELECT public.submit_expense(
+  state.organization_id,
+  state.property_id,
+  state.unit_id,
+  'general',
+  NULL,
+  'other',
+  'C1 registered vendor',
+  CURRENT_DATE,
+  10,
+  0,
+  'USD',
+  'owner',
+  NULL,
+  state.source_id,
+  (registration.result->>'document_id')::uuid,
+  NULL,
+  'C1 registered evidence',
+  'paid-cost-c1-valid-submit'
+) AS result
+FROM paid_cost_c1_state AS state
+CROSS JOIN paid_cost_c1_registration AS registration;
+
+SELECT ok(
+  (SELECT result->>'status' FROM paid_cost_c1_result) = 'submitted',
+  'verified actor-bound evidence creates one submitted paid cost'
+);
+
+SELECT throws_ok(
+  format(
+    $sql$SELECT public.submit_expense(%L,%L,%L,'general',NULL,'other','C1 vendor reuse',CURRENT_DATE,11,0,'USD','owner',NULL,%L,%L,NULL,'C1 reuse','paid-cost-c1-reuse')$sql$,
+    state.organization_id,
+    state.property_id,
+    state.unit_id,
+    state.source_id,
+    (registration.result->>'document_id')::uuid
+  ),
+  '23514', 'paid_cost_evidence_already_used',
+  'verified evidence cannot be bound to an unrelated paid cost'
+)
+FROM paid_cost_c1_state AS state
+CROSS JOIN paid_cost_c1_registration AS registration;
+
+SELECT is(
+  (
+    public.submit_expense(
+      state.organization_id,
+      state.property_id,
+      state.unit_id,
+      'general',
+      NULL,
+      'other',
+      'C1 registered vendor',
+      CURRENT_DATE,
+      10,
+      0,
+      'USD',
+      'owner',
+      NULL,
+      state.source_id,
+      (registration.result->>'document_id')::uuid,
+      NULL,
+      'C1 registered evidence',
+      'paid-cost-c1-valid-submit'
+    )->>'submission_id'
+  )::uuid,
+  ((SELECT result->>'submission_id' FROM paid_cost_c1_result))::uuid,
+  'exact submission replay preserves the original evidence and identity'
+)
+FROM paid_cost_c1_state AS state
+CROSS JOIN paid_cost_c1_registration AS registration;
 
 SELECT * FROM finish();
 ROLLBACK;
