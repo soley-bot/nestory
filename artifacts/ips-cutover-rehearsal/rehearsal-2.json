@@ -1,0 +1,48 @@
+{
+  "batchStatus": "reconciled",
+  "manifestSha256": "8de15aefa1becebc11d82e77db7510f2b2f1a87c62fa01cf244f14f17efa8af4",
+  "reconciliationSha256": "b469a833c36d0fdc9b6e83968ae1f737baaea1072116233e21663c42203ea79c",
+  "expectedCounts": {
+    "cutover-central-lease-v1": 1,
+    "cutover-central-units-v1": 1,
+    "cutover-central-people-v1": 2,
+    "cutover-central-property-v1": 1
+  },
+  "actualCounts": {
+    "cutover-central-lease-v1": 1,
+    "cutover-central-units-v1": 1,
+    "cutover-central-people-v1": 2,
+    "cutover-central-property-v1": 1
+  },
+  "expectedTotals": {
+    "cutover-central-held-v1": "1250.00",
+    "cutover-central-deposit-v1": "800.00",
+    "cutover-central-ips-due-v1": "240.50",
+    "cutover-central-owner-due-v1": "0.00",
+    "cutover-central-a01-tenant-balance-v1": "875.00"
+  },
+  "actualTotals": {
+    "cutover-central-held-v1": "1250.00",
+    "cutover-central-deposit-v1": "800.00",
+    "cutover-central-ips-due-v1": "240.50",
+    "cutover-central-owner-due-v1": "0.00",
+    "cutover-central-a01-tenant-balance-v1": "875.00"
+  },
+  "differences": [],
+  "selectedInvoiceCount": 2,
+  "unselectedJuneCount": 0,
+  "pendingIdempotency": 0,
+  "authorityStartDate": "2026-09-01",
+  "dataOwner": "REDACTED-IPS-DATA-OWNER",
+  "durationMs": 39615,
+  "label": "rehearsal-2",
+  "manualSteps": [
+    "Reset disposable local Supabase",
+    "Load the core guarded redacted SQL fixture",
+    "Install four synthetic terminal import claims",
+    "Stage the redacted manifest as the local Super Admin",
+    "Commit with explicit reconciliation sign-off",
+    "Verify counts, tenant balance, four owner components, hashes, and selected months",
+    "Restore the guarded local baseline"
+  ]
+}

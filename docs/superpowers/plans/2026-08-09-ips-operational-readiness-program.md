@@ -603,6 +603,9 @@ projection retirement are not modified or relabelled in Track 2.
 
 ## Track 9: Make IPS Migration And Cutover Safe
 
+**Local status (2026-08-11):** implemented and full-matrix verified; independent
+milestone review pending. Hosted approval/activation remains open.
+
 **Purpose:** Establish an explicit cutover date, stage only required history, and reconcile opening tenant/owner positions.
 
 **Files:**
@@ -621,13 +624,13 @@ projection retirement are not modified or relabelled in Track 2.
 - Produces one immutable cutover batch with authority-start date, source manifest/hash, staged entities, opening tenant balances, approved opening owner components, intentionally recovered rent months, reconciliation status, actor, and sign-off.
 
 - [ ] Approve the official Nestory authority-start date and data owner before preparing any hosted import.
-- [ ] Define the minimum import manifest: owners, properties, units, tenants, active leases, required source references, opening tenant balances, opening owner components, and intentional historical rent months.
-- [ ] Write failing staging/commit tests for duplicates, ambiguous relationships, missing authority, restart/idempotency, partial failure, correction, and rollback before authority activation.
-- [ ] Extend staged imports; keep invalid/ambiguous rows visible and never silently import them.
-- [ ] Add a historical-rent gap review that lists every eligible month and marks only explicitly selected months for recovery.
-- [ ] Generate pre-cutover and post-cutover counts, totals, unmatched records, tenant balance reconciliation, owner component reconciliation, and signed exceptions.
-- [ ] Rehearse twice against disposable local databases using a redacted IPS-like sample. Record duration and every manual step.
-- [ ] Freeze the approved runbook and cutover manifest hash before hosted execution.
+- [x] Define the minimum import manifest: owners, properties, units, tenants, active leases, required source references, opening tenant balances, opening owner components, and intentional historical rent months.
+- [x] Write failing staging/commit tests for duplicates, ambiguous relationships, missing authority, restart/idempotency, partial failure, correction, and rollback before authority activation.
+- [x] Extend staged imports; keep invalid/ambiguous rows visible and never silently import them.
+- [x] Add a historical-rent gap review that lists every eligible month and marks only explicitly selected months for recovery.
+- [x] Generate pre-cutover and post-cutover counts, totals, unmatched records, tenant balance reconciliation, owner component reconciliation, and signed exceptions.
+- [x] Rehearse twice against disposable local databases using a redacted IPS-like sample. Record duration and every manual step.
+- [x] Freeze the local redacted runbook and manifest hash before hosted execution. The hosted authority/date approval above remains open.
 
 **Named verification:** atomic import staging, import entrypoint guard, import actions/unit tests, opening owner authority, selected-month rent recovery, cutover manifest verifier, two rehearsal reports.
 

@@ -19,11 +19,17 @@ import {
 } from "@/components/ui/file-dropzone-field";
 import { SelectControl } from "@/components/ui/select-control";
 import {
+  CutoverPanel,
+  type CutoverPanelDetail,
+} from "@/features/imports/components/cutover-panel";
+import {
   commitStagedImportRunAction,
   importReadyRowsAction,
-  type CommitImportRunState,
-  type ImportReadyRowsState,
 } from "@/features/imports/actions";
+import type {
+  CommitImportRunState,
+  ImportReadyRowsState,
+} from "@/features/imports/action-states";
 import {
   autoMapImportHeaders,
   buildGenericImportPreviewRows,
@@ -58,10 +64,12 @@ const initialImportState: ImportReadyRowsState = {};
 const initialResumeState: CommitImportRunState = {};
 
 export function ImportPreviewScreen({
+  cutoverDetail = null,
   recentRuns,
   referenceData,
   savedMappings,
 }: {
+  cutoverDetail?: CutoverPanelDetail | null;
   recentRuns: ImportRunSummary[];
   referenceData: ImportReferenceData;
   savedMappings: ImportSavedMapping[];
@@ -226,6 +234,9 @@ export function ImportPreviewScreen({
       />
 
       <main className="mx-auto w-full max-w-[1120px] space-y-3 px-4 py-4 sm:px-6 lg:max-h-[calc(100vh-112px)] lg:overflow-auto lg:py-5">
+        <section className="rounded-md border border-border bg-card p-4">
+          <CutoverPanel canManage detail={cutoverDetail} />
+        </section>
         <section className="rounded-md border border-border bg-card">
           <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[minmax(0,260px)_minmax(0,1fr)_auto] sm:items-end">
             <label className="block min-w-0 text-sm font-medium">

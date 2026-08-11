@@ -249,3 +249,31 @@
 - Verification: `docs/verification/track-5-rent-to-payment.md`.
 - Scope: local only. No hosted Supabase/Vercel mutation, real IPS data, email,
   cron, backup, deploy, push, or merge.
+
+## Track 9 - IPS migration and cutover
+
+- Status: implementation, two clean rehearsals, authenticated browser
+  acceptance, and the single full matrix are complete locally; independent
+  milestone review is pending.
+- Outcome: Super Admin can stage one redacted manifest, see exact blockers,
+  stage a corrected manifest, reconcile/freeze import counts plus tenant and all
+  four owner opening components, and replay without duplicate invoices or
+  evidence. Finance and Operations are denied.
+- Rehearsals: `38029 ms` and `39615 ms`; manifest hash
+  `8de15aefa1becebc11d82e77db7510f2b2f1a87c62fa01cf244f14f17efa8af4`;
+  reconciliation hash
+  `b469a833c36d0fdc9b6e83968ae1f737baaea1072116233e21663c42203ea79c`;
+  exact counts/totals, two selected invoices, zero June, and zero differences.
+- Verification: Track 9 pgTAP 45/45, races 3/3, focused app 24/24, final
+  action-key/UI subset 13/13, manifest 2/2, and one complete browser flow.
+  Full matrix is DB 47 files/1752
+  assertions, app 201 files/1493 pass plus one intentional skip, tools 53/53,
+  types/lint/advisors/build/routes/copy/roles/smokes green. `/import` has zero
+  accessibility/page/overflow findings across four viewports.
+- Residuals: unchanged 98-item program accessibility backlog and unrelated
+  long discoverability smoke flake. No Track 9 production defect was found.
+- Scope: synthetic local authority only. Real IPS data/date/owner, hosted
+  Supabase/Vercel, backup, activation, deploy, push, and merge remain unverified
+  and unauthorized.
+- Verification: `docs/verification/track-9-ips-cutover.md` and
+  `docs/runbooks/ips-cutover.md`.

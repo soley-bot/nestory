@@ -1917,6 +1917,236 @@ export type Database = {
           },
         ]
       }
+      ips_cutover_batches: {
+        Row: {
+          abandoned_at: string | null
+          abandoned_by: string | null
+          authority_start_date: string
+          blocker_count: number
+          created_at: string
+          data_owner: string
+          id: string
+          manifest: Json
+          manifest_sha256: string
+          organization_id: string
+          reconciled_at: string | null
+          reconciled_by: string | null
+          reconciliation_differences: Json
+          signoff_reason: string | null
+          staged_at: string
+          staged_by: string
+          status: string
+        }
+        Insert: {
+          abandoned_at?: string | null
+          abandoned_by?: string | null
+          authority_start_date: string
+          blocker_count?: number
+          created_at?: string
+          data_owner: string
+          id?: string
+          manifest: Json
+          manifest_sha256: string
+          organization_id: string
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          reconciliation_differences?: Json
+          signoff_reason?: string | null
+          staged_at?: string
+          staged_by: string
+          status?: string
+        }
+        Update: {
+          abandoned_at?: string | null
+          abandoned_by?: string | null
+          authority_start_date?: string
+          blocker_count?: number
+          created_at?: string
+          data_owner?: string
+          id?: string
+          manifest?: Json
+          manifest_sha256?: string
+          organization_id?: string
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          reconciliation_differences?: Json
+          signoff_reason?: string | null
+          staged_at?: string
+          staged_by?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ips_cutover_batches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ips_cutover_items: {
+        Row: {
+          batch_id: string
+          created_at: string
+          id: string
+          issue_code: string | null
+          issue_detail: Json | null
+          item_kind: string
+          organization_id: string
+          payload: Json
+          payload_sha256: string
+          source_key: string
+          validation_status: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          id?: string
+          issue_code?: string | null
+          issue_detail?: Json | null
+          item_kind: string
+          organization_id: string
+          payload: Json
+          payload_sha256: string
+          source_key: string
+          validation_status: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          id?: string
+          issue_code?: string | null
+          issue_detail?: Json | null
+          item_kind?: string
+          organization_id?: string
+          payload?: Json
+          payload_sha256?: string
+          source_key?: string
+          validation_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ips_cutover_items_batch_fkey"
+            columns: ["organization_id", "batch_id"]
+            isOneToOne: false
+            referencedRelation: "ips_cutover_batches"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "ips_cutover_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ips_cutover_reconciliations: {
+        Row: {
+          actual_counts: Json
+          actual_totals: Json
+          batch_id: string
+          differences: Json
+          expected_counts: Json
+          expected_totals: Json
+          id: string
+          organization_id: string
+          reconciled_at: string
+          reconciled_by: string
+          reconciliation_sha256: string
+        }
+        Insert: {
+          actual_counts?: Json
+          actual_totals: Json
+          batch_id: string
+          differences: Json
+          expected_counts?: Json
+          expected_totals: Json
+          id?: string
+          organization_id: string
+          reconciled_at?: string
+          reconciled_by: string
+          reconciliation_sha256: string
+        }
+        Update: {
+          actual_counts?: Json
+          actual_totals?: Json
+          batch_id?: string
+          differences?: Json
+          expected_counts?: Json
+          expected_totals?: Json
+          id?: string
+          organization_id?: string
+          reconciled_at?: string
+          reconciled_by?: string
+          reconciliation_sha256?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ips_cutover_reconciliations_batch_fkey"
+            columns: ["organization_id", "batch_id"]
+            isOneToOne: false
+            referencedRelation: "ips_cutover_batches"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "ips_cutover_reconciliations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ips_cutover_transitions: {
+        Row: {
+          actor_id: string
+          batch_id: string
+          from_status: string | null
+          id: string
+          occurred_at: string
+          organization_id: string
+          reason: string
+          to_status: string
+        }
+        Insert: {
+          actor_id: string
+          batch_id: string
+          from_status?: string | null
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          reason: string
+          to_status: string
+        }
+        Update: {
+          actor_id?: string
+          batch_id?: string
+          from_status?: string | null
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          reason?: string
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ips_cutover_transitions_batch_fkey"
+            columns: ["organization_id", "batch_id"]
+            isOneToOne: false
+            referencedRelation: "ips_cutover_batches"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "ips_cutover_transitions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ips_expense_responsibilities: {
         Row: {
           created_at: string
@@ -8198,6 +8428,15 @@ export type Database = {
       }
     }
     Functions: {
+      abandon_ips_cutover_batch: {
+        Args: {
+          p_batch_id: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       accept_organization_invitation: {
         Args: { p_invitation_id: string }
         Returns: string
@@ -8278,6 +8517,15 @@ export type Database = {
       }
       commit_generic_import_run_internal: {
         Args: { p_import_run_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      commit_ips_cutover_batch: {
+        Args: {
+          p_batch_id: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_signoff_reason: string
+        }
         Returns: Json
       }
       commit_unit_import_run: {
@@ -8674,6 +8922,14 @@ export type Database = {
           received_total: number
           unposted_count: number
         }[]
+      }
+      get_ips_cutover_batch: {
+        Args: { p_batch_id: string; p_organization_id: string }
+        Returns: Json
+      }
+      get_ips_cutover_readiness: {
+        Args: { p_batch_id: string; p_organization_id: string }
+        Returns: Json
       }
       get_leases_with_effective_rent: {
         Args: { p_effective_date: string; p_organization_id: string }
@@ -9456,6 +9712,16 @@ export type Database = {
           p_source_file_name: string
           p_source_file_size: number
           p_source_mime_type: string
+        }
+        Returns: Json
+      }
+      stage_ips_cutover_batch: {
+        Args: {
+          p_authority_start_date: string
+          p_data_owner: string
+          p_idempotency_key: string
+          p_manifest: Json
+          p_organization_id: string
         }
         Returns: Json
       }
