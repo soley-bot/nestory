@@ -209,7 +209,7 @@ async function completeOwnerStatementPublication(
       artifact.format,
     );
     const expectedHash = sha256Hex(artifact.bytes);
-    const newlyUploaded = await uploadOrVerifyArtifact(
+    await uploadOrVerifyArtifact(
       bucket,
       storagePath,
       artifact.bytes,
@@ -217,54 +217,49 @@ async function completeOwnerStatementPublication(
       expectedHash,
     );
 
-    try {
-      const object = await admin.rpc("get_owner_statement_artifact_object", {
-        p_actor_id: actorId,
-        p_format: artifact.format,
-        p_organization_id: organizationId,
-        p_publication_id: publicationId,
-        p_storage_path: storagePath,
-      });
-      if (object.error) {
-        throw new Error(object.error.message ?? "Artifact object verification failed.");
-      }
-      const objectIdentity = requiredArtifactObject(object.data);
-      const retained = await adminBucket.download(storagePath);
-      if (retained.error || !retained.data) {
-        throw new Error("Owner Statement retained bytes could not be verified.");
-      }
-      const retainedBytes = new Uint8Array(await retained.data.arrayBuffer());
-      const retainedHash = sha256Hex(retainedBytes);
-      if (
-        retainedBytes.byteLength !== artifact.bytes.byteLength ||
-        retainedHash !== expectedHash ||
-        objectIdentity.metadataSizeBytes !== retainedBytes.byteLength ||
-        objectIdentity.contentType !== artifact.contentType
-      ) {
-        throw new Error("Owner Statement retained bytes do not match the frozen renderer.");
-      }
+    const object = await admin.rpc("get_owner_statement_artifact_object", {
+      p_actor_id: actorId,
+      p_format: artifact.format,
+      p_organization_id: organizationId,
+      p_publication_id: publicationId,
+      p_storage_path: storagePath,
+    });
+    if (object.error) {
+      throw new Error(object.error.message ?? "Artifact object verification failed.");
+    }
+    const objectIdentity = requiredArtifactObject(object.data);
+    const retained = await adminBucket.download(storagePath);
+    if (retained.error || !retained.data) {
+      throw new Error("Owner Statement retained bytes could not be verified.");
+    }
+    const retainedBytes = new Uint8Array(await retained.data.arrayBuffer());
+    const retainedHash = sha256Hex(retainedBytes);
+    if (
+      retainedBytes.byteLength !== artifact.bytes.byteLength ||
+      retainedHash !== expectedHash ||
+      objectIdentity.metadataSizeBytes !== retainedBytes.byteLength ||
+      objectIdentity.contentType !== artifact.contentType
+    ) {
+      throw new Error("Owner Statement retained bytes do not match the frozen renderer.");
+    }
 
-      const registration = await admin.rpc("register_owner_statement_artifact_verified", {
-        p_actor_id: actorId,
-        p_content_type: objectIdentity.contentType,
-        p_format: artifact.format,
-        p_idempotency_key: artifactReplayKey(commandKey, publicationId, artifact.format),
-        p_organization_id: organizationId,
-        p_publication_id: publicationId,
-        p_sha256: retainedHash,
-        p_size_bytes: retainedBytes.byteLength,
-        p_storage_object_id: objectIdentity.storageObjectId,
-        p_storage_object_version: objectIdentity.storageObjectVersion,
-        p_storage_path: storagePath,
-      });
-      if (registration.error) {
-        throw new Error(
-          registration.error.message ?? `Owner Statement ${artifact.format} registration failed.`,
-        );
-      }
-    } catch (error) {
-      if (newlyUploaded) await bucket.remove([storagePath]);
-      throw error;
+    const registration = await admin.rpc("register_owner_statement_artifact_verified", {
+      p_actor_id: actorId,
+      p_content_type: objectIdentity.contentType,
+      p_format: artifact.format,
+      p_idempotency_key: artifactReplayKey(commandKey, publicationId, artifact.format),
+      p_organization_id: organizationId,
+      p_publication_id: publicationId,
+      p_sha256: retainedHash,
+      p_size_bytes: retainedBytes.byteLength,
+      p_storage_object_id: objectIdentity.storageObjectId,
+      p_storage_object_version: objectIdentity.storageObjectVersion,
+      p_storage_path: storagePath,
+    });
+    if (registration.error) {
+      throw new Error(
+        registration.error.message ?? `Owner Statement ${artifact.format} registration failed.`,
+      );
     }
   }
 
@@ -301,9 +296,6 @@ async function uploadOrVerifyArtifact(
       data: Blob | null;
       error: { message?: string; statusCode?: string } | null;
     }>;
-    remove(paths: string[]): PromiseLike<{
-      error: { message?: string; statusCode?: string } | null;
-    }>;
     upload(
       path: string,
       bytes: Uint8Array,
@@ -316,7 +308,7 @@ async function uploadOrVerifyArtifact(
   expectedHash: string,
 ) {
   const upload = await bucket.upload(path, bytes, { contentType, upsert: false });
-  if (!upload.error) return true;
+  if (!upload.error) return;
   if (!isExistingObjectError(upload.error)) {
     throw new Error("Owner Statement artifact upload failed.");
   }
@@ -329,7 +321,6 @@ async function uploadOrVerifyArtifact(
   if (existingBytes.byteLength !== bytes.byteLength || sha256Hex(existingBytes) !== expectedHash) {
     throw new Error("Existing Owner Statement artifact bytes do not match this publication.");
   }
-  return false;
 }
 
 function requiredArtifactObject(value: unknown) {

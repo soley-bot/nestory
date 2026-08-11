@@ -77,6 +77,16 @@
   affected four-phase authenticated browser lifecycle was rerun successfully
   and restored the exact guarded baseline. The expensive full matrix was not
   rerun.
+- The first correction re-review accepted all six original dispositions but
+  found C4: authenticated cleanup could authorize before registration and then
+  delete the object after immutable metadata committed. CLI migration
+  `20260811015837_forbid_owner_statement_authenticated_deletion.sql` removes
+  that DELETE policy and retires the policy helper grant. The server action no
+  longer performs best-effort deletion after ambiguous registration; it retains
+  the create-only object for explicit resume. RED was action 9/10, pgTAP 37/39,
+  and the real Storage cleanup-first path. GREEN is action 10/10, pgTAP 39/39,
+  real Storage 1/1 covering both start orders, publication concurrency 4/4,
+  no missing registered object, and zero pending/residue.
 
 ## Boundary
 

@@ -91,6 +91,16 @@ The full matrix and accessibility crawl were not rerun after this correction.
 Their single milestone run remains the matrix evidence above. Final independent
 focused re-review is required before Track 4B approval or Track 5 work.
 
+The first correction re-review confirmed all six original findings addressed
+but found a cleanup/registration race. Final migration
+`20260811015837_forbid_owner_statement_authenticated_deletion.sql` removes the
+authenticated DELETE policy for official statement objects. Ambiguous failures
+retain create-only bytes for resume instead of attempting cleanup. Focused RED
+was action 9/10, pgTAP 37/39, and cleanup-first real Storage removal; GREEN is
+action 10/10, pgTAP 39/39, real Storage 1/1 with both start orders, publication
+concurrency 4/4, and a final baseline of two objects/two artifacts with zero
+unregistered, missing-registered, or pending rows.
+
 The expensive accessibility crawl completed in 392.9 seconds. It retained the
 same 98 unrelated cross-module findings; `/balances` is clean at four viewports
 with zero axe, page, navigation, or overflow findings. The summary is under the

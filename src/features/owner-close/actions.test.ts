@@ -307,6 +307,35 @@ describe("owner close checked actions", () => {
     )).toHaveLength(2);
   });
 
+  it("retains a newly uploaded object when registration has an ambiguous failure", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { publication_id: publicationId, statement_number: "OS-202608-000000000000" },
+      error: null,
+    });
+    mocks.adminRpc
+      .mockImplementationOnce(async (_name: string, args: Record<string, unknown>) => ({
+        data: {
+          content_type: "application/pdf",
+          metadata_size_bytes: 3,
+          storage_object_id: "00000000-0000-4000-8000-000000000008",
+          storage_object_version: `${args.p_format}-version-1`,
+        },
+        error: null,
+      }))
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "ambiguous registration response" },
+      });
+
+    await expect(publishOwnerStatementAction(form({
+      idempotencyKey: "owner-statement-ambiguous-registration",
+      revisionId,
+    }))).rejects.toThrow("ambiguous registration response");
+
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
   it("refuses a replay when existing Storage bytes differ from the frozen renderer", async () => {
     mocks.rpc.mockResolvedValueOnce({
       data: { publication_id: publicationId, statement_number: "OS-202608-000000000000" },

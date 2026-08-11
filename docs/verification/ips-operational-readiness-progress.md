@@ -185,3 +185,11 @@
   fixture contract 2/2, TypeScript/ESLint/build/diff green, and a rerun of the
   affected four-phase browser lifecycle with exact fixture restoration. Final
   independent correction re-review is pending; Track 5 remains blocked.
+- Track 4B correction re-review round: all six original findings were accepted
+  as addressed, but a new Critical cleanup/registration race was reproduced.
+  Additive migration `20260811015837_forbid_owner_statement_authenticated_deletion.sql`
+  removes authenticated deletion for official statement paths and the action
+  retains ambiguous uploaded objects for checked resume. Focused RED/GREEN is
+  action 9/10 to 10/10, pgTAP 37/39 to 39/39, real Storage both-order proof 1/1,
+  publication concurrency 4/4, and zero missing registered bytes or pending
+  authority. Final independent re-review is pending; Track 5 remains blocked.

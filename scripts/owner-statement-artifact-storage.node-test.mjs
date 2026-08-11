@@ -25,13 +25,10 @@ function restoreFixture() {
 
 before(restoreFixture);
 after(async () => {
+  dropRegistrationPause();
   for (const path of uploadedPaths) {
     const removed = await service.storage.from("owner-statements").remove([path]);
     assert.ifError(removed.error);
-    assert.ok(
-      removed.data?.some((object) => object.name === path),
-      `cleanup must confirm removal of ${path}`,
-    );
     const absent = await service.storage.from("owner-statements").download(path);
     assert.ok(absent.error, `cleaned Storage path must not download: ${path}`);
   }
@@ -105,6 +102,32 @@ test("only trusted byte verification can complete retained artifact authority", 
   const retainedBytes = new Uint8Array(await retained.data.arrayBuffer());
   const sha256 = createHash("sha256").update(retainedBytes).digest("hex");
 
+  const cleanupFirstRemoval = user.storage.from("owner-statements").remove([path]);
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  const cleanupFirstRegistration = service.rpc("register_owner_statement_artifact_verified", {
+    p_actor_id: actorId,
+    p_content_type: "application/pdf",
+    p_format: "pdf",
+    p_idempotency_key: "track-4b-correction-cleanup-first-pdf",
+    p_organization_id: organizationId,
+    p_publication_id: publicationId,
+    p_sha256: sha256,
+    p_size_bytes: retainedBytes.byteLength,
+    p_storage_object_id: object.data.storage_object_id,
+    p_storage_object_version: object.data.storage_object_version,
+    p_storage_path: path,
+  });
+  const [cleanupFirst, cleanupFirstRegistered] = await Promise.all([
+    cleanupFirstRemoval,
+    cleanupFirstRegistration,
+  ]);
+  assert.equal(
+    cleanupFirst.data?.some((entry) => entry.name === path) ?? false,
+    false,
+    "cleanup-first authenticated removal must not remove the object",
+  );
+  assert.ifError(cleanupFirstRegistered.error);
+
   const wrongVersion = await service.rpc("register_owner_statement_artifact_verified", {
     p_actor_id: actorId,
     p_content_type: "application/pdf",
@@ -173,6 +196,63 @@ test("only trusted byte verification can complete retained artifact authority", 
   assert.equal(metadata.data.sha256, sha256);
   assert.equal(metadata.data.size_bytes, retainedBytes.byteLength);
 
+  const xlsxPath = `${organizationId}/${publicationId}/xlsx/` +
+    `owner-statement-${statementNumber}.xlsx`;
+  const xlsxBytes = new TextEncoder().encode("retained-owner-statement-xlsx-byte-proof");
+  const xlsxUpload = await user.storage.from("owner-statements").upload(xlsxPath, xlsxBytes, {
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    upsert: false,
+  });
+  assert.ifError(xlsxUpload.error);
+  uploadedPaths.add(xlsxPath);
+  const xlsxObject = await service.rpc("get_owner_statement_artifact_object", {
+    p_actor_id: actorId,
+    p_format: "xlsx",
+    p_organization_id: organizationId,
+    p_publication_id: publicationId,
+    p_storage_path: xlsxPath,
+  });
+  assert.ifError(xlsxObject.error);
+  const xlsxHash = createHash("sha256").update(xlsxBytes).digest("hex");
+
+  installRegistrationPause();
+  try {
+    const registrationFirst = Promise.resolve(service.rpc(
+      "register_owner_statement_artifact_verified",
+      {
+        p_actor_id: actorId,
+        p_content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        p_format: "xlsx",
+        p_idempotency_key: "track-4b-correction-registration-first-xlsx",
+        p_organization_id: organizationId,
+        p_publication_id: publicationId,
+        p_sha256: xlsxHash,
+        p_size_bytes: xlsxBytes.byteLength,
+        p_storage_object_id: xlsxObject.data.storage_object_id,
+        p_storage_object_version: xlsxObject.data.storage_object_version,
+        p_storage_path: xlsxPath,
+      },
+    ));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const registrationFirstRemoval = user.storage.from("owner-statements").remove([xlsxPath]);
+    const [registeredXlsx, removedXlsx] = await Promise.all([
+      registrationFirst,
+      registrationFirstRemoval,
+    ]);
+    assert.ifError(registeredXlsx.error);
+    assert.equal(
+      removedXlsx.data?.some((entry) => entry.name === xlsxPath) ?? false,
+      false,
+      "registration-first authenticated removal must not remove the object",
+    );
+  } finally {
+    dropRegistrationPause();
+  }
+  const retainedXlsx = await service.storage.from("owner-statements").download(xlsxPath);
+  assert.ifError(retainedXlsx.error);
+  const retainedXlsxBytes = new Uint8Array(await retainedXlsx.data.arrayBuffer());
+  assert.equal(createHash("sha256").update(retainedXlsxBytes).digest("hex"), xlsxHash);
+
   const replacement = await user.storage.from("owner-statements").upload(
     path,
     new TextEncoder().encode("replacement"),
@@ -211,4 +291,45 @@ function localRuntime() {
     apiUrl: values.API_URL,
     serviceKey: values.SERVICE_ROLE_KEY ?? values.SECRET_KEY,
   };
+}
+
+function installRegistrationPause() {
+  runLocalSql(`
+    CREATE OR REPLACE FUNCTION app_private.test_pause_owner_statement_registration()
+    RETURNS trigger LANGUAGE plpgsql SET search_path TO '' AS $body$
+    BEGIN
+      PERFORM pg_sleep(2);
+      RETURN NEW;
+    END;
+    $body$;
+    CREATE TRIGGER test_pause_owner_statement_registration
+      BEFORE INSERT ON public.owner_statement_artifacts
+      FOR EACH ROW EXECUTE FUNCTION app_private.test_pause_owner_statement_registration();
+  `);
+}
+
+function dropRegistrationPause() {
+  runLocalSql(`
+    DROP TRIGGER IF EXISTS test_pause_owner_statement_registration
+      ON public.owner_statement_artifacts;
+    DROP FUNCTION IF EXISTS app_private.test_pause_owner_statement_registration();
+  `);
+}
+
+function runLocalSql(sql) {
+  const selected = spawnSync(
+    "docker",
+    ["ps", "--filter", "name=supabase_db_nestory", "--format", "{{.Names}}"],
+    { cwd: process.cwd(), encoding: "utf8", shell: false },
+  );
+  assert.equal(selected.status, 0, selected.stderr);
+  const container = selected.stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  assert.ok(container, "local Nestory database container is required");
+  const result = spawnSync(
+    "docker",
+    ["exec", container, "psql", "-X", "-q", "-U", "postgres", "-d", "postgres",
+      "-v", "ON_ERROR_STOP=1", "-c", sql],
+    { cwd: process.cwd(), encoding: "utf8", shell: false, timeout: 15_000 },
+  );
+  assert.equal(result.status, 0, result.stderr);
 }

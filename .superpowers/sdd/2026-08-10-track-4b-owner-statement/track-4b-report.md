@@ -160,6 +160,18 @@ single four-phase authenticated browser lifecycle was rerun and passed; its
 `finally` restoration returned the exact guarded baseline. The expensive full
 matrix and accessibility crawl were not rerun.
 
+The focused correction re-review accepted C1-C3 and I1-I3, then reproduced one
+new Critical cleanup/registration race: a DELETE authorized while the object
+was still unregistered could wait and remove it after registration committed.
+The final additive migration removes all authenticated DELETE authority for the
+official bucket and revokes the retired policy helper. The action now leaves an
+uploaded create-only object in place after ambiguous failure so checked resume
+can verify/reuse it. Retained real Storage coverage executes cleanup-first and
+registration-first orderings; neither removes the object, both registrations
+retain matching bytes, and the final baseline has no missing registered object,
+orphan, duplicate, deadlock, or pending request. Final independent focused
+re-review remains required.
+
 - Independent milestone review remains mandatory.
 - The 98 unrelated accessibility findings, five legacy DB-lint warnings, and
   Next.js multiple-lockfile warning remain backlog.

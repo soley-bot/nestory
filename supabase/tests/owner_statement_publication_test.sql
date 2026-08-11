@@ -23,7 +23,7 @@ SELECT has_function(
 );
 
 SELECT ok(
-  pg_catalog.has_function_privilege(
+  NOT pg_catalog.has_function_privilege(
     'authenticated', 'app_private.is_owner_statement_artifact_registered(text)', 'EXECUTE'
   )
   AND NOT pg_catalog.has_function_privilege(
@@ -32,7 +32,20 @@ SELECT ok(
   AND NOT pg_catalog.has_function_privilege(
     'service_role', 'app_private.is_owner_statement_artifact_registered(text)', 'EXECUTE'
   ),
-  'the Storage policy helper is callable only by authenticated policy evaluation'
+  'the retired Storage delete-policy helper is private from every application role'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.count(*)::integer
+    FROM pg_catalog.pg_policies AS policy
+    WHERE policy.schemaname = 'storage'
+      AND policy.tablename = 'objects'
+      AND policy.cmd = 'DELETE'
+      AND policy.policyname = 'Super Admin can remove unregistered owner statement artifacts'
+  ),
+  0,
+  'authenticated sessions can never delete official Owner Statement paths'
 );
 
 SELECT has_function(
