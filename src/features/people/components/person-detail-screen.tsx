@@ -77,6 +77,12 @@ export function PersonDetailScreen({
     person.roles.some(
       (role) => role.role === "staff" && role.status === "active",
     );
+  // A satisfied check is the absence of a problem, not information. Only
+  // unresolved ones reach the record, and they sit beside the title rather
+  // than in a rail of prose cards.
+  const openRisks = person.riskIndicators.filter(
+    (item) => item.tone !== "success",
+  );
 
   return (
     <div className="lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden">
@@ -133,9 +139,14 @@ export function PersonDetailScreen({
           />
         }
         context={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge tone={person.statusTone}>{person.statusLabel}</Badge>
             {person.isArchived ? <Badge tone="warning">Archived</Badge> : null}
+            {openRisks.map((item) => (
+              <Badge key={item.id} title={item.description} tone={item.tone}>
+                {item.label}
+              </Badge>
+            ))}
           </div>
         }
         description={`${person.roleLabel} / ${person.partyTypeLabel}`}
@@ -168,7 +179,7 @@ export function PersonDetailScreen({
               className="min-w-0 py-1"
               id="person-overview"
             >
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+              <div className="grid gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="break-words text-base font-semibold">
@@ -212,12 +223,6 @@ export function PersonDetailScreen({
                       <p className="mt-1 break-words">{person.notes}</p>
                     </div>
                   ) : null}
-                </div>
-
-                <div className="space-y-2">
-                  {person.riskIndicators.map((item) => (
-                    <RiskRow item={item} key={item.id} />
-                  ))}
                 </div>
               </div>
               {showWorkspaceAccess && accessStatus ? (
@@ -588,24 +593,6 @@ function SectionTitle({
   );
 }
 
-function RiskRow({
-  item,
-}: {
-  item: PeopleSummary["riskIndicators"][number];
-}) {
-  return (
-    <div className="border-b border-border py-3 text-sm last:border-b-0">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-semibold">{item.label}</p>
-          <p className="mt-1 leading-5 text-muted-foreground">{item.description}</p>
-        </div>
-        <Badge tone={item.tone}>{getRiskToneLabel(item.tone)}</Badge>
-      </div>
-    </div>
-  );
-}
-
 function LinkedGroup({
   children,
   emptyActionHref,
@@ -820,21 +807,6 @@ function getLinkedSummary(person: PeopleSummary) {
   return parts.join(" / ");
 }
 
-function getRiskToneLabel(tone: PeopleBadgeTone) {
-  if (tone === "success") {
-    return "Ready";
-  }
-
-  if (tone === "danger") {
-    return "Risk";
-  }
-
-  if (tone === "warning") {
-    return "Review";
-  }
-
-  return "Info";
-}
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024) {
