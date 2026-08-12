@@ -72,7 +72,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
 
 function UnlinkedMemberTasksState() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-full">
       <PageHeader
         description="Your login is active, but it is not connected to a staff record yet."
         title="Tasks"

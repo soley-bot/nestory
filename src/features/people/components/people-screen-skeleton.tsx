@@ -10,7 +10,7 @@ export function PeopleScreenSkeleton({
   return (
     <div
       aria-busy="true"
-      className="min-h-screen lg:flex lg:h-screen lg:flex-col lg:overflow-hidden"
+      className="lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden"
     >
       <span className="sr-only">Loading people records</span>
       <PageHeader
