@@ -420,7 +420,7 @@ function TimelineReviewStrip({
 }) {
   return (
     <div
-      className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 px-4 pt-2 text-[13px] sm:px-6"
+      className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 px-4 pt-2 text-sm sm:px-6"
       data-slot="timeline-review-context"
     >
       <p className="font-medium text-foreground">{context.suffix}</p>

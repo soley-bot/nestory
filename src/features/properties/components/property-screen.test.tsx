@@ -159,8 +159,8 @@ describe("PropertyScreen redesign contract", () => {
     );
 
     expect(surface).not.toBeNull();
-    expect(surface!.className).toMatch(/(?:^|\s)rounded-lg(?:\s|$)/);
-    expect(surface!.className).toMatch(/(?:^|\s)border(?:\s|$)/);
+    expect(surface!.className).not.toMatch(/(?:^|\s)rounded-lg(?:\s|$)/);
+    expect(surface!.className).not.toMatch(/(?:^|\s)border(?:\s|$)/);
     expect(
       within(surface!).getByRole("textbox", { name: "Search properties" }),
     ).toBeTruthy();
@@ -184,8 +184,8 @@ describe("PropertyScreen redesign contract", () => {
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
 
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
 
     const rows = within(table).getAllByRole("row").slice(1);
     expect(within(rows[0]!).queryByRole("link", { name: "Home Residence" })).toBeNull();

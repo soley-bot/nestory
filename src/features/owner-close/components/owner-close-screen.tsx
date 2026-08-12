@@ -240,7 +240,7 @@ function PublicationAuthority({
                   <p className="text-xs text-muted-foreground">
                     Revision {publication.revisionNumber} · {publication.generatedAt}
                   </p>
-                  <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
                     {publication.contentHash}
                   </p>
                 </div>
@@ -303,8 +303,8 @@ function ReadinessCard({
           {readiness.blockers.map((blocker, index) => (
             <li key={`${blocker.code}:${index}`}>
               <p className="font-semibold text-amber-950">{blockerLabel(blocker)}</p>
-              <p className="font-mono text-[11px] text-amber-900">{blocker.code}</p>
-              <p className="break-all font-mono text-[11px] text-muted-foreground">
+              <p className="font-mono text-xs text-amber-900">{blocker.code}</p>
+              <p className="break-all font-mono text-xs text-muted-foreground">
                 {JSON.stringify(blocker)}
               </p>
             </li>
@@ -344,7 +344,7 @@ function ReadinessCard({
           </table>
         </div>
       ) : null}
-      <div className="space-y-1 border-t border-border/60 px-4 py-2 font-mono text-[11px] text-muted-foreground">
+      <div className="space-y-1 border-t border-border/60 px-4 py-2 font-mono text-xs text-muted-foreground">
         <p>Input watermark: {readiness.inputWatermark ?? "Unavailable"}</p>
         <p className="break-all">Input hash: {readiness.inputHash ?? "Unavailable"}</p>
       </div>
@@ -487,7 +487,7 @@ function RevisionHistory({ data }: { data: OwnerCloseData }) {
                   {correction.effectiveDate} - {OWNER_BALANCE_COMPONENT_LABELS[correction.component]} - {formatExactMoney(correction.signedAmount)}
                 </p>
                 <p>{correction.reason} - {correction.sourceReference}</p>
-                <p className="break-all font-mono text-[11px] text-muted-foreground">{correction.evidenceSha256}</p>
+                <p className="break-all font-mono text-xs text-muted-foreground">{correction.evidenceSha256}</p>
               </li>
             ))}
           </ul>

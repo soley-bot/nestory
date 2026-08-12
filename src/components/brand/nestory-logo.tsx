@@ -49,7 +49,7 @@ export function NestoryLogo({
         <span className="min-w-0 leading-none">
           <span
             className={cn(
-              "block truncate text-[13px] font-semibold",
+              "block truncate text-sm font-semibold",
               textClassName,
             )}
           >
@@ -57,7 +57,7 @@ export function NestoryLogo({
           </span>
           <span
             className={cn(
-              "mt-1 block truncate text-[10px] font-medium uppercase tracking-[0.14em]",
+              "mt-1 block truncate text-xs font-medium uppercase tracking-[0.14em]",
               subtitleClassName,
             )}
           >

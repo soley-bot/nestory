@@ -49,7 +49,7 @@ export function UnitsTable({
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid h-full min-h-[380px] auto-rows-max content-start items-start gap-3 overflow-auto pr-1 sm:grid-cols-2 2xl:grid-cols-3"
+            ? "grid h-full auto-rows-max content-start items-start gap-3 overflow-auto pr-1 sm:grid-cols-2 2xl:grid-cols-3"
             : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
         )}
       >
@@ -73,8 +73,8 @@ export function UnitsTable({
           className="hidden h-full min-w-0 overflow-hidden md:block"
           data-slot="register-table-frame"
         >
-          <div className="h-full min-h-[540px] overflow-auto">
-            <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px]">
+          <div className="h-full overflow-auto">
+            <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
               <colgroup>
                 <col className="w-[28%]" />
                 <col className="w-[10%]" />
@@ -83,7 +83,7 @@ export function UnitsTable({
                 <col className="w-[14%]" />
                 <col className="w-[22%]" />
               </colgroup>
-              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
                     active={sort === "property_asc"}
@@ -287,7 +287,7 @@ function UnitCard({
               {unit.propertyName}
             </p>
             <p
-              className="mt-0.5 truncate text-[13px] text-muted-foreground"
+              className="mt-0.5 truncate text-sm text-muted-foreground"
               title={unit.propertyCode}
             >
               {unit.propertyCode}

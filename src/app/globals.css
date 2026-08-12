@@ -18,9 +18,6 @@
   --table-row-hover: color-mix(in oklch, var(--primary) 6%, var(--background));
   --table-row-selected: color-mix(in oklch, var(--primary) 10%, var(--background));
   --table-row-selected-indicator: var(--primary);
-  --type-body: 14px;
-  --type-table: 13px;
-  --type-table-header: 11px;
   --border: oklch(0.922 0 0);
   --muted: oklch(0.97 0 0);
   --accent: oklch(0.97 0 0);
@@ -228,9 +225,6 @@
   --color-chart-accent: var(--chart-accent);
   --color-chart-neutral: var(--chart-neutral);
   --color-chart-track: var(--chart-track);
-  --text-body: var(--type-body);
-  --text-table: var(--type-table);
-  --text-table-header: var(--type-table-header);
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
@@ -272,15 +266,7 @@
 
 body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  font-size: var(--type-body);
-}
-
-table {
-  font-size: var(--type-table);
-}
-
-thead {
-  font-size: var(--type-table-header);
+  font-size: 0.875rem;
 }
 
 .theme-toggle-sun {

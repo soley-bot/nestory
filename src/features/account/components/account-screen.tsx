@@ -149,7 +149,7 @@ export function AccountScreen({
         <div className="mt-3 max-w-xl border-l-2 border-danger bg-danger-soft px-4 py-3">
           <form action={signOutAction}>
             <button
-              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-danger/30 bg-card px-3 text-[13px] font-medium text-danger outline-none hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-danger/30 bg-card px-3 text-sm font-medium text-danger outline-none hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-ring"
               type="submit"
             >
               <LogOut aria-hidden="true" size={14} />
@@ -165,7 +165,7 @@ export function AccountScreen({
 function AccountFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 py-2.5">
-      <dt className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
       <dd className="mt-1 truncate text-sm font-medium" title={value}>{value}</dd>

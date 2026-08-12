@@ -502,7 +502,7 @@ function PersonRecordNav({
             }
             aria-selected={activeSection === section.id}
             className={cn(
-              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              "inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
               activeSection === section.id &&
                 "bg-accent text-foreground",
             )}
@@ -751,7 +751,7 @@ function ActionLink({
   return (
     <Link
       className={cn(
-        "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium transition-colors hover:bg-muted",
+        "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium transition-colors hover:bg-muted",
         className,
       )}
       href={href}

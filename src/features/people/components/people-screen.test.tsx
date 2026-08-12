@@ -199,16 +199,16 @@ describe("People route family redesign contract", () => {
       '[data-slot="people-list-surface"]',
     );
     expect(listSurface).not.toBeNull();
-    expect(listSurface?.className).toContain("rounded-lg");
-    expect(listSurface?.className).toContain("border");
-    expect(listSurface?.className).toContain("bg-card");
+    expect(listSurface?.className).not.toContain("rounded-lg");
+    expect(listSurface?.className.split(" ")).not.toContain("border");
+    expect(listSurface?.className).toContain("bg-background");
     expect(
       within(listSurface!).getByRole("textbox", { name: "Search people" }),
     ).not.toBeNull();
     expect(tableFrame).not.toBeNull();
     expect(tableFrame?.className).not.toContain("rounded-lg");
     expect(tableFrame?.className.split(" ")).not.toContain("border");
-    expect(table.className).toContain("text-[13px]");
+    expect(table.className).toContain("text-sm");
     expect(table.querySelector("thead")?.className).toContain("text-xs");
     const rows = within(table).getAllByRole("row").slice(1);
     expect(

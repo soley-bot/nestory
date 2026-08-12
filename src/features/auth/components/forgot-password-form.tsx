@@ -38,7 +38,7 @@ export function ForgotPasswordForm() {
           aria-describedby={state.fieldErrors?.email?.length ? emailErrorId : undefined}
           aria-invalid={Boolean(state.fieldErrors?.email?.length)}
           autoComplete="email"
-          className="mt-2 box-border h-11 px-3 text-[15px]"
+          className="mt-2 box-border h-11 px-3 text-sm"
           name="email"
           required
           type="email"

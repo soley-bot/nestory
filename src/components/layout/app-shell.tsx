@@ -57,6 +57,7 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { signOutAction } from "@/features/auth/actions";
 import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
@@ -280,7 +281,9 @@ function DomainDestinationMenuItem({
 }) {
   const [expanded, setExpanded] = useState(active);
   const [wasActive, setWasActive] = useState(active);
+  const { isMobile, state } = useSidebar();
   const Icon = destination.icon;
+  const children = destination.children ?? [];
 
   // Open the domain the operator navigated into, without closing the ones they
   // opened by hand. Adjusting state during render is React's documented answer
@@ -289,6 +292,35 @@ function DomainDestinationMenuItem({
   if (active !== wasActive) {
     setWasActive(active);
     if (active) setExpanded(true);
+  }
+
+  // Collapsed to icons, SidebarMenuSub is display:none, so the domain's pages
+  // become unreachable from the rail — Records has no in-page nav to fall back
+  // on. Swap the inline list for a flyout, the shadcn pattern for this state.
+  if (state === "collapsed" && !isMobile && children.length > 0) {
+    return (
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuButton isActive={active} tooltip={destination.label}>
+              <Icon />
+              <span>{destination.label}</span>
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-48" side="right" sideOffset={4}>
+            <DropdownMenuLabel>{destination.label}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {children.map((child) => (
+              <DropdownMenuItem asChild key={child.href}>
+                <Link href={child.href} prefetch={false}>
+                  {child.label}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    );
   }
 
   return (
@@ -304,7 +336,6 @@ function DomainDestinationMenuItem({
             href={destination.href}
             prefetch={false}
           >
-            <span className="sr-only">{active ? "Current: " : ""}</span>
             <Icon />
             <span>{destination.label}</span>
           </Link>
@@ -451,10 +482,7 @@ export function AppShell({
                               aria-current={active ? "page" : undefined}
                               href={destination.href}
                               prefetch={false}
-                            >
-                              <span className="sr-only">
-                                {active ? "Current: " : ""}
-                              </span>
+                            >
                               <Icon />
                               <span>{destination.label}</span>
                             </Link>
@@ -488,10 +516,7 @@ export function AppShell({
                                 aria-current={active ? "page" : undefined}
                                 href={destination.href}
                                 prefetch={false}
-                              >
-                                <span className="sr-only">
-                                  {active ? "Current: " : ""}
-                                </span>
+                              >
                                 <Icon />
                                 <span>{destination.label}</span>
                               </Link>

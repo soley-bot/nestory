@@ -63,7 +63,7 @@ export function ArchivePropertyPanel({
               Archive or move active units before archiving this property.
             </p>
             <Link
-              className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
+              className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
               href={`/units?propertyId=${property.id}`}
             >
               Review active units

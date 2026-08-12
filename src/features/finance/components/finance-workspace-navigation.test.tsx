@@ -22,7 +22,7 @@ describe("FinanceWorkspaceNavigation", () => {
       "Owner balances",
       "Leases",
       "Ledger",
-      "Petty Cash",
+      "Petty cash",
     ]) {
       expect(within(navigation).getByRole("link", { name: label })).toBeTruthy();
     }

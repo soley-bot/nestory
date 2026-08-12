@@ -485,7 +485,7 @@ function UnitRecordNav({
           <Link
             aria-selected={activeSection === item.id}
             className={cn(
-              "inline-flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              "inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
               activeSection === item.id && "bg-accent text-foreground",
             )}
             href={buildUnitRecordHref({
@@ -531,7 +531,7 @@ function UnitReportsPanel({
             <span className="block text-sm font-semibold">
               {reportCatalog[0].title}
             </span>
-            <span className="mt-1 block text-[13px] leading-5 text-muted-foreground">
+            <span className="mt-1 block text-sm leading-5 text-muted-foreground">
               {reportCatalog[0].description}
             </span>
           </span>
@@ -570,7 +570,7 @@ function ActionLink({
 }) {
   return (
     <Link
-      className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium transition-colors hover:bg-muted ${
+      className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium transition-colors hover:bg-muted ${
         strong ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-foreground"
       }`}
       href={href}

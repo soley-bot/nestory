@@ -78,7 +78,7 @@ function buildManagerWorkspace(
     ...data.ownerInvoices
       .filter((invoice) => invoice.balanceDue > 0)
       .map((invoice) => ({
-        actionLabel: "Record owner payment",
+        actionLabel: "Record owner invoice payment",
         amountDisplay: formatMoneyDisplay(invoice.balanceDue),
         contextLabel: invoice.propertyLabel,
         detail: `${invoice.propertyLabel} · ${invoice.invoiceNumber}`,

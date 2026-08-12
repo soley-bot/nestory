@@ -31,7 +31,7 @@ export function TimelineTable({
       className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]"
       data-slot="timeline-table-shell"
     >
-        <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col className="w-[108px]" />
             <col className="w-[126px]" />
@@ -40,7 +40,7 @@ export function TimelineTable({
             <col className="w-[132px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Type</th>

@@ -87,8 +87,8 @@ describe("DocumentScreen workspace contract", () => {
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
     expect(screen.getByRole("toolbar", { name: "Workspace tools" })).not.toBeNull();
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
     expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "lease.pdf" }).getAttribute("href"),

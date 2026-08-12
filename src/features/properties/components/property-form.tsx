@@ -363,13 +363,13 @@ function CreateSuccessActions({ propertyId }: { propertyId: string }) {
       <p className="text-sm font-semibold text-foreground">Next steps</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
-          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           href={`/properties/${propertyId}`}
         >
           Open property record
         </Link>
         <Link
-          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           href={`/units?action=create&propertyId=${propertyId}`}
         >
           Add units

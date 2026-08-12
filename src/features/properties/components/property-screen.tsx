@@ -180,7 +180,7 @@ export function PropertyScreen({
   );
   const propertyList = (
     <section
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
       data-slot="property-list-surface"
     >
       <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
@@ -259,7 +259,7 @@ export function PropertyScreen({
         />
       ) : null}
 
-        <div className="min-h-0 min-w-0 flex-1 p-4 sm:p-6">
+        <div className="min-h-0 min-w-0 flex-1">
           <WorkspaceSplitView
             inspector={
               <PropertyInspector
@@ -369,7 +369,7 @@ function PropertyReviewStrip({
 }) {
   return (
     <div className="border-b border-border bg-warning-soft/20 px-4 py-2 sm:px-6 lg:px-6">
-      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="min-w-0 truncate font-medium text-foreground">
           {count} {count === 1 ? "property" : "properties"} {context.countLabel}
         </p>

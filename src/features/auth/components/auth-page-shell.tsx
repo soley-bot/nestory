@@ -87,7 +87,7 @@ export function AuthPageShell({
           <div className="flex items-center gap-3 rounded-md border border-[color:var(--auth-page-header-border)] bg-[var(--auth-page-header-bg)] px-2 py-1 backdrop-blur-md">
             <Link
               className={cn(
-                "hidden text-[11px] font-medium uppercase tracking-[0.16em] transition-colors sm:inline-flex",
+                "hidden text-xs font-medium uppercase tracking-[0.16em] transition-colors sm:inline-flex",
                 visualSrc
                   ? "text-[var(--auth-page-fg)] hover:opacity-80"
                   : "text-muted-foreground hover:text-foreground",
@@ -105,7 +105,7 @@ export function AuthPageShell({
         <aside className="auth-shell-context hidden max-w-[560px] lg:block">
           <p
             className={cn(
-              "text-[11px] font-semibold uppercase tracking-[0.22em]",
+              "text-xs font-semibold uppercase tracking-[0.22em]",
               visualSrc ? "text-[var(--auth-page-subtle)]" : "text-muted-foreground",
             )}
           >

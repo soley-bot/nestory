@@ -43,7 +43,7 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
     viewQuery.endMonth !== "";
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
-  const compactSelectClassName = "h-8 px-2 text-[13px]";
+  const compactSelectClassName = "h-8 px-2 text-sm";
   const visibleUnitOptions =
     viewQuery.propertyId === "all"
       ? units
@@ -87,7 +87,7 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
 
   return (
     <div className="w-full min-w-0">
-      <div className="flex min-w-0 items-center gap-2 text-[13px]">
+      <div className="flex min-w-0 items-center gap-2 text-sm">
         <SearchCombo
           ariaLabel="Search leases"
           disabled={isPending}
@@ -110,7 +110,7 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
           id="lease-advanced-search"
           title="Filter leases"
         >
-          <div className="grid gap-2 text-[13px] sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <SelectControl
               ariaLabel="Filter leases by property"
               className={compactSelectClassName}

@@ -993,7 +993,7 @@ function MaintenanceFilters({
           {getMaintenanceTabs(pathname, searchParams, viewQuery).map((tab) => (
             <Link
               className={cn(
-                "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors",
+                "inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium transition-colors",
                 tab.active
                   ? "border-accent bg-accent text-foreground"
                   : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -1165,14 +1165,14 @@ function MaintenanceTable({
             : "max-h-[min(620px,calc(100vh-350px))]",
         )}
       >
-        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col className="w-[33%]" />
             <col className="w-[27%]" />
             <col className="w-[17%]" />
             <col className="w-[23%]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-2.5 py-2.5 font-semibold">
                 {capitalizeLabel(recordLabel)}
@@ -1789,7 +1789,7 @@ export function MaintenanceForm({
             {branchControlMode === "fixed" && actor.branchId ? (
               <>
                 <input name="branchId" type="hidden" value={actor.branchId} />
-                <div className="flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-[13px]">
+                <div className="flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-sm">
                   {managerBranch?.label ??
                     maintenanceCase?.branchLabel ??
                     "Assigned branch"}
@@ -2127,7 +2127,7 @@ function CompactFact({
 function LinkButton({ children, href }: { children: ReactNode; href: string }) {
   return (
     <Link
-      className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
       href={href}
       prefetch={false}
     >

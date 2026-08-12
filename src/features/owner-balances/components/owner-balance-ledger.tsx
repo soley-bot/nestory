@@ -189,7 +189,7 @@ export function OwnerBalanceLedger({
                     <JsonDetail value={period.blockedReasonDetail} />
                   </div>
                 )}
-                <p className="border-t border-border/60 px-4 py-2 font-mono text-[11px] text-muted-foreground">
+                <p className="border-t border-border/60 px-4 py-2 font-mono text-xs text-muted-foreground">
                   Input hash: {period.inputHash ?? "Not available until ready"}
                 </p>
               </article>
@@ -331,12 +331,12 @@ function RemediationRow({ canAllocate, item }: { canAllocate: boolean; item: Own
       <td className="px-4 py-3">{item.eventDate}</td>
       <td className="px-4 py-3">
         <p className="font-medium">{sourceTypeLabel(item.sourceType)}</p>
-        <p className="font-mono text-[11px] text-muted-foreground">{item.sourceLineId}</p>
+        <p className="font-mono text-xs text-muted-foreground">{item.sourceLineId}</p>
       </td>
       <td className="px-4 py-3 text-right tabular-nums">{formatExactMoney(item.grossSignedAmount)}</td>
       <td className="px-4 py-3">
         <p className="font-semibold">{remediationLabel(item.remediationCode)}</p>
-        <p className="font-mono text-[11px] text-muted-foreground">{item.remediationCode ?? item.allocationState}</p>
+        <p className="font-mono text-xs text-muted-foreground">{item.remediationCode ?? item.allocationState}</p>
         <JsonDetail value={item.remediationDetail} />
       </td>
       <td className="px-4 py-3">
@@ -438,7 +438,7 @@ function MoneyAndDateFields({ dateName, selectedMonth }: { dateName: string; sel
 
 function JsonDetail({ value }: { value: unknown }) {
   if (value === null || value === undefined) return null;
-  return <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{JSON.stringify(value)}</p>;
+  return <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{JSON.stringify(value)}</p>;
 }
 
 function remediationSetupPath(value: unknown) {

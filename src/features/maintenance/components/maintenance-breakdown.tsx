@@ -91,7 +91,7 @@ export function MaintenanceBreakdown({ summary, viewQuery }: MaintenanceBreakdow
       >
         {visibleCategoryStats.length > 0 ? (
           <div className="overflow-hidden rounded-md border border-border bg-background/35">
-            <div className="grid grid-cols-[minmax(0,1fr)_68px_80px_54px] border-b border-border bg-muted px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+            <div className="grid grid-cols-[minmax(0,1fr)_68px_80px_54px] border-b border-border bg-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.04em] text-muted-foreground">
               <span>Category</span>
               <span className="text-right">Open</span>
               <span className="text-right">Share</span>
