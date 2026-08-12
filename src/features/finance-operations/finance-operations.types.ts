@@ -138,12 +138,15 @@ export type ExpenseSubmissionSummary = {
   recordedTotal?: number | null;
   reference: string | null;
   responsibility: "owner" | "tenant";
+  reviewedAt: string | null;
   reviewReason: string | null;
   reversalReason: string | null;
   sourceId: string | null;
   sourceType: "general" | "maintenance_task";
   status: "approved" | "rejected" | "reversed" | "submitted";
   submittedAt: string;
+  submittedByLabel: string;
+  submittedByUserId: string;
   unitId: string | null;
   unitLabel: string;
   vendorLabel: string;
