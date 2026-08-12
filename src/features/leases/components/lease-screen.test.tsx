@@ -121,17 +121,17 @@ describe("LeaseScreen redesign contract", () => {
     const table = screen.getByRole("table");
     expect(table.className).toContain("text-sm");
     expect(table.querySelector("thead")?.className).toContain("text-xs");
-    expect(within(table).getByText("Start / End")).not.toBeNull();
-    expect(within(table).getByText("Payment / Deposit")).not.toBeNull();
+    expect(within(table).getByText("Term")).not.toBeNull();
+    expect(within(table).getByText("Deposit")).not.toBeNull();
 
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "Alice Tenant" }).getAttribute("href"),
     ).toContain("leaseId=lease-1");
-    expect(within(rows[0]!).getByText(leases[0]!.startDateLabel)).not.toBeNull();
-    expect(within(rows[0]!).getByText(leases[0]!.endDateLabel)).not.toBeNull();
-    expect(within(rows[0]!).getByText("1 ledger entry")).not.toBeNull();
+    // Term is one cell now, not stacked start/end lines.
+    expect(rows[0]!.textContent).toContain(leases[0]!.startDateLabel);
+    expect(rows[0]!.textContent).toContain(leases[0]!.endDateLabel);
     expect(within(rows[0]!).getByText("Active deposit")).not.toBeNull();
     expect(within(rows[0]!).getByText("Riverside House")).not.toBeNull();
     expect(within(rows[0]!).getByText("Unit 2A")).not.toBeNull();

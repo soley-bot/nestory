@@ -59,9 +59,9 @@ export function LeasesTable({
               <tr>
                 <th className="px-2.5 py-2.5 font-semibold">Tenant</th>
                 <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
-                <th className="px-1.5 py-2.5 font-semibold">Start / End</th>
+                <th className="px-1.5 py-2.5 font-semibold">Term</th>
                 <th className="px-1.5 py-2.5 text-right font-semibold">Rent</th>
-                <th className="px-1.5 py-2.5 font-semibold">Payment / Deposit</th>
+                <th className="px-1.5 py-2.5 font-semibold">Deposit</th>
                 <th className="px-1.5 py-2.5 font-semibold">Status</th>
               </tr>
             </thead>
@@ -73,7 +73,10 @@ export function LeasesTable({
                   </td>
                 </tr>
               ) : null}
-              {leases.map((lease) => (
+              {leases.map((lease) => {
+                const partySummary = getSecondaryParty(lease);
+
+                return (
                 <tr
                   aria-selected={selectedLeaseId === lease.id}
                   className={cn(
@@ -103,23 +106,28 @@ export function LeasesTable({
                     >
                       {lease.tenantName}
                     </RecordLink>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground" title={lease.partySummary}>
-                      {lease.partySummary}
-                    </p>
+                    {partySummary ? (
+                      <p
+                        className="mt-0.5 truncate text-xs text-muted-foreground"
+                        title={partySummary}
+                      >
+                        {partySummary}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-1.5 py-2 align-middle">
                     <RecordContextLinks lease={lease} />
                   </td>
                   <td className="px-1.5 py-2 align-middle tabular-nums">
-                    <p className="truncate font-medium">{lease.startDateLabel}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{lease.endDateLabel}</p>
+                    <p className="truncate">
+                      {lease.startDateLabel} &ndash; {lease.endDateLabel}
+                    </p>
                   </td>
                   <td className="px-1.5 py-2 text-right align-middle">
                     <TableMoneyDisplay value={lease.rentDisplay} />
                   </td>
                   <td className="px-1.5 py-2 align-middle">
-                    <p className="truncate font-medium">{formatLedgerCount(lease)}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{getDepositStatus(lease)}</p>
+                    <p className="truncate">{getDepositStatus(lease)}</p>
                   </td>
                   <td className="px-1.5 py-2 align-middle">
                     <div className="flex min-w-0 flex-wrap items-center gap-1">
@@ -130,12 +138,11 @@ export function LeasesTable({
                         <Badge className="px-2 text-xs" tone="warning">Archived</Badge>
                       ) : null}
                     </div>
-                    <p className="mt-1 truncate text-xs text-muted-foreground" title={lease.nextAction.description}>
-                      {lease.nextAction.label}
-                    </p>
+
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -251,6 +258,23 @@ function TableMoneyDisplay({ value }: { value: MoneyDisplayValue }) {
       <span className="max-w-full truncate font-semibold leading-5 text-foreground">{primary}</span>
     </span>
   );
+}
+
+/**
+ * partySummary is usually just the tenant name again. Show it only when it
+ * says something the primary line does not.
+ */
+function getSecondaryParty(lease: LeaseSummary) {
+  const summary = lease.partySummary?.trim();
+
+  if (!summary) {
+    return null;
+  }
+
+  const words = (value: string) =>
+    value.toLowerCase().split(/\s+/).filter(Boolean).sort().join(" ");
+
+  return words(summary) === words(lease.tenantName) ? null : summary;
 }
 
 function formatLedgerCount(lease: LeaseSummary) {
