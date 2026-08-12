@@ -103,7 +103,7 @@ Journey evidence paths:
 - pilot window: `2026-08-12` UTC
 - reconciliation record: `docs/verification/ips-pilot-reconciliation.md`
 - expected / actual record counts: matched for the synthetic scope
-- expected / actual financial totals: USD `925.00` rent, USD `236.50` property costs, USD `688.50` closing owner cash
+- expected / actual financial totals: USD `925.00` rent, USD `162.50` paid costs, USD `74.00` management fee, and USD `688.50` closing owner cash
 - unresolved exceptions: real IPS import absent; recurrence runner not activated; backup/restore absent; one human operated all roles
 - support owner and escalation path: unassigned
 - pilot rollback result: not run
