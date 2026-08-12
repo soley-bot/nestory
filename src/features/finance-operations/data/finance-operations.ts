@@ -173,6 +173,7 @@ export function toExpenseSubmissionSummary(
       | "reversed"
       | "submitted",
     submittedAt: submission.submitted_at,
+    submittedByUserId: submission.submitted_by,
     unitId: submission.unit_id,
     unitLabel:
       unit && property

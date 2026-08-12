@@ -72,6 +72,7 @@ describe("toExpenseSubmissionSummary", () => {
       source_type: "maintenance_task",
       status: "submitted",
       submitted_at: "2026-08-08T08:00:00Z",
+      submitted_by: "finance-member-user-1",
       unit_id: "unit-1",
       vendor_label: "Archived Vendor",
     } as Database["public"]["Tables"]["expense_submissions"]["Row"];
@@ -144,6 +145,7 @@ describe("toExpenseSubmissionSummary", () => {
         sizeBytes: 128,
       },
       status: "submitted",
+      submittedByUserId: "finance-member-user-1",
     });
     expect(summary.propertyLabel).toContain("Archived Property");
     expect(summary.unitLabel).toContain("A-01");

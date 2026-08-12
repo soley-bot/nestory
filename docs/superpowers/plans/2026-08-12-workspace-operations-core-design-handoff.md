@@ -114,7 +114,7 @@ The integration order is:
 - Consumes: `expense_submissions.submitted_by`
 - Produces: `ExpenseSubmissionSummary.submittedByUserId: string`
 
-- [ ] **Step 1: Write the failing mapper test**
+- [x] **Step 1: Write the failing mapper test**
 
 Add this assertion to the existing `toExpenseSubmissionSummary` test fixture:
 
@@ -131,7 +131,7 @@ Set the fixture row to:
 submitted_by: "finance-member-user-1",
 ```
 
-- [ ] **Step 2: Run the focused test and confirm the contract is missing**
+- [x] **Step 2: Run the focused test and confirm the contract is missing**
 
 Run:
 
@@ -141,7 +141,7 @@ npx vitest run src/features/finance-operations/data/finance-operations.test.ts
 
 Expected: FAIL because `submittedByUserId` is absent.
 
-- [ ] **Step 3: Add the provenance field**
+- [x] **Step 3: Add the provenance field**
 
 Add to `ExpenseSubmissionSummary`:
 
@@ -155,7 +155,7 @@ Add to `toExpenseSubmissionSummary`:
 submittedByUserId: submission.submitted_by,
 ```
 
-- [ ] **Step 4: Run the focused test**
+- [x] **Step 4: Run the focused test**
 
 Run:
 
@@ -165,7 +165,7 @@ npx vitest run src/features/finance-operations/data/finance-operations.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the isolated read-model change**
+- [x] **Step 5: Commit the isolated read-model change**
 
 ```powershell
 git add src/features/finance-operations/finance-operations.types.ts src/features/finance-operations/data/finance-operations.ts src/features/finance-operations/data/finance-operations.test.ts

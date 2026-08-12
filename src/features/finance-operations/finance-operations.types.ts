@@ -144,6 +144,7 @@ export type ExpenseSubmissionSummary = {
   sourceType: "general" | "maintenance_task";
   status: "approved" | "rejected" | "reversed" | "submitted";
   submittedAt: string;
+  submittedByUserId: string;
   unitId: string | null;
   unitLabel: string;
   vendorLabel: string;
