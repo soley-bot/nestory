@@ -91,8 +91,32 @@ repo, and `people-screen.tsx` passed `attached={false}` redundantly. The prop ca
 yet because three blocked screens consume the component and a signature change would conflict.
 The redundant call site has been cleaned; the prop removal is deferred.
 
-Both confirm the rule in this document: check the **test** file as well as the source file before
-starting a slice.
+**`property-screen.test.tsx` pins the arbitrary type sizes.** It asserts
+`table.className` contains `text-[13px]` and `thead` contains `text-[11px]`. That test is inside
+PR #54, so the Phase A3 type-scale work cannot be applied to the Properties table either — which
+in turn blocks most of prototype sheet 02, plate 03.
+
+**Property `healthIndicators` is dead data.** `property-detail.ts:328` builds a full readiness
+model and **no component renders it**. Not a UI defect, so nothing was changed; worth deleting
+from the data layer once the business workstream is free.
+
+All three confirm the rule in this document: check the **test** file as well as the source file
+before starting a slice.
+
+## Completed on this branch
+
+| Milestone | Change |
+|---|---|
+| 1 | Filter controls painted their label in their own background — invisible when active |
+| 2 | `PageHeader` gutter stepped at `lg` while nav, toolbar and skeleton stepped at `sm` |
+| 3 | People and Properties filter bands aligned to the page ramp |
+| 4 | Six screens declared `100vh` inside a shell that already scrolls |
+| 5 | Ten primary actions moved off `bg-foreground` onto `bg-primary` |
+| 6 | Twenty links and one focus outline moved off the `--accent` surface token |
+| 7 | Nine focus borders and five selection borders made visible |
+| 8 | Person record: readiness rail collapsed to title chips |
+| 9 | Unit record: only unresolved record-quality checks render |
+| 10 | Empty-state bodies that restate their title removed |
 
 Note that the contested hunks are small — `globals.css` is a **one-line** change in PR #54 and
 `ui/table.tsx` is **+8/−1**. These are cheap to rebase onto *after* PR #54 merges. They are
