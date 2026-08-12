@@ -319,9 +319,15 @@ function AccessWorkspace({
               <TableRow className="hover:bg-transparent">
                 <TableHead className="px-3">Invitation</TableHead>
                 <TableHead className="px-3">Access level</TableHead>
-                <TableHead className="px-3">Scope</TableHead>
-                <TableHead className="px-3">Staff link</TableHead>
-                <TableHead className="px-3">Delivery</TableHead>
+                <TableHead className="hidden px-3 lg:table-cell">
+                  Scope
+                </TableHead>
+                <TableHead className="hidden px-3 xl:table-cell">
+                  Staff link
+                </TableHead>
+                <TableHead className="hidden px-3 md:table-cell">
+                  Delivery
+                </TableHead>
                 <TableHead className="px-3">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -352,8 +358,12 @@ function AccessWorkspace({
               <TableRow className="hover:bg-transparent">
                 <TableHead className="px-3">Member</TableHead>
                 <TableHead className="px-3">Access level</TableHead>
-                <TableHead className="px-3">Scope</TableHead>
-                <TableHead className="px-3">Staff link</TableHead>
+                <TableHead className="hidden px-3 lg:table-cell">
+                  Scope
+                </TableHead>
+                <TableHead className="hidden px-3 xl:table-cell">
+                  Staff link
+                </TableHead>
                 <TableHead className="px-3">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -797,7 +807,7 @@ function PendingInvitationRow({
       tabIndex={-1}
     >
       <TableRow className={confirmingRevoke ? "border-b-0" : undefined}>
-        <TableCell className="min-w-0 max-w-[22rem] px-3">
+        <TableCell className="w-full max-w-0 px-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-medium">{invitation.email}</span>
             <Badge tone={statusTone}>{statusLabel}</Badge>
@@ -814,17 +824,17 @@ function PendingInvitationRow({
         <TableCell className="px-3">
           {formatWorkspaceAccessRole(invitation.role)}
         </TableCell>
-        <TableCell className="px-3 text-muted-foreground">
+        <TableCell className="hidden px-3 text-muted-foreground lg:table-cell">
           {isOrganizationWideRole(invitation.role)
             ? "All branches"
             : branchLabel(invitation.branchId ?? "", branches)}
         </TableCell>
-        <TableCell className="px-3 text-muted-foreground">
+        <TableCell className="hidden px-3 text-muted-foreground xl:table-cell">
           {isOrganizationWideRole(invitation.role)
             ? "Not required"
             : personLabel(invitation.personId, people)}
         </TableCell>
-        <TableCell className="px-3">
+        <TableCell className="hidden px-3 md:table-cell">
           <p
             aria-live="polite"
             className={
@@ -843,7 +853,7 @@ function PendingInvitationRow({
             Expires {formatAccessDate(invitation.expiresAt)}
           </span>
         </TableCell>
-        <TableCell className="px-3">
+        <TableCell className="w-px px-3">
           <div className="flex items-center justify-end gap-2">
             <button
               className="h-8 rounded-md border border-border px-3 text-sm font-medium transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
@@ -1089,7 +1099,12 @@ function MemberAccessForm({
       tabIndex={-1}
     >
       <TableRow className={expanded ? "border-b-0" : undefined}>
-        <TableCell className="min-w-0 max-w-[22rem] px-3">
+        {/*
+          A narrow content column drops the lower-priority columns rather than
+          wrapping every cell to three lines. Everything hidden here is still on
+          the row's Manage panel.
+        */}
+        <TableCell className="w-full max-w-0 px-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-medium">{accountLabel}</span>
             {current ? <Badge tone="accent">You</Badge> : null}
@@ -1107,7 +1122,7 @@ function MemberAccessForm({
         <TableCell className="px-3">
           {formatWorkspaceAccessRole(member.role)}
         </TableCell>
-        <TableCell className="px-3 text-muted-foreground">
+        <TableCell className="hidden px-3 text-muted-foreground lg:table-cell">
           {isOrganizationWideRole(member.role)
             ? "All branches"
             : branchLabel(member.branchId ?? "", branches)}
@@ -1115,8 +1130,8 @@ function MemberAccessForm({
         <TableCell
           className={
             unlinkedOperations
-              ? "px-3 text-warning"
-              : "px-3 text-muted-foreground"
+              ? "hidden px-3 text-warning xl:table-cell"
+              : "hidden px-3 text-muted-foreground xl:table-cell"
           }
         >
           {isOrganizationWideRole(member.role)
@@ -1125,7 +1140,7 @@ function MemberAccessForm({
               ? "Linked"
               : "Not linked"}
         </TableCell>
-        <TableCell className="px-3 text-right">
+        <TableCell className="w-px px-3 text-right">
           {/*
             Collapsing a dirty row would hide unsaved edits. Rather than going
             dead, the toggle asks — the same discard/continue choice the row
