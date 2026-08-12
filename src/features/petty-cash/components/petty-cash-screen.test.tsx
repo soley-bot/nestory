@@ -53,8 +53,8 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(summaryRegion.textContent).toContain("USD 410.00");
 
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
     const registerSurface = table.closest(
       '[data-petty-cash-surface="register"]',
     )!;

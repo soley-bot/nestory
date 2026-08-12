@@ -45,14 +45,14 @@ export function PropertyUnitsTable({
       </div>
 
       <div className="hidden overflow-auto md:block">
-        <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-sm">
             <colgroup>
               <col className="w-[34%]" />
               <col className="w-[16%]" />
               <col className="w-[24%]" />
               <col className="w-[26%]" />
             </colgroup>
-            <thead className="bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground">
+            <thead className="bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground">
               <tr>
                 <th className="px-3 py-2.5 font-semibold">Unit</th>
                 <th className="px-2 py-2.5 font-semibold">Floor</th>

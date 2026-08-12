@@ -52,7 +52,7 @@ export function PeopleFilters({
   const hasAnyFilters = hasSearchQuery || hasAdvancedFilters;
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
-  const compactSelectClassName = "h-8 w-full px-2 text-[13px]";
+  const compactSelectClassName = "h-8 w-full px-2 text-sm";
 
   function replaceParam(name: string, value: string, defaultValue: string) {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -81,7 +81,7 @@ export function PeopleFilters({
   return (
     <div className="w-full min-w-0">
       <div className="space-y-1.5">
-        <div className="flex flex-col gap-2 text-[13px] lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
             ariaLabel="Search people"
             className="lg:max-w-[560px]"
@@ -107,7 +107,7 @@ export function PeopleFilters({
               <Popover.Trigger asChild>
                 <button
                   className={cn(
-                    "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted data-[state=open]:border-foreground sm:flex-none",
+                    "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted data-[state=open]:border-foreground sm:flex-none",
                     hasAdvancedFilters &&
                       "border-primary/40 bg-accent text-accent-foreground hover:bg-accent",
                   )}
@@ -116,7 +116,7 @@ export function PeopleFilters({
                   <SlidersHorizontal size={14} />
                   <span>Filters</span>
                   {activeFilters > 0 ? (
-                    <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                    <span className="rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold leading-none text-primary-foreground">
                       {activeFilters}
                     </span>
                   ) : null}
@@ -125,7 +125,7 @@ export function PeopleFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
-                  className="z-50 w-[min(calc(100vw-2rem),460px)] rounded-md border border-border bg-card text-[13px] shadow-lg"
+                  className="z-50 w-[min(calc(100vw-2rem),460px)] rounded-md border border-border bg-card text-sm shadow-lg"
                   id="people-advanced-search"
                   side="bottom"
                   sideOffset={6}

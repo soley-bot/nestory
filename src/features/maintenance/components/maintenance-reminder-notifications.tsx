@@ -28,14 +28,14 @@ export function MaintenanceReminderNotifications({
       <div className="flex items-start gap-2">
         <Bell className="mt-0.5 shrink-0 text-warning" size={16} />
         <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-medium text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             Delivered in app
           </p>
-          <p className="mt-0.5 text-[13px] font-semibold text-foreground">
+          <p className="mt-0.5 text-sm font-semibold text-foreground">
             {reminder.title}
           </p>
           {reminders.length > 1 ? (
-            <p className="mt-0.5 text-[12px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {reminders.length - 1} more delivered notification
               {reminders.length === 2 ? "" : "s"}
             </p>
@@ -52,7 +52,7 @@ export function MaintenanceReminderNotifications({
         </button>
       </div>
       <Link
-        className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[12px] font-medium transition-colors hover:bg-muted"
+        className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-xs font-medium transition-colors hover:bg-muted"
         href={reminder.href}
         prefetch={false}
       >

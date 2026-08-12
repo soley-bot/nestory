@@ -2865,7 +2865,7 @@ function CompactTotals({
     >
       {items.map((item) => (
         <div className="px-4 py-2.5 sm:px-6" key={item.label}>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {item.label}
           </p>
           <div className="mt-0.5 text-sm font-semibold">{item.value}</div>

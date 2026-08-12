@@ -261,7 +261,7 @@ function AccessWorkspace({
           </div>
           <div className="flex items-center gap-3">
             <Link
-              className="text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href="/staff?action=create"
             >
               Add Staff
@@ -289,7 +289,7 @@ function AccessWorkspace({
                 </div>
                 <Link
                   aria-label={`Grant workspace access for ${person.label}`}
-                  className="shrink-0 text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   href={`/users-roles?personId=${person.id}`}
                   prefetch={false}
                 >
@@ -534,7 +534,7 @@ function InviteUserForm({
       >
         <div className="grid gap-4 px-5 py-5 sm:grid-cols-2">
           <div
-            className="grid gap-1.5 text-[13px] font-medium"
+            className="grid gap-1.5 text-sm font-medium"
             ref={staffControlRef}
           >
             <span id={staffLabelId}>Staff member</span>
@@ -563,7 +563,7 @@ function InviteUserForm({
               The employee or contractor this login belongs to.
             </span>
           </div>
-          <div className="grid gap-1.5 text-[13px] font-medium">
+          <div className="grid gap-1.5 text-sm font-medium">
             <span id={emailLabelId}>Invitation email</span>
             <input
               aria-describedby={emailHelpId}
@@ -1154,7 +1154,7 @@ function MemberAccessForm({
               options={branchOptions(branches)}
               value={draft.values.branchId}
             />
-            <label className="grid min-w-0 gap-1.5 text-[13px] font-medium">
+            <label className="grid min-w-0 gap-1.5 text-sm font-medium">
               <span>Linked staff record</span>
               <PersonSelect
                 aria-label="Linked staff record"
@@ -1339,7 +1339,7 @@ function AccessSelect({
   value: string;
 }) {
   return (
-    <label className="grid min-w-0 gap-1.5 text-[13px] font-medium">
+    <label className="grid min-w-0 gap-1.5 text-sm font-medium">
       <span>{label}</span>
       <SelectControl
         ariaLabel={label}

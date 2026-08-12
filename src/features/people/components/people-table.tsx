@@ -65,7 +65,7 @@ export function PeopleTable({
           data-slot="people-table-frame"
         >
           <div className="h-full overflow-auto">
-            <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
               {isRoleScoped ? (
                 <colgroup>
                   <col className="w-[26%]" />

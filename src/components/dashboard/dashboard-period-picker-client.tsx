@@ -31,7 +31,7 @@ export function DashboardPeriodPickerClient<TKey extends string = string>({
       <Popover.Trigger asChild>
         <button
           className={cn(
-            "inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted",
+            "inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted",
             open && "bg-muted",
           )}
           type="button"
@@ -57,10 +57,10 @@ export function DashboardPeriodPickerClient<TKey extends string = string>({
               onNavigate={() => setOpen(false)}
               prefetch={false}
             >
-              <span className="text-[13px] font-semibold text-foreground">
+              <span className="text-sm font-semibold text-foreground">
                 {option.label}
               </span>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {option.helper}
               </span>
             </Link>

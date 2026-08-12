@@ -101,7 +101,7 @@ export function ReportBuilderScreen({
               <dl className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
                 {visibleSummary.map((metric) => (
                   <div className="min-w-0 px-3 py-2.5" key={metric.label}>
-                    <dt className="truncate text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                    <dt className="truncate text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                       {metric.label}
                     </dt>
                     <dd className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">
@@ -137,9 +137,9 @@ export function ReportBuilderScreen({
             >
               <Table
                 aria-label={trustedReport.title}
-                className="min-w-[680px] text-[13px]"
+                className="min-w-[680px] text-sm"
               >
-                <TableHeader className="bg-muted/50 text-[11px] uppercase tracking-[0.02em] text-muted-foreground">
+                <TableHeader className="bg-muted/50 text-xs uppercase tracking-[0.02em] text-muted-foreground">
                   <TableRow>
                     {trustedReport.columns.map((column) => (
                       <TableHead

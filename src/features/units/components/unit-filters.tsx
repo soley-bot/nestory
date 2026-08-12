@@ -62,7 +62,7 @@ export function UnitFilters({
   const hasAnyFilters = hasSearchQuery || hasAdvancedFilters;
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
-  const compactSelectClassName = "h-8 w-full px-2 text-[13px]";
+  const compactSelectClassName = "h-8 w-full px-2 text-sm";
 
   function replaceParam(name: string, value: string, defaultValue: string) {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -91,7 +91,7 @@ export function UnitFilters({
   return (
     <div className="w-full min-w-0">
       <div>
-        <div className="flex flex-col gap-2 text-[13px] lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
             ariaLabel="Search units"
             className="lg:max-w-[560px]"
@@ -117,7 +117,7 @@ export function UnitFilters({
               <Popover.Trigger asChild>
                 <button
                   className={cn(
-                    "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:border-foreground sm:flex-none",
+                    "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:border-foreground sm:flex-none",
                     hasAdvancedFilters &&
                       "border-primary/40 bg-accent text-accent-foreground hover:bg-accent",
                   )}
@@ -126,7 +126,7 @@ export function UnitFilters({
                   <SlidersHorizontal size={14} />
                   <span>Filters</span>
                   {activeFilters > 0 ? (
-                    <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                    <span className="rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold leading-none text-primary-foreground">
                       {activeFilters}
                     </span>
                   ) : null}
@@ -135,7 +135,7 @@ export function UnitFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
-                  className="z-50 w-[min(calc(100vw-2rem),460px)] rounded-md border border-border bg-card text-[13px] shadow-lg"
+                  className="z-50 w-[min(calc(100vw-2rem),460px)] rounded-md border border-border bg-card text-sm shadow-lg"
                   id="unit-advanced-search"
                   side="bottom"
                   sideOffset={6}

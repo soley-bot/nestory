@@ -46,7 +46,7 @@ export function LeasesTable({
         data-slot="register-table-frame"
       >
         <div className="h-full min-h-[540px] overflow-auto">
-          <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-[13px]">
+          <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
             <colgroup>
               <col className="w-[20%]" />
               <col className="w-[20%]" />
@@ -55,7 +55,7 @@ export function LeasesTable({
               <col className="w-[19%]" />
               <col className="w-[14%]" />
             </colgroup>
-            <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+            <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
                 <th className="px-2.5 py-2.5 font-semibold">Tenant</th>
                 <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
@@ -237,7 +237,7 @@ function LeaseCardDetail({
 }) {
   return (
     <div className={align === "right" ? "min-w-0 text-right" : "min-w-0"}>
-      <dt className="text-[11px] font-medium uppercase text-muted-foreground">{label}</dt>
+      <dt className="text-xs font-medium uppercase text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 break-words font-medium">{children ?? value}</dd>
     </div>
   );

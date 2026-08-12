@@ -38,7 +38,7 @@ export function LoginForm() {
           aria-describedby={state.fieldErrors?.email?.length ? emailErrorId : undefined}
           aria-invalid={Boolean(state.fieldErrors?.email?.length)}
           autoComplete="email"
-          className="mt-2 box-border h-11 px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
+          className="mt-2 box-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground"
           name="email"
           placeholder="admin@example.com"
           type="email"
@@ -52,7 +52,7 @@ export function LoginForm() {
           aria-describedby={state.fieldErrors?.password?.length ? passwordErrorId : undefined}
           aria-invalid={Boolean(state.fieldErrors?.password?.length)}
           autoComplete="current-password"
-          className="mt-2 box-border h-11 px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
+          className="mt-2 box-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground"
           name="password"
           placeholder="Enter password"
           type="password"
@@ -70,7 +70,7 @@ export function LoginForm() {
       </div>
 
       <Button
-        className="box-border h-11 w-full border-primary bg-primary text-[12px] font-semibold uppercase tracking-[0.14em] text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:opacity-70"
+        className="box-border h-11 w-full border-primary bg-primary text-xs font-semibold uppercase tracking-[0.14em] text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:opacity-70"
         disabled={pending}
         type="submit"
         variant="default"

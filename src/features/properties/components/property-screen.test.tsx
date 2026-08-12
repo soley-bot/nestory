@@ -184,8 +184,8 @@ describe("PropertyScreen redesign contract", () => {
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
 
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
 
     const rows = within(table).getAllByRole("row").slice(1);
     expect(within(rows[0]!).queryByRole("link", { name: "Home Residence" })).toBeNull();

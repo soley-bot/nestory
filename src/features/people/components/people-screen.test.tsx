@@ -208,7 +208,7 @@ describe("People route family redesign contract", () => {
     expect(tableFrame).not.toBeNull();
     expect(tableFrame?.className).not.toContain("rounded-lg");
     expect(tableFrame?.className.split(" ")).not.toContain("border");
-    expect(table.className).toContain("text-[13px]");
+    expect(table.className).toContain("text-sm");
     expect(table.querySelector("thead")?.className).toContain("text-xs");
     const rows = within(table).getAllByRole("row").slice(1);
     expect(

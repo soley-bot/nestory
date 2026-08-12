@@ -369,7 +369,7 @@ function PropertyReviewStrip({
 }) {
   return (
     <div className="border-b border-border bg-warning-soft/20 px-4 py-2 sm:px-6 lg:px-6">
-      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="min-w-0 truncate font-medium text-foreground">
           {count} {count === 1 ? "property" : "properties"} {context.countLabel}
         </p>

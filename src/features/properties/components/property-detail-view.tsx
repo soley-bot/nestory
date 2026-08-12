@@ -409,7 +409,7 @@ function PropertyRecordNav({
             }
             aria-selected={activeSection === item.id}
             className={cn(
-              "inline-flex h-9 items-center border-b-2 border-transparent px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground",
+              "inline-flex h-9 items-center border-b-2 border-transparent px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
               activeSection === item.id && "border-primary text-foreground",
             )}
             id={`property-tab-${item.id}`}
@@ -453,7 +453,7 @@ function PropertyReportsPanel({
             prefetch={false}
           >
             <h3 className="text-sm font-semibold">{statement.title}</h3>
-            <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">
               {statement.description}
             </p>
             <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-xs font-medium text-foreground">
@@ -495,7 +495,7 @@ function ActionLink({
 }) {
   return (
     <Link
-      className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium transition-colors hover:bg-muted ${
+      className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium transition-colors hover:bg-muted ${
         strong ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-foreground"
       }`}
       href={href}

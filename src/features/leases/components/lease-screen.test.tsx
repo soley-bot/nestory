@@ -119,8 +119,8 @@ describe("LeaseScreen redesign contract", () => {
     expect(pagination?.classList.contains("rounded-b-md")).toBe(false);
     expect(pagination?.classList.contains("-mt-px")).toBe(false);
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
     expect(within(table).getByText("Start / End")).not.toBeNull();
     expect(within(table).getByText("Payment / Deposit")).not.toBeNull();
 
