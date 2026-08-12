@@ -205,4 +205,3 @@ Vitest, Node concurrency tests, Playwright, Poppler/PDF inspection, and bundled
 - [ ] Commit one clean implementation milestone and assign one independent
   reviewer. Track 5 remains blocked until no Critical or Important finding
   remains.
-

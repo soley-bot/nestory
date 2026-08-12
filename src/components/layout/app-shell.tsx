@@ -482,7 +482,7 @@ export function AppShell({
                               aria-current={active ? "page" : undefined}
                               href={destination.href}
                               prefetch={false}
-                            >
+                            >
                               <Icon />
                               <span>{destination.label}</span>
                             </Link>
@@ -516,7 +516,7 @@ export function AppShell({
                                 aria-current={active ? "page" : undefined}
                                 href={destination.href}
                                 prefetch={false}
-                              >
+                              >
                                 <Icon />
                                 <span>{destination.label}</span>
                               </Link>

@@ -53,4 +53,3 @@ owner allocation, close readiness, and the official Owner Statement.
 - Independent reviewer: a separate review pass after the milestone commit.
 - Local worktree/Supabase only. No hosted migration, real IPS data, deploy,
   email, cron, backup, push, merge, or production claim is authorized here.
-
