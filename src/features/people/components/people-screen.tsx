@@ -135,7 +135,7 @@ export function PeopleScreen({
     lockedRole ?? (viewQuery.role === "all" ? undefined : viewQuery.role);
   const peopleList = (
     <section
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card text-card-foreground"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
       data-slot="people-list-surface"
     >
       <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
@@ -229,7 +229,7 @@ export function PeopleScreen({
           />
         ) : null}
 
-        <div className="min-h-0 min-w-0 flex-1 p-4 sm:px-6 sm:py-4">
+        <div className="min-h-0 min-w-0 flex-1">
           {peopleList}
         </div>
       </div>
