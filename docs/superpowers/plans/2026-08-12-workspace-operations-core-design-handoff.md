@@ -399,7 +399,7 @@ git commit -m "refactor: route directly into role workspaces"
 - Consumes: `OverviewScreenData.attentionItems`
 - Produces: `buildAdminWorkspaceQueue(data): OverviewAttentionItem[]`
 
-- [ ] **Step 1: Write the failing ordering test**
+- [x] **Step 1: Write the failing ordering test**
 
 Assert that the selector sorts without mutating its input:
 
@@ -421,7 +421,7 @@ expect(input.map((item) => item.id)).toEqual(["records", "finance", "maintenance
 
 Rules: remove zero-count items; lower numeric `priority` comes first; equal priority uses larger count first; remaining ties use `id` ascending.
 
-- [ ] **Step 2: Run the test and confirm the selector is absent**
+- [x] **Step 2: Run the test and confirm the selector is absent**
 
 ```powershell
 npx vitest run src/features/workspace-operations/admin-workspace.test.ts
@@ -429,7 +429,7 @@ npx vitest run src/features/workspace-operations/admin-workspace.test.ts
 
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 3: Implement the pure selector**
+- [x] **Step 3: Implement the pure selector**
 
 ```ts
 export function buildAdminWorkspaceQueue(
@@ -439,7 +439,7 @@ export function buildAdminWorkspaceQueue(
 
 Return a new array and preserve the existing `href`, `actionLabel`, `helper`, and tone. Do not duplicate Overview queries.
 
-- [ ] **Step 4: Run the selector test**
+- [x] **Step 4: Run the selector test**
 
 ```powershell
 npx vitest run src/features/workspace-operations/admin-workspace.test.ts
@@ -447,7 +447,7 @@ npx vitest run src/features/workspace-operations/admin-workspace.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the Admin projection**
+- [x] **Step 5: Commit the Admin projection**
 
 ```powershell
 git add src/features/workspace-operations/admin-workspace.ts src/features/workspace-operations/admin-workspace.test.ts
