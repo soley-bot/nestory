@@ -1,0 +1,405 @@
+<title>Role workspaces — design</title>
+
+<style>
+/* Sheet 03 — same drafting language as sheets 01 and 02 */
+:root {
+  --paper:#F4F6F8; --paper-2:#FFFFFF;
+  --ink:#14171D; --ink-2:#454C58; --ink-3:#6B7280;
+  --rule:#D7DCE3; --rule-soft:#E6EAEF;
+  --redline:#C21F45; --redline-bg:#FDEAEF;
+  --resolve:#0E6E63; --resolve-bg:#E2F2F0;
+  --shadow:0 1px 2px rgb(16 22 34 / .05), 0 12px 32px -12px rgb(16 22 34 / .18);
+  --font-doc: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mark: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --measure:68ch; --pad:clamp(1.25rem,4vw,3.5rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:#0E1116; --paper-2:#161A21;
+    --ink:#E9ECF1; --ink-2:#A8B0BD; --ink-3:#7C8595;
+    --rule:#2A303A; --rule-soft:#21262E;
+    --redline:#FF7A96; --redline-bg:#331520;
+    --resolve:#5FCBBC; --resolve-bg:#0F2B28;
+    --shadow:0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -14px rgb(0 0 0 / .7);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:#0E1116; --paper-2:#161A21;
+  --ink:#E9ECF1; --ink-2:#A8B0BD; --ink-3:#7C8595;
+  --rule:#2A303A; --rule-soft:#21262E;
+  --redline:#FF7A96; --redline-bg:#331520;
+  --resolve:#5FCBBC; --resolve-bg:#0F2B28;
+  --shadow:0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -14px rgb(0 0 0 / .7);
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-doc); font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+.sheet { max-width:1180px; margin:0 auto; padding:var(--pad) var(--pad) 5rem; display:flex; flex-direction:column; gap:3.5rem; }
+
+.stamp { font-family:var(--font-mark); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); display:flex; flex-wrap:wrap; gap:.5rem 1.25rem; padding-bottom:1rem; border-bottom:2px solid var(--ink); }
+.stamp b { color:var(--ink); font-weight:600; }
+h1 { margin:0; font-size:clamp(1.9rem,4.4vw,3rem); line-height:1.04; letter-spacing:-.035em; font-weight:700; text-wrap:balance; }
+.lede { margin:0; max-width:var(--measure); font-size:1.0625rem; color:var(--ink-2); }
+.lede strong { color:var(--ink); font-weight:650; }
+.masthead { display:flex; flex-direction:column; gap:1.25rem; }
+
+.sec { display:flex; flex-direction:column; gap:1.25rem; }
+.sec > h2 { margin:0; font-family:var(--font-mark); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); padding-bottom:.625rem; border-bottom:1px solid var(--rule); display:flex; align-items:baseline; gap:.75rem; flex-wrap:wrap; }
+.sec > h2 span { color:var(--ink); font-weight:600; letter-spacing:.1em; }
+.sec > p { margin:0; max-width:var(--measure); color:var(--ink-2); font-size:14.5px; }
+
+.controls { display:flex; flex-wrap:wrap; align-items:center; gap:1rem 1.5rem; }
+.segmented { display:inline-flex; padding:3px; gap:3px; background:var(--rule-soft); border:1px solid var(--rule); border-radius:6px; }
+.segmented button { appearance:none; border:0; background:transparent; color:var(--ink-2); font-family:var(--font-mark); font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:600; padding:.5rem 1rem; border-radius:4px; cursor:pointer; transition:background .15s,color .15s; }
+.segmented button:hover { color:var(--ink); }
+.segmented button[aria-pressed="true"] { background:var(--paper-2); color:var(--ink); box-shadow:0 1px 2px rgb(16 22 34 / .12); }
+.segmented button:focus-visible { outline:2px solid var(--redline); outline-offset:2px; }
+
+.plate { border:1px solid var(--rule); border-radius:8px; background:var(--paper-2); box-shadow:var(--shadow); overflow:hidden; }
+.plate__bar { display:flex; align-items:center; gap:.75rem; padding:.625rem .875rem; border-bottom:1px solid var(--rule); font-family:var(--font-mark); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); }
+.plate__dots { display:flex; gap:5px; }
+.plate__dots i { width:9px; height:9px; border-radius:50%; background:var(--rule); display:block; }
+.plate__label { margin-left:auto; font-weight:600; color:var(--resolve); }
+.viewport { overflow-x:auto; }
+
+/* ---- locked app mock: stock shadcn neutral dark ---- */
+.mock {
+  --m-bg:oklch(0.145 0 0); --m-fg:oklch(0.985 0 0); --m-card:oklch(0.205 0 0);
+  --m-muted:oklch(0.269 0 0); --m-mutedfg:oklch(0.708 0 0); --m-border:oklch(1 0 0 / 12%);
+  --m-primary:oklch(0.922 0 0); --m-primaryfg:oklch(0.205 0 0); --m-head:oklch(0.205 0 0);
+  --m-ok:#86D49B; --m-okbg:#173522; --m-warn:#D6A85F; --m-warnbg:#332414;
+  --m-danger:#FF8A80; --m-dangerbg:#381B20; --m-accent:#8AB4F8; --m-accentbg:#17233A;
+  background:var(--m-bg); color:var(--m-fg); font-size:14px; line-height:1.45; position:relative;
+}
+.mock--desktop { min-width:1000px; }
+.mock--mobile { width:390px; margin:0 auto; border-left:1px solid var(--rule); border-right:1px solid var(--rule); }
+
+.m-crumb { display:flex; align-items:center; gap:.5rem; padding:14px 24px 0; font-size:13px; color:var(--m-mutedfg); }
+.m-crumb b { color:var(--m-fg); font-weight:600; }
+.m-crumb i { font-style:normal; opacity:.5; }
+.m-head { padding:8px 24px 14px; display:flex; align-items:center; gap:16px; }
+.m-head h3 { margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em; }
+.m-actions { margin-left:auto; display:flex; gap:8px; flex-shrink:0; }
+.m-btn { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 10px; border-radius:8px; font-size:13px; font-weight:500; border:1px solid var(--m-border); background:transparent; color:var(--m-fg); white-space:nowrap; }
+.m-btn--fill { background:var(--m-primary); color:var(--m-primaryfg); border-color:transparent; font-weight:600; }
+.m-btn--icon { width:32px; padding:0; justify-content:center; }
+.m-badge { display:inline-flex; align-items:center; padding:2px 7px; border-radius:5px; font-size:11px; font-weight:600; background:var(--m-okbg); color:var(--m-ok); white-space:nowrap; }
+.m-badge--warn { background:var(--m-warnbg); color:var(--m-warn); }
+.m-badge--danger { background:var(--m-dangerbg); color:var(--m-danger); }
+.m-badge--quiet { background:var(--m-muted); color:var(--m-mutedfg); }
+.m-badge--accent { background:var(--m-accentbg); color:var(--m-accent); }
+
+.chips { display:flex; flex-wrap:wrap; gap:8px; padding:0 24px 14px; }
+.chip { display:inline-flex; align-items:center; gap:7px; border:1px solid var(--m-border); border-radius:999px; padding:5px 12px; font-size:12.5px; color:var(--m-mutedfg); white-space:nowrap; }
+.chip b { color:var(--m-fg); font-variant-numeric:tabular-nums; }
+.chip[data-on] { border-color:var(--m-primary); color:var(--m-fg); }
+
+table.mt { width:100%; border-collapse:collapse; text-align:left; }
+.mt thead th { font-size:11.5px; font-weight:600; color:var(--m-mutedfg); padding:9px 10px; background:var(--m-head); border-bottom:1px solid var(--m-border); white-space:nowrap; }
+.mt thead th.r { text-align:right; }
+.mt tbody td { padding:11px 10px; border-top:1px solid var(--m-border); font-size:13px; vertical-align:middle; }
+.mt tbody td.r { text-align:right; font-variant-numeric:tabular-nums; }
+.mt tbody td.c { text-align:center; }
+.mt td:first-child, .mt th:first-child { padding-left:24px; }
+.mt td:last-child, .mt th:last-child { padding-right:24px; }
+.mt .lead { font-weight:600; color:var(--m-fg); display:block; }
+.mt .ctx { display:block; font-size:12px; color:var(--m-mutedfg); margin-top:2px; }
+.mt .none { color:var(--m-mutedfg); }
+.mt tbody tr:hover { background:var(--m-muted); }
+
+.sect { padding:18px 24px 8px; border-top:1px solid var(--m-border); margin-top:10px; }
+.sect h4 { margin:0 0 2px; font-size:13px; font-weight:600; color:var(--m-mutedfg); }
+.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--m-border); border:1px solid var(--m-border); border-radius:10px; overflow:hidden; margin:10px 24px 20px; }
+.kpi { background:var(--m-card); padding:12px 14px; }
+.kpi dt { margin:0 0 4px; font-size:11.5px; color:var(--m-mutedfg); }
+.kpi dd { margin:0; font-size:19px; font-weight:600; font-variant-numeric:tabular-nums; }
+
+/* mobile card queue */
+.cards { display:flex; flex-direction:column; border-top:1px solid var(--m-border); }
+.card { padding:12px 16px; border-bottom:1px solid var(--m-border); display:flex; flex-direction:column; gap:6px; }
+.card__top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.card__top strong { font-size:13.5px; font-weight:600; }
+.card__meta { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:var(--m-mutedfg); }
+.card__meta b { color:var(--m-fg); font-variant-numeric:tabular-nums; font-size:13px; }
+
+/* empty / error states */
+.state { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:52px 24px; text-align:center; border-top:1px solid var(--m-border); }
+.state i { width:36px; height:36px; border-radius:8px; background:var(--m-muted); display:grid; place-items:center; font-style:normal; color:var(--m-mutedfg); }
+.state strong { font-size:14px; }
+.state p { margin:0; font-size:13px; color:var(--m-mutedfg); max-width:34ch; }
+.sk { background:var(--m-muted); border-radius:4px; height:11px; display:block; }
+.sk--row { height:15px; }
+
+/* ---- doc tables ---- */
+.wrap { overflow-x:auto; border:1px solid var(--rule); border-radius:6px; }
+table.doc { width:100%; min-width:680px; border-collapse:collapse; background:var(--paper-2); font-size:14px; }
+.doc th { text-align:left; font-family:var(--font-mark); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:600; padding:.75rem 1rem; border-bottom:1px solid var(--rule); white-space:nowrap; }
+.doc td { padding:.8rem 1rem; border-bottom:1px solid var(--rule-soft); vertical-align:top; }
+.doc tr:last-child td { border-bottom:0; }
+.doc td.f { font-family:var(--font-mark); font-size:12px; color:var(--ink); white-space:nowrap; }
+.doc .new { color:var(--redline); font-weight:700; }
+code { font-family:var(--font-mark); font-size:12px; background:var(--rule-soft); padding:.1em .4em; border-radius:3px; }
+pre.arch { margin:0; padding:1.125rem 1.25rem; background:var(--paper-2); border:1px solid var(--rule); border-radius:6px; overflow-x:auto; font-family:var(--font-mark); font-size:12.5px; line-height:1.75; color:var(--ink-2); }
+pre.arch b { color:var(--ink); font-weight:650; }
+pre.arch i { color:var(--redline); font-style:normal; }
+.foot { font-size:13.5px; color:var(--ink-3); border-top:1px solid var(--rule); padding-top:1.25rem; max-width:var(--measure); }
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+</style>
+
+<div class="sheet">
+
+<header class="masthead">
+  <div class="stamp">
+    <span>Nestory</span><span>Sheet <b>03</b></span>
+    <span>Roles <b>Super Admin · Finance Manager · Finance Member</b></span>
+    <span>Design <b>2026-08-12</b></span>
+  </div>
+  <h1>Three roles, one queue-first workspace</h1>
+  <p class="lede">
+    Operations already solved this: land the operator in a prioritised queue, give them one primary
+    action, and keep the row light enough to scan. These three workspaces reuse that anatomy rather
+    than inventing a third. <strong>Every value below maps to a typed field</strong> — nothing here
+    asks a React component to work out permission, ownership, priority, or financial status.
+  </p>
+</header>
+
+<section class="sec">
+  <h2>Anatomy <span>Inherited from Operations</span></h2>
+  <pre class="arch"><b>PageHeader</b>          title · <b>one</b> primary action
+<b>Attention chips</b>     non-zero counts only          <i>← correction to Operations, which shows six zeros</i>
+<b>Queue</b>               the dominant surface, one row per unit of work
+<b>Secondary context</b>   below the queue, never competing</pre>
+  <p>A row is a handle, not a record: enough to decide, then click through. Same rule that took the
+    People and Lease rows from three lines to one.</p>
+</section>
+
+<section class="sec">
+  <h2>Plates <span>Choose a role and a state</span></h2>
+  <div class="controls">
+    <div class="segmented" role="group" aria-label="Role">
+      <button id="r-admin" type="button" aria-pressed="true">Super Admin</button>
+      <button id="r-mgr" type="button" aria-pressed="false">Finance Manager</button>
+      <button id="r-mem" type="button" aria-pressed="false">Finance Member</button>
+    </div>
+    <div class="segmented" role="group" aria-label="State">
+      <button id="s-pop" type="button" aria-pressed="true">Populated</button>
+      <button id="s-empty" type="button" aria-pressed="false">Empty</button>
+      <button id="s-load" type="button" aria-pressed="false">Loading</button>
+      <button id="s-err" type="button" aria-pressed="false">Error</button>
+    </div>
+    <div class="segmented" role="group" aria-label="Viewport">
+      <button id="v-desk" type="button" aria-pressed="true">1440</button>
+      <button id="v-mob" type="button" aria-pressed="false">390</button>
+    </div>
+  </div>
+
+  <div class="plate">
+    <div class="plate__bar">
+      <span class="plate__dots"><i></i><i></i><i></i></span>
+      <span id="plate-route">nestory · /overview</span>
+      <span class="plate__label">Proposed</span>
+    </div>
+    <div class="viewport"><div id="stage"></div></div>
+  </div>
+</section>
+
+<section class="sec">
+  <h2>Field map <span>Every visible value → typed field</span></h2>
+  <div class="wrap">
+    <table class="doc">
+      <thead><tr><th>Role</th><th>Visible element</th><th>Typed field</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="5">Super&nbsp;Admin</td><td>Row title / count / helper</td><td class="f">label · count · helper</td><td>Selector drops zero-count items</td></tr>
+        <tr><td>Row action</td><td class="f">actionLabel → href</td><td></td></tr>
+        <tr><td>Status colour</td><td class="f">tone</td><td>Already on the type</td></tr>
+        <tr><td>Order</td><td class="f">priority</td><td>Array order; no client re-sort</td></tr>
+        <tr><td>Header primary action</td><td class="f">queue[0]</td><td>“Open the highest-priority exception”</td></tr>
+
+        <tr><td rowspan="6">Finance&nbsp;Manager</td><td>Chips</td><td class="f">totals.*</td><td>Hidden at 0</td></tr>
+        <tr><td>Row title / context</td><td class="f">title · <span class="new">contextLabel</span></td><td class="new">contextLabel requested</td></tr>
+        <tr><td>Submitter</td><td class="f"><span class="new">submittedByLabel</span></td><td class="new">requested — only the UUID exists</td></tr>
+        <tr><td>Amount</td><td class="f"><span class="new">amountDisplay</span></td><td class="new">requested</td></tr>
+        <tr><td>Status badge</td><td class="f">statusLabel · <span class="new">tone</span></td><td class="new">tone requested</td></tr>
+        <tr><td>Age</td><td class="f">submittedAt</td><td>Rendered relative; absolute in title</td></tr>
+
+        <tr><td rowspan="3">Finance&nbsp;Member</td><td>Header primary action</td><td class="f">primaryAction.label → .href</td><td><code>intent</code> not displayed</td></tr>
+        <tr><td>Chips</td><td class="f">totals.rejected · awaitingReview · approvedRecently</td><td>Hidden at 0</td></tr>
+        <tr><td>Queue scope</td><td class="f">queue</td><td>Projection scopes to the user; component filters nothing</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec">
+  <h2>Requested fields <span>Four additions to FinanceWorkspaceQueueItem</span></h2>
+  <p>Each is required because the alternative is deriving financial meaning inside React, which the
+    contract forbids.</p>
+  <div class="wrap">
+    <table class="doc">
+      <thead><tr><th>Field</th><th>Purpose</th><th>If omitted</th></tr></thead>
+      <tbody>
+        <tr><td class="f new">amountDisplay</td><td>It is a paid-cost review queue</td><td>Manager opens every row to see what they are approving</td></tr>
+        <tr><td class="f new">tone</td><td>Badge semantics for <code>statusLabel</code></td><td>Component maps status strings to colours — deriving financial status in React</td></tr>
+        <tr><td class="f new">submittedByLabel</td><td>Manager must see who submitted</td><td>Only <code>submittedByUserId</code> exists, and raw UUIDs are barred from operator labels</td></tr>
+        <tr><td class="f new">contextLabel</td><td>Which property / unit the cost belongs to</td><td>Triage needs it; <code>detail</code> already carries the rejection reason</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<p class="foot">
+  Full spec, state matrix, responsive rules and open questions:
+  <code>docs/workspace-role-design-spec.md</code>. Plate renders in stock shadcn
+  <em>neutral dark</em>. Nothing here changes capabilities, context, Supabase, route logic,
+  Finance mutation semantics, queue priority, or Operations scope.
+</p>
+
+</div>
+
+<script>
+(function () {
+  var role = "admin", state = "pop", view = "desk";
+  var stage = document.getElementById("stage");
+  var routeEl = document.getElementById("plate-route");
+  var routes = { admin:"nestory · /overview", mgr:"nestory · /finance", mem:"nestory · /finance" };
+  var titles = { admin:"Overview", mgr:"Finance", mem:"Finance" };
+
+  var DATA = {
+    admin: {
+      chips: [["Rent exceptions",3],["Missing evidence",2],["Lease endings",1]],
+      cols: ["Queue","Waiting","",""],
+      rows: [
+        ["Rent exceptions","Collections behind for the current month","3","warn","Open rent"],
+        ["Missing evidence","Paid costs approved without attached evidence","2","danger","Open expenses"],
+        ["Lease endings","Terms ending within 60 days","1","quiet","Open leases"]
+      ],
+      action: "Open rent"
+    },
+    mgr: {
+      chips: [["Awaiting review",3],["Maintenance handoffs",1],["Missing evidence",1]],
+      rows: [
+        ["Aircon compressor replacement","Unit A-01 · Riverside Shophouse","Mony Rath","6 days","USD 480.00","Maintenance handoff","accent"],
+        ["Lobby repaint materials","Central Residence","Sovan Mara","4 days","USD 210.00","Missing evidence","danger"],
+        ["Quarterly pest control","Garden Court","Sovan Mara","2 days","USD 95.00","Awaiting review","warn"]
+      ],
+      action: "Review submission"
+    },
+    mem: {
+      chips: [["Rejected",1],["Awaiting review",2],["Approved · last 30 days",1]],
+      rows: [
+        ["Lobby repaint materials","Evidence photo was unreadable","2 days","USD 210.00","Rejected","danger"],
+        ["Quarterly pest control","Garden Court","2 days","USD 95.00","Awaiting review","warn"],
+        ["Water pump seal","Riverside Shophouse","9 days","USD 140.00","Approved","quiet"]
+      ],
+      action: "Record paid cost"
+    }
+  };
+
+  function chips(list){
+    return '<div class="chips">' + list.map(function(c,i){
+      return '<span class="chip"'+(i===0?' data-on':'')+'>'+c[0]+' <b>'+c[1]+'</b></span>';
+    }).join("") + '</div>';
+  }
+  function head(t, action, primary){
+    return '<div class="m-crumb"><span>'+(role==="admin"?"Workspace":"Finance")+'</span><i>›</i><b>'+t+'</b></div>'+
+      '<div class="m-head"><h3>'+t+'</h3><div class="m-actions">'+
+      (role==="mgr"?'<span class="m-btn">Filters</span>':'')+
+      '<span class="m-btn m-btn--fill">'+action+'</span></div></div>';
+  }
+
+  function adminTable(){
+    return '<table class="mt"><thead><tr><th>Queue</th><th>Detail</th><th class="r">Waiting</th><th></th></tr></thead><tbody>'+
+      DATA.admin.rows.map(function(r){
+        return '<tr><td><span class="lead">'+r[0]+'</span></td>'+
+          '<td class="none">'+r[1]+'</td>'+
+          '<td class="r"><span class="m-badge m-badge--'+r[3]+'">'+r[2]+'</span></td>'+
+          '<td class="r"><span class="m-btn">'+r[4]+' →</span></td></tr>';
+      }).join("")+'</tbody></table>'+
+      '<div class="sect"><h4>Portfolio context</h4></div>'+
+      '<dl class="kpis">'+
+        '<div class="kpi"><dt>Properties</dt><dd>4</dd></div>'+
+        '<div class="kpi"><dt>Units</dt><dd>9</dd></div>'+
+        '<div class="kpi"><dt>Active leases</dt><dd>7</dd></div>'+
+        '<div class="kpi"><dt>Occupancy</dt><dd>78%</dd></div>'+
+      '</dl>';
+  }
+  function mgrTable(){
+    return '<table class="mt"><thead><tr><th>Cost</th><th>Submitted by</th><th>Age</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead><tbody>'+
+      DATA.mgr.rows.map(function(r){
+        return '<tr><td><span class="lead">'+r[0]+'</span><span class="ctx">'+r[1]+'</span></td>'+
+          '<td>'+r[2]+'</td><td class="none">'+r[3]+'</td>'+
+          '<td class="r">'+r[4]+'</td>'+
+          '<td><span class="m-badge m-badge--'+r[6]+'">'+r[5]+'</span></td>'+
+          '<td class="r"><span class="m-btn">Review →</span></td></tr>';
+      }).join("")+'</tbody></table>';
+  }
+  function memTable(){
+    return '<table class="mt"><thead><tr><th>Cost</th><th>Age</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead><tbody>'+
+      DATA.mem.rows.map(function(r){
+        return '<tr><td><span class="lead">'+r[0]+'</span><span class="ctx">'+r[1]+'</span></td>'+
+          '<td class="none">'+r[2]+'</td><td class="r">'+r[3]+'</td>'+
+          '<td><span class="m-badge m-badge--'+r[5]+'">'+r[4]+'</span></td>'+
+          '<td class="r"><span class="m-btn">Open →</span></td></tr>';
+      }).join("")+'</tbody></table>';
+  }
+  function cardsFor(){
+    var rows = DATA[role].rows;
+    return '<div class="cards">'+rows.map(function(r){
+      var title=r[0], ctx=(role==="admin"?r[1]:r[1]);
+      var amount=(role==="admin"?r[2]+" waiting":(role==="mgr"?r[4]:r[3]));
+      var st=(role==="admin"?"":(role==="mgr"?r[5]:r[4]));
+      var tone=(role==="admin"?r[3]:(role==="mgr"?r[6]:r[5]));
+      return '<div class="card"><div class="card__top"><strong>'+title+'</strong>'+
+        (st?'<span class="m-badge m-badge--'+tone+'">'+st+'</span>':'<span class="m-badge m-badge--'+tone+'">'+r[2]+'</span>')+
+        '</div><div class="card__meta"><span>'+ctx+'</span><b>'+amount+'</b></div>'+
+        '<div><span class="m-btn">'+(role==="admin"?r[4]:"Open")+' →</span></div></div>';
+    }).join("")+'</div>';
+  }
+
+  function emptyState(){
+    var copy = { admin:["Nothing needs attention","Portfolio context is below."],
+                 mgr:["Nothing waiting for review",""],
+                 mem:["No submissions yet",""] }[role];
+    return '<div class="state"><i>✓</i><strong>'+copy[0]+'</strong>'+(copy[1]?'<p>'+copy[1]+'</p>':'')+
+      (role==="mem"?'<span class="m-btn m-btn--fill">Record paid cost</span>':'')+'</div>';
+  }
+  function errorState(){
+    return '<div class="state"><i>!</i><strong>Queue could not load</strong>'+
+      '<p>The workspace data did not come back. Retry, or open the domain directly.</p>'+
+      '<span class="m-btn">Retry</span></div>';
+  }
+  function loadingState(){
+    var r='';
+    for(var i=0;i<4;i++){ r+='<tr><td><span class="sk sk--row" style="width:56%"></span></td><td><span class="sk" style="width:70%"></span></td><td><span class="sk" style="width:40%"></span></td><td class="r"><span class="sk" style="width:60%;margin-left:auto"></span></td></tr>'; }
+    return '<table class="mt"><thead><tr><th>Cost</th><th>Context</th><th>Age</th><th class="r">Amount</th></tr></thead><tbody>'+r+'</tbody></table>';
+  }
+
+  function render(){
+    routeEl.textContent = routes[role];
+    var cls = view==="mob" ? "mock mock--mobile" : "mock mock--desktop";
+    var body;
+    if (state==="empty") body = chips([]) + emptyState();
+    else if (state==="err") body = errorState();
+    else if (state==="load") body = '<div class="chips"><span class="chip"><span class="sk" style="width:80px"></span></span><span class="chip"><span class="sk" style="width:64px"></span></span></div>' + loadingState();
+    else body = chips(DATA[role].chips) + (view==="mob" ? cardsFor() : (role==="admin"?adminTable():role==="mgr"?mgrTable():memTable()));
+
+    stage.className = cls;
+    stage.innerHTML = head(titles[role], DATA[role].action) + body;
+  }
+
+  function bind(id, fn){ document.getElementById(id).addEventListener("click", fn); }
+  function press(group, activeId){
+    group.forEach(function(id){ document.getElementById(id).setAttribute("aria-pressed", String(id===activeId)); });
+  }
+  var roleIds=["r-admin","r-mgr","r-mem"], stateIds=["s-pop","s-empty","s-load","s-err"], viewIds=["v-desk","v-mob"];
+  bind("r-admin",function(){role="admin";press(roleIds,"r-admin");render();});
+  bind("r-mgr",function(){role="mgr";press(roleIds,"r-mgr");render();});
+  bind("r-mem",function(){role="mem";press(roleIds,"r-mem");render();});
+  bind("s-pop",function(){state="pop";press(stateIds,"s-pop");render();});
+  bind("s-empty",function(){state="empty";press(stateIds,"s-empty");render();});
+  bind("s-load",function(){state="load";press(stateIds,"s-load");render();});
+  bind("s-err",function(){state="err";press(stateIds,"s-err");render();});
+  bind("v-desk",function(){view="desk";press(viewIds,"v-desk");render();});
+  bind("v-mob",function(){view="mob";press(viewIds,"v-mob");render();});
+  render();
+})();
+</script>
