@@ -79,13 +79,27 @@ Codex will not change:
 
 Claude designs against the interfaces in this plan. If a design needs another display field, Claude records the requested field and its user-facing purpose; Codex adds it to the typed projection. Claude does not derive permissions, priority, ownership, or financial status inside React components.
 
-The integration order is:
+The integration order and live status are:
 
-1. Claude completes the three role-workspace designs and maps every visible value/action to the contract below.
-2. Codex implements Tasks 1-5 in the isolated core worktree.
-3. The core branch is reviewed and merged into the UI branch.
-4. Claude implements the approved presentation against the merged types.
-5. Codex runs Task 6 verification across all five roles and reports any contract mismatch without redesigning Claude's work.
+1. [x] Claude completed the three role-workspace designs and field map on `ui/design-system` at `d471095`.
+2. [x] Codex implemented Tasks 1-5 plus the four requested Finance display fields on `codex/ips-operational-readiness` through `0a9d3d9`.
+3. [ ] Review and merge the core branch into the UI branch. This remains the next integration boundary.
+4. [ ] Claude implements the approved presentation against the merged types.
+5. [ ] Codex runs Task 6 verification across all five roles and reports any contract mismatch without redesigning Claude's work.
+
+### Live implementation checkpoint
+
+This plan is the current integration contract. Claude's companion documents at `docs/workspace-role-design-spec.md` and `docs/prototypes/03-role-workspaces.html` capture the approved design intent at `d471095`, but their sections describing the four Finance display fields as "requested" predate core commit `0a9d3d9`. The live core contract below supersedes those request/open-question passages.
+
+Current branch boundary:
+
+| Surface | Branch | Verified checkpoint | Status |
+| --- | --- | --- | --- |
+| UI/UX design | `ui/design-system` | `d471095` | Design and field map complete; presentation integration pending |
+| Workspace core | `codex/ips-operational-readiness` | `0a9d3d9` | Tasks 1-5 and the four Finance display fields complete |
+| Cross-branch integration | Not started | None | Core must be reviewed and merged before Claude wires the final components |
+
+Do not copy the older example type from the companion design spec verbatim. In particular, the live type intentionally uses `amountDisplay: MoneyDisplayValue | null` and `submittedByLabel: string | null` because the manager queue also contains non-paid-cost exceptions.
 
 ---
 
@@ -520,6 +534,8 @@ git commit -m "feat: sanitize operator activity details"
 
 ### Task 6: Integrate Claude's presentation and verify all five roles
 
+**Status:** Pending cross-branch integration. The design checkpoint and core checkpoint are complete, but neither branch currently contains the combined presentation plus core contract.
+
 **Files:**
 - Modify: `src/app/(dashboard)/finance/page.tsx`
 - Modify: `src/app/(dashboard)/overview/page.tsx`
@@ -604,9 +620,11 @@ The work is complete only when:
 - Focused tests, lint, TypeScript, `git diff --check`, and authenticated five-role browser verification pass.
 - Evidence identifies the exact branch, SHA, worktree, runtime source, and local-versus-hosted boundary.
 
-## Claude Contract Amendment: 2026-08-12
+## Live Finance Presentation Contract: 2026-08-12
 
-The core queue now provides the four presentation fields requested by Claude:
+Implemented in core commit `0a9d3d9`. The authoritative interface is `src/features/workspace-operations/finance-workspace.types.ts`, and the projection is `src/features/workspace-operations/finance-workspace.ts`.
+
+The core queue provides the four presentation fields requested by Claude:
 
 - `amountDisplay`: `MoneyDisplayValue | null`. Paid-cost items use the paid internal cost; tenant and owner balance items use the outstanding balance; non-monetary exceptions use `null`.
 - `tone`: explicit badge semantics from core. Missing evidence and rejected work use `danger`; pending review and balance work use `warning`; approved work uses `success`.
@@ -614,6 +632,16 @@ The core queue now provides the four presentation fields requested by Claude:
 - `contextLabel`: the property plus unit when unit-scoped, otherwise the property. `detail` remains available for the rejection reason or supporting description.
 
 Claude should render these values directly and must not map `statusLabel` to colors, format raw amounts, resolve UUIDs, or rebuild property/unit context in the component.
+
+Resolved companion-spec questions:
+
+- `tone` comes from the core projection. React does not resolve it from `statusLabel` or raw submission state.
+- `submittedByLabel` comes from the Finance-scoped, read-only `get_finance_submission_actor_labels` RPC. Missing account email safely falls back to a role label or `Workspace member`; a raw UUID is never an operator label.
+- Relative age derived from `submittedAt` is presentation formatting and may remain in the component. Preserve the absolute timestamp through `<time dateTime>` and accessible/title text.
+- No current Finance queue `kind` is implicitly blocked. Missing evidence is still a review item with `tone: "danger"`. Do not infer a blocked state from `kind`, `tone`, or copy; a future blocked workflow must arrive as an explicit core field.
+- `detail` carries the rejection reason for rejected member submissions. `contextLabel` remains a separate field and must not overwrite that reason.
+
+Local verification at this checkpoint: 214 Vitest files passed (1,543 tests passed, 1 skipped), TypeScript and affected-file ESLint passed, the actor-label pgTAP test passed, public-schema database lint returned no errors, and migration newline portability passed. The RPC migration is applied to local Supabase only; it has not been applied to hosted Supabase.
 
 ## Explicit Non-Goals
 
