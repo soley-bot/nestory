@@ -233,7 +233,7 @@ export function SearchableSelectControl({
                       </span>
                     ) : null}
                     {option.value === value ? (
-                      <Check aria-hidden="true" className="shrink-0 text-accent" size={15} />
+                      <Check aria-hidden="true" className="shrink-0 text-primary" size={15} />
                     ) : null}
                   </button>
                 ))

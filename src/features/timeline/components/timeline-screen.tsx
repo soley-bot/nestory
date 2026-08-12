@@ -542,7 +542,7 @@ function RestoreTimelineEventPanel({
     <form action={action} className="flex h-full flex-col">
       <input name="eventId" type="hidden" value={event.id} />
       <div className="flex-1 px-4 py-5 sm:px-5">
-        <div className="mb-4 flex items-center gap-2 text-accent">
+        <div className="mb-4 flex items-center gap-2 text-primary">
           <RotateCcw size={16} />
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>

@@ -203,7 +203,7 @@ function AttentionNote({
           {item ? null : (
             <Link
               aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-primary transition-colors hover:bg-muted"
               href={href}
               title="Open action"
             >

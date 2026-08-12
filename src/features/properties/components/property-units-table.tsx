@@ -111,7 +111,7 @@ function UnitLabel({ unit }: { unit: PropertyDetailUnit }) {
 
   return (
     <Link
-      className="break-words font-medium text-accent hover:underline"
+      className="break-words font-medium text-primary hover:underline"
       href={`/units/${unit.id}`}
       prefetch={false}
     >

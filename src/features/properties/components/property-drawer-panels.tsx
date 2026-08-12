@@ -105,7 +105,7 @@ export function RestorePropertyPanel({
     <form action={action} className="flex h-full flex-col">
       <input name="propertyId" type="hidden" value={property.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <div className="flex items-center gap-2 text-accent">
+        <div className="flex items-center gap-2 text-primary">
           <RotateCcw size={16} />
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>

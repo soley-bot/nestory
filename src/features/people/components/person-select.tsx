@@ -273,7 +273,7 @@ export function PersonSelect({
                   </span>
                 </span>
                 {option.id === selectedValue ? (
-                  <Check className="shrink-0 text-accent" size={15} />
+                  <Check className="shrink-0 text-primary" size={15} />
                 ) : null}
               </button>
             ))

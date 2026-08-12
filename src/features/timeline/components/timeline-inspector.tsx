@@ -93,7 +93,7 @@ export function TimelineInspector({
                 href={event.hrefs.unit}
               >
                 <span>Unit {event.unitNumber}</span>
-                <ExternalLink className="shrink-0 text-accent" size={13} />
+                <ExternalLink className="shrink-0 text-primary" size={13} />
               </Link>
             ) : null}
             <Link
@@ -101,7 +101,7 @@ export function TimelineInspector({
               href={event.hrefs.timeline}
             >
               <span>Open timeline event</span>
-              <ExternalLink className="shrink-0 text-accent" size={13} />
+              <ExternalLink className="shrink-0 text-primary" size={13} />
             </Link>
           </div>
         </div>
@@ -136,7 +136,7 @@ export function TimelineInspector({
                       {source.isArchived ? (
                         <Badge tone="warning">Archived source</Badge>
                       ) : null}
-                      <ExternalLink className="text-accent" size={13} />
+                      <ExternalLink className="text-primary" size={13} />
                     </span>
                   </Link>
                 ) : (
@@ -299,7 +299,7 @@ function AttentionNote({
           </Badge>
           <Link
             aria-label="Open action"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-primary transition-colors hover:bg-muted"
             href={href}
             title="Open action"
           >
