@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, type MouseEvent } from "react";
+import { useEffect, useRef } from "react";
 import {
   Building2,
   Landmark,
@@ -35,7 +34,6 @@ import {
   DEFAULT_ORGANIZATION_THEME,
   type OrganizationTheme,
 } from "@/lib/theme/organization-theme";
-import { cn } from "@/lib/utils";
 
 export type SettingsSection =
   "organization" | "appearance" | "configuration" | "branches" | "teams";
@@ -98,52 +96,12 @@ function SettingsWorkspaceContent({
     return () => guard.registerDraftController(null);
   }, [guard]);
 
-  function handleSectionClick(
-    event: MouseEvent<HTMLAnchorElement>,
-    destination: (typeof sections)[number],
-  ) {
-    if (!guard || destination.value === section) {
-      return;
-    }
-
-    guard.handleNavigationClick(event, {
-      href: `/settings?section=${destination.value}`,
-      label: destination.label,
-    });
-  }
 
   return (
     <div
-      className="mx-auto grid w-full max-w-6xl min-w-0 gap-3 px-3 py-3 sm:px-4 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start"
+      className="min-w-0 px-4 py-4 sm:px-6"
       data-testid="settings-workspace"
     >
-      <nav
-        aria-label="Organization settings sections"
-        className="flex min-w-0 gap-0.5 overflow-x-auto rounded-lg bg-muted p-0.5 lg:flex-col lg:overflow-visible"
-      >
-        {sections.map((item) => {
-          const current = item.value === section;
-          const Icon = item.icon;
-          return (
-            <Link
-              aria-current={current ? "page" : undefined}
-              className={cn(
-                "flex h-8 shrink-0 items-center gap-2 rounded-md border border-transparent px-2.5 text-xs font-medium text-muted-foreground outline-none transition-all hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 lg:w-full",
-                current &&
-                  "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30",
-              )}
-              href={`/settings?section=${item.value}`}
-              key={item.value}
-              onClick={(event) => handleSectionClick(event, item)}
-              prefetch={false}
-            >
-              <Icon aria-hidden="true" className="size-4 shrink-0" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
       <section
         aria-label={`${currentSection.label} settings content`}
         className="min-w-0"

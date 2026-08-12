@@ -132,8 +132,13 @@ export type LeaseRentReadiness = {
 };
 
 export type LeaseOccupancyContext = {
+  actualLabel: string;
   datesLabel: string;
+  evidenceLabel: string;
+  evidenceState: string;
   id: string;
+  residentLabel: string;
+  scheduledLabel: string;
   statusLabel: string;
   unitHref?: string;
   unitLabel: string;

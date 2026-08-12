@@ -88,16 +88,27 @@ SELECT ok(
   'Operations roles have active staff identities and a branch'
 );
 
-SELECT is(
-  (SELECT count(*) FROM public.properties WHERE archived_at IS NULL),
-  2::bigint,
-  'the sample portfolio has two active properties'
+SELECT results_eq(
+  $$
+    SELECT code, status
+    FROM public.properties
+    WHERE archived_at IS NULL
+    ORDER BY code
+  $$,
+  $$
+    VALUES
+      ('CLS-RDY'::text, 'active'::text),
+      ('CTR-RES'::text, 'active'::text),
+      ('GDN-CRT'::text, 'active'::text),
+      ('RIV-SHP'::text, 'active'::text)
+  $$,
+  'the compact fixture contains three operating stories and one isolated close story'
 );
 
 SELECT is(
   (SELECT count(*) FROM public.units WHERE archived_at IS NULL),
-  5::bigint,
-  'the sample portfolio has five active units'
+  10::bigint,
+  'the compact fixture contains ten active units'
 );
 
 SELECT ok(
@@ -125,14 +136,14 @@ SELECT is(
         AND count(*) FILTER (WHERE owners.is_primary) = 1
     ) AS complete_ownership
   ),
-  2::bigint,
+  4::bigint,
   'each property has one complete current ownership record'
 );
 
 SELECT is(
   (SELECT count(*) FROM public.leases WHERE archived_at IS NULL),
-  3::bigint,
-  'the fixture contains three current leases'
+  5::bigint,
+  'the fixture contains five current leases'
 );
 
 SELECT is(
@@ -149,7 +160,7 @@ SELECT is(
           AND term.archived_at IS NULL
       ) = 1
   ),
-  3::bigint,
+  5::bigint,
   'every lease has one authoritative term'
 );
 
@@ -169,13 +180,13 @@ SELECT results_eq(
       (SELECT count(*)::integer FROM public.lease_occupancies),
       (SELECT count(*)::integer FROM public.lease_occupancy_participants)
   $$,
-  $$VALUES (3, 3, 2)$$,
+  $$VALUES (5, 5, 4)$$,
   'lease parties, occupancy, and individual participation are explicit'
 );
 
 SELECT is(
   (SELECT count(*) FROM public.lease_deposits WHERE archived_at IS NULL),
-  3::bigint,
+  5::bigint,
   'each lease carries its operational deposit record'
 );
 
@@ -190,7 +201,7 @@ SELECT results_eq(
   $$
     VALUES
       ('direct_to_owner'::text, 1),
-      ('through_ips'::text, 2)
+      ('through_ips'::text, 4)
   $$,
   'billing terms cover both supported collection routes'
 );
@@ -212,8 +223,8 @@ SELECT is(
     WHERE billing_period_start = date_trunc('month', current_date)::date
       AND lifecycle = 'issued'
   ),
-  3::bigint,
-  'automatic generation created one current-month invoice per lease'
+  5::bigint,
+  'automatic generation created current-month invoices for configured leases'
 );
 
 SELECT ok(
@@ -237,16 +248,33 @@ SELECT results_eq(
   $$,
   $$
     VALUES
-      ('direct_to_owner'::text, 'paid'::text, 1),
-      ('through_ips'::text, 'paid'::text, 1),
-      ('through_ips'::text, 'unpaid'::text, 1)
+      ('direct_to_owner'::text, 'partly_paid'::text, 1),
+      ('through_ips'::text, 'partly_paid'::text, 1),
+      ('through_ips'::text, 'unpaid'::text, 3)
   $$,
   'rent balances include IPS-paid, owner-collected, and open obligations'
 );
 
 SELECT is(
+  (
+    SELECT count(*)
+    FROM public.rent_generation_exceptions AS exception
+    JOIN public.leases AS lease
+      ON lease.organization_id = exception.organization_id
+     AND lease.id = exception.lease_id
+    JOIN public.properties AS property
+      ON property.organization_id = lease.organization_id
+     AND property.id = lease.property_id
+    WHERE property.code = 'GDN-CRT'
+      AND exception.resolved_at IS NULL
+  ),
+  1::bigint,
+  'Garden Court exposes exactly one unresolved rent setup exception'
+);
+
+SELECT is(
   (SELECT count(*) FROM public.management_fee_occurrences),
-  3::bigint,
+  5::bigint,
   'each generated invoice creates one management-fee occurrence'
 );
 
@@ -269,11 +297,44 @@ SELECT results_eq(
   $$,
   $$
     VALUES
-      ('general'::text, 'rejected'::text, 1),
-      ('general'::text, 'reversed'::text, 1),
-      ('maintenance_task'::text, 'approved'::text, 1)
+      ('general'::text, 'approved'::text, 5),
+      ('general'::text, 'rejected'::text, 2),
+      ('general'::text, 'reversed'::text, 3),
+      ('general'::text, 'submitted'::text, 1),
+      ('maintenance_task'::text, 'approved'::text, 1),
+      ('maintenance_task'::text, 'submitted'::text, 1)
   $$,
   'the Finance queue contains approved, rejected, and reversed outcomes'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM public.expense_submissions
+    WHERE source_type = 'general'
+      AND status = 'submitted'
+  ),
+  'Finance Manager has a submitted general expense to review'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM public.expense_submissions
+    WHERE source_type = 'maintenance_task'
+      AND status = 'submitted'
+  ),
+  'Finance Manager has a submitted maintenance cost to review'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM public.expense_submissions
+    WHERE supporting_document_id IS NULL
+      AND NULLIF(btrim(reference), '') IS NULL
+  ),
+  'every fixture expense carries honest evidence'
 );
 
 SELECT ok(
@@ -342,16 +403,29 @@ SELECT ok(
 
 SELECT results_eq(
   $$
-    SELECT title, status, recurrence_frequency, actual_cost_amount
+    SELECT status, count(*)::integer
     FROM public.tasks
-    ORDER BY title
+    GROUP BY status
+    ORDER BY status
   $$,
   $$
     VALUES
-      ('Kitchen sink repair'::text, 'pending'::text, 'none'::text, 125.00::numeric),
-      ('Monthly roof tank check'::text, 'scheduled'::text, 'monthly'::text, NULL::numeric)
+      ('blocked'::text, 1),
+      ('completed'::text, 1),
+      ('in_progress'::text, 1),
+      ('pending'::text, 2),
+      ('scheduled'::text, 1)
   $$,
-  'maintenance fixtures cover an approved cost and recurrence metadata'
+  'maintenance work covers actionable and historical states'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM public.tasks
+    WHERE recurrence_frequency = 'monthly'
+  ),
+  'recurrence is represented as metadata on an existing task'
 );
 
 SELECT ok(
@@ -373,6 +447,22 @@ SELECT ok(
   'posted petty cash is linked to its custodian and exact Ledger event'
 );
 
+SELECT results_eq(
+  $$
+    SELECT status, count(*)::integer
+    FROM public.petty_cash_entries
+    WHERE archived_at IS NULL
+    GROUP BY status
+    ORDER BY status
+  $$,
+  $$
+    VALUES
+      ('draft'::text, 1),
+      ('posted'::text, 1)
+  $$,
+  'petty cash includes one actionable draft and one posted history item'
+);
+
 SELECT is(
   (
     SELECT count(*)
@@ -385,10 +475,22 @@ SELECT is(
   'one active pooled source supports IPS and approved-cost cash flows'
 );
 
-SELECT is(
-  (SELECT count(*) FROM public.financial_month_locks),
-  0::bigint,
-  'the fixture starts with every financial month open'
+SELECT ok(
+  (SELECT count(*) = 1 FROM public.financial_month_locks)
+  AND EXISTS (
+    SELECT 1
+    FROM public.financial_month_locks AS month_lock
+    WHERE month_lock.month_start =
+      (date_trunc('month', current_date) + interval '24 months')::date
+      AND month_lock.is_locked
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.financial_month_locks AS month_lock
+    WHERE month_lock.month_start = date_trunc('month', current_date)::date
+      AND month_lock.is_locked
+  ),
+  'only the isolated future owner-close story is locked; the operating month is open'
 );
 
 SELECT set_config(

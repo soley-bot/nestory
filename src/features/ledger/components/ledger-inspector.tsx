@@ -68,7 +68,7 @@ export function LedgerInspector({
           <CompactFact label="Property">
             <Link
               className="line-clamp-2 break-words text-accent hover:underline"
-              href={entry.hrefs.property}
+              href={`/properties/${entry.propertyId}/account`}
             >
               {entry.unitNumber
                 ? `${entry.propertyCode} / Unit ${entry.unitNumber}`

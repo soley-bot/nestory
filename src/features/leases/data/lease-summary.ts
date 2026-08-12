@@ -91,12 +91,27 @@ export type LeaseReadinessRow = {
 
 export type LeaseOccupancyRow = {
   actual_move_in_date: string | null;
+  actual_move_in_confidence?: string;
+  actual_move_in_kind?: string;
   actual_move_out_date: string | null;
+  actual_move_out_confidence?: string;
+  actual_move_out_kind?: string;
   archived_at: string | null;
+  business_lifecycle?: string;
+  evidence_state?: string;
   id: string;
   lease_id: string;
+  participants?: Array<{
+    business_lifecycle: string;
+    evidence_state: string;
+    id: string;
+  }>;
   scheduled_move_in_date: string | null;
+  scheduled_move_in_confidence?: string;
+  scheduled_move_in_kind?: string;
   scheduled_move_out_date: string | null;
+  scheduled_move_out_confidence?: string;
+  scheduled_move_out_kind?: string;
   status: string;
   unit_id: string | null;
 };
@@ -262,7 +277,8 @@ export function buildLeaseSummary({
     }),
     occupancies: occupancies
       .filter((occupancy) => !occupancy.archived_at)
-      .map((occupancy) => toOccupancyContext(occupancy, unit)),
+      .map((occupancy) => toOccupancyContext(occupancy, unit))
+      .sort(compareOccupancyEvidence),
     occupancyLabel: getOccupancyLabel(statusValue, unit),
     parties: activeParties.map(toPartyContext),
     partySummary: formatPartySummary(activeParties, lease.tenant_name),
@@ -538,19 +554,73 @@ function toOccupancyContext(
   occupancy: LeaseOccupancyRow,
   unit?: LeaseUnitRow,
 ): LeaseOccupancyContext {
-  const start =
-    occupancy.actual_move_in_date ??
-    occupancy.scheduled_move_in_date ??
-    "Move-in not set";
-  const end = occupancy.actual_move_out_date ?? occupancy.scheduled_move_out_date;
+  const actualLabel = formatOccupancyEvidenceRange({
+    endDate: occupancy.actual_move_out_date,
+    endKind: occupancy.actual_move_out_kind,
+    startDate: occupancy.actual_move_in_date,
+    startKind: occupancy.actual_move_in_kind,
+  });
+  const scheduledLabel = formatOccupancyEvidenceRange({
+    endDate: occupancy.scheduled_move_out_date,
+    endKind: occupancy.scheduled_move_out_kind,
+    startDate: occupancy.scheduled_move_in_date,
+    startKind: occupancy.scheduled_move_in_kind,
+  });
+  const hasConfirmedResident = occupancy.participants?.some(
+    (participant) =>
+      participant.evidence_state === "accepted" &&
+      ["present", "ended"].includes(participant.business_lifecycle),
+  );
 
   return {
-    datesLabel: `${formatMaybeDate(start)} - ${end ? formatDate(end) : "Current"}`,
+    actualLabel,
+    datesLabel: actualLabel,
+    evidenceLabel: formatStoredLabel(occupancy.evidence_state ?? "unknown"),
+    evidenceState: occupancy.evidence_state ?? "unknown",
     id: occupancy.id,
+    residentLabel: hasConfirmedResident
+      ? "Confirmed resident"
+      : "Resident evidence missing",
+    scheduledLabel,
     statusLabel: formatStoredLabel(occupancy.status),
     unitHref: occupancy.unit_id ? `/units/${occupancy.unit_id}` : undefined,
     unitLabel: unit ? `Unit ${unit.unit_number}` : "No unit assigned",
   };
+}
+
+function compareOccupancyEvidence(
+  left: LeaseOccupancyContext,
+  right: LeaseOccupancyContext,
+) {
+  const evidenceRank = (occupancy: LeaseOccupancyContext) =>
+    occupancy.evidenceState === "accepted" ? 0 : 1;
+
+  return evidenceRank(left) - evidenceRank(right);
+}
+
+function formatOccupancyEvidenceRange({
+  endDate,
+  endKind,
+  startDate,
+  startKind,
+}: {
+  endDate: string | null;
+  endKind?: string;
+  startDate: string | null;
+  startKind?: string;
+}) {
+  if (startKind === "unknown" || !startDate) {
+    return "Not recorded";
+  }
+
+  const endLabel =
+    endKind === "open_current"
+      ? "Current"
+      : endDate
+        ? formatDate(endDate)
+        : "End not recorded";
+
+  return `${formatDate(startDate)} - ${endLabel}`;
 }
 
 function toDepositContext(deposit: LeaseDepositRow): LeaseDepositContext {
@@ -763,10 +833,6 @@ function formatPartySummary(parties: LeasePartyRow[], fallbackTenantName: string
   const primary = parties.find((party) => party.is_primary) ?? parties[0];
 
   return primary?.person_name ?? fallbackTenantName;
-}
-
-function formatMaybeDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatDate(value) : value;
 }
 
 function formatStoredLabel(value: string) {

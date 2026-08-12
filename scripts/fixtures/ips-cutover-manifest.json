@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "authorityStartDate": "2026-09-01",
+  "dataOwner": "REDACTED-IPS-DATA-OWNER",
+  "scope": {
+    "organizationReference": "REDACTED-IPS-ORG",
+    "propertyCode": "CTR-RES"
+  },
+  "importRuns": [
+    { "importType": "properties", "sourceKey": "cutover-central-property-v1", "sourceClaimHash": "1111111111111111111111111111111111111111111111111111111111111111", "expectedCommittedRows": 1 },
+    { "importType": "units", "sourceKey": "cutover-central-units-v1", "sourceClaimHash": "2222222222222222222222222222222222222222222222222222222222222222", "expectedCommittedRows": 1 },
+    { "importType": "people", "sourceKey": "cutover-central-people-v1", "sourceClaimHash": "3333333333333333333333333333333333333333333333333333333333333333", "expectedCommittedRows": 2 },
+    { "importType": "leases", "sourceKey": "cutover-central-lease-v1", "sourceClaimHash": "4444444444444444444444444444444444444444444444444444444444444444", "expectedCommittedRows": 1 }
+  ],
+  "tenantOpeningBalances": [
+    {
+      "sourceKey": "cutover-central-a01-tenant-balance-v1",
+      "propertyCode": "CTR-RES",
+      "unitNumber": "A-01",
+      "currency": "USD",
+      "selectedRentMonths": ["2026-07-01", "2026-08-01"],
+      "expectedBalance": "875.00"
+    }
+  ],
+  "ownerOpeningComponents": [
+    { "sourceKey": "cutover-central-held-v1", "sourceReference": "FIXTURE-OPENING-CASH-001", "propertyCode": "CTR-RES", "component": "ips_held_owner_cash", "currency": "USD", "amount": "1250.00" },
+    { "sourceKey": "cutover-central-owner-due-v1", "sourceReference": "FIXTURE-OPENING-ZERO-001", "propertyCode": "CTR-RES", "component": "owner_due_to_ips", "currency": "USD", "amount": "0.00" },
+    { "sourceKey": "cutover-central-ips-due-v1", "sourceReference": "FIXTURE-OPENING-DUE-RESUBMIT-001", "propertyCode": "CTR-RES", "component": "ips_due_to_owner", "currency": "USD", "amount": "240.50" },
+    { "sourceKey": "cutover-central-deposit-v1", "sourceReference": "FIXTURE-OPENING-DEPOSIT-001", "propertyCode": "CTR-RES", "component": "security_deposit_custody", "currency": "USD", "amount": "800.00" }
+  ],
+  "signedExceptions": []
+}

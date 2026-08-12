@@ -6,6 +6,8 @@ export type { Json } from "./database.generated";
 type PublicSchemaGenerated = DatabaseGenerated["public"];
 type GeneratedFunctions = PublicSchemaGenerated["Functions"];
 type CurrencyCode = PublicSchemaGenerated["Enums"]["currency_code"];
+type OwnerBalanceComponent =
+  PublicSchemaGenerated["Enums"]["owner_balance_component"];
 type TimelineEventType = PublicSchemaGenerated["Enums"]["timeline_event_type"];
 type GeneratedCurrentLease =
   PublicSchemaGenerated["Views"]["current_leases"];
@@ -45,8 +47,200 @@ type WithArgs<Name extends keyof GeneratedFunctions, Args> = Omit<
 > & {
   Args: Args;
 };
+type WithReturns<Name extends keyof GeneratedFunctions, Returns> = Omit<
+  GeneratedFunctions[Name],
+  "Returns"
+> & {
+  Returns: Returns;
+};
 
 type RpcFunctionOverrides = {
+  close_owner_month: WithArgs<
+    "close_owner_month",
+    {
+      p_close_reason: string;
+      p_currency: CurrencyCode;
+      p_idempotency_key: string;
+      p_month_start: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+    }
+  >;
+  reopen_owner_month: WithArgs<
+    "reopen_owner_month",
+    {
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_close_series_id: string;
+      p_reopen_reason: string;
+    }
+  >;
+  record_owner_close_correction: WithArgs<
+    "record_owner_close_correction",
+    {
+      p_component: OwnerBalanceComponent;
+      p_effective_date: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_close_revision_id: string;
+      p_reason: string;
+      p_signed_amount: string;
+      p_source_reference: string;
+    }
+  >;
+  submit_owner_opening_balance: WithArgs<
+    "submit_owner_opening_balance",
+    {
+      p_amount: string;
+      p_component: OwnerBalanceComponent;
+      p_currency: CurrencyCode;
+      p_effective_date: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+      p_reason: string;
+      p_resubmission_of_request_id: string | null;
+      p_source_reference: string | null;
+      p_supporting_document_id: string | null;
+    }
+  >;
+  submit_owner_opening_balance_correction: WithArgs<
+    "submit_owner_opening_balance_correction",
+    {
+      p_entry_id: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_reason: string;
+      p_replacement_amount: string;
+      p_resubmission_of_request_id: string | null;
+      p_source_reference: string | null;
+      p_supporting_document_id: string | null;
+    }
+  >;
+  submit_owner_opening_balance_with_document: WithArgs<
+    "submit_owner_opening_balance_with_document",
+    {
+      p_amount: string;
+      p_component: OwnerBalanceComponent;
+      p_currency: CurrencyCode;
+      p_document_file_name: string;
+      p_document_mime_type: string;
+      p_document_size_bytes: number;
+      p_document_storage_path: string;
+      p_effective_date: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+      p_reason: string;
+      p_resubmission_of_request_id: string | null;
+      p_source_reference: string | null;
+    }
+  >;
+  submit_owner_opening_balance_correction_with_document: WithArgs<
+    "submit_owner_opening_balance_correction_with_document",
+    {
+      p_document_file_name: string;
+      p_document_mime_type: string;
+      p_document_size_bytes: number;
+      p_document_storage_path: string;
+      p_entry_id: string;
+      p_evidence_sha256: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_reason: string;
+      p_replacement_amount: string;
+      p_resubmission_of_request_id: string | null;
+      p_source_reference: string | null;
+    }
+  >;
+  review_owner_opening_balance: WithArgs<
+    "review_owner_opening_balance",
+    {
+      p_decision: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_request_id: string;
+      p_review_reason: string | null;
+    }
+  >;
+  record_owner_cash_event: WithArgs<
+    "record_owner_cash_event",
+    {
+      p_amount: string;
+      p_currency: CurrencyCode;
+      p_event_date: string;
+      p_event_type: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+      p_reason: string;
+    }
+  >;
+  record_owner_invoice_payment: WithArgs<
+    "record_owner_invoice_payment",
+    {
+      p_amount: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_invoice_id: string;
+      p_received_date: string;
+      p_reference: string;
+    }
+  >;
+  record_owner_distribution: WithArgs<
+    "record_owner_distribution",
+    {
+      p_amount: string;
+      p_currency: CurrencyCode;
+      p_distribution_date: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_owner_person_id: string;
+      p_property_id: string;
+      p_reference: string;
+    }
+  >;
+  transfer_owner_balance_component: WithArgs<
+    "transfer_owner_balance_component",
+    {
+      p_amount: string;
+      p_component: OwnerBalanceComponent;
+      p_currency: CurrencyCode;
+      p_effective_date: string;
+      p_evidence_reference: string;
+      p_evidence_sha256: string;
+      p_from_owner_person_id: string;
+      p_idempotency_key: string;
+      p_organization_id: string;
+      p_property_id: string;
+      p_reason: string;
+      p_to_owner_person_id: string;
+    }
+  >;
+  get_owner_roster_readiness: WithReturns<
+    "get_owner_roster_readiness",
+    {
+      active_owner_count: number;
+      boundary_date: string;
+      canonical_roster: string | null;
+      issue_code: string | null;
+      next_boundary_date: string | null;
+      organization_id: string;
+      ownership_percent_total: string;
+      ownership_roster_hash: string | null;
+      property_id: string;
+      property_owner_ids: string[];
+      setup_path: string;
+    }[]
+  >;
   update_organization_appearance: WithArgs<
     "update_organization_appearance",
     {
@@ -82,8 +276,8 @@ type RpcFunctionOverrides = {
       p_customer_category: string;
       p_expense_date: string;
       p_idempotency_key: string;
-      p_internal_cost_amount: number;
-      p_internal_markup_amount: number;
+      p_internal_cost_amount: string;
+      p_internal_markup_amount: string;
       p_organization_id: string;
       p_property_id: string;
       p_reconciliation_source_id: string;
@@ -188,6 +382,7 @@ type RpcFunctionOverrides = {
       p_activity_entity_type?: string;
       p_activity_new_values?: Json;
       p_category: string;
+      p_content_sha256: string;
       p_file_name: string;
       p_lease_id?: string | null;
       p_ledger_entry_id?: string | null;
@@ -387,7 +582,9 @@ type RpcFunctionOverrides = {
       p_notes: string | null;
       p_organization_id: string;
       p_owner: string | null;
+      p_owner_ownership_percent: string | null;
       p_owner_person_id?: string | null;
+      p_owner_started_on: string | null;
       p_property_type: string;
       p_status: string;
     }
@@ -426,22 +623,6 @@ type RpcFunctionOverrides = {
       p_organization_id: string;
       p_review_note?: string | null;
       p_task_id: string;
-    }
-  >;
-  update_document: WithArgs<
-    "update_document",
-    {
-      p_category: string;
-      p_document_id: string;
-      p_file_name?: string | null;
-      p_lease_id?: string | null;
-      p_mime_type?: string | null;
-      p_organization_id: string;
-      p_property_id: string;
-      p_size_bytes?: number | null;
-      p_storage_path?: string | null;
-      p_task_id?: string | null;
-      p_unit_id?: string | null;
     }
   >;
   update_maintenance_task: WithArgs<
@@ -506,7 +687,9 @@ type RpcFunctionOverrides = {
       p_notes: string | null;
       p_organization_id: string;
       p_owner: string | null;
+      p_owner_ownership_percent: string | null;
       p_owner_person_id?: string | null;
+      p_owner_started_on: string | null;
       p_property_id: string;
       p_property_type: string;
       p_status: string;

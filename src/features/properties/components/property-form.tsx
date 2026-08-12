@@ -66,6 +66,11 @@ export function PropertyForm({
     initialState,
   );
   const defaults = getPropertyDefaults(property, initialValues);
+  const [selectedOwnerPersonId, setSelectedOwnerPersonId] = useState(
+    defaults.ownerPersonId ?? "",
+  );
+  const [ownershipFactsCleared, setOwnershipFactsCleared] = useState(false);
+  const [ownershipFactsKey, setOwnershipFactsKey] = useState(0);
   const [photoPreview, setPhotoPreview] = useState<PhotoPreview | null>(null);
   const [dropzoneKey, setDropzoneKey] = useState(0);
   const openPhotoPickerRef = useRef<(() => void) | null>(null);
@@ -111,6 +116,13 @@ export function PropertyForm({
   };
   const changePhotoPreview = () => {
     openPhotoPickerRef.current?.();
+  };
+  const changeOwnerPerson = (nextOwnerPersonId: string) => {
+    if (nextOwnerPersonId !== selectedOwnerPersonId) {
+      setOwnershipFactsCleared(true);
+      setOwnershipFactsKey((key) => key + 1);
+    }
+    setSelectedOwnerPersonId(nextOwnerPersonId);
   };
 
   return (
@@ -216,6 +228,7 @@ export function PropertyForm({
               context="Property owner"
               defaultValue={defaults.ownerPersonId ?? ""}
               name="ownerPersonId"
+              onValueChange={changeOwnerPerson}
               options={ownerOptions}
               placeholder="Choose owner"
               preservedOption={
@@ -256,6 +269,41 @@ export function PropertyForm({
               ariaLabel="Acquisition date"
               defaultValue={defaults.acquisitionDate ?? ""}
               name="acquisitionDate"
+            />
+          </RecordField>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RecordField
+            error={state.fieldErrors?.ownerStartedOn?.[0]}
+            label="Ownership start date"
+            name="ownerStartedOn"
+            required={Boolean(selectedOwnerPersonId)}
+          >
+            <DatePickerField
+              ariaLabel="Ownership start date"
+              defaultValue={ownershipFactsCleared ? "" : defaults.ownerStartedOn ?? ""}
+              key={`ownership-start-${ownershipFactsKey}`}
+              name="ownerStartedOn"
+              required={Boolean(selectedOwnerPersonId)}
+            />
+          </RecordField>
+
+          <RecordField
+            error={state.fieldErrors?.ownershipPercent?.[0]}
+            label="Ownership share (%)"
+            name="ownershipPercent"
+            required={Boolean(selectedOwnerPersonId)}
+          >
+            <Input
+              aria-label="Ownership share (%)"
+              defaultValue={ownershipFactsCleared ? "" : defaults.ownershipPercent ?? ""}
+              inputMode="decimal"
+              maxLength={7}
+              key={`ownership-share-${ownershipFactsKey}`}
+              name="ownershipPercent"
+              required={Boolean(selectedOwnerPersonId)}
+              type="text"
             />
           </RecordField>
         </div>
@@ -315,13 +363,13 @@ function CreateSuccessActions({ propertyId }: { propertyId: string }) {
       <p className="text-sm font-semibold text-foreground">Next steps</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
-          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           href={`/properties/${propertyId}`}
         >
           Open property record
         </Link>
         <Link
-          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
+          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           href={`/units?action=create&propertyId=${propertyId}`}
         >
           Add units
@@ -445,6 +493,8 @@ function getPropertyDefaults(
     owner: property?.formValues.owner ?? "",
     ownerPersonId:
       property?.formValues.ownerPersonId ?? initialValues.ownerPersonId ?? "",
+    ownerStartedOn: property?.formValues.ownerStartedOn ?? "",
+    ownershipPercent: property?.formValues.ownershipPercent ?? "",
     propertyType: property?.formValues.propertyType ?? "",
     status: property?.formValues.status ?? "active",
   };

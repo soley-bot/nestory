@@ -30,7 +30,7 @@ export default async function RequestPage({
       <section className="px-6 pb-16 pt-32 sm:px-10 sm:pb-24 sm:pt-36 lg:px-14">
         <div className="mx-auto max-w-[1180px]">
           <Link
-            className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--landing-subtle)] transition-colors hover:text-[var(--landing-heading)]"
+            className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--landing-subtle)] transition-colors hover:text-[var(--landing-heading)]"
             href="/"
           >
             <ArrowLeft size={14} />
@@ -39,7 +39,7 @@ export default async function RequestPage({
 
           <div className="mt-10 grid gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(420px,0.72fr)] lg:items-start lg:gap-20">
             <div className="lg:sticky lg:top-32">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--landing-accent)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--landing-accent)]">
                 Managed access
               </p>
               <h1 className="mt-5 max-w-2xl font-display text-4xl font-semibold leading-[1.06] text-[var(--landing-heading)] sm:text-5xl">

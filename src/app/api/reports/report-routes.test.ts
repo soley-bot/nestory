@@ -6,14 +6,16 @@ import { GET as getExcel } from "@/app/api/reports/excel/route";
 import { GET as getPdf } from "@/app/api/reports/pdf/route";
 import { getReportExcel } from "@/features/reports/data/excel";
 import { getReportPdf } from "@/features/reports/data/pdf";
+import { downloadOwnerStatementArtifact } from "@/features/reports/data/owner-statement-artifacts";
 import {
-  getAdminMembershipForUser,
   getCurrentUser,
+  getFinanceReportMembershipForUser,
 } from "@/lib/auth/context";
+import { createSupabaseServerClient } from "@/lib/db/server";
 
 vi.mock("@/lib/auth/context", () => ({
-  getAdminMembershipForUser: vi.fn(),
   getCurrentUser: vi.fn(),
+  getFinanceReportMembershipForUser: vi.fn(),
 }));
 
 vi.mock("@/features/reports/data/excel", () => ({
@@ -22,6 +24,14 @@ vi.mock("@/features/reports/data/excel", () => ({
 
 vi.mock("@/features/reports/data/pdf", () => ({
   getReportPdf: vi.fn(),
+}));
+
+vi.mock("@/features/reports/data/owner-statement-artifacts", () => ({
+  downloadOwnerStatementArtifact: vi.fn(),
+}));
+
+vi.mock("@/lib/db/server", () => ({
+  createSupabaseServerClient: vi.fn(),
 }));
 
 const handlers = [
@@ -35,10 +45,11 @@ describe("report export routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1" } as never);
-    vi.mocked(getAdminMembershipForUser).mockResolvedValue({
+    vi.mocked(getFinanceReportMembershipForUser).mockResolvedValue({
       organizationId: "organization-1",
       organizationName: "Demo Org",
     } as never);
+    vi.mocked(createSupabaseServerClient).mockResolvedValue({} as never);
   });
 
   it.each(handlers)("returns 401 for anonymous %s export", async (_, handler, __, route) => {
@@ -53,8 +64,8 @@ describe("report export routes", () => {
     expect(response.status).toBe(401);
   });
 
-  it.each(handlers)("returns 403 for non-admin %s export", async (_, handler, __, route) => {
-    vi.mocked(getAdminMembershipForUser).mockResolvedValueOnce(null);
+  it.each(handlers)("returns 403 without report capability for %s export", async (_, handler, __, route) => {
+    vi.mocked(getFinanceReportMembershipForUser).mockResolvedValueOnce(null);
 
     const response = await handler(
       new Request(
@@ -63,6 +74,57 @@ describe("report export routes", () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it.each([
+    ["PDF", getPdf, "pdf", "application/pdf"],
+    [
+      "Excel",
+      getExcel,
+      "xlsx",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ],
+  ] as const)("downloads only the retained verified official %s artifact", async (
+    _, handler, format, contentType,
+  ) => {
+    const bytes = format === "pdf"
+      ? new Uint8Array([37, 80, 68, 70])
+      : new Uint8Array([80, 75, 3, 4]);
+    vi.mocked(downloadOwnerStatementArtifact).mockResolvedValueOnce({
+      bytes,
+      contentType,
+      filename: `owner-statement-OS-202608-000000000000.${format}`,
+      format,
+    });
+
+    const response = await handler(new Request(
+      `http://localhost/api/reports/${format === "pdf" ? "pdf" : "excel"}` +
+      "?artifactId=00000000-0000-4000-8000-000000000009",
+    ));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe(contentType);
+    expect(downloadOwnerStatementArtifact).toHaveBeenCalledWith(
+      expect.anything(),
+      "organization-1",
+      "00000000-0000-4000-8000-000000000009",
+    );
+    expect(format === "pdf" ? getReportPdf : getReportExcel).not.toHaveBeenCalled();
+  });
+
+  it.each(handlers)("authorizes Finance Manager %s exports through the report-capability helper", async (_, handler, loader, route) => {
+    vi.mocked(loader).mockResolvedValueOnce(
+      route === "pdf"
+        ? { body: new Uint8Array([37, 80, 68, 70]), filename: "report.pdf" }
+        : { body: new Uint8Array([80, 75, 3, 4]), filename: "report.xlsx" } as never,
+    );
+
+    const response = await handler(new Request(
+      `http://localhost/api/reports/${route}?report=unit-profit-loss&month=2026-07`,
+    ));
+
+    expect(response.status).toBe(200);
+    expect(getFinanceReportMembershipForUser).toHaveBeenCalledWith("user-1");
   });
 
   it.each(handlers)(

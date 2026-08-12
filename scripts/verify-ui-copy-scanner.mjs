@@ -35,6 +35,10 @@ async function findSourceFiles({ directory, projectRoot, rules }) {
 }
 
 export async function scanUiCopy({ projectRoot, rules }) {
+  const prohibitedPhrases = [
+    ...(rules.prohibitedTutorialNarration ?? []),
+    ...(rules.prohibitedBusinessAliases ?? []),
+  ];
   const sourceFiles = (
     await Promise.all(
       sourceRoots.map((sourceRoot) =>
@@ -55,7 +59,7 @@ export async function scanUiCopy({ projectRoot, rules }) {
     const lines = (await readFile(filePath, "utf8")).split(/\r?\n/);
 
     for (const [lineIndex, line] of lines.entries()) {
-      for (const phrase of rules.prohibitedTutorialNarration) {
+      for (const phrase of prohibitedPhrases) {
         if (line.toLowerCase().includes(phrase.toLowerCase())) {
           findings.push({
             line: line.trim(),

@@ -3,10 +3,10 @@ import { ArrowRight } from "lucide-react";
 
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { reportCatalog } from "@/features/reports/report-catalog";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requireFinanceReportContext } from "@/lib/auth/context";
 
 export default async function ReportsPage() {
-  await requireSuperAdminContext();
+  await requireFinanceReportContext();
 
   return (
     <WorkspacePage

@@ -29,7 +29,12 @@ vi.mock("next/navigation", () => ({
   useRouter: () => navigation,
 }));
 
-import { SettingsWorkspace } from "@/features/organization/components/settings-workspace";
+import {
+  SettingsWorkspace,
+  type SettingsSection,
+} from "@/features/organization/components/settings-workspace";
+import { SettingsNavigationGuardProvider } from "@/components/layout/settings-navigation-guard";
+import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { OrganizationSettingsScreen } from "@/features/organization/components/organization-settings-screen";
 
 const branches = [
@@ -104,6 +109,19 @@ afterEach(() => {
   delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
 });
 
+/**
+ * Section links live in SettingsTabs now, so guard tests compose the page the
+ * way the route does: one provider wrapping both the tab row and the content.
+ */
+function renderSettingsPage(section: SettingsSection) {
+  return render(
+    <SettingsNavigationGuardProvider>
+      <SettingsTabs activeHref={`/settings?section=${section}`} />
+      <SettingsWorkspace {...defaultProps} section={section} />
+    </SettingsNavigationGuardProvider>,
+  );
+}
+
 describe("SettingsWorkspace navigation and layout", () => {
   it.each([
     ["organization", "Organization"],
@@ -111,33 +129,15 @@ describe("SettingsWorkspace navigation and layout", () => {
     ["configuration", "Configuration"],
     ["branches", "Branches"],
     ["teams", "Teams"],
-  ] as const)("keeps %s URL-backed and exactly current", (section, label) => {
+  ] as const)("renders %s content without a second navigation", (section, label) => {
     render(<SettingsWorkspace {...defaultProps} section={section} />);
 
-    const rail = screen.getByRole("navigation", {
-      name: "Organization settings sections",
-    });
-    const links = within(rail).getAllByRole("link");
-    const current = links.filter(
-      (link) => link.getAttribute("aria-current") === "page",
-    );
-
-    expect(links.map((link) => link.textContent)).toEqual([
-      "Organization",
-      "Appearance",
-      "Configuration",
-      "Branches",
-      "Teams",
-    ]);
-    expect(links.map((link) => link.getAttribute("href"))).toEqual([
-      "/settings?section=organization",
-      "/settings?section=appearance",
-      "/settings?section=configuration",
-      "/settings?section=branches",
-      "/settings?section=teams",
-    ]);
-    expect(current).toHaveLength(1);
-    expect(current[0]?.textContent).toBe(label);
+    // Settings destinations now live in one row owned by SettingsTabs, so the
+    // workspace itself carries no navigation of its own.
+    expect(screen.queryAllByRole("navigation")).toHaveLength(0);
+    expect(
+      screen.getByRole("region", { name: `${label} settings content` }),
+    ).not.toBeNull();
   });
 
   it.each([
@@ -153,7 +153,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
       const workspace = screen.getByTestId("settings-workspace");
 
-      expect(within(workspace).getAllByRole("navigation")).toHaveLength(1);
+      expect(within(workspace).queryAllByRole("navigation")).toHaveLength(0);
       expect(within(workspace).getAllByRole("region")).toHaveLength(1);
       expect(
         within(workspace).getByRole("region", {
@@ -163,22 +163,18 @@ describe("SettingsWorkspace navigation and layout", () => {
     },
   );
 
-  it("uses a compact settings rail, two desktop zones, and a horizontal fallback", () => {
+  it("gives settings content the full width on the page gutter", () => {
     render(<SettingsWorkspace {...defaultProps} section="organization" />);
 
     const workspace = screen.getByTestId("settings-workspace");
-    const rail = screen.getByRole("navigation", {
-      name: "Organization settings sections",
-    });
 
-    expect(workspace.className).toContain("lg:grid-cols-[180px_minmax(0,1fr)]");
-    expect(workspace.className).not.toContain("xl:grid-cols");
+    // The 180px rail and the bespoke max-w-6xl container are gone: content
+    // spans the page and shares the gutter every other route uses.
+    expect(workspace.className).not.toContain("grid-cols");
+    expect(workspace.className).not.toContain("max-w-6xl");
+    expect(workspace.className).toContain("px-4");
+    expect(workspace.className).toContain("sm:px-6");
     expect(workspace.className).toContain("min-w-0");
-    expect(rail.className).toContain("overflow-x-auto");
-    expect(rail.className).not.toContain("lg:border-r");
-    expect(rail.className).toContain("rounded-lg");
-    expect(rail.className).toContain("bg-muted");
-    expect(rail.className).not.toContain("border border-border");
     expect(screen.getByTestId("settings-current-content").className).toContain(
       "min-w-0",
     );
@@ -231,7 +227,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     "guards a dirty %s draft on a real section link and navigates once after confirmation",
     async (section, destinationLabel, destinationHref) => {
       const user = userEvent.setup();
-      render(<SettingsWorkspace {...defaultProps} section={section} />);
+      renderSettingsPage(section);
 
       if (section === "branches") {
         await openBranchDrawer(user);
@@ -295,7 +291,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     "guards a dirty %s draft before opening Configuration",
     async (section) => {
       const user = userEvent.setup();
-      render(<SettingsWorkspace {...defaultProps} section={section} />);
+      renderSettingsPage(section);
 
       if (section === "branches") {
         await openBranchDrawer(user);
@@ -336,7 +332,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
   it("keeps a clean section link as ordinary navigation without a discard prompt", async () => {
     const user = userEvent.setup();
-    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+    renderSettingsPage("branches");
 
     await user.click(screen.getByRole("link", { hidden: true, name: "Teams" }));
 
@@ -346,7 +342,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
   it("leaves read-only Configuration without an unsaved-draft prompt", async () => {
     const user = userEvent.setup();
-    render(<SettingsWorkspace {...defaultProps} section="configuration" />);
+    renderSettingsPage("configuration");
 
     await user.click(
       screen.getByRole("link", { hidden: true, name: "Branches" }),

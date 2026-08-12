@@ -51,7 +51,9 @@ export type PropertySummary = {
 
 export type ActivePropertyOwnerLink = {
   label: string;
+  ownershipPercent?: string;
   personId: string;
+  startedOn?: string;
 };
 
 export function buildPropertySummary({
@@ -85,6 +87,8 @@ export function buildPropertySummary({
       notes: property.notes ?? "",
       owner: property.owner ?? "",
       ownerPersonId: activeOwner?.personId ?? "",
+      ownerStartedOn: activeOwner?.startedOn ?? "",
+      ownershipPercent: activeOwner?.ownershipPercent ?? "",
       propertyType: property.property_type,
       status,
     },

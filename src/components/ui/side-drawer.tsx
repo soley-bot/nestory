@@ -67,7 +67,8 @@ export function SideDrawer({
   const draftGuardRef = React.useRef<DrawerDraftGuard | null>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedElementRef = React.useRef<HTMLElement | null>(
-    document.activeElement instanceof HTMLElement
+    typeof document !== "undefined" &&
+      document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null,
   );

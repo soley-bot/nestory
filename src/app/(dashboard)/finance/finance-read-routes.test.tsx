@@ -54,7 +54,13 @@ describe("Finance read routes", () => {
     "admits %s to a mutation-free Finance surface",
     async (role, page, screenSpy, expectedText) => {
       requireFinanceContext.mockResolvedValue({
-        capabilities: { canManageFinanceOperations: false },
+        capabilities: {
+          canLockFinancialMonth: role === "finance_manager",
+          canManageFinanceOperations: false,
+          canManagePettyCash: role === "finance_manager",
+          canReadFinanceReports: role === "finance_manager",
+          canUnlockFinancialMonth: false,
+        },
         organizationId: "organization-1",
         role,
       });
@@ -65,15 +71,32 @@ describe("Finance read routes", () => {
 
       expect(html).toContain(expectedText);
       expect(requireFinanceContext).toHaveBeenCalledOnce();
-      expect(screenSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ canManageFinance: false }),
-      );
+      expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining(
+        role === "finance_manager"
+          ? {
+              canLockFinancialMonth: true,
+              canManageFinance: false,
+              canReadFinanceReports: true,
+              canUnlockFinancialMonth: false,
+            }
+          : {
+              canManageFinance: false,
+              canManagePettyCash: false,
+              canReadFinanceReports: false,
+            },
+      ));
     },
   );
 
   it("keeps Super Admin mutation authority on both Finance read routes", async () => {
     requireFinanceContext.mockResolvedValue({
-      capabilities: { canManageFinanceOperations: true },
+      capabilities: {
+        canLockFinancialMonth: true,
+        canManageFinanceOperations: true,
+        canManagePettyCash: true,
+        canReadFinanceReports: true,
+        canUnlockFinancialMonth: true,
+      },
       organizationId: "organization-1",
       role: "super_admin",
     });
@@ -86,10 +109,19 @@ describe("Finance read routes", () => {
     );
 
     expect(ledgerScreenSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ canManageFinance: true }),
+      expect.objectContaining({
+        canLockFinancialMonth: true,
+        canManageFinance: true,
+        canReadFinanceReports: true,
+        canUnlockFinancialMonth: true,
+      }),
     );
     expect(pettyCashScreenSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ canManageFinance: true }),
+      expect.objectContaining({
+        canManageFinance: true,
+        canManagePettyCash: true,
+        canReadFinanceReports: true,
+      }),
     );
   });
 });

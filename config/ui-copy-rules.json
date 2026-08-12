@@ -6,6 +6,15 @@
     "Click the button",
     "This page allows you to"
   ],
+  "prohibitedBusinessAliases": [
+    "Owner payment",
+    "Owner withdrawal",
+    "Opening authority",
+    "Owner close authority",
+    "Close revision",
+    "Property withdrawal",
+    "Distribution / withdrawal"
+  ],
   "permittedExplanationReasons": [
     "consequence",
     "permission",

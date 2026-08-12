@@ -14,9 +14,14 @@ describe("resolveActivityEntityTarget", () => {
       "financial_month",
       "finance_income_item",
       "finance_expense_item",
+      "finance_receipt_allocation",
       "expense_submission",
       "tenant_invoice",
+      "tenant_invoice_payment",
+      "owner_collection_confirmation",
       "owner_payment",
+      "property_withdrawal",
+      "owner_opening_balance_request",
       "petty_cash_entry",
       "petty_cash_account",
       "petty_cash_period",
@@ -24,6 +29,11 @@ describe("resolveActivityEntityTarget", () => {
       "tenant_request",
       "document",
       "lease",
+      "lease_billing_term",
+      "lease_occupancy",
+      "lease_occupancy_participant",
+      "lease_party",
+      "lease_term",
       "property",
       "unit",
       "person",
@@ -191,21 +201,79 @@ describe("resolveActivityEntityTarget", () => {
     });
   });
 
-  it("routes owner payment activity to Balances", () => {
+  it("routes owner invoice payment activity to Balances", () => {
     expect(
       resolveActivityEntityTarget({
         entityId: id,
         entityType: "owner_payment",
-        recordLabel: "Owner payment recorded",
+        recordLabel: "Owner invoice payment recorded",
       }),
     ).toEqual({
       actionLabel: "Open Balances",
-      entityLabel: "Owner payment",
+      entityLabel: "Owner invoice payment",
       focusMode: "module",
       href: "/balances",
-      recordLabel: "Owner payment recorded",
+      recordLabel: "Owner invoice payment recorded",
     });
   });
+
+  it("routes owner distribution activity to Balances", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "property_withdrawal",
+        recordLabel: "Owner distribution reversed",
+      }),
+    ).toEqual({
+      actionLabel: "Open Balances",
+      entityLabel: "Owner distribution",
+      focusMode: "module",
+      href: "/balances",
+      recordLabel: "Owner distribution reversed",
+    });
+  });
+
+  it("routes owner-opening workflow activity to Owner balances", () => {
+    expect(
+      resolveActivityEntityTarget({
+        entityId: id,
+        entityType: "owner_opening_balance_request",
+        recordLabel: "Opening balance approved",
+      }),
+    ).toEqual({
+      actionLabel: "Open Owner balances",
+      entityLabel: "Owner opening balance",
+      focusMode: "module",
+      href: "/balances",
+      recordLabel: "Opening balance approved",
+    });
+  });
+
+  it.each([
+    ["finance_receipt_allocation", "/rent-income"],
+    ["lease_billing_term", "/leases"],
+    ["lease_occupancy", "/leases"],
+    ["lease_occupancy_participant", "/leases"],
+    ["lease_party", "/leases"],
+    ["lease_term", "/leases"],
+    ["owner_collection_confirmation", "/rent-income"],
+    ["tenant_invoice_payment", "/rent-income"],
+  ])(
+    "resolves fixture activity type %s to its operating module",
+    (entityType, href) => {
+      expect(
+        resolveActivityEntityTarget({
+          entityId: id,
+          entityType,
+          recordLabel: "Fixture activity",
+        }),
+      ).toMatchObject({
+        focusMode: "module",
+        href,
+        recordLabel: "Fixture activity",
+      });
+    },
+  );
 
   it.each([
     ["organization", "Organization", "/settings?section=organization"],

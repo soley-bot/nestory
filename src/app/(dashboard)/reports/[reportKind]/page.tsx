@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
 import { ReportBuilderScreen } from "@/features/reports/components/reports-screen";
-import { getReportsScreenData } from "@/features/reports/data/reports";
+import {
+  getReportsScreenData,
+  prepareTrustedReportForScreen,
+} from "@/features/reports/data/reports";
 import { parseReportSearchParams } from "@/features/reports/reports.filters";
 import { isReportKind } from "@/features/reports/report-catalog";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requireFinanceReportContext } from "@/lib/auth/context";
 
 type ReportBuilderPageProps = {
   params: Promise<{ reportKind: string }>;
@@ -20,12 +23,17 @@ export default async function ReportBuilderPage({
     notFound();
   }
 
-  const context = await requireSuperAdminContext();
+  const context = await requireFinanceReportContext();
   const viewQuery = parseReportSearchParams({
     ...(await searchParams),
     report: reportKind,
   });
   const data = await getReportsScreenData(context.organizationId, viewQuery);
+  if (context.role === "finance_manager") {
+    data.trustedReport = prepareTrustedReportForScreen(data.trustedReport, {
+      financeSafeRecords: true,
+    });
+  }
 
   return (
     <ReportBuilderScreen

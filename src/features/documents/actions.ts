@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { sha256Hex } from "@/features/documents/content-fingerprint";
+import { removeUnregisteredDocumentObject } from "@/features/documents/storage-cleanup";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -16,7 +18,10 @@ type DocumentFieldErrors = {
 };
 
 export type DocumentActionState = {
+  contentSha256?: string;
+  documentId?: string;
   fieldErrors?: DocumentFieldErrors;
+  fileName?: string;
   message?: string;
   status?: "error" | "success";
 };
@@ -70,13 +75,17 @@ const documentMimeTypes = new Set([
 type DocumentPathContext = {
   archived_at: string | null;
   category: string;
+  content_sha256: string | null;
   file_name: string;
   lease_id: string | null;
+  ledger_entry_id: string | null;
   mime_type: string;
   property_id: string | null;
   size_bytes: number;
   storage_path: string;
   task_id: string | null;
+  tenant_request_id: string | null;
+  timeline_event_id: string | null;
   unit_id: string | null;
 };
 
@@ -143,6 +152,7 @@ export async function createDocumentAction(
     return validationState;
   }
 
+  const contentSha256 = await sha256Hex(await file.arrayBuffer());
   const storagePath = getDocumentStoragePath(context.organizationId, file.name);
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
@@ -161,6 +171,7 @@ export async function createDocumentAction(
 
   const { data: documentId, error } = await supabase.rpc("create_document", {
     p_category: parsed.data.category,
+    p_content_sha256: contentSha256,
     p_file_name: file.name,
     p_lease_id: leaseId,
     p_mime_type: file.type,
@@ -173,7 +184,7 @@ export async function createDocumentAction(
   });
 
   if (error || !documentId) {
-    await supabase.storage.from("nestory-documents").remove([storagePath]);
+    await removeUnregisteredDocumentObject(supabase, storagePath);
 
     return {
       message: "We could not save the document record. Please try again.",
@@ -185,8 +196,12 @@ export async function createDocumentAction(
     propertyIds: [parsed.data.propertyId],
     unitIds: [unitId],
   });
+  revalidatePath("/balances");
 
   return {
+    contentSha256,
+    documentId,
+    fileName: file.name,
     message: "Document uploaded.",
     status: "success",
   };
@@ -264,6 +279,9 @@ export async function updateDocumentAction(
   const replacementPath = replacementFile
     ? getDocumentStoragePath(context.organizationId, replacementFile.name)
     : null;
+  const replacementSha256 = replacementFile
+    ? await sha256Hex(await replacementFile.arrayBuffer())
+    : null;
 
   if (replacementFile && replacementPath) {
     const { error: uploadError } = await supabase.storage
@@ -282,39 +300,60 @@ export async function updateDocumentAction(
     }
   }
 
+  if (replacementFile && replacementPath && replacementSha256) {
+    const { data: replacementDocumentId, error: replacementError } =
+      await supabase.rpc("replace_document", {
+        p_category: parsed.data.category,
+        p_content_sha256: replacementSha256,
+        p_document_id: parsedDocumentId.data,
+        p_file_name: replacementFile.name,
+        p_lease_id: leaseId ?? undefined,
+        p_mime_type: replacementFile.type,
+        p_organization_id: context.organizationId,
+        p_property_id: parsed.data.propertyId,
+        p_size_bytes: replacementFile.size,
+        p_storage_path: replacementPath,
+        p_task_id: taskId ?? undefined,
+        p_unit_id: unitId ?? undefined,
+      });
+
+    if (replacementError || !replacementDocumentId) {
+      await removeUnregisteredDocumentObject(supabase, replacementPath);
+
+      return {
+        message: replacementError
+          ? documentActionErrorMessage(replacementError.message)
+          : "We could not save the replacement document. Please try again.",
+        status: "error",
+      };
+    }
+
+    revalidateDocumentPaths({
+      propertyIds: [previous.property_id, parsed.data.propertyId],
+      unitIds: [previous.unit_id, unitId],
+    });
+
+    return {
+      message: "Replacement uploaded as a new document.",
+      status: "success",
+    };
+  }
+
   const { error } = await supabase.rpc("update_document", {
     p_category: parsed.data.category,
     p_document_id: parsedDocumentId.data,
-    p_file_name: replacementFile?.name ?? null,
-    p_lease_id: leaseId,
-    p_mime_type: replacementFile?.type ?? null,
+    p_lease_id: leaseId ?? undefined,
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
-    p_size_bytes: replacementFile?.size ?? null,
-    p_storage_path: replacementPath,
-    p_task_id: taskId,
-    p_unit_id: unitId,
+    p_task_id: taskId ?? undefined,
+    p_unit_id: unitId ?? undefined,
   });
 
   if (error) {
-    if (replacementPath) {
-      await supabase.storage.from("nestory-documents").remove([replacementPath]);
-    }
-
     return {
       message: documentActionErrorMessage(error.message),
       status: "error",
     };
-  }
-
-  if (replacementPath) {
-    const { error: removeError } = await supabase.storage
-      .from("nestory-documents")
-      .remove([previous.storage_path]);
-
-    if (removeError) {
-      console.warn(`Could not remove replaced document file: ${removeError.message}`);
-    }
   }
 
   revalidateDocumentPaths({
@@ -323,7 +362,80 @@ export async function updateDocumentAction(
   });
 
   return {
-    message: replacementFile ? "Document file replaced." : "Document updated.",
+    message: "Document updated.",
+    status: "success",
+  };
+}
+
+export async function fingerprintDocumentContentAction(
+  _state: DocumentActionState,
+  formData: FormData,
+): Promise<DocumentActionState> {
+  const context = await requireSuperAdminContext();
+  const parsedDocumentId = documentIdSchema.safeParse(
+    readString(formData, "documentId"),
+  );
+
+  if (!parsedDocumentId.success) {
+    return {
+      fieldErrors: { documentId: ["Choose a document."] },
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const document = await getDocumentPathContext(
+    supabase,
+    context.organizationId,
+    parsedDocumentId.data,
+  );
+
+  if (!document) {
+    return {
+      message: "We could not find that document.",
+      status: "error",
+    };
+  }
+
+  if (document.content_sha256) {
+    return {
+      message: "This document already has a content fingerprint.",
+      status: "error",
+    };
+  }
+
+  const { data: downloadedFile, error: downloadError } = await supabase.storage
+    .from("nestory-documents")
+    .download(document.storage_path);
+
+  if (downloadError || !downloadedFile) {
+    return {
+      message: "We could not read the stored document bytes.",
+      status: "error",
+    };
+  }
+
+  const contentSha256 = await sha256Hex(await downloadedFile.arrayBuffer());
+  const { error } = await supabase.rpc("fingerprint_document_content", {
+    p_content_sha256: contentSha256,
+    p_document_id: parsedDocumentId.data,
+    p_organization_id: context.organizationId,
+  });
+
+  if (error) {
+    return {
+      message: documentActionErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidateDocumentPaths({
+    propertyIds: [document.property_id],
+    unitIds: [document.unit_id],
+  });
+
+  return {
+    message: "Document fingerprint recorded.",
     status: "success",
   };
 }
@@ -542,7 +654,7 @@ async function getDocumentPathContext(
   const { data } = await supabase
     .from("documents")
     .select(
-      "archived_at, category, file_name, lease_id, mime_type, property_id, size_bytes, storage_path, task_id, unit_id",
+      "archived_at, category, content_sha256, file_name, lease_id, ledger_entry_id, mime_type, property_id, size_bytes, storage_path, task_id, tenant_request_id, timeline_event_id, unit_id",
     )
     .eq("organization_id", organizationId)
     .eq("id", documentId)

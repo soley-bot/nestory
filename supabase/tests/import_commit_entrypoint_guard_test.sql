@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(14);
+SELECT plan(17);
 
 CREATE TEMP TABLE commit_guard_state (
   atomic_unit_run_id uuid,
@@ -42,6 +42,38 @@ VALUES (
   'super_admin'
 );
 
+INSERT INTO public.people (id, organization_id, display_name)
+VALUES (
+  'a7020000-0000-4000-8000-000000000003',
+  'a7020000-0000-4000-8000-000000000001',
+  'Import property owner'
+);
+
+INSERT INTO public.person_roles (organization_id, person_id, role, status)
+VALUES (
+  'a7020000-0000-4000-8000-000000000001',
+  'a7020000-0000-4000-8000-000000000003',
+  'owner', 'active'
+);
+
+INSERT INTO public.properties (id, organization_id, name, code, property_type, status)
+VALUES (
+  'a7020000-0000-4000-8000-000000000004',
+  'a7020000-0000-4000-8000-000000000001',
+  'Before import', 'IMP-OWN', 'Apartment', 'active'
+);
+
+INSERT INTO public.property_owners (
+  id, organization_id, property_id, person_id, ownership_percent,
+  is_primary, started_on
+) VALUES (
+  'a7020000-0000-4000-8000-000000000005',
+  'a7020000-0000-4000-8000-000000000001',
+  'a7020000-0000-4000-8000-000000000004',
+  'a7020000-0000-4000-8000-000000000003',
+  100.000, true, '2026-01-01'
+);
+
 INSERT INTO public.import_runs(
   id, organization_id, import_type, status, source_file_name,
   total_rows, ready_rows, warning_rows, error_rows,
@@ -71,6 +103,12 @@ VALUES
     'a7020000-0000-4000-8000-000000000001',
     'properties', 'staged', 'partial-properties.csv', 2, 0, 0, 2,
     0, 0, 0, 0, NULL
+  ),
+  (
+    'a7020000-0000-8000-8000-000000000050',
+    'a7020000-0000-4000-8000-000000000001',
+    'properties', 'staged', 'owner-preserving-property.csv', 1, 1, 0, 0,
+    0, 0, 0, 0, NULL
   );
 
 INSERT INTO public.import_rows(
@@ -97,6 +135,13 @@ VALUES
     'a7020000-0000-8000-8000-000000000040',
     'a7020000-0000-4000-8000-000000000001',
     2, 'error', 'Needs review', '{}', '{}', '[]'
+  ),
+  (
+    'a7020000-0000-8000-8000-000000000050',
+    'a7020000-0000-4000-8000-000000000001',
+    2, 'ready', 'Update', '{}',
+    '{"existingPropertyId":"a7020000-0000-4000-8000-000000000004","name":"After import","code":"IMP-OWN","propertyType":"Apartment","owner":"","address":"Updated by import","status":"active","acquisitionDate":"","notes":"Owner must remain"}',
+    '[]'
   );
 
 SELECT set_config(
@@ -105,6 +150,40 @@ SELECT set_config(
   true
 );
 SET LOCAL ROLE authenticated;
+
+RESET ROLE;
+SELECT public.commit_generic_import_run_internal(
+  'a7020000-0000-8000-8000-000000000050',
+  'a7020000-0000-4000-8000-000000000001'
+);
+SET LOCAL ROLE authenticated;
+
+SELECT is(
+  (SELECT status FROM public.import_runs WHERE id = 'a7020000-0000-8000-8000-000000000050'),
+  'committed',
+  'an existing-property import commits through the owner-preserving update path'
+);
+
+SELECT is(
+  (SELECT name FROM public.properties WHERE id = 'a7020000-0000-4000-8000-000000000004'),
+  'After import',
+  'the existing-property import still updates non-ownership facts'
+);
+
+SELECT is(
+  (SELECT jsonb_build_object(
+    'ownerId', id, 'personId', person_id, 'share', ownership_percent,
+    'startedOn', started_on, 'endedOn', ended_on
+  ) FROM public.property_owners
+   WHERE id = 'a7020000-0000-4000-8000-000000000005'),
+  jsonb_build_object(
+    'ownerId', 'a7020000-0000-4000-8000-000000000005'::uuid,
+    'personId', 'a7020000-0000-4000-8000-000000000003'::uuid,
+    'share', 100.000::numeric, 'startedOn', '2026-01-01'::date,
+    'endedOn', NULL::date
+  ),
+  'the existing-property import preserves the complete effective owner authority'
+);
 
 UPDATE commit_guard_state
 SET atomic_unit_run_id = (

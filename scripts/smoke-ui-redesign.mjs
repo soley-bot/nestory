@@ -9,6 +9,7 @@ import {
   createReadOnlyRequestPolicy,
   formatViewportPass,
   formatViewportSummary,
+  getKeyboardZoomAuditFailures,
   KEYBOARD_ZOOM_VIEWPORT,
   MAIN_CAPTURE_VIEWPORTS,
   readPngDimensions,
@@ -54,6 +55,9 @@ const routes = manifest
     queryContract: entry.smoke.queryContract,
   }));
 const keyboardZoomRoutes = resolveKeyboardZoomRoutes(manifest);
+const activeKeyboardZoomRoutes = routeFilter
+  ? keyboardZoomRoutes.filter((route) => route.manifestRoute === routeFilter)
+  : keyboardZoomRoutes;
 
 if (routes.length === 0) {
   throw new Error(`No manifest route matched --route=${routeFilter}`);
@@ -173,11 +177,11 @@ try {
     await page.close();
   }
 
-  if (!routeFilter) {
+  if (activeKeyboardZoomRoutes.length > 0) {
     keyboardZoomAudits.push(
       ...(await auditKeyboardZoomRoutes({
         browserContext: context,
-        routes: keyboardZoomRoutes,
+        routes: activeKeyboardZoomRoutes,
       })),
     );
   }
@@ -229,6 +233,13 @@ try {
     blockedMutationRequests,
     routeFilter ? null : keyboardZoomAudits,
   );
+  if (routeFilter) {
+    failures.push(
+      ...keyboardZoomAudits.flatMap((audit) =>
+        getKeyboardZoomAuditFailures(audit),
+      ),
+    );
+  }
 
   if (writeEvidence && failures.length === 0) {
     await writeEvidenceDocument(summary);
@@ -535,6 +546,15 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
         navigationError = error instanceof Error ? error.message : String(error);
       }
 
+      const largeText = route.largeTextScale
+        ? await applyLargeTextScale(page, route.largeTextScale).catch((error) => ({
+            applied: false,
+            baselineRootFontPx: null,
+            computedRootFontPx: null,
+            error: error instanceof Error ? error.message : String(error),
+            requestedScale: route.largeTextScale,
+          }))
+        : null;
       const h1 = await measureH1(page).catch((error) => ({
         count: null,
         error: error instanceof Error ? error.message : String(error),
@@ -591,6 +611,7 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
         horizontalOverflow,
         keyboardTraversal,
         label: route.label,
+        largeText,
         manifestRoute: route.manifestRoute,
         navigationError,
         operationalSurfaceContract,
@@ -607,6 +628,25 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
   }
 
   return auditResults;
+}
+
+async function applyLargeTextScale(page, requestedScale) {
+  return page.evaluate((scale) => {
+    const root = document.documentElement;
+    const baselineRootFontPx = Number.parseFloat(getComputedStyle(root).fontSize);
+    root.style.setProperty("font-size", `${scale * 100}%`, "important");
+    const computedRootFontPx = Number.parseFloat(getComputedStyle(root).fontSize);
+    return {
+      applied:
+        Number.isFinite(baselineRootFontPx) &&
+        Number.isFinite(computedRootFontPx) &&
+        computedRootFontPx >= baselineRootFontPx * scale * 0.99,
+      baselineRootFontPx,
+      computedRootFontPx,
+      error: null,
+      requestedScale: scale,
+    };
+  }, requestedScale);
 }
 
 async function measureH1(page) {
@@ -849,7 +889,7 @@ async function inspectKeyboardTargets(
         )
           .trim()
           .slice(0, 120),
-        offViewport: visibleRatio < 0.5,
+        offViewport: visibleWidth === 0 || visibleHeight === 0,
         inWorkSurface: Boolean(
           element.closest('[data-slot="app-shell-content"], main'),
         ),
@@ -880,6 +920,7 @@ async function inspectKeyboardTargets(
         return (
           !element.matches(":disabled") &&
           !element.closest("[inert]") &&
+          element.getAttribute("role") !== "tablist" &&
           element.tabIndex >= 0 &&
           element.getAttribute("aria-hidden") !== "true" &&
           style.display !== "none" &&

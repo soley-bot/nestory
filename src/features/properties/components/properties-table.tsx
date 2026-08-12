@@ -34,7 +34,7 @@ export function PropertiesTable({
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid h-full min-h-[380px] auto-rows-max content-start items-start gap-3 overflow-auto pr-1 sm:grid-cols-2 2xl:grid-cols-3"
+            ? "grid h-full auto-rows-max content-start items-start gap-3 overflow-auto pr-1 sm:grid-cols-2 2xl:grid-cols-3"
             : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
         )}
         data-property-record-list={displayMode}
@@ -58,8 +58,8 @@ export function PropertiesTable({
           className="hidden h-full min-w-0 overflow-hidden md:block"
           data-slot="register-table-frame"
         >
-          <div className="h-full min-h-[360px] overflow-auto">
-            <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
+          <div className="h-full overflow-auto">
+            <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
               <colgroup>
                 <col className="w-[30%]" />
                 <col className="w-[19%]" />
@@ -68,7 +68,7 @@ export function PropertiesTable({
                 <col className="w-[10%]" />
                 <col className="w-[8%]" />
               </colgroup>
-              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
                     active={sort === "code_asc"}
@@ -151,7 +151,7 @@ export function PropertiesTable({
                     </td>
                     <td className="px-1.5 py-2">
                       <p
-                        className="truncate text-[13px] font-medium"
+                        className="truncate text-sm font-medium"
                         title={property.owner}
                       >
                         {property.owner}
@@ -218,7 +218,7 @@ function PropertyCard({
       <div className="grid min-w-0 gap-1 p-2">
         <div className="flex min-w-0 items-start justify-between gap-2">
           <p
-            className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+            className="min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground"
             title={property.code}
           >
             {property.code}
@@ -242,7 +242,7 @@ function PropertyCard({
         </div>
 
         {attention ? (
-          <Badge className="w-fit px-1.5 py-0.5 text-[10px]" tone={attention.tone}>
+          <Badge className="w-fit px-1.5 py-0.5 text-xs" tone={attention.tone}>
             {attention.label}
           </Badge>
         ) : null}
@@ -325,7 +325,7 @@ function PropertyStatusBadges({
 }) {
   const badgeClassName = cn(
     compact
-      ? "border px-1.5 py-0.5 text-[10px] font-semibold"
+      ? "border px-1.5 py-0.5 text-xs font-semibold"
       : "border-2 px-2.5 py-1 text-xs font-semibold shadow-sm",
     !compact && "backdrop-blur",
   );
@@ -419,7 +419,7 @@ function PropertyThumbnail({
           <span className="text-sm font-semibold text-muted-foreground">
             {getPropertyInitials(property)}
           </span>
-          <span className="text-[10px] font-medium uppercase tracking-wide">
+          <span className="text-xs font-medium uppercase tracking-wide">
             Needs photo
           </span>
         </span>
@@ -463,7 +463,7 @@ function TableOccupancy({ property }: { property: PropertySummary }) {
       <div className="flex items-center justify-between gap-3">
         <span
           className={cn(
-            "text-[13px] font-semibold tabular-nums",
+            "text-sm font-semibold tabular-nums",
             occupancyToneClass(occupancyRate),
           )}
         >
@@ -496,7 +496,7 @@ function TableOpenItems({ property }: { property: PropertySummary }) {
   return (
     <div className="flex flex-wrap gap-1">
       {checks.map((check) => (
-        <Badge className="px-1.5 py-0.5 text-[11px]" key={check} tone="warning">
+        <Badge className="px-1.5 py-0.5 text-xs" key={check} tone="warning">
           {check}
         </Badge>
       ))}

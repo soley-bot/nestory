@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildTrustedReportPdf } from "@/features/reports/data/pdf";
+import {
+  buildOwnerStatementPdf,
+  buildTrustedReportPdf,
+} from "@/features/reports/data/pdf";
+import { mapOwnerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report";
+import { ownerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report.test-fixture";
 import type { TrustedReport } from "@/features/reports/reports.types";
 
 describe("trusted report PDF export", () => {
@@ -28,6 +33,24 @@ describe("trusted report PDF export", () => {
 
     expect(pdf).toContain("/Count 1");
     expect(pdf).not.toContain("SOURCE TRACE");
+  });
+});
+
+describe("official owner statement PDF", () => {
+  it("is byte-stable and contains numbered body, source appendix, and pages", () => {
+    const model = mapOwnerStatementPublicationPayload(
+      structuredClone(ownerStatementPublicationPayload),
+    );
+    const first = buildOwnerStatementPdf(model);
+    const second = buildOwnerStatementPdf(model);
+    const text = Buffer.from(first).toString("latin1");
+
+    expect(first).toEqual(second);
+    expect(text).toContain("Official Owner Statement");
+    expect(text).toContain("OS-202608-300000000000");
+    expect(text).toContain("SOURCE TRACE");
+    expect(text).toContain("Page 1 of 2");
+    expect(text).toContain("Page 2 of 2");
   });
 });
 

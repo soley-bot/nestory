@@ -43,4 +43,156 @@ describe("workspace role capabilities", () => {
       capabilities.canExecuteOperations,
     ]).toEqual(expected);
   });
+
+  it.each<[WorkspaceRole, Record<string, boolean>]>([
+    [
+      "super_admin",
+      {
+        canCorrectFinance: true,
+        canLockFinancialMonth: true,
+        canManagePettyCash: true,
+        canManageReconciliationSources: true,
+        canOperateFinance: true,
+        canReadFinanceReports: true,
+        canRetryCurrentRent: true,
+        canUnlockFinancialMonth: true,
+      },
+    ],
+    [
+      "finance_manager",
+      {
+        canCorrectFinance: true,
+        canLockFinancialMonth: true,
+        canManagePettyCash: true,
+        canManageReconciliationSources: false,
+        canOperateFinance: true,
+        canReadFinanceReports: true,
+        canRetryCurrentRent: true,
+        canUnlockFinancialMonth: false,
+      },
+    ],
+    [
+      "finance_member",
+      {
+        canCorrectFinance: false,
+        canLockFinancialMonth: false,
+        canManagePettyCash: false,
+        canManageReconciliationSources: false,
+        canOperateFinance: false,
+        canReadFinanceReports: false,
+        canRetryCurrentRent: false,
+        canUnlockFinancialMonth: false,
+      },
+    ],
+    [
+      "operations_manager",
+      {
+        canCorrectFinance: false,
+        canLockFinancialMonth: false,
+        canManagePettyCash: false,
+        canManageReconciliationSources: false,
+        canOperateFinance: false,
+        canReadFinanceReports: false,
+        canRetryCurrentRent: false,
+        canUnlockFinancialMonth: false,
+      },
+    ],
+    [
+      "operations_member",
+      {
+        canCorrectFinance: false,
+        canLockFinancialMonth: false,
+        canManagePettyCash: false,
+        canManageReconciliationSources: false,
+        canOperateFinance: false,
+        canReadFinanceReports: false,
+        canRetryCurrentRent: false,
+        canUnlockFinancialMonth: false,
+      },
+    ],
+  ])("maps %s to the granular finance authority matrix", (role, expected) => {
+    expect(getWorkspaceCapabilities(role)).toMatchObject(expected);
+  });
+
+  it("delegates only guarded ordinary correction while keeping structural authority denied", () => {
+    expect(getWorkspaceCapabilities("finance_manager")).toMatchObject({
+      canConfigureLeases: false,
+      canCorrectFinance: true,
+      canManageAccess: false,
+      canManageReconciliationSources: false,
+      canReverseExpense: false,
+      canSubmitExpense: false,
+      canUnlockFinancialMonth: false,
+    });
+  });
+
+  it.each<[WorkspaceRole, Record<string, boolean>]>([
+    [
+      "super_admin",
+      {
+        canCloseOwnerMonth: true,
+        canInspectOwnerCloseReadiness: true,
+        canPublishOwnerStatement: true,
+        canReadOwnerBalanceAuthority: true,
+        canReopenOwnerMonth: true,
+        canRequestOwnerOpeningBalanceCorrection: true,
+        canReviewOwnerOpeningBalance: true,
+        canSubmitOwnerOpeningBalance: true,
+      },
+    ],
+    [
+      "finance_manager",
+      {
+        canCloseOwnerMonth: false,
+        canInspectOwnerCloseReadiness: true,
+        canPublishOwnerStatement: false,
+        canReadOwnerBalanceAuthority: true,
+        canReopenOwnerMonth: false,
+        canRequestOwnerOpeningBalanceCorrection: true,
+        canReviewOwnerOpeningBalance: false,
+        canSubmitOwnerOpeningBalance: false,
+      },
+    ],
+    [
+      "finance_member",
+      {
+        canCloseOwnerMonth: false,
+        canInspectOwnerCloseReadiness: true,
+        canPublishOwnerStatement: false,
+        canReadOwnerBalanceAuthority: true,
+        canReopenOwnerMonth: false,
+        canRequestOwnerOpeningBalanceCorrection: true,
+        canReviewOwnerOpeningBalance: false,
+        canSubmitOwnerOpeningBalance: true,
+      },
+    ],
+    [
+      "operations_manager",
+      {
+        canCloseOwnerMonth: false,
+        canInspectOwnerCloseReadiness: false,
+        canPublishOwnerStatement: false,
+        canReadOwnerBalanceAuthority: false,
+        canReopenOwnerMonth: false,
+        canRequestOwnerOpeningBalanceCorrection: false,
+        canReviewOwnerOpeningBalance: false,
+        canSubmitOwnerOpeningBalance: false,
+      },
+    ],
+    [
+      "operations_member",
+      {
+        canCloseOwnerMonth: false,
+        canInspectOwnerCloseReadiness: false,
+        canPublishOwnerStatement: false,
+        canReadOwnerBalanceAuthority: false,
+        canReopenOwnerMonth: false,
+        canRequestOwnerOpeningBalanceCorrection: false,
+        canReviewOwnerOpeningBalance: false,
+        canSubmitOwnerOpeningBalance: false,
+      },
+    ],
+  ])("maps %s to the owner-balance authority matrix", (role, expected) => {
+    expect(getWorkspaceCapabilities(role)).toMatchObject(expected);
+  });
 });

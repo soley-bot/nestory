@@ -12,6 +12,8 @@ import {
 import { buildNewLeaseRelationshipPayload } from "@/features/leases/lease-relationship-input";
 
 type LeaseFieldErrors = {
+  actualMoveInDate?: string[];
+  actualMoveOutDate?: string[];
   amount?: string[];
   eventDate?: string[];
   eventType?: string[];
@@ -21,9 +23,13 @@ type LeaseFieldErrors = {
   leaseId?: string[];
   leaseStartDate?: string[];
   monthlyRentAmount?: string[];
+  occupancyId?: string[];
   paymentFrequency?: string[];
   propertyId?: string[];
   rentDueDay?: string[];
+  reason?: string[];
+  scheduledMoveInDate?: string[];
+  scheduledMoveOutDate?: string[];
   status?: string[];
   tenantPersonId?: string[];
   termStatus?: string[];
@@ -53,6 +59,7 @@ const leaseStatusSchema = z.enum([
   "terminated",
 ]);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.");
+const optionalDateSchema = z.union([dateSchema, z.literal("")]);
 const leaseIdSchema = z.uuid("Choose a lease.");
 const paymentFrequencySchema = z.enum([
   "annual",
@@ -69,9 +76,33 @@ const termStatusSchema = z.enum([
   "upcoming",
 ]);
 const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "applied", "retained", "refunded"]), leaseDepositId: z.uuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
+const currentOccupancyEvidenceSchema = z
+  .object({
+    actualMoveInDate: dateSchema,
+    leaseId: leaseIdSchema,
+    occupancyId: z.uuid("Choose the occupancy evidence to repair."),
+    reason: z.string().trim().min(8, "Explain how occupancy was confirmed."),
+    scheduledMoveInDate: optionalDateSchema,
+    scheduledMoveOutDate: optionalDateSchema,
+  })
+  .superRefine((data, context) => {
+    if (
+      data.scheduledMoveInDate &&
+      data.scheduledMoveOutDate &&
+      data.scheduledMoveOutDate < data.scheduledMoveInDate
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Scheduled move-out must be on or after scheduled move-in.",
+        path: ["scheduledMoveOutDate"],
+      });
+    }
+  });
 
 const leaseMutationSchema = z
   .object({
+    actualMoveInDate: optionalDateSchema,
+    actualMoveOutDate: optionalDateSchema,
     depositAmount: z.string().trim(),
     leaseEndDate: dateSchema,
     leaseStartDate: dateSchema,
@@ -79,6 +110,8 @@ const leaseMutationSchema = z
     paymentFrequency: paymentFrequencySchema,
     propertyId: z.uuid("Choose a property."),
     rentDueDay: z.string().trim(),
+    scheduledMoveInDate: optionalDateSchema,
+    scheduledMoveOutDate: optionalDateSchema,
     status: leaseStatusSchema,
     tenantPersonId: z.uuid("Choose a tenant."),
     termStatus: termStatusSchema,
@@ -122,6 +155,71 @@ const leaseMutationSchema = z
         code: "custom",
         message: "End date must be after the start date.",
         path: ["leaseEndDate"],
+      });
+    }
+
+    if (
+      data.scheduledMoveInDate &&
+      data.scheduledMoveOutDate &&
+      data.scheduledMoveOutDate < data.scheduledMoveInDate
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Scheduled move-out must be on or after scheduled move-in.",
+        path: ["scheduledMoveOutDate"],
+      });
+    }
+
+    if (data.actualMoveOutDate && !data.actualMoveInDate) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the confirmed move-in before move-out.",
+        path: ["actualMoveInDate"],
+      });
+    }
+
+    if (
+      data.actualMoveInDate &&
+      data.actualMoveOutDate &&
+      data.actualMoveOutDate < data.actualMoveInDate
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Actual move-out must be on or after actual move-in.",
+        path: ["actualMoveOutDate"],
+      });
+    }
+
+    if (
+      ["active", "notice_given"].includes(data.status) &&
+      data.actualMoveOutDate
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "A current occupancy cannot already have an actual move-out.",
+        path: ["actualMoveOutDate"],
+      });
+    }
+
+    if (
+      ["ended", "terminated"].includes(data.status) &&
+      Boolean(data.actualMoveInDate) !== Boolean(data.actualMoveOutDate)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Ended occupancy needs both confirmed move-in and move-out dates.",
+        path: [data.actualMoveInDate ? "actualMoveOutDate" : "actualMoveInDate"],
+      });
+    }
+
+    if (
+      ["cancelled", "draft"].includes(data.status) &&
+      (data.actualMoveInDate || data.actualMoveOutDate)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Draft or cancelled leases cannot record actual occupancy.",
+        path: [data.actualMoveInDate ? "actualMoveInDate" : "actualMoveOutDate"],
       });
     }
 
@@ -211,8 +309,12 @@ export async function createLeaseAction(
         idempotencyKey,
       ),
       p_relationship_payload: buildNewLeaseRelationshipPayload({
+        actualMoveInDate: parsed.data.actualMoveInDate || undefined,
+        actualMoveOutDate: parsed.data.actualMoveOutDate || undefined,
         leaseStatus: parsed.data.status,
         recordSource: "operator_confirmed",
+        scheduledMoveInDate: parsed.data.scheduledMoveInDate || undefined,
+        scheduledMoveOutDate: parsed.data.scheduledMoveOutDate || undefined,
         tenantPersonId: parsed.data.tenantPersonId,
       }),
     },
@@ -249,6 +351,61 @@ export async function createLeaseAction(
   return {
     leaseId,
     message: "Lease added.",
+    status: "success",
+  };
+}
+
+export async function recordCurrentLeaseOccupancyEvidenceAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requireSuperAdminContext();
+  const parsed = currentOccupancyEvidenceSchema.safeParse({
+    actualMoveInDate: readString(formData, "actualMoveInDate"),
+    leaseId: readString(formData, "leaseId"),
+    occupancyId: readString(formData, "occupancyId"),
+    reason: readString(formData, "reason"),
+    scheduledMoveInDate: readString(formData, "scheduledMoveInDate"),
+    scheduledMoveOutDate: readString(formData, "scheduledMoveOutDate"),
+  });
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const supabase = await createSupabaseServerClient();
+  // Generated RPC types cannot express nullable PostgreSQL function arguments.
+  // The database intentionally accepts null when a scheduled date is unknown.
+  const scheduledMoveInDate =
+    (parsed.data.scheduledMoveInDate || null) as string;
+  const scheduledMoveOutDate =
+    (parsed.data.scheduledMoveOutDate || null) as string;
+  const { data: occupancyId, error } = await supabase.rpc(
+    "record_current_lease_occupancy_evidence",
+    {
+      p_actual_move_in_date: parsed.data.actualMoveInDate,
+      p_expected_occupancy_id: parsed.data.occupancyId,
+      p_lease_id: parsed.data.leaseId,
+      p_organization_id: context.organizationId,
+      p_reason: parsed.data.reason,
+      p_scheduled_move_in_date: scheduledMoveInDate,
+      p_scheduled_move_out_date: scheduledMoveOutDate,
+    },
+  );
+
+  if (error || typeof occupancyId !== "string") {
+    return {
+      message: error
+        ? leaseActionErrorMessage(error.message)
+        : "The updated occupancy evidence was not returned.",
+      status: "error",
+    };
+  }
+
+  revalidateLeasePaths([], [], parsed.data.leaseId);
+  return {
+    leaseId: parsed.data.leaseId,
+    message: "Occupancy evidence recorded.",
     status: "success",
   };
 }
@@ -498,6 +655,8 @@ export async function restoreLeaseAction(
 
 function readLeaseMutationInput(formData: FormData) {
   return {
+    actualMoveInDate: readString(formData, "actualMoveInDate"),
+    actualMoveOutDate: readString(formData, "actualMoveOutDate"),
     depositAmount: readString(formData, "depositAmount"),
     leaseEndDate: readString(formData, "leaseEndDate"),
     leaseStartDate: readString(formData, "leaseStartDate"),
@@ -505,6 +664,8 @@ function readLeaseMutationInput(formData: FormData) {
     paymentFrequency: readString(formData, "paymentFrequency"),
     propertyId: readString(formData, "propertyId"),
     rentDueDay: readString(formData, "rentDueDay"),
+    scheduledMoveInDate: readString(formData, "scheduledMoveInDate"),
+    scheduledMoveOutDate: readString(formData, "scheduledMoveOutDate"),
     status: readString(formData, "status"),
     tenantPersonId: readString(formData, "tenantPersonId"),
     termStatus: readString(formData, "termStatus"),

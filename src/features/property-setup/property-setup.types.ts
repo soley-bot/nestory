@@ -29,10 +29,29 @@ export type PropertySetupLeaseOption = {
   unitId: string | null;
 };
 
+export type PropertySetupReadinessItem = {
+  code: string;
+  label: string;
+  ready: boolean;
+  reason?: string;
+  repairHref: string;
+};
+
+export type PropertySetupReadiness = {
+  effectiveDate: string;
+  items: PropertySetupReadinessItem[];
+  leaseId: string;
+  organizationId: string;
+  propertyId: string;
+  ready: boolean;
+  unitId: string;
+};
+
 export type PropertySetupData = {
   leases: PropertySetupLeaseOption[];
   owners: PersonSelectOption[];
   properties: PropertySetupPropertyOption[];
+  readiness?: PropertySetupReadiness | null;
   selection: PropertySetupSelection;
   tenants: LeaseTenantOption[];
   units: PropertySetupUnitOption[];

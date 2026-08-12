@@ -441,7 +441,7 @@ function DocumentReviewStrip({
 }) {
   return (
     <div className="border-b border-border bg-muted/35 px-4 py-2 sm:px-6 lg:px-6">
-      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="min-w-0 truncate font-medium text-foreground">
           {count} {count === 1 ? "document" : "documents"} {context.countLabel}
         </p>
@@ -466,7 +466,7 @@ function DocumentTable({
   return (
     <div className="overflow-hidden bg-card">
       <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
-        <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col />
             <col className="w-[88px]" />
@@ -475,7 +475,7 @@ function DocumentTable({
             <col className="w-[124px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-2.5 py-2.5 font-semibold">Document</th>
               <th className="px-1.5 py-2.5 font-semibold">Type</th>
@@ -515,7 +515,7 @@ function DocumentTable({
               >
                 <td className="px-2.5 py-2">
                   <Link
-                    className="block truncate rounded-sm font-medium text-accent outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    className="block truncate rounded-sm font-medium text-primary outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                     href={document.hrefs.document}
                     onClick={(event) => event.stopPropagation()}
                     title={document.fileName}
@@ -662,7 +662,7 @@ function DocumentInspector({
           )}
           {document.url ? (
             <a
-              className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               href={document.url}
               rel="noreferrer"
               target="_blank"
@@ -961,7 +961,7 @@ function DocumentAttentionNote({
           {item ? null : (
             <Link
               aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-primary transition-colors hover:bg-muted"
               href={href}
               rel={href.startsWith("http") ? "noreferrer" : undefined}
               target={href.startsWith("http") ? "_blank" : undefined}
@@ -1008,7 +1008,7 @@ function DocumentLinkedRecords({
                   {record.label}
                 </span>
               </span>
-              <ExternalLink className="shrink-0 text-accent" size={13} />
+              <ExternalLink className="shrink-0 text-primary" size={13} />
             </Link>
           ))}
         </div>

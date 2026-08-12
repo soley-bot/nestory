@@ -59,6 +59,7 @@ type DrawerState =
 
 type LeaseScreenProps = {
   canConfigure?: boolean;
+  canReadFinanceReports?: boolean;
   initialLeaseId?: string;
   leases: LeaseSummary[];
   pagination: LeasePagination;
@@ -70,6 +71,7 @@ type LeaseScreenProps = {
 
 export function LeaseScreen({
   canConfigure = true,
+  canReadFinanceReports = false,
   initialLeaseId,
   leases,
   pagination,
@@ -253,7 +255,10 @@ export function LeaseScreen({
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/leases"
       localNav={(
-        <FinanceWorkspaceNavigation activeRoute="/leases" />
+        <FinanceWorkspaceNavigation
+          activeRoute="/leases"
+          canReadFinanceReports={canReadFinanceReports}
+        />
       )}
       title="Leases"
       toolbar={<LeaseFilters
@@ -479,7 +484,7 @@ function LeaseReviewStrip({
   return (
     <div className="shrink-0 bg-warning-soft/20 px-4 py-2 sm:px-6">
       <ConsequencePanel
-        className="grid min-w-0 gap-x-4 gap-y-1 text-[13px] sm:grid-cols-[minmax(0,auto)_minmax(0,1fr)] sm:items-baseline [&>div]:mt-0 [&>h3]:truncate"
+        className="grid min-w-0 gap-x-4 gap-y-1 text-sm sm:grid-cols-[minmax(0,auto)_minmax(0,1fr)] sm:items-baseline [&>div]:mt-0 [&>h3]:truncate"
         summary={
           <div className="flex min-w-0 flex-col gap-1 text-xs sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
             <span className="min-w-0 text-muted-foreground">

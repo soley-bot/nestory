@@ -63,7 +63,7 @@ export function ArchivePropertyPanel({
               Archive or move active units before archiving this property.
             </p>
             <Link
-              className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
+              className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
               href={`/units?propertyId=${property.id}`}
             >
               Review active units
@@ -105,7 +105,7 @@ export function RestorePropertyPanel({
     <form action={action} className="flex h-full flex-col">
       <input name="propertyId" type="hidden" value={property.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <div className="flex items-center gap-2 text-accent">
+        <div className="flex items-center gap-2 text-primary">
           <RotateCcw size={16} />
           <p className="text-sm font-semibold">Restore confirmation</p>
         </div>

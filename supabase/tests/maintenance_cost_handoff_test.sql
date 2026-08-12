@@ -84,6 +84,9 @@ CREATE TEMP TABLE maintenance_cost_state (
   rejected_task_id uuid NOT NULL DEFAULT 'c6000000-0000-0000-0000-000000000002',
   other_branch_task_id uuid NOT NULL DEFAULT 'c6000000-0000-0000-0000-000000000003',
   document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000001',
+  adjustment_document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000006',
+  rejected_document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000007',
+  resubmission_document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000008',
   other_branch_document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000002',
   forged_document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000004',
   blocked_forged_document_id uuid NOT NULL DEFAULT 'c7000000-0000-0000-0000-000000000005',
@@ -92,7 +95,9 @@ CREATE TEMP TABLE maintenance_cost_state (
   forged_submission_id uuid,
   adjustment_submission_id uuid,
   rejected_submission_id uuid,
-  resubmission_id uuid
+  resubmission_id uuid,
+  close_revision_id uuid,
+  publication_id uuid
 ) ON COMMIT DROP;
 
 INSERT INTO maintenance_cost_state DEFAULT VALUES;
@@ -403,6 +408,7 @@ SELECT
   super_admin_id
 FROM maintenance_cost_state;
 
+SET LOCAL session_replication_role = replica;
 INSERT INTO public.documents (
   id,
   organization_id,
@@ -414,6 +420,7 @@ INSERT INTO public.documents (
   storage_path,
   mime_type,
   size_bytes,
+  content_sha256,
   uploaded_by
 )
 SELECT
@@ -422,11 +429,12 @@ SELECT
   property_id,
   unit_id,
   task_id,
-  'Maintenance',
+  'Paid cost evidence',
   'pump-receipt.pdf',
-  organization_id::text || '/maintenance-cost/pump-receipt.pdf',
+  organization_id::text || '/paid-cost-evidence/pump-receipt.pdf',
   'application/pdf',
   128,
+  repeat('a', 64),
   operations_manager_id
 FROM maintenance_cost_state
 UNION ALL
@@ -441,7 +449,184 @@ SELECT
   organization_id::text || '/maintenance-cost/other-branch-receipt.pdf',
   'application/pdf',
   256,
+  repeat('b', 64),
   super_admin_id
+FROM maintenance_cost_state
+UNION ALL
+SELECT
+  adjustment_document_id,
+  organization_id,
+  property_id,
+  unit_id,
+  task_id,
+  'Paid cost evidence',
+  'pump-follow-up-receipt.pdf',
+  organization_id::text || '/paid-cost-evidence/pump-follow-up-receipt.pdf',
+  'application/pdf',
+  129,
+  repeat('c', 64),
+  operations_manager_id
+FROM maintenance_cost_state
+UNION ALL
+SELECT
+  rejected_document_id,
+  organization_id,
+  property_id,
+  unit_id,
+  rejected_task_id,
+  'Paid cost evidence',
+  'lock-receipt.pdf',
+  organization_id::text || '/paid-cost-evidence/lock-receipt.pdf',
+  'application/pdf',
+  130,
+  repeat('d', 64),
+  operations_manager_id
+FROM maintenance_cost_state
+UNION ALL
+SELECT
+  resubmission_document_id,
+  organization_id,
+  property_id,
+  unit_id,
+  rejected_task_id,
+  'Paid cost evidence',
+  'corrected-lock-receipt.pdf',
+  organization_id::text || '/paid-cost-evidence/corrected-lock-receipt.pdf',
+  'application/pdf',
+  131,
+  repeat('e', 64),
+  operations_manager_id
+FROM maintenance_cost_state;
+
+WITH roster AS (
+  SELECT validated.*
+  FROM maintenance_cost_state AS state
+  CROSS JOIN LATERAL app_private.validate_owner_roster_on_date(
+    state.organization_id,
+    state.property_id,
+    '2026-08-01'
+  ) AS validated
+), opening_values AS (
+  SELECT *
+  FROM (
+    VALUES
+      ('ca000000-0000-0000-0000-000000000001'::uuid,
+        'ips_held_owner_cash'::public.owner_balance_component),
+      ('ca000000-0000-0000-0000-000000000002'::uuid,
+        'owner_due_to_ips'::public.owner_balance_component),
+      ('ca000000-0000-0000-0000-000000000003'::uuid,
+        'ips_due_to_owner'::public.owner_balance_component),
+      ('ca000000-0000-0000-0000-000000000004'::uuid,
+        'security_deposit_custody'::public.owner_balance_component)
+  ) AS values_by_component(request_id, component)
+)
+INSERT INTO public.owner_opening_balance_requests (
+  id, organization_id, property_id, owner_person_id, property_owner_id,
+  ownership_percent_snapshot, ownership_roster_hash, currency,
+  effective_date, component, request_kind, proposed_amount, status,
+  reason, source_reference, evidence_sha256, payload_hash, submitted_by,
+  reviewed_at, reviewed_by, review_reason
+)
+SELECT
+  opening_values.request_id, state.organization_id, state.property_id,
+  roster.owner_person_id, roster.property_owner_id, roster.ownership_percent,
+  roster.ownership_roster_hash, 'USD', '2026-08-01',
+  opening_values.component, 'initial', 0.00, 'submitted',
+  'Known zero opening for maintenance handoff acceptance',
+  'Maintenance handoff owner-close prerequisite', repeat('1', 64),
+  repeat('2', 64), state.operations_manager_id, NULL::timestamptz,
+  NULL::uuid, NULL::text
+FROM maintenance_cost_state AS state
+CROSS JOIN roster
+CROSS JOIN opening_values;
+
+SELECT set_config(
+  'app.owner_opening_request_review_context',
+  'checked-review-v1',
+  true
+);
+
+UPDATE public.owner_opening_balance_requests
+SET status = 'approved',
+    reviewed_at = now(),
+    reviewed_by = (SELECT finance_manager_id FROM maintenance_cost_state),
+    review_reason = 'Independent zero-opening fixture review'
+WHERE id IN (
+  'ca000000-0000-0000-0000-000000000001',
+  'ca000000-0000-0000-0000-000000000002',
+  'ca000000-0000-0000-0000-000000000003',
+  'ca000000-0000-0000-0000-000000000004'
+);
+
+INSERT INTO public.owner_opening_balance_entries (
+  request_id, organization_id, property_id, owner_person_id,
+  property_owner_id, ownership_percent_snapshot, ownership_roster_hash,
+  currency, effective_date, component, entry_kind, signed_amount, created_by
+)
+SELECT
+  request.id, request.organization_id, request.property_id,
+  request.owner_person_id, request.property_owner_id,
+  request.ownership_percent_snapshot, request.ownership_roster_hash,
+  request.currency, request.effective_date, request.component, 'opening',
+  request.proposed_amount, request.reviewed_by
+FROM public.owner_opening_balance_requests AS request
+WHERE request.id IN (
+  'ca000000-0000-0000-0000-000000000001',
+  'ca000000-0000-0000-0000-000000000002',
+  'ca000000-0000-0000-0000-000000000003',
+  'ca000000-0000-0000-0000-000000000004'
+);
+SET LOCAL session_replication_role = origin;
+
+INSERT INTO app_private.paid_cost_evidence_registrations (
+  document_id,
+  organization_id,
+  property_id,
+  actor_id,
+  storage_path,
+  content_sha256,
+  size_bytes,
+  mime_type,
+  storage_object_id,
+  storage_object_version,
+  registrar_version
+)
+SELECT
+  document_id,
+  organization_id,
+  property_id,
+  operations_manager_id,
+  organization_id::text || '/paid-cost-evidence/pump-receipt.pdf',
+  repeat('a', 64),
+  128,
+  'application/pdf',
+  'c7000000-0000-0000-0000-000000000101'::uuid,
+  'fixture-v1',
+  'paid-cost-evidence-registrar-v1'
+FROM maintenance_cost_state
+UNION ALL
+SELECT adjustment_document_id, organization_id, property_id,
+  operations_manager_id,
+  organization_id::text || '/paid-cost-evidence/pump-follow-up-receipt.pdf',
+  repeat('c', 64), 129, 'application/pdf',
+  'c7000000-0000-0000-0000-000000000106'::uuid, 'fixture-v1',
+  'paid-cost-evidence-registrar-v1'
+FROM maintenance_cost_state
+UNION ALL
+SELECT rejected_document_id, organization_id, property_id,
+  operations_manager_id,
+  organization_id::text || '/paid-cost-evidence/lock-receipt.pdf',
+  repeat('d', 64), 130, 'application/pdf',
+  'c7000000-0000-0000-0000-000000000107'::uuid, 'fixture-v1',
+  'paid-cost-evidence-registrar-v1'
+FROM maintenance_cost_state
+UNION ALL
+SELECT resubmission_document_id, organization_id, property_id,
+  operations_manager_id,
+  organization_id::text || '/paid-cost-evidence/corrected-lock-receipt.pdf',
+  repeat('e', 64), 131, 'application/pdf',
+  'c7000000-0000-0000-0000-000000000108'::uuid, 'fixture-v1',
+  'paid-cost-evidence-registrar-v1'
 FROM maintenance_cost_state;
 
 -- Represent a forged document row so both read projections can prove
@@ -475,20 +660,47 @@ SELECT
 FROM maintenance_cost_state;
 SET LOCAL session_replication_role = origin;
 
-INSERT INTO storage.objects (bucket_id, name)
+INSERT INTO storage.objects (id, bucket_id, name, version, metadata)
 SELECT
+  'c7000000-0000-0000-0000-000000000101'::uuid,
   'nestory-documents',
-  organization_id::text || '/maintenance-cost/pump-receipt.pdf'
+  organization_id::text || '/paid-cost-evidence/pump-receipt.pdf',
+  'fixture-v1',
+  '{"mimetype":"application/pdf","size":"128"}'::jsonb
 FROM maintenance_cost_state
 UNION ALL
 SELECT
+  'c7000000-0000-0000-0000-000000000102'::uuid,
   'nestory-documents',
-  organization_id::text || '/maintenance-cost/other-branch-receipt.pdf'
+  organization_id::text || '/maintenance-cost/other-branch-receipt.pdf',
+  'fixture-v1',
+  '{"mimetype":"application/pdf","size":"256"}'::jsonb
 FROM maintenance_cost_state
 UNION ALL
 SELECT
+  'c7000000-0000-0000-0000-000000000103'::uuid,
   'nestory-documents',
-  cross_organization_id::text || '/maintenance-cost/forged-receipt.pdf'
+  cross_organization_id::text || '/maintenance-cost/forged-receipt.pdf',
+  'fixture-v1',
+  '{"mimetype":"application/pdf","size":"512"}'::jsonb
+FROM maintenance_cost_state
+UNION ALL
+SELECT 'c7000000-0000-0000-0000-000000000106'::uuid,
+  'nestory-documents',
+  organization_id::text || '/paid-cost-evidence/pump-follow-up-receipt.pdf',
+  'fixture-v1', '{"mimetype":"application/pdf","size":"129"}'::jsonb
+FROM maintenance_cost_state
+UNION ALL
+SELECT 'c7000000-0000-0000-0000-000000000107'::uuid,
+  'nestory-documents',
+  organization_id::text || '/paid-cost-evidence/lock-receipt.pdf',
+  'fixture-v1', '{"mimetype":"application/pdf","size":"130"}'::jsonb
+FROM maintenance_cost_state
+UNION ALL
+SELECT 'c7000000-0000-0000-0000-000000000108'::uuid,
+  'nestory-documents',
+  organization_id::text || '/paid-cost-evidence/corrected-lock-receipt.pdf',
+  'fixture-v1', '{"mimetype":"application/pdf","size":"131"}'::jsonb
 FROM maintenance_cost_state;
 
 CREATE OR REPLACE FUNCTION pg_temp.update_maintenance_cost(
@@ -571,9 +783,9 @@ SELECT throws_ok(
       super_admin_id
     FROM maintenance_cost_state
   $$,
-  '22023',
-  'Document storage path must belong to its organization',
-  'new document metadata cannot point at another organization storage path'
+  '42501',
+  'permission denied for table documents',
+  'direct authenticated document metadata creation is denied before a forged path can be stored'
 );
 
 SELECT lives_ok(
@@ -617,8 +829,8 @@ SELECT throws_ok(
     )
     FROM maintenance_cost_state
   $$,
-  '23503',
-  'Supporting receipt does not belong to property',
+  '23514',
+  'paid_cost_evidence_invalid',
   'forged document metadata cannot enter the expense approval workflow'
 );
 
@@ -648,13 +860,14 @@ SELECT results_eq(
         (SELECT other_branch_task_id FROM maintenance_cost_state)
       ]
     )
+    WHERE file_name = 'pump-receipt.pdf'
   $$,
   $$
     SELECT
       task_id,
       document_id,
       'pump-receipt.pdf'::text,
-      organization_id::text || '/maintenance-cost/pump-receipt.pdf',
+      organization_id::text || '/paid-cost-evidence/pump-receipt.pdf',
       'application/pdf'::text,
       128::bigint
     FROM maintenance_cost_state
@@ -667,11 +880,11 @@ SELECT results_eq(
     SELECT name
     FROM storage.objects
     WHERE bucket_id = 'nestory-documents'
-      AND name LIKE '%/maintenance-cost/%receipt.pdf'
+      AND name LIKE '%/paid-cost-evidence/pump-receipt.pdf'
     ORDER BY name
   $$,
   $$
-    SELECT organization_id::text || '/maintenance-cost/pump-receipt.pdf'
+    SELECT organization_id::text || '/paid-cost-evidence/pump-receipt.pdf'
     FROM maintenance_cost_state
   $$,
   'Operations Manager can sign only storage objects linked to visible tasks'
@@ -794,7 +1007,7 @@ SELECT throws_ok(
     WHERE id = (SELECT document_id FROM maintenance_cost_state)
   $$,
   '22023',
-  'Expense submission evidence is immutable',
+  'Financial evidence document is immutable while referenced',
   'submitted evidence cannot be archived while Finance is reviewing it'
 );
 
@@ -813,7 +1026,7 @@ UPDATE storage.objects
 SET name = name || '.changed'
 WHERE bucket_id = 'nestory-documents'
   AND name = (
-    SELECT organization_id::text || '/maintenance-cost/pump-receipt.pdf'
+    SELECT organization_id::text || '/paid-cost-evidence/pump-receipt.pdf'
     FROM maintenance_cost_state
   );
 
@@ -823,7 +1036,7 @@ SELECT results_eq(
     FROM storage.objects
     WHERE bucket_id = 'nestory-documents'
       AND name = (
-        SELECT organization_id::text || '/maintenance-cost/pump-receipt.pdf'
+        SELECT organization_id::text || '/paid-cost-evidence/pump-receipt.pdf'
         FROM maintenance_cost_state
       )
   $$,
@@ -836,7 +1049,7 @@ SELECT throws_ok(
     DELETE FROM storage.objects
     WHERE bucket_id = 'nestory-documents'
       AND name = (
-        SELECT organization_id::text || '/maintenance-cost/pump-receipt.pdf'
+        SELECT organization_id::text || '/paid-cost-evidence/pump-receipt.pdf'
         FROM maintenance_cost_state
       )
   $$,
@@ -850,7 +1063,7 @@ SELECT results_eq(
     FROM storage.objects
     WHERE bucket_id = 'nestory-documents'
       AND name = (
-        SELECT organization_id::text || '/maintenance-cost/pump-receipt.pdf'
+        SELECT organization_id::text || '/paid-cost-evidence/pump-receipt.pdf'
         FROM maintenance_cost_state
       )
   $$,
@@ -1001,8 +1214,8 @@ SELECT throws_ok(
     )
     FROM maintenance_cost_state
   $$,
-  '42501',
-  'Not authorized for this maintenance task',
+  '23514',
+  'Maintenance paid cost evidence document is required',
   'Operations Manager cannot submit another branch cost'
 );
 
@@ -1022,6 +1235,7 @@ SELECT results_eq(
         (SELECT other_branch_task_id FROM maintenance_cost_state)
       ]
     )
+    WHERE file_name = 'pump-receipt.pdf'
   $$,
   $$
     SELECT task_id, document_id, 'pump-receipt.pdf'::text
@@ -1042,8 +1256,8 @@ SELECT throws_ok(
     )
     FROM maintenance_cost_state
   $$,
-  '42501',
-  'Not authorized',
+  '23514',
+  'Maintenance paid cost evidence document is required',
   'Operations Member cannot submit maintenance cost'
 );
 
@@ -1081,11 +1295,11 @@ SELECT results_eq(
     SELECT name
     FROM storage.objects
     WHERE bucket_id = 'nestory-documents'
-      AND name LIKE '%/maintenance-cost/%receipt.pdf'
+      AND name LIKE '%/paid-cost-evidence/%receipt.pdf'
     ORDER BY name
   $$,
   $$
-    SELECT organization_id::text || '/maintenance-cost/pump-receipt.pdf'
+    SELECT organization_id::text || '/paid-cost-evidence/pump-receipt.pdf'
     FROM maintenance_cost_state
   $$,
   'Finance cannot sign a forged evidence path that belongs to another organization'
@@ -1156,7 +1370,7 @@ WHERE id = (SELECT document_id FROM maintenance_cost_state);
 DELETE FROM storage.objects
 WHERE bucket_id = 'nestory-documents'
   AND name = (
-    SELECT organization_id::text || '/maintenance-cost/pump-receipt.pdf'
+    SELECT organization_id::text || '/paid-cost-evidence/pump-receipt.pdf'
     FROM maintenance_cost_state
   );
 SET LOCAL session_replication_role = origin;
@@ -1185,10 +1399,13 @@ SELECT throws_ok(
 );
 
 RESET ROLE;
-INSERT INTO storage.objects (bucket_id, name)
+INSERT INTO storage.objects (id, bucket_id, name, version, metadata)
 SELECT
+  'c7000000-0000-0000-0000-000000000101'::uuid,
   'nestory-documents',
-  organization_id::text || '/maintenance-cost/pump-receipt.pdf'
+  organization_id::text || '/paid-cost-evidence/pump-receipt.pdf',
+  'fixture-v1',
+  '{"mimetype":"application/pdf","size":"128"}'::jsonb
 FROM maintenance_cost_state;
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -1237,6 +1454,124 @@ SELECT results_eq(
 );
 
 RESET ROLE;
+
+SAVEPOINT maintenance_owner_statement_acceptance;
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.owner_close_revisions AS revision
+    WHERE revision.organization_id = (
+      SELECT organization_id FROM maintenance_cost_state
+    )
+      AND revision.property_id = (SELECT property_id FROM maintenance_cost_state)
+  ),
+  0::bigint,
+  'maintenance approval does not rely on a prebuilt owner close revision'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM maintenance_cost_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT lives_ok(
+  $$
+    SELECT public.allocate_owner_event(
+      organization_id,
+      'owner_paid_cost',
+      (
+        SELECT responsibility.id
+        FROM public.expense_submissions AS submission
+        JOIN public.ips_expense_responsibilities AS responsibility
+          ON responsibility.organization_id = submission.organization_id
+         AND responsibility.id = submission.approved_responsibility_id
+        WHERE submission.id = maintenance_cost_state.submission_id
+      ),
+      'maintenance-owner-allocation-0001'
+    )
+    FROM maintenance_cost_state
+  $$,
+  'the approved task-bound expense allocates through owner authority'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.generate_owner_balance_period(
+      organization_id, property_id, owner_id, 'USD', '2026-08-01',
+      'maintenance-owner-period-0001'
+    )
+    FROM maintenance_cost_state
+  $$,
+  'the maintenance expense reaches the authoritative owner period'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.set_financial_month_lock(
+      organization_id, '2026-08-01', true,
+      'Lock the maintenance handoff acceptance month'
+    )
+    FROM maintenance_cost_state
+  $$,
+  'the reconciled maintenance month locks before owner close'
+);
+
+WITH closed AS (
+  SELECT public.close_owner_month(
+    organization_id, property_id, owner_id, 'USD', '2026-08-01',
+    'Maintenance cost handoff acceptance',
+    'maintenance-owner-close-0001'
+  ) AS result
+  FROM maintenance_cost_state
+)
+UPDATE maintenance_cost_state
+SET close_revision_id = (closed.result ->> 'revision_id')::uuid
+FROM closed;
+
+WITH published AS (
+  SELECT public.publish_owner_statement(
+    organization_id, close_revision_id, 'maintenance-owner-statement-0001'
+  ) AS result
+  FROM maintenance_cost_state
+)
+UPDATE maintenance_cost_state
+SET publication_id = (published.result ->> 'publication_id')::uuid
+FROM published;
+
+RESET ROLE;
+
+SELECT is(
+  (
+    SELECT count(*)::bigint
+    FROM public.owner_close_line_sources AS source
+    JOIN public.ips_expense_responsibilities AS responsibility
+      ON responsibility.organization_id = source.organization_id
+     AND responsibility.id = source.source_line_id
+    JOIN public.finance_expense_items AS expense
+      ON expense.organization_id = responsibility.organization_id
+     AND expense.id = responsibility.finance_expense_item_id
+    JOIN public.expense_submissions AS submission
+      ON submission.organization_id = expense.organization_id
+     AND submission.approved_finance_expense_item_id = expense.id
+    JOIN public.owner_statement_publications AS publication
+      ON publication.organization_id = source.organization_id
+     AND publication.owner_close_revision_id = source.owner_close_revision_id
+    WHERE source.source_type = 'owner_paid_cost'
+      AND source.owner_close_revision_id = (
+        SELECT close_revision_id FROM maintenance_cost_state
+      )
+      AND publication.id = (SELECT publication_id FROM maintenance_cost_state)
+      AND submission.id = (SELECT submission_id FROM maintenance_cost_state)
+      AND expense.task_id = (SELECT task_id FROM maintenance_cost_state)
+  ),
+  1::bigint,
+  'the approved task-bound maintenance expense reaches one published owner statement source'
+);
+
+ROLLBACK TO SAVEPOINT maintenance_owner_statement_acceptance;
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -1323,7 +1658,7 @@ SELECT lives_ok(
         organization_id,
         task_id,
         '2026-08-09',
-        document_id,
+        adjustment_document_id,
         'Pump follow-up receipt',
         'maintenance-cost-adjust-0001'
       )->>'submission_id'
@@ -1517,7 +1852,7 @@ SELECT lives_ok(
         organization_id,
         rejected_task_id,
         '2026-08-08',
-        NULL,
+        rejected_document_id,
         'Lock receipt 9',
         'maintenance-cost-reject-0001'
       )->>'submission_id'
@@ -1567,7 +1902,7 @@ SELECT throws_ok(
       organization_id,
       rejected_task_id,
       '2026-08-08',
-      NULL,
+      rejected_document_id,
       'Lock receipt 9',
       'maintenance-cost-reject-0001'
     )
@@ -1586,7 +1921,7 @@ SELECT lives_ok(
         organization_id,
         rejected_task_id,
         '2026-08-09',
-        NULL,
+        resubmission_document_id,
         'Corrected lock receipt',
         'maintenance-cost-resubmit-0001'
       )->>'submission_id'
@@ -1601,7 +1936,7 @@ SELECT is(
       organization_id,
       rejected_task_id,
       '2026-08-09',
-      NULL,
+      resubmission_document_id,
       'Corrected lock receipt',
       'maintenance-cost-resubmit-0001'
     )->>'submission_id'
@@ -1647,8 +1982,8 @@ SELECT throws_ok(
     )
     FROM maintenance_cost_state
   $$,
-  '22023',
-  'Add a supporting document or receipt reference',
+  '23514',
+  'Maintenance paid cost evidence document is required',
   'maintenance cost cannot be handed to Finance without evidence'
 );
 

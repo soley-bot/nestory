@@ -31,7 +31,7 @@ export function RecentChangesPopover({
           aria-haspopup="dialog"
           aria-label="Recent changes"
           className={cn(
-            "relative inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground",
+            "relative inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground",
             open && "bg-muted text-foreground",
           )}
           onClick={() => setOpen((current) => !current)}
@@ -40,7 +40,7 @@ export function RecentChangesPopover({
         >
           <Bell size={15} />
           {changes.length > 0 ? (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-background">
+            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-xs font-semibold leading-none text-background">
               {changes.length > 9 ? "9+" : changes.length}
             </span>
           ) : null}
@@ -63,7 +63,7 @@ export function RecentChangesPopover({
         >
           <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5">
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold">Recent changes</p>
+              <p className="text-sm font-semibold">Recent changes</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Latest activity across records
               </p>

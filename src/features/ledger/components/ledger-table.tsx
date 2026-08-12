@@ -26,7 +26,7 @@ export function LedgerTable({
   return (
     <div className="overflow-hidden bg-card">
       <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
-        <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col className="w-[10%]" />
             <col className="w-[11%]" />
@@ -35,7 +35,7 @@ export function LedgerTable({
             <col className="w-[18%]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Flow</th>
@@ -105,7 +105,7 @@ export function LedgerTable({
                   </p>
                   <Link
                     className="mt-0.5 block truncate text-xs text-accent hover:underline"
-                    href={entry.hrefs.property}
+                    href={`/properties/${entry.propertyId}/account`}
                     onClick={(event) => event.stopPropagation()}
                   >
                     {entry.propertyName}

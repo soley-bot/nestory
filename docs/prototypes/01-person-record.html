@@ -1,0 +1,826 @@
+<title>Person record — redline &amp; proposal</title>
+
+<style>
+/* ============================================================
+   DOCUMENT TOKENS — drafting redline sheet
+   Cool-slate paper, crimson for defects, teal for resolutions.
+   Full three-state theming: bare :root = light, then both guards.
+   ============================================================ */
+:root {
+  --paper:      #F4F6F8;
+  --paper-2:    #FFFFFF;
+  --ink:        #14171D;
+  --ink-2:      #454C58;
+  --ink-3:      #6B7280;
+  --rule:       #D7DCE3;
+  --rule-soft:  #E6EAEF;
+  --redline:    #C21F45;
+  --redline-bg: #FDEAEF;
+  --resolve:    #0E6E63;
+  --resolve-bg: #E2F2F0;
+  --shadow:     0 1px 2px rgb(16 22 34 / .05), 0 12px 32px -12px rgb(16 22 34 / .18);
+
+  --font-doc:  ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mark: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --measure: 68ch;
+  --pad: clamp(1.25rem, 4vw, 3.5rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #0E1116;
+    --paper-2:    #161A21;
+    --ink:        #E9ECF1;
+    --ink-2:      #A8B0BD;
+    --ink-3:      #7C8595;
+    --rule:       #2A303A;
+    --rule-soft:  #21262E;
+    --redline:    #FF7A96;
+    --redline-bg: #331520;
+    --resolve:    #5FCBBC;
+    --resolve-bg: #0F2B28;
+    --shadow:     0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -14px rgb(0 0 0 / .7);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:      #0E1116;
+  --paper-2:    #161A21;
+  --ink:        #E9ECF1;
+  --ink-2:      #A8B0BD;
+  --ink-3:      #7C8595;
+  --rule:       #2A303A;
+  --rule-soft:  #21262E;
+  --redline:    #FF7A96;
+  --redline-bg: #331520;
+  --resolve:    #5FCBBC;
+  --resolve-bg: #0F2B28;
+  --shadow:     0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -14px rgb(0 0 0 / .7);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-doc);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sheet {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--pad) var(--pad) 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 3.5rem;
+}
+
+/* ---------- masthead ---------- */
+.masthead { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.stamp {
+  font-family: var(--font-mark);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--ink);
+}
+.stamp b { color: var(--ink); font-weight: 600; }
+
+.masthead h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 4.4vw, 3rem);
+  line-height: 1.04;
+  letter-spacing: -.035em;
+  font-weight: 700;
+  text-wrap: balance;
+}
+.lede {
+  margin: 0;
+  max-width: var(--measure);
+  font-size: 1.0625rem;
+  color: var(--ink-2);
+}
+.lede strong { color: var(--ink); font-weight: 650; }
+
+/* ---------- metric strip ---------- */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.metric { background: var(--paper-2); padding: .875rem 1rem; }
+.metric dt {
+  font-family: var(--font-mark);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 .4rem;
+}
+.metric dd {
+  margin: 0;
+  font-family: var(--font-mark);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: .4rem;
+}
+.metric .was { color: var(--redline); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.metric .arrow { color: var(--ink-3); font-size: .8em; }
+.metric .now { color: var(--resolve); }
+
+/* ---------- section headings ---------- */
+.sec { display: flex; flex-direction: column; gap: 1.25rem; }
+.sec > h2 {
+  margin: 0;
+  font-family: var(--font-mark);
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-bottom: .625rem;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: baseline;
+  gap: .75rem;
+}
+.sec > h2 span { color: var(--ink); font-weight: 600; letter-spacing: .1em; }
+
+/* ---------- comparison controls ---------- */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  background: var(--rule-soft);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.segmented button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-mark);
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: .5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.segmented button:hover { color: var(--ink); }
+.segmented button[aria-pressed="true"] {
+  background: var(--paper-2);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgb(16 22 34 / .12);
+}
+.segmented button:focus-visible { outline: 2px solid var(--redline); outline-offset: 2px; }
+
+.pintoggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  font-family: var(--font-mark);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+.pintoggle input { accent-color: var(--redline); width: 15px; height: 15px; cursor: pointer; }
+
+/* ---------- the plate: a screen under glass ---------- */
+.plate {
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-2);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.plate__bar {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .625rem .875rem;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-mark);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.plate__dots { display: flex; gap: 5px; }
+.plate__dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--rule); display: block; }
+.plate__label { margin-left: auto; font-weight: 600; }
+.plate__label[data-state="before"] { color: var(--redline); }
+.plate__label[data-state="after"] { color: var(--resolve); }
+
+.viewport { overflow-x: auto; overflow-y: hidden; }
+
+/* ============================================================
+   MOCK PALETTES — locked. These are screenshots of an app,
+   not part of the document, so they hold one appearance on
+   either host ground. Every value is explicit.
+   ============================================================ */
+.mock {
+  position: relative;
+  min-width: 940px;
+  font-family: var(--font-doc);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* BEFORE — Nestory's shipped custom dark hex (globals.css .dark) */
+.mock--before {
+  --m-bg:      #101313;
+  --m-fg:      #F1F4F2;
+  --m-card:    #151919;
+  --m-muted:   #1B2020;
+  --m-mutedfg: #AEB7B3;
+  --m-border:  #343B3A;
+  --m-primary: #F1F4F2;
+  --m-primaryfg: #101313;
+  --m-ok:      #86D49B;
+  --m-okbg:    #173522;
+  --m-warn:    #D6A85F;
+  --m-warnbg:  #332414;
+}
+/* AFTER — stock shadcn neutral dark (oklch), per Part A2.4 */
+.mock--after {
+  --m-bg:      oklch(0.145 0 0);
+  --m-fg:      oklch(0.985 0 0);
+  --m-card:    oklch(0.205 0 0);
+  --m-muted:   oklch(0.269 0 0);
+  --m-mutedfg: oklch(0.708 0 0);
+  --m-border:  oklch(1 0 0 / 12%);
+  --m-primary: oklch(0.922 0 0);
+  --m-primaryfg: oklch(0.205 0 0);
+  --m-ok:      #86D49B;
+  --m-okbg:    #173522;
+  --m-warn:    #D6A85F;
+  --m-warnbg:  #332414;
+}
+
+.mock { background: var(--m-bg); color: var(--m-fg); }
+
+/* mock chrome shared */
+.m-crumb {
+  display: flex; align-items: center; gap: .5rem;
+  padding: 14px 24px;
+  font-size: 13px; color: var(--m-mutedfg);
+}
+.m-crumb b { color: var(--m-fg); font-weight: 600; }
+.m-crumb i { font-style: normal; opacity: .5; }
+
+.m-head { padding: 4px 24px 18px; display: flex; align-items: flex-start; gap: 16px; }
+.m-head h3 { margin: 0 0 4px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--m-fg); }
+.m-sub { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--m-mutedfg); }
+.m-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+
+.m-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 10px; border-radius: 8px;
+  font-size: 13px; font-weight: 500;
+  border: 1px solid var(--m-border);
+  background: transparent; color: var(--m-fg);
+  white-space: nowrap;
+}
+.m-btn--fill { background: var(--m-primary); color: var(--m-primaryfg); border-color: transparent; font-weight: 600; }
+.m-btn--icon { width: 32px; padding: 0; justify-content: center; }
+
+.m-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 5px;
+  font-size: 11px; font-weight: 600; letter-spacing: .01em;
+  background: var(--m-okbg); color: var(--m-ok);
+}
+.m-badge--warn { background: var(--m-warnbg); color: var(--m-warn); }
+.m-badge--quiet { background: var(--m-muted); color: var(--m-mutedfg); }
+
+.m-body { padding: 0 24px 28px; }
+
+/* BEFORE-specific structure: the nested boxes */
+.b-tabcard { border: 1px solid var(--m-border); border-radius: 8px; padding: 10px; margin-bottom: 14px; }
+.b-tabs { display: flex; gap: 4px; }
+.b-tab { padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--m-mutedfg); }
+.b-tab[data-on] { background: var(--m-okbg); color: var(--m-ok); font-weight: 600; }
+
+.b-panel { border: 1px solid var(--m-border); border-radius: 8px; padding: 18px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 20px; }
+.b-panel h4 { margin: 0 0 2px; font-size: 15px; font-weight: 600; }
+.b-panel .b-legal { margin: 0 0 18px; font-size: 13px; color: var(--m-mutedfg); }
+
+.b-dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 20px; margin: 0; }
+.b-dl dt { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--m-mutedfg); margin-bottom: 5px; }
+.b-dl dd { margin: 0; font-size: 13px; color: var(--m-fg); }
+.b-dead { min-height: 118px; }
+
+.b-rail { display: flex; flex-direction: column; gap: 8px; }
+.b-risk { border: 1px solid var(--m-border); border-radius: 8px; padding: 11px 13px; background: var(--m-card); }
+.b-risk__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.b-risk__top strong { font-size: 13px; font-weight: 600; }
+.b-risk p { margin: 5px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--m-mutedfg); }
+
+/* AFTER-specific structure */
+.a-tabs { display: flex; gap: 22px; padding: 0 24px; border-bottom: 1px solid var(--m-border); margin-bottom: 20px; }
+.a-tab { padding: 0 0 10px; font-size: 13.5px; color: var(--m-mutedfg); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.a-tab[data-on] { color: var(--m-fg); font-weight: 600; border-bottom-color: var(--m-primary); }
+
+.a-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.a-card { border: 1px solid var(--m-border); border-radius: 10px; background: var(--m-card); }
+.a-card__h {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid var(--m-border);
+  font-size: 13.5px; font-weight: 600;
+}
+.a-card__h span { font-size: 12px; font-weight: 500; color: var(--m-mutedfg); }
+.a-card__b { padding: 4px 16px 14px; }
+
+.a-row { display: flex; align-items: baseline; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--m-border); }
+.a-row:last-child { border-bottom: 0; }
+.a-row dt { flex: 0 0 84px; font-size: 12px; color: var(--m-mutedfg); }
+.a-row dd { margin: 0; font-size: 13px; flex: 1; min-width: 0; }
+.a-row dd.num { font-variant-numeric: tabular-nums; }
+.a-none { color: var(--m-mutedfg); }
+.a-stack { display: flex; flex-direction: column; gap: 16px; }
+.a-linkrow { padding: 10px 0; border-bottom: 1px solid var(--m-border); }
+.a-linkrow:last-child { border-bottom: 0; }
+.a-linkrow strong { display: block; font-size: 13px; font-weight: 600; }
+.a-linkrow em { font-style: normal; display: block; font-size: 12px; color: var(--m-mutedfg); margin-top: 2px; }
+.a-empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 13px; color: var(--m-mutedfg); }
+
+/* ---------- redline pins ----------
+   Anchored to the element they mark, never to mock coordinates,
+   so they hold position at any viewport width. */
+.anchor { position: relative; }
+
+.pin {
+  position: absolute;
+  top: -11px; left: -11px;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-family: var(--font-mark);
+  font-size: 11px; font-weight: 700; line-height: 1;
+  color: #fff; background: #C21F45;
+  border: 2px solid var(--m-bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / .5);
+  cursor: pointer;
+  z-index: 5;
+  padding: 0;
+  transition: transform .15s;
+}
+.mock--after .pin { background: #0E6E63; }
+.pin--right { left: auto; right: -11px; }
+.pin--inline { top: 50%; left: auto; right: -11px; transform: translateY(-50%); }
+/* the mock root sits inside a clipping scroll viewport, so its pin insets positively */
+.pin--root { top: 50%; left: auto; right: 24px; transform: translateY(-50%); }
+.pin--root:hover, .pin--root:focus-visible { transform: translateY(-50%) scale(1.22); }
+.pin--center { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.pin--center:hover, .pin--center:focus-visible { transform: translate(-50%, -50%) scale(1.22); }
+
+/* the empty region defect 4 marks — drawn, not just described */
+.b-dead {
+  border: 1px dashed var(--m-border);
+  border-radius: 6px;
+  margin-top: 18px;
+  opacity: .8;
+}
+.pin--inline:hover, .pin--inline:focus-visible { transform: translateY(-50%) scale(1.22); }
+
+.pin:hover, .pin:focus-visible { transform: scale(1.22); outline: none; }
+.pin:focus-visible { box-shadow: 0 0 0 3px rgb(194 31 69 / .55); }
+
+.mock[data-pins="off"] .pin { display: none; }
+
+/* ---------- ledger ---------- */
+.ledger-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; }
+table.ledger { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px; background: var(--paper-2); }
+.ledger th {
+  text-align: left; font-family: var(--font-mark);
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 600;
+  padding: .75rem 1rem; border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+.ledger td { padding: .875rem 1rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+.ledger tr:last-child td { border-bottom: 0; }
+.ledger tr:target td, .ledger tr.flash td { background: var(--redline-bg); }
+.ledger .n {
+  font-family: var(--font-mark); font-weight: 700; color: var(--redline);
+  font-variant-numeric: tabular-nums; width: 1%;
+}
+.ledger .what { font-weight: 600; color: var(--ink); min-width: 190px; }
+.ledger .where { font-family: var(--font-mark); font-size: 11.5px; color: var(--ink-2); line-height: 1.7; }
+.ledger .fix { color: var(--ink-2); }
+.ledger .fix b { color: var(--resolve); font-weight: 650; }
+
+/* ---------- mapping list ---------- */
+.map { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.map > div { background: var(--paper-2); padding: 1rem 1.125rem; }
+.map h3 { margin: 0 0 .5rem; font-size: 13px; font-weight: 650; display: flex; align-items: center; gap: .5rem; }
+.map code {
+  font-family: var(--font-mark); font-size: 11.5px;
+  background: var(--rule-soft); padding: .1em .4em; border-radius: 3px; color: var(--ink);
+}
+.map p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+.map .kill { color: var(--redline); font-family: var(--font-mark); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+
+.foot {
+  font-size: 13.5px; color: var(--ink-3);
+  border-top: 1px solid var(--rule); padding-top: 1.25rem;
+  max-width: var(--measure);
+}
+.foot a { color: var(--redline); }
+
+@media (max-width: 720px) {
+  .b-panel { grid-template-columns: 1fr; }
+  .a-grid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="sheet">
+
+  <!-- ===================== MASTHEAD ===================== -->
+  <header class="masthead">
+    <div class="stamp">
+      <span>Nestory</span>
+      <span>Route <b>/people/[personId]</b></span>
+      <span>Archetype <b>Record detail</b></span>
+      <span>Redline <b>2026-08-12</b></span>
+    </div>
+    <h1>The person record, marked up and rebuilt</h1>
+    <p class="lede">
+      Of the twelve screens captured, this one fails hardest — and it fails at
+      <strong>layout</strong>, not styling. Four levels of nested boxes, a right rail of five prose
+      cards that <strong>contradicts the record beside it</strong>, and a left column that runs out
+      of content at 40% height. The rebuild below changes no data and adds no component: it uses
+      shadcn defaults and gives the second column something real to hold.
+    </p>
+  </header>
+
+  <dl class="metrics">
+    <div class="metric"><dt>Nested containers</dt><dd><span class="was">4</span><span class="arrow">→</span><span class="now">2</span></dd></div>
+    <div class="metric"><dt>Scroll containers</dt><dd><span class="was">3</span><span class="arrow">→</span><span class="now">1</span></dd></div>
+    <div class="metric"><dt>Left gutters</dt><dd><span class="was">3</span><span class="arrow">→</span><span class="now">1</span></dd></div>
+    <div class="metric"><dt>Prose sentences</dt><dd><span class="was">5</span><span class="arrow">→</span><span class="now">0</span></dd></div>
+    <div class="metric"><dt>Dead vertical space</dt><dd><span class="was">118px</span><span class="arrow">→</span><span class="now">0</span></dd></div>
+  </dl>
+
+  <!-- ===================== COMPARISON ===================== -->
+  <section class="sec">
+    <h2>Plate 01 <span>Before / After</span></h2>
+
+    <div class="controls">
+      <div class="segmented" role="group" aria-label="Choose which version to display">
+        <button id="btn-before" type="button" aria-pressed="true">Current build</button>
+        <button id="btn-after" type="button" aria-pressed="false">Proposed</button>
+      </div>
+      <label class="pintoggle">
+        <input id="pins" type="checkbox" checked>
+        Show callouts
+      </label>
+    </div>
+
+    <div class="plate">
+      <div class="plate__bar">
+        <span class="plate__dots"><i></i><i></i><i></i></span>
+        <span>nestory · /people/dara-sok</span>
+        <span class="plate__label" id="plate-label" data-state="before">As shipped</span>
+      </div>
+      <div class="viewport">
+
+        <!-- ---------- BEFORE ---------- -->
+        <div class="mock mock--before" id="mock-before">
+          <div class="m-crumb anchor">
+            <span>Tenants</span><i>›</i><b>Dara Sok</b>
+            <button class="pin pin--root" data-go="d7" type="button" aria-label="Defect 7: second scroll container">7</button>
+          </div>
+          <div class="m-head">
+            <div>
+              <h3>Dara Sok</h3>
+              <div class="m-sub">Tenant / Individual <span class="m-badge">Active</span></div>
+            </div>
+            <div class="m-actions">
+              <span class="m-btn m-btn--fill anchor">Attach evidence →
+                <button class="pin" data-go="d5" type="button" aria-label="Defect 5: non-token primary button">5</button>
+              </span>
+              <span class="m-btn">✎ Edit</span>
+              <span class="m-btn">▣ Archive</span>
+            </div>
+          </div>
+
+          <div class="m-body">
+            <div class="b-tabcard anchor">
+              <button class="pin" data-go="d6" type="button" aria-label="Defect 6: tabs inside a bordered card">6</button>
+              <div class="b-tabs">
+                <span class="b-tab" data-on>Overview</span>
+                <span class="b-tab">Links</span>
+                <span class="b-tab">Photos</span>
+                <span class="b-tab">Documents</span>
+                <span class="b-tab">Timeline</span>
+              </div>
+            </div>
+
+            <div class="b-panel anchor">
+              <button class="pin" data-go="d1" type="button" aria-label="Defect 1: four nested containers">1</button>
+              <div>
+                <h4>Contact and relationships</h4>
+                <p class="b-legal">Individual</p>
+                <dl class="b-dl">
+                  <div><dt>Roles</dt><dd>Tenant</dd></div>
+                  <div><dt>Email</dt><dd>dara.sok@example.test</dd></div>
+                  <div><dt>Phone</dt><dd><span class="m-badge m-badge--warn anchor">No phone
+                    <button class="pin pin--inline" data-go="d2" type="button" aria-label="Defect 2: rail contradicts the record">2</button>
+                  </span></dd></div>
+                  <div><dt>Linked</dt><dd>1 lease / 0 properties / 0 vendor profiles</dd></div>
+                  <div><dt>Documents</dt><dd>0</dd></div>
+                  <div><dt>Updated</dt><dd>04 Aug 2026</dd></div>
+                </dl>
+                <div class="b-dead anchor">
+                  <button class="pin pin--center" data-go="d4" type="button" aria-label="Defect 4: unbalanced columns, dead space">4</button>
+                </div>
+              </div>
+
+              <div class="b-rail anchor">
+                <button class="pin pin--right" data-go="d3" type="button" aria-label="Defect 3: five prose cards">3</button>
+                <div class="b-risk">
+                  <div class="b-risk__top"><strong>Active directory record</strong><span class="m-badge">Ready</span></div>
+                  <p>This person is visible in normal operational views.</p>
+                </div>
+                <div class="b-risk">
+                  <div class="b-risk__top"><strong>Role assigned</strong><span class="m-badge">Ready</span></div>
+                  <p>At least one active tenant, owner, vendor, or staff role is assigned.</p>
+                </div>
+                <div class="b-risk">
+                  <div class="b-risk__top"><strong>Contact ready</strong><span class="m-badge">Ready</span></div>
+                  <p>A usable email or phone is available for follow-up.</p>
+                </div>
+                <div class="b-risk">
+                  <div class="b-risk__top"><strong>Operational links</strong><span class="m-badge">Ready</span></div>
+                  <p>This person is connected to lease, ownership, or vendor context.</p>
+                </div>
+                <div class="b-risk">
+                  <div class="b-risk__top"><strong>Evidence missing</strong><span class="m-badge m-badge--warn">Review</span></div>
+                  <p>No related lease, property, or unit documents are attached yet.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- AFTER ---------- -->
+        <div class="mock mock--after" id="mock-after" hidden>
+          <div class="m-crumb anchor">
+            <span>People</span><i>›</i><b>Dara Sok</b>
+            <button class="pin pin--root" data-go="d7" type="button" aria-label="Resolved 7: single scroll container">7</button>
+          </div>
+          <div class="m-head">
+            <div>
+              <h3>Dara Sok</h3>
+              <div class="m-sub">
+                Tenant · Individual
+                <span class="m-badge">Active</span>
+                <span class="m-badge m-badge--warn anchor">Evidence missing
+                  <button class="pin pin--inline" data-go="d3" type="button" aria-label="Resolved 3: warnings collapse to one chip">3</button>
+                </span>
+              </div>
+            </div>
+            <div class="m-actions">
+              <span class="m-btn m-btn--fill anchor">✎ Edit
+                <button class="pin" data-go="d5" type="button" aria-label="Resolved 5: shadcn primary button">5</button>
+              </span>
+              <span class="m-btn m-btn--icon">⋯</span>
+            </div>
+          </div>
+
+          <div class="a-tabs anchor">
+            <button class="pin" data-go="d6" type="button" aria-label="Resolved 6: line tabs on a rule">6</button>
+            <span class="a-tab" data-on>Overview</span>
+            <span class="a-tab">Links</span>
+            <span class="a-tab">Photos</span>
+            <span class="a-tab">Documents</span>
+            <span class="a-tab">Timeline</span>
+          </div>
+
+          <div class="m-body">
+            <div class="a-grid anchor">
+              <button class="pin" data-go="d1" type="button" aria-label="Resolved 1: two container levels">1</button>
+              <div class="a-stack">
+                <div class="a-card">
+                  <div class="a-card__h">Contact</div>
+                  <div class="a-card__b">
+                    <dl style="margin:0">
+                      <div class="a-row"><dt>Roles</dt><dd>Tenant</dd></div>
+                      <div class="a-row"><dt>Email</dt><dd>dara.sok@example.test</dd></div>
+                      <div class="a-row"><dt>Phone</dt><dd class="a-none anchor">Not recorded
+                        <button class="pin pin--inline" data-go="d2" type="button" aria-label="Resolved 2: one contact predicate">2</button>
+                      </dd></div>
+                      <div class="a-row"><dt>Updated</dt><dd class="num">04 Aug 2026</dd></div>
+                    </dl>
+                  </div>
+                </div>
+
+                <div class="a-card">
+                  <div class="a-card__h">Documents <span>0 attached</span></div>
+                  <div class="a-card__b">
+                    <div class="a-empty">
+                      <span>No lease or property evidence on file.</span>
+                      <span class="m-btn">Attach evidence</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="a-card anchor">
+                <button class="pin pin--right" data-go="d4" type="button" aria-label="Resolved 4: second column carries real linked data">4</button>
+                <div class="a-card__h">Linked records <span>1 active</span></div>
+                <div class="a-card__b">
+                  <div class="a-linkrow">
+                    <strong>Unit A1 · Riverside Apartments</strong>
+                    <em>Lease · 01 Aug 2026 – 31 Jul 2027 · $800.00 / mo</em>
+                  </div>
+                  <div class="a-linkrow">
+                    <strong class="a-none">No ownership record</strong>
+                    <em>Owner</em>
+                  </div>
+                  <div class="a-linkrow">
+                    <strong class="a-none">No vendor profile</strong>
+                    <em>Vendor</em>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== LEDGER ===================== -->
+  <section class="sec">
+    <h2>Plate 01 <span>Defect ledger</span></h2>
+    <div class="ledger-wrap">
+      <table class="ledger">
+        <thead>
+          <tr><th>#</th><th>Defect</th><th>Evidence</th><th>Resolution</th></tr>
+        </thead>
+        <tbody>
+          <tr id="d1">
+            <td class="n">1</td>
+            <td class="what">Four nested container levels</td>
+            <td class="where">person-detail-screen.tsx:82<br>person-detail-screen.tsx:152<br>person-detail-screen.tsx:158<br>person-detail-screen.tsx:171</td>
+            <td class="fix">Page gutter → <b>one Card level</b>. Sub-sections divide with <code>border-b</code>, never another box.</td>
+          </tr>
+          <tr id="d2">
+            <td class="n">2</td>
+            <td class="what">The rail contradicts the record beside it</td>
+            <td class="where">people.ts:2310 — <em>hasUsefulContact = email OR phone</em><br>person-detail-screen.tsx:193 — <em>tone="warning" when phone is null</em></td>
+            <td class="fix">Two predicates for one fact. Unify them, then let the field speak: <b>“Not recorded”</b> in muted, no amber, no rail card.</td>
+          </tr>
+          <tr id="d3">
+            <td class="n">3</td>
+            <td class="what">Five prose cards; four report that nothing is wrong</td>
+            <td class="where">people.ts:2288–2337<br>+ 8 sibling modules, 42 checks total</td>
+            <td class="fix">Drop every check with <code>tone: "success"</code> — a satisfied condition is not information. The one real warning becomes a <b>Badge in the title row</b>.</td>
+          </tr>
+          <tr id="d4">
+            <td class="n">4</td>
+            <td class="what">Left column dies at 40% height; columns unbalanced</td>
+            <td class="where">person-detail-screen.tsx:171 —<br><code>xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]</code></td>
+            <td class="fix">Even <code>1fr 1fr</code>. The second column carries <b>linked records</b> — real data currently buried one tab away — instead of commentary.</td>
+          </tr>
+          <tr id="d5">
+            <td class="n">5</td>
+            <td class="what">Primary action is a hand-rolled link on a non-token fill</td>
+            <td class="where">person-detail-screen.tsx:99 —<br><code>bg-foreground text-background</code></td>
+            <td class="fix"><b>&lt;Button&gt;</b> on <code>bg-primary</code>, so the org accent reaches it. Three peer buttons collapse to one primary + an overflow menu.</td>
+          </tr>
+          <tr id="d6">
+            <td class="n">6</td>
+            <td class="what">Tabs wrapped in their own bordered card</td>
+            <td class="where">PersonRecordNav, rendered at<br>person-detail-screen.tsx:153</td>
+            <td class="fix">shadcn <b>line tabs</b> sitting on a <code>border-b</code>, full-bleed to the gutter. Tabs are never inside a box.</td>
+          </tr>
+          <tr id="d7">
+            <td class="n">7</td>
+            <td class="what">A second viewport-height scroll container</td>
+            <td class="where">person-detail-screen.tsx:82 —<br><code>min-h-screen lg:h-screen lg:overflow-hidden</code><br>inside app-shell.tsx:496, 515</td>
+            <td class="fix"><b>h-full min-h-0 flex-1</b>. The shell already owns the scroller; 100vh inside it guarantees a 48px overflow and a second scrollbar.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== MAPPING ===================== -->
+  <section class="sec">
+    <h2>Plate 01 <span>What it costs to build</span></h2>
+    <div class="map">
+      <div>
+        <h3>Reused as-is</h3>
+        <p><code>Card</code>, <code>CardHeader</code>, <code>CardContent</code>, <code>Tabs</code>,
+        <code>Button</code>, <code>Badge</code>, <code>DropdownMenu</code> — all already in
+        <code>components/ui</code>, all stock.</p>
+      </div>
+      <div>
+        <h3>Deleted</h3>
+        <p><span class="kill">− 5 rail cards</span> · <span class="kill">− 1 tab wrapper</span> ·
+        <span class="kill">− 1 scroll container</span> · <span class="kill">− 42 description strings</span>
+        across nine data modules.</p>
+      </div>
+      <div>
+        <h3>New components</h3>
+        <p><strong>None.</strong> Nothing here needs a primitive that shadcn does not already ship,
+        and nothing needs a token outside the stock set.</p>
+      </div>
+      <div>
+        <h3>Data layer</h3>
+        <p><strong>Untouched.</strong> Same loader, same fields. Only the two contact predicates
+        merge — one boolean, not a schema change.</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">
+    The mock on the left renders in Nestory’s shipped custom dark palette; the proposal renders in
+    stock shadcn <em>neutral dark</em>, which is the palette the audit recommends restoring. Both
+    frames are live HTML, not screenshots — the “before” is reconstructed line-for-line from
+    <code>person-detail-screen.tsx</code> and matches
+    <code>output/design-audit-2026-08-04/10-person-record.png</code>.
+    Full findings in <code>docs/ui-ux-audit-2026-08-12.md</code>; the build order is Part B of
+    <code>docs/codex-ui-ux-remediation-prompt.md</code>.
+  </p>
+
+</div>
+
+<script>
+(function () {
+  var before = document.getElementById('mock-before');
+  var after  = document.getElementById('mock-after');
+  var bBtn   = document.getElementById('btn-before');
+  var aBtn   = document.getElementById('btn-after');
+  var label  = document.getElementById('plate-label');
+  var pins   = document.getElementById('pins');
+
+  function show(which) {
+    var isAfter = which === 'after';
+    before.hidden = isAfter;
+    after.hidden  = !isAfter;
+    bBtn.setAttribute('aria-pressed', String(!isAfter));
+    aBtn.setAttribute('aria-pressed', String(isAfter));
+    label.textContent = isAfter ? 'Proposed' : 'As shipped';
+    label.setAttribute('data-state', isAfter ? 'after' : 'before');
+  }
+
+  bBtn.addEventListener('click', function () { show('before'); });
+  aBtn.addEventListener('click', function () { show('after'); });
+
+  function applyPins() {
+    var v = pins.checked ? 'on' : 'off';
+    before.setAttribute('data-pins', v);
+    after.setAttribute('data-pins', v);
+  }
+  pins.addEventListener('change', applyPins);
+  applyPins();
+
+  document.addEventListener('click', function (e) {
+    var pin = e.target.closest ? e.target.closest('.pin') : null;
+    if (!pin) return;
+    var row = document.getElementById(pin.getAttribute('data-go'));
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('flash');
+    setTimeout(function () { row.classList.remove('flash'); }, 1600);
+  });
+})();
+</script>

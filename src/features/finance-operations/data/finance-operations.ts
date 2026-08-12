@@ -33,6 +33,10 @@ type AccountEntryRow =
   Database["public"]["Views"]["property_account_entries"]["Row"];
 type ExpenseSubmissionRow =
   Database["public"]["Tables"]["expense_submissions"]["Row"];
+type MaintenanceTaskRow = Pick<
+  Database["public"]["Tables"]["tasks"]["Row"],
+  "completed_at" | "description" | "id" | "status" | "title"
+>;
 type InvoiceSettlementRow = {
   amount: number;
   date: string;
@@ -58,6 +62,7 @@ type FinanceUnitRow = {
 type RentGenerationExceptionRow =
   Database["public"]["Tables"]["rent_generation_exceptions"]["Row"];
 type ExpenseEvidenceRow = {
+  content_sha256: string;
   document_id: string;
   file_name: string;
   mime_type: string;
@@ -109,11 +114,17 @@ export function toExpenseSubmissionSummary(
     string,
     NonNullable<ExpenseSubmissionSummary["evidence"]>
   >,
+  maintenanceTaskById: ReadonlyMap<string, MaintenanceTaskRow> = new Map(),
+  submitterLabelByUserId: ReadonlyMap<string, string> = new Map(),
 ): ExpenseSubmissionSummary {
   const property = propertyById.get(submission.property_id);
   const unit = submission.unit_id
     ? unitById.get(submission.unit_id)
     : undefined;
+  const maintenanceTask =
+    submission.source_type === "maintenance_task" && submission.source_id
+      ? maintenanceTaskById.get(submission.source_id)
+      : undefined;
 
   return {
     adjustsSubmissionId: submission.adjusts_submission_id,
@@ -132,6 +143,15 @@ export function toExpenseSubmissionSummary(
     id: submission.id,
     internalCost: Number(submission.internal_cost_amount),
     internalMarkup: Number(submission.internal_markup_amount),
+    maintenanceTask: maintenanceTask
+      ? {
+          completedAt: maintenanceTask.completed_at,
+          description: maintenanceTask.description,
+          href: `/maintenance?archiveState=all&taskId=${maintenanceTask.id}`,
+          status: maintenanceTask.status,
+          title: maintenanceTask.title,
+        }
+      : undefined,
     propertyId: submission.property_id,
     propertyLabel: property ? propertyLabel(property) : "Property unavailable",
     previouslyApproved:
@@ -144,6 +164,7 @@ export function toExpenseSubmissionSummary(
         : Number(submission.recorded_total_amount),
     reference: submission.reference,
     responsibility: submission.responsibility as "owner" | "tenant",
+    reviewedAt: submission.reviewed_at,
     reviewReason: submission.review_reason,
     reversalReason: submission.reversal_reason,
     sourceId: submission.source_id,
@@ -154,6 +175,9 @@ export function toExpenseSubmissionSummary(
       | "reversed"
       | "submitted",
     submittedAt: submission.submitted_at,
+    submittedByLabel:
+      submitterLabelByUserId.get(submission.submitted_by) ?? "Workspace member",
+    submittedByUserId: submission.submitted_by,
     unitId: submission.unit_id,
     unitLabel:
       unit && property
@@ -368,6 +392,53 @@ export async function getFinanceOperationsData(
       `Could not load finance expense evidence: ${evidenceResult.error.message}`,
     );
   }
+  const maintenanceTaskIds = (expenseSubmissionsResult.data ?? []).flatMap(
+    (submission) =>
+      submission.source_type === "maintenance_task" && submission.source_id
+        ? [submission.source_id]
+        : [],
+  );
+  const maintenanceTaskResult =
+    maintenanceTaskIds.length > 0
+      ? await supabase
+          .from("tasks")
+          .select("id, title, description, status, completed_at")
+          .eq("organization_id", organizationId)
+          .in("id", [...new Set(maintenanceTaskIds)])
+      : { data: [] as MaintenanceTaskRow[], error: null };
+  if (maintenanceTaskResult.error) {
+    throw new Error(
+      `Could not load maintenance review context: ${maintenanceTaskResult.error.message}`,
+    );
+  }
+  const maintenanceTaskById = new Map(
+    (maintenanceTaskResult.data ?? []).map((task) => [task.id, task]),
+  );
+  const submitterIds = [
+    ...new Set(
+      (expenseSubmissionsResult.data ?? []).map(
+        (submission) => submission.submitted_by,
+      ),
+    ),
+  ];
+  const submitterLabelsResult =
+    submitterIds.length > 0
+      ? await supabase.rpc("get_finance_submission_actor_labels", {
+          p_organization_id: organizationId,
+          p_user_ids: submitterIds,
+        })
+      : { data: [], error: null };
+  if (submitterLabelsResult.error) {
+    throw new Error(
+      `Could not load finance submission actor labels: ${submitterLabelsResult.error.message}`,
+    );
+  }
+  const submitterLabelByUserId = new Map(
+    (submitterLabelsResult.data ?? []).map((actor) => [
+      actor.user_id,
+      actor.label,
+    ]),
+  );
 
   const evidenceRows = evidenceResult.data ?? [];
   const evidencePaths = [...new Set(evidenceRows.map((row) => row.storage_path))];
@@ -391,6 +462,7 @@ export async function getFinanceOperationsData(
         fileName: row.file_name,
         href: signedUrlByPath.get(row.storage_path),
         mimeType: row.mime_type,
+        sha256: row.content_sha256,
         sizeBytes: Number(row.size_bytes),
       },
     ]),
@@ -407,6 +479,8 @@ export async function getFinanceOperationsData(
           unitById,
           sourceById,
           evidenceBySubmissionId,
+          maintenanceTaskById,
+          submitterLabelByUserId,
         ),
     ),
     leases: (leasesResult.data ?? []).flatMap((lease) => {
@@ -772,7 +846,7 @@ async function getExpenseEvidenceRows(
 
   for (let index = 0; index < submissionIds.length; index += 500) {
     const { data, error } = await supabase.rpc(
-      "get_expense_submission_evidence",
+      "get_paid_cost_submission_evidence",
       {
         p_organization_id: organizationId,
         p_submission_ids: submissionIds.slice(index, index + 500),

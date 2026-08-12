@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PropertyScreen } from "@/features/properties/components/property-screen";
+import { PropertyForm } from "@/features/properties/components/property-form";
 import { buildPropertySummary } from "@/features/properties/data/property-summary";
 import type { PropertyViewQuery } from "@/features/properties/property.types";
 
@@ -64,6 +65,39 @@ afterEach(() => {
 });
 
 describe("PropertyScreen redesign contract", () => {
+  it("preserves ownership facts for the same owner and clears them when identity changes", () => {
+    const currentOwnerId = "11111111-1111-4111-8111-111111111111";
+    const replacementOwnerId = "22222222-2222-4222-8222-222222222222";
+    const property = makeProperty("property-edit", "EDIT", "Edit property");
+    property.formValues.ownerPersonId = currentOwnerId;
+
+    render(
+      <PropertyForm
+        mode="edit"
+        onClose={vi.fn()}
+        ownerOptions={[
+          { archived: false, description: "Current", id: currentOwnerId, label: "Current Owner", roles: ["owner"] },
+          { archived: false, description: "Replacement", id: replacementOwnerId, label: "Replacement Owner", roles: ["owner"] },
+        ]}
+        property={property}
+      />,
+    );
+
+    const start = document.querySelector<HTMLInputElement>('input[name="ownerStartedOn"]')!;
+    const share = screen.getByRole("textbox", { name: /Ownership share/ }) as HTMLInputElement;
+    expect(start.value).toBe("2026-01-01");
+    expect(share.value).toBe("100.000");
+
+    fireEvent.focus(screen.getByRole("combobox", { name: "Property owner" }));
+    fireEvent.click(screen.getByRole("option", { name: /Replacement Owner/ }));
+
+    const replacementStart = document.querySelector<HTMLInputElement>('input[name="ownerStartedOn"]')!;
+    const replacementShare = screen.getByRole("textbox", { name: /Ownership share/ }) as HTMLInputElement;
+    expect(replacementStart.value).toBe("");
+    expect(replacementShare.value).toBe("");
+    expect(replacementStart.required).toBe(true);
+    expect(replacementShare.required).toBe(true);
+  });
   it("renders one page heading and keeps the primary actions in the header", () => {
     const pageTools = document.createElement("div");
     pageTools.id = "workspace-page-tools";
@@ -125,8 +159,8 @@ describe("PropertyScreen redesign contract", () => {
     );
 
     expect(surface).not.toBeNull();
-    expect(surface!.className).toMatch(/(?:^|\s)rounded-lg(?:\s|$)/);
-    expect(surface!.className).toMatch(/(?:^|\s)border(?:\s|$)/);
+    expect(surface!.className).not.toMatch(/(?:^|\s)rounded-lg(?:\s|$)/);
+    expect(surface!.className).not.toMatch(/(?:^|\s)border(?:\s|$)/);
     expect(
       within(surface!).getByRole("textbox", { name: "Search properties" }),
     ).toBeTruthy();
@@ -150,8 +184,8 @@ describe("PropertyScreen redesign contract", () => {
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
 
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
 
     const rows = within(table).getAllByRole("row").slice(1);
     expect(within(rows[0]!).queryByRole("link", { name: "Home Residence" })).toBeNull();
@@ -331,6 +365,17 @@ describe("PropertyScreen redesign contract", () => {
     expect(navigation.replace).toHaveBeenCalledWith("/properties", {
       scroll: false,
     });
+    const startInput = document.querySelector<HTMLInputElement>(
+      'input[name="ownerStartedOn"]',
+    );
+    const shareInput = screen.getByRole("textbox", {
+      name: /^Ownership share/,
+    });
+    expect(startInput?.value).toBe("");
+    expect(startInput?.required).toBe(true);
+    expect(shareInput.getAttribute("required")).not.toBeNull();
+    expect(shareInput.getAttribute("value")).toBe("");
+    expect(screen.queryByDisplayValue("100.000")).toBeNull();
   });
 });
 
@@ -365,7 +410,12 @@ function renderProperties({
 
 function makeProperty(id: string, code: string, name: string) {
   return buildPropertySummary({
-    activeOwner: { label: "Nora Owner", personId: `owner-${id}` },
+    activeOwner: {
+      label: "Nora Owner",
+      ownershipPercent: "100.000",
+      personId: `owner-${id}`,
+      startedOn: "2026-01-01",
+    },
     hasActiveOwnerLink: true,
     ledgerEntries: [{ amount: 1200, currency: "USD", direction: "income" }],
     property: {

@@ -40,7 +40,9 @@ describe("buildPropertySummary", () => {
       buildPropertySummary({
         activeOwner: {
           label: "Jane Owner",
+          ownershipPercent: "100.000",
           personId: "person-1",
+          startedOn: "2026-01-01",
         },
         ledgerEntries: [],
         property: {
@@ -58,6 +60,8 @@ describe("buildPropertySummary", () => {
       formValues: {
         owner: "Former owner",
         ownerPersonId: "person-1",
+        ownerStartedOn: "2026-01-01",
+        ownershipPercent: "100.000",
       },
       hasActiveOwnerLink: true,
       owner: "Jane Owner",

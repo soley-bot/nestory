@@ -1,7 +1,12 @@
 import { strFromU8, unzipSync } from "fflate";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildTrustedReportXlsx } from "@/features/reports/data/excel";
+import {
+  buildOwnerStatementXlsx,
+  buildTrustedReportXlsx,
+} from "@/features/reports/data/excel";
+import { mapOwnerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report";
+import { ownerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report.test-fixture";
 import type { TrustedReport } from "@/features/reports/reports.types";
 
 describe("trusted report Excel export", () => {
@@ -48,6 +53,59 @@ describe("trusted report Excel export", () => {
     expect(worksheet).toContain(
       "=HYPERLINK(&quot;bad&quot;)",
     );
+  });
+});
+
+describe("official owner statement workbook", () => {
+  it("is byte-stable with typed money, statement, trace, and checks sheets", () => {
+    const model = mapOwnerStatementPublicationPayload(
+      structuredClone(ownerStatementPublicationPayload),
+    );
+    const first = buildOwnerStatementXlsx(model);
+    const second = buildOwnerStatementXlsx(model);
+    const files = unzipSync(first);
+    const workbook = Buffer.from(files["xl/workbook.xml"] ?? []).toString();
+    const statement = Buffer.from(
+      files["xl/worksheets/sheet1.xml"] ?? [],
+    ).toString();
+    const sourceTrace = Buffer.from(
+      files["xl/worksheets/sheet2.xml"] ?? [],
+    ).toString();
+
+    expect(first).toEqual(second);
+    expect(workbook).toContain('name="Statement"');
+    expect(workbook).toContain('name="Source Trace"');
+    expect(workbook).toContain('name="Checks"');
+    expect(statement).toContain("OS-202608-300000000000");
+    expect(statement).toContain(
+      '<col min="1" max="1" width="32" customWidth="1"/>',
+    );
+    expect(sourceTrace).toContain(
+      '<col min="1" max="1" width="20" customWidth="1"/>',
+    );
+    expect(statement).toMatch(/<c r="[A-Z]+\d+" s="\d+"><v>1250\.00<\/v><\/c>/);
+    expect(statement).not.toContain("#REF!");
+  });
+
+  it("is byte-identical across ZIP timestamp buckets and host time zones", () => {
+    const model = mapOwnerStatementPublicationPayload(
+      structuredClone(ownerStatementPublicationPayload),
+    );
+    const originalTimezone = process.env.TZ;
+    vi.useFakeTimers();
+    try {
+      process.env.TZ = "Pacific/Kiritimati";
+      vi.setSystemTime(new Date("2026-08-10T00:00:00.000Z"));
+      const first = buildOwnerStatementXlsx(model);
+
+      process.env.TZ = "America/Adak";
+      vi.setSystemTime(new Date("2026-08-10T00:00:05.000Z"));
+      expect(buildOwnerStatementXlsx(model)).toEqual(first);
+    } finally {
+      vi.useRealTimers();
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    }
   });
 });
 

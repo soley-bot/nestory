@@ -177,7 +177,6 @@ describe("UI route coverage contract", () => {
 
     for (const route of [
       "/maintenance",
-      "/tasks",
       "/work-orders",
       "/inspections",
       "/recurring-tasks",
@@ -185,9 +184,13 @@ describe("UI route coverage contract", () => {
       expect(getUiRouteContract(route)?.roles, route).toEqual([
         "super_admin",
         "operations_manager",
-        "operations_member",
       ]);
     }
+    expect(getUiRouteContract("/tasks")?.roles).toEqual([
+      "super_admin",
+      "operations_manager",
+      "operations_member",
+    ]);
   });
 
   it("exposes typed route and phase lookup helpers", () => {

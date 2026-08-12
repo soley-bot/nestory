@@ -127,8 +127,11 @@ describe("MaintenanceInspector role-safe workflow", () => {
       screen.getByRole("button", { name: "Submit cost to Finance" }),
     ).toBeTruthy();
     expect(
-      screen.getByText("Choose a linked document or enter a reference."),
+      screen.getByText(/Upload the receipt used for this submission/),
     ).toBeTruthy();
+    expect(screen.getByLabelText("Receipt evidence").getAttribute("name")).toBe(
+      "evidenceFile",
+    );
     expect(screen.queryByText("Link actual cost to ledger")).toBeNull();
   });
 
@@ -156,6 +159,89 @@ describe("MaintenanceInspector role-safe workflow", () => {
     expect(
       screen.queryByRole("button", { name: "Submit cost to Finance" }),
     ).toBeNull();
+  });
+
+  it("keeps technical identifiers out of ordinary activity details", () => {
+    render(
+      <MaintenanceInspector
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
+        maintenanceCase={{
+          ...makeCase(),
+          activity: [
+            {
+              action: "maintenance_task_updated",
+              actionLabel: "Updated",
+              createdAt: "2026-08-12T08:00:00Z",
+              details: [
+                { field: "Status", before: "Pending", after: "In progress" },
+                {
+                  field: "Task ID",
+                  before: "",
+                  after: "3f4e947e-70b8-4487-a589-ea280b07e578",
+                },
+              ],
+              entityLabel: "Maintenance",
+              href: "/maintenance?taskId=task-1",
+              id: "activity-1",
+              recordLabel: "Repair leak",
+              tone: "neutral",
+            },
+          ],
+        }}
+        onArchive={vi.fn()}
+        onEdit={vi.fn()}
+        onRestore={vi.fn()}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Status:")).toBeTruthy();
+    expect(screen.getByText("In progress")).toBeTruthy();
+    expect(screen.queryByText("Task ID:")).toBeNull();
+    expect(
+      screen.queryByText("3f4e947e-70b8-4487-a589-ea280b07e578"),
+    ).toBeNull();
+  });
+
+  it("shows the safe append-only Finance status history without funding details", () => {
+    render(
+      <MaintenanceWorkflowPanel
+        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        capabilities={getMaintenanceCapabilities("operations_manager")}
+        maintenanceCase={{
+          ...makeCase(),
+          actualCostAmount: 150,
+          actualCostLabel: "USD 150.00",
+          costSubmission: {
+            id: "submission-2",
+            reviewReason: null,
+            status: "approved",
+            submittedAt: "2026-08-09T08:00:00Z",
+          },
+          costSubmissionHistory: [
+            {
+              id: "submission-2",
+              reviewReason: null,
+              status: "approved",
+              submittedAt: "2026-08-09T08:00:00Z",
+            },
+            {
+              id: "submission-1",
+              reviewReason: "Receipt was unreadable",
+              status: "rejected",
+              submittedAt: "2026-08-08T08:00:00Z",
+            },
+          ],
+        }}
+        onStatusMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Cost review history")).toBeTruthy();
+    expect(screen.getByText("2 finance decisions")).toBeTruthy();
+    expect(screen.getByText("Receipt was unreadable")).toBeTruthy();
+    expect(screen.queryByText(/Paid from/)).toBeNull();
   });
 
   it("reopens an approved cost for an explicit append-only adjustment", () => {

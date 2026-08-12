@@ -167,9 +167,9 @@ export function BoardSurface({
         <button
           aria-pressed={presentation === "board"}
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
             presentation === "board"
-              ? "border-accent bg-accent text-foreground"
+              ? "border-primary/40 bg-accent text-foreground"
               : "border-border bg-card text-muted-foreground hover:bg-muted",
           )}
           onClick={() => setPresentation("board")}
@@ -181,9 +181,9 @@ export function BoardSurface({
         <button
           aria-pressed={presentation === "list"}
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+            "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
             presentation === "list"
-              ? "border-accent bg-accent text-foreground"
+              ? "border-primary/40 bg-accent text-foreground"
               : "border-border bg-card text-muted-foreground hover:bg-muted",
           )}
           onClick={() => setPresentation("list")}
@@ -220,9 +220,9 @@ function BoardListSurface({
     >
       <table
         aria-label="Work order list"
-        className="w-full min-w-[760px] border-collapse text-left text-[13px]"
+        className="w-full min-w-[760px] border-collapse text-left text-sm"
       >
-        <thead className="bg-[var(--table-header-bg)] text-[11px] uppercase text-muted-foreground">
+        <thead className="bg-[var(--table-header-bg)] text-xs uppercase text-muted-foreground">
           <tr>
             <th className="px-3 py-2 font-semibold">Work order</th>
             <th className="px-3 py-2 font-semibold">Status / Priority</th>
@@ -324,7 +324,7 @@ function BoardColumn({
     <section
       className={cn(
         "flex min-h-[calc(100vh-310px)] flex-col rounded-md border border-border bg-card transition-colors",
-        isOver && "border-accent bg-accent/40",
+        isOver && "border-primary/40 bg-accent/40",
       )}
       data-status-column={column.status}
       ref={setNodeRef}

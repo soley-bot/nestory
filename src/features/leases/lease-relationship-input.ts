@@ -1,4 +1,6 @@
 type NewLeaseRelationshipInput = {
+  actualMoveInDate?: string;
+  actualMoveOutDate?: string;
   leaseStatus:
     | "active"
     | "cancelled"
@@ -7,6 +9,8 @@ type NewLeaseRelationshipInput = {
     | "notice_given"
     | "terminated";
   recordSource: "imported_explicit" | "operator_confirmed";
+  scheduledMoveInDate?: string;
+  scheduledMoveOutDate?: string;
   tenantPersonId: string;
 };
 
@@ -26,7 +30,7 @@ type PlannedLeaseRelationshipInput = Omit<
 type BoundaryEvidence = {
   confidence: "confirmed" | "unknown";
   date: string | null;
-  kind: "known" | "unknown";
+  kind: "known" | "open_current" | "unknown";
 };
 
 type NewLeaseRelationshipPayload = {
@@ -73,17 +77,19 @@ type NewLeaseRelationshipPayload = {
 export function buildNewLeaseRelationshipPayload(
   input: NewLeaseRelationshipInput,
 ): NewLeaseRelationshipPayload {
+  const actualEvidence = buildActualOccupancyEvidence(input);
+
   return {
     occupancy: {
-      actualMoveIn: boundary(),
-      actualMoveOut: boundary(),
+      actualMoveIn: actualEvidence.actualMoveIn,
+      actualMoveOut: actualEvidence.actualMoveOut,
       lifecycle: occupancyLifecycle(input.leaseStatus),
       reason: "new_lease_relationship_composition",
       recordSource: input.recordSource,
-      scheduledMoveIn: boundary(),
-      scheduledMoveOut: boundary(),
+      scheduledMoveIn: boundary(input.scheduledMoveInDate),
+      scheduledMoveOut: boundary(input.scheduledMoveOutDate),
     },
-    participants: [],
+    participants: actualEvidence.participants,
     primaryParty: {
       endedOn: boundary(),
       lifecycle: partyLifecycle(input.leaseStatus),
@@ -92,6 +98,42 @@ export function buildNewLeaseRelationshipPayload(
       recordSource: input.recordSource,
       startedOn: boundary(),
     },
+  };
+}
+
+function buildActualOccupancyEvidence(input: NewLeaseRelationshipInput) {
+  const actualMoveIn = boundary(input.actualMoveInDate);
+
+  if (!input.actualMoveInDate) {
+    return {
+      actualMoveIn,
+      actualMoveOut: boundary(input.actualMoveOutDate),
+      participants: [],
+    };
+  }
+
+  const isCurrent =
+    input.leaseStatus === "active" || input.leaseStatus === "notice_given";
+  const actualMoveOut = isCurrent
+    ? openBoundary()
+    : boundary(input.actualMoveOutDate);
+
+  return {
+    actualMoveIn,
+    actualMoveOut,
+    participants: [
+      {
+        endedOn: isCurrent ? openBoundary() : boundary(input.actualMoveOutDate),
+        lifecycle:
+          input.leaseStatus === "ended" || input.leaseStatus === "terminated"
+            ? ("ended" as const)
+            : ("present" as const),
+        personId: input.tenantPersonId,
+        reason: "new_lease_relationship_composition" as const,
+        recordSource: input.recordSource,
+        startedOn: actualMoveIn,
+      },
+    ],
   };
 }
 
@@ -188,4 +230,8 @@ function boundary(date?: string): BoundaryEvidence {
   return date
     ? { confidence: "confirmed", date, kind: "known" }
     : { confidence: "unknown", date: null, kind: "unknown" };
+}
+
+function openBoundary(): BoundaryEvidence {
+  return { confidence: "confirmed", date: null, kind: "open_current" };
 }

@@ -16,14 +16,10 @@ type PaginationState = {
 };
 
 type PaginationControlsProps = {
-  attached?: boolean;
   pagination: PaginationState;
 };
 
-export function PaginationControls({
-  attached = false,
-  pagination,
-}: PaginationControlsProps) {
+export function PaginationControls({ pagination }: PaginationControlsProps) {
   const previousDisabled = pagination.page <= 1;
   const nextDisabled = pagination.page >= pagination.totalPages;
   const pathname = usePathname();
@@ -32,10 +28,7 @@ export function PaginationControls({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 bg-card px-3 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between",
-        attached
-          ? "-mt-px rounded-b-md border border-t-0 border-border"
-          : "border-t border-border",
+        "flex flex-col gap-3 border-t border-border bg-card px-3 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between",
       )}
     >
       <p>

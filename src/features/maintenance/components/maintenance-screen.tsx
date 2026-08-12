@@ -109,6 +109,7 @@ import type {
   MaintenanceVendorOption,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
+import { getOperatorActivityDetails } from "@/features/workspace-operations/operator-activity";
 import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { cn } from "@/lib/utils";
@@ -794,7 +795,7 @@ function MaintenanceCasesCommandBar({
                   "inline-flex h-[26px] shrink-0 items-center rounded-md border border-transparent px-1.5 text-xs font-medium outline-none transition-all hover:text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50",
                   tab.active
                     ? "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30"
-                    : "text-muted-foreground",
+                    : "text-foreground/80",
                 )}
                 aria-current={tab.active ? "page" : undefined}
                 data-maintenance-queue-tab="true"
@@ -993,7 +994,7 @@ function MaintenanceFilters({
           {getMaintenanceTabs(pathname, searchParams, viewQuery).map((tab) => (
             <Link
               className={cn(
-                "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors",
+                "inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium transition-colors",
                 tab.active
                   ? "border-accent bg-accent text-foreground"
                   : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -1165,14 +1166,14 @@ function MaintenanceTable({
             : "max-h-[min(620px,calc(100vh-350px))]",
         )}
       >
-        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col className="w-[33%]" />
             <col className="w-[27%]" />
             <col className="w-[17%]" />
             <col className="w-[23%]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-2.5 py-2.5 font-semibold">
                 {capitalizeLabel(recordLabel)}
@@ -1422,28 +1423,34 @@ export function MaintenanceInspector({
           <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
             <p className="font-semibold">Activity</p>
             <div className="mt-2 divide-y divide-border">
-              {maintenanceCase.activity.slice(0, 6).map((change) => (
-                <div className="py-2 first:pt-0 last:pb-0" key={change.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-medium">{change.actionLabel}</p>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatActivityDate(change.createdAt)}
-                    </span>
-                  </div>
-                  {change.details.length > 0 ? (
-                    <div className="mt-1 space-y-1 text-xs text-muted-foreground">
-                      {change.details.map((detail) => (
-                        <p key={`${change.id}-${detail.field}`}>
-                          <span className="font-medium text-foreground">
-                            {detail.field}:
-                          </span>{" "}
-                          {detail.after}
-                        </p>
-                      ))}
+              {maintenanceCase.activity.slice(0, 6).map((change) => {
+                const operatorDetails = getOperatorActivityDetails(
+                  change.details,
+                );
+
+                return (
+                  <div className="py-2 first:pt-0 last:pb-0" key={change.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-medium">{change.actionLabel}</p>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {formatActivityDate(change.createdAt)}
+                      </span>
                     </div>
-                  ) : null}
-                </div>
-              ))}
+                    {operatorDetails.length > 0 ? (
+                      <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                        {operatorDetails.map((detail) => (
+                          <p key={`${change.id}-${detail.field}`}>
+                            <span className="font-medium text-foreground">
+                              {detail.field}:
+                            </span>{" "}
+                            {detail.after}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -1789,7 +1796,7 @@ export function MaintenanceForm({
             {branchControlMode === "fixed" && actor.branchId ? (
               <>
                 <input name="branchId" type="hidden" value={actor.branchId} />
-                <div className="flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-[13px]">
+                <div className="flex h-8 items-center rounded-md border border-border bg-muted px-2.5 text-sm">
                   {managerBranch?.label ??
                     maintenanceCase?.branchLabel ??
                     "Assigned branch"}
@@ -2127,7 +2134,7 @@ function CompactFact({
 function LinkButton({ children, href }: { children: ReactNode; href: string }) {
   return (
     <Link
-      className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
       href={href}
       prefetch={false}
     >

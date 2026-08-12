@@ -129,7 +129,7 @@ export function SearchableSelectControl({
             aria-haspopup="listbox"
             aria-label={ariaLabel}
             className={cn(
-              "flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-input bg-card px-3 py-2 text-left shadow-sm outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
+              "flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-input bg-card px-3 py-2 text-left shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
               className,
             )}
             disabled={disabled}
@@ -179,7 +179,7 @@ export function SearchableSelectControl({
                 aria-controls={listboxId}
                 aria-expanded={open}
                 aria-invalid={ariaInvalid}
-                className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-ring"
+                className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring"
                 onChange={(event) => {
                   setQuery(event.currentTarget.value);
                   setActiveIndex(0);
@@ -233,7 +233,7 @@ export function SearchableSelectControl({
                       </span>
                     ) : null}
                     {option.value === value ? (
-                      <Check aria-hidden="true" className="shrink-0 text-accent" size={15} />
+                      <Check aria-hidden="true" className="shrink-0 text-primary" size={15} />
                     ) : null}
                   </button>
                 ))

@@ -52,6 +52,10 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
       { key: "termStatus", label: "Term status", required: true },
       { key: "depositAmount", label: "Deposit" },
       { key: "status", label: "Status" },
+      { key: "scheduledMoveInDate", label: "Scheduled move-in" },
+      { key: "scheduledMoveOutDate", label: "Scheduled move-out" },
+      { key: "actualMoveInDate", label: "Actual move-in" },
+      { key: "actualMoveOutDate", label: "Actual move-out" },
     ],
     label: "Leases",
     nextDependency: "Needs matching properties, units, and tenant people.",
@@ -69,6 +73,10 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
         "Term Status",
         "Deposit",
         "Status",
+        "Scheduled Move-in",
+        "Scheduled Move-out",
+        "Actual Move-in",
+        "Actual Move-out",
       ],
       [
         "CTR",
@@ -83,6 +91,10 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
         "Active",
         "850",
         "Active",
+        "2025-12-28",
+        "2027-01-02",
+        "2026-01-02",
+        "",
       ],
     ],
   },
@@ -183,6 +195,8 @@ export const importTypeConfigs: Record<ImportType, ImportTypeConfig> = {
 
 const fieldCandidates: Record<ImportType, Record<string, string[]>> = {
   leases: {
+    actualMoveInDate: ["actualmovein", "actualmoveindate", "confirmedmovein"],
+    actualMoveOutDate: ["actualmoveout", "actualmoveoutdate", "confirmedmoveout"],
     depositAmount: ["deposit", "securitydeposit"],
     leaseEndDate: ["enddate", "leaseend", "leaseenddate", "to"],
     leaseStartDate: ["startdate", "leasestart", "leasestartdate", "from"],
@@ -190,6 +204,8 @@ const fieldCandidates: Record<ImportType, Record<string, string[]>> = {
     paymentFrequency: ["frequency", "paymentfrequency", "rentfrequency"],
     property: ["property", "propertycode", "propertyname", "building"],
     rentDueDay: ["dueday", "rentdueday", "paymentday"],
+    scheduledMoveInDate: ["scheduledmovein", "scheduledmoveindate", "plannedmovein"],
+    scheduledMoveOutDate: ["scheduledmoveout", "scheduledmoveoutdate", "plannedmoveout"],
     status: ["status", "leasestatus"],
     tenantEmail: ["tenantemail", "email"],
     tenantName: ["tenant", "tenantname", "name"],
@@ -398,6 +414,10 @@ function buildImportTemplateRows(
           "",
           "",
           "Active",
+          "",
+          "",
+          "",
+          "",
         ]),
     ];
   }
@@ -578,19 +598,33 @@ function flagLeaseImportOccupancyConflicts(rows: GenericImportPreviewRow[]) {
 
     const status = getNormalizedString(row.normalizedData, "status");
     const unitId = getNormalizedString(row.normalizedData, "unitId");
-    const startDate = getNormalizedString(row.normalizedData, "leaseStartDate");
-    const endDate = getNormalizedString(row.normalizedData, "leaseEndDate");
+    const actualMoveInDate = getNormalizedString(
+      row.normalizedData,
+      "actualMoveInDate",
+    );
+    const actualMoveOutDate = getNormalizedString(
+      row.normalizedData,
+      "actualMoveOutDate",
+    );
+    const scheduledMoveInDate = getNormalizedString(
+      row.normalizedData,
+      "scheduledMoveInDate",
+    );
+    const scheduledMoveOutDate = getNormalizedString(
+      row.normalizedData,
+      "scheduledMoveOutDate",
+    );
+    const startDate = actualMoveInDate || scheduledMoveInDate;
+    const endDate = actualMoveInDate
+      ? actualMoveOutDate || "9999-12-31"
+      : scheduledMoveOutDate;
+    const hasExplicitRange = isIsoDate(startDate) && isIsoDate(endDate);
 
-    if (
-      !unitId ||
-      !isOpenLeaseImportStatus(status) ||
-      !isIsoDate(startDate) ||
-      !isIsoDate(endDate)
-    ) {
+    if (!unitId || !isOpenLeaseImportStatus(status)) {
       return [];
     }
 
-    return [{ endDate, row, startDate, unitId }];
+    return [{ endDate, hasExplicitRange, row, startDate, unitId }];
   });
 
   for (let leftIndex = 0; leftIndex < candidates.length; leftIndex += 1) {
@@ -609,14 +643,30 @@ function flagLeaseImportOccupancyConflicts(rows: GenericImportPreviewRow[]) {
 
       const rowsLabel = `rows ${left.row.sourceRowNumber} and ${right.row.sourceRowNumber}`;
       const unitLabel = left.row.primaryLabel || right.row.primaryLabel || "this unit";
-      const message = leaseRangesOverlap(
-        left.startDate,
-        left.endDate,
-        right.startDate,
-        right.endDate,
-      )
+      const message =
+        left.hasExplicitRange &&
+        right.hasExplicitRange &&
+        leaseRangesOverlap(
+          left.startDate,
+          left.endDate,
+          right.startDate,
+          right.endDate,
+        )
         ? `Lease import ${rowsLabel} would overlap for Unit ${unitLabel}. Keep one open lease row before committing.`
         : `Lease import ${rowsLabel} would create more than one open lease for Unit ${unitLabel}. End or cancel one row before committing.`;
+
+      if (
+        left.hasExplicitRange &&
+        right.hasExplicitRange &&
+        !leaseRangesOverlap(
+          left.startDate,
+          left.endDate,
+          right.startDate,
+          right.endDate,
+        )
+      ) {
+        continue;
+      }
 
       addLeaseImportIssue(left.row, message);
       addLeaseImportIssue(right.row, message);
@@ -806,6 +856,19 @@ function buildLeasePreviewRow({
   const tenant = findPerson(referenceData, tenantEmail, tenantName);
   const leaseStartDate = readMappedValue(record.raw, mapping.leaseStartDate);
   const leaseEndDate = readMappedValue(record.raw, mapping.leaseEndDate);
+  const scheduledMoveInDate = readMappedValue(
+    record.raw,
+    mapping.scheduledMoveInDate,
+  );
+  const scheduledMoveOutDate = readMappedValue(
+    record.raw,
+    mapping.scheduledMoveOutDate,
+  );
+  const actualMoveInDate = readMappedValue(record.raw, mapping.actualMoveInDate);
+  const actualMoveOutDate = readMappedValue(
+    record.raw,
+    mapping.actualMoveOutDate,
+  );
   const rent = parseMoney(readMappedValue(record.raw, mapping.monthlyRentAmount));
   const rentDueDayValue = readMappedValue(record.raw, mapping.rentDueDay);
   const rentDueDay = Number(rentDueDayValue);
@@ -879,6 +942,40 @@ function buildLeasePreviewRow({
     issues.push({ level: "error", message: "End date must be after start date." });
   }
 
+  validateOptionalIsoDate(issues, scheduledMoveInDate, "Scheduled move-in");
+  validateOptionalIsoDate(issues, scheduledMoveOutDate, "Scheduled move-out");
+  validateOptionalIsoDate(issues, actualMoveInDate, "Actual move-in");
+  validateOptionalIsoDate(issues, actualMoveOutDate, "Actual move-out");
+
+  if (
+    scheduledMoveInDate &&
+    scheduledMoveOutDate &&
+    scheduledMoveOutDate < scheduledMoveInDate
+  ) {
+    issues.push({
+      level: "error",
+      message: "Scheduled move-out cannot be before scheduled move-in.",
+    });
+  }
+
+  if (actualMoveOutDate && !actualMoveInDate) {
+    issues.push({
+      level: "error",
+      message: "Actual move-in is required when actual move-out is recorded.",
+    });
+  }
+
+  if (
+    actualMoveInDate &&
+    actualMoveOutDate &&
+    actualMoveOutDate < actualMoveInDate
+  ) {
+    issues.push({
+      level: "error",
+      message: "Actual move-out cannot be before actual move-in.",
+    });
+  }
+
   if (rent.error) {
     issues.push({ level: "error", message: rent.error });
   }
@@ -914,6 +1011,33 @@ function buildLeasePreviewRow({
     issues.push({ level: "error", message: "Status must be active, draft, ended, notice given, cancelled, or terminated." });
   }
 
+  if ((status === "active" || status === "notice_given") && actualMoveOutDate) {
+    issues.push({
+      level: "error",
+      message: "Active and notice leases cannot have an actual move-out date.",
+    });
+  }
+
+  if (
+    (status === "ended" || status === "terminated") &&
+    Boolean(actualMoveInDate) !== Boolean(actualMoveOutDate)
+  ) {
+    issues.push({
+      level: "error",
+      message: "Ended and terminated leases need both actual dates or neither.",
+    });
+  }
+
+  if (
+    (status === "draft" || status === "cancelled") &&
+    (actualMoveInDate || actualMoveOutDate)
+  ) {
+    issues.push({
+      level: "error",
+      message: "Draft and cancelled leases cannot have actual occupancy dates.",
+    });
+  }
+
   if (openOccupancy) {
     issues.push({
       actionHref: `/leases?query=${openOccupancy.leaseId}`,
@@ -930,13 +1054,17 @@ function buildLeasePreviewRow({
     amountLabel: rent.amount === null ? "Not set" : `USD ${rent.amount}`,
     issues,
     normalizedData: {
+      actualMoveInDate: actualMoveInDate || null,
+      actualMoveOutDate: actualMoveOutDate || null,
       depositAmount: deposit.amount,
       leaseEndDate,
       leaseStartDate,
       monthlyRentAmount: rent.amount,
       paymentFrequency,
       propertyId: property?.id ?? null,
-      status: status ?? "active",
+      scheduledMoveInDate: scheduledMoveInDate || null,
+      scheduledMoveOutDate: scheduledMoveOutDate || null,
+      status: status ?? null,
       tenantPersonId: tenant?.id ?? null,
       rentDueDay: Number.isInteger(rentDueDay) ? rentDueDay : null,
       termStatus,
@@ -1206,6 +1334,19 @@ function parseOptionalMoney(value: string): ParsedMoney {
 
 function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function validateOptionalIsoDate(
+  issues: UnitImportIssue[],
+  value: string,
+  label: string,
+) {
+  if (value && !isIsoDate(value)) {
+    issues.push({
+      level: "error",
+      message: `${label} must use YYYY-MM-DD.`,
+    });
+  }
 }
 
 function escapeCsvCell(value: string) {

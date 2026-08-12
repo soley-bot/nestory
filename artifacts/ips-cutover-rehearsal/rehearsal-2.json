@@ -1,0 +1,78 @@
+{
+  "batchStatus": "reconciled",
+  "manifestSha256": "8de15aefa1becebc11d82e77db7510f2b2f1a87c62fa01cf244f14f17efa8af4",
+  "reconciliationSha256": "a7ff1050ba8d23954c73068c5131336175f713d909c6b5c294a39d666e72309e",
+  "expectedCounts": {
+    "cutover-central-lease-v1": 1,
+    "cutover-central-units-v1": 1,
+    "cutover-central-people-v1": 2,
+    "cutover-central-property-v1": 1
+  },
+  "actualCounts": {
+    "cutover-central-lease-v1": 1,
+    "cutover-central-units-v1": 1,
+    "cutover-central-people-v1": 2,
+    "cutover-central-property-v1": 1
+  },
+  "expectedTotals": {
+    "cutover-central-held-v1": {
+      "amount": "1250.00",
+      "currency": "USD"
+    },
+    "cutover-central-deposit-v1": {
+      "amount": "800.00",
+      "currency": "USD"
+    },
+    "cutover-central-ips-due-v1": {
+      "amount": "240.50",
+      "currency": "USD"
+    },
+    "cutover-central-owner-due-v1": {
+      "amount": "0.00",
+      "currency": "USD"
+    },
+    "cutover-central-a01-tenant-balance-v1": {
+      "amount": "875.00",
+      "currency": "USD"
+    }
+  },
+  "actualTotals": {
+    "cutover-central-held-v1": {
+      "amount": "1250.00",
+      "currency": "USD"
+    },
+    "cutover-central-deposit-v1": {
+      "amount": "800.00",
+      "currency": "USD"
+    },
+    "cutover-central-ips-due-v1": {
+      "amount": "240.50",
+      "currency": "USD"
+    },
+    "cutover-central-owner-due-v1": {
+      "amount": "0.00",
+      "currency": "USD"
+    },
+    "cutover-central-a01-tenant-balance-v1": {
+      "amount": "875.00",
+      "currency": "USD"
+    }
+  },
+  "differences": [],
+  "selectedInvoiceCount": 2,
+  "unselectedJuneCount": 0,
+  "pendingIdempotency": 0,
+  "authorityStartDate": "2026-09-01",
+  "dataOwner": "REDACTED-IPS-DATA-OWNER",
+  "durationMs": 40778,
+  "label": "rehearsal-2",
+  "manualSteps": [
+    "Reset disposable local Supabase",
+    "Load the core guarded redacted SQL fixture",
+    "Install four synthetic terminal import claims",
+    "Stage the redacted manifest as the local Super Admin",
+    "Commit with explicit reconciliation sign-off",
+    "Verify counts, tenant balance, four owner components, hashes, and selected months",
+    "Restore the guarded local baseline"
+  ]
+}

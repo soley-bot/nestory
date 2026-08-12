@@ -36,6 +36,8 @@ export type PropertyFormValues = {
   notes?: string | null;
   owner?: string | null;
   ownerPersonId?: string | null;
+  ownerStartedOn?: string | null;
+  ownershipPercent?: string | null;
   propertyType: string;
   status: PropertyStatusValue;
 };

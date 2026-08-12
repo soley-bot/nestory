@@ -53,7 +53,7 @@ export function LedgerFilters({
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
-  const compactSelectClassName = "h-8 px-2 text-[13px]";
+  const compactSelectClassName = "h-8 px-2 text-sm";
   const visibleUnitOptions =
     viewQuery.propertyId === "all"
       ? units
@@ -99,7 +99,7 @@ export function LedgerFilters({
   return (
     <div className="w-full">
       <div className="space-y-2.5">
-        <div className="flex flex-col gap-2.5 text-[13px] xl:flex-row xl:items-center xl:justify-end">
+        <div className="flex flex-col gap-2.5 text-sm xl:flex-row xl:items-center xl:justify-end">
           <SearchCombo
             ariaLabel="Search ledger entries"
             className="w-full xl:w-[320px] xl:flex-none"
@@ -143,7 +143,7 @@ export function LedgerFilters({
 
         {advancedOpen ? (
           <div
-            className="grid gap-2 rounded-md border border-border bg-muted p-2 text-[13px] lg:grid-cols-[minmax(180px,240px)_minmax(180px,240px)_minmax(150px,180px)_minmax(130px,160px)_minmax(130px,170px)_minmax(84px,104px)]"
+            className="grid gap-2 rounded-md border border-border bg-muted p-2 text-sm lg:grid-cols-[minmax(180px,240px)_minmax(180px,240px)_minmax(150px,180px)_minmax(130px,160px)_minmax(130px,170px)_minmax(84px,104px)]"
             id="ledger-advanced-search"
           >
             <SelectControl

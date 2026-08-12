@@ -24,7 +24,7 @@ export function LeasesTable({
 }: LeasesTableProps) {
   return (
     <div className="h-full min-h-0">
-      <div className="h-full min-h-[380px] space-y-3 overflow-auto pr-1 md:hidden">
+      <div className="h-full space-y-3 overflow-auto pr-1 md:hidden">
         {leases.length === 0 ? (
           <p className="rounded-md border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
             {getEmptyMessage(archiveState)}
@@ -45,8 +45,8 @@ export function LeasesTable({
         className="hidden h-full min-w-0 md:block"
         data-slot="register-table-frame"
       >
-        <div className="h-full min-h-[540px] overflow-auto">
-          <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-[13px]">
+        <div className="h-full overflow-auto">
+          <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
             <colgroup>
               <col className="w-[20%]" />
               <col className="w-[20%]" />
@@ -55,13 +55,13 @@ export function LeasesTable({
               <col className="w-[19%]" />
               <col className="w-[14%]" />
             </colgroup>
-            <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+            <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
                 <th className="px-2.5 py-2.5 font-semibold">Tenant</th>
                 <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
-                <th className="px-1.5 py-2.5 font-semibold">Start / End</th>
+                <th className="px-1.5 py-2.5 font-semibold">Term</th>
                 <th className="px-1.5 py-2.5 text-right font-semibold">Rent</th>
-                <th className="px-1.5 py-2.5 font-semibold">Payment / Deposit</th>
+                <th className="px-1.5 py-2.5 font-semibold">Deposit</th>
                 <th className="px-1.5 py-2.5 font-semibold">Status</th>
               </tr>
             </thead>
@@ -73,7 +73,10 @@ export function LeasesTable({
                   </td>
                 </tr>
               ) : null}
-              {leases.map((lease) => (
+              {leases.map((lease) => {
+                const partySummary = getSecondaryParty(lease);
+
+                return (
                 <tr
                   aria-selected={selectedLeaseId === lease.id}
                   className={cn(
@@ -103,23 +106,28 @@ export function LeasesTable({
                     >
                       {lease.tenantName}
                     </RecordLink>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground" title={lease.partySummary}>
-                      {lease.partySummary}
-                    </p>
+                    {partySummary ? (
+                      <p
+                        className="mt-0.5 truncate text-xs text-muted-foreground"
+                        title={partySummary}
+                      >
+                        {partySummary}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-1.5 py-2 align-middle">
                     <RecordContextLinks lease={lease} />
                   </td>
                   <td className="px-1.5 py-2 align-middle tabular-nums">
-                    <p className="truncate font-medium">{lease.startDateLabel}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{lease.endDateLabel}</p>
+                    <p className="truncate">
+                      {lease.startDateLabel} &ndash; {lease.endDateLabel}
+                    </p>
                   </td>
                   <td className="px-1.5 py-2 text-right align-middle">
                     <TableMoneyDisplay value={lease.rentDisplay} />
                   </td>
                   <td className="px-1.5 py-2 align-middle">
-                    <p className="truncate font-medium">{formatLedgerCount(lease)}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{getDepositStatus(lease)}</p>
+                    <p className="truncate">{getDepositStatus(lease)}</p>
                   </td>
                   <td className="px-1.5 py-2 align-middle">
                     <div className="flex min-w-0 flex-wrap items-center gap-1">
@@ -130,12 +138,11 @@ export function LeasesTable({
                         <Badge className="px-2 text-xs" tone="warning">Archived</Badge>
                       ) : null}
                     </div>
-                    <p className="mt-1 truncate text-xs text-muted-foreground" title={lease.nextAction.description}>
-                      {lease.nextAction.label}
-                    </p>
+
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -145,27 +152,14 @@ export function LeasesTable({
 }
 
 function RecordContextLinks({ lease }: { lease: LeaseSummary }) {
-  const linkClassName =
-    "block truncate rounded-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
   return (
     <div className="min-w-0">
-      {lease.unitId ? (
-        <Link
-          className={linkClassName}
-          href={`/units/${lease.unitId}`}
-          onClick={(event) => event.stopPropagation()}
-          prefetch={false}
-          title={lease.unitLabel}
-        >
-          {lease.unitLabel}
-        </Link>
-      ) : (
-        <span className="block truncate font-medium">{lease.unitLabel}</span>
-      )}
+      <span className="block truncate font-medium" title={lease.unitLabel}>
+        {lease.unitLabel}
+      </span>
       <Link
         className="mt-0.5 block truncate rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        href={`/properties/${lease.propertyId}`}
+        href={`/properties/${lease.propertyId}/account`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
         title={lease.propertyName}
@@ -250,7 +244,7 @@ function LeaseCardDetail({
 }) {
   return (
     <div className={align === "right" ? "min-w-0 text-right" : "min-w-0"}>
-      <dt className="text-[11px] font-medium uppercase text-muted-foreground">{label}</dt>
+      <dt className="text-xs font-medium uppercase text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 break-words font-medium">{children ?? value}</dd>
     </div>
   );
@@ -264,6 +258,23 @@ function TableMoneyDisplay({ value }: { value: MoneyDisplayValue }) {
       <span className="max-w-full truncate font-semibold leading-5 text-foreground">{primary}</span>
     </span>
   );
+}
+
+/**
+ * partySummary is usually just the tenant name again. Show it only when it
+ * says something the primary line does not.
+ */
+function getSecondaryParty(lease: LeaseSummary) {
+  const summary = lease.partySummary?.trim();
+
+  if (!summary) {
+    return null;
+  }
+
+  const words = (value: string) =>
+    value.toLowerCase().split(/\s+/).filter(Boolean).sort().join(" ");
+
+  return words(summary) === words(lease.tenantName) ? null : summary;
 }
 
 function formatLedgerCount(lease: LeaseSummary) {

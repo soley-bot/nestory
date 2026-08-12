@@ -18,6 +18,7 @@ export default async function LeasesPage({ searchParams }: LeasesPageProps) {
   return (
     <LeaseScreen
       canConfigure={context.capabilities.canConfigureLeases}
+      canReadFinanceReports={context.capabilities.canReadFinanceReports}
       key={initialLeaseId ?? "leases"}
       initialLeaseId={initialLeaseId}
       leases={leases}

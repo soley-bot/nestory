@@ -55,6 +55,53 @@ describe("PropertySetupScreen", () => {
     expect(url.searchParams.get("tenantId")).toBe("tenant-1");
     expect(options).toEqual({ scroll: false });
   });
+
+  it("keeps setup open and links the exact authority that blocks rent readiness", () => {
+    render(
+      <PropertySetupScreen
+        data={{
+          ...data,
+          readiness: {
+            effectiveDate: "2026-08-11",
+            items: [
+              {
+                code: "owner_roster",
+                label: "Owner roster",
+                ready: true,
+                repairHref: "/properties/property-1",
+              },
+              {
+                code: "billing",
+                label: "Billing terms",
+                ready: false,
+                repairHref: "/rent-income?leaseId=lease-1&action=billing",
+              },
+            ],
+            leaseId: "lease-1",
+            organizationId: "organization-1",
+            propertyId: "property-1",
+            ready: false,
+            unitId: "unit-1",
+          },
+          selection: {
+            leaseId: "lease-1",
+            ownerId: "owner-1",
+            propertyId: "property-1",
+            tenantId: "tenant-1",
+            unitId: "unit-1",
+          },
+        }}
+        step={5}
+      />,
+    );
+
+    expect(screen.queryByText("Setup complete")).toBeNull();
+    expect(screen.getByText("2 readiness checks")).toBeTruthy();
+    expect(screen.getByText("Billing terms")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Complete Billing terms" }).getAttribute("href"),
+    ).toBe("/rent-income?leaseId=lease-1&action=billing");
+  });
 });
 
 const data: PropertySetupData = {

@@ -2,11 +2,19 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(17);
+SELECT plan(27);
 
 CREATE TEMP TABLE financial_month_lock_test_state (
   super_admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
   finance_manager_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  finance_member_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  operations_manager_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  operations_member_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  unaffiliated_user_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  branch_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  operations_manager_person_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  operations_member_person_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  current_month_start date,
   organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
   cross_organization_id uuid NOT NULL DEFAULT gen_random_uuid()
 ) ON COMMIT DROP;
@@ -73,6 +81,10 @@ FROM (
   UNION ALL
   SELECT finance_manager_id, 'month-lock-finance-manager'
   FROM financial_month_lock_test_state
+  UNION ALL SELECT finance_member_id, 'month-lock-finance-member' FROM financial_month_lock_test_state
+  UNION ALL SELECT operations_manager_id, 'month-lock-operations-manager' FROM financial_month_lock_test_state
+  UNION ALL SELECT operations_member_id, 'month-lock-operations-member' FROM financial_month_lock_test_state
+  UNION ALL SELECT unaffiliated_user_id, 'month-lock-unaffiliated' FROM financial_month_lock_test_state
 ) AS actors;
 
 INSERT INTO public.organizations (id, name, slug)
@@ -93,6 +105,46 @@ SELECT organization_id, super_admin_id, 'super_admin'
 FROM financial_month_lock_test_state
 UNION ALL
 SELECT organization_id, finance_manager_id, 'finance_manager'
+FROM financial_month_lock_test_state;
+
+UPDATE financial_month_lock_test_state
+SET current_month_start = date_trunc(
+  'month',
+  app_private.rent_business_date(organization_id, now())
+)::date;
+
+INSERT INTO public.organization_branches (id, organization_id, name, code)
+SELECT branch_id, organization_id, 'Month lock branch', 'LOCK'
+FROM financial_month_lock_test_state;
+
+INSERT INTO public.people (id, organization_id, display_name)
+SELECT operations_manager_person_id, organization_id, 'Month Lock Operations Manager'
+FROM financial_month_lock_test_state
+UNION ALL
+SELECT operations_member_person_id, organization_id, 'Month Lock Operations Member'
+FROM financial_month_lock_test_state;
+
+INSERT INTO public.person_roles (organization_id, person_id, role, status)
+SELECT organization_id, operations_manager_person_id, 'staff', 'active'
+FROM financial_month_lock_test_state
+UNION ALL
+SELECT organization_id, operations_member_person_id, 'staff', 'active'
+FROM financial_month_lock_test_state;
+
+INSERT INTO public.organization_members (
+  organization_id,
+  user_id,
+  role,
+  person_id,
+  branch_id
+)
+SELECT organization_id, finance_member_id, 'finance_member', NULL::uuid, NULL::uuid
+FROM financial_month_lock_test_state
+UNION ALL
+SELECT organization_id, operations_manager_id, 'operations_manager', operations_manager_person_id, branch_id
+FROM financial_month_lock_test_state
+UNION ALL
+SELECT organization_id, operations_member_id, 'operations_member', operations_member_person_id, branch_id
 FROM financial_month_lock_test_state;
 
 SELECT has_table(
@@ -240,12 +292,105 @@ SELECT throws_ok(
   format(
     'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
     (SELECT organization_id FROM financial_month_lock_test_state),
-    '2026-09-01',
-    'Finance cannot lock'
+    (SELECT current_month_start - interval '1 month' FROM financial_month_lock_test_state),
+    'Finance Manager past lock'
+  ),
+  '22023',
+  'Finance Manager can lock only the current operational month',
+  'Finance Manager cannot lock a past operational month'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start + interval '1 month' FROM financial_month_lock_test_state),
+    'Finance Manager future lock'
+  ),
+  '22023',
+  'Finance Manager can lock only the current operational month',
+  'Finance Manager cannot lock a future operational month'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start FROM financial_month_lock_test_state),
+    '   '
+  ),
+  '22023',
+  'Finance Manager lock reason is required',
+  'Finance Manager cannot lock without a trimmed reason'
+);
+
+SELECT lives_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start FROM financial_month_lock_test_state),
+    'Finance Manager month-end lock'
+  ),
+  'Finance Manager can lock the current open operational month'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start FROM financial_month_lock_test_state),
+    'Finance Manager duplicate lock'
+  ),
+  '22023',
+  'Financial month is already locked',
+  'Finance Manager cannot lock an already locked operational month'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,false,%L)',
+    (SELECT organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start FROM financial_month_lock_test_state),
+    'Finance Manager cannot reopen'
+  ),
+  '42501', 'Not authorized',
+  'Finance Manager cannot unlock an operational month'
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
+    (SELECT cross_organization_id FROM financial_month_lock_test_state),
+    (SELECT current_month_start FROM financial_month_lock_test_state),
+    'Finance Manager cross organization attempt'
   ),
   '42501',
   'Not authorized',
-  'Finance Manager cannot transition a month'
+  'Finance Manager cannot lock another organization current month'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT finance_member_id::text FROM financial_month_lock_test_state), true);
+SELECT throws_ok(
+  format('SELECT public.set_financial_month_lock(%L,%L,true,%L)', (SELECT organization_id FROM financial_month_lock_test_state), '2026-10-01', 'Denied'),
+  '42501', 'Not authorized', 'Finance Member cannot lock a month'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT operations_manager_id::text FROM financial_month_lock_test_state), true);
+SELECT throws_ok(
+  format('SELECT public.set_financial_month_lock(%L,%L,true,%L)', (SELECT organization_id FROM financial_month_lock_test_state), '2026-10-01', 'Denied'),
+  '42501', 'Not authorized', 'Operations Manager cannot lock a month'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT operations_member_id::text FROM financial_month_lock_test_state), true);
+SELECT throws_ok(
+  format('SELECT public.set_financial_month_lock(%L,%L,true,%L)', (SELECT organization_id FROM financial_month_lock_test_state), '2026-10-01', 'Denied'),
+  '42501', 'Not authorized', 'Operations Member cannot lock a month'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT unaffiliated_user_id::text FROM financial_month_lock_test_state), true);
+SELECT throws_ok(
+  format('SELECT public.set_financial_month_lock(%L,%L,true,%L)', (SELECT organization_id FROM financial_month_lock_test_state), '2026-10-01', 'Denied'),
+  '42501', 'Not authorized', 'an unaffiliated user cannot lock a month'
 );
 
 SELECT set_config(

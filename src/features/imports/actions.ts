@@ -2,11 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import type {
+  CommitImportRunState,
+  ImportReadyRowsState,
+  StageImportRunState,
+} from "@/features/imports/action-states";
 import { buildGenericImportPreviewRows } from "@/features/imports/import-config";
 import {
   runImportReadyRowsFlow,
   type ImportRunStatus,
-  type ImportReadyRowsState,
 } from "@/features/imports/import-ready-rows";
 import { getImportReferenceData } from "@/features/imports/data/imports";
 import type {
@@ -16,36 +20,6 @@ import type {
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import type { Json } from "@/types/database";
-
-export type StageImportRunState = {
-  draftKey?: string;
-  message?: string;
-  runId?: string;
-  runStatus?: ImportRunStatus;
-  sourceFileName?: string;
-  status?: "error" | "success";
-  summary?: {
-    blocked: number;
-    ready: number;
-    total: number;
-    warnings: number;
-  };
-};
-
-export type CommitImportRunState = {
-  message?: string;
-  runId?: string;
-  runStatus?: ImportRunStatus;
-  status?: "error" | "success";
-  summary?: {
-    created: number;
-    failed: number;
-    skipped: number;
-    updated: number;
-  };
-};
-
-export type { ImportReadyRowsState };
 
 const maxImportRows = 500;
 const importTypeSchema = z.enum(["properties", "units", "people", "leases"]);

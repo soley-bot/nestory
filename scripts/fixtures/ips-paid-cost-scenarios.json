@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "scope": "local_synthetic_track_6",
+  "scenarios": [
+    {
+      "id": "owner_approved",
+      "reference": "TRACK6-OWNER-APPROVED",
+      "status": "approved",
+      "internalCost": "120.00",
+      "customerTotal": "120.00",
+      "responsibility": "owner",
+      "fundingSourceKind": "bank",
+      "evidenceAuthority": "verified_storage_bytes",
+      "downstream": ["payment", "ledger", "responsibility", "owner_or_tenant_effect", "close_readiness", "owner_statement_source"]
+    },
+    {
+      "id": "tenant_approved",
+      "reference": "TRACK6-TENANT-APPROVED",
+      "status": "approved",
+      "internalCost": "30.00",
+      "customerTotal": "35.00",
+      "responsibility": "tenant",
+      "fundingSourceKind": "bank",
+      "evidenceAuthority": "verified_storage_bytes",
+      "downstream": ["payment", "ledger", "responsibility", "owner_or_tenant_effect", "close_readiness", "owner_statement_source"]
+    },
+    {
+      "id": "petty_cash_approved",
+      "reference": "TRACK6-PETTY-APPROVED",
+      "status": "approved",
+      "internalCost": "25.00",
+      "customerTotal": "25.00",
+      "responsibility": "owner",
+      "fundingSourceKind": "petty_cash",
+      "evidenceAuthority": "verified_storage_bytes",
+      "downstream": ["payment", "ledger", "responsibility", "owner_or_tenant_effect", "close_readiness", "owner_statement_source"]
+    },
+    {
+      "id": "rejected_resubmitted",
+      "reference": "TRACK6-REJECTED",
+      "correctedReference": "TRACK6-REJECTED-CORRECTED",
+      "status": "approved_after_rejection",
+      "internalCost": "40.00",
+      "responsibility": "owner",
+      "fundingSourceKind": "bank",
+      "evidenceAuthority": "verified_storage_bytes",
+      "downstream": ["payment", "ledger", "responsibility", "owner_or_tenant_effect", "close_readiness", "owner_statement_source"]
+    },
+    {
+      "id": "approved_reversed",
+      "reference": "KH-CLN-1001",
+      "status": "reversed",
+      "internalCost": "85.00",
+      "customerTotal": "100.00",
+      "responsibility": "owner",
+      "fundingSourceKind": "bank",
+      "evidenceAuthority": "verified_storage_bytes",
+      "downstream": ["payment", "ledger", "responsibility", "owner_or_tenant_effect", "close_readiness", "owner_statement_source"]
+    },
+    {
+      "id": "wrong_amount_corrected",
+      "reference": "TRACK6-WRONG-60",
+      "correctedReference": "TRACK6-CORRECTED-50",
+      "status": "reversed_then_approved",
+      "originalCost": "60.00",
+      "correctedCost": "50.00",
+      "responsibility": "owner",
+      "fundingSourceKind": "bank",
+      "evidenceAuthority": "verified_storage_bytes",
+      "downstream": ["payment", "ledger", "responsibility", "owner_or_tenant_effect", "close_readiness", "owner_statement_source"]
+    },
+    {
+      "id": "pending_review",
+      "reference": "GDN-PUMP-2088",
+      "status": "submitted",
+      "internalCost": "210.00",
+      "customerTotal": "230.00",
+      "responsibility": "owner",
+      "fundingSourceKind": "bank",
+      "evidenceAuthority": "verified_storage_bytes",
+      "downstream": ["payment", "ledger", "responsibility", "owner_or_tenant_effect", "close_readiness", "owner_statement_source"]
+    },
+    {
+      "id": "missing_evidence",
+      "reference": "TRACK6-MISSING-EVIDENCE",
+      "status": "rejected_before_persistence",
+      "internalCost": "10.00",
+      "responsibility": "owner",
+      "fundingSourceKind": "bank",
+      "evidenceAuthority": "verified_storage_bytes",
+      "downstream": ["payment", "ledger", "responsibility", "owner_or_tenant_effect", "close_readiness", "owner_statement_source"]
+    }
+  ],
+  "closeOracle": {
+    "currency": "USD",
+    "ownerPersonId": "80000000-0000-0000-0000-000000000014",
+    "propertyCode": "CLS-RDY",
+    "activeOwnerPaidCosts": "235.00",
+    "reversedOwnerPaidCosts": "160.00",
+    "statementDifference": "0.00"
+  }
+}

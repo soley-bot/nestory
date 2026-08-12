@@ -71,6 +71,15 @@ describe("Shadcn theme contract", () => {
     expect(components.tailwind?.cssVariables).toBe(true);
   });
 
+  it("keeps muted text readable on the light muted surface", () => {
+    expect(
+      neutralContrastRatio(
+        readRootToken("--muted-foreground"),
+        readRootToken("--muted"),
+      ),
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+
   it("keeps Geist as a literal Tailwind font family", () => {
     expect(globals).toContain('"Geist"');
     expect(globals).not.toContain("--font-sans: var(--font-sans)");
@@ -129,6 +138,30 @@ describe("Shadcn theme contract", () => {
     }
   });
 });
+
+function readRootToken(token: string) {
+  const rootBlock = globals.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+  const value = rootBlock.match(
+    new RegExp(`${token.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}:\\s*([^;]+)`),
+  )?.[1];
+
+  if (!value) throw new Error(`Missing light theme token ${token}`);
+  return value.trim();
+}
+
+function neutralContrastRatio(first: string, second: string) {
+  const firstLuminance = neutralRelativeLuminance(first);
+  const secondLuminance = neutralRelativeLuminance(second);
+  const lighter = Math.max(firstLuminance, secondLuminance);
+  const darker = Math.min(firstLuminance, secondLuminance);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function neutralRelativeLuminance(color: string) {
+  const match = color.match(/^oklch\(([\d.]+)\s+0\s+0\)$/);
+  if (!match) throw new Error(`Expected a neutral OKLCH color, received ${color}`);
+  return Number(match[1]) ** 3;
+}
 
 function readTypeScriptSources(directory: string): string[] {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

@@ -158,6 +158,7 @@ export type MaintenanceCase = {
   costEstimateDisplay?: MoneyDisplayValue;
   costEstimateLabel: string;
   costSubmission?: MaintenanceCostSubmission;
+  costSubmissionHistory?: MaintenanceCostSubmission[];
   createdAt: string;
   description: string;
   documents: MaintenanceLinkedDocument[];
@@ -282,14 +283,11 @@ export type MaintenanceRepeatedIssue = {
 };
 
 export type MaintenanceReminderNotification = {
-  dueLabel: string;
+  deliveredAt: string;
+  eventType: string;
   href: string;
   id: string;
-  propertyLabel: string;
-  reminderAt: string;
-  reminderLabel: string;
   title: string;
-  unitLabel: string;
 };
 
 export type MaintenanceSummary = {

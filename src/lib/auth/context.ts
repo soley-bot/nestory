@@ -42,6 +42,14 @@ type FinanceRole = Extract<
   WorkspaceRole,
   "super_admin" | "finance_manager" | "finance_member"
 >;
+type FinanceManagerRole = Extract<
+  WorkspaceRole,
+  "super_admin" | "finance_manager"
+>;
+type OwnerOpeningSubmissionRole = Extract<
+  WorkspaceRole,
+  "super_admin" | "finance_member"
+>;
 type OperationsRole = Extract<
   WorkspaceRole,
   "super_admin" | "operations_manager" | "operations_member"
@@ -85,6 +93,18 @@ export async function getAdminMembershipForUser(
   const membership = await getWorkspaceMembershipForUser(userId, client, options);
 
   return membership?.role === "super_admin" ? membership : null;
+}
+
+export async function getFinanceReportMembershipForUser(
+  userId: string,
+  client?: SupabaseServerClient,
+  options?: WorkspaceMembershipOptions,
+): Promise<WorkspaceMembership | null> {
+  const membership = await getWorkspaceMembershipForUser(userId, client, options);
+
+  return membership && getWorkspaceCapabilities(membership.role).canReadFinanceReports
+    ? membership
+    : null;
 }
 
 export async function getWorkspaceMembershipForUser(
@@ -212,6 +232,111 @@ export const requireFinanceReviewContext = cache(async () =>
 
 export const requireFinanceReversalContext = cache(async () =>
   requireCapability("canReverseExpense").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
+export const requireFinanceOperationContext = cache(async () =>
+  requireCapability("canOperateFinance").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireFinanceCorrectionContext = cache(async () =>
+  requireCapability("canCorrectFinance").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireFinancePettyCashContext = cache(async () =>
+  requireCapability("canManagePettyCash").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireFinanceReportContext = cache(async () =>
+  requireCapability("canReadFinanceReports").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireOwnerBalanceReadContext = cache(async () =>
+  requireCapability("canReadOwnerBalanceAuthority").then((context) => ({
+    ...context,
+    role: context.role as FinanceRole,
+  })),
+);
+
+export const requireOwnerOpeningBalanceSubmissionContext = cache(async () =>
+  requireCapability("canSubmitOwnerOpeningBalance").then((context) => ({
+    ...context,
+    role: context.role as OwnerOpeningSubmissionRole,
+  })),
+);
+
+export const requireOwnerOpeningBalanceCorrectionContext = cache(async () =>
+  requireCapability("canRequestOwnerOpeningBalanceCorrection").then((context) => ({
+    ...context,
+    role: context.role as FinanceRole,
+  })),
+);
+
+export const requireOwnerOpeningBalanceReviewContext = cache(async () =>
+  requireCapability("canReviewOwnerOpeningBalance").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
+export const requireOwnerCloseReadinessContext = cache(async () =>
+  requireCapability("canInspectOwnerCloseReadiness").then((context) => ({
+    ...context,
+    role: context.role as FinanceRole,
+  })),
+);
+
+export const requireOwnerCloseContext = cache(async () =>
+  requireCapability("canCloseOwnerMonth").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
+export const requireOwnerMonthReopenContext = cache(async () =>
+  requireCapability("canReopenOwnerMonth").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
+export const requireOwnerStatementPublicationContext = cache(async () =>
+  requireCapability("canPublishOwnerStatement").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
+export const requireCurrentRentRetryContext = cache(async () =>
+  requireCapability("canRetryCurrentRent").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireFinancialMonthLockContext = cache(async () =>
+  requireCapability("canLockFinancialMonth").then((context) => ({
+    ...context,
+    role: context.role as FinanceManagerRole,
+  })),
+);
+
+export const requireFinancialMonthUnlockContext = cache(async () =>
+  requireCapability("canUnlockFinancialMonth").then((context) => ({
     ...context,
     role: context.role as "super_admin",
   })),

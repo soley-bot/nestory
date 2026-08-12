@@ -1,0 +1,593 @@
+{
+  "baseUrl": "http://127.0.0.1:3337",
+  "denials": [
+    {
+      "role": "finance_manager",
+      "route": "/properties",
+      "status": "passed"
+    },
+    {
+      "role": "finance_member",
+      "route": "/reports",
+      "status": "passed"
+    },
+    {
+      "role": "operations_manager",
+      "route": "/finance",
+      "status": "passed"
+    },
+    {
+      "role": "operations_member",
+      "route": "/maintenance",
+      "status": "passed"
+    }
+  ],
+  "deniedGlobalAbsence": [
+    {
+      "checked": 0,
+      "role": "super_admin",
+      "status": "passed"
+    },
+    {
+      "checked": 15,
+      "role": "finance_manager",
+      "status": "passed"
+    },
+    {
+      "checked": 16,
+      "role": "finance_member",
+      "status": "passed"
+    },
+    {
+      "checked": 18,
+      "role": "operations_manager",
+      "status": "passed"
+    },
+    {
+      "checked": 22,
+      "role": "operations_member",
+      "status": "passed"
+    }
+  ],
+  "head": "006e1641d9d4b447e0baf32844122422c474d133",
+  "journeys": [
+    {
+      "chain": [
+        "Profile menu",
+        "Profile"
+      ],
+      "id": "sa:account",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Owner balances"
+      ],
+      "id": "sa:balances",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Expenses"
+      ],
+      "id": "sa:expenses",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Documents"
+      ],
+      "id": "sa:documents",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Finance work"
+      ],
+      "id": "sa:finance",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Financial timeline"
+      ],
+      "id": "sa:financial-timeline",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Import"
+      ],
+      "id": "sa:import",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Inspections"
+      ],
+      "id": "sa:inspections",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Leases"
+      ],
+      "id": "sa:leases",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Ledger"
+      ],
+      "id": "sa:ledger",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Cases"
+      ],
+      "id": "sa:maintenance",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Maintenance timeline"
+      ],
+      "id": "sa:maintenance-timeline",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Overview",
+        "Review"
+      ],
+      "id": "sa:overview-attention",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Overview"
+      ],
+      "id": "sa:overview",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "People",
+        "Owners"
+      ],
+      "id": "sa:owners",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "People",
+        "Bright Mekong Trading"
+      ],
+      "id": "sa:person-detail",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "People"
+      ],
+      "id": "sa:people",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Petty cash"
+      ],
+      "id": "sa:petty-cash",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Owner balances",
+        "CTR-RES — Central Residence"
+      ],
+      "id": "sa:property-account",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Properties",
+        "Preview Central Residence",
+        "Open property"
+      ],
+      "id": "sa:property-detail",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Properties"
+      ],
+      "id": "sa:properties",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Properties",
+        "Set up property"
+      ],
+      "id": "sa:property-setup",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Property timeline"
+      ],
+      "id": "sa:property-timeline",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Recurring work"
+      ],
+      "id": "sa:recurring",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Rent"
+      ],
+      "id": "sa:rent",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Reports",
+        "Open report"
+      ],
+      "id": "sa:report-detail",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Reports"
+      ],
+      "id": "sa:reports",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Settings"
+      ],
+      "id": "sa:settings",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Settings",
+        "Rent Policy"
+      ],
+      "id": "sa:rent-policy",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "People",
+        "Staff"
+      ],
+      "id": "sa:staff",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "My work"
+      ],
+      "id": "sa:tasks",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "People",
+        "Tenants"
+      ],
+      "id": "sa:tenants",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Timeline history"
+      ],
+      "id": "sa:timeline",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Properties",
+        "Preview Central Residence",
+        "Units",
+        "Preview unit A-01",
+        "Open unit"
+      ],
+      "id": "sa:unit-detail",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Properties",
+        "Preview Central Residence",
+        "Units"
+      ],
+      "id": "sa:units",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Settings",
+        "Workspace Access"
+      ],
+      "id": "sa:users-roles",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "People",
+        "Vendors"
+      ],
+      "id": "sa:vendors",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Work orders"
+      ],
+      "id": "sa:work-orders",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Profile menu",
+        "Profile"
+      ],
+      "id": "fm:account",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Owner balances"
+      ],
+      "id": "fm:balances",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Expenses"
+      ],
+      "id": "fm:expenses",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Finance work"
+      ],
+      "id": "fm:finance",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Leases"
+      ],
+      "id": "fm:leases",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Ledger"
+      ],
+      "id": "fm:ledger",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Petty cash"
+      ],
+      "id": "fm:petty-cash",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Owner balances",
+        "CTR-RES — Central Residence"
+      ],
+      "id": "fm:property-account",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Rent"
+      ],
+      "id": "fm:rent",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Reports",
+        "Open report"
+      ],
+      "id": "fm:report-detail",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Reports"
+      ],
+      "id": "fm:reports",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Profile menu",
+        "Profile"
+      ],
+      "id": "fmem:account",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Owner balances"
+      ],
+      "id": "fmem:balances",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Expenses"
+      ],
+      "id": "fmem:expenses",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Finance work"
+      ],
+      "id": "fmem:finance",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Leases"
+      ],
+      "id": "fmem:leases",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Ledger"
+      ],
+      "id": "fmem:ledger",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Petty cash"
+      ],
+      "id": "fmem:petty-cash",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Owner balances",
+        "CTR-RES — Central Residence"
+      ],
+      "id": "fmem:property-account",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Rent"
+      ],
+      "id": "fmem:rent",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Profile menu",
+        "Profile"
+      ],
+      "id": "om:account",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Inspections"
+      ],
+      "id": "om:inspections",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Cases"
+      ],
+      "id": "om:maintenance",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Recurring work"
+      ],
+      "id": "om:recurring",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "My work"
+      ],
+      "id": "om:tasks",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Work orders"
+      ],
+      "id": "om:work-orders",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "Profile menu",
+        "Profile"
+      ],
+      "id": "omem:account",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "My work"
+      ],
+      "id": "omem:tasks",
+      "status": "passed"
+    }
+  ],
+  "passed": 66,
+  "sessionStarts": [
+    {
+      "chain": [
+        "/workspace",
+        "Open workspace"
+      ],
+      "destination": "/overview",
+      "role": "super_admin",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "/workspace",
+        "Open workspace"
+      ],
+      "destination": "/finance",
+      "role": "finance_manager",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "/workspace",
+        "Open workspace"
+      ],
+      "destination": "/finance",
+      "role": "finance_member",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "/workspace",
+        "Open workspace"
+      ],
+      "destination": "/maintenance",
+      "role": "operations_manager",
+      "status": "passed"
+    },
+    {
+      "chain": [
+        "/workspace",
+        "Open workspace"
+      ],
+      "destination": "/tasks",
+      "role": "operations_member",
+      "status": "passed"
+    }
+  ],
+  "total": 66
+}
