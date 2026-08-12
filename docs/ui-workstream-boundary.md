@@ -74,6 +74,25 @@ Phases refer to `docs/codex-ui-ux-remediation-prompt.md`.
 | B8 | Mobile navigation | depends on B7 |
 | — | Leases list (**sheet 02, plate 02**) | `leases-table.tsx`, `lease-screen.tsx` |
 | — | Maintenance list (**sheet 02, plate 04**) | `maintenance-screen.tsx`, `maintenance/page.tsx` |
+| B2 | Flatten the bordered list surface (card-in-a-padded-page) | `property-screen.test.tsx` |
+| C1 | Remove the dead `attached` prop on `PaginationControls` | consumers `lease-screen.tsx`, `ledger-screen.tsx`, `maintenance-screen.tsx` |
+
+### Blockers found during implementation
+
+**Test contracts are part of the conflict surface, not just source files.**
+`property-screen.test.tsx` asserts `rounded-lg` on the list surface as a deliberate design
+contract, and that test file is inside PR #54. Flattening the surface — the card-in-a-padded-page
+fix from prototype sheet 02 — therefore cannot land here, because the assertion cannot be updated
+without touching a contested file. Flattening People alone would leave People flat, Properties
+carded and Units flat, which is worse than the current state. Deferred whole.
+
+**`PaginationControls.attached` is dead API.** The `true` branch is never taken anywhere in the
+repo, and `people-screen.tsx` passed `attached={false}` redundantly. The prop cannot be removed
+yet because three blocked screens consume the component and a signature change would conflict.
+The redundant call site has been cleaned; the prop removal is deferred.
+
+Both confirm the rule in this document: check the **test** file as well as the source file before
+starting a slice.
 
 Note that the contested hunks are small — `globals.css` is a **one-line** change in PR #54 and
 `ui/table.tsx` is **+8/−1**. These are cheap to rebase onto *after* PR #54 merges. They are
