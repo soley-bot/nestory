@@ -1,102 +1,34 @@
-import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireWorkspaceContext } = vi.hoisted(() => ({
+const { redirect, requireWorkspaceContext } = vi.hoisted(() => ({
+  redirect: vi.fn(),
   requireWorkspaceContext: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/auth/context", () => ({ requireWorkspaceContext }));
 
 import WorkspacePage from "@/app/workspace/page";
 
 describe("WorkspacePage", () => {
   beforeEach(() => {
+    redirect.mockReset();
     requireWorkspaceContext.mockReset();
   });
 
   it.each([
     ["super_admin", "/overview"],
+    ["finance_manager", "/finance"],
+    ["finance_member", "/finance"],
     ["operations_manager", "/maintenance"],
     ["operations_member", "/tasks"],
-  ] as const)("links %s users to %s", async (role, expectedPath) => {
-    requireWorkspaceContext.mockResolvedValue({
-      organizationName: "Riverside Operations",
-      role,
-    });
+  ] as const)("redirects %s users to %s", async (role, expectedPath) => {
+    requireWorkspaceContext.mockResolvedValue({ role });
 
-    const html = renderToStaticMarkup(await WorkspacePage());
-
-    expect(html).toContain(`href="${expectedPath}"`);
-    expect(html).toContain("Open workspace");
-  });
-
-  it("renders concise organization and role context without a second dashboard shell", async () => {
-    requireWorkspaceContext.mockResolvedValue({
-      organizationName: "Riverside Operations",
-      role: "operations_manager",
-    });
-
-    const html = renderToStaticMarkup(await WorkspacePage());
+    await WorkspacePage();
 
     expect(requireWorkspaceContext).toHaveBeenCalledOnce();
-    expect(html).toContain("Riverside Operations");
-    expect(html).toContain("Manager workspace");
-    expect(html.match(/<h1/g)).toHaveLength(1);
-    expect(html.match(/<a\b/g)).toHaveLength(1);
-    expect(html.match(/<button\b/g) ?? []).toHaveLength(0);
-    expect(html).not.toContain('aria-label="Toggle color theme"');
-    expect(html).not.toContain("<aside");
-    expect(html).not.toContain("<nav");
-    expect(html).not.toContain("Dashboard");
-  });
-
-  it.each([
-    ["super_admin", "Admin workspace"],
-    ["operations_member", "Member workspace"],
-  ] as const)("uses the Workspace Access role label for %s", async (role, expectedLabel) => {
-    requireWorkspaceContext.mockResolvedValue({
-      organizationName: "Riverside Operations",
-      role,
-    });
-
-    const html = renderToStaticMarkup(await WorkspacePage());
-
-    expect(html).toContain(expectedLabel);
-  });
-
-  it("renders the approved cinematic workspace arrival composition", async () => {
-    requireWorkspaceContext.mockResolvedValue({
-      organizationName: "Riverside Operations",
-      role: "super_admin",
-    });
-
-    const html = renderToStaticMarkup(await WorkspacePage());
-
-    expect(html).toContain("workspace-arrival-page");
-    expect(html).toContain("workspace-arrival-image");
-    expect(html).toContain("workspace-arrival-scrim");
-    expect(html).toContain("workspace-arrival-card");
-    expect(html).toContain("<header");
-    expect(html).toContain("login-property-building-blue-hour.png");
-    expect(html).toContain('alt=""');
-    expect(html).toContain(
-      "shadow-[inset_0_0_0_1px_var(--workspace-arrival-action-border)]",
-    );
-    expect(html).toContain(
-      "bg-[var(--workspace-arrival-action)] px-4 text-sm",
-    );
-    expect(html).not.toContain(
-      "border border-[var(--workspace-arrival-action-border)]",
-    );
-    expect(html).not.toContain("px-[15px]");
-    expect(html).toContain("transition-colors");
-    expect(html).toContain(
-      "hover:bg-[var(--workspace-arrival-action-hover)]",
-    );
-    expect(html).toContain(
-      "hover:text-[var(--workspace-arrival-action-fg)]",
-    );
-    expect(html).not.toContain("hover:-translate-y-0.5");
-    expect(html).not.toContain("transition-[transform,background-color]");
+    expect(redirect).toHaveBeenCalledOnce();
+    expect(redirect).toHaveBeenCalledWith(expectedPath);
   });
 });

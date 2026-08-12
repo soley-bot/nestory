@@ -331,7 +331,7 @@ git commit -m "feat: add role-specific finance workspace queues"
 - Consumes: `requireWorkspaceContext()` and `getWorkspaceEntryPath(role)`
 - Produces: a server redirect with no intermediate UI
 
-- [ ] **Step 1: Replace the rendering expectations with redirect expectations**
+- [x] **Step 1: Replace the rendering expectations with redirect expectations**
 
 Mock `next/navigation` and assert all role destinations:
 
@@ -347,7 +347,7 @@ const destinations = [
 
 For each role, assert `redirect(expectedPath)` and remove assertions for `Open workspace`, the arrival image, and the arrival card.
 
-- [ ] **Step 2: Run the page test and confirm the current arrival composition fails the new contract**
+- [x] **Step 2: Run the page test and confirm the current arrival composition fails the new contract**
 
 ```powershell
 npx vitest run src/app/workspace/page.test.ts
@@ -355,7 +355,7 @@ npx vitest run src/app/workspace/page.test.ts
 
 Expected: FAIL because the page still renders the arrival screen.
 
-- [ ] **Step 3: Implement the server redirect**
+- [x] **Step 3: Implement the server redirect**
 
 Replace the page body with:
 
@@ -373,7 +373,7 @@ export default async function WorkspacePage() {
 }
 ```
 
-- [ ] **Step 4: Run the page and routing tests**
+- [x] **Step 4: Run the page and routing tests**
 
 ```powershell
 npx vitest run src/app/workspace/page.test.ts src/lib/auth/workspace-entry.test.ts
@@ -381,7 +381,7 @@ npx vitest run src/app/workspace/page.test.ts src/lib/auth/workspace-entry.test.
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the entry simplification**
+- [x] **Step 5: Commit the entry simplification**
 
 ```powershell
 git add src/app/workspace/page.tsx src/app/workspace/page.test.ts
