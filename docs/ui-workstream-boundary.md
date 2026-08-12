@@ -103,6 +103,54 @@ from the data layer once the business workstream is free.
 All three confirm the rule in this document: check the **test** file as well as the source file
 before starting a slice.
 
+## The one deliberate exception: `app-shell.tsx`
+
+This branch touches exactly one file that PR #54 also touches, and it was a considered call
+rather than a lapse.
+
+PR #54's change to `app-shell.tsx` is **+14/−12, entirely inside `getGlobalDestinations` and the
+destination constants** — the role→navigation mapping. The sidebar fixes are entirely inside the
+JSX and the collapsible menu item. The two regions are disjoint and far apart, so git auto-merges
+them.
+
+Verified rather than assumed:
+
+```bash
+git merge-tree --write-tree HEAD origin/codex/ips-operational-readiness
+# inspect src/components/layout/app-shell.tsx in the resulting tree
+```
+
+The merged file contains **both** `FINANCE_MANAGER_GLOBAL_DESTINATIONS` (theirs) and
+`CollapsibleTrigger` / `defaultSidebarOpen` / `key={destination.id}` (ours), with **zero conflict
+markers**. `app-shell.test.tsx` — also inside PR #54 — passes unchanged, all 36 assertions.
+
+Re-run that check before any further edit to this file; if PR #54 later moves into the JSX, the
+exception no longer holds.
+
+## Sidebar findings that remain blocked
+
+`app-shell.test.tsx` pins two things, and it is inside PR #54:
+
+- `getByRole("button", { name: "Expand/Collapse X navigation" })` — so disclosure must stay on
+  `SidebarMenuAction`. shadcn's canonical pattern wraps the whole `SidebarMenuButton` in the
+  trigger, which would let the entire row toggle instead of only the 20px chevron.
+- `getByRole("link", { name: /Current:\s*People/ })` — so the `sr-only` span emitting
+  `{active ? "Current: " : ""}` must stay, despite `aria-current="page"` already conveying it.
+
+Two further findings are deferred for a different reason:
+
+- **Icon mode drops sub-navigation.** `SidebarMenuSub` carries
+  `group-data-[collapsible=icon]:hidden` with no flyout replacement, so Records' six destinations
+  are unreachable while collapsed (Finance and Maintenance survive via their in-page local nav).
+  The canonical fix is a `DropdownMenu` flyout — but that renders the same links a second time,
+  which breaks `getByRole("link", { name: "Ledger" })` with a multiple-match error.
+- **`SidebarMenuBadge` is unused** although counts exist. Adding badges changes the accessible
+  name of the links the blocked test queries.
+
+**Retracted finding.** The Quick Create button's `bg-primary … active:bg-primary/90` styling was
+initially flagged as non-native. It is copied near-verbatim from shadcn's own `dashboard-01`
+`nav-main` block and is canonical. Left unchanged.
+
 ## Completed on this branch
 
 | Milestone | Change |
@@ -117,6 +165,7 @@ before starting a slice.
 | 8 | Person record: readiness rail collapsed to title chips |
 | 9 | Unit record: only unresolved record-quality checks render |
 | 10 | Empty-state bodies that restate their title removed |
+| 11 | Sidebar: cookie-backed collapse, expansion survives navigation, animated submenus, group label |
 
 Note that the contested hunks are small — `globals.css` is a **one-line** change in PR #54 and
 `ui/table.tsx` is **+8/−1**. These are cheap to rebase onto *after* PR #54 merges. They are
