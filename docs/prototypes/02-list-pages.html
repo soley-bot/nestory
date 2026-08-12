@@ -1,0 +1,870 @@
+<title>List pages — redline &amp; proposal</title>
+
+<style>
+/* ============================================================
+   Sheet 02 — same drafting language as Sheet 01 (person record)
+   ============================================================ */
+:root {
+  --paper:#F4F6F8; --paper-2:#FFFFFF;
+  --ink:#14171D; --ink-2:#454C58; --ink-3:#6B7280;
+  --rule:#D7DCE3; --rule-soft:#E6EAEF;
+  --redline:#C21F45; --redline-bg:#FDEAEF;
+  --resolve:#0E6E63; --resolve-bg:#E2F2F0;
+  --shadow:0 1px 2px rgb(16 22 34 / .05), 0 12px 32px -12px rgb(16 22 34 / .18);
+  --font-doc: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mark: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --measure:68ch; --pad:clamp(1.25rem,4vw,3.5rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:#0E1116; --paper-2:#161A21;
+    --ink:#E9ECF1; --ink-2:#A8B0BD; --ink-3:#7C8595;
+    --rule:#2A303A; --rule-soft:#21262E;
+    --redline:#FF7A96; --redline-bg:#331520;
+    --resolve:#5FCBBC; --resolve-bg:#0F2B28;
+    --shadow:0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -14px rgb(0 0 0 / .7);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:#0E1116; --paper-2:#161A21;
+  --ink:#E9ECF1; --ink-2:#A8B0BD; --ink-3:#7C8595;
+  --rule:#2A303A; --rule-soft:#21262E;
+  --redline:#FF7A96; --redline-bg:#331520;
+  --resolve:#5FCBBC; --resolve-bg:#0F2B28;
+  --shadow:0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -14px rgb(0 0 0 / .7);
+}
+
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-doc); font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+.sheet { max-width:1180px; margin:0 auto; padding:var(--pad) var(--pad) 5rem; display:flex; flex-direction:column; gap:3.5rem; }
+
+.masthead { display:flex; flex-direction:column; gap:1.25rem; }
+.stamp { font-family:var(--font-mark); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); display:flex; flex-wrap:wrap; gap:.5rem 1.25rem; padding-bottom:1rem; border-bottom:2px solid var(--ink); }
+.stamp b { color:var(--ink); font-weight:600; }
+.masthead h1 { margin:0; font-size:clamp(1.9rem,4.4vw,3rem); line-height:1.04; letter-spacing:-.035em; font-weight:700; text-wrap:balance; }
+.lede { margin:0; max-width:var(--measure); font-size:1.0625rem; color:var(--ink-2); }
+.lede strong { color:var(--ink); font-weight:650; }
+
+.sec { display:flex; flex-direction:column; gap:1.25rem; }
+.sec > h2 { margin:0; font-family:var(--font-mark); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); padding-bottom:.625rem; border-bottom:1px solid var(--rule); display:flex; align-items:baseline; gap:.75rem; flex-wrap:wrap; }
+.sec > h2 span { color:var(--ink); font-weight:600; letter-spacing:.1em; }
+.sec > p { margin:0; max-width:var(--measure); color:var(--ink-2); font-size:14.5px; }
+
+/* ---------- systemic matrix ---------- */
+.matrix-wrap { overflow-x:auto; border:1px solid var(--rule); border-radius:6px; }
+table.matrix { width:100%; min-width:680px; border-collapse:collapse; background:var(--paper-2); font-size:14px; }
+.matrix th { text-align:left; font-family:var(--font-mark); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:600; padding:.75rem 1rem; border-bottom:1px solid var(--rule); white-space:nowrap; }
+.matrix th.c, .matrix td.c { text-align:center; width:110px; }
+.matrix td { padding:.8rem 1rem; border-bottom:1px solid var(--rule-soft); vertical-align:top; }
+.matrix tr:last-child td { border-bottom:0; }
+.matrix .code { font-family:var(--font-mark); font-weight:700; color:var(--redline); width:1%; }
+.matrix tr.flash td { background:var(--redline-bg); }
+.matrix .what { font-weight:600; color:var(--ink); }
+.matrix .what em { display:block; font-style:normal; font-weight:400; font-size:13px; color:var(--ink-2); margin-top:.2rem; }
+.hit { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--redline); }
+.miss { color:var(--ink-3); font-family:var(--font-mark); font-size:12px; }
+
+/* ---------- plate ---------- */
+.controls { display:flex; flex-wrap:wrap; align-items:center; gap:1rem 1.5rem; }
+.segmented { display:inline-flex; padding:3px; gap:3px; background:var(--rule-soft); border:1px solid var(--rule); border-radius:6px; }
+.segmented button { appearance:none; border:0; background:transparent; color:var(--ink-2); font-family:var(--font-mark); font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:600; padding:.5rem 1rem; border-radius:4px; cursor:pointer; transition:background .15s,color .15s; }
+.segmented button:hover { color:var(--ink); }
+.segmented button[aria-pressed="true"] { background:var(--paper-2); color:var(--ink); box-shadow:0 1px 2px rgb(16 22 34 / .12); }
+.segmented button:focus-visible { outline:2px solid var(--redline); outline-offset:2px; }
+.opt { display:inline-flex; align-items:center; gap:.5rem; font-family:var(--font-mark); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2); cursor:pointer; user-select:none; }
+.opt input { accent-color:var(--redline); width:15px; height:15px; cursor:pointer; }
+
+.plate { border:1px solid var(--rule); border-radius:8px; background:var(--paper-2); box-shadow:var(--shadow); overflow:hidden; }
+.plate__bar { display:flex; align-items:center; gap:.75rem; padding:.625rem .875rem; border-bottom:1px solid var(--rule); font-family:var(--font-mark); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); }
+.plate__dots { display:flex; gap:5px; }
+.plate__dots i { width:9px; height:9px; border-radius:50%; background:var(--rule); display:block; }
+.plate__label { margin-left:auto; font-weight:600; }
+.plate__label[data-state="before"] { color:var(--redline); }
+.plate__label[data-state="after"] { color:var(--resolve); }
+.viewport { overflow-x:auto; overflow-y:hidden; }
+
+/* ============================================================
+   MOCK PALETTES — locked screens under glass, explicit values
+   ============================================================ */
+.mock { position:relative; min-width:980px; font-family:var(--font-doc); font-size:14px; line-height:1.45; }
+.mock--before { --m-bg:#101313; --m-fg:#F1F4F2; --m-card:#151919; --m-muted:#1B2020; --m-mutedfg:#AEB7B3; --m-border:#343B3A; --m-primary:#F1F4F2; --m-primaryfg:#101313; --m-head:#161B1A; --m-ok:#86D49B; --m-okbg:#173522; --m-warn:#D6A85F; --m-warnbg:#332414; --m-danger:#FF8A80; --m-dangerbg:#381B20; }
+.mock--after  { --m-bg:oklch(0.145 0 0); --m-fg:oklch(0.985 0 0); --m-card:oklch(0.205 0 0); --m-muted:oklch(0.269 0 0); --m-mutedfg:oklch(0.708 0 0); --m-border:oklch(1 0 0 / 12%); --m-primary:oklch(0.922 0 0); --m-primaryfg:oklch(0.205 0 0); --m-head:oklch(0.205 0 0); --m-ok:#86D49B; --m-okbg:#173522; --m-warn:#D6A85F; --m-warnbg:#332414; --m-danger:#FF8A80; --m-dangerbg:#381B20; }
+.mock { background:var(--m-bg); color:var(--m-fg); }
+
+.m-crumb { display:flex; align-items:center; gap:.5rem; padding:14px 24px; font-size:13px; color:var(--m-mutedfg); }
+.m-crumb b { color:var(--m-fg); font-weight:600; }
+.m-crumb i { font-style:normal; opacity:.5; }
+.m-head { padding:0 24px 16px; display:flex; align-items:center; gap:16px; }
+.m-head h3 { margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em; }
+.m-actions { margin-left:auto; display:flex; gap:8px; flex-shrink:0; }
+.m-btn { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 10px; border-radius:8px; font-size:13px; font-weight:500; border:1px solid var(--m-border); background:transparent; color:var(--m-fg); white-space:nowrap; }
+.m-btn--fill { background:var(--m-primary); color:var(--m-primaryfg); border-color:transparent; font-weight:600; }
+.m-btn--icon { width:32px; padding:0; justify-content:center; }
+.m-badge { display:inline-flex; align-items:center; padding:2px 7px; border-radius:5px; font-size:11px; font-weight:600; background:var(--m-okbg); color:var(--m-ok); white-space:nowrap; }
+.m-badge--warn { background:var(--m-warnbg); color:var(--m-warn); }
+.m-badge--danger { background:var(--m-dangerbg); color:var(--m-danger); }
+.m-badge--quiet { background:var(--m-muted); color:var(--m-mutedfg); }
+.m-input { display:flex; align-items:center; gap:8px; height:32px; padding:0 10px; border:1px solid var(--m-border); border-radius:8px; color:var(--m-mutedfg); font-size:13px; background:var(--m-bg); }
+.m-input span { opacity:.6; }
+
+/* BEFORE list chrome */
+.b-tabs { display:flex; gap:4px; padding:0 24px 10px; }
+.b-tab { padding:7px 12px; border-radius:6px; font-size:13px; color:var(--m-mutedfg); white-space:nowrap; }
+.b-tab[data-on] { background:var(--m-okbg); color:var(--m-ok); font-weight:600; }
+.b-card { margin:0 20px 0; border:1px solid var(--m-border); border-radius:8px; background:var(--m-card); }
+.b-toolbar { display:flex; align-items:center; gap:8px; padding:12px; border-bottom:1px solid var(--m-border); }
+.b-toolbar .m-input { flex:1; }
+.b-kpi { display:grid; border-bottom:1px solid var(--m-border); }
+.b-kpi > div { padding:10px 12px; border-right:1px solid var(--m-border); }
+.b-kpi > div:last-child { border-right:0; }
+.b-kpi dt { font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--m-mutedfg); margin:0 0 3px; }
+.b-kpi dd { margin:0; font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
+.b-kpi .warn { color:var(--m-warn); }
+.b-kpi .zero { color:var(--m-ok); }
+.b-kpi .lbl { display:flex; align-items:center; font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--m-mutedfg); }
+.b-pager { display:flex; align-items:center; justify-content:space-between; padding:14px 24px 20px; font-size:13px; color:var(--m-mutedfg); }
+.b-pager b { color:var(--m-fg); }
+.b-chips { display:flex; gap:8px; padding:0 24px 12px; flex-wrap:wrap; }
+.b-chip { border:1px solid var(--m-border); border-radius:8px; padding:6px 11px; font-size:13px; color:var(--m-mutedfg); white-space:nowrap; }
+.b-chip[data-on] { border-color:var(--m-ok); color:var(--m-ok); font-weight:600; }
+
+/* AFTER list chrome */
+.a-tabs { display:flex; gap:22px; padding:0 24px; border-bottom:1px solid var(--m-border); }
+.a-tab { padding:0 0 10px; font-size:13.5px; color:var(--m-mutedfg); border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+.a-tab[data-on] { color:var(--m-fg); font-weight:600; border-bottom-color:var(--m-primary); }
+.a-toolbar { display:flex; align-items:center; gap:8px; padding:14px 24px; }
+.a-toolbar .m-input { flex:1; max-width:420px; }
+.a-attn { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--m-mutedfg); }
+.a-surface { border-top:1px solid var(--m-border); }
+.a-pager { display:flex; align-items:center; justify-content:space-between; padding:12px 24px 18px; border-top:1px solid var(--m-border); font-size:13px; color:var(--m-mutedfg); }
+.a-pager b { color:var(--m-fg); font-variant-numeric:tabular-nums; }
+.a-pgbtns { display:flex; gap:6px; }
+
+/* shared mock table */
+table.mt { width:100%; border-collapse:collapse; text-align:left; }
+.mt thead th { font-size:11px; letter-spacing:.06em; font-weight:600; color:var(--m-mutedfg); padding:9px 10px; background:var(--m-head); border-bottom:1px solid var(--m-border); white-space:nowrap; }
+.mt thead th.up { text-transform:uppercase; }
+.mt thead th.r { text-align:right; }
+.mt thead th.c { text-align:center; }
+.mt tbody td { padding:9px 10px; border-top:1px solid var(--m-border); font-size:13px; vertical-align:middle; }
+.mt tbody td.r { text-align:right; font-variant-numeric:tabular-nums; }
+.mt tbody td.c { text-align:center; }
+.mt tbody tr:first-child td { border-top:0; }
+.mt .lead { font-weight:600; color:var(--m-fg); }
+.mt .lead a { color:var(--m-fg); text-decoration:none; }
+.mt .sub { display:block; font-size:12px; color:var(--m-mutedfg); margin-top:2px; }
+.mt .num { font-variant-numeric:tabular-nums; }
+.mt .none { color:var(--m-mutedfg); }
+.mt td:first-child, .mt th:first-child { padding-left:24px; }
+.mt td:last-child, .mt th:last-child { padding-right:24px; }
+.b-card .mt td:first-child, .b-card .mt th:first-child { padding-left:12px; }
+.b-card .mt td:last-child, .b-card .mt th:last-child { padding-right:12px; }
+
+.thumb { width:36px; height:36px; border-radius:6px; border:1px solid var(--m-border); background:var(--m-muted); flex:0 0 36px; }
+.thumb--code { display:grid; place-items:center; font-family:var(--font-mark); font-size:10px; font-weight:700; letter-spacing:.04em; color:var(--m-mutedfg); background:var(--m-muted); }
+.cellflex { display:flex; align-items:center; gap:10px; min-width:0; }
+.bar { height:4px; border-radius:2px; background:var(--m-muted); overflow:hidden; margin-top:5px; }
+.bar i { display:block; height:100%; background:var(--m-ok); }
+
+/* ---------- pins ---------- */
+.anchor { position:relative; }
+.pin { position:absolute; top:-11px; left:-11px; width:22px; height:22px; display:grid; place-items:center; border-radius:50%; font-family:var(--font-mark); font-size:11px; font-weight:700; line-height:1; color:#fff; background:#C21F45; border:2px solid var(--m-bg); box-shadow:0 2px 8px rgb(0 0 0 / .5); cursor:pointer; z-index:6; padding:0; transition:transform .15s; }
+.mock--after .pin { background:#0E6E63; }
+.pin:hover, .pin:focus-visible { transform:scale(1.22); outline:none; }
+.pin:focus-visible { box-shadow:0 0 0 3px rgb(194 31 69 / .55); }
+.pin--right { left:auto; right:-11px; }
+.pin--inline { top:50%; left:auto; right:-11px; transform:translateY(-50%); }
+.pin--inline:hover, .pin--inline:focus-visible { transform:translateY(-50%) scale(1.22); }
+.pin--root { top:50%; left:auto; right:24px; transform:translateY(-50%); }
+.pin--root:hover, .pin--root:focus-visible { transform:translateY(-50%) scale(1.22); }
+.mock[data-pins="off"] .pin { display:none; }
+
+/* ---------- gutter guides: drawn from the elements themselves ---------- */
+.g::before {
+  content:""; position:absolute; left:-1px; top:-500px; bottom:-500px;
+  width:0; border-left:1px dashed #C21F45; z-index:4; pointer-events:none;
+}
+.mock--after .g::before { border-left-color:#0E6E63; }
+/* label sits on the line at the element's own top edge — that is where the
+   gutter is being measured, so each label reads against its own guide */
+.g::after {
+  content:attr(data-g); position:absolute; left:4px; top:5px;
+  font-family:var(--font-mark); font-size:9px; letter-spacing:.06em; line-height:1.4;
+  color:#fff; background:#C21F45; padding:1px 4px; border-radius:0 3px 3px 0;
+  z-index:5; pointer-events:none; white-space:nowrap;
+}
+.mock--after .g::after { background:#0E6E63; }
+.mock[data-guides="off"] .g::before, .mock[data-guides="off"] .g::after { display:none; }
+
+/* ---------- ledger ---------- */
+.ledger-wrap { overflow-x:auto; border:1px solid var(--rule); border-radius:6px; }
+table.ledger { width:100%; min-width:760px; border-collapse:collapse; font-size:14px; background:var(--paper-2); }
+.ledger th { text-align:left; font-family:var(--font-mark); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:600; padding:.75rem 1rem; border-bottom:1px solid var(--rule); white-space:nowrap; }
+.ledger td { padding:.875rem 1rem; border-bottom:1px solid var(--rule-soft); vertical-align:top; }
+.ledger tr:last-child td { border-bottom:0; }
+.ledger tr.flash td { background:var(--redline-bg); }
+.ledger .n { font-family:var(--font-mark); font-weight:700; color:var(--redline); font-variant-numeric:tabular-nums; width:1%; }
+.ledger .what { font-weight:600; color:var(--ink); min-width:180px; }
+.ledger .where { font-family:var(--font-mark); font-size:11.5px; color:var(--ink-2); line-height:1.7; }
+.ledger .fix { color:var(--ink-2); }
+.ledger .fix b { color:var(--resolve); font-weight:650; }
+code { font-family:var(--font-mark); font-size:11.5px; background:var(--rule-soft); padding:.1em .4em; border-radius:3px; color:var(--ink); }
+
+/* ---------- spec ---------- */
+.spec { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:1px; background:var(--rule); border:1px solid var(--rule); border-radius:6px; overflow:hidden; }
+.spec > div { background:var(--paper-2); padding:1rem 1.125rem; }
+.spec h3 { margin:0 0 .5rem; font-size:13px; font-weight:650; }
+.spec p { margin:0; font-size:13.5px; color:var(--ink-2); }
+.spec .kill { color:var(--redline); font-family:var(--font-mark); font-size:11px; letter-spacing:.06em; text-transform:uppercase; }
+
+pre.arch { margin:0; padding:1.125rem 1.25rem; background:var(--paper-2); border:1px solid var(--rule); border-radius:6px; overflow-x:auto; font-family:var(--font-mark); font-size:12.5px; line-height:1.75; color:var(--ink-2); }
+pre.arch b { color:var(--ink); font-weight:650; }
+pre.arch i { color:var(--redline); font-style:normal; }
+
+.foot { font-size:13.5px; color:var(--ink-3); border-top:1px solid var(--rule); padding-top:1.25rem; max-width:var(--measure); }
+
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <div class="stamp">
+      <span>Nestory</span>
+      <span>Sheet <b>02</b></span>
+      <span>Archetype <b>List</b></span>
+      <span>Routes <b>/leases · /properties · /maintenance</b></span>
+      <span>Redline <b>2026-08-12</b></span>
+    </div>
+    <h1>One list archetype, proved on three domains</h1>
+    <p class="lede">
+      Finance, Properties and Maintenance render three different tables — but they fail in the
+      <strong>same five ways</strong>, because each screen builds its own page body instead of
+      inheriting one. Fix the archetype and all three land at once. Turn on
+      <strong>gutter guides</strong> below to see the actual problem: three different left edges on
+      a single screen, in every case.
+    </p>
+  </header>
+
+  <!-- ================= SYSTEMIC MATRIX ================= -->
+  <section class="sec">
+    <h2>Shared failures <span>The same defect, three screens</span></h2>
+    <p>These are properties of the archetype, not of any one domain. Each is fixed once, in
+      <code>WorkspacePage</code> or <code>ui/table.tsx</code>, and lands on all fourteen list routes.</p>
+    <div class="matrix-wrap">
+      <table class="matrix">
+        <thead>
+          <tr><th>#</th><th>Failure</th><th class="c">Leases</th><th class="c">Properties</th><th class="c">Cases</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="code">S1</td>
+            <td class="what">Three left gutters on one screen
+              <em>Local nav at 240px, card edge at 220px, toolbar at 232px. The body slot pads nothing, so each layer improvises.</em></td>
+            <td class="c"><span class="hit"></span></td><td class="c"><span class="hit"></span></td><td class="c"><span class="hit"></span></td>
+          </tr>
+          <tr>
+            <td class="code">S2</td>
+            <td class="what">Pagination floats outside the table surface
+              <em><code>PaginationControls</code> defaults to <code>attached={false}</code>; one call site in the repo overrides it.</em></td>
+            <td class="c"><span class="hit"></span></td><td class="c"><span class="hit"></span></td><td class="c"><span class="miss">n/a</span></td>
+          </tr>
+          <tr>
+            <td class="code">S3</td>
+            <td class="what">Metric strip reports zeros, scoped to “this page”
+              <em>Five of seven lease cells read 0; all six Maintenance chips read 0. Page-scoped totals aren’t actionable.</em></td>
+            <td class="c"><span class="hit"></span></td><td class="c"><span class="miss">—</span></td><td class="c"><span class="hit"></span></td>
+          </tr>
+          <tr>
+            <td class="code">S4</td>
+            <td class="what">Search field plus a redundant submit button
+              <em>The field already submits on Enter. The extra icon button appears on every list screen captured.</em></td>
+            <td class="c"><span class="hit"></span></td><td class="c"><span class="hit"></span></td><td class="c"><span class="hit"></span></td>
+          </tr>
+          <tr>
+            <td class="code">S5</td>
+            <td class="what">A status column with one distinct value
+              <em>Every row reads the same badge. A column where nothing varies carries no information.</em></td>
+            <td class="c"><span class="hit"></span></td><td class="c"><span class="hit"></span></td><td class="c"><span class="miss">—</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= CONTROLS ================= -->
+  <section class="sec">
+    <h2>Controls <span>Applies to all three plates</span></h2>
+    <div class="controls">
+      <div class="segmented" role="group" aria-label="Choose which version to display">
+        <button id="btn-before" type="button" aria-pressed="true">Current build</button>
+        <button id="btn-after" type="button" aria-pressed="false">Proposed</button>
+      </div>
+      <label class="opt"><input id="pins" type="checkbox" checked> Show callouts</label>
+      <label class="opt"><input id="guides" type="checkbox"> Show gutter guides</label>
+    </div>
+  </section>
+
+  <!-- ================= PLATE 02 — LEASES ================= -->
+  <section class="sec">
+    <h2>Plate 02 <span>Finance · /leases</span></h2>
+
+    <div class="plate">
+      <div class="plate__bar">
+        <span class="plate__dots"><i></i><i></i><i></i></span>
+        <span>nestory · /leases</span>
+        <span class="plate__label pl" data-state="before">As shipped</span>
+      </div>
+      <div class="viewport">
+
+        <div class="mock mock--before bf" id="lease-before">
+          <div class="m-crumb anchor"><span>Leases</span><i>›</i><b>2 records</b>
+            <button class="pin pin--root" data-go="L5" type="button" aria-label="Defect: dead space below two rows">5</button>
+          </div>
+          <div class="b-tabs g anchor" data-g="240px">
+            <button class="pin" data-go="S1" type="button" aria-label="Defect S1: three left gutters">S1</button>
+            <span class="b-tab">Finance work</span><span class="b-tab">Rent</span><span class="b-tab">Expenses</span>
+            <span class="b-tab">Balances</span><span class="b-tab">Reports</span><span class="b-tab" data-on>Leases</span>
+            <span class="b-tab">More ⌄</span>
+          </div>
+          <div class="b-card g" data-g="220px">
+            <div class="b-toolbar">
+              <span class="m-input anchor" style="flex:1"><span>⌕</span>Search tenant, unit, property, or term
+                <button class="pin pin--right" data-go="S4" type="button" aria-label="Defect S4: redundant submit button">S4</button>
+              </span>
+              <span class="m-btn m-btn--icon">⌕</span>
+              <span class="m-btn">⚙ Filters</span>
+              <span class="m-btn m-btn--icon">↻</span>
+              <span class="m-btn">Generate rent</span>
+              <span class="m-btn">+ Add lease</span>
+            </div>
+            <dl class="b-kpi anchor" style="grid-template-columns:repeat(7,1fr)">
+              <button class="pin" data-go="S3" type="button" aria-label="Defect S3: metric strip of zeros">S3</button>
+              <div class="lbl">This page</div>
+              <div><dt>Leases</dt><dd>2</dd></div>
+              <div><dt>Current</dt><dd>2</dd></div>
+              <div><dt>Ending risk</dt><dd class="zero">0</dd></div>
+              <div><dt>Tenant gaps</dt><dd class="zero">0</dd></div>
+              <div><dt>Missing docs</dt><dd class="warn">2</dd></div>
+              <div><dt>Rent at risk</dt><dd>$0</dd></div>
+            </dl>
+            <table class="mt">
+              <thead><tr>
+                <th class="up">Tenant</th><th class="up">Property / Unit</th><th class="up">Start / End</th>
+                <th class="up r">Rent</th><th class="up">Payment / Deposit</th><th class="up">Status</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td class="anchor"><span class="lead">Dara Sok ↗</span><span class="sub">Dara Sok</span>
+                    <button class="pin pin--inline" data-go="L1" type="button" aria-label="Defect: tenant name printed twice">L1</button>
+                  </td>
+                  <td><span class="lead">Unit A1 / Floor 1</span><span class="sub">Riverside Apartments</span></td>
+                  <td class="num"><span class="lead">01 Aug 2026</span><span class="sub">31 Jul 2027</span></td>
+                  <td class="r">$800.00</td>
+                  <td>2 ledger entries<span class="sub">No deposit</span></td>
+                  <td class="anchor"><span class="m-badge">Active</span><span class="sub">Attach evidence</span>
+                    <button class="pin pin--inline" data-go="L2" type="button" aria-label="Defect: action rendered as text in a data column">L2</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="lead">Lina Huot ↗</span><span class="sub">Lina Huot</span></td>
+                  <td><span class="lead">Unit B1 / Floor 2</span><span class="sub">Market Street Residence</span></td>
+                  <td class="num"><span class="lead">01 Aug 2026</span><span class="sub">31 Jul 2027</span></td>
+                  <td class="r">$650.00</td>
+                  <td>0 ledger entries<span class="sub">No deposit</span></td>
+                  <td><span class="m-badge">Active</span><span class="sub">Attach evidence</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="height:150px"></div>
+          </div>
+          <div class="b-pager g anchor" data-g="232px">
+            <button class="pin" data-go="S2" type="button" aria-label="Defect S2: pagination outside the surface">S2</button>
+            <span>Showing <b>1–2</b> of <b>2</b></span>
+            <span>Page 1 of 1 &nbsp; ‹ Previous &nbsp; Next ›</span>
+          </div>
+        </div>
+
+        <div class="mock mock--after af" id="lease-after" hidden>
+          <div class="m-crumb anchor"><span>Finance</span><i>›</i><b>Leases</b>
+            <button class="pin pin--root" data-go="L5" type="button" aria-label="Resolved: table fills the surface">5</button>
+          </div>
+          <div class="m-head g anchor" data-g="24px">
+            <button class="pin" data-go="S1" type="button" aria-label="Resolved S1: one gutter">S1</button>
+            <h3>Leases</h3>
+            <div class="m-actions"><span class="m-btn">Generate rent</span><span class="m-btn m-btn--fill">+ Add lease</span></div>
+          </div>
+          <div class="a-tabs">
+            <span class="a-tab">Finance work</span><span class="a-tab">Rent</span><span class="a-tab">Expenses</span>
+            <span class="a-tab">Owner balances</span><span class="a-tab" data-on>Leases</span><span class="a-tab">Ledger</span>
+            <span class="a-tab">Petty cash</span>
+          </div>
+          <div class="a-toolbar">
+            <span class="m-input anchor"><span>⌕</span>Search tenant, unit, property, or term
+              <button class="pin pin--right" data-go="S4" type="button" aria-label="Resolved S4: one search affordance">S4</button>
+            </span>
+            <span class="m-btn">⚙ Filters</span>
+            <span class="a-attn anchor">
+              <button class="pin pin--right" data-go="S3" type="button" aria-label="Resolved S3: only live conditions surface">S3</button>
+              <span class="m-badge m-badge--warn">2 missing documents</span>
+            </span>
+          </div>
+          <div class="a-surface">
+            <table class="mt">
+              <thead><tr>
+                <th>Tenant</th><th>Property / Unit</th><th>Term</th><th class="r">Rent</th><th class="r">Deposit</th><th></th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td class="anchor"><span class="lead">Dara Sok</span>
+                    <button class="pin pin--inline" data-go="L1" type="button" aria-label="Resolved: sub-label dropped when it repeats">L1</button>
+                  </td>
+                  <td><span class="lead">Unit A1</span><span class="sub">Riverside Apartments</span></td>
+                  <td class="num">01 Aug 2026 – 31 Jul 2027</td>
+                  <td class="r">$800.00</td>
+                  <td class="r none">—</td>
+                  <td class="c anchor"><span class="m-btn m-btn--icon">⋯</span>
+                    <button class="pin pin--inline" data-go="L2" type="button" aria-label="Resolved: actions live in the row menu">L2</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="lead">Lina Huot</span></td>
+                  <td><span class="lead">Unit B1</span><span class="sub">Market Street Residence</span></td>
+                  <td class="num">01 Aug 2026 – 31 Jul 2027</td>
+                  <td class="r">$650.00</td>
+                  <td class="r none">—</td>
+                  <td class="c"><span class="m-btn m-btn--icon">⋯</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="a-pager anchor">
+            <button class="pin" data-go="S2" type="button" aria-label="Resolved S2: pagination attached">S2</button>
+            <span><b>2</b> leases</span>
+            <span class="a-pgbtns"><span class="m-btn">‹</span><span class="m-btn">1</span><span class="m-btn">›</span></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="ledger-wrap">
+      <table class="ledger">
+        <thead><tr><th>#</th><th>Defect</th><th>Evidence</th><th>Resolution</th></tr></thead>
+        <tbody>
+          <tr id="L1"><td class="n">L1</td><td class="what">The tenant name is printed twice</td>
+            <td class="where">leases-table.tsx:106 — <em>RecordLink(tenantName)</em><br>leases-table.tsx:112 — <em>sub-label partySummary</em></td>
+            <td class="fix">For an individual tenant <code>partySummary</code> <em>is</em> the tenant name. <b>Render the sub-label only when it differs</b> from the lead line.</td></tr>
+          <tr id="L2"><td class="n">L2</td><td class="what">An action rendered as text inside a data column</td>
+            <td class="where">Status cell, leases-table.tsx<br>“Attach evidence” beneath the badge</td>
+            <td class="fix">Data columns hold data. <b>Move it to the row overflow menu</b>, alongside Edit and Archive.</td></tr>
+          <tr id="L5"><td class="n">5</td><td class="what">Two rows, then 150px of bordered emptiness</td>
+            <td class="where">leases-table.tsx:48 — <code>min-h-[540px]</code><br>on a surface holding two rows</td>
+            <td class="fix">Drop the floor. <b>The surface sizes to its content</b>; the shell owns the remaining height.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= PLATE 03 — PROPERTIES ================= -->
+  <section class="sec">
+    <h2>Plate 03 <span>Properties · /properties</span></h2>
+
+    <div class="plate">
+      <div class="plate__bar">
+        <span class="plate__dots"><i></i><i></i><i></i></span>
+        <span>nestory · /properties</span>
+        <span class="plate__label pl" data-state="before">As shipped</span>
+      </div>
+      <div class="viewport">
+
+        <div class="mock mock--before bf" id="prop-before">
+          <div class="m-crumb"><span>Properties</span><i>›</i><b>2 records</b></div>
+          <div class="b-card g" data-g="220px" style="margin-top:4px">
+            <div class="b-toolbar">
+              <span class="m-input" style="flex:1"><span>⌕</span>Search properties…</span>
+              <span class="m-btn m-btn--icon">⌕</span>
+              <span class="m-btn">▦ Table</span><span class="m-btn">▤ Cards</span>
+              <span class="m-btn">⚙ Filters</span>
+              <span class="m-btn anchor">Set up property
+                <button class="pin pin--right" data-go="P4" type="button" aria-label="Defect: two similar create actions">P4</button>
+              </span>
+              <span class="m-btn">+ Add property</span>
+            </div>
+            <table class="mt">
+              <thead><tr>
+                <th class="anchor">Property ↑
+                  <button class="pin pin--inline" data-go="P1" type="button" aria-label="Defect: header casing splits by sortability">P1</button>
+                </th>
+                <th class="up">Owner</th><th class="up">Occupancy</th>
+                <th class="r">Net ↕</th><th class="up">Open</th><th class="c">Status ↕</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><div class="cellflex">
+                    <span class="thumb anchor">
+                      <button class="pin" data-go="P2" type="button" aria-label="Defect: empty thumbnail square">P2</button>
+                    </span>
+                    <span><span class="lead">Market Street Residence</span><span class="sub">MKT / Residential apartment</span></span>
+                  </div></td>
+                  <td class="lead">Vannak Lim</td>
+                  <td class="anchor"><span style="color:var(--m-ok);font-weight:600">100%</span>
+                    <span class="sub" style="float:right">0 open</span>
+                    <span class="bar"><i style="width:100%"></i></span>
+                    <button class="pin pin--inline" data-go="P3" type="button" aria-label="Defect: full meter on a single-unit property">P3</button>
+                  </td>
+                  <td class="r">$0.00</td>
+                  <td class="anchor" style="color:var(--m-ok)">Clear
+                    <button class="pin pin--inline" data-go="P5" type="button" aria-label="Defect: value reads as a button">P5</button>
+                  </td>
+                  <td class="c anchor"><span class="m-badge">Active</span>
+                    <button class="pin pin--inline" data-go="S5" type="button" aria-label="Defect S5: identical status on every row">S5</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><div class="cellflex"><span class="thumb"></span>
+                    <span><span class="lead">Riverside Apartments</span><span class="sub">RIV / Residential apartment</span></span>
+                  </div></td>
+                  <td class="lead">Maly Chen</td>
+                  <td><span style="color:var(--m-ok);font-weight:600">100%</span><span class="sub" style="float:right">0 open</span><span class="bar"><i style="width:100%"></i></span></td>
+                  <td class="r">$820.00</td>
+                  <td style="color:var(--m-ok)">Clear</td>
+                  <td class="c"><span class="m-badge">Active</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="height:170px"></div>
+          </div>
+          <div class="b-pager g" data-g="232px">
+            <span>Showing <b>1–2</b> of <b>2</b></span>
+            <span>Page 1 of 1 &nbsp; ‹ Previous &nbsp; Next ›</span>
+          </div>
+        </div>
+
+        <div class="mock mock--after af" id="prop-after" hidden>
+          <div class="m-crumb"><span>Properties</span></div>
+          <div class="m-head g" data-g="24px">
+            <h3>Properties</h3>
+            <div class="m-actions">
+              <span class="m-btn">▦</span><span class="m-btn">▤</span>
+              <span class="m-btn m-btn--fill anchor">+ Add property
+                <button class="pin" data-go="P4" type="button" aria-label="Resolved: one create action">P4</button>
+              </span>
+            </div>
+          </div>
+          <div class="a-toolbar">
+            <span class="m-input"><span>⌕</span>Search properties…</span>
+            <span class="m-btn">⚙ Filters</span>
+          </div>
+          <div class="a-surface">
+            <table class="mt">
+              <thead><tr>
+                <th class="anchor">Property ↑
+                  <button class="pin pin--inline" data-go="P1" type="button" aria-label="Resolved: one header case">P1</button>
+                </th>
+                <th>Owner</th><th class="r">Occupied</th><th class="r">Net ↕</th><th class="r">Open work</th><th></th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><div class="cellflex">
+                    <span class="thumb thumb--code anchor">MKT
+                      <button class="pin" data-go="P2" type="button" aria-label="Resolved: code placeholder carries information">P2</button>
+                    </span>
+                    <span><span class="lead">Market Street Residence</span><span class="sub">Residential apartment</span></span>
+                  </div></td>
+                  <td>Vannak Lim</td>
+                  <td class="r anchor">1 / 1
+                    <button class="pin pin--inline" data-go="P3" type="button" aria-label="Resolved: ratio instead of a full meter">P3</button>
+                  </td>
+                  <td class="r">$0.00</td>
+                  <td class="r none anchor">—
+                    <button class="pin pin--inline" data-go="P5" type="button" aria-label="Resolved: value no longer reads as a control">P5</button>
+                  </td>
+                  <td class="c anchor"><span class="m-btn m-btn--icon">⋯</span>
+                    <button class="pin pin--inline" data-go="S5" type="button" aria-label="Resolved S5: status column removed">S5</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><div class="cellflex"><span class="thumb thumb--code">RIV</span>
+                    <span><span class="lead">Riverside Apartments</span><span class="sub">Residential apartment</span></span>
+                  </div></td>
+                  <td>Maly Chen</td>
+                  <td class="r">1 / 1</td>
+                  <td class="r">$820.00</td>
+                  <td class="r none">—</td>
+                  <td class="c"><span class="m-btn m-btn--icon">⋯</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="a-pager">
+            <span><b>2</b> properties</span>
+            <span class="a-pgbtns"><span class="m-btn">‹</span><span class="m-btn">1</span><span class="m-btn">›</span></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="ledger-wrap">
+      <table class="ledger">
+        <thead><tr><th>#</th><th>Defect</th><th>Evidence</th><th>Resolution</th></tr></thead>
+        <tbody>
+          <tr id="P1"><td class="n">P1</td><td class="what">Header casing splits by sortability</td>
+            <td class="where">properties-table.tsx:73–101<br><em>SortableHeader</em> renders sentence case;<br>plain <code>&lt;th&gt;</code> inherits <code>uppercase</code></td>
+            <td class="fix">Reads as a rendering bug: <em>Property ↑ · OWNER · OCCUPANCY · Net ↕ · OPEN · Status ↕</em>. <b>One case for all headers</b>, sortable or not.</td></tr>
+          <tr id="P2"><td class="n">P2</td><td class="what">Empty bordered square where an image would go</td>
+            <td class="where">PropertyThumbnail, rendered in<br>properties-table.tsx:134</td>
+            <td class="fix">No image, no glyph, no initials. <b>Fall back to the property code</b> — it is the identifier operators already use.</td></tr>
+          <tr id="P3"><td class="n">P3</td><td class="what">A full-width meter on a one-unit property</td>
+            <td class="where">Occupancy cell — 100% bar<br>where units = 1</td>
+            <td class="fix">A bar that is always full encodes nothing. <b>Show the ratio</b> <code>1 / 1</code>; a meter earns its place only across many units.</td></tr>
+          <tr id="P4"><td class="n">P4</td><td class="what">Two adjacent create actions</td>
+            <td class="where">Toolbar — “Set up property”<br>beside “+ Add property”</td>
+            <td class="fix">Nothing distinguishes them at a glance. <b>One primary action</b>; guided setup becomes the empty-state path.</td></tr>
+          <tr id="P5"><td class="n">P5</td><td class="what">A data value that reads as a button</td>
+            <td class="where">Open column, value “Clear”</td>
+            <td class="fix">“Clear” next to Filters means <em>clear the filters</em>. <b>Rename the column to Open work</b> and show a count or an em dash.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= PLATE 04 — MAINTENANCE ================= -->
+  <section class="sec">
+    <h2>Plate 04 <span>Maintenance · /maintenance</span></h2>
+    <p>The 2026-08-04 capture of this route held zero cases, so the rows below are representative
+      seeded records. Everything else — the chip row, the toolbar, the four columns — is reproduced
+      from <code>maintenance-screen.tsx:1168–1275</code>.</p>
+
+    <div class="plate">
+      <div class="plate__bar">
+        <span class="plate__dots"><i></i><i></i><i></i></span>
+        <span>nestory · /maintenance</span>
+        <span class="plate__label pl" data-state="before">As shipped</span>
+      </div>
+      <div class="viewport">
+
+        <div class="mock mock--before bf" id="maint-before">
+          <div class="m-crumb"><span>Cases</span><i>›</i><b>3 records</b></div>
+          <div class="b-tabs g" data-g="240px">
+            <span class="b-tab" data-on>Cases</span><span class="b-tab">My work</span>
+            <span class="b-tab">Recurring work</span><span class="b-tab">Inspections</span><span class="b-tab">Work orders</span>
+          </div>
+          <div class="b-chips anchor">
+            <button class="pin" data-go="M1" type="button" aria-label="Defect: six chips, four reading zero">M1</button>
+            <span class="b-chip" data-on>Inbox 3</span><span class="b-chip">Review 0</span><span class="b-chip">Overdue 1</span>
+            <span class="b-chip">Upcoming 0</span><span class="b-chip">Completed 0</span><span class="b-chip">All 3</span>
+            <span class="m-input" style="flex:1;min-width:180px"><span>⌕</span>Search cases…</span>
+            <span class="m-btn m-btn--icon">⌕</span>
+            <span class="m-btn m-btn--icon anchor">≣
+              <button class="pin pin--right" data-go="M2" type="button" aria-label="Defect: unlabelled icon buttons">M2</button>
+            </span>
+            <span class="m-btn m-btn--icon">▥</span><span class="m-btn m-btn--icon">▦</span>
+            <span class="m-btn">+ New case</span>
+          </div>
+          <div class="b-card g" data-g="220px">
+            <table class="mt">
+              <thead><tr><th class="up">Case</th><th class="up">Property / Unit</th><th class="up">Status</th><th class="up">Owner / Vendor</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="lead">Aircon not cooling</span><span class="sub" style="color:var(--m-danger)">Due 09 Aug 2026</span></td>
+                  <td><span class="lead">Riverside Apartments</span><span class="sub">Unit A1</span></td>
+                  <td><span class="m-badge m-badge--warn">Open</span> <span class="m-badge m-badge--danger">High</span></td>
+                  <td class="anchor"><span class="lead">Mony Rath</span><span class="sub none">No vendor assigned</span>
+                    <button class="pin pin--inline" data-go="M3" type="button" aria-label="Defect: empty-state sentence in every row">M3</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="lead">Leaking kitchen tap</span><span class="sub">Due 21 Aug 2026</span></td>
+                  <td><span class="lead">Market Street Residence</span><span class="sub">Unit B1</span></td>
+                  <td><span class="m-badge m-badge--quiet">In progress</span></td>
+                  <td><span class="lead">Mony Rath</span><span class="sub none">No vendor assigned</span></td>
+                </tr>
+                <tr>
+                  <td><span class="lead">Annual fire inspection</span><span class="sub">Due 30 Sep 2026</span></td>
+                  <td><span class="lead">Riverside Apartments</span><span class="sub">All units</span></td>
+                  <td><span class="m-badge m-badge--quiet">Scheduled</span></td>
+                  <td><span class="lead none">Unassigned</span><span class="sub none">No vendor assigned</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="height:120px"></div>
+          </div>
+        </div>
+
+        <div class="mock mock--after af" id="maint-after" hidden>
+          <div class="m-crumb"><span>Maintenance</span><i>›</i><b>Cases</b></div>
+          <div class="m-head g" data-g="24px">
+            <h3>Cases</h3>
+            <div class="m-actions">
+              <span class="m-btn anchor">▥ Board
+                <button class="pin" data-go="M2" type="button" aria-label="Resolved: view switcher is labelled">M2</button>
+              </span>
+              <span class="m-btn m-btn--fill">+ New case</span>
+            </div>
+          </div>
+          <div class="a-tabs">
+            <span class="a-tab" data-on>Cases</span><span class="a-tab">My work</span>
+            <span class="a-tab">Recurring work</span><span class="a-tab">Inspections</span><span class="a-tab">Work orders</span>
+          </div>
+          <div class="a-toolbar">
+            <span class="m-input"><span>⌕</span>Search cases…</span>
+            <span class="m-btn">⚙ Filters</span>
+            <span class="a-attn anchor">
+              <button class="pin pin--right" data-go="M1" type="button" aria-label="Resolved: only live queues surface">M1</button>
+              <span class="m-badge m-badge--danger">1 overdue</span>
+              <span class="m-badge m-badge--quiet">3 open</span>
+            </span>
+          </div>
+          <div class="a-surface">
+            <table class="mt">
+              <thead><tr><th>Case</th><th>Property / Unit</th><th>Due</th><th>Status</th><th>Assignee</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="lead">Aircon not cooling</span></td>
+                  <td><span class="lead">Unit A1</span><span class="sub">Riverside Apartments</span></td>
+                  <td class="num" style="color:var(--m-danger)">09 Aug 2026</td>
+                  <td><span class="m-badge m-badge--warn">Open</span> <span class="m-badge m-badge--danger">High</span></td>
+                  <td class="anchor">Mony Rath
+                    <button class="pin pin--inline" data-go="M3" type="button" aria-label="Resolved: absence shown as an em dash">M3</button>
+                  </td>
+                  <td class="c"><span class="m-btn m-btn--icon">⋯</span></td>
+                </tr>
+                <tr>
+                  <td><span class="lead">Leaking kitchen tap</span></td>
+                  <td><span class="lead">Unit B1</span><span class="sub">Market Street Residence</span></td>
+                  <td class="num">21 Aug 2026</td>
+                  <td><span class="m-badge m-badge--quiet">In progress</span></td>
+                  <td>Mony Rath</td>
+                  <td class="c"><span class="m-btn m-btn--icon">⋯</span></td>
+                </tr>
+                <tr>
+                  <td><span class="lead">Annual fire inspection</span></td>
+                  <td><span class="lead">All units</span><span class="sub">Riverside Apartments</span></td>
+                  <td class="num">30 Sep 2026</td>
+                  <td><span class="m-badge m-badge--quiet">Scheduled</span></td>
+                  <td class="none">—</td>
+                  <td class="c"><span class="m-btn m-btn--icon">⋯</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="a-pager">
+            <span><b>3</b> cases</span>
+            <span class="a-pgbtns"><span class="m-btn">‹</span><span class="m-btn">1</span><span class="m-btn">›</span></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="ledger-wrap">
+      <table class="ledger">
+        <thead><tr><th>#</th><th>Defect</th><th>Evidence</th><th>Resolution</th></tr></thead>
+        <tbody>
+          <tr id="M1"><td class="n">M1</td><td class="what">Six queue chips, most reading zero</td>
+            <td class="where">maintenance-screen.tsx chip row<br>Captured state: all six read <code>0</code></td>
+            <td class="fix">Six controls competing for one decision. <b>Surface only non-empty queues</b> as attention chips; the rest move into Filters.</td></tr>
+          <tr id="M2"><td class="n">M2</td><td class="what">Three unlabelled icon buttons</td>
+            <td class="where">Toolbar, between search and “+ New case”<br>list / board / calendar switchers</td>
+            <td class="fix">Nothing distinguishes them without hovering. <b>Label the active view</b> and put the rest behind one control.</td></tr>
+          <tr id="M3"><td class="n">M3</td><td class="what">An empty-state sentence on every row</td>
+            <td class="where">maintenance-screen.tsx:1271 —<br><em>vendorLabel</em> sub-line</td>
+            <td class="fix">“No vendor assigned” repeated down the column is noise. <b>An em dash says the same thing</b> without competing with the assignee.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= THE ARCHETYPE ================= -->
+  <section class="sec">
+    <h2>The archetype <span>What all fourteen list routes become</span></h2>
+    <pre class="arch">&lt;<b>WorkspacePage</b>&gt;                          <i>← owns the gutter: px-4 md:px-6. Nothing inside re-pads.</i>
+  header    → &lt;<b>PageHeader</b>&gt;                title · one primary action
+  localNav  → &lt;<b>LocalWorkspaceNav</b>&gt;         from the same constant as the sidebar children
+  body      → toolbar                     search · Filters · live attention chips
+            → &lt;<b>Table</b> stickyHeader&gt;        shadcn primitive, inside overflow-x-auto
+            → &lt;<b>PaginationControls</b> attached&gt;
+&lt;/WorkspacePage&gt;</pre>
+    <div class="spec">
+      <div><h3>Reused as-is</h3><p><code>Table</code>, <code>TableHeader</code>, <code>TableRow</code>,
+        <code>TableHead</code>, <code>TableCell</code>, <code>Button</code>, <code>Badge</code>,
+        <code>DropdownMenu</code>, <code>Tabs</code> — all stock, all already installed.</p></div>
+      <div><h3>Deleted</h3><p><span class="kill">− 7 bespoke tables</span> ·
+        <span class="kill">− 4 table tokens</span> · <span class="kill">− 3 min-height floors</span> ·
+        <span class="kill">− 3 search submit buttons</span> · <span class="kill">− 2 status columns</span></p></div>
+      <div><h3>New components</h3><p><strong>One.</strong> A <code>stickyHeader</code> prop on
+        <code>ui/table.tsx</code>, replacing the same seven-line sticky declaration copy-pasted
+        across seven files.</p></div>
+      <div><h3>Data layer</h3><p><strong>Untouched.</strong> Same loaders, same columns, same
+        filters. Only the metric strips change scope — from the current page to the filtered set.</p></div>
+    </div>
+  </section>
+
+  <p class="foot">
+    Companion to Sheet 01 (person record). Before frames are reconstructed from
+    <code>leases-table.tsx</code>, <code>properties-table.tsx</code> and
+    <code>maintenance-screen.tsx</code>, and match
+    <code>output/design-audit-2026-08-04/</code> plates 02, 05, 06 and 11.
+    Proposed frames render in stock shadcn <em>neutral dark</em>; current frames render in Nestory’s
+    shipped custom dark palette. Build order is Part B of
+    <code>docs/codex-ui-ux-remediation-prompt.md</code>.
+  </p>
+
+</div>
+
+<script>
+(function () {
+  var befores = Array.prototype.slice.call(document.querySelectorAll('.bf'));
+  var afters  = Array.prototype.slice.call(document.querySelectorAll('.af'));
+  var labels  = Array.prototype.slice.call(document.querySelectorAll('.pl'));
+  var bBtn = document.getElementById('btn-before');
+  var aBtn = document.getElementById('btn-after');
+  var pins = document.getElementById('pins');
+  var guides = document.getElementById('guides');
+
+  function show(which) {
+    var isAfter = which === 'after';
+    befores.forEach(function (n) { n.hidden = isAfter; });
+    afters.forEach(function (n) { n.hidden = !isAfter; });
+    bBtn.setAttribute('aria-pressed', String(!isAfter));
+    aBtn.setAttribute('aria-pressed', String(isAfter));
+    labels.forEach(function (l) {
+      l.textContent = isAfter ? 'Proposed' : 'As shipped';
+      l.setAttribute('data-state', isAfter ? 'after' : 'before');
+    });
+  }
+  bBtn.addEventListener('click', function () { show('before'); });
+  aBtn.addEventListener('click', function () { show('after'); });
+
+  function apply() {
+    var p = pins.checked ? 'on' : 'off';
+    var g = guides.checked ? 'on' : 'off';
+    befores.concat(afters).forEach(function (n) {
+      n.setAttribute('data-pins', p);
+      n.setAttribute('data-guides', g);
+    });
+  }
+  pins.addEventListener('change', apply);
+  guides.addEventListener('change', apply);
+  apply();
+
+  document.addEventListener('click', function (e) {
+    var pin = e.target.closest ? e.target.closest('.pin') : null;
+    if (!pin) return;
+    var id = pin.getAttribute('data-go');
+    var row = document.getElementById(id);
+    if (!row) {
+      var all = document.querySelectorAll('.matrix .code');
+      for (var i = 0; i < all.length; i++) {
+        if (all[i].textContent.trim() === id) { row = all[i].parentNode; break; }
+      }
+    }
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('flash');
+    setTimeout(function () { row.classList.remove('flash'); }, 1600);
+  });
+})();
+</script>

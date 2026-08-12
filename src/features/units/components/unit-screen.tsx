@@ -212,11 +212,6 @@ export function UnitScreen({
               </Button>
             ) : undefined
           }
-          body={
-            hasFilters
-              ? "The current filters return no unit records."
-              : "There are no units in this workspace."
-          }
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}
           title={hasFilters ? "No matching units" : "No units yet"}

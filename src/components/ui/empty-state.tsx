@@ -12,7 +12,8 @@ export type EmptyStateKind = "empty" | "filtered" | "permission" | "error";
 
 type EmptyStateProps = {
   action?: ReactNode;
-  body: ReactNode;
+  /** Omit when the title already states the fact — a body that restates it is noise. */
+  body?: ReactNode;
   className?: string;
   icon?: LucideIcon;
   kind: EmptyStateKind;
@@ -84,7 +85,11 @@ export function EmptyState({
         role={isError ? "alert" : "status"}
       >
         <h3 className="font-semibold text-foreground">{title}</h3>
-        <div className="mt-1 max-w-xl leading-5 text-muted-foreground">{body}</div>
+        {body ? (
+          <div className="mt-1 max-w-xl leading-5 text-muted-foreground">
+            {body}
+          </div>
+        ) : null}
       </div>
       {action || retry ? (
         <div className="mt-4 flex flex-wrap items-center gap-2">

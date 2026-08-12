@@ -38,7 +38,7 @@ function EmptyWorkspaceOnboarding({ data }: { data: OverviewScreenData }) {
             <section className="border-b border-border py-5 md:border-b-0 md:pr-6">
               <h2 className="text-sm font-semibold">Setup plan</h2>
               <p className="mt-1 text-sm text-muted-foreground">Build the property shell before adding its linked operating records.</p>
-              <Link className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-xs font-semibold text-background transition-colors hover:bg-foreground/90" href="/properties?action=create">Add first property <ArrowRight size={14} /></Link>
+              <Link className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90" href="/properties?action=create">Add first property <ArrowRight size={14} /></Link>
             </section>
             <section className="py-5 md:pl-6">
               <h2 className="text-sm font-semibold">Import center</h2>

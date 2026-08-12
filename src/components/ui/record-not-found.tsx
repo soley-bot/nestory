@@ -24,7 +24,7 @@ export function RecordNotFound({
         </p>
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <Link
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-foreground bg-foreground px-2.5 text-sm font-medium text-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-primary bg-primary px-2.5 text-sm font-medium text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             href={backHref}
           >
             <ArrowLeft aria-hidden="true" size={14} />

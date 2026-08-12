@@ -119,14 +119,14 @@ export function UnitFilters({
                   className={cn(
                     "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:border-foreground sm:flex-none",
                     hasAdvancedFilters &&
-                      "border-accent bg-accent text-accent hover:bg-accent",
+                      "border-primary/40 bg-accent text-accent-foreground hover:bg-accent",
                   )}
                   type="button"
                 >
                   <SlidersHorizontal size={14} />
                   <span>Filters</span>
                   {activeFilters > 0 ? (
-                    <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-background">
+                    <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
                       {activeFilters}
                     </span>
                   ) : null}
@@ -268,7 +268,7 @@ export function UnitFilters({
             {hasAnyFilters ? (
               <Link
                 aria-label="Reset unit filters"
-                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-accent/40 bg-card px-2 text-accent outline-none transition-colors hover:bg-muted hover:text-accent focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary outline-none transition-colors hover:bg-muted hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
                 scroll={false}
                 title="Reset filters"

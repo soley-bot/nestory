@@ -183,7 +183,7 @@ export function PropertyScreen({
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm"
       data-slot="property-list-surface"
     >
-      <div className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
+      <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
         <PropertyFilters
           displayMode={displayMode}
           onDisplayModeChange={changeDisplayMode}
@@ -209,11 +209,6 @@ export function PropertyScreen({
                 Add property
               </Button>
             ) : undefined
-          }
-          body={
-            hasFilters
-              ? "The current filters return no property records."
-              : "Your portfolio is empty."
           }
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}

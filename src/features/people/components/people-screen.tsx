@@ -138,7 +138,7 @@ export function PeopleScreen({
       className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm"
       data-slot="people-list-surface"
     >
-      <div className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
+      <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
         <PeopleFilters
           displayMode={displayMode}
           onDisplayModeChange={setDisplayMode}
@@ -167,11 +167,6 @@ export function PeopleScreen({
               </Button>
             ) : undefined
           }
-          body={
-            hasFilters
-              ? "No records match the active People filters."
-              : "No people records are available in this workspace."
-          }
           className="h-full"
           icon={UsersRound}
           kind={hasFilters ? "filtered" : "empty"}
@@ -189,7 +184,7 @@ export function PeopleScreen({
               roleContext={lockedRole}
             />
           </div>
-          <PaginationControls attached={false} pagination={pagination} />
+          <PaginationControls pagination={pagination} />
         </>
       )}
     </section>

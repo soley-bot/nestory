@@ -169,7 +169,7 @@ export function BoardSurface({
           className={cn(
             "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
             presentation === "board"
-              ? "border-accent bg-accent text-foreground"
+              ? "border-primary/40 bg-accent text-foreground"
               : "border-border bg-card text-muted-foreground hover:bg-muted",
           )}
           onClick={() => setPresentation("board")}
@@ -183,7 +183,7 @@ export function BoardSurface({
           className={cn(
             "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
             presentation === "list"
-              ? "border-accent bg-accent text-foreground"
+              ? "border-primary/40 bg-accent text-foreground"
               : "border-border bg-card text-muted-foreground hover:bg-muted",
           )}
           onClick={() => setPresentation("list")}
@@ -324,7 +324,7 @@ function BoardColumn({
     <section
       className={cn(
         "flex min-h-[calc(100vh-310px)] flex-col rounded-md border border-border bg-card transition-colors",
-        isOver && "border-accent bg-accent/40",
+        isOver && "border-primary/40 bg-accent/40",
       )}
       data-status-column={column.status}
       ref={setNodeRef}

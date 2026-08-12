@@ -338,7 +338,7 @@ function DashboardWidget({ actionLabel, children, className, href, title }: Widg
       <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
         {href && actionLabel ? (
-          <Link className="shrink-0 text-sm font-medium text-accent hover:underline" href={href}>
+          <Link className="shrink-0 text-sm font-medium text-primary hover:underline" href={href}>
             {actionLabel}
           </Link>
         ) : null}
@@ -440,7 +440,7 @@ function toneBgClass(tone: MaintenanceBadgeTone) {
 function toneTextClass(tone: MaintenanceBadgeTone) {
   switch (tone) {
     case "accent":
-      return "text-accent";
+      return "text-primary";
     case "danger":
       return "text-danger";
     case "success":

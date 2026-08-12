@@ -410,7 +410,7 @@ function PropertyRecordNav({
             aria-selected={activeSection === item.id}
             className={cn(
               "inline-flex h-9 items-center border-b-2 border-transparent px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground",
-              activeSection === item.id && "border-accent text-foreground",
+              activeSection === item.id && "border-primary text-foreground",
             )}
             id={`property-tab-${item.id}`}
             key={item.id}
@@ -496,7 +496,7 @@ function ActionLink({
   return (
     <Link
       className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium transition-colors hover:bg-muted ${
-        strong ? "bg-foreground text-background hover:bg-foreground/90" : "text-foreground"
+        strong ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-foreground"
       }`}
       href={href}
       prefetch={false}

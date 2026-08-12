@@ -515,7 +515,7 @@ function DocumentTable({
               >
                 <td className="px-2.5 py-2">
                   <Link
-                    className="block truncate rounded-sm font-medium text-accent outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    className="block truncate rounded-sm font-medium text-primary outline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                     href={document.hrefs.document}
                     onClick={(event) => event.stopPropagation()}
                     title={document.fileName}
@@ -961,7 +961,7 @@ function DocumentAttentionNote({
           {item ? null : (
             <Link
               aria-label="Open action"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-accent transition-colors hover:bg-muted"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-primary transition-colors hover:bg-muted"
               href={href}
               rel={href.startsWith("http") ? "noreferrer" : undefined}
               target={href.startsWith("http") ? "_blank" : undefined}
@@ -1008,7 +1008,7 @@ function DocumentLinkedRecords({
                   {record.label}
                 </span>
               </span>
-              <ExternalLink className="shrink-0 text-accent" size={13} />
+              <ExternalLink className="shrink-0 text-primary" size={13} />
             </Link>
           ))}
         </div>

@@ -568,7 +568,7 @@ function InviteUserForm({
             <input
               aria-describedby={emailHelpId}
               aria-labelledby={emailLabelId}
-              className="h-8 w-full rounded-md border border-border bg-card px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-8 w-full rounded-md border border-border bg-card px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
               id={emailId}
               disabled={draft.status === "saving"}
               onChange={(event) => draft.setField("email", event.target.value)}

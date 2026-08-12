@@ -70,7 +70,7 @@ export function LoginForm() {
       </div>
 
       <Button
-        className="box-border h-11 w-full border-foreground bg-foreground text-[12px] font-semibold uppercase tracking-[0.14em] text-background hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:opacity-70"
+        className="box-border h-11 w-full border-primary bg-primary text-[12px] font-semibold uppercase tracking-[0.14em] text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:opacity-70"
         disabled={pending}
         type="submit"
         variant="default"

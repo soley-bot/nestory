@@ -64,6 +64,11 @@ export function UnitDetailView({
   unit: UnitDetail;
 }) {
   const reportMonth = getBusinessMonthValue();
+  // Only unresolved checks are worth a card. A passing check reports the
+  // absence of a problem, which the record already shows in its own fields.
+  const openChecks = unit.healthIndicators.filter(
+    (indicator) => indicator.tone !== "success",
+  );
   return (
     <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
       <UnitRecordNav
@@ -153,9 +158,14 @@ export function UnitDetailView({
               icon={<CheckCircle2 size={16} />}
               title="Record quality"
             />
-            <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
-                {unit.healthIndicators.map((indicator) => (
+            <div
+              className={cn(
+                "grid gap-4 p-4",
+                openChecks.length > 0 && "lg:grid-cols-[minmax(0,1fr)_280px]",
+              )}
+            >
+              <div className="grid gap-2 empty:hidden md:grid-cols-2 2xl:grid-cols-3">
+                {openChecks.map((indicator) => (
                   <div
                     className="rounded-md border border-border bg-muted/60 p-3"
                     key={indicator.id}
@@ -561,7 +571,7 @@ function ActionLink({
   return (
     <Link
       className={`${className} inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium transition-colors hover:bg-muted ${
-        strong ? "bg-foreground text-background hover:bg-foreground/90" : "text-foreground"
+        strong ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-foreground"
       }`}
       href={href}
       prefetch={false}
