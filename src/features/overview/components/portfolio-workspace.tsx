@@ -20,15 +20,19 @@ import {
 } from "@/components/ui/table";
 import { OverviewLedgerAreaChart } from "@/features/overview/components/overview-charts";
 import type {
+  OverviewAttentionItem,
   OverviewMetric,
   OverviewScreenData,
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
+import { AdminWorkspaceQueue } from "@/features/workspace-operations/components/admin-workspace-queue";
 
 export function PortfolioWorkspace({
+  attentionQueue,
   data,
   query,
 }: {
+  attentionQueue: readonly OverviewAttentionItem[];
   data: OverviewScreenData;
   query: OverviewViewQuery;
 }) {
@@ -41,6 +45,10 @@ export function PortfolioWorkspace({
       data-slot="overview-operating-scroll"
       role="region"
     >
+      <div className="px-4 lg:px-6">
+        <AdminWorkspaceQueue items={attentionQueue} />
+      </div>
+
       <section
         aria-label="Portfolio metrics"
         className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 lg:px-6 dark:*:data-[slot=card]:bg-card"

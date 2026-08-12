@@ -208,7 +208,7 @@ describe("buildFinanceWorkspaceData", () => {
       throw new Error("Expected Finance Member workspace data");
     }
     expect(result.primaryAction).toEqual({
-      href: "/bills-expenses",
+      href: "/bills-expenses?action=create",
       intent: "record-paid-cost",
       label: "Record paid cost",
     });

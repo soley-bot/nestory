@@ -108,6 +108,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
   initialBillingLeaseId?: string;
+  initialExpenseIntent?: boolean;
   initialRentLeaseId?: string;
   openingAuthority?: ReactNode;
   organizationName: string;
@@ -130,6 +131,8 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
     initialBillingLease
       ? { lease: initialBillingLease, mode: "billing" }
+      : props.initialExpenseIntent && props.canSubmitExpense
+        ? { mode: "expense" }
       : null,
   );
   const [modal, setModal] = useState<ModalState | null>(null);

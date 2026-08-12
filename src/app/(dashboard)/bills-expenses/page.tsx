@@ -2,7 +2,14 @@ import { FinanceOperationsScreen } from "@/features/finance-operations/component
 import { getFinanceOperationsData } from "@/features/finance-operations/data/finance-operations";
 import { requireFinanceContext } from "@/lib/auth/context";
 
-export default async function BillsExpensesPage() {
+type BillsExpensesPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function BillsExpensesPage({
+  searchParams,
+}: BillsExpensesPageProps = {}) {
+  const params = (await searchParams) ?? {};
   const context = await requireFinanceContext();
   const data = await getFinanceOperationsData(context.organizationId);
   return (
@@ -18,6 +25,7 @@ export default async function BillsExpensesPage() {
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
+      initialExpenseIntent={params.action === "create"}
       organizationName={context.organizationName}
       view="expenses"
     />

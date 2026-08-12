@@ -160,7 +160,11 @@ export function FinanceMemberWorkspace({
             <QueueRow key={item.id}>
               <QueueCell>
                 <QueueTitleCell
-                  context={item.detail || item.contextLabel}
+                  context={
+                    item.kind === "expense-rejected"
+                      ? item.detail
+                      : item.contextLabel
+                  }
                   title={item.title}
                 />
               </QueueCell>

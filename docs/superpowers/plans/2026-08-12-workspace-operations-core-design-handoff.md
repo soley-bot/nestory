@@ -21,6 +21,10 @@
 - Operations Manager and Operations Member are the reference pattern; do not broaden either role merely to match Super Admin screen count.
 - Core logic must merge before UI integration. Claude rebases or merges the core contract before wiring the final components.
 
+### Constraint trade record
+
+The original plan prohibited every database migration in this pass. Claude's later `submittedByLabel` requirement made that absolute constraint incompatible with the operator-label rule: Finance must identify the submitter, while React must not display a raw `submitted_by` UUID or query `auth.users` directly. The accepted trade is one narrowly scoped, read-only RPC migration (`20260812083346_expose_finance_submission_actor_labels.sql`). It changes no tables, mutation authority, approval logic, or financial effects. The function checks Finance read capability, returns only requested organization members who actually submitted paid costs, revokes default public/anonymous execution, and grants execution only to authenticated callers. This exception is intentional and must remain explicit in review and release notes.
+
 ---
 
 ## Alignment Contract
@@ -81,11 +85,11 @@ Claude designs against the interfaces in this plan. If a design needs another di
 
 The integration order and live status are:
 
-1. [x] Claude completed the three role-workspace designs and field map on `ui/design-system` at `d471095`.
-2. [x] Codex implemented Tasks 1-5 plus the four requested Finance display fields on `codex/ips-operational-readiness` through `0a9d3d9`.
-3. [ ] Review and merge the core branch into the UI branch. This remains the next integration boundary.
-4. [ ] Claude implements the approved presentation against the merged types.
-5. [ ] Codex runs Task 6 verification across all five roles and reports any contract mismatch without redesigning Claude's work.
+1. [x] Claude completed the three role-workspace designs and field map on `ui/design-system`, with the current presentation checkpoint at `8994812`.
+2. [x] Codex implemented Tasks 1-5 plus the four requested Finance display fields on `codex/ips-operational-readiness` through `18043f5`.
+3. [x] Claude merged the core contract into the UI branch, and Codex combined that checkpoint on the isolated integration branch.
+4. [x] Claude implemented the approved presentation against the merged types.
+5. [x] Codex completed Task 6 route integration and five-role verification without moving authorization or financial status derivation into React.
 
 ### Live implementation checkpoint
 
@@ -95,9 +99,9 @@ Current branch boundary:
 
 | Surface | Branch | Verified checkpoint | Status |
 | --- | --- | --- | --- |
-| UI/UX design | `ui/design-system` | `d471095` | Design and field map complete; presentation integration pending |
-| Workspace core | `codex/ips-operational-readiness` | `0a9d3d9` | Tasks 1-5 and the four Finance display fields complete |
-| Cross-branch integration | Not started | None | Core must be reviewed and merged before Claude wires the final components |
+| UI/UX design | `ui/design-system` | `8994812` | Presentation components complete; copy-gate terminology fix included |
+| Workspace core | `codex/ips-operational-readiness` | `18043f5` | Tasks 1-5 and the four Finance display fields complete |
+| Cross-branch integration | `codex/workspace-task-6-integration` | Committed locally | Core and presentation are combined; route, static, database, production-build, and five-role browser verification pass |
 
 Do not copy the older example type from the companion design spec verbatim. In particular, the live type intentionally uses `amountDisplay: MoneyDisplayValue | null` and `submittedByLabel: string | null` because the manager queue also contains non-paid-cost exceptions.
 
@@ -534,7 +538,7 @@ git commit -m "feat: sanitize operator activity details"
 
 ### Task 6: Integrate Claude's presentation and verify all five roles
 
-**Status:** Pending cross-branch integration. The design checkpoint and core checkpoint are complete, but neither branch currently contains the combined presentation plus core contract.
+**Status:** Complete and committed locally on `codex/workspace-task-6-integration`. Nothing from this branch or its migration has been pushed or applied to hosted Supabase.
 
 **Files:**
 - Modify: `src/app/(dashboard)/finance/page.tsx`
@@ -550,11 +554,11 @@ git commit -m "feat: sanitize operator activity details"
 - Consumes: Claude's approved components plus Tasks 1-5
 - Produces: the complete role-specific operating workspace
 
-- [ ] **Step 1: Add failing route integration tests**
+- [x] **Step 1: Add failing route integration tests**
 
 For Finance Manager, assert `/finance` passes `buildFinanceWorkspaceData({ role: "finance_manager", userId, data })` to the approved manager workspace component. For Finance Member, assert the member projection is used and the primary `Record paid cost` action is present. For Super Admin, assert the Overview workspace receives `buildAdminWorkspaceQueue(data)`.
 
-- [ ] **Step 2: Run the affected component and route tests**
+- [x] **Step 2: Run the affected component and route tests**
 
 ```powershell
 npx vitest run 'src/app/(dashboard)/finance/finance-routes.test.tsx' src/features/overview/components/overview-screen.test.tsx src/features/maintenance/components/maintenance-screen.test.ts
@@ -562,11 +566,11 @@ npx vitest run 'src/app/(dashboard)/finance/finance-routes.test.tsx' src/feature
 
 Expected: FAIL until the route loaders and Claude components consume the projections.
 
-- [ ] **Step 3: Wire route data into Claude's approved components**
+- [x] **Step 3: Wire route data into Claude's approved components**
 
 In `/finance`, pass `context.role` and `context.userId` into `buildFinanceWorkspaceData`. Keep existing Finance domain data loading and mutation components available behind the queue item links and approved drawers/modals. In `/overview`, pass the prioritized attention projection without replacing existing portfolio data. In Maintenance, pass `change.details` through `getOperatorActivityDetails` for the ordinary Activity list.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 ```powershell
 npx vitest run src/features/workspace-operations src/app/workspace/page.test.ts src/lib/auth/workspace-entry.test.ts 'src/app/(dashboard)/finance/finance-routes.test.tsx' src/features/overview/components/overview-screen.test.tsx src/features/maintenance/components/maintenance-screen.test.ts
@@ -574,17 +578,19 @@ npx vitest run src/features/workspace-operations src/app/workspace/page.test.ts 
 
 Expected: PASS.
 
-- [ ] **Step 5: Run static verification**
+- [x] **Step 5: Run static verification**
 
 ```powershell
 npm run lint
 npx tsc --noEmit
+npm run test:ui-copy
+npm run test:ui-coverage
 git diff --check
 ```
 
 Expected: all commands exit 0.
 
-- [ ] **Step 6: Run authenticated browser verification**
+- [x] **Step 6: Run authenticated browser verification**
 
 Verify these exact role outcomes with the local five-role fixture:
 
@@ -596,7 +602,9 @@ Verify these exact role outcomes with the local five-role fixture:
 6. At 1440x900, 1280x720, and 390x844, the primary action and first queue action are reachable without horizontal scrolling.
 7. Keyboard verification covers entry redirect, first actionable queue item, drawer/modal opening and closing, and focus return.
 
-- [ ] **Step 7: Commit the integrated workspace behavior**
+Verification evidence on 2026-08-12: 216 Vitest files passed with 1,563 tests passed and 1 skipped; ESLint and TypeScript passed; `test:ui-copy` reported zero prohibited occurrences; `test:ui-coverage` covered 47/47 page routes; the actor-label pgTAP contract passed 4/4; the production build passed. All five fixture roles passed at 1440x900, 1280x720, and 390x844. The Finance Member browser journey also followed `Record paid cost` to `/bills-expenses?action=create` and verified the `Record paid cost` drawer opened. Read-only route/viewport baselines passed for `/overview`, `/finance`, `/maintenance`, and `/tasks` with five role checks per route.
+
+- [x] **Step 7: Commit the integrated workspace behavior**
 
 ```powershell
 git add src/app src/features
@@ -617,7 +625,7 @@ The work is complete only when:
 - Operations role breadth and branch/assignment scope remain unchanged.
 - `/workspace` performs a direct server redirect for all five roles.
 - Ordinary activity labels contain no raw UUIDs or hashes.
-- Focused tests, lint, TypeScript, `git diff --check`, and authenticated five-role browser verification pass.
+- Focused tests, lint, TypeScript, `test:ui-copy`, `test:ui-coverage`, `git diff --check`, and authenticated five-role browser verification pass.
 - Evidence identifies the exact branch, SHA, worktree, runtime source, and local-versus-hosted boundary.
 
 ## Live Finance Presentation Contract: 2026-08-12

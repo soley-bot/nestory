@@ -94,6 +94,45 @@ describe("OverviewScreen", () => {
     expect(screen.getByRole("table")).toBeTruthy();
   });
 
+  it("places the prioritized attention queue before portfolio context", () => {
+    render(
+      <OverviewScreen
+        attentionQueue={[
+          {
+            actionLabel: "Review rent",
+            count: 2,
+            helper: "Two collections need review",
+            href: "/rent-income",
+            id: "rent",
+            kind: "overdue-rent",
+            label: "Rent exceptions",
+            priority: 10,
+            tone: "warning",
+          },
+        ]}
+        data={data}
+        query={query}
+      />,
+    );
+
+    const queue = screen.getByRole("table", { name: "Attention queue" });
+    const portfolio = screen.getByRole("region", {
+      name: "Portfolio metrics",
+    });
+
+    expect(
+      queue.compareDocumentPosition(portfolio) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const header = document.querySelector<HTMLElement>(
+      '[data-slot="overview-header-row"]',
+    )!;
+    expect(
+      within(header).getByRole("link", { name: "Review rent" }).getAttribute(
+        "href",
+      ),
+    ).toBe("/rent-income");
+  });
+
   it("keeps the active reporting month readable in every theme", () => {
     render(<OverviewScreen data={data} query={query} />);
 

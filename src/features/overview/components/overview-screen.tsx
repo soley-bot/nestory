@@ -3,18 +3,37 @@ import { ArrowRight, Upload } from "lucide-react";
 import { OverviewHeader } from "@/features/overview/components/overview-header";
 import { OverviewLensWorkspace } from "@/features/overview/components/overview-lens-workspace";
 import { PortfolioWorkspace } from "@/features/overview/components/portfolio-workspace";
-import type { OverviewScreenData, OverviewViewQuery } from "@/features/overview/overview.types";
+import type {
+  OverviewAttentionItem,
+  OverviewScreenData,
+  OverviewViewQuery,
+} from "@/features/overview/overview.types";
 
-export function OverviewScreen({ data, query }: { data: OverviewScreenData; query?: OverviewViewQuery }) {
+export function OverviewScreen({
+  attentionQueue = [],
+  data,
+  query,
+}: {
+  attentionQueue?: readonly OverviewAttentionItem[];
+  data: OverviewScreenData;
+  query?: OverviewViewQuery;
+}) {
   if (!data.workspaceSetup.hasAnyOperatingData) return <EmptyWorkspaceOnboarding data={data} />;
   const resolvedQuery = query ?? defaultQuery();
   return (
     <main className="flex h-full min-h-0 bg-background">
       <div className="flex h-full min-h-0 flex-1 flex-col">
-        <OverviewHeader query={resolvedQuery} />
+        <OverviewHeader
+          primaryAction={attentionQueue[0]}
+          query={resolvedQuery}
+        />
         <div className="flex min-h-0 flex-1 flex-col">
           {resolvedQuery.lens === "all" ? (
-            <PortfolioWorkspace data={data} query={resolvedQuery} />
+            <PortfolioWorkspace
+              attentionQueue={attentionQueue}
+              data={data}
+              query={resolvedQuery}
+            />
           ) : (
             <OverviewLensWorkspace data={data} query={resolvedQuery} />
           )}

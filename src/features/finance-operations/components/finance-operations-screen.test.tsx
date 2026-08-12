@@ -731,6 +731,22 @@ describe("FinanceOperationsScreen", () => {
     ).toBe("person-owner");
   });
 
+  it("opens the paid-cost drawer from the workspace create intent", () => {
+    render(
+      <FinanceOperationsScreen
+        {...data()}
+        {...financeCapabilities({ canSubmitExpense: true })}
+        initialExpenseIntent
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Record paid cost" }),
+    ).not.toBeNull();
+  });
+
   it("keeps the dominant finance table unframed while retaining row separators", () => {
     const { container } = render(
       <FinanceOperationsScreen

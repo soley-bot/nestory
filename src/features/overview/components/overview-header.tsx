@@ -5,6 +5,7 @@ import { WorkspaceHeaderPortal } from "@/components/layout/workspace-header-port
 import { OverviewMonthPicker } from "@/features/overview/components/overview-month-picker";
 import { buildOverviewHref } from "@/features/overview/overview.filters";
 import type { OverviewLens, OverviewViewQuery } from "@/features/overview/overview.types";
+import type { OverviewAttentionItem } from "@/features/overview/overview.types";
 import { cn } from "@/lib/utils";
 
 const lenses: Array<{ label: string; value: OverviewLens }> = [
@@ -14,7 +15,13 @@ const lenses: Array<{ label: string; value: OverviewLens }> = [
   { label: "Records", value: "records" },
 ];
 
-export function OverviewHeader({ query }: { query: OverviewViewQuery }) {
+export function OverviewHeader({
+  primaryAction,
+  query,
+}: {
+  primaryAction?: OverviewAttentionItem;
+  query: OverviewViewQuery;
+}) {
   return (
     <WorkspaceHeaderPortal>
       <div className="flex min-w-0 flex-1 items-center gap-4" data-slot="overview-header-row">
@@ -39,7 +46,15 @@ export function OverviewHeader({ query }: { query: OverviewViewQuery }) {
             );
           })}
         </nav>
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {primaryAction ? (
+            <Link
+              className="inline-flex h-7 items-center rounded-md bg-primary px-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+              href={primaryAction.href}
+            >
+              {primaryAction.actionLabel}
+            </Link>
+          ) : null}
           <OverviewMonthPicker query={query} />
         </div>
       </div>

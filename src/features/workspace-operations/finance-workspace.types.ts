@@ -39,7 +39,7 @@ export type FinanceManagerWorkspaceData = {
 
 export type FinanceMemberWorkspaceData = {
   primaryAction: {
-    href: "/bills-expenses";
+    href: "/bills-expenses?action=create";
     intent: "record-paid-cost";
     label: "Record paid cost";
   };

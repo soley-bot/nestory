@@ -167,7 +167,7 @@ function buildMemberWorkspace(
 
   return {
     primaryAction: {
-      href: "/bills-expenses",
+      href: "/bills-expenses?action=create",
       intent: "record-paid-cost",
       label: "Record paid cost",
     },

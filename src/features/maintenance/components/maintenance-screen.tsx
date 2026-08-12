@@ -109,6 +109,7 @@ import type {
   MaintenanceVendorOption,
   MaintenanceViewQuery,
 } from "@/features/maintenance/maintenance.types";
+import { getOperatorActivityDetails } from "@/features/workspace-operations/operator-activity";
 import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenance.workflow";
 import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { cn } from "@/lib/utils";
@@ -1422,28 +1423,34 @@ export function MaintenanceInspector({
           <div className="rounded-md border border-border bg-muted/70 px-3 py-2.5">
             <p className="font-semibold">Activity</p>
             <div className="mt-2 divide-y divide-border">
-              {maintenanceCase.activity.slice(0, 6).map((change) => (
-                <div className="py-2 first:pt-0 last:pb-0" key={change.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-medium">{change.actionLabel}</p>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatActivityDate(change.createdAt)}
-                    </span>
-                  </div>
-                  {change.details.length > 0 ? (
-                    <div className="mt-1 space-y-1 text-xs text-muted-foreground">
-                      {change.details.map((detail) => (
-                        <p key={`${change.id}-${detail.field}`}>
-                          <span className="font-medium text-foreground">
-                            {detail.field}:
-                          </span>{" "}
-                          {detail.after}
-                        </p>
-                      ))}
+              {maintenanceCase.activity.slice(0, 6).map((change) => {
+                const operatorDetails = getOperatorActivityDetails(
+                  change.details,
+                );
+
+                return (
+                  <div className="py-2 first:pt-0 last:pb-0" key={change.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-medium">{change.actionLabel}</p>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {formatActivityDate(change.createdAt)}
+                      </span>
                     </div>
-                  ) : null}
-                </div>
-              ))}
+                    {operatorDetails.length > 0 ? (
+                      <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                        {operatorDetails.map((detail) => (
+                          <p key={`${change.id}-${detail.field}`}>
+                            <span className="font-medium text-foreground">
+                              {detail.field}:
+                            </span>{" "}
+                            {detail.after}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : null}

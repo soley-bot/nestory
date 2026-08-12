@@ -1,8 +1,9 @@
 # Role workspace design — Super Admin, Finance Manager, Finance Member
 
 Companion to `docs/superpowers/plans/2026-08-12-workspace-operations-core-design-handoff.md`.
-This is integration step 1: the three designs, with every visible value and action mapped to a
-typed core field, plus the display fields the design needs Codex to add.
+The design checkpoint was integration step 1. Core commit `0a9d3d9` now implements every mapped
+Finance display field, and presentation commit `8994812` consumes that contract. Task 6 owns the
+combined route wiring and five-role verification.
 
 Branch: `ui/design-system`. Prototype: `docs/prototypes/03-role-workspaces.html`.
 
@@ -79,10 +80,10 @@ viewports; portfolio context begins below the fold at 390×844 and at the fold a
 | Chip: Missing evidence | `totals.missingEvidence` | Hidden at 0 |
 | Chip: Rent exceptions | `totals.rentExceptions` | Hidden at 0 |
 | Row title | `title` | |
-| Row status badge | `statusLabel` + **`tone`** (requested) | |
+| Row status badge | `statusLabel` + `tone` | Resolved by the core projection |
 | Row supporting line | `detail` | |
-| Row amount | **`amountDisplay`** (requested) | Right-aligned, tabular |
-| Row submitter | **`submittedByLabel`** (requested) | |
+| Row amount | `amountDisplay` | Right-aligned, tabular |
+| Row submitter | `submittedByLabel` | Operator-safe label from the Finance-scoped RPC |
 | Row age | `submittedAt` | Rendered relative — "3 days ago" |
 | Row action | `actionLabel` → `href` | |
 | Row order | `priority` | Render in array order |
@@ -113,9 +114,9 @@ the component filters nothing.
 | Chip: Awaiting review | `totals.awaitingReview` | Hidden at 0 |
 | Chip: Approved recently | `totals.approvedRecently` | Hidden at 0. Label says "Approved · last 30 days" |
 | Row title | `title` | |
-| Row status badge | `statusLabel` + **`tone`** (requested) | Rejected must read as danger, not neutral |
+| Row status badge | `statusLabel` + `tone` | Rejected is resolved as danger by core |
 | Row supporting line | `detail` | For a rejection this carries the reason |
-| Row amount | **`amountDisplay`** (requested) | |
+| Row amount | `amountDisplay` | |
 | Row age | `submittedAt` | |
 | Row action | `actionLabel` → `href` | |
 | Row order | `priority` | Rejected, then awaiting, then approved |
@@ -130,17 +131,17 @@ usability decision on top of the server's authority, not a substitute for it.
 
 ---
 
-## 5. Display fields requested from Codex
+## 5. Implemented Finance display contract
 
-Four additions to `FinanceWorkspaceQueueItem`. Each is required because the alternative is
-deriving financial meaning inside React, which the contract forbids.
+Core commit `0a9d3d9` added these fields to `FinanceWorkspaceQueueItem`. React renders them without
+deriving financial meaning.
 
 ```ts
 export type FinanceWorkspaceQueueItem = {
   actionLabel: string;
   /** Formatted, currency-aware amount for the row. Reviewing a paid cost
    *  without its amount is not possible at a glance. */
-  amountDisplay: MoneyDisplayValue;
+  amountDisplay: MoneyDisplayValue | null;
   /** Property / unit the cost belongs to, already operator-safe. */
   contextLabel: string;
   detail: string;
@@ -149,9 +150,9 @@ export type FinanceWorkspaceQueueItem = {
   kind: FinanceWorkspaceItemKind;
   priority: number;
   statusLabel: string;
-  /** Display name for expense_submissions.submitted_by. Manager queue only;
-   *  omitted for the member queue, which is single-user by construction. */
-  submittedByLabel?: string;
+  /** Operator-safe label for paid-cost submitters. Null for queue items that
+   *  are not expense submissions. Raw UUIDs are never rendered. */
+  submittedByLabel: string | null;
   submittedAt?: string;
   /** Semantic colour for statusLabel. Without it the component would have to
    *  infer financial status from a string. */
@@ -170,9 +171,8 @@ export type FinanceWorkspaceQueueItem = {
 `MoneyDisplayValue` is the existing `{ primary: string }` from `src/lib/money/format.ts`, so the
 row renders through the existing `MoneyDisplay` component and inherits its formatting.
 
-If Codex prefers `contextLabel` to stay inside `detail`, the design still works — but `detail`
-must then be guaranteed to lead with the property/unit, and rejection reasons need a separate
-field. One field per meaning is the cheaper contract.
+`contextLabel` and `detail` remain separate. For rejected member submissions, `detail` carries the
+rejection reason; otherwise the row displays `contextLabel` as its property/unit context.
 
 ---
 
@@ -224,14 +224,13 @@ A queue whose first action needs a sideways scroll fails the acceptance gate.
 
 ---
 
-## 9. Open questions for Codex
+## 9. Resolved integration decisions
 
-1. **`tone` source.** Should tone come from the projection (preferred, one rule) or should the
-   contract expose the raw submission state and let a shared, non-React mapper resolve it?
-2. **`submittedByLabel` resolution.** Task 1 exposes `submittedByUserId`. Does the Finance read
-   model already join a display name, or does this need a lookup the plan's "no migration"
-   constraint permits?
-3. **Relative age.** The design formats `submittedAt` in the component. Confirm that counts as
-   formatting and not a business rule.
-4. **Blocked state.** Which `kind` values can be blocked, so the design covers the real set rather
-   than a guess?
+1. `tone` comes from the core projection; React never maps status strings to colours.
+2. `submittedByLabel` comes from the Finance-scoped, read-only actor-label RPC. The original
+   no-migration constraint moved by explicit exception because a safe auth-user label cannot be
+   resolved from the existing public Finance rows.
+3. Relative age formatting from `submittedAt` remains a presentation concern. The absolute value
+   stays available through `<time dateTime>` and title text.
+4. No current Finance queue kind is implicitly blocked. A future blocked workflow requires an
+   explicit core field; presentation must not infer it from `kind`, `tone`, or copy.

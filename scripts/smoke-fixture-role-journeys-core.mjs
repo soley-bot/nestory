@@ -1,3 +1,9 @@
+export const fixtureRoleViewports = [
+  { height: 900, name: "desktop", width: 1440 },
+  { height: 720, name: "laptop", width: 1280 },
+  { height: 844, name: "phone", width: 390 },
+];
+
 export const fixtureRoleJourneys = [
   {
     email: "nestory@gmail.com",
@@ -6,18 +12,18 @@ export const fixtureRoleJourneys = [
   },
   {
     email: "finance.manager@nestory.com",
-    expectedRecord: "Ref: GDN-PUMP-2088",
-    expectedRecordParts: [
-      "Maintenance cost",
-      "Garden Court",
-      "Ref: GDN-PUMP-2088",
-    ],
-    route: "/bills-expenses",
+    expectedRecord: "Maintenance cost",
+    route: "/finance",
   },
   {
     email: "finance.member@nestory.com",
-    expectedRecord: "Pisey Touch",
-    route: "/rent-income",
+    expectedAction: {
+      heading: "Record paid cost",
+      href: "/bills-expenses?action=create",
+      label: "Record paid cost",
+    },
+    expectedRecord: "Khmer Home Services",
+    route: "/finance",
   },
   {
     email: "operations.manager@nestory.com",
@@ -33,6 +39,7 @@ export const fixtureRoleJourneys = [
 
 const safeFailureReasons = new Set([
   "access denied",
+  "action did not complete",
   "login did not complete",
   "record not visible",
   "route did not load",

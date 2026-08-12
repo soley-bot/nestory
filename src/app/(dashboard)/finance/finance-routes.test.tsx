@@ -1,18 +1,42 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getFinanceOperationsData, requireFinanceContext, screenSpy } = vi.hoisted(
-  () => ({
+const {
+  buildFinanceWorkspaceData,
+  financeManagerWorkspaceSpy,
+  financeMemberWorkspaceSpy,
+  getFinanceOperationsData,
+  requireFinanceContext,
+  screenSpy,
+} = vi.hoisted(() => ({
+    buildFinanceWorkspaceData: vi.fn(),
+    financeManagerWorkspaceSpy: vi.fn(),
+    financeMemberWorkspaceSpy: vi.fn(),
     getFinanceOperationsData: vi.fn(),
     requireFinanceContext: vi.fn(),
     screenSpy: vi.fn(),
-  }),
-);
+  }));
 
 vi.mock("@/lib/auth/context", () => ({ requireFinanceContext }));
 vi.mock("@/features/finance-operations/data/finance-operations", () => ({
   getFinanceOperationsData,
 }));
+vi.mock("@/features/workspace-operations/finance-workspace", () => ({
+  buildFinanceWorkspaceData,
+}));
+vi.mock(
+  "@/features/workspace-operations/components/finance-workspace-screen",
+  () => ({
+    FinanceManagerWorkspace: (props: Record<string, unknown>) => {
+      financeManagerWorkspaceSpy(props);
+      return <div>Finance manager workspace</div>;
+    },
+    FinanceMemberWorkspace: (props: Record<string, unknown>) => {
+      financeMemberWorkspaceSpy(props);
+      return <div>Finance member workspace</div>;
+    },
+  }),
+);
 vi.mock(
   "@/features/finance-operations/components/finance-operations-screen",
   () => ({
@@ -32,6 +56,9 @@ describe("finance routes", () => {
     getFinanceOperationsData.mockReset();
     requireFinanceContext.mockReset();
     screenSpy.mockReset();
+    buildFinanceWorkspaceData.mockReset();
+    financeManagerWorkspaceSpy.mockReset();
+    financeMemberWorkspaceSpy.mockReset();
     getFinanceOperationsData.mockResolvedValue({
       rentGenerationExceptions: [],
       tenantInvoices: [],
@@ -39,11 +66,71 @@ describe("finance routes", () => {
   });
 
   it.each([
-    ["finance_manager", FinancePage, "work", true, false, true, true],
+    ["finance_manager", "Finance manager workspace", financeManagerWorkspaceSpy],
+    ["finance_member", "Finance member workspace", financeMemberWorkspaceSpy],
+  ] as const)(
+    "uses the %s projection as the /finance operating surface",
+    async (role, expectedText, workspaceSpy) => {
+      const financeData = {
+        expenseSubmissions: [],
+        ownerInvoices: [],
+        rentGenerationExceptions: [],
+        tenantInvoices: [],
+      };
+      const workspaceData =
+        role === "finance_manager"
+          ? {
+              queue: [],
+              role,
+              totals: {
+                awaitingReview: 0,
+                maintenanceHandoffs: 0,
+                missingEvidence: 0,
+                rentExceptions: 0,
+              },
+            }
+          : {
+              primaryAction: {
+                href: "/bills-expenses?action=create",
+                intent: "record-paid-cost",
+                label: "Record paid cost",
+              },
+              queue: [],
+              role,
+              totals: {
+                approvedRecently: 0,
+                awaitingReview: 0,
+                rejected: 0,
+              },
+            };
+      getFinanceOperationsData.mockResolvedValue(financeData);
+      requireFinanceContext.mockResolvedValue({
+        capabilities: {},
+        organizationId: "organization-1",
+        organizationName: "Nestory Test",
+        role,
+        userId: "user-1",
+      });
+      buildFinanceWorkspaceData.mockReturnValue(workspaceData);
+
+      const html = renderToStaticMarkup(await FinancePage());
+
+      expect(html).toContain(expectedText);
+      expect(buildFinanceWorkspaceData).toHaveBeenCalledWith({
+        data: financeData,
+        role,
+        userId: "user-1",
+      });
+      expect(workspaceSpy).toHaveBeenCalledWith({ data: workspaceData });
+      expect(screenSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
     ["finance_member", RentIncomePage, "rent", false, true, false, false],
     ["finance_member", BillsExpensesPage, "expenses", false, true, false, false],
   ] as const)(
-    "admits %s through Finance context with explicit capabilities",
+    "keeps %s domain routes behind explicit capabilities",
     async (
       role,
       page,
@@ -59,7 +146,7 @@ describe("finance routes", () => {
           canCorrectFinance: false,
           canManageFinanceOperations: false,
           canOperateFinance,
-          canReadFinanceReports: role === "finance_manager",
+          canReadFinanceReports: false,
           canReviewExpense,
           canReverseExpense: false,
           canRetryCurrentRent,
@@ -81,7 +168,7 @@ describe("finance routes", () => {
           canCorrectFinance: false,
           canRecordOwnerCash: canOperateFinance,
           canRecordPayments: canOperateFinance,
-          canReadFinanceReports: role === "finance_manager",
+          canReadFinanceReports: false,
           canRecoverRent: false,
           canReviewExpense,
           canReverseExpense: false,
@@ -126,6 +213,35 @@ describe("finance routes", () => {
         canRetryCurrentRent: true,
         canSubmitExpense: true,
       }),
+    );
+  });
+
+  it("opens the paid-cost entry drawer from the workspace create intent", async () => {
+    requireFinanceContext.mockResolvedValue({
+      capabilities: {
+        canConfigureLeases: false,
+        canCorrectFinance: false,
+        canManageFinanceOperations: false,
+        canOperateFinance: false,
+        canReadFinanceReports: false,
+        canReviewExpense: false,
+        canReverseExpense: false,
+        canRetryCurrentRent: false,
+        canSubmitExpense: true,
+      },
+      organizationId: "organization-1",
+      organizationName: "Nestory Test",
+      role: "finance_member",
+    });
+
+    renderToStaticMarkup(
+      await BillsExpensesPage({
+        searchParams: Promise.resolve({ action: "create" }),
+      }),
+    );
+
+    expect(screenSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ initialExpenseIntent: true }),
     );
   });
 });

@@ -61,7 +61,7 @@ const managerData: FinanceManagerWorkspaceData = {
 
 const memberData: FinanceMemberWorkspaceData = {
   primaryAction: {
-    href: "/bills-expenses",
+    href: "/bills-expenses?action=create",
     intent: "record-paid-cost",
     label: "Record paid cost",
   },
@@ -161,6 +161,34 @@ describe("Finance Member workspace", () => {
     expect(within(queue).queryByText("Submitted by")).toBeNull();
   });
 
+  it("uses property and unit context when the row is not rejected", () => {
+    render(
+      <FinanceMemberWorkspace
+        data={{
+          ...memberData,
+          queue: [
+            queueItem({
+              actionLabel: "Open",
+              contextLabel: "Garden Court · Unit G-01",
+              detail: "Quarterly pest control",
+              id: "own-awaiting",
+              kind: "expense-awaiting-review",
+              statusLabel: "Awaiting review",
+              tone: "warning",
+            }),
+          ],
+        }}
+      />,
+    );
+
+    const row = within(
+      screen.getByRole("table", { name: "Submission queue" }),
+    ).getAllByRole("row")[1]!;
+
+    expect(within(row).getByText("Garden Court · Unit G-01")).toBeTruthy();
+    expect(within(row).queryByText("Quarterly pest control")).toBeNull();
+  });
+
   it("offers the contract primary action when nothing has been submitted", () => {
     render(
       <FinanceMemberWorkspace
@@ -175,7 +203,7 @@ describe("Finance Member workspace", () => {
     expect(screen.getByText("No submissions yet")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Record paid cost" }).getAttribute("href"),
-    ).toBe("/bills-expenses");
+    ).toBe("/bills-expenses?action=create");
   });
 });
 

@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
 import {
   fixtureRoleJourneys,
+  fixtureRoleViewports,
   formatFixtureRoleJourneyFailure,
 } from "./smoke-fixture-role-journeys-core.mjs";
 
@@ -20,9 +21,9 @@ const browser = await chromium.launch({ headless: true });
 
 try {
   for (const journey of fixtureRoleJourneys) {
-    await runJourney(browser, journey);
+    const verifiedViewports = await runJourney(browser, journey);
     process.stdout.write(
-      `PASS ${journey.email} ${journey.route} (${journey.expectedRecord})\n`,
+      `PASS ${journey.email} ${journey.route} (${journey.expectedRecord}) ${verifiedViewports.join(",")}\n`,
     );
   }
 } finally {
@@ -31,30 +32,24 @@ try {
 
 async function runJourney(browserInstance, journey) {
   const context = await browserInstance.newContext({
-    viewport: { height: 900, width: 1440 },
+    viewport: fixtureRoleViewports[0],
   });
   const page = await context.newPage();
   let stage = "login";
 
   try {
     await authenticate(page, journey.email);
-    const response = await page.goto(new URL("/workspace", baseUrl).toString(), {
+    await page.goto(new URL("/workspace", baseUrl).toString(), {
       timeout: 30_000,
       waitUntil: "domcontentloaded",
     });
-    if (!response?.ok()) {
-      throw new FixtureJourneyError("route did not load");
-    }
-    await Promise.all([
-      page.waitForURL((url) => url.pathname !== "/workspace", {
-        timeout: 20_000,
-      }),
-      page.getByRole("link", { name: "Open workspace" }).click(),
-    ]);
+    await page.waitForURL((url) => url.pathname !== "/workspace", {
+      timeout: 20_000,
+    });
 
     stage = "route";
     if (new URL(page.url()).pathname !== journey.route) {
-      await openVisibleShellRoute(page, journey.route);
+      throw new FixtureJourneyError("route did not load");
     }
 
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
@@ -64,26 +59,27 @@ async function runJourney(browserInstance, journey) {
     }
 
     stage = "record";
-    try {
-      const expectedRecord = journey.expectedRecordParts
-        ? journey.expectedRecordParts.reduce(
-            (locator, part) => locator.filter({ hasText: part }),
-            page.getByRole("row"),
-          )
-        : page.getByText(journey.expectedRecord, { exact: true });
-      await expectedRecord.first().waitFor({
-        state: "visible",
-        timeout: 15_000,
-      });
-    } catch {
-      throw new FixtureJourneyError("record not visible");
+    const verifiedViewports = [];
+    for (const viewport of fixtureRoleViewports) {
+      await page.setViewportSize(viewport);
+      await assertWorkspaceViewport(page, journey);
+      verifiedViewports.push(viewport.name);
     }
+
+    if (journey.expectedAction) {
+      stage = "action";
+      await assertWorkspaceAction(page, journey.expectedAction);
+    }
+
+    return verifiedViewports;
   } catch (error) {
     const reason =
       error instanceof FixtureJourneyError
         ? error.reason
         : stage === "login"
           ? "login did not complete"
+          : stage === "action"
+            ? "action did not complete"
           : stage === "record"
             ? "record not visible"
             : "route did not load";
@@ -93,22 +89,64 @@ async function runJourney(browserInstance, journey) {
   }
 }
 
-async function openVisibleShellRoute(page, route) {
-  const financeRoutes = new Set(["/bills-expenses", "/rent-income"]);
-  if (financeRoutes.has(route)) {
-    const expand = page.getByRole("button", {
-      name: /(?:Expand|Collapse) Finance navigation/,
+async function assertWorkspaceAction(page, expectedAction) {
+  const action = await findVisibleLocator(
+    page.getByRole("link", { exact: true, name: expectedAction.label }),
+  );
+  await Promise.all([
+    page.waitForURL(
+      (url) => `${url.pathname}${url.search}` === expectedAction.href,
+      { timeout: 20_000 },
+    ),
+    action.click(),
+  ]);
+  await page
+    .getByRole("heading", { exact: true, name: expectedAction.heading })
+    .waitFor({ state: "visible", timeout: 15_000 });
+}
+
+async function assertWorkspaceViewport(page, journey) {
+  try {
+    const expectedRecords = journey.expectedRecordParts
+      ? journey.expectedRecordParts.reduce(
+          (locator, part) => locator.filter({ hasText: part }),
+          page.getByRole("row"),
+        )
+      : page.getByText(journey.expectedRecord, { exact: true });
+    const expectedRecord = await findVisibleLocator(expectedRecords);
+    await expectedRecord.waitFor({ state: "visible", timeout: 15_000 });
+
+    const overflow = await page.evaluate(() => {
+      const root = document.documentElement;
+      return root.scrollWidth > root.clientWidth + 1;
     });
-    if ((await expand.getAttribute("aria-expanded")) !== "true") {
-      await expand.click();
+    if (overflow) {
+      throw new Error("horizontal overflow");
+    }
+
+    const action = await findVisibleLocator(
+      page.locator('main a[href], main button:not([disabled])'),
+    );
+    await action.waitFor({ state: "visible", timeout: 15_000 });
+    await action.focus();
+    if (!(await action.evaluate((element) => element === document.activeElement))) {
+      throw new Error("first action did not receive focus");
+    }
+  } catch {
+    throw new FixtureJourneyError("record not visible");
+  }
+}
+
+async function findVisibleLocator(locator) {
+  const count = await locator.count();
+  for (let index = 0; index < count; index += 1) {
+    const candidate = locator.nth(index);
+    if (await candidate.isVisible()) {
+      return candidate;
     }
   }
 
-  const link = page.locator(`nav[aria-label="Global navigation"] a[href="${route}"]`);
-  await Promise.all([
-    page.waitForURL((url) => url.pathname === route, { timeout: 20_000 }),
-    link.click(),
-  ]);
+  return locator.first();
 }
 
 async function authenticate(page, email) {
