@@ -178,12 +178,14 @@ describe("AccessSettingsScreen", () => {
 
     const surface = screen.getByTestId("access-surface");
     expect(surface.className).not.toContain("xl:grid-cols");
+    // Pending has nothing in it, so it does not take up the page at all.
     expect(
       within(surface)
         .getAllByRole("heading", { level: 2 })
         .map((heading) => heading.textContent),
-    ).toEqual(["Needs access", "Pending", "Active"]);
-    for (const group of ["needs", "pending", "active"]) {
+    ).toEqual(["Needs access", "Active"]);
+    expect(screen.queryByTestId("access-pending-group")).toBeNull();
+    for (const group of ["needs", "active"]) {
       const section = screen.getByTestId(`access-${group}-group`);
       expect(section.className).toContain("rounded-xl");
       expect(section.className).toContain("bg-card");
@@ -199,7 +201,11 @@ describe("AccessSettingsScreen", () => {
         .getByRole("link", { name: "Grant workspace access for Mina Chen" })
         .getAttribute("href"),
     ).toBe(`/users-roles?personId=${person.id}`);
-    expect(screen.getByText("1 active account")).toBeTruthy();
+    // The heading names what is counted, so the badge is only the number.
+    expect(screen.queryByText(/active account/)).toBeNull();
+    expect(
+      within(screen.getByTestId("access-active-group")).getByText("1"),
+    ).toBeTruthy();
     expect(screen.queryByText(/Full workspace access, settings/i)).toBeNull();
     expect(within(surface).getByRole("button", { name: "Manage" })).toBeTruthy();
     expect(
@@ -457,29 +463,23 @@ describe("AccessSettingsScreen", () => {
     expect(within(addForm).getAllByText("Access scope").length).toBeGreaterThan(
       0,
     );
+    // Labelled controls carry their own meaning; the form ships no standing
+    // hint text restating what each field is for.
     expect(
-      within(addForm).getByText(
-        "The employee or contractor this login belongs to.",
-      ),
-    ).toBeTruthy();
+      within(addForm).queryByText(/The employee or contractor/),
+    ).toBeNull();
     expect(
-      within(addForm).getByText(
-        "The address used to sign in and receive the invitation.",
-      ),
-    ).toBeTruthy();
+      within(addForm).queryByText(/The address used to sign in/),
+    ).toBeNull();
     expect(
-      within(addForm).getByText("What this person may administer in Nestory."),
-    ).toBeTruthy();
+      within(addForm).queryByText(/may administer in Nestory/),
+    ).toBeNull();
     expect(
-      within(addForm).getByText(
-        "Which branch or property context this person may access.",
-      ),
-    ).toBeTruthy();
+      within(addForm).queryByText(/branch or property context/),
+    ).toBeNull();
     expect(
-      within(addForm).getByText(
-        "Workspace access controls sign-in permissions. It does not change the person's operational Staff role.",
-      ),
-    ).toBeTruthy();
+      within(addForm).queryByText(/controls sign-in permissions/),
+    ).toBeNull();
     const formCopy = addForm.textContent ?? "";
     expect(formCopy.indexOf("Staff member")).toBeLessThan(
       formCopy.indexOf("Invitation email"),
@@ -784,9 +784,10 @@ describe("AccessSettingsScreen", () => {
     });
 
     expect(
-      within(addForm).getByText(
-        "This sign-in email differs from Mina Chen's Staff email. The Staff record will not be changed.",
-      ),
+      within(addForm).getByText("Not Mina Chen's Staff email."),
+    ).toBeTruthy();
+    expect(
+      within(addForm).getByText("Mina Chen's Staff role is unchanged."),
     ).toBeTruthy();
     expect(
       (
@@ -959,10 +960,9 @@ describe("AccessSettingsScreen", () => {
     );
     expect(within(invitation).getByText("Invitation failed")).toBeTruthy();
     expect(
-      within(invitation).getByText(
-        "The invitation was created, but email delivery did not complete.",
-      ),
+      within(invitation).getByText("Created, but not delivered."),
     ).toBeTruthy();
+    expect(within(invitation).getByText("Not sent")).toBeTruthy();
   });
 
   it("shows each active Staff option once and excludes non-Staff or archived records", async () => {
@@ -1559,6 +1559,50 @@ describe("AccessSettingsScreen", () => {
     expect(
       await within(member).findByText("Access removed. Signing out..."),
     ).toBeTruthy();
+  });
+
+  it("gives the member roster one header row instead of labelling every cell", () => {
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[
+          admin,
+          {
+            ...admin,
+            id: "66666666-6666-4666-8666-666666666666",
+            userId: "77777777-7777-4777-8777-777777777777",
+          },
+        ]}
+        people={[person, adminPerson]}
+      />,
+    );
+    const active = screen.getByTestId("access-active-group");
+
+    expect(
+      within(active)
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent),
+    ).toEqual(["Member", "Access level", "Scope", "Staff link", "Actions"]);
+    // Two rows, but each field name is rendered once.
+    expect(within(active).getAllByText("Access level")).toHaveLength(1);
+    expect(within(active).getAllByRole("button", { name: "Manage" })).toHaveLength(2);
+  });
+
+  it("drops a group from the page when it holds nothing", () => {
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[adminPerson]}
+      />,
+    );
+
+    expect(screen.queryByTestId("access-needs-group")).toBeNull();
+    expect(screen.queryByTestId("access-pending-group")).toBeNull();
+    expect(screen.getByTestId("access-active-group")).toBeTruthy();
+    // The actions survive the group that used to host them.
+    expect(screen.getByRole("button", { name: "Invite Staff" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Add Staff" })).toBeTruthy();
   });
 
   it("identifies a member by name and shows the email once", () => {
