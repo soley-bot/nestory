@@ -465,7 +465,7 @@ git commit -m "feat: prioritize admin workspace attention"
 - Consumes: `ActivityChangeDetail[]`
 - Produces: `getOperatorActivityDetails(details): ActivityChangeDetail[]`
 
-- [ ] **Step 1: Write the failing sanitization test**
+- [x] **Step 1: Write the failing sanitization test**
 
 ```ts
 expect(getOperatorActivityDetails([
@@ -481,7 +481,7 @@ expect(getOperatorActivityDetails([
 
 The filter normalizes underscores and hyphens to spaces, then removes fields whose final token is exactly `id`, `uuid`, or `hash`, plus values that are bare UUIDs or 64-character hexadecimal hashes. It preserves human labels such as `Paid`, `Vendor`, and `Status`.
 
-- [ ] **Step 2: Run the test and confirm the formatter is absent**
+- [x] **Step 2: Run the test and confirm the formatter is absent**
 
 ```powershell
 npx vitest run src/features/workspace-operations/operator-activity.test.ts
@@ -489,7 +489,7 @@ npx vitest run src/features/workspace-operations/operator-activity.test.ts
 
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 3: Implement the pure formatter**
+- [x] **Step 3: Implement the pure formatter**
 
 ```ts
 export function getOperatorActivityDetails(
@@ -499,7 +499,7 @@ export function getOperatorActivityDetails(
 
 The function returns a new array. Technical values remain in the underlying activity record for audit and debugging; only the ordinary operator projection omits them.
 
-- [ ] **Step 4: Run the formatter test**
+- [x] **Step 4: Run the formatter test**
 
 ```powershell
 npx vitest run src/features/workspace-operations/operator-activity.test.ts
@@ -507,7 +507,7 @@ npx vitest run src/features/workspace-operations/operator-activity.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the presentation-safe activity projection**
+- [x] **Step 5: Commit the presentation-safe activity projection**
 
 ```powershell
 git add src/features/workspace-operations/operator-activity.ts src/features/workspace-operations/operator-activity.test.ts
