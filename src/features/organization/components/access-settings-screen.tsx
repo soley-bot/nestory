@@ -25,6 +25,7 @@ import {
   DraftActionBar,
   type DraftStatus,
 } from "@/components/ui/draft-action-bar";
+import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer, useDrawerDraftGuard } from "@/components/ui/side-drawer";
 import { signOutAction } from "@/features/auth/actions";
@@ -244,7 +245,9 @@ function AccessWorkspace({
 
   return (
     <div
-      className="mx-auto grid w-full max-w-6xl min-w-0 gap-2.5 px-3 py-3 sm:px-4"
+      // Same gutter ramp as PageHeader and the sibling Settings sections, so
+      // moving between Settings tabs does not shift the content sideways.
+      className="mx-auto grid w-full max-w-6xl min-w-0 gap-2.5 px-4 py-4 sm:px-6"
       data-testid="access-surface"
     >
       <Card
@@ -416,8 +419,10 @@ function InviteUserForm({
 }) {
   const guard = useSettingsNavigationGuard();
   const emailId = useId();
+  const emailErrorId = useId();
   const emailHelpId = useId();
   const emailLabelId = useId();
+  const staffErrorId = useId();
   const staffHelpId = useId();
   const staffLabelId = useId();
   const initialBranchId = branches.length === 1 ? branches[0]!.id : "";
@@ -444,24 +449,27 @@ function InviteUserForm({
       }
     },
     validate: (values) => {
+      const failures: Array<{
+        field: "branchId" | "email" | "personId";
+        message: string;
+      }> = [];
       if (isOperationsRole(values.role) && !values.personId) {
-        return {
-          field: "personId" as const,
-          message: "Choose a Staff member.",
-        };
+        failures.push({ field: "personId", message: "Choose a Staff member." });
       }
       if (isOperationsRole(values.role) && !values.branchId) {
-        return {
-          field: "branchId" as const,
+        failures.push({
+          field: "branchId",
           message: "Choose an operational branch.",
-        };
+        });
       }
-      return /^\S+@\S+\.\S+$/.test(values.email.trim())
-        ? undefined
-        : { field: "email" as const, message: "Enter a valid email." };
+      if (!/^\S+@\S+\.\S+$/.test(values.email.trim())) {
+        failures.push({ field: "email", message: "Enter a valid email." });
+      }
+      return failures;
     },
   });
   const emailRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const staffControlRef = useRef<HTMLDivElement>(null);
   const selectedPerson = people.find(
     (person) => person.id === draft.values.personId,
@@ -502,17 +510,27 @@ function InviteUserForm({
 
   useRegisterAccessDraft("add", draft.status, draft.discard, onDraftChange);
 
+  const focusInvalidField = useCallback((field: string) => {
+    if (field === "email") {
+      emailRef.current?.focus();
+      return;
+    }
+    if (field === "personId") {
+      staffControlRef.current
+        ?.querySelector<HTMLElement>("[role='combobox']")
+        ?.focus();
+      return;
+    }
+    if (field === "branchId") {
+      formRef.current
+        ?.querySelector<HTMLElement>("[aria-label='Access scope']")
+        ?.focus();
+    }
+  }, []);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void draft.submit((field) => {
-      if (field === "email") {
-        emailRef.current?.focus();
-      } else if (field === "personId") {
-        staffControlRef.current
-          ?.querySelector<HTMLElement>("[role='combobox']")
-          ?.focus();
-      }
-    });
+    void draft.submit(focusInvalidField);
   }
 
   function reviewDuplicateTarget() {
@@ -531,6 +549,7 @@ function InviteUserForm({
         className="flex min-h-full min-w-0 flex-col"
         data-testid="add-access-form"
         onSubmit={submit}
+        ref={formRef}
       >
         <div className="grid gap-4 px-5 py-5 sm:grid-cols-2">
           <div
@@ -539,7 +558,10 @@ function InviteUserForm({
           >
             <span id={staffLabelId}>Staff member</span>
             <PersonSelect
-              aria-describedby={staffHelpId}
+              aria-describedby={
+                draft.fieldErrors.personId ? staffErrorId : staffHelpId
+              }
+              aria-invalid={Boolean(draft.fieldErrors.personId)}
               aria-labelledby={staffLabelId}
               aria-required={!organizationWide}
               disabled={draft.status === "saving" || organizationWide}
@@ -556,19 +578,22 @@ function InviteUserForm({
               roles={["staff"]}
               value={draft.values.personId}
             />
-            <span
-              className="text-xs font-normal text-muted-foreground"
-              id={staffHelpId}
-            >
-              The employee or contractor this login belongs to.
-            </span>
+            <FieldNote
+              error={draft.fieldErrors.personId}
+              errorId={staffErrorId}
+              helpId={staffHelpId}
+              helpText="The employee or contractor this login belongs to."
+            />
           </div>
           <div className="grid gap-1.5 text-sm font-medium">
             <span id={emailLabelId}>Invitation email</span>
-            <input
-              aria-describedby={emailHelpId}
+            <Input
+              aria-describedby={
+                draft.fieldErrors.email ? emailErrorId : emailHelpId
+              }
+              aria-invalid={Boolean(draft.fieldErrors.email)}
               aria-labelledby={emailLabelId}
-              className="h-8 w-full rounded-md border border-border bg-card px-2.5 text-sm outline-none shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
+              aria-required="true"
               id={emailId}
               disabled={draft.status === "saving"}
               onChange={(event) => draft.setField("email", event.target.value)}
@@ -577,12 +602,12 @@ function InviteUserForm({
               type="email"
               value={draft.values.email}
             />
-            <span
-              className="text-xs font-normal text-muted-foreground"
-              id={emailHelpId}
-            >
-              The address used to sign in and receive the invitation.
-            </span>
+            <FieldNote
+              error={draft.fieldErrors.email}
+              errorId={emailErrorId}
+              helpId={emailHelpId}
+              helpText="The address used to sign in and receive the invitation."
+            />
           </div>
           <AccessSelect
             disabled={draft.status === "saving"}
@@ -610,9 +635,10 @@ function InviteUserForm({
               draft.status === "saving" || organizationWide
             }
             description="Which branch or property context this person may access."
+            error={draft.fieldErrors.branchId}
             label="Access scope"
             onValueChange={(value) => draft.setField("branchId", value)}
-            options={branchOptions(branches)}
+            options={branchOptions(branches, draft.values.role)}
             value={draft.values.branchId}
           />
           <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">
@@ -627,9 +653,10 @@ function InviteUserForm({
             </p>
           ) : null}
           {duplicateMessage ? (
-            <div className="flex justify-end rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm sm:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm sm:col-span-2">
+              <p className="min-w-0">{duplicateMessage}</p>
               <button
-                className="font-medium underline-offset-4 hover:underline"
+                className="shrink-0 font-medium underline-offset-4 hover:underline"
                 onClick={reviewDuplicateTarget}
                 type="button"
               >
@@ -651,21 +678,16 @@ function InviteUserForm({
         <div className="sticky bottom-0 z-10 w-full">
           <DraftActionBar
             describedBy="invite-access-effect"
-            disabledReason={duplicateMessage}
+            disabledReason={
+              duplicateMessage
+                ? "Review the existing access before sending a new invitation."
+                : undefined
+            }
             focusOnError={
               draft.errorKind === "server" && !guard?.suppressErrorFocus
             }
             onDiscard={draft.discard}
-            onSave={() =>
-              void draft.submit((field) => {
-                if (field === "email") emailRef.current?.focus();
-                if (field === "personId") {
-                  staffControlRef.current
-                    ?.querySelector<HTMLElement>("[role='combobox']")
-                    ?.focus();
-                }
-              })
-            }
+            onSave={() => void draft.submit(focusInvalidField)}
             saveLabel="Send invitation"
             status={draft.status}
             statusMessage={draft.message}
@@ -917,13 +939,17 @@ function MemberAccessForm({
   const guard = useSettingsNavigationGuard();
   const memberRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const collapseCancelRef = useRef<HTMLButtonElement>(null);
+  const collapseTriggerRef = useRef<HTMLButtonElement>(null);
   const removeCancelRef = useRef<HTMLButtonElement>(null);
   const removeTriggerRef = useRef<HTMLButtonElement>(null);
   const staffChangeCancelRef = useRef<HTMLButtonElement>(null);
   const staffChangeTriggerRef = useRef<HTMLElement>(null);
   const removing = useRef(false);
+  const collapseTitleId = useId();
   const removeTitleId = useId();
   const staffChangeTitleId = useId();
+  const [confirmingCollapse, setConfirmingCollapse] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [expanded, setExpanded] = useState(focused);
   const [confirmingStaffChange, setConfirmingStaffChange] = useState<
@@ -946,26 +972,40 @@ function MemberAccessForm({
       role: member.role,
     },
     validate: (values) => {
+      const failures: Array<{
+        field: "branchId" | "personId";
+        message: string;
+      }> = [];
       if (isOperationsRole(values.role) && !values.personId) {
-        return {
-          field: "personId" as const,
-          message: "Choose a Staff member.",
-        };
+        failures.push({ field: "personId", message: "Choose a Staff member." });
       }
       if (isOperationsRole(values.role) && !values.branchId) {
-        return {
-          field: "branchId" as const,
+        failures.push({
+          field: "branchId",
           message: "Choose an operational branch.",
-        };
+        });
       }
-      return undefined;
+      return failures;
     },
   });
   const lastAdministrator = member.role === "super_admin" && adminCount === 1;
   const blocksLastAdminDemotion =
     lastAdministrator && draft.values.role !== "super_admin";
-  const accountLabel = member.email ?? personLabel(member.personId, people);
   const linkedPerson = people.find((person) => person.id === member.personId);
+  // Lead with the person. Falling back to the email only when there is no name
+  // stops the row printing the same address twice while the name sits in a
+  // fourth column.
+  const accountLabel =
+    linkedPerson?.label ?? member.email ?? "Account without an email";
+  const accountDetail = linkedPerson?.label ? member.email : null;
+
+  const requestToggle = () => {
+    if (expanded && draft.status === "dirty") {
+      setConfirmingCollapse(true);
+      return;
+    }
+    setExpanded((value) => !value);
+  };
   const selectablePeople = activeStaffOptions(people);
   const linkingUnlinkedMember =
     !member.personId && Boolean(draft.values.personId);
@@ -1033,6 +1073,10 @@ function MemberAccessForm({
   }, [confirmingRemove]);
 
   useEffect(() => {
+    if (confirmingCollapse) collapseCancelRef.current?.focus();
+  }, [confirmingCollapse]);
+
+  useEffect(() => {
     if (removeStatus !== "success" || current) {
       return;
     }
@@ -1063,9 +1107,11 @@ function MemberAccessForm({
               <Badge tone="warning">Archived</Badge>
             ) : null}
           </div>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {member.email ?? "Email unavailable"}
-          </p>
+          {accountDetail ? (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {accountDetail}
+            </p>
+          ) : null}
         </div>
         <CompactFact
           label="Access level"
@@ -1084,15 +1130,22 @@ function MemberAccessForm({
           value={
             isOrganizationWideRole(member.role)
               ? "Not required"
-              : (linkedPerson?.label ?? "Not linked")
+              : linkedPerson
+                ? "Linked"
+                : "Not linked"
           }
           warning={isOperationsRole(member.role) && !member.personId}
         />
+        {/*
+          Collapsing a dirty row would hide unsaved edits. Rather than going
+          dead, the toggle asks — the same discard/continue choice the row
+          already uses for removal and staff relinking.
+        */}
         <Button
           aria-expanded={expanded}
           className="justify-self-start md:justify-self-end"
-          disabled={expanded && draft.status === "dirty"}
-          onClick={() => setExpanded((value) => !value)}
+          onClick={requestToggle}
+          ref={collapseTriggerRef}
           size="sm"
           type="button"
           variant="outline"
@@ -1104,6 +1157,46 @@ function MemberAccessForm({
           />
         </Button>
       </div>
+
+      {confirmingCollapse ? (
+        <div
+          aria-labelledby={collapseTitleId}
+          className="mx-3 mb-3 rounded-md border border-warning/30 bg-warning-soft p-3 text-sm"
+          role="alertdialog"
+        >
+          <p className="font-medium" id={collapseTitleId}>
+            Discard unsaved access changes?
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            Closing this row without saving returns it to its current access.
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              className="h-8 rounded-md px-3 font-medium"
+              onClick={() => {
+                setConfirmingCollapse(false);
+                collapseTriggerRef.current?.focus();
+              }}
+              ref={collapseCancelRef}
+              type="button"
+            >
+              Keep editing
+            </button>
+            <button
+              className="h-8 rounded-md border border-warning/30 px-3 font-medium"
+              onClick={() => {
+                setConfirmingCollapse(false);
+                draft.discard();
+                setExpanded(false);
+                collapseTriggerRef.current?.focus();
+              }}
+              type="button"
+            >
+              Discard and close
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {expanded ? (
         <form
@@ -1151,7 +1244,8 @@ function MemberAccessForm({
               }
               label="Access scope"
               onValueChange={(value) => draft.setField("branchId", value)}
-              options={branchOptions(branches)}
+              error={draft.fieldErrors.branchId}
+              options={branchOptions(branches, draft.values.role)}
               value={draft.values.branchId}
             />
             <label className="grid min-w-0 gap-1.5 text-sm font-medium">
@@ -1326,6 +1420,7 @@ function CompactFact({
 function AccessSelect({
   description,
   disabled = false,
+  error,
   label,
   onValueChange,
   options,
@@ -1333,6 +1428,7 @@ function AccessSelect({
 }: {
   description?: string;
   disabled?: boolean;
+  error?: string;
   label: string;
   onValueChange: (value: string) => void;
   options: Array<{ label: string; value: string }>;
@@ -1348,12 +1444,49 @@ function AccessSelect({
         options={options}
         value={value}
       />
-      {description ? (
+      {error ? (
+        <span className="text-xs font-normal leading-5 text-danger">
+          {error}
+        </span>
+      ) : description ? (
         <span className="text-xs font-normal text-muted-foreground">
           {description}
         </span>
       ) : null}
     </label>
+  );
+}
+
+/**
+ * Help text and its error share one slot: the error replaces the hint rather
+ * than stacking under it, so a control never grows when it goes invalid.
+ */
+function FieldNote({
+  error,
+  errorId,
+  helpId,
+  helpText,
+}: {
+  error?: string;
+  errorId: string;
+  helpId: string;
+  helpText: string;
+}) {
+  if (error) {
+    return (
+      <span
+        className="text-xs font-normal leading-5 text-danger"
+        id={errorId}
+      >
+        {error}
+      </span>
+    );
+  }
+
+  return (
+    <span className="text-xs font-normal text-muted-foreground" id={helpId}>
+      {helpText}
+    </span>
   );
 }
 
@@ -1369,6 +1502,13 @@ function useRegisterAccessDraft(
   }, [discard, id, onDraftChange, status]);
 }
 
+type DraftFieldError<TValues> = { field: keyof TValues; message: string };
+
+/**
+ * A form that reports one failure at a time makes the caller submit, fix,
+ * submit again to discover the next one. Validation returns every failure so
+ * each control can carry its own message.
+ */
 function useAccessDraft<TValues extends Record<string, string>>({
   action,
   baselineValues,
@@ -1385,9 +1525,7 @@ function useAccessDraft<TValues extends Record<string, string>>({
   initialStatus?: DraftStatus;
   initialValues: TValues;
   onResult?: (result: OrganizationActionState) => void;
-  validate?: (
-    values: TValues,
-  ) => { field: keyof TValues; message: string } | undefined;
+  validate?: (values: TValues) => DraftFieldError<TValues>[];
 }) {
   const baseline = useRef({ ...(baselineValues ?? initialValues) });
   const alive = useRef(true);
@@ -1395,6 +1533,9 @@ function useAccessDraft<TValues extends Record<string, string>>({
   const submission = useRef(0);
   const [message, setMessage] = useState<string>();
   const [errorKind, setErrorKind] = useState<"server" | "validation">();
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<keyof TValues, string>>
+  >({});
   const [status, setStatus] = useState<DraftStatus>(initialStatus);
   const [values, setValues] = useState<TValues>({ ...initialValues });
 
@@ -1427,6 +1568,7 @@ function useAccessDraft<TValues extends Record<string, string>>({
     submitting.current = false;
     setMessage(undefined);
     setErrorKind(undefined);
+    setFieldErrors({});
     setStatus("clean");
     setValues({ ...baseline.current });
   }, []);
@@ -1438,6 +1580,7 @@ function useAccessDraft<TValues extends Record<string, string>>({
       }
       setMessage(undefined);
       setErrorKind(undefined);
+      setFieldErrors({});
       setValues((current) => {
         const next = { ...current, [key]: value };
         const clean = Object.keys(baseline.current).every(
@@ -1455,15 +1598,27 @@ function useAccessDraft<TValues extends Record<string, string>>({
       if (submitting.current) {
         return;
       }
-      const validation = validate?.(values);
-      if (validation) {
-        setMessage(validation.message);
+      const validation = validate?.(values) ?? [];
+      if (validation.length > 0) {
+        // The specific wording lives on each control; the bar carries a count so
+        // it does not repeat text the field already shows.
+        setFieldErrors(
+          Object.fromEntries(
+            validation.map((failure) => [failure.field, failure.message]),
+          ) as Partial<Record<keyof TValues, string>>,
+        );
+        setMessage(
+          validation.length === 1
+            ? "Check the highlighted field."
+            : `Check the ${validation.length} highlighted fields.`,
+        );
         setErrorKind("validation");
         setStatus("error");
-        requestAnimationFrame(() => onInvalid?.(validation.field));
+        requestAnimationFrame(() => onInvalid?.(validation[0]!.field));
         return;
       }
 
+      setFieldErrors({});
       submitting.current = true;
       const currentSubmission = submission.current + 1;
       submission.current = currentSubmission;
@@ -1506,7 +1661,16 @@ function useAccessDraft<TValues extends Record<string, string>>({
     [action, onResult, validate, values],
   );
 
-  return { discard, errorKind, message, setField, status, submit, values };
+  return {
+    discard,
+    errorKind,
+    fieldErrors,
+    message,
+    setField,
+    status,
+    submit,
+    values,
+  };
 }
 
 function invitationWasPersisted(result: OrganizationActionState) {
@@ -1545,14 +1709,20 @@ function accessRows(
   ];
 }
 
-function branchOptions(branches: OrganizationBranch[]) {
-  return [
-    { label: "All branches", value: "" },
-    ...branches.map((branch) => ({
-      label: `${branch.code} - ${branch.name}`,
-      value: branch.id,
-    })),
-  ];
+/**
+ * "All branches" is a real scope for organization-wide roles and an invalid one
+ * for Operations roles, which must name a branch. Offering it to Operations lets
+ * the form build a grant it will then refuse to send.
+ */
+function branchOptions(branches: OrganizationBranch[], role: string) {
+  const branchEntries = branches.map((branch) => ({
+    label: `${branch.code} - ${branch.name}`,
+    value: branch.id,
+  }));
+
+  return isOperationsRole(role)
+    ? branchEntries
+    : [{ label: "All branches", value: "" }, ...branchEntries];
 }
 
 function branchLabel(branchId: string, branches: OrganizationBranch[]) {

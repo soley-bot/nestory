@@ -1560,4 +1560,252 @@ describe("AccessSettingsScreen", () => {
       await within(member).findByText("Access removed. Signing out..."),
     ).toBeTruthy();
   });
+
+  it("identifies a member by name and shows the email once", () => {
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person, adminPerson]}
+      />,
+    );
+    const member = screen.getByTestId(`access-member-${admin.id}`);
+
+    expect(within(member).getByText(adminPerson.label)).toBeTruthy();
+    expect(within(member).getAllByText(admin.email)).toHaveLength(1);
+  });
+
+  it("falls back to the email when no Staff record is linked", () => {
+    const unlinked = {
+      ...admin,
+      email: "unlinked@example.com",
+      id: "99999999-9999-4999-8999-999999999999",
+      personId: null,
+      userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    };
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[unlinked]}
+        people={[person]}
+      />,
+    );
+    const member = screen.getByTestId(`access-member-${unlinked.id}`);
+
+    expect(within(member).getAllByText(unlinked.email)).toHaveLength(1);
+  });
+
+  it("asks before closing a dirty row instead of ignoring the click", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[
+          admin,
+          {
+            ...admin,
+            id: "66666666-6666-4666-8666-666666666666",
+            userId: "77777777-7777-4777-8777-777777777777",
+          },
+        ]}
+        people={[person, adminPerson]}
+      />,
+    );
+    const member = getExpandedMember(admin.id);
+    await user.click(
+      within(member).getByRole("combobox", { name: "Access level" }),
+    );
+    await user.click(screen.getByRole("option", { name: "Finance Manager" }));
+
+    const close = within(member).getByRole("button", { name: /Close/ });
+    expect((close as HTMLButtonElement).disabled).toBe(false);
+    await user.click(close);
+
+    const dialog = within(member).getByRole("alertdialog");
+    expect(
+      within(dialog).getByText("Discard unsaved access changes?"),
+    ).toBeTruthy();
+    expect(document.activeElement).toBe(
+      within(dialog).getByRole("button", { name: "Keep editing" }),
+    );
+
+    // Keeping the edit leaves the row open and the draft intact.
+    await user.click(within(dialog).getByRole("button", { name: "Keep editing" }));
+    expect(within(member).getByRole("combobox", { name: "Access level" })).toBeTruthy();
+
+    await user.click(within(member).getByRole("button", { name: /Close/ }));
+    await user.click(
+      within(member).getByRole("button", { name: "Discard and close" }),
+    );
+
+    await waitFor(() =>
+      expect(within(member).queryByRole("combobox", { name: "Access level" })).toBeNull(),
+    );
+    expect(within(member).getByRole("button", { name: /Manage/ })).toBeTruthy();
+    expect(updateAccess).not.toHaveBeenCalled();
+  });
+
+  it("withholds All branches from a role that must name one", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+    const addForm = getInviteForm();
+
+    // Operations Member is the default role.
+    await user.click(
+      within(addForm).getByRole("combobox", { name: "Access scope" }),
+    );
+    expect(screen.queryByRole("option", { name: "All branches" })).toBeNull();
+    expect(screen.getByRole("option", { name: /Bangkok/ })).toBeTruthy();
+  });
+
+  it("keeps All branches as the scope an organization-wide role resolves to", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+    const addForm = getInviteForm();
+
+    await user.click(
+      within(addForm).getByRole("combobox", { name: "Access level" }),
+    );
+    await user.click(screen.getByRole("option", { name: "Finance Manager" }));
+
+    const scope = within(addForm).getByRole("combobox", {
+      name: "Access scope",
+    }) as HTMLButtonElement;
+    expect(scope.disabled).toBe(true);
+    expect(scope.textContent).toContain("All branches");
+  });
+
+  it("marks the offending control invalid and describes it with its own error", async () => {
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+    const addForm = getInviteForm();
+    fireEvent.change(within(addForm).getByLabelText("Invitation email"), {
+      target: { value: "someone@example.com" },
+    });
+    fireEvent.click(
+      within(addForm).getByRole("button", { name: "Send invitation" }),
+    );
+
+    const staff = within(addForm).getByRole("combobox", {
+      name: "Staff member",
+    });
+    await waitFor(() =>
+      expect(staff.getAttribute("aria-invalid")).toBe("true"),
+    );
+    const describedBy = staff.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(describedBy)?.textContent).toBe(
+      "Choose a Staff member.",
+    );
+    expect(addAccess).not.toHaveBeenCalled();
+  });
+
+  it("reports every unmet requirement instead of one at a time", async () => {
+    render(
+      <AccessSettingsScreen
+        branches={[
+          branch,
+          {
+            ...branch,
+            code: "CNX",
+            id: "55555555-5555-4555-8555-555555555555",
+            name: "Chiang Mai",
+          },
+        ]}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+    const addForm = getInviteForm();
+    // Two branches, so nothing is preselected. A bad email makes the draft dirty
+    // without satisfying anything: staff, scope and email all fail together.
+    fireEvent.change(within(addForm).getByLabelText("Invitation email"), {
+      target: { value: "not-an-email" },
+    });
+    fireEvent.click(
+      within(addForm).getByRole("button", { name: "Send invitation" }),
+    );
+
+    expect(
+      await within(addForm).findByText("Choose a Staff member."),
+    ).toBeTruthy();
+    expect(
+      within(addForm).getByText("Choose an operational branch."),
+    ).toBeTruthy();
+    expect(within(addForm).getByText("Enter a valid email.")).toBeTruthy();
+    expect(
+      within(addForm).getByText("Check the 3 highlighted fields."),
+    ).toBeTruthy();
+  });
+
+  it("clears field errors once the caller edits the form again", async () => {
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person]}
+      />,
+    );
+    const addForm = getInviteForm();
+    const email = within(addForm).getByLabelText("Invitation email");
+    fireEvent.change(email, { target: { value: "someone@example.com" } });
+    fireEvent.click(
+      within(addForm).getByRole("button", { name: "Send invitation" }),
+    );
+    expect(
+      await within(addForm).findByText("Choose a Staff member."),
+    ).toBeTruthy();
+
+    fireEvent.change(email, { target: { value: "someone.else@example.com" } });
+
+    await waitFor(() =>
+      expect(within(addForm).queryByText("Choose a Staff member.")).toBeNull(),
+    );
+  });
+
+  it("states why a duplicate blocks the invitation next to the review action", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person, adminPerson]}
+      />,
+    );
+    const addForm = getInviteForm();
+    await user.click(
+      within(addForm).getByRole("combobox", { name: "Staff member" }),
+    );
+    await user.click(screen.getByRole("option", { name: /Admin Staff/ }));
+
+    const notice = within(addForm)
+      .getByText("This Staff member already has workspace access.")
+      .closest("div");
+    expect(notice).not.toBeNull();
+    expect(
+      within(notice as HTMLElement).getByRole("button", {
+        name: "Review access",
+      }),
+    ).toBeTruthy();
+    expect(
+      (within(addForm).getByRole("button", { name: "Send invitation" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
 });

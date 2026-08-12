@@ -193,7 +193,9 @@ export function PersonSelect({
           aria-labelledby={ariaLabelledBy}
           aria-required={ariaRequired}
           className={cn(
-            "h-9 w-full rounded-md border border-input bg-card pl-9 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
+            // Height and radius track the shared Input and SelectControl, so a
+            // person picker sitting beside either one lines up with it.
+            "h-8 w-full rounded-lg border border-input bg-card pl-9 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
             allowClear && selectedOption ? "pr-16" : "pr-9",
           )}
           disabled={disabled}
