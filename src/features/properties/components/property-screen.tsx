@@ -210,11 +210,6 @@ export function PropertyScreen({
               </Button>
             ) : undefined
           }
-          body={
-            hasFilters
-              ? "The current filters return no property records."
-              : "Your portfolio is empty."
-          }
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}
           title={hasFilters ? "No matching properties" : "No properties yet"}

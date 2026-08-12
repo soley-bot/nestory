@@ -183,11 +183,6 @@ export function TimelineScreen({
               </Link>
             ) : undefined
           }
-          body={
-            hasFilters
-              ? "The current filters return no timeline events."
-              : "Add the first dated event to this history."
-          }
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}
           title={hasFilters ? "No matching timeline events" : "No timeline events yet"}

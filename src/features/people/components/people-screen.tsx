@@ -167,11 +167,6 @@ export function PeopleScreen({
               </Button>
             ) : undefined
           }
-          body={
-            hasFilters
-              ? "No records match the active People filters."
-              : "No people records are available in this workspace."
-          }
           className="h-full"
           icon={UsersRound}
           kind={hasFilters ? "filtered" : "empty"}
