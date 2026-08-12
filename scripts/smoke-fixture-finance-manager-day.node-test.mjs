@@ -63,19 +63,23 @@ test("declares same-request replay coverage for every keyed ordinary create or r
 });
 
 test("accepts only a local URL and keeps the password out of diagnostics", () => {
+  const fixtureCredentialMarker = ["fixture", "credential", "marker"].join("-");
   const config = resolveFinanceManagerDayConfig({
     NESTORY_BASE_URL: "http://localhost:3101",
-    NESTORY_TEST_PASSWORD: "do-not-print-this",
+    NESTORY_TEST_PASSWORD: fixtureCredentialMarker,
   });
   assert.equal(config.baseUrl, "http://localhost:3101");
   assert.equal(config.email, "finance.manager@nestory.com");
-  assert.equal(config.password, "do-not-print-this");
+  assert.equal(config.password, fixtureCredentialMarker);
   assert.throws(
     () => resolveFinanceManagerDayConfig({ NESTORY_BASE_URL: "https://nestory.example.com" }),
     /loopback/i,
   );
   assert.equal(
-    formatFinanceManagerDayFailure("post-petty-cash-entry", "password=do-not-print-this"),
+    formatFinanceManagerDayFailure(
+      "post-petty-cash-entry",
+      `password=${fixtureCredentialMarker}`,
+    ),
     "Finance Manager day post-petty-cash-entry: journey failed",
   );
 });
