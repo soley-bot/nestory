@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for account and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(24);
+SELECT plan(30);
 
 SELECT has_column(
   'public',
@@ -51,6 +51,7 @@ CREATE TEMP TABLE owner_account_state (
   through_tenant_id uuid NOT NULL,
   direct_tenant_id uuid NOT NULL,
   through_invoice_id uuid,
+  through_payment_id uuid,
   direct_invoice_id uuid,
   through_property_id uuid,
   direct_property_id uuid,
@@ -116,6 +117,21 @@ JOIN public.property_finance_positions AS position
 WHERE through_lease.organization_id = '00000000-0000-0000-0000-000000000001'
   AND through_lease.primary_tenant_person_id = '80000000-0000-0000-0000-000000000001';
 GRANT SELECT, UPDATE ON owner_account_state TO authenticated;
+
+CREATE FUNCTION pg_temp.try_uuid(statement text) RETURNS uuid
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  result uuid;
+BEGIN
+  EXECUTE statement INTO result;
+  RETURN result;
+EXCEPTION
+  WHEN insufficient_privilege OR invalid_parameter_value THEN
+  RETURN NULL;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.try_uuid(text) TO authenticated;
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -236,12 +252,20 @@ SELECT lives_ok(
   'property account has a receipt source'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
-    SELECT public.record_tenant_invoice_payment(
+    UPDATE owner_account_state
+    SET through_payment_id = public.record_tenant_invoice_payment(
       organization_id,
       through_invoice_id,
-      850,
+      850.00::numeric(14, 2),
       current_date,
       source_id,
       'Full rent',
@@ -253,15 +277,108 @@ SELECT lives_ok(
             WHERE invoice_id = through_invoice_id
               AND line_type = 'rent'
           ),
-          'amount', 850
+          'amount', 850.00::numeric(14, 2)
         )
       ),
       'account-through-payment-0001'
     )
-    FROM owner_account_state
   $$,
-  'full rent collection settles the management fee from held cash'
+  'Finance Manager full rent collection settles the management fee from held cash'
 );
+
+SELECT is(
+  pg_temp.try_uuid(format(
+    'SELECT public.record_tenant_invoice_payment(%L,%L,850.00::numeric(14,2),current_date,%L,%L,%L::jsonb,%L)',
+    organization_id,
+    through_invoice_id,
+    source_id,
+    'Full rent',
+    jsonb_build_array(jsonb_build_object(
+      'lineId', (
+        SELECT id
+        FROM public.tenant_invoice_lines
+        WHERE invoice_id = through_invoice_id
+          AND line_type = 'rent'
+      ),
+      'amount', 850.00::numeric(14, 2)
+    ))::text,
+    'account-through-payment-0001'
+  )),
+  through_payment_id,
+  'an exact fully settled Finance Manager replay returns the original payment'
+)
+FROM owner_account_state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM owner_account_state),
+  true
+);
+RESET ROLE;
+
+INSERT INTO public.financial_month_locks (
+  organization_id,
+  month_start,
+  is_locked,
+  locked_at,
+  locked_by,
+  reason
+)
+SELECT
+  organization_id,
+  date_trunc('month', current_date)::date,
+  true,
+  now(),
+  admin_id,
+  'Completed tenant-payment replay must remain immutable'
+FROM owner_account_state
+ON CONFLICT (organization_id, month_start) DO UPDATE
+SET is_locked = EXCLUDED.is_locked,
+    locked_at = EXCLUDED.locked_at,
+    locked_by = EXCLUDED.locked_by,
+    reason = EXCLUDED.reason;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  format(
+    'SELECT public.record_tenant_invoice_payment(%L,%L,850.00::numeric(14,2),current_date,%L,%L,%L::jsonb,%L)',
+    organization_id,
+    through_invoice_id,
+    source_id,
+    'Full rent',
+    jsonb_build_array(jsonb_build_object(
+      'lineId', (
+        SELECT id
+        FROM public.tenant_invoice_lines
+        WHERE invoice_id = through_invoice_id
+          AND line_type = 'rent'
+      ),
+      'amount', 850.00::numeric(14, 2)
+    ))::text,
+    'account-through-payment-0001'
+  ),
+  '22023',
+  'Financial month is locked',
+  'a later month lock remains authoritative before tenant-payment replay'
+)
+FROM owner_account_state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM owner_account_state),
+  true
+);
+RESET ROLE;
+
+DELETE FROM public.financial_month_locks
+WHERE organization_id = (SELECT organization_id FROM owner_account_state)
+  AND month_start = date_trunc('month', current_date)::date;
 
 SELECT results_eq(
   $$
@@ -285,20 +402,64 @@ SELECT results_eq(
   'property position separates owner balance, IPS-held cash, and safe withdrawal'
 );
 
-SELECT lives_ok(
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
   $$
-    UPDATE owner_account_state
-    SET withdrawal_id = public.record_property_withdrawal(
+    SELECT public.record_property_withdrawal(
       organization_id,
       through_property_id,
       400,
       current_date,
       'Owner bank transfer',
       'account-withdrawal-0001'
-    )
+    ) FROM owner_account_state
   $$,
-  'Super Admin can withdraw only the remaining property cash'
+  '42501',
+  'permission denied for function record_property_withdrawal',
+  'Finance Manager cannot use the retired owner-ambiguous withdrawal command'
 );
+
+SELECT is(
+  (
+    SELECT count(*)
+    FROM public.property_withdrawals
+    WHERE idempotency_key = 'account-withdrawal-0001'
+  ),
+  0::bigint,
+  'denied ambiguous withdrawal leaves no partial source row'
+);
+
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'public.property_withdrawals', 'UPDATE'),
+  'Finance Manager cannot bypass the checked RPC with direct withdrawal DML'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM owner_account_state), true);
+RESET ROLE;
+
+UPDATE owner_account_state
+SET withdrawal_id = public.record_property_withdrawal(
+  organization_id,
+  through_property_id,
+  400,
+  current_date,
+  'Owner bank transfer',
+  'account-withdrawal-0001'
+)
+WHERE withdrawal_id IS NULL;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
 
 SELECT results_eq(
   $$
@@ -329,16 +490,18 @@ SELECT ok(
   'withdrawal owns one source-linked operational Ledger event'
 );
 
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM owner_account_state), true);
+
 SELECT results_eq(
   $$
-    SELECT public.record_property_withdrawal(
+    SELECT pg_temp.try_uuid(format(
+      'SELECT public.record_property_withdrawal(%L,%L,400,current_date,%L,%L)',
       organization_id,
       through_property_id,
-      400,
-      current_date,
       'Owner bank transfer',
       'account-withdrawal-0001'
-    )
+    ))
     FROM owner_account_state
   $$,
   $$SELECT withdrawal_id FROM owner_account_state$$,
@@ -382,6 +545,9 @@ SELECT throws_ok(
   'Withdrawal exceeds available property cash',
   'withdrawal cannot overdraw IPS-held property cash'
 );
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM owner_account_state), true);
+RESET ROLE;
 
 SELECT lives_ok(
   $$
@@ -490,6 +656,13 @@ SELECT results_eq(
   'direct-owner collection adds owner income without adding to IPS-held cash'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
     UPDATE owner_account_state
@@ -505,8 +678,27 @@ SELECT lives_ok(
       'account-owner-payment-0001'
     )
   $$,
-  'owner can pay IPS directly when no rent cash is held'
+  'Finance Manager can record an owner payment when no rent cash is held'
 );
+
+SELECT is(
+  (SELECT created_by FROM public.owner_payments WHERE id = (SELECT owner_payment_id FROM owner_account_state)),
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  'owner payment records the Finance Manager actor'
+);
+
+SELECT is(
+  pg_temp.try_uuid(format(
+    'SELECT public.record_owner_invoice_payment(%L,%L,65,current_date,%L,%L)',
+    organization_id,
+    (SELECT id FROM public.owner_invoice_balances WHERE property_id = direct_property_id ORDER BY issue_date DESC LIMIT 1),
+    'Owner paid management fee',
+    'account-owner-payment-0001'
+  )),
+  owner_payment_id,
+  'an exact Finance Manager owner-payment retry returns the original record'
+)
+FROM owner_account_state;
 
 SELECT results_eq(
   $$

@@ -98,8 +98,51 @@ export async function getReportsScreenData(
 
 export function prepareTrustedReportForScreen(
   report: TrustedReport,
+  options: { financeSafeRecords?: boolean } = {},
 ): TrustedReport {
-  return trimTrustedReportForScreen(report);
+  const prepared = options.financeSafeRecords
+    ? makeReportRecordsFinanceSafe(report)
+    : report;
+  return trimTrustedReportForScreen(prepared);
+}
+
+function makeReportRecordsFinanceSafe(report: TrustedReport): TrustedReport {
+  return {
+    ...report,
+    rows: report.rows.map((row) => ({
+      ...row,
+      href: toFinanceSafeRecordHref(row.href),
+      sourceLinks: row.sourceLinks.map((source) => ({
+        ...source,
+        href: toFinanceSafeRecordHref(source.href),
+      })),
+    })),
+  };
+}
+
+function toFinanceSafeRecordHref(href?: string) {
+  if (!href) return undefined;
+
+  const propertyMatch = href.match(/^\/properties\/([^/?]+)(?:[/?]|$)/);
+  if (propertyMatch) {
+    return `/properties/${propertyMatch[1]}/account`;
+  }
+
+  const allowedPrefixes = [
+    "/balances",
+    "/bills-expenses",
+    "/finance",
+    "/leases",
+    "/ledger",
+    "/petty-cash",
+    "/rent-income",
+    "/reports",
+  ];
+  return allowedPrefixes.some(
+    (prefix) => href === prefix || href.startsWith(`${prefix}?`) || href.startsWith(`${prefix}/`),
+  )
+    ? href
+    : undefined;
 }
 
 function trimTrustedReportForScreen(report: TrustedReport): TrustedReport {

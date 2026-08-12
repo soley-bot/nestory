@@ -49,7 +49,7 @@ export function ReportsFilters({
           <ScopeField label="Property">
             <SelectControl
               ariaLabel="Filter report by property"
-              className="h-8 w-[220px] px-2.5 text-[13px]"
+              className="h-8 w-[220px] px-2.5 text-sm"
               defaultValue={viewQuery.propertyId}
               name="propertyId"
               options={[
@@ -65,7 +65,7 @@ export function ReportsFilters({
           <ScopeField label="Month">
             <MonthPickerField
               ariaLabel="Report month"
-              className="h-8 w-[160px] px-2.5 text-[13px]"
+              className="h-8 w-[160px] px-2.5 text-sm"
               defaultValue={viewQuery.month}
               name="month"
             />
@@ -75,7 +75,7 @@ export function ReportsFilters({
             <ScopeField label="Unit">
               <SelectControl
                 ariaLabel="Filter report by unit"
-                className="h-8 w-[220px] px-2.5 text-[13px]"
+                className="h-8 w-[220px] px-2.5 text-sm"
                 defaultValue={viewQuery.unitId}
                 name="unitId"
                 options={[
@@ -91,7 +91,7 @@ export function ReportsFilters({
 
           <Button
             aria-label="Apply filters"
-            className="h-8 gap-1.5 px-3 text-[13px]"
+            className="h-8 gap-1.5 px-3 text-sm"
             type="submit"
           >
             <SlidersHorizontal size={14} />

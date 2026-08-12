@@ -30,6 +30,9 @@ describe("LedgerTable", () => {
     expect(row.classList.contains("border-t")).toBe(true);
     expect(row.getAttribute("tabindex")).toBe("0");
     expect(row.getAttribute("aria-selected")).toBe("false");
+    expect(within(row).getByRole("link", { name: "Home" }).getAttribute("href")).toBe(
+      "/properties/property-1/account",
+    );
 
     fireEvent.keyDown(row, { key: "Enter" });
     expect(onSelectEntry).toHaveBeenCalledWith(entry.id);

@@ -40,8 +40,8 @@ export function PeopleTable({
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid h-full min-h-[380px] auto-rows-max content-start gap-3 overflow-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
-            : "h-full min-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
+            ? "grid h-full auto-rows-max content-start gap-3 overflow-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
+            : "h-full space-y-3 overflow-auto pr-1 md:hidden",
         )}
       >
         {people.length === 0 ? (
@@ -61,27 +61,27 @@ export function PeopleTable({
 
       {displayMode === "table" ? (
         <div
-          className="hidden h-full min-h-[380px] overflow-hidden md:block"
+          className="hidden h-full overflow-hidden md:block"
           data-slot="people-table-frame"
         >
           <div className="h-full overflow-auto">
-            <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
               {isRoleScoped ? (
                 <colgroup>
-                  <col className="w-[26%]" />
                   <col className="w-[22%]" />
-                  <col className="w-[15%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[14%]" />
                   <col className="w-[24%]" />
-                  <col className="w-[13%]" />
+                  <col className="w-[18%]" />
                 </colgroup>
               ) : (
                 <colgroup>
-                  <col className="w-[24%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[20%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[22%]" />
                   <col className="w-[14%]" />
-                  <col className="w-[23%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[10%]" />
                 </colgroup>
               )}
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
@@ -123,7 +123,10 @@ export function PeopleTable({
                     </td>
                   </tr>
                 ) : null}
-                {people.map((person) => (
+                {people.map((person) => {
+                  const secondaryName = getSecondaryName(person);
+
+                  return (
                   <tr
                     className={cn(
                       "border-t border-border transition-colors hover:bg-muted/50",
@@ -142,12 +145,14 @@ export function PeopleTable({
                         >
                           {person.displayName}
                         </Link>
-                        <p
-                          className="mt-0.5 truncate text-xs text-muted-foreground"
-                          title={person.legalName ?? person.partyTypeLabel}
-                        >
-                          {person.legalName ?? person.partyTypeLabel}
-                        </p>
+                        {secondaryName ? (
+                          <p
+                            className="mt-0.5 truncate text-xs text-muted-foreground"
+                            title={secondaryName}
+                          >
+                            {secondaryName}
+                          </p>
+                        ) : null}
                       </div>
                     </td>
                     {isRoleScoped ? null : (
@@ -187,7 +192,8 @@ export function PeopleTable({
                       </td>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -309,41 +315,45 @@ function ContextCell({
   );
 }
 
+/**
+ * The legal name only earns a second line when it says something the display
+ * name does not. "Mara Sovan / Mara Sovan" and "Dara Chan / Chan Dara" are the
+ * same name; "Bright Mekong Trading Co., Ltd." is not.
+ */
+function getSecondaryName(person: PeopleSummary) {
+  const legalName = person.legalName?.trim();
+
+  if (!legalName) {
+    return null;
+  }
+
+  const words = (value: string) =>
+    value.toLowerCase().split(/\s+/).filter(Boolean).sort().join(" ");
+
+  return words(legalName) === words(person.displayName) ? null : legalName;
+}
+
 function EmailCell({ person }: { person: PeopleSummary }) {
+  if (!person.contact.email) {
+    return <span className="text-muted-foreground">&mdash;</span>;
+  }
+
   return (
-    <div className="min-w-0 space-y-0.5">
-      <p
-        className={cn(
-          "truncate font-medium",
-          !person.contact.email && "text-warning",
-        )}
-        title={person.contact.email ?? "No email"}
-      >
-        {person.contact.email ?? "No email"}
-      </p>
-      <p className="truncate text-xs text-muted-foreground">
-        {person.contact.email ? "Email on file" : "Needs email"}
-      </p>
-    </div>
+    <p className="truncate" title={person.contact.email}>
+      {person.contact.email}
+    </p>
   );
 }
 
 function PhoneCell({ person }: { person: PeopleSummary }) {
+  if (!person.contact.phone) {
+    return <span className="text-muted-foreground">&mdash;</span>;
+  }
+
   return (
-    <div className="min-w-0 space-y-0.5">
-      <p
-        className={cn(
-          "truncate font-medium",
-          !person.contact.phone && "text-warning",
-        )}
-        title={person.contact.phone ?? "No phone"}
-      >
-        {person.contact.phone ?? "No phone"}
-      </p>
-      <p className="truncate text-xs text-muted-foreground">
-        {person.contact.phone ? "Phone on file" : "Needs phone"}
-      </p>
-    </div>
+    <p className="truncate tabular-nums" title={person.contact.phone}>
+      {person.contact.phone}
+    </p>
   );
 }
 
@@ -361,12 +371,6 @@ function NextActionCell({ person }: { person: PeopleSummary }) {
           <span className="truncate">{person.nextAction.label}</span>
         </Badge>
       </div>
-      <p
-        className="line-clamp-1 text-xs text-muted-foreground"
-        title={person.nextAction.description}
-      >
-        {person.nextAction.description}
-      </p>
     </div>
   );
 }

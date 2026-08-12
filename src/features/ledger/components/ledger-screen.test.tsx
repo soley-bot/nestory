@@ -31,10 +31,20 @@ beforeEach(() => {
   navigation.replace.mockReset();
   navigation.searchParams = new URLSearchParams();
   installMatchMedia(1440);
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
 });
 
 afterEach(() => {
   cleanup();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
   vi.unstubAllGlobals();
 });
 
@@ -53,8 +63,8 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(summaryStrip?.className).not.toContain("overflow-x-auto");
     expect(within(summaryStrip!).queryByText("Clear")).toBeNull();
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
     const pagination = screen
       .getByText(
         (_content, element) =>
@@ -73,7 +83,7 @@ describe("LedgerScreen finance workspace contract", () => {
     ).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "Home" }).getAttribute("href"),
-    ).toBe("/properties/property-1");
+    ).toBe("/properties/property-1/account");
     expect(
       within(rows[0]!).getByRole("button", { name: "Preview Rent" }),
     ).not.toBeNull();
@@ -159,6 +169,30 @@ describe("LedgerScreen finance workspace contract", () => {
     ).toBe("locked");
   });
 
+  it("lets Finance Manager lock a month without exposing unlock or receipt mutation", async () => {
+    const user = userEvent.setup();
+    renderLedger(entries, {}, false, true, false);
+
+    expect(screen.getByRole("button", { name: "Month lock" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Month lock" }));
+    expect(
+      screen.getByRole("region", { name: "Month lock consequence" }).textContent,
+    ).toContain("current open operational month");
+    expect(
+      (screen.getByRole("textbox", { name: "Reason" }) as HTMLTextAreaElement)
+        .required,
+    ).toBe(true);
+    const state = screen.getByRole("combobox", { name: "State" });
+    await user.click(state);
+    expect(screen.getByRole("option", { name: "Lock" })).not.toBeNull();
+    expect(screen.queryByRole("option", { name: "Unlock" })).toBeNull();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    await user.click(screen.getByRole("button", { name: "Preview Rent" }));
+    expect(screen.queryByRole("button", { name: "Attach receipt" })).toBeNull();
+  });
+
   it("distinguishes filtered-empty from a true-empty ledger", () => {
     const filtered = renderLedger([], { query: "missing" });
     const filteredState = screen
@@ -192,7 +226,7 @@ describe("LedgerScreen finance workspace contract", () => {
     });
     expect(within(financeNav).getByRole("link", { name: "Ledger" })).not.toBeNull();
     expect(
-      within(financeNav).getByRole("link", { name: "Petty Cash" }),
+      within(financeNav).getByRole("link", { name: "Petty cash" }),
     ).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Preview Rent" }));
@@ -236,10 +270,14 @@ function renderLedger(
   nextEntries: LedgerEntry[] = entries,
   query: Partial<LedgerViewQuery> = {},
   canManageFinance = true,
+  canLockFinancialMonth = canManageFinance,
+  canUnlockFinancialMonth = canManageFinance,
 ) {
   return render(
     <LedgerScreen
       canManageFinance={canManageFinance}
+      canLockFinancialMonth={canLockFinancialMonth}
+      canUnlockFinancialMonth={canUnlockFinancialMonth}
       entries={nextEntries}
       pagination={{
         from: nextEntries.length ? 1 : 0,

@@ -31,6 +31,7 @@ import type {
   MaintenanceBranchOption,
   MaintenanceCase,
   MaintenanceCategoryStat,
+  MaintenanceCostSubmission,
   MaintenanceLinkedDocument,
   MaintenanceActor,
   MaintenancePriority,
@@ -259,9 +260,7 @@ export async function getMaintenanceScreenData(
       getTaskDocuments(supabase, organizationId, pageTaskIds),
       getTaskActivity(supabase, organizationId, pageTaskIds),
       getTaskReopenActivity(supabase, organizationId, pageTaskIds),
-      isMember
-        ? Promise.resolve([] as MaintenanceCostSubmissionRow[])
-        : getTaskCostSubmissions(supabase, organizationId, pageTaskIds),
+      getTaskCostSubmissions(supabase, organizationId, pageTaskIds),
     ]);
   const documentsByTaskId = groupDocumentsByTaskId(documentRows);
   const resolvedActivity = await resolveRecentChangeTargets({
@@ -278,6 +277,9 @@ export async function getMaintenanceScreenData(
   );
   const reopenInstructionByTaskId = getLatestReviewInstructionByTaskId(reopenRows);
   const costSubmissionByTaskId = getLatestCostSubmissionByTaskId(
+    costSubmissionRows,
+  );
+  const costSubmissionHistoryByTaskId = groupCostSubmissionsByTaskId(
     costSubmissionRows,
   );
   const personOptions = references.people.map((person) => ({
@@ -316,6 +318,8 @@ export async function getMaintenanceScreenData(
       ...maintenanceCase,
       activity: activityByTaskId.get(maintenanceCase.id) ?? [],
       costSubmission: costSubmissionByTaskId.get(maintenanceCase.id),
+      costSubmissionHistory:
+        costSubmissionHistoryByTaskId.get(maintenanceCase.id) ?? [],
       documents: (documentsByTaskId.get(maintenanceCase.id) ?? []).map(
         toLinkedDocument,
       ),
@@ -351,103 +355,32 @@ export async function getMaintenanceReminderNotifications(
   organizationId: string,
   actor?: MaintenanceActor,
 ): Promise<MaintenanceReminderNotification[]> {
-  const supabase = await createSupabaseServerClient();
-  let query = supabase
-    .from("tasks")
-    .select(
-      "id, property_id, unit_id, title, status, due_date, due_time, reminder_date, reminder_time",
-    )
-    .eq("organization_id", organizationId)
-    .is("archived_at", null)
-    .not("reminder_date", "is", null)
-    .in("status", [...REMINDER_ACTIONABLE_MAINTENANCE_STATUSES]);
-
-  query = applyActorTaskScope(query, actor);
-
-  const { data, error } = await query
-    .order("reminder_date", { ascending: true, nullsFirst: false })
-    .order("reminder_time", { ascending: true, nullsFirst: false })
-    .limit(100);
-
-  if (error) {
-    throw new Error(`Could not load maintenance reminders: ${error.message}`);
-  }
-
-  const taskRows = (data ?? []) as Array<
-    Pick<
-      MaintenanceTaskRow,
-      | "due_date"
-      | "due_time"
-      | "id"
-      | "property_id"
-      | "reminder_date"
-      | "reminder_time"
-      | "title"
-      | "unit_id"
-    >
-  >;
-
-  if (taskRows.length === 0) {
+  if (actor?.role === "operations_member" && !actor.personId) {
     return [];
   }
-
-  const propertyIds = [...new Set(taskRows.map((task) => task.property_id))];
-  const unitIds = [
-    ...new Set(taskRows.map((task) => task.unit_id).filter(Boolean) as string[]),
-  ];
-  const [propertiesResult, unitsResult] = await Promise.all([
-    supabase
-      .from("properties")
-      .select(propertySelect)
-      .eq("organization_id", organizationId)
-      .in("id", propertyIds),
-    unitIds.length > 0
-      ? supabase
-          .from("units")
-          .select(unitSelect)
-          .eq("organization_id", organizationId)
-          .in("id", unitIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-
-  if (propertiesResult.error) {
-    throw new Error(
-      `Could not load reminder properties: ${propertiesResult.error.message}`,
-    );
-  }
-
-  if (unitsResult.error) {
-    throw new Error(`Could not load reminder units: ${unitsResult.error.message}`);
-  }
-
-  const propertiesById = indexById(propertiesResult.data ?? []);
-  const unitsById = indexById((unitsResult.data ?? []) as UnitRow[]);
-
-  return taskRows.map((task) => {
-    const property = propertiesById.get(task.property_id);
-    const unit = task.unit_id ? unitsById.get(task.unit_id) : undefined;
-    const reminderTime = normalizeTime(task.reminder_time) ?? "00:00";
-
-    return {
-      dueLabel: formatDateTimeLabel(task.due_date, task.due_time, "No due date"),
-      href: buildHref("/maintenance", {
-        archiveState: "all",
-        taskId: task.id,
-      }),
-      id: task.id,
-      propertyLabel: property
-        ? `${property.code} - ${property.name}`
-        : "Unknown property",
-      reminderAt: `${task.reminder_date}T${reminderTime}:00`,
-      reminderLabel: formatDateTimeLabel(
-        task.reminder_date,
-        task.reminder_time,
-        "No reminder",
-      ),
-      title: task.title,
-      unitLabel: unit ? `Unit ${unit.unit_number}` : "Property level",
-    };
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("get_maintenance_notification_feed", {
+    p_limit: 20,
+    p_organization_id: organizationId,
   });
+
+  if (error) {
+    throw new Error(`Could not load maintenance notifications: ${error.message}`);
+  }
+
+  return ((data ?? []) as Array<{
+    event_type: string;
+    href: string;
+    id: string;
+    scheduled_for: string;
+    title: string;
+  }>).map((item) => ({
+    deliveredAt: item.scheduled_for,
+    eventType: item.event_type,
+    href: item.href,
+    id: item.id,
+    title: item.title,
+  }));
 }
 
 export function maintenanceMatchesReview(
@@ -1066,7 +999,7 @@ async function getTaskCostSubmissions(
   }
 
   const result = await supabase
-    .rpc("get_maintenance_cost_statuses", {
+    .rpc("get_maintenance_cost_status_history", {
       p_organization_id: organizationId,
       p_task_ids: taskIds,
     });
@@ -1801,6 +1734,37 @@ function getLatestCostSubmissionByTaskId(
   }
 
   return submissions;
+}
+
+function groupCostSubmissionsByTaskId(
+  rows: MaintenanceCostSubmissionRow[],
+): Map<string, MaintenanceCostSubmission[]> {
+  const grouped = new Map<string, MaintenanceCostSubmissionRow[]>();
+  for (const row of rows) {
+    const group = grouped.get(row.task_id) ?? [];
+    group.push(row);
+    grouped.set(row.task_id, group);
+  }
+  return new Map<string, MaintenanceCostSubmission[]>(
+    [...grouped.entries()].map(([taskId, group]) => [
+      taskId,
+      group.flatMap((row) =>
+        row.status === "approved" ||
+        row.status === "rejected" ||
+        row.status === "reversed" ||
+        row.status === "submitted"
+          ? [
+              {
+                id: row.submission_id,
+                reviewReason: row.review_reason,
+                status: row.status,
+                submittedAt: row.submitted_at,
+              },
+            ]
+          : [],
+      ),
+    ]),
+  );
 }
 
 export function groupActivityByTaskId(

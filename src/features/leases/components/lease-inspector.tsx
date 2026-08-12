@@ -18,6 +18,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   recordLeaseDepositEventAction,
+  recordCurrentLeaseOccupancyEvidenceAction,
   reverseLeaseDepositEventAction,
   scheduleFutureRentTermAction,
 } from "@/features/leases/actions";
@@ -47,10 +48,17 @@ export function LeaseInspector({
     scheduleFutureRentTermAction,
     {},
   );
+  const [occupancyState, recordOccupancyEvidence, occupancyPending] =
+    useActionState(recordCurrentLeaseOccupancyEvidenceAction, {});
   const [scheduleIdempotencySeed] = useState(() => crypto.randomUUID());
   if (!lease) {
     return null;
   }
+
+  const currentOccupancy =
+    lease.occupancies.find(
+      (occupancy) => occupancy.evidenceState === "accepted",
+    ) ?? lease.occupancies[0];
 
   const displayedTerm =
     lease.terms.find((term) => term.id === lease.rentReadiness.termId) ??
@@ -102,6 +110,88 @@ export function LeaseInspector({
           />
           <Detail label="Deposit" value={getDepositSummary(lease)} wide />
         </dl>
+
+        <section
+          aria-label="Occupancy evidence"
+          className="rounded-md border border-border p-3"
+          id="occupancy-evidence"
+        >
+          <h3 className="text-sm font-semibold">Occupancy evidence</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Contract dates, planned occupancy, and confirmed occupancy remain
+            separate records.
+          </p>
+          {lease.occupancies.length > 0 ? (
+            <div className="mt-3 space-y-3">
+              {lease.occupancies.map((occupancy) => (
+                <dl
+                  className="grid grid-cols-2 gap-2 text-xs"
+                  key={occupancy.id}
+                >
+                  <Detail label="Scheduled" value={occupancy.scheduledLabel} />
+                  <Detail label="Confirmed" value={occupancy.actualLabel} />
+                  <Detail label="Resident" value={occupancy.residentLabel} />
+                  <Detail label="Evidence" value={occupancy.evidenceLabel} />
+                  <Detail label="Lifecycle" value={occupancy.statusLabel} />
+                </dl>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">Not recorded</p>
+          )}
+          {canConfigure &&
+          !lease.isArchived &&
+          ["active", "notice_given"].includes(lease.statusValue) &&
+          currentOccupancy?.actualLabel === "Not recorded" ? (
+            <form
+              action={recordOccupancyEvidence}
+              className="mt-4 space-y-3 border-t border-border pt-3"
+            >
+              <input name="leaseId" type="hidden" value={lease.id} />
+              <input
+                name="occupancyId"
+                type="hidden"
+                value={currentOccupancy.id}
+              />
+              <p className="text-xs font-medium">Confirm current occupancy</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <DatePickerField
+                  ariaLabel="Scheduled move-in date"
+                  name="scheduledMoveInDate"
+                />
+                <DatePickerField
+                  ariaLabel="Scheduled move-out date"
+                  name="scheduledMoveOutDate"
+                />
+                <DatePickerField
+                  ariaLabel="Confirmed move-in date"
+                  name="actualMoveInDate"
+                  required
+                />
+                <Input
+                  aria-label="Occupancy evidence reason"
+                  name="reason"
+                  placeholder="How was occupancy confirmed?"
+                  required
+                />
+              </div>
+              {occupancyState.message ? (
+                <p
+                  className={
+                    occupancyState.status === "error"
+                      ? "text-xs text-destructive"
+                      : "text-xs text-muted-foreground"
+                  }
+                >
+                  {occupancyState.message}
+                </p>
+              ) : null}
+              <Button disabled={occupancyPending} size="sm" type="submit">
+                {occupancyPending ? "Recording..." : "Record occupancy evidence"}
+              </Button>
+            </form>
+          ) : null}
+        </section>
 
         <section
           aria-label="Rent readiness"
@@ -314,29 +404,16 @@ export function LeaseInspector({
             <ExternalLink size={15} />
             <span className="truncate">Open lease</span>
           </Link>
-          {canConfigure && lease.unitId ? (
-            <Link
-              aria-label={`Open ${lease.unitLabel}`}
-              className={iconButtonClassName}
-              href={`/units/${lease.unitId}`}
-              prefetch={false}
-              title="Open unit"
-            >
-              <ExternalLink size={15} />
-              <span className="truncate">Open unit</span>
-            </Link>
-          ) : canConfigure ? (
-            <Link
-              aria-label={`Open property ${lease.propertyCode}`}
-              className={iconButtonClassName}
-              href={`/properties/${lease.propertyId}`}
-              prefetch={false}
-              title="Open property"
-            >
-              <ExternalLink size={15} />
-              <span className="truncate">Open property</span>
-            </Link>
-          ) : null}
+          <Link
+            aria-label="Open property account"
+            className={iconButtonClassName}
+            href={`/properties/${lease.propertyId}/account`}
+            prefetch={false}
+            title="Open property account"
+          >
+            <ExternalLink size={15} />
+            <span className="truncate">Property account</span>
+          </Link>
           {canConfigure && lease.isArchived ? (
             <button
               aria-label={`Review restore requirements for ${lease.tenantName}`}

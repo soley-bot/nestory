@@ -1,32 +1,11 @@
 import { buildHref } from "@/lib/url/href";
+import {
+  activityEntityTypes,
+  type ActivityEntityType,
+} from "@/features/activity/entity-types";
 
-export const activityEntityTypes = [
-  "timeline_event",
-  "ledger_entry",
-  "financial_month",
-  "finance_income_item",
-  "finance_expense_item",
-  "expense_submission",
-  "tenant_invoice",
-  "owner_payment",
-  "petty_cash_entry",
-  "petty_cash_account",
-  "petty_cash_period",
-  "task",
-  "tenant_request",
-  "document",
-  "lease",
-  "property",
-  "unit",
-  "person",
-  "import",
-  "organization",
-  "organization_branch",
-  "organization_invitation",
-  "organization_membership",
-] as const;
-
-export type ActivityEntityType = (typeof activityEntityTypes)[number];
+export { activityEntityTypes } from "@/features/activity/entity-types";
+export type { ActivityEntityType } from "@/features/activity/entity-types";
 
 export type ActivityEntityReference = {
   entityId: string;
@@ -98,6 +77,13 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
       }),
     mode: "exact",
   },
+  finance_receipt_allocation: {
+    actionLabel: "Open Rent & Income",
+    entityLabel: "Receipt allocation",
+    fallbackRecordLabel: "Receipt allocation",
+    getHref: () => "/rent-income",
+    mode: "module",
+  },
   expense_submission: {
     actionLabel: "Open expense review queue",
     entityLabel: "Bills & Expenses",
@@ -112,10 +98,31 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
     getHref: () => "/rent-income",
     mode: "module",
   },
+  tenant_invoice_payment: {
+    actionLabel: "Open Rent & Income",
+    entityLabel: "Tenant invoice payment",
+    fallbackRecordLabel: "Tenant invoice payment",
+    getHref: () => "/rent-income",
+    mode: "module",
+  },
+  owner_collection_confirmation: {
+    actionLabel: "Open Rent & Income",
+    entityLabel: "Owner collection confirmation",
+    fallbackRecordLabel: "Owner collection confirmation",
+    getHref: () => "/rent-income",
+    mode: "module",
+  },
   owner_payment: {
     actionLabel: "Open Balances",
-    entityLabel: "Owner payment",
-    fallbackRecordLabel: "Owner payment",
+    entityLabel: "Owner invoice payment",
+    fallbackRecordLabel: "Owner invoice payment",
+    getHref: () => "/balances",
+    mode: "module",
+  },
+  property_withdrawal: {
+    actionLabel: "Open Balances",
+    entityLabel: "Owner distribution",
+    fallbackRecordLabel: "Owner distribution",
     getHref: () => "/balances",
     mode: "module",
   },
@@ -170,6 +177,48 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
     getHref: ({ entityId }) =>
       buildHref("/leases", { archiveState: "all", leaseId: entityId }),
     mode: "exact",
+  },
+  lease_billing_term: {
+    actionLabel: "Open Leases",
+    entityLabel: "Lease billing term",
+    fallbackRecordLabel: "Lease billing term",
+    getHref: () => "/leases",
+    mode: "module",
+  },
+  owner_opening_balance_request: {
+    actionLabel: "Open Owner balances",
+    entityLabel: "Owner opening balance",
+    fallbackRecordLabel: "Owner opening request",
+    getHref: () => "/balances",
+    mode: "module",
+  },
+  lease_occupancy: {
+    actionLabel: "Open Leases",
+    entityLabel: "Lease occupancy",
+    fallbackRecordLabel: "Lease occupancy",
+    getHref: () => "/leases",
+    mode: "module",
+  },
+  lease_occupancy_participant: {
+    actionLabel: "Open Leases",
+    entityLabel: "Lease occupancy participant",
+    fallbackRecordLabel: "Lease occupancy participant",
+    getHref: () => "/leases",
+    mode: "module",
+  },
+  lease_party: {
+    actionLabel: "Open Leases",
+    entityLabel: "Lease party",
+    fallbackRecordLabel: "Lease party",
+    getHref: () => "/leases",
+    mode: "module",
+  },
+  lease_term: {
+    actionLabel: "Open Leases",
+    entityLabel: "Lease term",
+    fallbackRecordLabel: "Lease term",
+    getHref: () => "/leases",
+    mode: "module",
   },
   property: {
     actionLabel: "Open property",

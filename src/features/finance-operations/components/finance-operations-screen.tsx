@@ -21,7 +21,6 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox as CheckboxPrimitive } from "@/components/ui/checkbox";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -99,11 +98,19 @@ type DrawerState =
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
   canConfigureRent: boolean;
-  canManageFinance: boolean;
+  canCorrectFinance: boolean;
+  canRecordOwnerCash: boolean;
+  canRecordPayments: boolean;
+  canReadFinanceReports?: boolean;
   canRecoverRent: boolean;
   canReviewExpense: boolean;
   canReverseExpense: boolean;
+  canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
+  initialBillingLeaseId?: string;
+  initialExpenseIntent?: boolean;
+  initialRentLeaseId?: string;
+  openingAuthority?: ReactNode;
   organizationName: string;
   selectedPropertyId?: string | null;
   view: FinanceOperationsView;
@@ -118,7 +125,16 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
 
 export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
   const organizationName = props.organizationName.trim() || "our company";
-  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const initialBillingLease = props.initialBillingLeaseId
+    ? props.leases.find((lease) => lease.id === props.initialBillingLeaseId)
+    : undefined;
+  const [drawer, setDrawer] = useState<DrawerState | null>(() =>
+    initialBillingLease
+      ? { lease: initialBillingLease, mode: "billing" }
+      : props.initialExpenseIntent && props.canSubmitExpense
+        ? { mode: "expense" }
+      : null,
+  );
   const [modal, setModal] = useState<ModalState | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const closeDrawer = () => setDrawer(null);
@@ -162,7 +178,10 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       contextHref={screen.contextHref}
       headerClassName="py-3 lg:py-3"
       localNav={(
-        <FinanceWorkspaceNavigation activeRoute={screen.activeRoute} />
+        <FinanceWorkspaceNavigation
+          activeRoute={screen.activeRoute}
+          canReadFinanceReports={props.canReadFinanceReports ?? false}
+        />
       )}
       title={screen.title}
       toolbar={screen.toolbar}
@@ -273,17 +292,22 @@ function getScreen(
   const canRecoverRent = props.canRecoverRent;
 
   if (props.view === "rent") {
+    const invoices = props.initialRentLeaseId
+      ? props.tenantInvoices.filter(
+          (invoice) => invoice.leaseId === props.initialRentLeaseId,
+        )
+      : props.tenantInvoices;
     return {
       activeRoute: "/rent-income" as const,
       actions:
-        props.canManageFinance || props.canSubmitExpense || canRecoverRent ? (
+        props.canRecordPayments || props.canSubmitExpense || canRecoverRent ? (
         <>
           {canRecoverRent ? (
             <Button onClick={() => openDrawer({ mode: "rent-recovery" })}>
               Recover missed month
             </Button>
           ) : null}
-          {props.canManageFinance ? (
+          {props.canRecordPayments ? (
             <Button
               onClick={() => openModal({ mode: "payment" })}
               variant="default"
@@ -304,13 +328,14 @@ function getScreen(
         ) : undefined,
       body: (
         <RentView
-          canRecordPayments={props.canManageFinance}
-          invoices={props.tenantInvoices}
+          canCorrectFinance={props.canCorrectFinance}
+          canRecordPayments={props.canRecordPayments}
+          invoices={invoices}
           openModal={openModal}
           organizationName={props.organizationName}
         />
       ),
-      context: `${props.tenantInvoices.length} invoices`,
+      context: `${invoices.length} ${invoices.length === 1 ? "invoice" : "invoices"}`,
       contextHref: "/rent-income",
       title: "Rent",
       toolbar: undefined,
@@ -325,7 +350,7 @@ function getScreen(
           onClick={() => openDrawer({ mode: "expense" })}
           variant="default"
         >
-          <Plus size={15} /> Add expense
+          <Plus size={15} /> Record paid cost
         </Button>
       ) : undefined,
       body: (
@@ -338,7 +363,7 @@ function getScreen(
       ),
       context: `${props.expenseSubmissions.length} submissions`,
       contextHref: "/bills-expenses",
-      title: "Expenses",
+      title: "Paid costs",
       toolbar: undefined,
     };
   }
@@ -349,8 +374,9 @@ function getScreen(
       actions: undefined,
       body: (
         <BalancesView
-          canManageFinance={props.canManageFinance}
+          canRecordOwnerCash={props.canRecordOwnerCash}
           invoices={props.tenantInvoices}
+          openingAuthority={props.openingAuthority}
           openModal={openModal}
           ownerInvoices={props.ownerInvoices}
           positions={props.positions}
@@ -371,7 +397,9 @@ function getScreen(
     return {
       activeRoute: "/balances" as const,
       actions:
-        props.canManageFinance && position && position.availableWithdrawal > 0 ? (
+        props.canRecordOwnerCash &&
+        position?.ownerPersonId &&
+        position.availableWithdrawal > 0 ? (
           <Button
             onClick={() => openModal({ mode: "withdrawal", position })}
             variant="default"
@@ -403,7 +431,7 @@ function getScreen(
 
   return {
     activeRoute: "/finance" as const,
-    actions: props.canManageFinance ? (
+    actions: props.canRecordPayments ? (
       <Button onClick={() => openModal({ mode: "payment" })} variant="default">
         <WalletCards size={15} /> Record payment
       </Button>
@@ -411,8 +439,9 @@ function getScreen(
     body: (
       <FinanceWorkView
         canConfigureRent={canConfigureRent}
-        canManageFinance={props.canManageFinance}
-        canRecoverRent={canRecoverRent}
+        canRecordOwnerCash={props.canRecordOwnerCash}
+        canRecordPayments={props.canRecordPayments}
+        canRetryCurrentRent={props.canRetryCurrentRent}
         leases={props.leases}
         openDrawer={openDrawer}
         openModal={openModal}
@@ -430,8 +459,9 @@ function getScreen(
 
 function FinanceWorkView({
   canConfigureRent,
-  canManageFinance,
-  canRecoverRent,
+  canRecordOwnerCash,
+  canRecordPayments,
+  canRetryCurrentRent,
   leases,
   openDrawer,
   openModal,
@@ -440,8 +470,9 @@ function FinanceWorkView({
   tenantInvoices,
 }: {
   canConfigureRent: boolean;
-  canManageFinance: boolean;
-  canRecoverRent: boolean;
+  canRecordOwnerCash: boolean;
+  canRecordPayments: boolean;
+  canRetryCurrentRent: boolean;
   leases: FinanceLease[];
   openDrawer: (drawer: DrawerState) => void;
   openModal: (modal: ModalState) => void;
@@ -529,7 +560,7 @@ function FinanceWorkView({
                 ))}
                 {rentGenerationExceptions.map((exception) => (
                   <RentGenerationExceptionRow
-                    canRecover={canRecoverRent}
+                    canRecover={canRetryCurrentRent}
                     exception={exception}
                     key={`rent-exception-${exception.id}`}
                     lease={leaseById.get(exception.leaseId) ?? null}
@@ -556,7 +587,7 @@ function FinanceWorkView({
                     </Td>
                     <Td>{formatDate(invoice.dueDate)}</Td>
                     <Td align="right">
-                      {canManageFinance ? (
+                      {canRecordPayments ? (
                         <Button
                           onClick={() => openModal({ invoice, mode: "payment" })}
                         >
@@ -578,7 +609,7 @@ function FinanceWorkView({
                     key={`owner-${invoice.id}`}
                   >
                     <Td>
-                      <p className="font-medium">Owner payment</p>
+                      <p className="font-medium">Owner invoice payment</p>
                       <p className="text-xs text-muted-foreground">
                         {invoice.ownerLabel} · {invoice.invoiceNumber}
                       </p>
@@ -589,7 +620,7 @@ function FinanceWorkView({
                     </Td>
                     <Td>{formatDate(invoice.dueDate)}</Td>
                     <Td align="right">
-                      {canManageFinance ? (
+                      {canRecordOwnerCash ? (
                         <Button
                           onClick={() =>
                             openModal({ invoice, mode: "owner-payment" })
@@ -726,7 +757,8 @@ function HistoricalRentRecoveryForm({
     <form action={action} className="space-y-4 p-4">
       <p className="text-sm text-muted-foreground">
         Generate one missed completed month, including a month before a lease
-        ended. This never fills earlier or later months automatically.
+        ended. This never fills earlier or later months automatically. Adjacent
+        gaps remain visible in the attention queue.
       </p>
       <Field label="Lease">
         <SelectControl
@@ -759,11 +791,13 @@ function HistoricalRentRecoveryForm({
 }
 
 function RentView({
+  canCorrectFinance,
   canRecordPayments,
   invoices,
   openModal,
   organizationName,
 }: {
+  canCorrectFinance: boolean;
   canRecordPayments: boolean;
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
@@ -856,12 +890,16 @@ function RentView({
                       <Money amount={invoice.balanceDue} />
                     </Td>
                     <Td>
-                      <StatusBadge status={invoice.paymentStatus} />
+                      <StatusBadge
+                        dueDate={invoice.dueDate}
+                        settlements={invoice.settlements}
+                        status={invoice.paymentStatus}
+                      />
                     </Td>
                     <Td align="right">
-                      {canRecordPayments ? (
+                      {canRecordPayments || canCorrectFinance ? (
                         <div className="flex justify-end gap-2">
-                          {invoice.balanceDue > 0 ? (
+                          {canRecordPayments && invoice.balanceDue > 0 ? (
                             <Button
                               onClick={() =>
                                 openModal({ invoice, mode: "payment" })
@@ -872,7 +910,7 @@ function RentView({
                                 : "Confirm collected"}
                             </Button>
                           ) : null}
-                          {invoice.settlements.some(
+                          {canCorrectFinance && invoice.settlements.some(
                             (settlement) => !settlement.isReversed,
                           ) ? (
                             <Button
@@ -938,7 +976,7 @@ function ExpensesView({
         body="Submit a paid property cost for Finance review. Nothing affects balances until approval."
         className="h-full"
         kind="empty"
-        title="No expenses"
+        title="No paid costs"
       />
     );
   }
@@ -951,7 +989,7 @@ function ExpensesView({
         }
         value={status}
       >
-        <TabsList aria-label="Expense status">
+        <TabsList aria-label="Paid cost status">
           {(
             ["submitted", "approved", "rejected", "reversed"] as const
           ).map((value) => (
@@ -998,10 +1036,10 @@ function ExpenseSubmissionTable({
   if (submissions.length === 0) {
     return (
       <EmptyState
-        body="There are no expenses in this status."
+        body="There are no paid costs in this status."
         className="min-h-56"
         kind="empty"
-        title={`No ${expenseStatusLabel(status).toLowerCase()} expenses`}
+        title={`No ${expenseStatusLabel(status).toLowerCase()} paid costs`}
       />
     );
   }
@@ -1012,7 +1050,7 @@ function ExpenseSubmissionTable({
         <thead className="bg-[var(--table-header-bg)]">
           <tr>
             <Th>Date</Th>
-            <Th>Expense</Th>
+            <Th>Paid cost</Th>
             <Th>Property</Th>
             <Th>Charged to</Th>
             <Th>Paid</Th>
@@ -1030,11 +1068,21 @@ function ExpenseSubmissionTable({
                   {categoryLabel(submission.category)}
                 </p>
                 {submission.sourceType === "maintenance_task" ? (
-                  <Badge className="mt-1" tone="neutral">
-                    {submission.adjustsSubmissionId
-                      ? "Maintenance adjustment"
-                      : "Maintenance cost"}
-                  </Badge>
+                  <div className="mt-1 space-y-1">
+                    <Badge tone="neutral">
+                      {submission.adjustsSubmissionId
+                        ? "Maintenance adjustment"
+                        : "Maintenance cost"}
+                    </Badge>
+                    {submission.maintenanceTask ? (
+                      <Link
+                        className="block text-xs font-medium text-primary underline-offset-2 hover:underline"
+                        href={submission.maintenanceTask.href}
+                      >
+                        {submission.maintenanceTask.title}
+                      </Link>
+                    ) : null}
+                  </div>
                 ) : null}
                 <p className="text-xs text-muted-foreground">
                   {submission.vendorLabel}
@@ -1045,20 +1093,28 @@ function ExpenseSubmissionTable({
                   </p>
                 ) : null}
                 {submission.evidence ? (
-                  submission.evidence.href ? (
-                    <a
-                      className="text-xs text-primary underline-offset-2 hover:underline"
-                      href={submission.evidence.href}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      {submission.evidence.fileName}
-                    </a>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      {submission.evidence.fileName} (file unavailable)
+                  <div className="mt-1 space-y-0.5 text-xs">
+                    {submission.evidence.href ? (
+                      <a
+                        className="text-primary underline-offset-2 hover:underline"
+                        href={submission.evidence.href}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {submission.evidence.fileName}
+                      </a>
+                    ) : (
+                      <p className="text-muted-foreground">
+                        {submission.evidence.fileName} (file unavailable)
+                      </p>
+                    )}
+                    <p className="font-mono text-muted-foreground">
+                      SHA-256 {shortEvidenceHash(submission.evidence.sha256)}
                     </p>
-                  )
+                    <p className="text-muted-foreground">
+                      {formatEvidenceSize(submission.evidence.sizeBytes)}
+                    </p>
+                  </div>
                 ) : null}
               </Td>
               <Td>
@@ -1167,14 +1223,16 @@ function ExpenseSubmissionTable({
 }
 
 function BalancesView({
-  canManageFinance,
+  canRecordOwnerCash,
   invoices,
+  openingAuthority,
   openModal,
   ownerInvoices,
   positions,
 }: {
-  canManageFinance: boolean;
+  canRecordOwnerCash: boolean;
   invoices: TenantInvoiceSummary[];
+  openingAuthority?: ReactNode;
   openModal: (modal: ModalState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
   positions: PropertyFinancePosition[];
@@ -1201,11 +1259,28 @@ function BalancesView({
   }, [invoices]);
 
   return (
-    <Tabs
-      className="h-full min-h-0 gap-0 bg-background"
-      onValueChange={(value) => setTab(value as "owners" | "tenants")}
-      value={tab}
-    >
+    <div className="h-full min-h-0 overflow-auto bg-background">
+      {openingAuthority ? <div>{openingAuthority}</div> : null}
+      <section
+        aria-labelledby="current-balance-projection-heading"
+        className="min-h-[420px]"
+      >
+        <div className="border-b px-4 py-3 sm:px-6">
+          <h2
+            className="text-base font-semibold"
+            id="current-balance-projection-heading"
+          >
+            Current balance projection
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Operational view only. This is not an official owner statement.
+          </p>
+        </div>
+        <Tabs
+          className="min-h-0 gap-0 bg-background"
+          onValueChange={(value) => setTab(value as "owners" | "tenants")}
+          value={tab}
+        >
       <TabsList
         className="h-11 w-full shrink-0 justify-start rounded-none border-b px-4 sm:px-6"
         variant="line"
@@ -1217,7 +1292,7 @@ function BalancesView({
           Tenants &amp; companies
         </TabsTrigger>
       </TabsList>
-      <TabsContent className="min-h-0 overflow-auto" value="owners">
+      <TabsContent className="min-h-0 overflow-auto" tabIndex={-1} value="owners">
         <TableFrame>
           <Table className="min-w-[1040px]">
             <thead className="bg-[var(--table-header-bg)]">
@@ -1266,7 +1341,7 @@ function BalancesView({
                     </Td>
                     <Td align="right">
                       <div className="flex justify-end gap-1">
-                        {canManageFinance && ownerInvoice ? (
+                        {canRecordOwnerCash && ownerInvoice ? (
                           <Button
                             onClick={() =>
                               openModal({
@@ -1275,16 +1350,18 @@ function BalancesView({
                               })
                             }
                           >
-                            Owner payment
+                            Owner invoice payment
                           </Button>
                         ) : null}
-                        {canManageFinance && position.availableWithdrawal > 0 ? (
+                        {canRecordOwnerCash &&
+                        position.ownerPersonId &&
+                        position.availableWithdrawal > 0 ? (
                           <Button
                             onClick={() =>
                               openModal({ mode: "withdrawal", position })
                             }
                           >
-                            Withdrawal
+                            Owner distribution
                           </Button>
                         ) : null}
                       </div>
@@ -1296,7 +1373,7 @@ function BalancesView({
           </Table>
         </TableFrame>
       </TabsContent>
-      <TabsContent className="min-h-0 overflow-auto" value="tenants">
+      <TabsContent className="min-h-0 overflow-auto" tabIndex={-1} value="tenants">
         <TableFrame>
           <Table className="min-w-[720px]">
             <thead className="bg-[var(--table-header-bg)]">
@@ -1332,7 +1409,9 @@ function BalancesView({
           </Table>
         </TableFrame>
       </TabsContent>
-    </Tabs>
+        </Tabs>
+      </section>
+    </div>
   );
 }
 
@@ -1383,7 +1462,10 @@ function PropertyAccountView({
         />
       ) : (
         <TableFrame>
-          <Table className="min-w-[820px]">
+          <Table
+            className="min-w-[820px]"
+            scrollRegionLabel="Property account activity"
+          >
             <thead className="bg-[var(--table-header-bg)]">
               <tr>
                 <Th>Date</Th>
@@ -1441,11 +1523,16 @@ function BillingSetupForm({
     saveLeaseBillingAction,
     actionInitialState,
   );
-  const [recipientKind, setRecipientKind] = useState<"company" | "individual">(
-    lease.billing?.billingRecipientKind ?? "individual",
+  const [recipientKind, setRecipientKind] = useState<
+    "" | "company" | "individual"
+  >(
+    lease.billing?.billingRecipientKind ?? "",
   );
   const [recipientId, setRecipientId] = useState(
-    lease.billing?.billingRecipientPersonId ?? lease.tenantPersonId ?? "",
+    lease.billing?.billingRecipientPersonId ?? "",
+  );
+  const [effectiveFrom, setEffectiveFrom] = useState(
+    lease.billing?.effectiveFrom ?? "",
   );
   const [firstProrata, setFirstProrata] = useState(
     lease.billing?.firstPeriodProratedAmount?.toString() ?? "",
@@ -1453,22 +1540,33 @@ function BillingSetupForm({
   const [finalProrata, setFinalProrata] = useState(
     lease.billing?.finalPeriodProratedAmount?.toString() ?? "",
   );
-  const [route, setRoute] = useState<"direct_to_owner" | "through_ips">(
-    lease.billing?.collectionRoute ?? "through_ips",
+  const [route, setRoute] = useState<
+    "" | "direct_to_owner" | "through_ips"
+  >(
+    lease.billing?.collectionRoute ?? "",
   );
-  const [feeMode, setFeeMode] = useState<"flat" | "percentage">(
-    lease.billing?.managementFeeMode ?? "percentage",
+  const [feeMode, setFeeMode] = useState<"" | "flat" | "percentage">(
+    lease.billing?.managementFeeMode ?? "",
   );
   const [feeValue, setFeeValue] = useState(
-    lease.billing?.managementFeeValue.toString() ?? "10",
+    lease.billing?.managementFeeValue.toString() ?? "",
   );
-  const [chargeFee, setChargeFee] = useState(
-    lease.billing?.chargeManagementFeeWhenActive ?? true,
+  const [chargeFee, setChargeFee] = useState<"" | "no" | "yes">(
+    lease.billing
+      ? lease.billing.chargeManagementFeeWhenActive
+        ? "yes"
+        : "no"
+      : "",
   );
-  const [fullFeeDuringProration, setFullFeeDuringProration] = useState(
-    lease.billing?.fullManagementFeeDuringProration ?? true,
+  const [fullFeeDuringProration, setFullFeeDuringProration] = useState<
+    "" | "no" | "yes"
+  >(
+    lease.billing
+      ? lease.billing.fullManagementFeeDuringProration
+        ? "yes"
+        : "no"
+      : "",
   );
-  const today = getBusinessDateValue();
   useSuccess(state, onSuccess);
   return (
     <form action={action} className="space-y-4 p-4">
@@ -1482,11 +1580,7 @@ function BillingSetupForm({
         ]}
       />
       <input name="leaseId" type="hidden" value={lease.id} />
-      <input
-        name="effectiveFrom"
-        type="hidden"
-        value={lease.billing?.effectiveFrom ?? lease.startDate ?? today}
-      />
+      <input name="effectiveFrom" type="hidden" value={effectiveFrom} />
       <input name="billingRecipientKind" type="hidden" value={recipientKind} />
       <input
         name="billingRecipientPersonId"
@@ -1509,12 +1603,12 @@ function BillingSetupForm({
       <input
         name="chargeManagementFeeWhenActive"
         type="hidden"
-        value={chargeFee ? "on" : ""}
+        value={chargeFee}
       />
       <input
         name="fullManagementFeeDuringProration"
         type="hidden"
-        value={fullFeeDuringProration ? "on" : ""}
+        value={fullFeeDuringProration}
       />
       <input
         name="supersedesBillingTermId"
@@ -1541,20 +1635,37 @@ function BillingSetupForm({
                 setRecipientKind(value as "company" | "individual")
               }
               options={[
+                { label: "Choose who is billed", value: "" },
                 { label: "Individual tenant", value: "individual" },
                 { label: "Company", value: "company" },
               ]}
+              placeholder="Choose who is billed"
               value={recipientKind}
             />
           </Field>
-          <Field label={recipientKind === "company" ? "Company" : "Tenant"}>
+          <Field
+            label={recipientKind === "company" ? "Company" : "Recipient"}
+          >
             <SelectControl
               onValueChange={setRecipientId}
-              options={peopleOptions.map((option) => ({
-                label: option.label,
-                value: option.id,
-              }))}
+              options={[
+                { label: "Choose a recipient", value: "" },
+                ...peopleOptions.map((option) => ({
+                  label: option.label,
+                  value: option.id,
+                })),
+              ]}
+              placeholder="Choose a recipient"
               value={recipientId}
+            />
+          </Field>
+          <Field label="Billing effective date">
+            <Input
+              aria-label="Billing effective date"
+              onChange={(event) => setEffectiveFrom(event.target.value)}
+              required
+              type="date"
+              value={effectiveFrom}
             />
           </Field>
           <Field label="First month amount (optional)">
@@ -1579,12 +1690,14 @@ function BillingSetupForm({
             <SelectControl
               onValueChange={(value) => setRoute(value as typeof route)}
               options={[
+                { label: "Choose who collects rent", value: "" },
                 {
                   label: `Collected by ${organizationName}`,
                   value: "through_ips",
                 },
                 { label: "Collected by owner", value: "direct_to_owner" },
               ]}
+              placeholder="Choose who collects rent"
               value={route}
             />
           </Field>
@@ -1592,9 +1705,11 @@ function BillingSetupForm({
             <SelectControl
               onValueChange={(value) => setFeeMode(value as typeof feeMode)}
               options={[
+                { label: "Choose fee type", value: "" },
                 { label: "Percentage", value: "percentage" },
                 { label: "Flat amount", value: "flat" },
               ]}
+              placeholder="Choose fee type"
               value={feeMode}
             />
           </Field>
@@ -1607,18 +1722,32 @@ function BillingSetupForm({
               value={feeValue}
             />
           </Field>
-          <div className="space-y-2 pt-5">
-            <Checkbox
-              checked={chargeFee}
-              label="Charge fee while lease is active"
-              onChange={setChargeFee}
+          <Field label="Charge fee while lease is active?">
+            <SelectControl
+              onValueChange={(value) => setChargeFee(value as typeof chargeFee)}
+              options={[
+                { label: "Choose yes or no", value: "" },
+                { label: "Yes", value: "yes" },
+                { label: "No", value: "no" },
+              ]}
+              value={chargeFee}
             />
-            <Checkbox
-              checked={fullFeeDuringProration}
-              label="Keep full fee in pro-rata months"
-              onChange={setFullFeeDuringProration}
+          </Field>
+          <Field label="Keep full fee in pro-rata months?">
+            <SelectControl
+              onValueChange={(value) =>
+                setFullFeeDuringProration(
+                  value as typeof fullFeeDuringProration,
+                )
+              }
+              options={[
+                { label: "Choose yes or no", value: "" },
+                { label: "Yes", value: "yes" },
+                { label: "No", value: "no" },
+              ]}
+              value={fullFeeDuringProration}
             />
-          </div>
+          </Field>
         </div>
       ) : null}
       {step === 4 ? (
@@ -1653,7 +1782,10 @@ function BillingSetupForm({
       <ActionMessage state={state} />
       <FormFooter>
         {step > 1 ? (
-          <Button onClick={() => setStep((current) => current - 1)}>
+          <Button
+            onClick={() => setStep((current) => current - 1)}
+            type="button"
+          >
             Back
           </Button>
         ) : (
@@ -1661,8 +1793,17 @@ function BillingSetupForm({
         )}
         {step < 4 ? (
           <Button
-            disabled={step === 2 && !recipientId}
+            disabled={
+              (step === 2 && (!recipientKind || !recipientId || !effectiveFrom)) ||
+              (step === 3 &&
+                (!route ||
+                  !feeMode ||
+                  feeValue === "" ||
+                  !chargeFee ||
+                  !fullFeeDuringProration))
+            }
             onClick={() => setStep((current) => current + 1)}
+            type="button"
             variant="default"
           >
             Continue <ChevronRight size={14} />
@@ -1923,6 +2064,13 @@ function ExpenseForm({
         value={effectiveResponsibility === "tenant" ? tenantInvoiceId : ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+        <p className="font-semibold">Already paid</p>
+        <p className="mt-1 text-muted-foreground">
+          Record the cost and its receipt for review. Submitting does not record
+          a new payment or change balances before approval.
+        </p>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Property">
           <SelectControl
@@ -1964,8 +2112,9 @@ function ExpenseForm({
             value={unitId}
           />
         </Field>
-        <Field label="Expense">
+        <Field label="Paid-cost category">
           <SelectControl
+            ariaLabel="Paid-cost category"
             onValueChange={setCategory}
             options={[
               { label: "Cleaning", value: "cleaning" },
@@ -1994,7 +2143,7 @@ function ExpenseForm({
             value={cost}
           />
         </Field>
-        <Field label="Date">
+        <Field label="Paid date">
           <Input
             onChange={(event) => setExpenseDate(event.target.value)}
             type="date"
@@ -2003,6 +2152,7 @@ function ExpenseForm({
         </Field>
         <Field label="Paid from">
           <SelectControl
+            ariaLabel="Paid from"
             onValueChange={setReconciliationSourceId}
             options={matchingSources.map((source) => ({
               label: source.label,
@@ -2098,9 +2248,17 @@ function ExpenseForm({
           value={reference}
         />
       </Field>
+      <Field label="Receipt evidence">
+        <Input
+          accept="application/pdf,image/jpeg,image/png,image/webp"
+          name="evidenceFile"
+          required
+          type="file"
+        />
+      </Field>
       <p className="text-xs text-muted-foreground">
-        This stays awaiting approval and does not affect balances until a
-        Finance Manager approves it.
+        This paid cost stays awaiting approval and does not affect balances
+        until a Finance Manager approves it.
       </p>
       <ActionMessage state={state} />
       <FormFooter>
@@ -2159,6 +2317,28 @@ function ExpenseReviewForm({
         rows={[
           ["Vendor", submission.vendorLabel],
           ["Property", submission.propertyLabel],
+          ...(submission.maintenanceTask
+            ? ([
+                [
+                  "Maintenance task",
+                  <Link
+                    className="text-primary underline-offset-2 hover:underline"
+                    href={submission.maintenanceTask.href}
+                    key={submission.maintenanceTask.href}
+                  >
+                    {submission.maintenanceTask.title}
+                  </Link>,
+                ],
+                [
+                  "Work completed",
+                  submission.maintenanceTask.description ?? "No work note recorded",
+                ],
+                [
+                  "Task status",
+                  maintenanceStatusLabel(submission.maintenanceTask.status),
+                ],
+              ] satisfies [string, ReactNode][])
+            : []),
           [
             submission.adjustsSubmissionId ? "Additional paid" : "Paid",
             formatMoneyDisplay(submission.internalCost).primary,
@@ -2198,6 +2378,17 @@ function ExpenseReviewForm({
               "No document attached"
             ),
           ],
+          ...(submission.evidence
+            ? ([
+                ["Evidence size", formatEvidenceSize(submission.evidence.sizeBytes)],
+                [
+                  "Evidence SHA-256",
+                  <span className="font-mono" key="evidence-sha256">
+                    {submission.evidence.sha256}
+                  </span>,
+                ],
+              ] satisfies [string, ReactNode][])
+            : []),
           ["Paid from", submission.fundingSourceLabel],
         ]}
       />
@@ -2243,7 +2434,9 @@ function ExpenseReviewForm({
             (decision === "reject" && reason.trim().length < 3) ||
             (needsFundingSource && !reconciliationSourceId)
           }
-          label={decision === "approve" ? "Approve expense" : "Reject expense"}
+          label={
+            decision === "approve" ? "Approve paid cost" : "Reject paid cost"
+          }
         />
       </FormFooter>
     </form>
@@ -2302,7 +2495,7 @@ function ExpenseReversalForm({
         <span />
         <SubmitButton
           disabled={reason.trim().length < 3}
-          label="Reverse expense"
+          label="Reverse paid cost"
         />
       </FormFooter>
     </form>
@@ -2456,7 +2649,7 @@ function OwnerPaymentForm({
       <ActionMessage state={state} />
       <FormFooter>
         <span />
-        <SubmitButton label="Record owner payment" />
+          <SubmitButton label="Record owner invoice payment" />
       </FormFooter>
     </form>
   );
@@ -2488,6 +2681,11 @@ function WithdrawalForm({
         ]}
       />
       <input name="propertyId" type="hidden" value={position.propertyId} />
+      <input
+        name="ownerPersonId"
+        type="hidden"
+        value={position.ownerPersonId ?? ""}
+      />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount">
@@ -2505,7 +2703,7 @@ function WithdrawalForm({
           />
         </Field>
         <Field label="Reference">
-          <Input name="reference" placeholder="Bank transfer or note" />
+          <Input name="reference" placeholder="Bank transfer or note" required />
         </Field>
       </div>
       <ActionMessage state={state} />
@@ -2522,29 +2720,34 @@ function getModalTitle(modal: ModalState) {
     return !modal.invoice || modal.invoice.collectionRoute === "through_ips"
       ? "Record payment"
       : "Confirm owner collection";
-  if (modal.mode === "owner-payment") return "Owner payment";
+  if (modal.mode === "owner-payment") return "Owner invoice payment";
   if (modal.mode === "expense-review") {
-    return modal.decision === "approve" ? "Approve expense" : "Reject expense";
+    return modal.decision === "approve"
+      ? "Approve paid cost"
+      : "Reject paid cost";
   }
-  if (modal.mode === "expense-reversal") return "Reverse expense";
+  if (modal.mode === "expense-reversal") return "Reverse paid cost";
   if (modal.mode === "settlement-reversal") return "Correct settlement";
-  return "Owner withdrawal";
+  return "Owner distribution";
 }
 
 function canRenderFinanceModal(
   modal: ModalState,
   capabilities: Pick<
     FinanceOperationsScreenProps,
-    "canManageFinance" | "canReviewExpense" | "canReverseExpense"
+    | "canCorrectFinance"
+    | "canRecordOwnerCash"
+    | "canRecordPayments"
+    | "canReviewExpense"
+    | "canReverseExpense"
   >,
 ) {
-  if (
-    modal.mode === "payment" ||
-    modal.mode === "settlement-reversal" ||
-    modal.mode === "owner-payment" ||
-    modal.mode === "withdrawal"
-  ) {
-    return capabilities.canManageFinance;
+  if (modal.mode === "payment") return capabilities.canRecordPayments;
+  if (modal.mode === "settlement-reversal") {
+    return capabilities.canCorrectFinance;
+  }
+  if (modal.mode === "owner-payment" || modal.mode === "withdrawal") {
+    return capabilities.canRecordOwnerCash;
   }
 
   if (modal.mode === "expense-review") {
@@ -2557,7 +2760,22 @@ function canRenderFinanceModal(
 function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "billing") return "Set up lease billing";
   if (drawer.mode === "rent-recovery") return "Recover missed rent";
-  return "Add expense";
+  return "Record paid cost";
+}
+
+function shortEvidenceHash(hash: string) {
+  return `${hash.slice(0, 12)}…${hash.slice(-8)}`;
+}
+
+function formatEvidenceSize(sizeBytes: number) {
+  if (sizeBytes < 1024) return `${sizeBytes} bytes`;
+  return `${(sizeBytes / 1024).toFixed(1)} KB`;
+}
+function maintenanceStatusLabel(status: string) {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 function useSuccess(
   state: FinanceOperationsActionState,
@@ -2650,7 +2868,7 @@ function CompactTotals({
     >
       {items.map((item) => (
         <div className="px-4 py-2.5 sm:px-6" key={item.label}>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             {item.label}
           </p>
           <div className="mt-0.5 text-sm font-semibold">{item.value}</div>
@@ -2711,15 +2929,42 @@ function Td({
 function Money({ amount }: { amount: number }) {
   return <MoneyDisplay align="right" value={formatMoneyDisplay(amount)} />;
 }
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  dueDate,
+  settlements = [],
+  status,
+}: {
+  dueDate?: string;
+  settlements?: TenantInvoiceSummary["settlements"];
+  status: string;
+}) {
+  const activeSettlementDates = settlements
+    .filter((settlement) => !settlement.isReversed)
+    .map((settlement) => settlement.date)
+    .sort();
+  const paidLate =
+    status === "paid" &&
+    dueDate !== undefined &&
+    activeSettlementDates.at(-1) !== undefined &&
+    activeSettlementDates.at(-1)! > dueDate;
+  const overdue =
+    (status === "unpaid" || status === "partly_paid") &&
+    dueDate !== undefined &&
+    dueDate < getBusinessDateValue();
   const label =
-    status === "partly_paid"
-      ? "Partly paid"
-      : status === "paid"
-        ? "Paid"
-        : status === "voided"
-          ? "Voided"
-          : "Unpaid";
+    paidLate
+      ? "Paid late"
+      : overdue && status === "partly_paid"
+        ? "Partly paid · overdue"
+        : overdue
+          ? "Overdue"
+          : status === "partly_paid"
+            ? "Partly paid"
+            : status === "paid"
+              ? "Paid"
+              : status === "voided"
+                ? "Voided"
+                : "Unpaid";
   return (
     <Badge
       tone={
@@ -2741,25 +2986,6 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
     <label className="block space-y-1.5 text-sm">
       <span className="font-medium">{label}</span>
       {children}
-    </label>
-  );
-}
-function Checkbox({
-  checked,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  label: string;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm">
-      <CheckboxPrimitive
-        checked={checked}
-        onCheckedChange={(value) => onChange(value === true)}
-      />
-      {label}
     </label>
   );
 }

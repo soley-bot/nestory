@@ -30,12 +30,13 @@ The implemented product includes:
 - Rent collected through the company or confirmed as collected directly by an
   owner.
 - Paid-expense evidence submission, Finance review, owner or tenant effects,
-  exact reversal, owner payments, withdrawals, and petty cash.
+  exact reversal, owner invoice payments, owner distributions, and petty cash.
 - Maintenance requests, branch coordination, assigned work, completion review,
   and an Operations-to-Finance cost handoff.
 - Staged imports for properties, units, people, and leases.
 - Monthly Owner Activity and Unit Profit and Loss reports with PDF and Excel
-  exports.
+  exports, plus numbered official Owner Statements retained from immutable
+  owner-month close revisions.
 - A read-only operational Ledger and a narrow financial month lock.
 
 The executable route contract is
@@ -143,8 +144,8 @@ Nestory distinguishes obligations from dated settlement:
 
 - `finance_income_items`, tenant invoices, owner invoices, and approved expense
   records describe what is owed or charged.
-- Receipts, payments, allocations, owner confirmations, deposit events,
-  withdrawals, and reversal rows describe dated activity.
+- Receipts, payments, allocations, owner confirmations, deposit events, owner
+  distributions, and reversal rows describe dated activity.
 - Cash reporting uses settlement dates. Invoice and expense dates remain the
   obligation context.
 - Security deposits and owner funding do not become property operating income.
@@ -154,14 +155,16 @@ Nestory distinguishes obligations from dated settlement:
   cannot be created, edited, posted, or archived manually.
 
 The Ledger is not a second source of truth. Reports must trace each row to the
-underlying allocation, payment, confirmation, withdrawal, deposit, expense
+underlying allocation, payment, confirmation, owner distribution, deposit, expense
 approval, reversal, or petty-cash source.
 
 `financial_month_locks` is the only financial time gate. Super Admin may lock
 or unlock one organization-month to pause operational financial mutations.
-This is not period close: Nestory has no accounting books, chart of accounts,
-journals, trial balance, close revisions, or financial-statement publication
-workflow.
+This is not accounting period close: Nestory has no accounting books, chart of
+accounts, journals, or trial balance. Owner-month close revisions freeze the
+operational source evidence for one exact property, owner, currency, and month;
+official Owner Statement publication retains numbered PDF and Excel artifacts
+from that immutable evidence without creating accounting-book authority.
 
 ## Lease Authority
 
@@ -192,15 +195,18 @@ Documents and photos use private Storage buckets plus organization-scoped
 metadata. Upload, link, archive, and evidence access must remain rollback-safe.
 Documents referenced by expense history are immutable evidence.
 
-The report catalog contains only:
+The operational report-builder catalog contains only:
 
 - Monthly Owner Activity
 - Unit Profit and Loss
 
 Reports use the canonical property-cash projection, preserve reversal signs,
 and link back to operational sources. PDF and Excel are the only report export
-formats. Owner Statement publication, a separate Management Fee Statement,
-and any balance that requires invented opening authority remain unavailable.
+formats. Official Owner Statements are a separate publication workflow under
+authoritative owner balances: Finance roles may read retained publications,
+while Super Admin alone may close, reopen, publish, or resume publication. A
+separate Management Fee Statement and any balance that requires invented
+opening authority remain unavailable.
 
 ## Deliberate Limitations
 
@@ -216,8 +222,9 @@ and any balance that requires invented opening authority remain unavailable.
   physical cash count variance.
 - Current party/occupancy correction paths are deliberately narrow and fail
   closed when safe downstream correction is not implemented.
-- Owner Statement publication is blocked until authoritative opening and
-  closing owner balances exist.
+- Official Owner Statement publication requires an exact property, owner,
+  currency, and month; an immutable closed revision; and verified retained PDF
+  and Excel artifacts. Missing authority remains visibly blocked.
 - There is no automatic historical rent backfill.
 
 Unavailable authority must remain visible as a blocked state or typed
@@ -329,6 +336,23 @@ npm run dev
 Normal local resets contain no business records. `npm run db:test:fixture`
 loads the guarded disposable five-role fixture documented at the top of
 `supabase/test-fixtures/baseline.sql`.
+
+The guarded local fixture contains one organization, five fixed-role logins,
+three properties, ten units, five current leases, and connected lease-derived
+rent, Finance approval, maintenance handoff, petty-cash, timeline, and reporting
+stories. It is local-only: it is not a scale benchmark, hosted seed, or proof of
+production readiness.
+
+The five role logins are:
+
+- `nestory@gmail.com`
+- `finance.manager@nestory.com`
+- `finance.member@nestory.com`
+- `operations.manager@nestory.com`
+- `operations.member@nestory.com`
+
+After loading the fixture and starting the local application, run
+`npm run test:fixture-roles` to verify each role's intended seeded journey.
 
 Useful checks:
 

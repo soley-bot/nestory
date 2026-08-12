@@ -8,37 +8,49 @@ import { SettingsTabs } from "@/components/layout/settings-tabs";
 afterEach(cleanup);
 
 describe("SettingsTabs", () => {
-  it.each(["/settings", "/users-roles"])(
-    "keeps exactly one current section for %s",
-    (activeHref) => {
-      render(<SettingsTabs activeHref={activeHref} />);
+  it.each([
+    "/settings?section=organization",
+    "/settings?section=appearance",
+    "/settings?section=configuration",
+    "/settings?section=branches",
+    "/settings?section=teams",
+    "/users-roles",
+    "/settings/rent-policy",
+  ])("keeps exactly one current section for %s", (activeHref) => {
+    render(<SettingsTabs activeHref={activeHref} />);
 
-      const navigation = screen.getByRole("navigation", {
-        name: "Settings sections",
-      });
-      const links = within(navigation).getAllByRole("link");
-      const current = links.filter(
-        (link) => link.getAttribute("aria-current") === "page",
-      );
+    const navigation = screen.getByRole("navigation", {
+      name: "Settings sections",
+    });
+    const links = within(navigation).getAllByRole("link");
+    const current = links.filter(
+      (link) => link.getAttribute("aria-current") === "page",
+    );
 
-      expect(links.map((link) => link.textContent)).toEqual([
-        "Workspace",
-        "Workspace Access",
-      ]);
-      expect(current).toHaveLength(1);
-      expect(current[0]?.getAttribute("href")).toBe(activeHref);
-      expect(
-        links.every((link) =>
-          link.className.includes("focus-visible:ring-ring/50"),
-        ),
-      ).toBe(true);
-    },
-  );
+    // Every settings destination lives in this one row; the workspace no
+    // longer carries a second segmented rail of its own.
+    expect(links.map((link) => link.textContent)).toEqual([
+      "Organization",
+      "Appearance",
+      "Configuration",
+      "Branches",
+      "Teams",
+      "Workspace Access",
+      "Rent Policy",
+    ]);
+    expect(current).toHaveLength(1);
+    expect(current[0]?.getAttribute("href")).toBe(activeHref);
+    expect(
+      links.every((link) =>
+        link.className.includes("focus-visible:ring-ring/50"),
+      ),
+    ).toBe(true);
+  });
 
   it("shares the page header row without recreating a full-width tab band", () => {
     render(
       <PageHeader
-        navigation={<SettingsTabs activeHref="/settings" />}
+        navigation={<SettingsTabs activeHref="/settings?section=organization" />}
         title="Settings"
       />,
     );

@@ -61,6 +61,17 @@ describe("proxy", () => {
     expect(response.status).toBe(200);
   });
 
+  it("keeps the fail-closed local target attestation available before login", async () => {
+    getClaims.mockResolvedValue({ data: { claims: null }, error: null });
+
+    const response = await proxy(
+      new NextRequest("http://localhost:3000/api/local-smoke-target"),
+    );
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
+  });
+
   it.each(["/auth/complete?next=%2Faccept-invite", "/auth/session"])(
     "keeps the implicit email boundary public without a session: %s",
     async (path) => {

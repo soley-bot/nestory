@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import {
+  requireFinancePettyCashContext,
+  requireSuperAdminContext,
+} from "@/lib/auth/context";
 
 type PettyCashFieldErrors = {
   accountNumber?: string[];
@@ -20,6 +23,7 @@ type PettyCashFieldErrors = {
   entryId?: string[];
   entryKind?: string[];
   floatAmount?: string[];
+  idempotencyKey?: string[];
   invoiceDate?: string[];
   name?: string[];
   periodId?: string[];
@@ -215,6 +219,10 @@ const createEntrySchema = z
   });
 
 const entryIdSchema = looseUuidSchema;
+const idempotencyKeySchema = z
+  .string()
+  .trim()
+  .min(8, "Petty cash request identity is required.");
 const voidEntrySchema = z.object({
   entryId: looseUuidSchema,
   voidReason: z
@@ -334,11 +342,23 @@ export async function createPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireFinancePettyCashContext();
   const parsed = parseEntryFormData(formData);
+  const parsedIdempotencyKey = idempotencyKeySchema.safeParse(
+    readString(formData, "idempotencyKey"),
+  );
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
+  }
+
+  if (!parsedIdempotencyKey.success) {
+    return {
+      fieldErrors: {
+        idempotencyKey: parsedIdempotencyKey.error.flatten().formErrors,
+      },
+      status: "error",
+    };
   }
 
   const propertyId =
@@ -360,6 +380,7 @@ export async function createPettyCashEntryAction(
     p_economic_scope: parsed.data.economicScope,
     p_entry_kind: parsed.data.entryKind,
     p_invoice_date: parsed.data.invoiceDate,
+    p_idempotency_key: parsedIdempotencyKey.data,
     p_organization_id: context.organizationId,
     p_owner_bill_status: parsed.data.ownerBillStatus,
     p_owner_reimbursable_amount: Number(
@@ -568,7 +589,7 @@ export async function postPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireFinancePettyCashContext();
   const parsedEntryId = entryIdSchema.safeParse(readString(formData, "entryId"));
 
   if (!parsedEntryId.success) {

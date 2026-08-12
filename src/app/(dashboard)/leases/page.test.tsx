@@ -40,7 +40,10 @@ describe("leases route", () => {
     ["super_admin", true],
   ] as const)("gives %s capability-correct lease access", async (role, canConfigure) => {
     requireFinanceContext.mockResolvedValue({
-      capabilities: { canConfigureLeases: canConfigure },
+      capabilities: {
+        canConfigureLeases: canConfigure,
+        canReadFinanceReports: role !== "finance_member",
+      },
       organizationId: "organization-1",
       role,
     });
@@ -56,7 +59,10 @@ describe("leases route", () => {
       expect.any(Object),
     );
     expect(screenSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ canConfigure }),
+      expect.objectContaining({
+        canConfigure,
+        canReadFinanceReports: role !== "finance_member",
+      }),
     );
   });
 });

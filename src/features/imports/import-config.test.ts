@@ -100,9 +100,34 @@ describe("import config", () => {
     const template = buildImportTemplateCsv("leases", referenceData);
 
     expect(template.split("\r\n")).toEqual([
-      "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Deposit,Status",
-      "CTR,12A,,,,,,,,,,Active",
+      "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Deposit,Status,Scheduled Move-in,Scheduled Move-out,Actual Move-in,Actual Move-out",
+      "CTR,12A,,,,,,,,,,Active,,,,",
     ]);
+  });
+
+  it("normalizes explicit occupancy evidence without copying lease term dates", () => {
+    const parsed = parseCsv(
+      [
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status,Scheduled Move-in,Scheduled Move-out,Actual Move-in,Actual Move-out",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-12-31,850,10,Monthly,Active,Ended,2026-01-03,2026-12-20,2026-01-05,2026-12-18",
+      ].join("\n"),
+    );
+    const [row] = buildGenericImportPreviewRows({
+      mapping: autoMapImportHeaders("leases", parsed.headers),
+      records: parsed.records,
+      referenceData,
+      type: "leases",
+    });
+
+    expect(row.issues).toHaveLength(0);
+    expect(row.normalizedData).toMatchObject({
+      actualMoveInDate: "2026-01-05",
+      actualMoveOutDate: "2026-12-18",
+      leaseEndDate: "2026-12-31",
+      leaseStartDate: "2026-01-01",
+      scheduledMoveInDate: "2026-01-03",
+      scheduledMoveOutDate: "2026-12-20",
+    });
   });
 
   it("normalizes people roles for tenant imports", () => {
@@ -329,9 +354,9 @@ describe("import config", () => {
   it("blocks overlapping open lease rows for the same unit in one import", () => {
     const parsed = parseCsv(
       [
-        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status",
-        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-06-30,850,10,Monthly,Active,Active",
-        "CTR,12A,tenant@example.com,Sok Dara,2026-03-01,2026-12-31,900,10,Monthly,Active,Notice Given",
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status,Scheduled Move-in,Scheduled Move-out",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-06-30,850,10,Monthly,Active,Active,2026-01-02,2026-06-30",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-03-01,2026-12-31,900,10,Monthly,Active,Notice Given,2026-03-01,2026-12-31",
       ].join("\n"),
     );
     const rows = buildGenericImportPreviewRows({
@@ -355,5 +380,23 @@ describe("import config", () => {
       errorCount: 2,
       readyCount: 0,
     });
+  });
+
+  it("does not infer occupancy overlap from overlapping lease term dates", () => {
+    const parsed = parseCsv(
+      [
+        "Property Code,Unit no.,Tenant Email,Tenant Name,Start Date,End Date,Monthly Rent,Due Day,Payment Frequency,Term Status,Status,Scheduled Move-in,Scheduled Move-out",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-01-01,2026-12-31,850,10,Monthly,Active,Draft,2026-01-01,2026-03-31",
+        "CTR,12A,tenant@example.com,Sok Dara,2026-03-01,2027-02-28,900,10,Monthly,Upcoming,Draft,2026-04-01,2027-02-28",
+      ].join("\n"),
+    );
+    const rows = buildGenericImportPreviewRows({
+      mapping: autoMapImportHeaders("leases", parsed.headers),
+      records: parsed.records,
+      referenceData,
+      type: "leases",
+    });
+
+    expect(rows.every((row) => row.issues.length === 0)).toBe(true);
   });
 });

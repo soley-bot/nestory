@@ -2,14 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { canonicalizeOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 import {
-  requireSuperAdminContext,
+  requireCurrentRentRetryContext,
+  requireFinanceCorrectionContext,
+  requireFinanceOperationContext,
   requireFinanceReviewContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
   requireLeaseConfigurationContext,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import {
+  preparePaidCostEvidence,
+  validatePaidCostEvidenceFile,
+} from "@/features/finance-operations/paid-cost-evidence";
 import type { Json } from "@/types/database";
 import type { FinanceOperationsActionState } from "@/features/finance-operations/finance-operations.types";
 
@@ -23,20 +30,55 @@ const uuid = z
   );
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.");
 const amount = z.coerce.number().positive("Enter an amount greater than zero.");
+const authoritativeOwnerAmount = z.string().transform((value, context) => {
+  try {
+    const canonical = canonicalizeOwnerOpeningAmount(value);
+    if (canonical === "0.00") {
+      context.addIssue({
+        code: "custom",
+        message: "Enter an amount greater than zero.",
+      });
+      return z.NEVER;
+    }
+    return canonical;
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : "Enter a valid exact amount.",
+    });
+    return z.NEVER;
+  }
+});
+const authoritativeNonnegativeAmount = z.string().transform((value, context) => {
+  try {
+    return canonicalizeOwnerOpeningAmount(value);
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : "Enter a valid exact amount.",
+    });
+    return z.NEVER;
+  }
+});
 const optionalAmount = z.preprocess(
   (value) => (value === "" || value === undefined ? null : value),
   z.coerce.number().nonnegative().nullable(),
 );
+const explicitBooleanChoice = z
+  .enum(["yes", "no"], {
+    message: "Choose yes or no.",
+  })
+  .transform((value) => value === "yes");
 
 const billingSchema = z.object({
   billingRecipientKind: z.enum(["individual", "company"]),
   billingRecipientPersonId: uuid,
-  chargeManagementFeeWhenActive: z.coerce.boolean(),
+  chargeManagementFeeWhenActive: explicitBooleanChoice,
   collectionRoute: z.enum(["through_ips", "direct_to_owner"]),
   effectiveFrom: date,
   finalPeriodProratedAmount: optionalAmount,
   firstPeriodProratedAmount: optionalAmount,
-  fullManagementFeeDuringProration: z.coerce.boolean(),
+  fullManagementFeeDuringProration: explicitBooleanChoice,
   idempotencyKey: z.string().min(8),
   leaseId: uuid,
   managementFeeMode: z.enum(["flat", "percentage"]),
@@ -78,8 +120,8 @@ const expenseSchema = z.object({
   category: z.enum(["cleaning", "utility", "repairs_maintenance", "other"]),
   expenseDate: date,
   idempotencyKey: z.string().min(8),
-  internalCost: amount,
-  internalMarkup: z.coerce.number().nonnegative(),
+  internalCost: authoritativeOwnerAmount,
+  internalMarkup: authoritativeNonnegativeAmount,
   propertyId: uuid,
   reconciliationSourceId: uuid,
   reference: z
@@ -118,7 +160,7 @@ const expenseReversalSchema = z.object({
 });
 
 const ownerPaymentSchema = z.object({
-  amount,
+  amount: authoritativeOwnerAmount,
   idempotencyKey: z.string().min(8),
   ownerInvoiceId: uuid,
   receivedDate: date,
@@ -126,10 +168,11 @@ const ownerPaymentSchema = z.object({
 });
 
 const withdrawalSchema = z.object({
-  amount,
+  amount: authoritativeOwnerAmount,
   idempotencyKey: z.string().min(8),
+  ownerPersonId: uuid,
   propertyId: uuid,
-  reference: z.string().trim().max(160),
+  reference: z.string().trim().min(1).max(160),
   withdrawalDate: date,
 });
 
@@ -140,14 +183,16 @@ export async function saveLeaseBillingAction(
   const parsed = billingSchema.safeParse({
     billingRecipientKind: formData.get("billingRecipientKind"),
     billingRecipientPersonId: formData.get("billingRecipientPersonId"),
-    chargeManagementFeeWhenActive:
-      formData.get("chargeManagementFeeWhenActive") === "on",
+    chargeManagementFeeWhenActive: formData.get(
+      "chargeManagementFeeWhenActive",
+    ),
     collectionRoute: formData.get("collectionRoute"),
     effectiveFrom: formData.get("effectiveFrom"),
     finalPeriodProratedAmount: formData.get("finalPeriodProratedAmount"),
     firstPeriodProratedAmount: formData.get("firstPeriodProratedAmount"),
-    fullManagementFeeDuringProration:
-      formData.get("fullManagementFeeDuringProration") === "on",
+    fullManagementFeeDuringProration: formData.get(
+      "fullManagementFeeDuringProration",
+    ),
     idempotencyKey: formData.get("idempotencyKey"),
     leaseId: formData.get("leaseId"),
     managementFeeMode: formData.get("managementFeeMode"),
@@ -187,7 +232,7 @@ export async function recoverRentGenerationExceptionAction(
 ): Promise<FinanceOperationsActionState> {
   const parsed = recoverRentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireLeaseConfigurationContext();
+  const context = await requireCurrentRentRetryContext();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc(
     "recover_rent_generation_exception",
@@ -257,7 +302,7 @@ export async function recordTenantInvoicePaymentAction(
 ): Promise<FinanceOperationsActionState> {
   const parsed = paymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireSuperAdminContext();
+  const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   const allocations = parseAllocations(formData);
   const { error } = await supabase.rpc("record_tenant_invoice_payment", {
@@ -283,7 +328,7 @@ export async function confirmOwnerCollectionAction(
     Object.fromEntries(formData),
   );
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireSuperAdminContext();
+  const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   const allocations = parseAllocations(formData);
   const { error } = await supabase.rpc("confirm_owner_collected_rent", {
@@ -309,7 +354,7 @@ export async function reverseTenantInvoicePaymentAction(
   );
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireFinanceReversalContext();
+  const context = await requireFinanceCorrectionContext();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("reverse_tenant_invoice_payment", {
     p_idempotency_key: parsed.data.idempotencyKey,
@@ -332,7 +377,7 @@ export async function reverseOwnerCollectionConfirmationAction(
   );
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireFinanceReversalContext();
+  const context = await requireFinanceCorrectionContext();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc(
     "reverse_owner_collection_confirmation",
@@ -353,12 +398,32 @@ export async function submitExpenseAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
+  const evidenceFile = formData.get("evidenceFile");
+  const evidenceError = validatePaidCostEvidenceFile(evidenceFile);
+  if (evidenceError) return actionError(evidenceError);
   const parsed = expenseSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
   if (parsed.data.responsibility === "tenant" && !parsed.data.tenantInvoiceId) {
     return actionError("Choose the tenant invoice for this charge.");
   }
   const context = await requireFinanceSubmissionContext();
+  let evidenceDocumentId: string;
+  try {
+    const evidence = await preparePaidCostEvidence({
+      actorId: context.userId,
+      file: evidenceFile as File,
+      idempotencyKey: parsed.data.idempotencyKey,
+      organizationId: context.organizationId,
+      propertyId: parsed.data.propertyId,
+    });
+    evidenceDocumentId = evidence.documentId;
+  } catch (error) {
+    return actionError(
+      error instanceof Error
+        ? error.message
+        : "Receipt evidence could not be verified.",
+    );
+  }
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("submit_expense", {
     p_currency: "USD",
@@ -374,7 +439,7 @@ export async function submitExpenseAction(
     p_responsibility: parsed.data.responsibility,
     p_source_id: null,
     p_source_type: "general",
-    p_supporting_document_id: null,
+    p_supporting_document_id: evidenceDocumentId,
     p_tenant_invoice_id: parsed.data.tenantInvoiceId,
     p_unit_id: parsed.data.unitId,
     p_vendor_label: parsed.data.vendorLabel,
@@ -383,7 +448,7 @@ export async function submitExpenseAction(
   if (error) return actionError(error.message);
   revalidateFinance();
   return {
-    message: "Expense submitted for Finance review.",
+    message: "Paid cost submitted for Finance review.",
     status: "success",
   };
 }
@@ -413,8 +478,8 @@ export async function reviewExpenseAction(
   return {
     message:
       parsed.data.decision === "approve"
-        ? "Expense approved and recorded."
-        : "Expense rejected.",
+        ? "Paid cost approved and recorded."
+        : "Paid cost rejected.",
     status: "success",
   };
 }
@@ -437,7 +502,7 @@ export async function reverseExpenseAction(
   });
   if (error) return expenseWorkflowError(error.message);
   revalidateFinance();
-  return { message: "Expense reversed.", status: "success" };
+  return { message: "Paid cost reversed.", status: "success" };
 }
 
 export async function recordOwnerPaymentAction(
@@ -446,7 +511,7 @@ export async function recordOwnerPaymentAction(
 ): Promise<FinanceOperationsActionState> {
   const parsed = ownerPaymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireSuperAdminContext();
+  const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("record_owner_invoice_payment", {
     p_amount: parsed.data.amount,
@@ -458,7 +523,7 @@ export async function recordOwnerPaymentAction(
   });
   if (error) return actionError(error.message);
   revalidateFinance();
-  return { message: "Owner payment recorded.", status: "success" };
+  return { message: "Owner invoice payment recorded.", status: "success" };
 }
 
 export async function recordWithdrawalAction(
@@ -467,19 +532,21 @@ export async function recordWithdrawalAction(
 ): Promise<FinanceOperationsActionState> {
   const parsed = withdrawalSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
-  const context = await requireSuperAdminContext();
+  const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("record_property_withdrawal", {
+  const { error } = await supabase.rpc("record_owner_distribution", {
     p_amount: parsed.data.amount,
+    p_currency: "USD",
+    p_distribution_date: parsed.data.withdrawalDate,
     p_idempotency_key: parsed.data.idempotencyKey,
     p_organization_id: context.organizationId,
+    p_owner_person_id: parsed.data.ownerPersonId,
     p_property_id: parsed.data.propertyId,
     p_reference: parsed.data.reference,
-    p_withdrawal_date: parsed.data.withdrawalDate,
   });
   if (error) return actionError(error.message);
   revalidateFinance();
-  return { message: "Withdrawal recorded.", status: "success" };
+  return { message: "Owner distribution recorded.", status: "success" };
 }
 
 function parseAllocations(formData: FormData) {
@@ -537,7 +604,7 @@ function revalidateFinance() {
 function expenseWorkflowError(message: string) {
   if (message.includes("period is locked")) {
     return actionError(
-      "This expense month is locked. Super Admin must reopen it before approval.",
+      "This paid-cost month is locked. Super Admin must reopen it before approval.",
     );
   }
   if (message.includes("already settled this charge")) {

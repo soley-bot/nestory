@@ -59,12 +59,12 @@ export function OverviewOccupancyBars({
             title={`${point.label}: ${point.percent}% occupied, ${point.unoccupiedUnits} open units`}
           >
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-              <span className="min-w-0 truncate text-[13px] font-medium leading-5">
+              <span className="min-w-0 truncate text-sm font-medium leading-5">
                 {point.label}
               </span>
               <span
                 className={cn(
-                  "shrink-0 text-[13px] font-semibold leading-5 tabular-nums",
+                  "shrink-0 text-sm font-semibold leading-5 tabular-nums",
                   occupancyToneClass(point.percent),
                 )}
               >

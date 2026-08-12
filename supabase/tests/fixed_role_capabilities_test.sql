@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(47);
+SELECT plan(62);
 
 SELECT ok(
   EXISTS (
@@ -62,6 +62,14 @@ SELECT has_function('app_private', 'can_review_expense', ARRAY['uuid'], 'expense
 SELECT has_function('app_private', 'can_reverse_expense', ARRAY['uuid'], 'expense-reversal capability exists');
 SELECT has_function('app_private', 'can_manage_operations', ARRAY['uuid'], 'operations-management capability exists');
 SELECT has_function('app_private', 'can_execute_operations', ARRAY['uuid'], 'operations-execution capability exists');
+SELECT has_function('app_private', 'can_operate_finance', ARRAY['uuid'], 'ordinary Finance operation capability exists');
+SELECT has_function('app_private', 'can_manage_petty_cash', ARRAY['uuid'], 'Petty Cash operation capability exists');
+SELECT has_function('app_private', 'can_manage_reconciliation_sources', ARRAY['uuid'], 'reconciliation-source configuration capability exists');
+SELECT has_function('app_private', 'can_retry_current_rent', ARRAY['uuid'], 'current-rent retry capability exists');
+SELECT has_function('app_private', 'can_lock_financial_month', ARRAY['uuid'], 'financial-month lock capability exists');
+SELECT has_function('app_private', 'can_unlock_financial_month', ARRAY['uuid'], 'financial-month unlock capability exists');
+SELECT has_function('app_private', 'can_read_finance_reports', ARRAY['uuid'], 'Finance report-read capability exists');
+SELECT has_function('app_private', 'can_correct_finance', ARRAY['uuid'], 'Finance correction capability exists');
 SELECT has_function(
   'app_private',
   'workspace_role_scope_is_valid',
@@ -78,7 +86,15 @@ SELECT ok(
   AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_review_expense(uuid)'), 'EXECUTE'), false)
   AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_reverse_expense(uuid)'), 'EXECUTE'), false)
   AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_manage_operations(uuid)'), 'EXECUTE'), false)
-  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_execute_operations(uuid)'), 'EXECUTE'), false),
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_execute_operations(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_operate_finance(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_manage_petty_cash(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_manage_reconciliation_sources(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_retry_current_rent(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_lock_financial_month(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_unlock_financial_month(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_read_finance_reports(uuid)'), 'EXECUTE'), false)
+  AND NOT coalesce(has_function_privilege('anon', to_regprocedure('app_private.can_correct_finance(uuid)'), 'EXECUTE'), false),
   'capability helpers are not executable through default PUBLIC grants'
 );
 
@@ -91,7 +107,15 @@ SELECT ok(
   AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_review_expense(uuid)'), 'EXECUTE'), false)
   AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_reverse_expense(uuid)'), 'EXECUTE'), false)
   AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_manage_operations(uuid)'), 'EXECUTE'), false)
-  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_execute_operations(uuid)'), 'EXECUTE'), false),
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_execute_operations(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_operate_finance(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_manage_petty_cash(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_manage_reconciliation_sources(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_retry_current_rent(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_lock_financial_month(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_unlock_financial_month(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_read_finance_reports(uuid)'), 'EXECUTE'), false)
+  AND coalesce(has_function_privilege('authenticated', to_regprocedure('app_private.can_correct_finance(uuid)'), 'EXECUTE'), false),
   'authenticated RLS evaluation can execute every capability helper'
 );
 
@@ -838,6 +862,148 @@ SELECT results_eq(
   'Super Admin can read expense, Ledger, Petty Cash, and complete lease finance context'
 );
 RESET ROLE;
+
+SELECT is(
+  (
+    SELECT jsonb_agg(procedure_name ORDER BY procedure_name)
+    FROM (
+      SELECT procedure_row.proname::text AS procedure_name
+      FROM pg_proc AS procedure_row
+      JOIN pg_namespace AS namespace_row
+        ON namespace_row.oid = procedure_row.pronamespace
+      WHERE namespace_row.nspname = 'app_private'
+        AND procedure_row.proname IN (
+          'can_read_owner_balance_authority',
+          'can_submit_owner_opening_balance',
+          'can_request_owner_opening_balance_correction',
+          'can_review_owner_opening_balance',
+          'can_inspect_owner_close_readiness',
+          'can_close_owner_month',
+          'can_reopen_owner_month',
+          'can_publish_owner_statement'
+        )
+    ) AS owner_capabilities
+  ),
+  '["can_close_owner_month","can_inspect_owner_close_readiness","can_publish_owner_statement","can_read_owner_balance_authority","can_reopen_owner_month","can_request_owner_opening_balance_correction","can_review_owner_opening_balance","can_submit_owner_opening_balance"]'::jsonb,
+  'owner balance and close authority uses eight explicit database predicates'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM (
+      VALUES
+        ('can_read_owner_balance_authority'),
+        ('can_submit_owner_opening_balance'),
+        ('can_request_owner_opening_balance_correction'),
+        ('can_review_owner_opening_balance'),
+        ('can_inspect_owner_close_readiness'),
+        ('can_close_owner_month'),
+        ('can_reopen_owner_month'),
+        ('can_publish_owner_statement')
+    ) AS capability(name)
+    CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS role_name(name)
+    WHERE coalesce(
+      has_function_privilege(
+        role_name.name,
+        to_regprocedure('app_private.' || capability.name || '(uuid)'),
+        'EXECUTE'
+      ),
+      false
+    )
+  ),
+  'owner authority predicates remain private to checked database code'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT super_admin_id::text FROM fixed_role_state), true);
+SELECT results_eq(
+  $$
+    SELECT
+      app_private.can_read_owner_balance_authority(organization_id),
+      app_private.can_submit_owner_opening_balance(organization_id),
+      app_private.can_request_owner_opening_balance_correction(organization_id),
+      app_private.can_review_owner_opening_balance(organization_id),
+      app_private.can_inspect_owner_close_readiness(organization_id),
+      app_private.can_close_owner_month(organization_id),
+      app_private.can_reopen_owner_month(organization_id),
+      app_private.can_publish_owner_statement(organization_id)
+    FROM fixed_role_state
+  $$,
+  $$ VALUES (true, true, true, true, true, true, true, true) $$,
+  'Super Admin receives every owner-balance and close authority'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT finance_manager_id::text FROM fixed_role_state), true);
+SELECT results_eq(
+  $$
+    SELECT
+      app_private.can_read_owner_balance_authority(organization_id),
+      app_private.can_submit_owner_opening_balance(organization_id),
+      app_private.can_request_owner_opening_balance_correction(organization_id),
+      app_private.can_review_owner_opening_balance(organization_id),
+      app_private.can_inspect_owner_close_readiness(organization_id),
+      app_private.can_close_owner_month(organization_id),
+      app_private.can_reopen_owner_month(organization_id),
+      app_private.can_publish_owner_statement(organization_id)
+    FROM fixed_role_state
+  $$,
+  $$ VALUES (true, false, true, false, true, false, false, false) $$,
+  'Finance Manager can read, request correction, and inspect readiness without opening approval or close authority'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT finance_member_id::text FROM fixed_role_state), true);
+SELECT results_eq(
+  $$
+    SELECT
+      app_private.can_read_owner_balance_authority(organization_id),
+      app_private.can_submit_owner_opening_balance(organization_id),
+      app_private.can_request_owner_opening_balance_correction(organization_id),
+      app_private.can_review_owner_opening_balance(organization_id),
+      app_private.can_inspect_owner_close_readiness(organization_id),
+      app_private.can_close_owner_month(organization_id),
+      app_private.can_reopen_owner_month(organization_id),
+      app_private.can_publish_owner_statement(organization_id)
+    FROM fixed_role_state
+  $$,
+  $$ VALUES (true, true, true, false, true, false, false, false) $$,
+  'Finance Member can submit and inspect without review or close authority'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT operations_manager_id::text FROM fixed_role_state), true);
+SELECT results_eq(
+  $$
+    SELECT
+      app_private.can_read_owner_balance_authority(organization_id),
+      app_private.can_submit_owner_opening_balance(organization_id),
+      app_private.can_request_owner_opening_balance_correction(organization_id),
+      app_private.can_review_owner_opening_balance(organization_id),
+      app_private.can_inspect_owner_close_readiness(organization_id),
+      app_private.can_close_owner_month(organization_id),
+      app_private.can_reopen_owner_month(organization_id),
+      app_private.can_publish_owner_statement(organization_id)
+    FROM fixed_role_state
+  $$,
+  $$ VALUES (false, false, false, false, false, false, false, false) $$,
+  'Operations Manager receives no owner-balance or close authority'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT operations_member_id::text FROM fixed_role_state), true);
+SELECT results_eq(
+  $$
+    SELECT
+      app_private.can_read_owner_balance_authority(organization_id),
+      app_private.can_submit_owner_opening_balance(organization_id),
+      app_private.can_request_owner_opening_balance_correction(organization_id),
+      app_private.can_review_owner_opening_balance(organization_id),
+      app_private.can_inspect_owner_close_readiness(organization_id),
+      app_private.can_close_owner_month(organization_id),
+      app_private.can_reopen_owner_month(organization_id),
+      app_private.can_publish_owner_statement(organization_id)
+    FROM fixed_role_state
+  $$,
+  $$ VALUES (false, false, false, false, false, false, false, false) $$,
+  'Operations Member receives no owner-balance or close authority'
+);
 
 SELECT set_config('request.jwt.claim.sub', '', true);
 SELECT * FROM finish();

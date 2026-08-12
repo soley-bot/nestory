@@ -12,6 +12,7 @@ const AUTH_SESSION_ROUTE = "/auth/session";
 const PUBLIC_ROUTES = new Set([
   "/",
   "/accept-invite",
+  "/api/local-smoke-target",
   AUTH_CALLBACK_ROUTE,
   AUTH_COMPLETE_ROUTE,
   AUTH_CONFIRM_ROUTE,

@@ -66,12 +66,14 @@ describe("toExpenseSubmissionSummary", () => {
       recorded_total_amount: 100,
       reference: "Receipt 123",
       responsibility: "owner",
+      reviewed_at: "2026-08-09T08:30:00Z",
       review_reason: null,
       reversal_reason: null,
       source_id: "task-1",
       source_type: "maintenance_task",
       status: "submitted",
       submitted_at: "2026-08-08T08:00:00Z",
+      submitted_by: "finance-member-user-1",
       unit_id: "unit-1",
       vendor_label: "Archived Vendor",
     } as Database["public"]["Tables"]["expense_submissions"]["Row"];
@@ -101,13 +103,53 @@ describe("toExpenseSubmissionSummary", () => {
         ],
       ]),
       new Map([["source-1", "BANK · Archived operating account"]]),
-      new Map(),
+      new Map([
+        [
+          "submission-1",
+          {
+            documentId: "document-1",
+            fileName: "receipt.pdf",
+            mimeType: "application/pdf",
+            sha256:
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            sizeBytes: 128,
+          },
+        ],
+      ]),
+      new Map([
+        [
+          "task-1",
+          {
+            completed_at: "2026-08-08T07:30:00Z",
+            description: "Replace the failed pump and verify pressure.",
+            id: "task-1",
+            status: "completed",
+            title: "Garden Court pump replacement",
+          },
+        ],
+      ]),
+      new Map([["finance-member-user-1", "finance.member@nestory.com"]]),
     );
 
     expect(summary).toMatchObject({
       fundingSourceLabel: "BANK · Archived operating account",
       id: "submission-1",
+      maintenanceTask: {
+        completedAt: "2026-08-08T07:30:00Z",
+        description: "Replace the failed pump and verify pressure.",
+        href: "/maintenance?archiveState=all&taskId=task-1",
+        status: "completed",
+        title: "Garden Court pump replacement",
+      },
+      evidence: {
+        sha256:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        sizeBytes: 128,
+      },
+      reviewedAt: "2026-08-09T08:30:00Z",
       status: "submitted",
+      submittedByLabel: "finance.member@nestory.com",
+      submittedByUserId: "finance-member-user-1",
     });
     expect(summary.propertyLabel).toContain("Archived Property");
     expect(summary.unitLabel).toContain("A-01");

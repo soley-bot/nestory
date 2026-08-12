@@ -46,7 +46,7 @@ export function UnitDetailScreen({
   const returnLink = getUnitRecordReturnLink(sourceTaskId);
 
   return (
-    <div className="min-h-screen lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
+    <div className="lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden">
       <PageHeader
         actions={
           unit.isArchived ? (
@@ -63,7 +63,7 @@ export function UnitDetailScreen({
           ) : (
             <>
               <Link
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-foreground px-2.5 text-sm font-medium text-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-primary px-2.5 text-sm font-medium text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 href={unit.repairAction.href}
                 prefetch={false}
               >

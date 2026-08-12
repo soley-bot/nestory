@@ -25,7 +25,7 @@ describe("owner activity report", () => {
       ["Rent", "USD 800.00"],
       ["Management fee", "USD 80.00"],
       ["Property costs", "USD 120.00"],
-      ["Withdrawals", "USD 200.00"],
+      ["Owner distributions", "USD 200.00"],
     ]);
     expect(report.rows[0]?.cells).toMatchObject({
       managementFees: "USD 80.00",

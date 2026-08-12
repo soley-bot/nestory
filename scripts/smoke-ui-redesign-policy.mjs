@@ -34,6 +34,7 @@ export const FINAL_ACCEPTANCE_ROUTES = Object.freeze([
   { label: "Workspace Access", manifestRoute: "/users-roles" },
   { label: "Account", manifestRoute: "/account" },
   { label: "Finance Operations", manifestRoute: "/finance" },
+  { label: "Owner balances", manifestRoute: "/balances" },
   { label: "Ledger", manifestRoute: "/ledger" },
   { label: "Reports", manifestRoute: "/reports" },
 ]);
@@ -68,6 +69,13 @@ const keyboardZoomRouteDefinitions = Object.freeze([
     manifestRoute: "/settings",
     operationalSurfaceKey: "settings-workspace",
     operationalSurfaceSelector: '[data-testid="settings-workspace"]',
+  },
+  {
+    label: "Opening authority",
+    largeTextScale: 2,
+    manifestRoute: "/balances",
+    operationalSurfaceKey: "opening-authority-components",
+    operationalSurfaceSelector: '[data-slot="opening-authority-components"]',
   },
 ]);
 
@@ -193,6 +201,9 @@ export function resolveKeyboardZoomRoutes(manifest) {
     return {
       expectedAccess: entry.smoke.expectedAccess.super_admin,
       label: definition.label,
+      ...(definition.largeTextScale
+        ? { largeTextScale: definition.largeTextScale }
+        : {}),
       manifestRoute: definition.manifestRoute,
       operationalSurfaceKey: definition.operationalSurfaceKey,
       operationalSurfaceSelector: definition.operationalSurfaceSelector,
@@ -414,6 +425,11 @@ export function getKeyboardZoomAuditFailures(result) {
   ) {
     failures.push(`${prefix}: horizontal overflow check failed`);
   }
+  if (result.largeText && result.largeText.applied !== true) {
+    failures.push(
+      `${prefix}: requested ${result.largeText.requestedScale * 100}% large text was not applied`,
+    );
+  }
 
   const traversal = result.keyboardTraversal;
   if (traversal?.error) {
@@ -524,7 +540,10 @@ export function renderKeyboardZoomEvidence(audits = []) {
   const status =
     routeFailures.length === 0 && suiteFailures.length === 0 ? "pass" : "open";
 
-  return `- ${passingCount}/${keyboardZoomRouteDefinitions.length} ${status}: keyboard traversal at a 720x450 CSS viewport equivalent to 1440x900 at 200%. This is an equivalent layout audit, not actual browser zoom. Actual 200% browser zoom remains manual and unverified.`;
+  const largeTextCount = audits.filter(
+    (audit) => audit.largeText?.applied === true,
+  ).length;
+  return `- ${passingCount}/${keyboardZoomRouteDefinitions.length} ${status}: keyboard traversal at a 720x450 CSS viewport equivalent to 1440x900 at 200%. ${largeTextCount} route(s) also applied and measured actual 200% root-font large text. This is an equivalent layout and large-text audit, not actual browser zoom. Actual 200% browser zoom remains manual and unverified.`;
 }
 
 export function getRouteResultFailures(result) {
@@ -794,6 +813,8 @@ function validateKeyboardAudits(audits, manifest, failures) {
           contract.operationalSurfaceKey ||
         audit.operationalSurfaceContract?.selector !==
           contract.operationalSurfaceSelector ||
+        (contract.largeTextScale ?? null) !==
+          (audit.largeText?.requestedScale ?? null) ||
         audit.viewport !== KEYBOARD_ZOOM_VIEWPORT.name ||
         audit.viewportWidth !== KEYBOARD_ZOOM_VIEWPORT.width ||
         audit.viewportHeight !== KEYBOARD_ZOOM_VIEWPORT.height

@@ -10,7 +10,7 @@ export function PeopleScreenSkeleton({
   return (
     <div
       aria-busy="true"
-      className="min-h-screen lg:flex lg:h-screen lg:flex-col lg:overflow-hidden"
+      className="lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden"
     >
       <span className="sr-only">Loading people records</span>
       <PageHeader
@@ -42,7 +42,7 @@ export function PeopleScreenSkeleton({
               </div>
               <div className="h-7 w-16 rounded-md border border-border bg-muted" />
             </div>
-            <div className="hidden h-full min-h-[380px] overflow-hidden bg-card md:block">
+            <div className="hidden h-full overflow-hidden bg-card md:block">
               <div className="grid grid-cols-[24%_16%_25%_26%_9%] bg-muted px-2.5 py-2.5">
                 {rowWidths.map((width, index) => (
                   <div

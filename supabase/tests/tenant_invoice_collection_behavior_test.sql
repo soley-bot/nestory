@@ -6,7 +6,17 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 -- privileges for invoice and collection writes are asserted separately.
 SELECT set_config('app.rent_generation_context', 'lease-derived-v1', true);
 
-SELECT plan(28);
+SELECT plan(36);
+
+SELECT ok(
+  pg_catalog.strpos(
+    pg_catalog.pg_get_functiondef(
+      'app_private.reverse_tenant_invoice_payment_after_date_validation(uuid,uuid,date,text,text)'::regprocedure
+    ),
+    'public.property_owners'
+  ) = 0,
+  'tenant payment reversal locks persisted allocation owners without a current-roster primary-owner guess'
+);
 
 CREATE TEMP TABLE tenant_invoice_state (
   organization_id uuid NOT NULL,
@@ -52,6 +62,20 @@ SELECT
   '80000000-0000-0000-0000-000000000001',
   '80000000-0000-0000-0000-000000000003';
 GRANT SELECT, UPDATE ON tenant_invoice_state TO authenticated;
+
+CREATE FUNCTION pg_temp.try_uuid(statement text) RETURNS uuid
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  result uuid;
+BEGIN
+  EXECUTE statement INTO result;
+  RETURN result;
+EXCEPTION WHEN insufficient_privilege THEN
+  RETURN NULL;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION pg_temp.try_uuid(text) TO authenticated;
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -192,6 +216,38 @@ SELECT lives_ok(
   'an IPS collection source can be selected'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    SELECT public.set_lease_billing_term(
+      organization_id,
+      through_lease_id,
+      (date_trunc('month', current_date) + interval '2 months')::date,
+      'through_ips',
+      'percentage',
+      10,
+      true,
+      true,
+      'individual',
+      through_tenant_id,
+      NULL,
+      NULL,
+      through_billing_id,
+      'invoice-through-billing-manager-denied'
+    )
+    FROM tenant_invoice_state
+  $$,
+  '42501',
+  'Not authorized',
+  'Finance Manager cannot configure lease billing terms'
+);
+
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
@@ -216,8 +272,51 @@ SELECT lives_ok(
       'invoice-through-payment-0001'
     )
   $$,
-  'partial IPS payment defaults to rent-first allocation'
+  'Finance Manager can record one append-only IPS tenant payment'
 );
+
+SELECT is(
+  (SELECT created_by FROM public.tenant_invoice_payments WHERE id = (SELECT payment_id FROM tenant_invoice_state)),
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  'tenant payment records the Finance Manager actor'
+);
+
+SELECT is(
+  pg_temp.try_uuid(format(
+    'SELECT public.record_tenant_invoice_payment(%L,%L,400,current_date,%L,%L,%L::jsonb,%L)',
+    organization_id,
+    through_invoice_id,
+    source_id,
+    'Bank transfer',
+    jsonb_build_array(jsonb_build_object(
+      'lineId', (SELECT id FROM public.tenant_invoice_lines WHERE invoice_id = through_invoice_id AND line_type = 'rent'),
+      'amount', 400
+    ))::text,
+    'invoice-through-payment-0001'
+  )),
+  payment_id,
+  'an exact Finance Manager tenant-payment retry returns the original record'
+)
+FROM tenant_invoice_state;
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
+RESET ROLE;
+
+UPDATE tenant_invoice_state
+SET payment_id = public.record_tenant_invoice_payment(
+  organization_id,
+  through_invoice_id,
+  400,
+  current_date,
+  source_id,
+  'Bank transfer',
+  jsonb_build_array(jsonb_build_object(
+    'lineId', (SELECT id FROM public.tenant_invoice_lines WHERE invoice_id = through_invoice_id AND line_type = 'rent'),
+    'amount', 400
+  )),
+  'invoice-through-payment-admin-fallback'
+)
+WHERE payment_id IS NULL;
 
 SELECT results_eq(
   $$
@@ -274,16 +373,29 @@ SELECT throws_ok(
     )
     FROM tenant_invoice_state
   $$,
-  '42501',
-  'Not authorized',
-  'Finance Manager cannot reverse a tenant payment'
+  '23514',
+  'tenant_payment_owner_allocation_required',
+  'Finance Manager tenant correction fails closed until its owner source is allocated'
 );
-SELECT set_config(
-  'request.jwt.claim.sub',
-  (SELECT admin_id::text FROM tenant_invoice_state),
-  true
-);
-RESET ROLE;
+
+SELECT public.allocate_owner_event(
+  state.organization_id,
+  'tenant_rent_receipt',
+  allocation.id,
+  pg_catalog.concat(
+    'invoice-through-source-',
+    pg_catalog.lpad(allocation.allocation_order::text, 3, '0')
+  )
+)
+FROM tenant_invoice_state AS state
+JOIN public.tenant_invoice_payment_allocations AS allocation
+  ON allocation.organization_id = state.organization_id
+  AND allocation.payment_id = state.payment_id
+  AND allocation.reversal_of_allocation_id IS NULL
+JOIN public.tenant_invoice_lines AS line
+  ON line.organization_id = allocation.organization_id
+  AND line.id = allocation.invoice_line_id
+  AND line.line_type = 'rent';
 
 SELECT lives_ok(
   $$
@@ -296,7 +408,7 @@ SELECT lives_ok(
       'invoice-through-reverse-0001'
     )
   $$,
-  'Super Admin can reverse the invoice payment through its domain command'
+  'Finance Manager can reverse an allocated invoice payment through its guarded domain command'
 );
 
 SELECT is(
@@ -363,6 +475,13 @@ SELECT results_eq(
   'tenant reversal appends exact negative cash and Ledger evidence'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM tenant_invoice_state),
+  true
+);
+RESET ROLE;
+
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
@@ -419,6 +538,13 @@ SELECT results_eq(
   'company invoice keeps the company recipient and occupant reference separate'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
@@ -450,8 +576,65 @@ SELECT lives_ok(
       'invoice-direct-confirm-0001'
     )
   $$,
-  'Super Admin can confirm the owner collected the full invoice'
+  'Finance Manager can confirm the owner collected the full invoice'
 );
+
+SELECT is(
+  (SELECT created_by FROM public.owner_collection_confirmations WHERE id = (SELECT confirmation_id FROM tenant_invoice_state)),
+  '00000000-0000-0000-0000-000000000701'::uuid,
+  'owner collection confirmation records the Finance Manager actor'
+);
+
+SELECT is(
+  pg_temp.try_uuid(format(
+    'SELECT public.confirm_owner_collected_rent(%L,%L,1450.00::numeric(14,2),current_date,%L,%L::jsonb,%L)',
+    organization_id,
+    direct_invoice_id,
+    'Owner confirmed transfer',
+    jsonb_build_array(jsonb_build_object(
+      'lineId', (SELECT id FROM public.tenant_invoice_lines WHERE invoice_id = direct_invoice_id AND line_type = 'rent'),
+      'amount', 1450.00::numeric(14,2)
+    ))::text,
+    'invoice-direct-confirm-0001'
+  )),
+  confirmation_id,
+  'an exact Finance Manager owner-collection retry returns the original record'
+)
+FROM tenant_invoice_state;
+
+SELECT throws_ok(
+  $$
+    SELECT public.reverse_owner_collection_confirmation(
+      organization_id,
+      confirmation_id,
+      current_date,
+      'Unauthorized correction',
+      'invoice-owner-reverse-manager'
+    )
+    FROM tenant_invoice_state
+  $$,
+  '23514',
+  'owner_collection_owner_allocation_required',
+  'Finance Manager direct-owner correction fails closed until its owner source is allocated'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM tenant_invoice_state), true);
+RESET ROLE;
+
+UPDATE tenant_invoice_state
+SET confirmation_id = public.confirm_owner_collected_rent(
+  organization_id,
+  direct_invoice_id,
+  1450,
+  current_date,
+  'Owner confirmed transfer',
+  jsonb_build_array(jsonb_build_object(
+    'lineId', (SELECT id FROM public.tenant_invoice_lines WHERE invoice_id = direct_invoice_id AND line_type = 'rent'),
+    'amount', 1450
+  )),
+  'invoice-direct-confirm-admin-fallback'
+)
+WHERE confirmation_id IS NULL;
 
 SELECT results_eq(
   $$
@@ -477,6 +660,25 @@ SELECT is(
   'direct-owner confirmation does not issue an IPS cash receipt'
 );
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-0000-0000-000000000701',
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT public.allocate_owner_event(
+  state.organization_id,
+  'owner_direct_rent_receipt',
+  allocation.id,
+  'invoice-owner-source-0001'
+)
+FROM tenant_invoice_state AS state
+JOIN public.owner_collection_confirmation_allocations AS allocation
+  ON allocation.organization_id = state.organization_id
+  AND allocation.confirmation_id = state.confirmation_id
+  AND allocation.reversal_of_allocation_id IS NULL;
+
 SELECT lives_ok(
   $$
     UPDATE tenant_invoice_state
@@ -489,7 +691,7 @@ SELECT lives_ok(
         'invoice-owner-reverse-0001'
       )
   $$,
-  'Super Admin can reverse a direct-owner collection confirmation'
+  'Finance Manager can reverse an allocated direct-owner collection confirmation'
 );
 
 SELECT is(
@@ -504,6 +706,31 @@ SELECT is(
   'an exact owner-confirmation reversal retry returns the first result'
 )
 FROM tenant_invoice_state;
+
+SELECT results_eq(
+  $$
+    SELECT
+      allocation_set.source_type,
+      allocation_set.reversal_of_allocation_set_id IS NOT NULL,
+      count(movement.id)::integer
+    FROM tenant_invoice_state AS state
+    JOIN public.owner_collection_confirmation_allocations AS reversal_allocation
+      ON reversal_allocation.confirmation_id = state.reversal_confirmation_id
+    JOIN public.owner_event_allocation_sets AS allocation_set
+      ON allocation_set.organization_id = reversal_allocation.organization_id
+      AND allocation_set.source_type = 'reversal'
+      AND allocation_set.source_line_id = reversal_allocation.id
+    JOIN public.owner_event_owner_allocations AS owner_allocation
+      ON owner_allocation.organization_id = allocation_set.organization_id
+      AND owner_allocation.allocation_set_id = allocation_set.id
+    LEFT JOIN public.owner_component_movements AS movement
+      ON movement.organization_id = owner_allocation.organization_id
+      AND movement.owner_event_owner_allocation_id = owner_allocation.id
+    GROUP BY allocation_set.source_type, allocation_set.reversal_of_allocation_set_id
+  $$,
+  $$VALUES ('reversal'::text, true, 0::integer)$$,
+  'direct-owner reversal persists exact source lineage and remains activity-only'
+);
 
 SELECT results_eq(
   $$

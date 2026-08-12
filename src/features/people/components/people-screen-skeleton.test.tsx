@@ -11,7 +11,7 @@ describe("PeopleScreenSkeleton", () => {
     const { container } = render(<PeopleScreenSkeleton />);
     const tableFrame = Array.from(container.querySelectorAll("div")).find(
       (element) =>
-        element.classList.contains("min-h-[380px]") &&
+        element.classList.contains("bg-card") &&
         element.classList.contains("md:block"),
     );
     const inspector = container.querySelector("aside");

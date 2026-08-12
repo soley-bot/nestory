@@ -2,6 +2,7 @@ import type { RecentChange } from "@/features/activity/activity.types";
 
 export type LinkedDocument = {
   category: string;
+  contentSha256?: string;
   fileName: string;
   id: string;
   mimeType: string;

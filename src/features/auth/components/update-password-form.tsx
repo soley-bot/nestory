@@ -67,7 +67,7 @@ function PasswordField({
         aria-describedby={error ? errorId : undefined}
         aria-invalid={Boolean(error)}
         autoComplete="new-password"
-        className="mt-2 box-border h-11 px-3 text-[15px]"
+        className="mt-2 box-border h-11 px-3 text-sm"
         minLength={8}
         name={name}
         required

@@ -7,6 +7,7 @@ import { scanUiCopy } from "./verify-ui-copy-scanner.mjs";
 
 const fixtureRoots = [];
 const fixtureRules = {
+  prohibitedBusinessAliases: ["Owner payment", "Owner withdrawal"],
   prohibitedTutorialNarration: ["Select a row to", "Double-click to"],
   publicMarketingExclusions: ["src/features/marketing/"],
 };
@@ -106,6 +107,23 @@ describe("UI copy scanner", () => {
         phrase: "Double-click to",
         projectPath: "src/features/zeta/screen.tsx",
       },
+    ]);
+  });
+
+  it("flags deprecated accounting aliases before operators see them", async () => {
+    const projectRoot = await createFixture({
+      "src/features/finance/screen.tsx": [
+        '<Button>Owner payment</Button>',
+        '<Modal title="Owner withdrawal" />',
+        '<Button>Owner invoice payment</Button>',
+      ].join("\n"),
+    });
+
+    const findings = await scanUiCopy({ projectRoot, rules: fixtureRules });
+
+    expect(findings.map(({ phrase }) => phrase)).toEqual([
+      "Owner payment",
+      "Owner withdrawal",
     ]);
   });
 });

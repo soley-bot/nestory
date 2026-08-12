@@ -24,7 +24,7 @@ export function OverviewDetailPage({
   const overviewHref = `/overview?${overviewParams.toString()}`;
 
   return (
-    <main className="min-h-screen bg-background px-4 py-3 sm:px-5">
+    <main className="min-h-full bg-background px-4 py-3 sm:px-6">
       <PageBreadcrumb
         current="Needs attention"
         items={[{ href: overviewHref, label: "Overview" }]}

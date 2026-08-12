@@ -45,7 +45,7 @@ export function ActivityDetailPanel({ change }: ActivityDetailPanelProps) {
               Opens the operational record that produced this audit entry.
             </p>
             <Link
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-accent transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-primary transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href={target.href}
             >
               {target.actionLabel}

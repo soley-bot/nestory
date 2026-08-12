@@ -46,8 +46,8 @@ export function TimelineFilters({
     advancedFilterCount > 0 || viewQuery.query.trim().length > 0;
   const query =
     queryState.source === viewQuery.query ? queryState.value : viewQuery.query;
-  const compactSelectClassName = "h-8 px-2 text-[13px]";
-  const compactInputClassName = "h-8 px-2 text-[13px]";
+  const compactSelectClassName = "h-8 px-2 text-sm";
+  const compactInputClassName = "h-8 px-2 text-sm";
   const unitOptions =
     viewQuery.propertyId === "all"
       ? units
@@ -88,7 +88,7 @@ export function TimelineFilters({
 
   return (
     <div className="w-full min-w-0">
-      <div className="flex min-w-0 items-center gap-2 text-[13px]">
+      <div className="flex min-w-0 items-center gap-2 text-sm">
         <SearchCombo
           ariaLabel="Search timeline records"
           disabled={isPending}
@@ -111,7 +111,7 @@ export function TimelineFilters({
           id="timeline-advanced-search"
           title="Filter records"
         >
-          <div className="grid gap-2 text-[13px] md:grid-cols-2">
+          <div className="grid gap-2 text-sm md:grid-cols-2">
             <SelectControl
               ariaLabel="Filter by property"
               className={compactSelectClassName}

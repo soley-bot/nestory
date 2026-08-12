@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "organizationId": "00000000-0000-0000-0000-000000000001",
+  "currency": "USD",
+  "periods": [
+    { "key": "central:current:80000000-0000-0000-0000-000000000004", "component": "ips_due_to_owner", "opening": "240.50", "movement": "-40.00", "closing": "200.50", "status": "ready" },
+    { "key": "central:current:80000000-0000-0000-0000-000000000004", "component": "ips_held_owner_cash", "opening": "1250.00", "movement": "605.00", "closing": "1855.00", "status": "ready" },
+    { "key": "central:current:80000000-0000-0000-0000-000000000004", "component": "owner_due_to_ips", "opening": "0.00", "movement": "0.00", "closing": "0.00", "status": "ready" },
+    { "key": "central:current:80000000-0000-0000-0000-000000000004", "component": "security_deposit_custody", "opening": "800.00", "movement": "60.00", "closing": "860.00", "status": "ready" },
+    { "key": "central:next:80000000-0000-0000-0000-000000000004", "component": "ips_due_to_owner", "opening": "200.50", "movement": "0.00", "closing": "200.50", "status": "ready" },
+    { "key": "central:next:80000000-0000-0000-0000-000000000004", "component": "ips_held_owner_cash", "opening": "1855.00", "movement": "0.00", "closing": "1855.00", "status": "ready" },
+    { "key": "central:next:80000000-0000-0000-0000-000000000004", "component": "owner_due_to_ips", "opening": "0.00", "movement": "0.00", "closing": "0.00", "status": "ready" },
+    { "key": "central:next:80000000-0000-0000-0000-000000000004", "component": "security_deposit_custody", "opening": "860.00", "movement": "0.00", "closing": "860.00", "status": "ready" },
+    { "key": "garden:current:80000000-0000-0000-0000-000000000009", "component": "ips_due_to_owner", "opening": "0.00", "movement": "0.00", "closing": "0.00", "status": "ready" },
+    { "key": "garden:current:80000000-0000-0000-0000-000000000009", "component": "ips_held_owner_cash", "opening": "0.00", "movement": "500.00", "closing": "500.00", "status": "ready" },
+    { "key": "garden:current:80000000-0000-0000-0000-000000000009", "component": "owner_due_to_ips", "opening": "0.00", "movement": "102.80", "closing": "102.80", "status": "ready" },
+    { "key": "garden:current:80000000-0000-0000-0000-000000000009", "component": "security_deposit_custody", "opening": "0.00", "movement": "0.00", "closing": "0.00", "status": "ready" },
+    { "key": "garden:next:80000000-0000-0000-0000-000000000012", "component": "ips_due_to_owner", "opening": "0.00", "movement": "0.00", "closing": "0.00", "status": "ready" },
+    { "key": "garden:next:80000000-0000-0000-0000-000000000012", "component": "ips_held_owner_cash", "opening": "0.00", "movement": "500.00", "closing": "500.00", "status": "ready" },
+    { "key": "garden:next:80000000-0000-0000-0000-000000000012", "component": "owner_due_to_ips", "opening": "0.00", "movement": "102.80", "closing": "102.80", "status": "ready" },
+    { "key": "garden:next:80000000-0000-0000-0000-000000000012", "component": "security_deposit_custody", "opening": "0.00", "movement": "0.00", "closing": "0.00", "status": "ready" }
+  ],
+  "sourceCounts": {
+    "management_fee_occurrence": 4,
+    "owner_component_transfer": 4,
+    "owner_contribution": 2,
+    "owner_direct_rent_receipt": 1,
+    "owner_distribution": 2,
+    "owner_invoice_payment": 6,
+    "owner_paid_cost": 2,
+    "owner_reimbursement": 1,
+    "reversal": 5,
+    "security_deposit_receipt": 1,
+    "security_deposit_refund": 1,
+    "tenant_rent_receipt": 1
+  },
+  "transferComponents": [
+    { "component": "ips_held_owner_cash", "amount": "500.00", "lineCount": 2, "signedTotal": "0.00" },
+    { "component": "owner_due_to_ips", "amount": "102.80", "lineCount": 2, "signedTotal": "0.00" }
+  ],
+  "blockedSources": [
+    { "propertyId": "10000000-0000-0000-0000-000000000002", "sourceType": "management_fee_occurrence", "amount": "116.00", "remediationCode": "owner_share_total_not_100" }
+  ]
+}

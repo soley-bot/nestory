@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { sha256Hex } from "@/features/documents/content-fingerprint";
+import { removeUnregisteredDocumentObject } from "@/features/documents/storage-cleanup";
+import {
+  requireFinancialMonthLockContext,
+  requireFinancialMonthUnlockContext,
+  requireSuperAdminContext,
+} from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type LedgerFieldErrors = {
@@ -58,7 +64,6 @@ export async function setLedgerPeriodLockAction(
   _state: LedgerActionState,
   formData: FormData,
 ): Promise<LedgerActionState> {
-  const context = await requireSuperAdminContext();
   const parsed = periodLockSchema.safeParse({
     lockState: readString(formData, "lockState"),
     periodStart: readString(formData, "periodStart"),
@@ -67,6 +72,21 @@ export async function setLedgerPeriodLockAction(
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
+  }
+
+  const context = parsed.data.lockState === "locked"
+    ? await requireFinancialMonthLockContext()
+    : await requireFinancialMonthUnlockContext();
+
+  if (
+    parsed.data.lockState === "locked" &&
+    context.role === "finance_manager" &&
+    parsed.data.reason.length === 0
+  ) {
+    return {
+      fieldErrors: { reason: ["Enter an operational lock reason."] },
+      status: "error",
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -160,6 +180,7 @@ export async function attachLedgerReceiptAction(
     .maybeSingle();
 
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const contentSha256 = await sha256Hex(await file.arrayBuffer());
   const storagePath = `${context.organizationId}/ledger/${parsedEntryId.data}/${crypto.randomUUID()}-${safeFileName}`;
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
@@ -187,6 +208,7 @@ export async function attachLedgerReceiptAction(
         timeline_event_id: timelineEvent?.id ?? null,
       },
       p_category: "Receipt",
+      p_content_sha256: contentSha256,
       p_file_name: file.name,
       p_ledger_entry_id: parsedEntryId.data,
       p_mime_type: file.type,
@@ -200,7 +222,7 @@ export async function attachLedgerReceiptAction(
   );
 
   if (documentError || !documentId) {
-    await supabase.storage.from("nestory-documents").remove([storagePath]);
+    await removeUnregisteredDocumentObject(supabase, storagePath);
 
     return {
       message: "We could not save the receipt record. Please try again.",

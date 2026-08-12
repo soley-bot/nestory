@@ -53,8 +53,8 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(summaryRegion.textContent).toContain("USD 410.00");
 
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
     const registerSurface = table.closest(
       '[data-petty-cash-surface="register"]',
     )!;
@@ -68,7 +68,7 @@ describe("PettyCashScreen finance workspace contract", () => {
     ).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "HOME" }).getAttribute("href"),
-    ).toBe("/properties/property-1");
+    ).toBe("/properties/property-1/account");
     expect(
       within(rows[0]!).getByRole("button", { name: "Preview Cleaning" }),
     ).not.toBeNull();
@@ -298,7 +298,7 @@ describe("PettyCashScreen finance workspace contract", () => {
     });
     expect(within(financeNav).getByRole("link", { name: "Ledger" })).not.toBeNull();
     expect(
-      within(financeNav).getByRole("link", { name: "Petty Cash" }),
+      within(financeNav).getByRole("link", { name: "Petty cash" }),
     ).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
@@ -310,6 +310,30 @@ describe("PettyCashScreen finance workspace contract", () => {
         within(inspector).queryByRole("button", { name: action }),
       ).toBeNull();
     }
+  });
+
+  it("lets a Finance Manager add and post rows without exposing structural or correction commands", async () => {
+    const user = userEvent.setup();
+    renderPettyCash({ canManageFinance: false, canManagePettyCash: true });
+
+    expect(screen.getByRole("button", { name: "Add cash row" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Add account" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open next month" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Add cash row" }));
+    expect(
+      (document.querySelector('input[name="idempotencyKey"]') as HTMLInputElement)
+        ?.value,
+    ).toMatch(/^petty-entry-/);
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+
+    await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
+    const inspector = screen.getByRole("dialog", {
+      name: "Cleaning cash quick view",
+    });
+    expect(within(inspector).getByRole("button", { name: "Post to ledger" })).not.toBeNull();
+    expect(within(inspector).queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(within(inspector).queryByRole("button", { name: "Void" })).toBeNull();
   });
 
   it("opens the authoritative focused row and clears back to its account", () => {
@@ -443,6 +467,7 @@ const entries: PettyCashEntry[] = [
 function renderPettyCash({
   accounts = [account],
   canManageFinance = true,
+  canManagePettyCash = canManageFinance,
   counterpartyOptions = [],
   entries: nextEntries = entries,
   period: nextPeriod = period,
@@ -453,6 +478,7 @@ function renderPettyCash({
 }: {
   accounts?: PettyCashAccount[];
   canManageFinance?: boolean;
+  canManagePettyCash?: boolean;
   counterpartyOptions?: PersonSelectOption[];
   entries?: PettyCashEntry[];
   period?: PettyCashPeriod | null;
@@ -465,6 +491,7 @@ function renderPettyCash({
     <PettyCashScreen
       accounts={accounts}
       canManageFinance={canManageFinance}
+      canManagePettyCash={canManagePettyCash}
       counterpartyOptions={counterpartyOptions}
       entries={nextEntries}
       focusedEntryId={focusedEntryId}

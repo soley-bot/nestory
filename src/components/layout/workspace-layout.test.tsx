@@ -252,7 +252,7 @@ describe("shared workspace anatomy", () => {
 
     expect(currentLinks).toHaveLength(1);
     expect(currentLinks[0]?.textContent).toBe("Active");
-    expect(currentLinks[0]?.getAttribute("class")).toContain("bg-accent");
+    expect(currentLinks[0]?.getAttribute("class")).toContain("bg-background");
     expect(screen.getByRole("navigation", { name: "Lease views" }).className).toContain(
       "overflow-x-auto",
     );

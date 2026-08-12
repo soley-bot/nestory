@@ -388,7 +388,7 @@ async function enrichLeaseSummaries({
     supabase
       .from("lease_occupancies")
       .select(
-        "id, lease_id, unit_id, status, scheduled_move_in_date, actual_move_in_date, scheduled_move_out_date, actual_move_out_date, archived_at",
+        "id, lease_id, unit_id, status, business_lifecycle, evidence_state, scheduled_move_in_date, scheduled_move_in_kind, scheduled_move_in_confidence, actual_move_in_date, actual_move_in_kind, actual_move_in_confidence, scheduled_move_out_date, scheduled_move_out_kind, scheduled_move_out_confidence, actual_move_out_date, actual_move_out_kind, actual_move_out_confidence, archived_at, participants:lease_occupancy_participants(id, business_lifecycle, evidence_state)",
       )
       .eq("organization_id", organizationId)
       .in("lease_id", detailLeaseIds)

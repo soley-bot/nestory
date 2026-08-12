@@ -534,7 +534,7 @@ function buildLedgerDetailHrefs(
       entryId: entry.id,
       query: entry.category,
     }),
-    property: `/properties/${entry.property_id}`,
+    property: `/properties/${entry.property_id}/account`,
     reports: "/reports",
     timeline: relatedTimelineEvent
       ? buildHref("/timeline", {
@@ -548,7 +548,7 @@ function buildLedgerDetailHrefs(
           query: entry.category,
           unitId: entry.unit_id ?? undefined,
         }),
-    unit: entry.unit_id ? `/units/${entry.unit_id}` : undefined,
+    unit: undefined,
   };
 }
 

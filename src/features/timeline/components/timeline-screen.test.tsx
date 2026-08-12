@@ -140,8 +140,8 @@ describe("TimelineScreen workspace contract", () => {
     const table = screen.getByRole("table");
     const rows = within(table).getAllByRole("row").slice(1);
 
-    expect(table.className).toContain("text-[13px]");
-    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
+    expect(table.className).toContain("text-sm");
+    expect(table.querySelector("thead")?.className).toContain("text-xs");
     expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "Roof repair" }).getAttribute("href"),

@@ -19,11 +19,17 @@ import {
 } from "@/components/ui/file-dropzone-field";
 import { SelectControl } from "@/components/ui/select-control";
 import {
+  CutoverPanel,
+  type CutoverPanelDetail,
+} from "@/features/imports/components/cutover-panel";
+import {
   commitStagedImportRunAction,
   importReadyRowsAction,
-  type CommitImportRunState,
-  type ImportReadyRowsState,
 } from "@/features/imports/actions";
+import type {
+  CommitImportRunState,
+  ImportReadyRowsState,
+} from "@/features/imports/action-states";
 import {
   autoMapImportHeaders,
   buildGenericImportPreviewRows,
@@ -58,10 +64,12 @@ const initialImportState: ImportReadyRowsState = {};
 const initialResumeState: CommitImportRunState = {};
 
 export function ImportPreviewScreen({
+  cutoverDetail = null,
   recentRuns,
   referenceData,
   savedMappings,
 }: {
+  cutoverDetail?: CutoverPanelDetail | null;
   recentRuns: ImportRunSummary[];
   referenceData: ImportReferenceData;
   savedMappings: ImportSavedMapping[];
@@ -226,6 +234,9 @@ export function ImportPreviewScreen({
       />
 
       <main className="mx-auto w-full max-w-[1120px] space-y-3 px-4 py-4 sm:px-6 lg:max-h-[calc(100vh-112px)] lg:overflow-auto lg:py-5">
+        <section className="rounded-md border border-border bg-card p-4">
+          <CutoverPanel canManage detail={cutoverDetail} />
+        </section>
         <section className="rounded-md border border-border bg-card">
           <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[minmax(0,260px)_minmax(0,1fr)_auto] sm:items-end">
             <label className="block min-w-0 text-sm font-medium">
@@ -253,7 +264,7 @@ export function ImportPreviewScreen({
               </p>
             </div>
             <a
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
               download={`nestory-${selectedType}-import-template.csv`}
               href={templateHref}
             >
@@ -350,10 +361,10 @@ export function ImportPreviewScreen({
                         <span
                           className={
                             mapping[field.key]
-                              ? "text-[11px] text-success"
+                              ? "text-xs text-success"
                               : field.required
-                                ? "text-[11px] text-danger"
-                                : "text-[11px] text-muted-foreground"
+                                ? "text-xs text-danger"
+                                : "text-xs text-muted-foreground"
                           }
                         >
                           {mapping[field.key]
@@ -383,8 +394,8 @@ export function ImportPreviewScreen({
               role="region"
               tabIndex={0}
             >
-              <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">
-                <thead className="sticky top-0 bg-[var(--table-header-bg)] text-[11px] uppercase text-muted-foreground">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                <thead className="sticky top-0 bg-[var(--table-header-bg)] text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="border-b border-border px-3 py-2 font-semibold">
                       Row
@@ -621,7 +632,7 @@ function AttentionDetails({
         {errorRowsHref && fixTemplateHref ? (
           <div className="mb-3 flex flex-wrap gap-2">
             <a
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium hover:bg-muted"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium hover:bg-muted"
               download="nestory-import-error-rows.csv"
               href={errorRowsHref}
             >
@@ -629,7 +640,7 @@ function AttentionDetails({
               Error rows
             </a>
             <a
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] font-medium hover:bg-muted"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium hover:bg-muted"
               download="nestory-import-fix-template.csv"
               href={fixTemplateHref}
             >

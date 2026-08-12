@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   maybeSingle,
+  preparePaidCostEvidence,
   requireOperationsExecutionContext,
   requireOperationsManagementContext,
   revalidatePath,
@@ -9,6 +10,7 @@ const {
 } =
   vi.hoisted(() => ({
     maybeSingle: vi.fn(),
+    preparePaidCostEvidence: vi.fn(),
     requireOperationsExecutionContext: vi.fn(),
     requireOperationsManagementContext: vi.fn(),
     revalidatePath: vi.fn(),
@@ -16,6 +18,11 @@ const {
   }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
+vi.mock("@/features/finance-operations/paid-cost-evidence", () => ({
+  preparePaidCostEvidence,
+  validatePaidCostEvidenceFile: (value: FormDataEntryValue | null) =>
+    value instanceof File && value.size > 0 ? null : "Choose a receipt evidence file.",
+}));
 vi.mock("@/lib/auth/context", () => ({
   requireOperationsExecutionContext,
   requireOperationsManagementContext,
@@ -46,10 +53,16 @@ describe("maintenance action capabilities", () => {
     requireOperationsExecutionContext.mockReset();
     requireOperationsManagementContext.mockReset();
     maybeSingle.mockReset();
+    preparePaidCostEvidence.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
     rpc.mockResolvedValue({ data: null, error: null });
     maybeSingle.mockResolvedValue({ data: null, error: null });
+    preparePaidCostEvidence.mockResolvedValue({
+      contentSha256: "a".repeat(64),
+      documentId: "00000000-0000-4000-8000-000000000007",
+      storagePath: "organization/paid-cost-evidence/hash",
+    });
   });
 
   it("updates maintenance details without a direct Ledger command", async () => {
@@ -79,20 +92,36 @@ describe("maintenance action capabilities", () => {
     requireOperationsManagementContext.mockResolvedValue({
       organizationId: "00000000-0000-4000-8000-000000000001",
       role: "operations_manager",
+      userId: "00000000-0000-4000-8000-000000000009",
+    });
+    maybeSingle.mockResolvedValue({
+      data: {
+        property_id: "00000000-0000-4000-8000-000000000002",
+        unit_id: null,
+      },
+      error: null,
     });
     const formData = new FormData();
     formData.set("expenseDate", "2026-08-08");
+    formData.set(
+      "evidenceFile",
+      new File(["receipt"], "receipt.pdf", { type: "application/pdf" }),
+    );
     formData.set("idempotencyKey", "maintenance-cost-submit-1");
     formData.set("reference", "Receipt 42");
-    formData.set(
-      "supportingDocumentId",
-      "00000000-0000-4000-8000-000000000007",
-    );
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
 
     await expect(submitMaintenanceCostAction({}, formData)).resolves.toEqual({
       message: "Maintenance cost submitted to Finance.",
       status: "success",
+    });
+    expect(preparePaidCostEvidence).toHaveBeenCalledWith({
+      actorId: "00000000-0000-4000-8000-000000000009",
+      file: expect.any(File),
+      idempotencyKey: "maintenance-cost-submit-1",
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      propertyId: "00000000-0000-4000-8000-000000000002",
+      taskId: "00000000-0000-4000-8000-000000000003",
     });
     expect(requireOperationsManagementContext).toHaveBeenCalledOnce();
     expect(rpc).toHaveBeenCalledWith("submit_maintenance_cost", {
@@ -108,21 +137,40 @@ describe("maintenance action capabilities", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/bills-expenses");
   });
 
-  it("requires a receipt document or reference before authorization", async () => {
+  it("requires retained receipt evidence before authorization", async () => {
     const formData = new FormData();
     formData.set("expenseDate", "2026-08-08");
     formData.set("idempotencyKey", "maintenance-cost-no-evidence");
     formData.set("reference", "");
-    formData.set("supportingDocumentId", "");
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
 
     await expect(submitMaintenanceCostAction({}, formData)).resolves.toEqual({
       fieldErrors: {
-        reference: ["Choose a receipt document or enter a reference."],
+        supportingDocumentId: ["Choose a receipt evidence file."],
       },
       status: "error",
     });
     expect(requireOperationsManagementContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("requires a due date before creating a recurring series", async () => {
+    requireOperationsExecutionContext.mockResolvedValue({
+      organizationId: "00000000-0000-4000-8000-000000000001",
+      role: "operations_manager",
+    });
+    const formData = validMaintenanceForm();
+    formData.set("actualCostAmount", "");
+    formData.set("dueDate", "");
+    formData.set("recurrenceFrequency", "monthly");
+    formData.set("status", "scheduled");
+
+    expect(await createMaintenanceCaseAction({}, formData)).toEqual({
+      fieldErrors: {
+        dueDate: ["Choose the first due date for recurring work."],
+      },
+      status: "error",
+    });
     expect(rpc).not.toHaveBeenCalled();
   });
 

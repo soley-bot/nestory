@@ -126,7 +126,7 @@ SELECT ok(
         < strpos(definition, 'approve_expense_submission')
     FROM (
       SELECT pg_catalog.pg_get_functiondef(
-        'public.review_expense(uuid,uuid,text,text,text,uuid)'::regprocedure
+        'app_private.review_expense_baseline_track6_evidence(uuid,uuid,text,text,text,uuid)'::regprocedure
       ) AS definition
     ) AS reviewed
   ),
@@ -215,6 +215,10 @@ CREATE TEMP TABLE expense_approval_state (
   billing_id uuid NOT NULL DEFAULT 'b6000000-0000-0000-0000-000000000001',
   invoice_id uuid NOT NULL DEFAULT 'b7000000-0000-0000-0000-000000000001',
   source_id uuid,
+  evidence_document_id uuid,
+  rejection_evidence_document_id uuid,
+  tenant_evidence_document_id uuid,
+  locked_evidence_document_id uuid,
   submission_id uuid,
   rejection_submission_id uuid,
   locked_submission_id uuid,
@@ -538,6 +542,78 @@ SELECT set_config(
   (SELECT super_admin_id::text FROM expense_approval_state),
   true
 );
+
+INSERT INTO storage.objects (bucket_id, name, version, metadata)
+SELECT
+  'nestory-documents',
+  organization_id::text || '/paid-cost-evidence/finance-expense-approval/' || evidence.file_name,
+  pg_catalog.gen_random_uuid()::text,
+  pg_catalog.jsonb_build_object(
+    'mimetype', 'application/pdf',
+    'size', evidence.size_bytes
+  )
+FROM expense_approval_state
+CROSS JOIN (
+  VALUES
+    ('retained-receipt.pdf', 22::bigint),
+    ('rejection-receipt.pdf', 23::bigint),
+    ('tenant-receipt.pdf', 24::bigint),
+    ('locked-receipt.pdf', 25::bigint)
+) AS evidence(file_name, size_bytes);
+
+CREATE TEMP TABLE expense_approval_evidence ON COMMIT DROP AS
+SELECT
+  evidence.kind,
+  public.register_paid_cost_evidence_verified(
+    state.organization_id,
+    state.finance_member_id,
+    state.property_id,
+    evidence.file_name,
+    object.name,
+    'application/pdf',
+    evidence.size_bytes,
+    pg_catalog.repeat(evidence.hash_character, 64),
+    object.id,
+    object.version,
+    'expense-approval-evidence-' || evidence.kind
+  ) AS result
+FROM expense_approval_state AS state
+CROSS JOIN (
+  VALUES
+    ('owner', 'retained-receipt.pdf', 22::bigint, 'a'),
+    ('rejection', 'rejection-receipt.pdf', 23::bigint, 'b'),
+    ('tenant', 'tenant-receipt.pdf', 24::bigint, 'c'),
+    ('locked', 'locked-receipt.pdf', 25::bigint, 'd')
+) AS evidence(kind, file_name, size_bytes, hash_character)
+JOIN storage.objects AS object
+  ON object.bucket_id = 'nestory-documents'
+ AND object.name =
+   state.organization_id::text ||
+   '/paid-cost-evidence/finance-expense-approval/' || evidence.file_name;
+
+UPDATE expense_approval_state
+SET
+  evidence_document_id = (
+    SELECT (evidence.result->>'document_id')::uuid
+    FROM expense_approval_evidence AS evidence
+    WHERE evidence.kind = 'owner'
+  ),
+  rejection_evidence_document_id = (
+    SELECT (evidence.result->>'document_id')::uuid
+    FROM expense_approval_evidence AS evidence
+    WHERE evidence.kind = 'rejection'
+  ),
+  tenant_evidence_document_id = (
+    SELECT (evidence.result->>'document_id')::uuid
+    FROM expense_approval_evidence AS evidence
+    WHERE evidence.kind = 'tenant'
+  ),
+  locked_evidence_document_id = (
+    SELECT (evidence.result->>'document_id')::uuid
+    FROM expense_approval_evidence AS evidence
+    WHERE evidence.kind = 'locked'
+  );
+
 SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
@@ -597,7 +673,7 @@ SELECT lives_ok(
         'owner',
         NULL,
         source_id,
-        NULL,
+        evidence_document_id,
         NULL,
         'Move-out cleaning',
         'expense-submit-owner-0001'
@@ -658,7 +734,7 @@ SELECT is(
       'owner',
       NULL,
       source_id,
-      NULL,
+      evidence_document_id,
       NULL,
       'Move-out cleaning',
       'expense-submit-owner-0001'
@@ -709,7 +785,7 @@ SELECT is(
       'owner',
       NULL,
       source_id,
-      NULL,
+      evidence_document_id,
       NULL,
       'Move-out cleaning',
       'expense-submit-owner-0001'
@@ -1121,7 +1197,7 @@ SELECT lives_ok(
         'owner',
         NULL,
         source_id,
-        NULL,
+        rejection_evidence_document_id,
         NULL,
         'Needs review',
         'expense-submit-reject-0001'
@@ -1526,14 +1602,15 @@ SELECT throws_ok(
       SELECT public.submit_expense(
         %L, %L, NULL, 'general', NULL, 'utility', 'Utility Vendor',
         '2026-08-12', 20, 5, 'USD', 'tenant', %L, %L,
-        NULL, NULL, 'Tenant utility without unit',
+        %L, NULL, 'Tenant utility without unit',
         'expense-submit-tenant-null-unit'
       )
     $sql$,
     organization_id,
     property_id,
     invoice_id,
-    source_id
+    source_id,
+    tenant_evidence_document_id
   ),
   '23503',
   'Tenant invoice does not belong to this property, unit, and currency',
@@ -1560,7 +1637,7 @@ SELECT lives_ok(
         'tenant',
         invoice_id,
         source_id,
-        NULL,
+        tenant_evidence_document_id,
         NULL,
         'Tenant utility recovery',
         'expense-submit-tenant-0001'
@@ -1847,7 +1924,7 @@ SELECT lives_ok(
         'owner',
         NULL,
         source_id,
-        NULL,
+        locked_evidence_document_id,
         NULL,
         'Locked period expense',
         'expense-submit-locked-0001'
@@ -2009,7 +2086,8 @@ SELECT throws_ok(
       SELECT public.submit_expense(
         %L, %L, %L, 'general', NULL, 'cleaning', 'No Evidence Vendor',
         '2026-09-08', 25, 0, 'USD', 'owner', NULL, %L,
-        NULL, NULL, NULL, 'expense-submit-no-evidence-0001'
+        NULL, NULL, 'Receipt reference without retained bytes',
+        'paid-cost-submit-no-document-0001'
       )
     $sql$,
     organization_id,
@@ -2017,9 +2095,9 @@ SELECT throws_ok(
     unit_id,
     source_id
   ),
-  '22023',
-  'Add a supporting document or receipt reference',
-  'a human-entered expense cannot be submitted without evidence'
+  '23514',
+  'Paid cost evidence document is required',
+  'a human-entered paid cost cannot use a reference in place of immutable evidence'
 )
 FROM expense_approval_state;
 
@@ -2027,7 +2105,7 @@ SELECT is(
   (
     SELECT count(*)
     FROM public.expense_submissions
-    WHERE idempotency_key = 'expense-submit-no-evidence-0001'
+    WHERE idempotency_key = 'paid-cost-submit-no-document-0001'
   ),
   0::bigint,
   'an evidence-free submission creates no review record'

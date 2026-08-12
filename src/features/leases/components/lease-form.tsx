@@ -181,7 +181,7 @@ export function LeaseForm({
           },
           {
             label: "Status",
-            value: selectedStatusOption?.label ?? selectedStatus,
+            value: selectedStatusOption?.label ?? "Choose lease status",
           },
           {
             label: "Rent authority",
@@ -249,6 +249,7 @@ export function LeaseForm({
                 setSelectedStatus(value as LeaseStatusValue)
               }
               options={normalizedStatusOptions}
+              placeholder="Choose lease status"
               required
               value={selectedStatus}
             />
@@ -314,6 +315,69 @@ export function LeaseForm({
           </RecordField>
         </div>
       </FormSection>
+
+      {!isEditMode ? (
+        <FormSection title="Occupancy evidence">
+          <p className="text-sm text-muted-foreground">
+            Lease dates are contractual. Record planned and confirmed physical
+            occupancy separately; move dates are never copied from the term.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <RecordField
+              error={state.fieldErrors?.scheduledMoveInDate?.[0]}
+              label="Scheduled move-in"
+              name="scheduledMoveInDate"
+            >
+              <DatePickerField
+                ariaLabel="Scheduled move-in date"
+                name="scheduledMoveInDate"
+              />
+            </RecordField>
+
+            <RecordField
+              error={state.fieldErrors?.scheduledMoveOutDate?.[0]}
+              label="Scheduled move-out"
+              name="scheduledMoveOutDate"
+            >
+              <DatePickerField
+                ariaLabel="Scheduled move-out date"
+                name="scheduledMoveOutDate"
+              />
+            </RecordField>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <RecordField
+              error={state.fieldErrors?.actualMoveInDate?.[0]}
+              label="Confirmed move-in"
+              name="actualMoveInDate"
+            >
+              <DatePickerField
+                ariaLabel="Confirmed move-in date"
+                name="actualMoveInDate"
+              />
+            </RecordField>
+
+            <RecordField
+              error={state.fieldErrors?.actualMoveOutDate?.[0]}
+              label="Confirmed move-out"
+              name="actualMoveOutDate"
+            >
+              <DatePickerField
+                ariaLabel="Confirmed move-out date"
+                name="actualMoveOutDate"
+              />
+            </RecordField>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Active and notice leases stay open after confirmed move-in. Ended
+            leases may leave confirmed occupancy unknown or record both dates.
+            Leave unknown facts blank.
+          </p>
+        </FormSection>
+      ) : null}
 
       <FormSection title="Term and money">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -462,7 +526,7 @@ function getLeaseDefaults(
     paymentFrequency: formValues?.paymentFrequency ?? "",
     propertyId: formValues?.propertyId ?? initialValues.propertyId ?? "",
     rentDueDay: toInputNumber(formValues?.rentDueDay),
-    status: formValues?.status ?? "active",
+    status: formValues?.status ?? "",
     tenantPersonId:
       formValues?.tenantPersonId ?? initialValues.tenantPersonId ?? "",
     tenantName: formValues?.tenantName ?? "",

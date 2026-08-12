@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 
 const financeDestinations = [
   {
@@ -11,10 +10,10 @@ const financeDestinations = [
   },
   { href: "/rent-income", label: "Rent", route: "/rent-income" },
   { href: "/bills-expenses", label: "Expenses", route: "/bills-expenses" },
-  { href: "/balances", label: "Owner Balance", route: "/balances" },
+  { href: "/balances", label: "Owner balances", route: "/balances" },
   { href: "/leases", label: "Leases", route: "/leases" },
   { href: "/ledger", label: "Ledger", route: "/ledger" },
-  { href: "/petty-cash", label: "Petty Cash", route: "/petty-cash" },
+  { href: "/petty-cash", label: "Petty cash", route: "/petty-cash" },
 ] as const;
 
 export type FinanceWorkspaceRoute =
@@ -23,36 +22,27 @@ export type FinanceWorkspaceRoute =
 
 export function FinanceWorkspaceNavigation({
   activeRoute,
+  canReadFinanceReports = false,
 }: {
   activeRoute: FinanceWorkspaceRoute;
+  canReadFinanceReports?: boolean;
 }) {
-  return (
-    <nav
-      aria-label="Finance workspace"
-      className="min-w-0 overflow-x-auto px-4 py-1 sm:px-6 md:hidden"
-    >
-      <div className="flex min-w-max items-center gap-1">
-        {financeDestinations.map((destination) => (
-          <Link
-            aria-current={
-              activeRoute === destination.route ? "page" : undefined
-            }
-            className={navClass(activeRoute === destination.route)}
-            href={destination.href}
-            key={destination.route}
-            prefetch={false}
-          >
-            {destination.label}
-          </Link>
-        ))}
-      </div>
-    </nav>
-  );
-}
+  const destinations = canReadFinanceReports
+    ? [
+        ...financeDestinations,
+        { href: "/reports", label: "Reports", route: "/reports" } as const,
+      ]
+    : financeDestinations;
 
-function navClass(active: boolean) {
-  return cn(
-    "inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-    active && "bg-accent text-foreground",
+  return (
+    <LocalWorkspaceNav
+      className="py-1 md:hidden"
+      items={destinations.map((destination) => ({
+        active: activeRoute === destination.route,
+        href: destination.href,
+        label: destination.label,
+      }))}
+      label="Finance workspace"
+    />
   );
 }

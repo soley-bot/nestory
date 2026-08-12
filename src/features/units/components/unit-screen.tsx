@@ -212,11 +212,6 @@ export function UnitScreen({
               </Button>
             ) : undefined
           }
-          body={
-            hasFilters
-              ? "The current filters return no unit records."
-              : "There are no units in this workspace."
-          }
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}
           title={hasFilters ? "No matching units" : "No units yet"}
@@ -258,7 +253,7 @@ export function UnitScreen({
         <>
             {fillVacancyHref ? (
               <Link
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-warning-soft/70"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-warning-soft/70"
                 href={fillVacancyHref}
               >
                 <ScrollText size={15} />
@@ -267,7 +262,7 @@ export function UnitScreen({
             ) : null}
             {activeReview?.reportHref ? (
               <Link
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
                 href={activeReview.reportHref}
               >
                 <FileText size={15} />
@@ -379,7 +374,7 @@ function UnitReviewStrip({
 }) {
   return (
     <div className="border-b border-border bg-warning-soft/20 px-4 py-2 sm:px-6 lg:px-6">
-      <div className="flex min-w-0 flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <p className="min-w-0 truncate font-medium text-foreground">
           {count} {count === 1 ? "unit" : "units"} {context.countLabel}
           {propertyLabel ? ` in ${propertyLabel}` : ""}

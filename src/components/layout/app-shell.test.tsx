@@ -92,6 +92,21 @@ describe("AppShell Shadcn dashboard block", () => {
     },
   );
 
+  it("makes Reports discoverable only to the Finance Manager among non-admin roles", () => {
+    const { rerender } = render(
+      <AppShell role="finance_manager"><div>Workspace content</div></AppShell>,
+    );
+    expect(screen.getByRole("link", { name: /Reports/ }).getAttribute("href")).toBe(
+      "/reports",
+    );
+
+    rerender(<AppShell role="finance_member"><div>Workspace content</div></AppShell>);
+    expect(screen.queryByRole("link", { name: /Reports/ })).toBeNull();
+
+    rerender(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
+    expect(screen.queryByRole("link", { name: /Reports/ })).toBeNull();
+  });
+
   it("limits Operations Member deep navigation to My work", () => {
     navigation.pathname = "/tasks";
     render(<AppShell role="operations_member"><div>Workspace content</div></AppShell>);
@@ -115,6 +130,25 @@ describe("AppShell Shadcn dashboard block", () => {
     ).toBe("page");
   });
 
+  it.each([
+    ["/maintenance", "Cases"],
+    ["/recurring-tasks", "Recurring work"],
+    ["/inspections", "Inspections"],
+    ["/work-orders", "Work orders"],
+  ])("keeps Operations Manager navigation active on %s", (pathname, child) => {
+    navigation.pathname = pathname;
+    render(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
+
+    expect(
+      screen
+        .getByRole("button", { name: "Collapse Maintenance navigation" })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("link", { name: child }).getAttribute("aria-current"),
+    ).toBe("page");
+  });
+
   it("shows organization theme control only to the Super Admin", () => {
     const theme = { accentPreset: "neutral" as const, accentSeed: null, mode: "system" as const };
     const { rerender } = render(
@@ -135,7 +169,9 @@ describe("AppShell Shadcn dashboard block", () => {
   it("marks the matching destination active", () => {
     navigation.pathname = "/people/person-1";
     render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
-    expect(screen.getByRole("link", { name: /Current:\s*People/ }).closest('[data-active="true"]')).not.toBeNull();
+    const activeLink = screen.getByRole("link", { name: "People" });
+    expect(activeLink.closest('[data-active="true"]')).not.toBeNull();
+    expect(activeLink.getAttribute("aria-current")).toBe("page");
   });
 
   it("keeps non-admin users out of admin destinations", () => {

@@ -86,6 +86,8 @@ type DrawerState =
 type PettyCashScreenProps = {
   accounts: PettyCashAccount[];
   canManageFinance?: boolean;
+  canManagePettyCash?: boolean;
+  canReadFinanceReports?: boolean;
   counterpartyOptions: PersonSelectOption[];
   entries: PettyCashEntry[];
   focusedEntryId?: string;
@@ -102,6 +104,8 @@ type PettyCashScreenProps = {
 export function PettyCashScreen({
   accounts,
   canManageFinance = true,
+  canManagePettyCash = canManageFinance,
+  canReadFinanceReports = false,
   counterpartyOptions,
   entries,
   focusedEntryId,
@@ -133,7 +137,7 @@ export function PettyCashScreen({
     (hasFocusedEntry ? null : entries[0]) ??
     null;
   const canAddEntry =
-    canManageFinance &&
+    canManagePettyCash &&
     selectedAccount?.status === "active" &&
     period?.status === "open";
 
@@ -197,6 +201,7 @@ export function PettyCashScreen({
       <PettyCashInspector
         account={selectedAccount}
         canManageFinance={canManageFinance}
+        canManagePettyCash={canManagePettyCash}
         entry={selectedEntry}
         onEdit={(entry) => openDrawer({ entry, mode: "edit" })}
         onPost={(entry) => openDrawer({ entry, mode: "post" })}
@@ -208,27 +213,31 @@ export function PettyCashScreen({
   return (
     <WorkspacePage
       actions={
-        !schemaStatus.isReady || !canManageFinance ? undefined : (
+        !schemaStatus.isReady || (!canManageFinance && !canManagePettyCash) ? undefined : (
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => openDrawer({ mode: "account" })}>
-              <Wallet size={15} />
-              Add account
-            </Button>
+            {canManageFinance ? (
+              <Button onClick={() => openDrawer({ mode: "account" })}>
+                <Wallet size={15} />
+                Add account
+              </Button>
+            ) : null}
             {selectedAccount?.status === "active" && period ? (
               <>
-                <Button
-                  onClick={() =>
-                    openDrawer({
-                      account: selectedAccount,
-                      mode: "rollover",
-                      period,
-                      summary,
-                    })
-                  }
-                >
-                  <CalendarPlus size={15} />
-                  Open next month
-                </Button>
+                {canManageFinance ? (
+                  <Button
+                    onClick={() =>
+                      openDrawer({
+                        account: selectedAccount,
+                        mode: "rollover",
+                        period,
+                        summary,
+                      })
+                    }
+                  >
+                    <CalendarPlus size={15} />
+                    Open next month
+                  </Button>
+                ) : null}
                 {canAddEntry ? (
                   <Button
                     onClick={() => openDrawer({ mode: "entry" })}
@@ -250,14 +259,17 @@ export function PettyCashScreen({
       }
       contextHref="/petty-cash"
       localNav={(
-        <FinanceWorkspaceNavigation activeRoute="/petty-cash" />
+        <FinanceWorkspaceNavigation
+          activeRoute="/petty-cash"
+          canReadFinanceReports={canReadFinanceReports}
+        />
       )}
       title="Petty Cash"
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
         {statusMessage ? (
           <div className="border-b border-border bg-muted/35 px-4 py-2 sm:px-6">
-            <p className="text-[13px]" role="status">
+            <p className="text-sm" role="status">
               {statusMessage}
             </p>
           </div>
@@ -330,7 +342,10 @@ export function PettyCashScreen({
           )}
         </div>
 
-        {canManageFinance && drawerState ? (
+        {drawerState &&
+        (canManageFinance ||
+          (canManagePettyCash &&
+            (drawerState.mode === "entry" || drawerState.mode === "post"))) ? (
           <SideDrawer
             description={getDrawerDescription(drawerState)}
             onClose={() => setDrawerState(null)}
@@ -511,7 +526,7 @@ function PettyCashTable({
   return (
     <div className="overflow-hidden" data-petty-cash-surface="register">
       <div className="max-h-[min(620px,calc(100vh-310px))] overflow-auto">
-        <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-[13px]">
+        <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col className="w-[112px]" />
             <col className="w-[118px]" />
@@ -522,7 +537,7 @@ function PettyCashTable({
             <col className="w-[96px]" />
             <col className="w-[74px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+          <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
               <th className="px-3 py-2.5 font-semibold">Type</th>
@@ -591,7 +606,7 @@ function PettyCashTable({
                   {entry.propertyId ? (
                     <Link
                       className="block truncate font-medium text-accent hover:underline"
-                      href={`/properties/${entry.propertyId}`}
+                      href={`/properties/${entry.propertyId}/account`}
                       onClick={(event) => event.stopPropagation()}
                     >
                       {entry.propertyCode}
@@ -610,7 +625,7 @@ function PettyCashTable({
                     {entry.supplier ?? entry.category}
                   </p>
                   {entry.counterpartyPersonId ? (
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       Linked person
                       {entry.counterpartyCurrentName &&
                       entry.counterpartyCurrentName !== entry.supplier
@@ -641,7 +656,7 @@ function PettyCashTable({
                     }
                   </span>
                   {entry.status === "void" ? (
-                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
                       No impact
                     </span>
                   ) : null}
@@ -685,6 +700,7 @@ function PettyCashTable({
 function PettyCashInspector({
   account,
   canManageFinance,
+  canManagePettyCash,
   entry,
   onEdit,
   onPost,
@@ -693,6 +709,7 @@ function PettyCashInspector({
 }: {
   account: PettyCashAccount;
   canManageFinance: boolean;
+  canManagePettyCash: boolean;
   entry: PettyCashEntry | null;
   onEdit: (entry: PettyCashEntry) => void;
   onPost: (entry: PettyCashEntry) => void;
@@ -708,7 +725,7 @@ function PettyCashInspector({
   }
 
   const canPost =
-    canManageFinance &&
+    canManagePettyCash &&
     !entry.archivedAt &&
     account.status === "active" &&
     entry.entryKind === "expense" &&
@@ -728,7 +745,7 @@ function PettyCashInspector({
       <div className="border-b border-border p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
               {entry.entryKind === "expense" ? "Cash expense" : "Cash movement"}
             </p>
             <h2 className="mt-1 truncate text-base font-semibold">
@@ -754,18 +771,7 @@ function PettyCashInspector({
       <div className="space-y-3 p-4 text-sm">
         <div className="grid grid-cols-2 gap-3">
           <CompactFact label="Counterparty">
-            {entry.counterpartyPersonId ? (
-              <Link
-                className="line-clamp-2 text-accent hover:underline"
-                href={`/people/${entry.counterpartyPersonId}`}
-              >
-                {entry.supplier ??
-                  entry.counterpartyCurrentName ??
-                  "Linked person"}
-              </Link>
-            ) : (
-              (entry.supplier ?? "Not recorded")
-            )}
+            {entry.supplier ?? entry.counterpartyCurrentName ?? "Not recorded"}
           </CompactFact>
           <CompactFact label="Period">
             {formatDate(period.periodStart)}
@@ -785,7 +791,7 @@ function PettyCashInspector({
             {entry.propertyId ? (
               <Link
                 className="line-clamp-2 text-accent hover:underline"
-                href={`/properties/${entry.propertyId}`}
+                href={`/properties/${entry.propertyId}/account`}
               >
                 {entry.propertyCode}
               </Link>
@@ -794,16 +800,7 @@ function PettyCashInspector({
             )}
           </CompactFact>
           <CompactFact label="Unit">
-            {entry.unitId ? (
-              <Link
-                className="line-clamp-2 text-accent hover:underline"
-                href={`/units/${entry.unitId}`}
-              >
-                Unit {entry.unitNumber}
-              </Link>
-            ) : (
-              "Property level"
-            )}
+            {entry.unitId ? `Unit ${entry.unitNumber}` : "Property level"}
           </CompactFact>
         </div>
 
@@ -814,7 +811,7 @@ function PettyCashInspector({
               {entry.voidReason}
             </p>
             {entry.voidedAt ? (
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {formatDate(entry.voidedAt)}
               </p>
             ) : null}
@@ -879,7 +876,7 @@ function PettyCashInspector({
 
         {entry.ledgerEntryId ? (
           <Link
-            className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[13px] font-medium text-foreground shadow-sm hover:bg-muted"
+            className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm hover:bg-muted"
             href={`/ledger?archiveState=all&entryId=${entry.ledgerEntryId}`}
           >
             <ExternalLink size={14} />
@@ -1032,6 +1029,9 @@ function PettyCashEntryForm({
         ? PERSON_SELECT_EXTERNAL_VALUE
         : ""),
   );
+  const [idempotencyKey] = useState(() =>
+    entry ? "" : `petty-entry-${globalThis.crypto.randomUUID()}`,
+  );
   const [state, action, pending] = useActionState(
     entry ? updatePettyCashEntryAction : createPettyCashEntryAction,
     entryInitialState,
@@ -1073,6 +1073,9 @@ function PettyCashEntryForm({
       <input name="accountId" type="hidden" value={account.id} />
       <input name="periodId" type="hidden" value={period.id} />
       {entry ? <input name="entryId" type="hidden" value={entry.id} /> : null}
+      {entry ? null : (
+        <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      )}
       <input
         name="counterpartyMode"
         type="hidden"
@@ -1596,7 +1599,7 @@ function CompactFact({
 }) {
   return (
     <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </p>
       <div className="mt-1.5 min-w-0 font-medium">{children}</div>

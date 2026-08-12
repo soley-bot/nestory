@@ -271,7 +271,7 @@ function AgendaSurface({
           <div className="grid shrink-0 grid-cols-7 border-b border-border bg-background">
             {WEEKDAY_LABELS.map((label) => (
               <span
-                className="border-r border-border px-2 py-1.5 text-[11px] font-medium uppercase tracking-[0] text-muted-foreground last:border-r-0"
+                className="border-r border-border px-2 py-1.5 text-xs font-medium uppercase tracking-[0] text-muted-foreground last:border-r-0"
                 key={label}
               >
                 {label}

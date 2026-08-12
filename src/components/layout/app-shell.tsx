@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 
 import { NestoryLogo } from "@/components/brand/nestory-logo";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { WorkspaceCommandPalette } from "@/components/layout/workspace-command-palette";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -52,6 +57,7 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { signOutAction } from "@/features/auth/actions";
 import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
@@ -203,9 +209,14 @@ const ADMIN_GLOBAL_DESTINATIONS = [
 const FINANCE_GLOBAL_DESTINATIONS = ADMIN_GLOBAL_DESTINATIONS.filter(
   (destination) => destination.id === "finance",
 );
+const FINANCE_MANAGER_GLOBAL_DESTINATIONS = ADMIN_GLOBAL_DESTINATIONS.filter(
+  (destination) => destination.id === "finance" || destination.id === "reports",
+);
 
 type AppShellProps = {
   children: React.ReactNode;
+  /** Resolved from the sidebar_state cookie so a collapsed rail stays collapsed. */
+  defaultSidebarOpen?: boolean;
   organizationId?: string;
   organizationName?: string;
   role?: WorkspaceRole;
@@ -217,27 +228,26 @@ function getGlobalDestinations(
   role: WorkspaceRole,
 ): readonly GlobalDestination[] {
   if (role === "super_admin") return ADMIN_GLOBAL_DESTINATIONS;
-  if (role === "finance_manager" || role === "finance_member") {
+  if (role === "finance_manager") {
+    return FINANCE_MANAGER_GLOBAL_DESTINATIONS;
+  }
+  if (role === "finance_member") {
     return FINANCE_GLOBAL_DESTINATIONS;
   }
 
+  const maintenanceChildren =
+    role === "operations_manager"
+      ? MAINTENANCE_CHILDREN
+      : [MAINTENANCE_CHILDREN[1]];
+
   return [
     {
-      children:
-        role === "operations_manager"
-          ? MAINTENANCE_CHILDREN
-          : [MAINTENANCE_CHILDREN[1]],
+      children: maintenanceChildren,
       id: "maintenance",
       href: role === "operations_manager" ? "/maintenance" : "/tasks",
       icon: Wrench,
       label: "Maintenance",
-      routes: [
-        "/maintenance",
-        "/tasks",
-        "/work-orders",
-        "/inspections",
-        "/recurring-tasks",
-      ],
+      routes: maintenanceChildren.flatMap((child) => child.routes),
     },
   ];
 }
@@ -270,62 +280,106 @@ function DomainDestinationMenuItem({
   pathname: string;
 }) {
   const [expanded, setExpanded] = useState(active);
+  const [wasActive, setWasActive] = useState(active);
+  const { isMobile, state } = useSidebar();
   const Icon = destination.icon;
+  const children = destination.children ?? [];
+
+  // Open the domain the operator navigated into, without closing the ones they
+  // opened by hand. Adjusting state during render is React's documented answer
+  // for deriving from a changed prop; remounting on every pathname change (the
+  // previous approach) discarded the operator's choice instead.
+  if (active !== wasActive) {
+    setWasActive(active);
+    if (active) setExpanded(true);
+  }
+
+  // Collapsed to icons, SidebarMenuSub is display:none, so the domain's pages
+  // become unreachable from the rail — Records has no in-page nav to fall back
+  // on. Swap the inline list for a flyout, the shadcn pattern for this state.
+  if (state === "collapsed" && !isMobile && children.length > 0) {
+    return (
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuButton isActive={active} tooltip={destination.label}>
+              <Icon />
+              <span>{destination.label}</span>
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-48" side="right" sideOffset={4}>
+            <DropdownMenuLabel>{destination.label}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {children.map((child) => (
+              <DropdownMenuItem asChild key={child.href}>
+                <Link href={child.href} prefetch={false}>
+                  {child.label}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    );
+  }
 
   return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        asChild
-        isActive={active}
-        tooltip={destination.label}
-      >
-        <Link
-          aria-current={active ? "page" : undefined}
-          href={destination.href}
-          prefetch={false}
+    <Collapsible asChild onOpenChange={setExpanded} open={expanded}>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          asChild
+          isActive={active}
+          tooltip={destination.label}
         >
-          <span className="sr-only">{active ? "Current: " : ""}</span>
-          <Icon />
-          <span>{destination.label}</span>
-        </Link>
-      </SidebarMenuButton>
-      <SidebarMenuAction
-        aria-expanded={expanded}
-        aria-label={`${expanded ? "Collapse" : "Expand"} ${destination.label} navigation`}
-        onClick={() => setExpanded((current) => !current)}
-        type="button"
-      >
-        <ChevronRight
-          aria-hidden="true"
-          className={expanded ? "rotate-90 transition-transform" : "transition-transform"}
-        />
-      </SidebarMenuAction>
-      {expanded ? (
-        <SidebarMenuSub aria-label={`${destination.label} pages`}>
-          {destination.children?.map((child) => {
-            const childActive = childDestinationMatchesPath(pathname, child);
-            return (
-              <SidebarMenuSubItem key={child.href}>
-                <SidebarMenuSubButton asChild isActive={childActive}>
-                  <Link
-                    aria-current={childActive ? "page" : undefined}
-                    href={child.href}
-                    prefetch={false}
-                  >
-                    <span>{child.label}</span>
-                  </Link>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            );
-          })}
-        </SidebarMenuSub>
-      ) : null}
-    </SidebarMenuItem>
+          <Link
+            aria-current={active ? "page" : undefined}
+            href={destination.href}
+            prefetch={false}
+          >
+            <Icon />
+            <span>{destination.label}</span>
+          </Link>
+        </SidebarMenuButton>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuAction
+            aria-label={`${expanded ? "Collapse" : "Expand"} ${destination.label} navigation`}
+            type="button"
+          >
+            <ChevronRight
+              aria-hidden="true"
+              className="transition-transform duration-200 data-open:rotate-90"
+              data-open={expanded ? "" : undefined}
+            />
+          </SidebarMenuAction>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="data-closed:animate-out data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-1">
+          <SidebarMenuSub aria-label={`${destination.label} pages`}>
+            {destination.children?.map((child) => {
+              const childActive = childDestinationMatchesPath(pathname, child);
+              return (
+                <SidebarMenuSubItem key={child.href}>
+                  <SidebarMenuSubButton asChild isActive={childActive}>
+                    <Link
+                      aria-current={childActive ? "page" : undefined}
+                      href={child.href}
+                      prefetch={false}
+                    >
+                      <span>{child.label}</span>
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              );
+            })}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
   );
 }
 
 export function AppShell({
   children,
+  defaultSidebarOpen = true,
   organizationId,
   organizationName = "Nestory workspace",
   role = "super_admin",
@@ -346,9 +400,9 @@ export function AppShell({
   return (
     <TooltipProvider>
       <SidebarProvider
+        defaultOpen={defaultSidebarOpen}
         style={
           {
-            "--sidebar-width": "calc(var(--spacing) * 64)",
             "--header-height": "calc(var(--spacing) * 12)",
           } as CSSProperties
         }
@@ -359,7 +413,6 @@ export function AppShell({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  className="h-10"
                   size="lg"
                   tooltip="Nestory"
                 >
@@ -383,6 +436,7 @@ export function AppShell({
               className="flex min-h-0 flex-1 flex-col"
             >
               <SidebarGroup>
+                <SidebarGroupLabel>Workspace</SidebarGroupLabel>
                 <SidebarGroupContent className="flex flex-col gap-2">
                   {role === "super_admin" ? (
                     <SidebarMenu>
@@ -414,7 +468,7 @@ export function AppShell({
                         <DomainDestinationMenuItem
                           active={active}
                           destination={destination}
-                          key={`${destination.id}:${pathname}`}
+                          key={destination.id}
                           pathname={pathname}
                         />
                       ) : (
@@ -428,10 +482,7 @@ export function AppShell({
                               aria-current={active ? "page" : undefined}
                               href={destination.href}
                               prefetch={false}
-                            >
-                              <span className="sr-only">
-                                {active ? "Current: " : ""}
-                              </span>
+                            >
                               <Icon />
                               <span>{destination.label}</span>
                             </Link>
@@ -465,10 +516,7 @@ export function AppShell({
                                 aria-current={active ? "page" : undefined}
                                 href={destination.href}
                                 prefetch={false}
-                              >
-                                <span className="sr-only">
-                                  {active ? "Current: " : ""}
-                                </span>
+                              >
                                 <Icon />
                                 <span>{destination.label}</span>
                               </Link>

@@ -91,7 +91,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
                 key={metric.label}
                 prefetch={false}
               >
-                <p className="truncate text-[11px] font-medium text-muted-foreground">
+                <p className="truncate text-xs font-medium text-muted-foreground">
                   {metric.label}
                 </p>
                 <p className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">
@@ -102,7 +102,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
           </div>
 
           <div className="mt-3 space-y-1">
-            <p className="px-1 text-[11px] font-semibold uppercase text-muted-foreground">
+            <p className="px-1 text-xs font-semibold uppercase text-muted-foreground">
               Needs attention
             </p>
             {insights.attentionQueues.map((queue) => (
@@ -121,7 +121,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
                   </span>
                 </span>
                 <Badge
-                  className="shrink-0 px-1.5 text-[10px]"
+                  className="shrink-0 px-1.5 text-xs"
                   tone={queue.tone}
                 >
                   {queue.count}
