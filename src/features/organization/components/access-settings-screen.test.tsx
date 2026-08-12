@@ -1332,24 +1332,24 @@ describe("AccessSettingsScreen", () => {
       within(addForm).getByRole("button", { name: "Send invitation" }),
     );
     fireEvent.click(
-      screen.getByRole("link", { hidden: true, name: "Workspace" }),
+      screen.getByRole("link", { hidden: true, name: "Organization" }),
     );
     expect(
-      screen.getByRole("dialog", { hidden: true, name: "Open Workspace?" })
+      screen.getByRole("dialog", { hidden: true, name: "Open Organization?" })
         .textContent,
     ).toContain("save is still in progress");
 
     resolveAction({ status: "success", message: "User access added." });
     await waitFor(() => {
       expect(
-        screen.getByRole("dialog", { hidden: true, name: "Open Workspace?" })
+        screen.getByRole("dialog", { hidden: true, name: "Open Organization?" })
           .textContent,
       ).toContain("unsaved changes");
     });
     expect(
       screen.getByRole("button", {
         hidden: true,
-        name: "Discard and open Workspace",
+        name: "Discard and open Organization",
       }),
     ).toBeTruthy();
   });
@@ -1386,17 +1386,17 @@ describe("AccessSettingsScreen", () => {
       within(addForm).getByRole("button", { name: "Send invitation" }),
     );
     fireEvent.click(
-      screen.getByRole("link", { hidden: true, name: "Workspace" }),
+      screen.getByRole("link", { hidden: true, name: "Organization" }),
     );
     expect(
-      screen.getByRole("dialog", { hidden: true, name: "Open Workspace?" })
+      screen.getByRole("dialog", { hidden: true, name: "Open Organization?" })
         .textContent,
     ).toContain("save is still in progress");
 
     resolveAction({ status: "error", message: "Access could not be added." });
     await waitFor(() => {
       expect(
-        screen.queryByRole("dialog", { hidden: true, name: "Open Workspace?" }),
+        screen.queryByRole("dialog", { hidden: true, name: "Open Organization?" }),
       ).toBeNull();
     });
     const alert = within(addForm).getByRole("alert");
@@ -1418,12 +1418,12 @@ describe("AccessSettingsScreen", () => {
     });
     const workspace = screen.getByRole("link", {
       hidden: true,
-      name: "Workspace",
+      name: "Organization",
     });
     fireEvent.click(workspace);
 
     expect(
-      screen.getByRole("dialog", { hidden: true, name: "Open Workspace?" })
+      screen.getByRole("dialog", { hidden: true, name: "Open Organization?" })
         .textContent,
     ).toContain("unsaved changes");
     fireEvent.click(
