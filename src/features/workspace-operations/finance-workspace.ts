@@ -8,6 +8,7 @@ import type {
   FinanceWorkspaceData,
   FinanceWorkspaceQueueItem,
 } from "@/features/workspace-operations/finance-workspace.types";
+import { formatMoneyDisplay } from "@/lib/money/format";
 
 const RECENT_DECISION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -35,15 +36,20 @@ function buildManagerWorkspace(
     ...submitted.map(managerExpenseItem),
     ...data.rentGenerationExceptions.map((exception) => ({
       actionLabel: "Review rent",
+      amountDisplay: null,
+      contextLabel:
+        propertyLabelById.get(exception.propertyId) ?? "Property unavailable",
       detail: exception.message,
       href: "/rent-income",
       id: exception.id,
       kind: "rent-exception" as const,
       priority: 40,
       statusLabel: "Needs attention",
+      submittedByLabel: null,
       submittedAt: exception.lastAttemptAt,
       title:
         propertyLabelById.get(exception.propertyId) ?? "Rent generation exception",
+      tone: "danger" as const,
     })),
     ...data.tenantInvoices
       .filter((invoice) => invoice.balanceDue > 0)
@@ -52,27 +58,39 @@ function buildManagerWorkspace(
           invoice.collectionRoute === "through_ips"
             ? "Record payment"
             : "Confirm collection",
+        amountDisplay: formatMoneyDisplay(invoice.balanceDue),
+        contextLabel: financeContextLabel(
+          invoice.propertyLabel,
+          invoice.unitId,
+          invoice.unitLabel,
+        ),
         detail: `${invoice.propertyLabel} · ${invoice.invoiceNumber}`,
         href: "/rent-income",
         id: invoice.id,
         kind: "tenant-balance" as const,
         priority: 50,
         statusLabel: "Payment due",
+        submittedByLabel: null,
         submittedAt: invoice.dueDate,
         title: invoice.recipientLabel,
+        tone: "warning" as const,
       })),
     ...data.ownerInvoices
       .filter((invoice) => invoice.balanceDue > 0)
       .map((invoice) => ({
         actionLabel: "Record owner payment",
+        amountDisplay: formatMoneyDisplay(invoice.balanceDue),
+        contextLabel: invoice.propertyLabel,
         detail: `${invoice.propertyLabel} · ${invoice.invoiceNumber}`,
         href: "/balances",
         id: invoice.id,
         kind: "owner-balance" as const,
         priority: 60,
         statusLabel: "Payment due",
+        submittedByLabel: null,
         submittedAt: invoice.dueDate,
         title: invoice.ownerLabel,
+        tone: "warning" as const,
       })),
   ].sort(compareManagerItems);
 
@@ -99,16 +117,24 @@ function managerExpenseItem(
 
   return {
     actionLabel: "Review paid cost",
+    amountDisplay: formatMoneyDisplay(submission.internalCost),
+    contextLabel: financeContextLabel(
+      submission.propertyLabel,
+      submission.unitId,
+      submission.unitLabel,
+    ),
     detail: `${submission.propertyLabel} · ${submission.vendorLabel}`,
     href: "/bills-expenses",
     id: submission.id,
     kind: isMaintenance ? "maintenance-cost-review" : "expense-review",
     priority: isMaintenance ? 10 : isMissingEvidence ? 20 : 30,
     statusLabel: isMissingEvidence ? "Evidence missing" : "Awaiting approval",
+    submittedByLabel: submission.submittedByLabel,
     submittedAt: submission.submittedAt,
     title: isMaintenance
       ? (submission.maintenanceTask?.title ?? "Maintenance cost")
       : submission.vendorLabel,
+    tone: isMissingEvidence ? "danger" : "warning",
   };
 }
 
@@ -175,15 +201,39 @@ function memberExpenseItem(
   return {
     actionLabel:
       submission.status === "rejected" ? "Correct paid cost" : "View paid cost",
-    detail: `${submission.propertyLabel} · ${submission.vendorLabel}`,
+    amountDisplay: formatMoneyDisplay(submission.internalCost),
+    contextLabel: financeContextLabel(
+      submission.propertyLabel,
+      submission.unitId,
+      submission.unitLabel,
+    ),
+    detail:
+      submission.status === "rejected"
+        ? (submission.reviewReason ?? "Finance requested corrections.")
+        : submission.vendorLabel,
     href: "/bills-expenses",
     id: submission.id,
     kind,
     priority,
     statusLabel,
+    submittedByLabel: submission.submittedByLabel,
     submittedAt: submission.reviewedAt ?? submission.submittedAt,
     title: submission.vendorLabel,
+    tone:
+      submission.status === "rejected"
+        ? "danger"
+        : submission.status === "approved"
+          ? "success"
+          : "warning",
   };
+}
+
+function financeContextLabel(
+  propertyLabel: string,
+  unitId: string | null,
+  unitLabel: string,
+) {
+  return unitId ? `${propertyLabel} · ${unitLabel}` : propertyLabel;
 }
 
 function compareManagerItems(

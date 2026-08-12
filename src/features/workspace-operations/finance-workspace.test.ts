@@ -64,6 +64,18 @@ describe("buildFinanceWorkspaceData", () => {
       "general-with-evidence",
       "rent-exception-1",
     ]);
+    expect(result.queue[0]).toMatchObject({
+      amountDisplay: { primary: "USD 100.00" },
+      contextLabel: "Garden Court · Unit G-01",
+      submittedByLabel: "finance.member@nestory.com",
+      tone: "warning",
+    });
+    expect(result.queue[1]).toMatchObject({
+      amountDisplay: { primary: "USD 100.00" },
+      contextLabel: "Garden Court · Unit G-01",
+      submittedByLabel: "finance.member@nestory.com",
+      tone: "danger",
+    });
     expect(result.totals).toEqual({
       awaitingReview: 3,
       maintenanceHandoffs: 1,
@@ -129,6 +141,20 @@ describe("buildFinanceWorkspaceData", () => {
     expect(result.queue.map((item) => item.href)).toEqual([
       "/rent-income",
       "/balances",
+    ]);
+    expect(result.queue).toMatchObject([
+      {
+        amountDisplay: { primary: "USD 125.00" },
+        contextLabel: "Garden Court · Unit G-01",
+        submittedByLabel: null,
+        tone: "warning",
+      },
+      {
+        amountDisplay: { primary: "USD 75.00" },
+        contextLabel: "Garden Court",
+        submittedByLabel: null,
+        tone: "warning",
+      },
     ]);
   });
 
@@ -196,6 +222,27 @@ describe("buildFinanceWorkspaceData", () => {
       "own-awaiting",
       "own-approved-recent",
     ]);
+    expect(result.queue).toMatchObject([
+      {
+        amountDisplay: { primary: "USD 100.00" },
+        contextLabel: "Garden Court · Unit G-01",
+        detail: "Receipt total is unreadable.",
+        submittedByLabel: "finance.member@nestory.com",
+        tone: "danger",
+      },
+      {
+        amountDisplay: { primary: "USD 100.00" },
+        contextLabel: "Garden Court · Unit G-01",
+        submittedByLabel: "finance.member@nestory.com",
+        tone: "warning",
+      },
+      {
+        amountDisplay: { primary: "USD 100.00" },
+        contextLabel: "Garden Court · Unit G-01",
+        submittedByLabel: "finance.member@nestory.com",
+        tone: "success",
+      },
+    ]);
     expect(result.totals).toEqual({
       approvedRecently: 1,
       awaitingReview: 1,
@@ -255,6 +302,7 @@ function submission(
     sourceType: "general",
     status: "submitted",
     submittedAt: "2026-08-01T08:00:00Z",
+    submittedByLabel: "finance.member@nestory.com",
     submittedByUserId: "finance-member-user-1",
     unitId: "unit-1",
     unitLabel: "Unit G-01",

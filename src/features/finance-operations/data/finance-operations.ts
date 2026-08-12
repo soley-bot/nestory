@@ -115,6 +115,7 @@ export function toExpenseSubmissionSummary(
     NonNullable<ExpenseSubmissionSummary["evidence"]>
   >,
   maintenanceTaskById: ReadonlyMap<string, MaintenanceTaskRow> = new Map(),
+  submitterLabelByUserId: ReadonlyMap<string, string> = new Map(),
 ): ExpenseSubmissionSummary {
   const property = propertyById.get(submission.property_id);
   const unit = submission.unit_id
@@ -174,6 +175,8 @@ export function toExpenseSubmissionSummary(
       | "reversed"
       | "submitted",
     submittedAt: submission.submitted_at,
+    submittedByLabel:
+      submitterLabelByUserId.get(submission.submitted_by) ?? "Workspace member",
     submittedByUserId: submission.submitted_by,
     unitId: submission.unit_id,
     unitLabel:
@@ -411,6 +414,31 @@ export async function getFinanceOperationsData(
   const maintenanceTaskById = new Map(
     (maintenanceTaskResult.data ?? []).map((task) => [task.id, task]),
   );
+  const submitterIds = [
+    ...new Set(
+      (expenseSubmissionsResult.data ?? []).map(
+        (submission) => submission.submitted_by,
+      ),
+    ),
+  ];
+  const submitterLabelsResult =
+    submitterIds.length > 0
+      ? await supabase.rpc("get_finance_submission_actor_labels", {
+          p_organization_id: organizationId,
+          p_user_ids: submitterIds,
+        })
+      : { data: [], error: null };
+  if (submitterLabelsResult.error) {
+    throw new Error(
+      `Could not load finance submission actor labels: ${submitterLabelsResult.error.message}`,
+    );
+  }
+  const submitterLabelByUserId = new Map(
+    (submitterLabelsResult.data ?? []).map((actor) => [
+      actor.user_id,
+      actor.label,
+    ]),
+  );
 
   const evidenceRows = evidenceResult.data ?? [];
   const evidencePaths = [...new Set(evidenceRows.map((row) => row.storage_path))];
@@ -452,6 +480,7 @@ export async function getFinanceOperationsData(
           sourceById,
           evidenceBySubmissionId,
           maintenanceTaskById,
+          submitterLabelByUserId,
         ),
     ),
     leases: (leasesResult.data ?? []).flatMap((lease) => {

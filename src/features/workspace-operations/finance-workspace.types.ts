@@ -1,3 +1,5 @@
+import type { MoneyDisplayValue } from "@/lib/money/format";
+
 export type FinanceWorkspaceItemKind =
   | "expense-review"
   | "maintenance-cost-review"
@@ -10,14 +12,18 @@ export type FinanceWorkspaceItemKind =
 
 export type FinanceWorkspaceQueueItem = {
   actionLabel: string;
+  amountDisplay: MoneyDisplayValue | null;
+  contextLabel: string;
   detail: string;
   href: string;
   id: string;
   kind: FinanceWorkspaceItemKind;
   priority: number;
   statusLabel: string;
+  submittedByLabel: string | null;
   submittedAt?: string;
   title: string;
+  tone: "neutral" | "success" | "warning" | "danger" | "accent";
 };
 
 export type FinanceManagerWorkspaceData = {

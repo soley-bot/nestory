@@ -14,7 +14,7 @@
 - Preserve `PROJECT.md` role authority: Finance Manager reviews and operates Finance; Finance Member reads Finance and submits paid costs; Operations Manager coordinates branch work; Operations Member sees assigned work; Super Admin retains the full allowed operating scope.
 - Navigation and hidden controls are usability boundaries only. Server contexts, actions, RPCs, grants, and RLS remain authoritative.
 - Do not add a generic workflow engine, custom roles, team ACLs, approval thresholds, or a new dashboard framework.
-- Do not add a database migration for this workspace pass. `expense_submissions.submitted_by` and the existing Finance, Overview, Maintenance, and Task data are sufficient.
+- The only database addition allowed for this workspace pass is the read-only `get_finance_submission_actor_labels` RPC required to turn `expense_submissions.submitted_by` into an operator-safe label. Do not add tables or change Finance mutation authority.
 - Keep one visible workspace title/action composition, one dominant work surface, and no more than one secondary controls row.
 - Keep raw UUIDs and internal field names out of ordinary operator labels.
 - Every role-specific queue must define loading, empty, filtered-empty, permission, blocked, error, saving, and success behavior.
@@ -198,14 +198,18 @@ export type FinanceWorkspaceItemKind =
 
 export type FinanceWorkspaceQueueItem = {
   actionLabel: string;
+  amountDisplay: MoneyDisplayValue | null;
+  contextLabel: string;
   detail: string;
   href: string;
   id: string;
   kind: FinanceWorkspaceItemKind;
   priority: number;
   statusLabel: string;
+  submittedByLabel: string | null;
   submittedAt?: string;
   title: string;
+  tone: "neutral" | "success" | "warning" | "danger" | "accent";
 };
 
 export type FinanceManagerWorkspaceData = {
@@ -600,12 +604,23 @@ The work is complete only when:
 - Focused tests, lint, TypeScript, `git diff --check`, and authenticated five-role browser verification pass.
 - Evidence identifies the exact branch, SHA, worktree, runtime source, and local-versus-hosted boundary.
 
+## Claude Contract Amendment: 2026-08-12
+
+The core queue now provides the four presentation fields requested by Claude:
+
+- `amountDisplay`: `MoneyDisplayValue | null`. Paid-cost items use the paid internal cost; tenant and owner balance items use the outstanding balance; non-monetary exceptions use `null`.
+- `tone`: explicit badge semantics from core. Missing evidence and rejected work use `danger`; pending review and balance work use `warning`; approved work uses `success`.
+- `submittedByLabel`: a human email or role fallback from the Finance-scoped actor-label RPC. Paid-cost items always provide a non-null value; non-submission exceptions use `null`. React must never render `submittedByUserId`.
+- `contextLabel`: the property plus unit when unit-scoped, otherwise the property. `detail` remains available for the rejection reason or supporting description.
+
+Claude should render these values directly and must not map `statusLabel` to colors, format raw amounts, resolve UUIDs, or rebuild property/unit context in the component.
+
 ## Explicit Non-Goals
 
 - No accounting rewrite.
 - No new Finance mutation or approval authority.
 - No generic universal dashboard.
 - No new roles, role combinations, or configurable permissions.
-- No new database tables or migrations.
+- No new database tables or mutation-oriented migrations; the scoped actor-label RPC above is the single approved exception.
 - No redesign of People, Properties, Units, Reports, Ledger, or Petty Cash.
 - No production, merge, push, or deployment action without separate user authorization.

@@ -9261,6 +9261,13 @@ export type Database = {
           unposted_count: number
         }[]
       }
+      get_finance_submission_actor_labels: {
+        Args: { p_organization_id: string; p_user_ids: string[] }
+        Returns: {
+          label: string
+          user_id: string
+        }[]
+      }
       get_ips_cutover_batch: {
         Args: { p_batch_id: string; p_organization_id: string }
         Returns: Json

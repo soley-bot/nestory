@@ -128,6 +128,7 @@ describe("toExpenseSubmissionSummary", () => {
           },
         ],
       ]),
+      new Map([["finance-member-user-1", "finance.member@nestory.com"]]),
     );
 
     expect(summary).toMatchObject({
@@ -147,6 +148,7 @@ describe("toExpenseSubmissionSummary", () => {
       },
       reviewedAt: "2026-08-09T08:30:00Z",
       status: "submitted",
+      submittedByLabel: "finance.member@nestory.com",
       submittedByUserId: "finance-member-user-1",
     });
     expect(summary.propertyLabel).toContain("Archived Property");

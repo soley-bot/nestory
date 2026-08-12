@@ -966,6 +966,7 @@ function expenseSubmission(
     sourceType: "general",
     status,
     submittedAt: "2026-08-08T08:00:00Z",
+    submittedByLabel: "finance.member@nestory.com",
     submittedByUserId: "finance-member-user-1",
     unitId: "unit-1",
     unitLabel: "HOME - Unit 01",
