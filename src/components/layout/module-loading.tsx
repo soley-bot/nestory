@@ -46,7 +46,7 @@ export function ModuleLoading({
       </div>
       <main
         aria-hidden="true"
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6 lg:px-6"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6"
         data-slot="loading-workspace"
       >
         {isDashboard ? <DashboardSkeleton /> : null}
