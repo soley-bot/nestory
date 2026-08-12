@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { OrganizationStaffOption } from "@/features/organization/data";
 import { AccessRegister } from "./access-register";
 import type { AccessRegisterView } from "./access-register-model";
 
@@ -75,8 +76,8 @@ function RegisterHarness({
   onGrantStaff = vi.fn(),
 }: {
   initialView?: AccessRegisterView;
-  noAccessStaff?: typeof mina[];
-  onGrantStaff?: (person: typeof mina) => void;
+  noAccessStaff?: OrganizationStaffOption[];
+  onGrantStaff?: (person: OrganizationStaffOption) => void;
 }) {
   const [view, setView] = useState<AccessRegisterView>(initialView);
 
