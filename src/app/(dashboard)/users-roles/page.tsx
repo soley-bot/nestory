@@ -67,6 +67,7 @@ export default async function UsersRolesPage({
       members={data.members}
       people={data.linkedPeople ?? data.staff}
       requestedStaffId={selectedStaff?.id}
+      staff={data.staff}
     />
   );
 }

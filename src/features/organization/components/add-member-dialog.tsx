@@ -12,6 +12,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,11 @@ export type AddMemberDefaults = {
   staffEmail?: string;
 };
 
+export type AddMemberDraftController = {
+  discard: () => void;
+  status: DraftStatus;
+};
+
 type DuplicateAccessTarget = { id: string; kind: "invitation" | "member" };
 type WorkflowStep = "access" | "staff" | "review";
 type StaffMode = "existing" | "new";
@@ -76,6 +82,7 @@ export function AddMemberDialog({
   invitations,
   members,
   onNavigateToInvitations,
+  onDraftChange,
   onOpenChange,
   onReviewDuplicate,
   open,
@@ -87,6 +94,7 @@ export function AddMemberDialog({
   invitations: OrganizationInvitation[];
   members: OrganizationMembership[];
   onNavigateToInvitations: () => void;
+  onDraftChange?: (controller: AddMemberDraftController | null) => void;
   onOpenChange: (open: boolean) => void;
   onReviewDuplicate: (target: DuplicateAccessTarget) => void;
   open: boolean;
@@ -177,6 +185,26 @@ export function AddMemberDialog({
     setMessage(undefined);
     submitting.current = false;
   }, [initialAccess]);
+
+  const draftStatus: DraftStatus =
+    status === "saving"
+      ? "saving"
+      : status === "error"
+        ? "error"
+        : dirty
+          ? "dirty"
+          : "clean";
+
+  useEffect(() => {
+    if (!onDraftChange) return;
+    if (!open) {
+      onDraftChange(null);
+      return;
+    }
+
+    onDraftChange({ discard: reset, status: draftStatus });
+    return () => onDraftChange(null);
+  }, [draftStatus, onDraftChange, open, reset]);
 
   useEffect(() => {
     if (open && !wasOpen.current) {

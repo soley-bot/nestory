@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -13,13 +12,23 @@ import {
 } from "react";
 import { ChevronDown, UserPlus } from "lucide-react";
 import {
+  AddMemberDialog,
+  type AddMemberDefaults,
+} from "@/features/organization/components/add-member-dialog";
+import { AccessRegister } from "@/features/organization/components/access-register";
+import {
+  getInitialAccessRegisterView,
+  getNoAccessStaff,
+  type AccessRegisterView,
+} from "@/features/organization/components/access-register-model";
+import {
   SettingsNavigationGuardProvider,
   useSettingsNavigationGuard,
 } from "@/components/layout/settings-navigation-guard";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader } from "@/components/ui/card";
+import { CardHeader } from "@/components/ui/card";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import {
   DraftActionBar,
@@ -28,13 +37,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
 import {
-  Table,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SideDrawer, useDrawerDraftGuard } from "@/components/ui/side-drawer";
+import { useDrawerDraftGuard } from "@/components/ui/side-drawer";
 import { signOutAction } from "@/features/auth/actions";
 import { PersonSelect } from "@/features/people/components/person-select";
 import {
@@ -91,6 +97,7 @@ export function AccessSettingsScreen({
   members,
   people,
   requestedStaffId,
+  staff,
 }: {
   branches: OrganizationBranch[];
   currentUserId?: string;
@@ -106,6 +113,7 @@ export function AccessSettingsScreen({
   members: OrganizationMembership[];
   people: OrganizationStaffOption[];
   requestedStaffId?: string;
+  staff?: OrganizationStaffOption[];
 }) {
   return (
     <SettingsNavigationGuardProvider>
@@ -120,6 +128,7 @@ export function AccessSettingsScreen({
         members={members}
         people={people}
         requestedStaffId={requestedStaffId}
+        staff={staff}
       />
     </SettingsNavigationGuardProvider>
   );
@@ -135,6 +144,7 @@ function AccessWorkspace({
   members,
   people,
   requestedStaffId,
+  staff,
 }: Parameters<typeof AccessSettingsScreen>[0]) {
   const guard = useSettingsNavigationGuard();
   const controllers = useRef(new Map<string, AccessDraftController>());
@@ -142,7 +152,10 @@ function AccessWorkspace({
   const adminCount = members.filter(
     (member) => member.role === "super_admin",
   ).length;
-  const staffOptions = useMemo(() => activeStaffOptions(people), [people]);
+  const staffOptions = useMemo(
+    () => activeStaffOptions(staff ?? people),
+    [people, staff],
+  );
   const accessByPersonId = useMemo(
     () =>
       buildAccessByPersonId(
@@ -155,11 +168,8 @@ function AccessWorkspace({
     [branches, invitations, members, staffOptions],
   );
   const staffWithoutAccess = useMemo(
-    () =>
-      staffOptions.filter(
-        (person) => accessByPersonId[person.id]?.state === "no_access",
-      ),
-    [accessByPersonId, staffOptions],
+    () => getNoAccessStaff({ branches, invitations, members, staff: staffOptions }),
+    [branches, invitations, members, staffOptions],
   );
   const deepLinkInvitePersonId =
     inviteDefaults?.personId &&
@@ -167,41 +177,46 @@ function AccessWorkspace({
     accessByPersonId[inviteDefaults.personId]?.state === "no_access"
       ? inviteDefaults.personId
       : undefined;
-  const [inviteDrawerState, setInviteDrawerState] = useState<{
+  const [memberDialogState, setMemberDialogState] = useState<{
     deepLinkPersonId?: string;
+    defaults?: AddMemberDefaults;
     open: boolean;
   }>(() => ({
     deepLinkPersonId: deepLinkInvitePersonId,
+    defaults: inviteDefaults,
     open: Boolean(deepLinkInvitePersonId),
   }));
+  const [activeView, setActiveView] = useState<AccessRegisterView>(() =>
+    getInitialAccessRegisterView({
+      focusedInvitationId,
+      focusedMemberId,
+      requestedStaffId: deepLinkInvitePersonId,
+    }),
+  );
+  const addMemberTriggerRef = useRef<HTMLButtonElement>(null);
   const duplicateFocusTarget = useRef<DuplicateAccessTarget | undefined>(
     undefined,
   );
-  if (inviteDrawerState.deepLinkPersonId !== deepLinkInvitePersonId) {
-    setInviteDrawerState({
+
+  if (memberDialogState.deepLinkPersonId !== deepLinkInvitePersonId) {
+    setMemberDialogState({
       deepLinkPersonId: deepLinkInvitePersonId,
+      defaults: inviteDefaults,
       open: Boolean(deepLinkInvitePersonId),
     });
   }
-  const inviteOpen = inviteDrawerState.open;
-  const setInviteOpen = useCallback((open: boolean) => {
-    setInviteDrawerState((current) => ({ ...current, open }));
-  }, []);
-
-  const closeInviteDrawer = useCallback(() => {
-    setInviteOpen(false);
-  }, [setInviteOpen]);
 
   const reviewDuplicate = useCallback(
     (target: DuplicateAccessTarget) => {
       duplicateFocusTarget.current = target;
-      setInviteOpen(false);
+      setActiveView(target.kind === "invitation" ? "invitations" : "active");
+      setMemberDialogState((current) => ({ ...current, open: false }));
     },
-    [setInviteOpen],
+    [],
   );
 
   useEffect(() => {
-    if (inviteOpen || !duplicateFocusTarget.current) {
+    if (memberDialogState.open || !duplicateFocusTarget.current) {
       return;
     }
 
@@ -210,7 +225,7 @@ function AccessWorkspace({
     requestAnimationFrame(() => {
       document.getElementById(`access-${target.kind}-${target.id}`)?.focus();
     });
-  }, [inviteOpen]);
+  }, [activeView, memberDialogState.open]);
 
   const registerDraft = useCallback(
     (id: string, controller: AccessDraftController | null) => {
@@ -222,6 +237,12 @@ function AccessWorkspace({
       setDraftVersion((value) => value + 1);
     },
     [],
+  );
+
+  const registerAddMemberDraft = useCallback(
+    (controller: AccessDraftController | null) =>
+      registerDraft("add-member", controller),
+    [registerDraft],
   );
 
   const discardAll = useCallback(() => {
@@ -254,7 +275,7 @@ function AccessWorkspace({
     <div
       // Same gutter ramp as PageHeader and the sibling Settings sections, so
       // moving between Settings tabs does not shift the content sideways.
-      className="mx-auto grid w-full max-w-6xl min-w-0 gap-2.5 px-4 py-4 sm:px-6"
+      className="mx-auto grid w-full max-w-6xl min-w-0 gap-3 px-4 py-4 sm:px-6"
       data-testid="access-surface"
     >
       {/*
@@ -262,165 +283,84 @@ function AccessWorkspace({
         the top. Needs access and Pending are exception states — they take up
         the page only when they have something in them.
       */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button asChild size="sm" variant="outline">
-          <Link
-            href="/staff?action=create"
-            onClick={(event) =>
-              guard?.handleNavigationClick(event, {
-                href: "/staff?action=create",
-                label: "Add Staff",
-              })
-            }
-          >
-            Add Staff
-          </Link>
-        </Button>
-        <Button onClick={() => setInviteOpen(true)} size="sm">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <h2 className="font-heading text-lg font-semibold tracking-tight">
+          Workspace access
+        </h2>
+        <Button
+          onClick={() =>
+            setMemberDialogState({ defaults: undefined, open: true })
+          }
+          ref={addMemberTriggerRef}
+          size="sm"
+        >
           <UserPlus aria-hidden="true" size={15} />
-          Invite Staff
+          Add member
         </Button>
       </div>
 
-      {staffWithoutAccess.length > 0 ? (
-        <Card className="min-w-0 gap-0 py-0" data-testid="access-needs-group">
-          <GroupHeader
-            bordered
-            count={staffWithoutAccess.length}
-            title="Needs access"
+      <AccessRegister
+        activeView={activeView}
+        branches={branches}
+        invitations={invitations}
+        members={members}
+        noAccessStaff={staffWithoutAccess}
+        onGrantStaff={(person) =>
+          setMemberDialogState({
+            defaults: {
+              email: person.primaryEmail ?? "",
+              personId: person.id,
+              staffEmail: person.primaryEmail ?? undefined,
+            },
+            open: true,
+          })
+        }
+        onViewChange={setActiveView}
+        people={people}
+        renderInvitationRow={(invitation) => (
+          <PendingInvitationRow
+            branches={branches}
+            focused={invitation.id === focusedInvitationId}
+            invitation={invitation}
+            key={invitation.id}
+            people={people}
           />
-          <div className="divide-y divide-border">
-            {staffWithoutAccess.map((person) => (
-              <div
-                className="flex min-w-0 items-center justify-between gap-3 px-3 py-2.5"
-                key={person.id}
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{person.label}</p>
-                  {person.primaryEmail ? (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {person.primaryEmail}
-                    </p>
-                  ) : null}
-                </div>
-                <Button asChild size="sm" variant="outline">
-                  <Link
-                    aria-label={`Grant workspace access for ${person.label}`}
-                    href={`/users-roles?personId=${person.id}`}
-                    onClick={(event) =>
-                      guard?.handleNavigationClick(event, {
-                        href: `/users-roles?personId=${person.id}`,
-                        label: `Grant access for ${person.label}`,
-                      })
-                    }
-                    prefetch={false}
-                  >
-                    Grant access
-                  </Link>
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ) : null}
+        )}
+        renderMemberRow={(member) => (
+          <MemberAccessForm
+            adminCount={adminCount}
+            branches={branches}
+            current={member.userId === currentUserId}
+            focused={member.id === focusedMemberId}
+            key={member.id}
+            member={member}
+            onDraftChange={registerDraft}
+            people={people}
+          />
+        )}
+      />
 
-      {invitations.length > 0 ? (
-        <Card className="min-w-0 gap-0 py-0" data-testid="access-pending-group">
-          <GroupHeader bordered count={invitations.length} title="Pending" />
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="px-3">Invitation</TableHead>
-                <TableHead className="px-3">Access level</TableHead>
-                <TableHead className="hidden px-3 lg:table-cell">
-                  Scope
-                </TableHead>
-                <TableHead className="hidden px-3 xl:table-cell">
-                  Staff link
-                </TableHead>
-                <TableHead className="hidden px-3 md:table-cell">
-                  Delivery
-                </TableHead>
-                <TableHead className="px-3">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            {invitations.map((invitation) => (
-              <PendingInvitationRow
-                branches={branches}
-                focused={invitation.id === focusedInvitationId}
-                invitation={invitation}
-                key={invitation.id}
-                people={people}
-              />
-            ))}
-          </Table>
-        </Card>
-      ) : null}
-
-      <Card className="min-w-0 gap-0 py-0" data-testid="access-active-group">
-        <GroupHeader
-          bordered={members.length > 0}
-          count={members.length}
-          title="Active"
-        />
-        {members.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="px-3">Member</TableHead>
-                <TableHead className="px-3">Access level</TableHead>
-                <TableHead className="hidden px-3 lg:table-cell">
-                  Scope
-                </TableHead>
-                <TableHead className="hidden px-3 xl:table-cell">
-                  Staff link
-                </TableHead>
-                <TableHead className="px-3">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            {members.map((member) => (
-              <MemberAccessForm
-                adminCount={adminCount}
-                branches={branches}
-                current={member.userId === currentUserId}
-                focused={member.id === focusedMemberId}
-                key={member.id}
-                member={member}
-                onDraftChange={registerDraft}
-                people={people}
-              />
-            ))}
-          </Table>
-        ) : null}
-      </Card>
-
-      <SideDrawer
-        onClose={closeInviteDrawer}
-        open={inviteOpen}
-        title="Invite Staff"
-      >
-        <InviteUserForm
-          branches={branches}
-          defaults={inviteDefaults}
-          invitations={invitations}
-          key={requestedStaffId ?? inviteDefaults?.personId ?? "empty-invite"}
-          members={members}
-          onClose={closeInviteDrawer}
-          onDraftChange={registerDraft}
-          onPersisted={closeInviteDrawer}
-          onReviewDuplicate={reviewDuplicate}
-          people={staffOptions}
-        />
-      </SideDrawer>
+      <AddMemberDialog
+        branches={branches}
+        defaults={memberDialogState.defaults}
+        invitations={invitations}
+        key={memberDialogState.defaults?.personId ?? "new-member"}
+        members={members}
+        onNavigateToInvitations={() => setActiveView("invitations")}
+        onDraftChange={registerAddMemberDraft}
+        onOpenChange={(open) =>
+          setMemberDialogState((current) => ({ ...current, open }))
+        }
+        onReviewDuplicate={reviewDuplicate}
+        open={memberDialogState.open}
+        people={staffOptions}
+        returnFocusRef={addMemberTriggerRef}
+      />
     </div>
   );
 }
 
-function InviteUserForm({
+export function InviteUserForm({
   branches,
   defaults,
   invitations,
@@ -1438,7 +1378,7 @@ function MemberAccessForm({
  * group owns. An empty group is just this header — the count already reads as
  * "nothing here", so a sentence saying so would only take up the page.
  */
-function GroupHeader({
+export function GroupHeader({
   bordered,
   children,
   count,
