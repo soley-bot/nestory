@@ -138,6 +138,7 @@ export type ExpenseSubmissionSummary = {
   recordedTotal?: number | null;
   reference: string | null;
   responsibility: "owner" | "tenant";
+  reviewedAt: string | null;
   reviewReason: string | null;
   reversalReason: string | null;
   sourceId: string | null;

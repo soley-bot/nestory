@@ -112,7 +112,7 @@ The integration order is:
 
 **Interfaces:**
 - Consumes: `expense_submissions.submitted_by`
-- Produces: `ExpenseSubmissionSummary.submittedByUserId: string`
+- Produces: `ExpenseSubmissionSummary.submittedByUserId: string` and `ExpenseSubmissionSummary.reviewedAt: string | null`
 
 - [x] **Step 1: Write the failing mapper test**
 
@@ -239,7 +239,7 @@ export type FinanceWorkspaceData =
   | FinanceMemberWorkspaceData;
 ```
 
-- [ ] **Step 1: Write failing Finance Manager ordering tests**
+- [x] **Step 1: Write failing Finance Manager ordering tests**
 
 Use a minimal `FinanceOperationsData` fixture with one maintenance-origin submitted cost, one general submitted cost without evidence, one general submitted cost with evidence, and one rent exception. Assert:
 
@@ -261,7 +261,7 @@ expect(result.totals).toEqual({
 
 Priority is deterministic: maintenance handoffs first, missing-evidence submissions second, other submitted costs third, rent exceptions fourth, tenant balances fifth, and owner balances sixth. Within a priority, oldest `submittedAt` sorts first, then `id` ascending.
 
-- [ ] **Step 2: Write failing Finance Member ownership tests**
+- [x] **Step 2: Write failing Finance Member ownership tests**
 
 Use submissions from two users. Assert that the authenticated member sees only their own rejected, submitted, and approved items:
 
@@ -282,7 +282,7 @@ expect(result.queue.map((item) => item.kind)).toEqual([
 
 Member priority is rejected first, awaiting review second, and approved within the last 30 days third. Reversed items remain available on the Expenses history page but do not enter the landing queue.
 
-- [ ] **Step 3: Run the new tests and confirm the selector is absent**
+- [x] **Step 3: Run the new tests and confirm the selector is absent**
 
 ```powershell
 npx vitest run src/features/workspace-operations/finance-workspace.test.ts
@@ -290,7 +290,7 @@ npx vitest run src/features/workspace-operations/finance-workspace.test.ts
 
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 4: Implement the pure projection**
+- [x] **Step 4: Implement the pure projection**
 
 Implement:
 
@@ -305,7 +305,7 @@ export function buildFinanceWorkspaceData(input: {
 
 Use only the supplied data. Do not query Supabase or inspect capabilities in this function. Every queue link must target an existing URL-backed state under `/bills-expenses`, `/rent-income`, `/balances`, or the existing maintenance task link.
 
-- [ ] **Step 5: Run the selector tests**
+- [x] **Step 5: Run the selector tests**
 
 ```powershell
 npx vitest run src/features/workspace-operations/finance-workspace.test.ts
@@ -313,7 +313,7 @@ npx vitest run src/features/workspace-operations/finance-workspace.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the projection contract**
+- [x] **Step 6: Commit the projection contract**
 
 ```powershell
 git add src/features/workspace-operations

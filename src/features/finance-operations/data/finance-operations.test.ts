@@ -66,6 +66,7 @@ describe("toExpenseSubmissionSummary", () => {
       recorded_total_amount: 100,
       reference: "Receipt 123",
       responsibility: "owner",
+      reviewed_at: "2026-08-09T08:30:00Z",
       review_reason: null,
       reversal_reason: null,
       source_id: "task-1",
@@ -144,6 +145,7 @@ describe("toExpenseSubmissionSummary", () => {
           "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         sizeBytes: 128,
       },
+      reviewedAt: "2026-08-09T08:30:00Z",
       status: "submitted",
       submittedByUserId: "finance-member-user-1",
     });

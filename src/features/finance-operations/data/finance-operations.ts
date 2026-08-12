@@ -163,6 +163,7 @@ export function toExpenseSubmissionSummary(
         : Number(submission.recorded_total_amount),
     reference: submission.reference,
     responsibility: submission.responsibility as "owner" | "tenant",
+    reviewedAt: submission.reviewed_at,
     reviewReason: submission.review_reason,
     reversalReason: submission.reversal_reason,
     sourceId: submission.source_id,
