@@ -19,7 +19,7 @@ export default async function NoAccessPage() {
         <div className="flex flex-wrap gap-2">
           <form action={signOutAction}>
             <button
-              className="inline-flex h-9 items-center rounded-md border border-foreground bg-foreground px-3 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+              className="inline-flex h-9 items-center rounded-md border border-primary bg-primary px-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
               type="submit"
             >
               Use another account

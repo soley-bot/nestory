@@ -58,7 +58,7 @@ export default async function AcceptInvitePage({
 
       {invitation.state === "accepted" ? (
         <Link
-          className="inline-flex h-11 w-full items-center justify-center rounded-md bg-foreground px-4 text-sm font-semibold text-background"
+          className="inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
           href="/workspace"
         >
           Open workspace
