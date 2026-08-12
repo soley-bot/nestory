@@ -34,7 +34,7 @@ export function PropertiesTable({
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid h-full min-h-[380px] auto-rows-max content-start items-start gap-3 overflow-auto pr-1 sm:grid-cols-2 2xl:grid-cols-3"
+            ? "grid h-full auto-rows-max content-start items-start gap-3 overflow-auto pr-1 sm:grid-cols-2 2xl:grid-cols-3"
             : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
         )}
         data-property-record-list={displayMode}
@@ -58,7 +58,7 @@ export function PropertiesTable({
           className="hidden h-full min-w-0 overflow-hidden md:block"
           data-slot="register-table-frame"
         >
-          <div className="h-full min-h-[360px] overflow-auto">
+          <div className="h-full overflow-auto">
             <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
               <colgroup>
                 <col className="w-[30%]" />

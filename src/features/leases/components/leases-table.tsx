@@ -24,7 +24,7 @@ export function LeasesTable({
 }: LeasesTableProps) {
   return (
     <div className="h-full min-h-0">
-      <div className="h-full min-h-[380px] space-y-3 overflow-auto pr-1 md:hidden">
+      <div className="h-full space-y-3 overflow-auto pr-1 md:hidden">
         {leases.length === 0 ? (
           <p className="rounded-md border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
             {getEmptyMessage(archiveState)}
@@ -45,7 +45,7 @@ export function LeasesTable({
         className="hidden h-full min-w-0 md:block"
         data-slot="register-table-frame"
       >
-        <div className="h-full min-h-[540px] overflow-auto">
+        <div className="h-full overflow-auto">
           <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
             <colgroup>
               <col className="w-[20%]" />

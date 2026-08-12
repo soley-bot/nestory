@@ -42,7 +42,7 @@ export function PeopleScreenSkeleton({
               </div>
               <div className="h-7 w-16 rounded-md border border-border bg-muted" />
             </div>
-            <div className="hidden h-full min-h-[380px] overflow-hidden bg-card md:block">
+            <div className="hidden h-full overflow-hidden bg-card md:block">
               <div className="grid grid-cols-[24%_16%_25%_26%_9%] bg-muted px-2.5 py-2.5">
                 {rowWidths.map((width, index) => (
                   <div

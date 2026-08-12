@@ -159,8 +159,8 @@ describe("PropertyScreen redesign contract", () => {
     );
 
     expect(surface).not.toBeNull();
-    expect(surface!.className).toMatch(/(?:^|\s)rounded-lg(?:\s|$)/);
-    expect(surface!.className).toMatch(/(?:^|\s)border(?:\s|$)/);
+    expect(surface!.className).not.toMatch(/(?:^|\s)rounded-lg(?:\s|$)/);
+    expect(surface!.className).not.toMatch(/(?:^|\s)border(?:\s|$)/);
     expect(
       within(surface!).getByRole("textbox", { name: "Search properties" }),
     ).toBeTruthy();

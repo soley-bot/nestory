@@ -26,11 +26,20 @@ function Table({ className, scrollRegionLabel, ...props }: TableProps) {
   )
 }
 
-function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
+type TableHeaderProps = React.ComponentProps<"thead"> & {
+  /** Pins the header while the body scrolls. Register tables want this. */
+  sticky?: boolean
+}
+
+function TableHeader({ className, sticky, ...props }: TableHeaderProps) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("bg-[var(--table-header-bg)] [&_tr]:border-b", className)}
+      className={cn(
+        "bg-[var(--table-header-bg)] [&_tr]:border-b",
+        sticky && "sticky top-0 z-10 shadow-[0_1px_0_var(--border)]",
+        className
+      )}
       {...props}
     />
   )

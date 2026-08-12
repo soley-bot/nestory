@@ -40,8 +40,8 @@ export function PeopleTable({
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid h-full min-h-[380px] auto-rows-max content-start gap-3 overflow-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
-            : "h-full min-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
+            ? "grid h-full auto-rows-max content-start gap-3 overflow-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
+            : "h-full space-y-3 overflow-auto pr-1 md:hidden",
         )}
       >
         {people.length === 0 ? (
@@ -61,7 +61,7 @@ export function PeopleTable({
 
       {displayMode === "table" ? (
         <div
-          className="hidden h-full min-h-[380px] overflow-hidden md:block"
+          className="hidden h-full overflow-hidden md:block"
           data-slot="people-table-frame"
         >
           <div className="h-full overflow-auto">
