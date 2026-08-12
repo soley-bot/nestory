@@ -169,7 +169,9 @@ describe("AppShell Shadcn dashboard block", () => {
   it("marks the matching destination active", () => {
     navigation.pathname = "/people/person-1";
     render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
-    expect(screen.getByRole("link", { name: /Current:\s*People/ }).closest('[data-active="true"]')).not.toBeNull();
+    const activeLink = screen.getByRole("link", { name: "People" });
+    expect(activeLink.closest('[data-active="true"]')).not.toBeNull();
+    expect(activeLink.getAttribute("aria-current")).toBe("page");
   });
 
   it("keeps non-admin users out of admin destinations", () => {

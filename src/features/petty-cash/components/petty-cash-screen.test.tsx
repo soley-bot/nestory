@@ -298,7 +298,7 @@ describe("PettyCashScreen finance workspace contract", () => {
     });
     expect(within(financeNav).getByRole("link", { name: "Ledger" })).not.toBeNull();
     expect(
-      within(financeNav).getByRole("link", { name: "Petty Cash" }),
+      within(financeNav).getByRole("link", { name: "Petty cash" }),
     ).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
