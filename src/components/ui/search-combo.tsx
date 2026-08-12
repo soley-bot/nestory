@@ -54,7 +54,7 @@ export function SearchCombo({
       onSubmit={onSubmit}
     >
       <div className="relative min-w-0 flex-1">
-        <div className="flex min-w-0 overflow-hidden rounded-md border border-input bg-card shadow-sm focus-within:border-accent focus-within:ring-2 focus-within:ring-ring">
+        <div className="flex min-w-0 overflow-hidden rounded-md border border-input bg-card shadow-sm focus-within:border-ring focus-within:ring-2 focus-within:ring-ring">
           {hasScope ? (
             <SelectControl
               ariaLabel={`${ariaLabel} scope`}

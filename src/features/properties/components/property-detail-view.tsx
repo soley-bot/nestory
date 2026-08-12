@@ -410,7 +410,7 @@ function PropertyRecordNav({
             aria-selected={activeSection === item.id}
             className={cn(
               "inline-flex h-9 items-center border-b-2 border-transparent px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground",
-              activeSection === item.id && "border-accent text-foreground",
+              activeSection === item.id && "border-primary text-foreground",
             )}
             id={`property-tab-${item.id}`}
             key={item.id}

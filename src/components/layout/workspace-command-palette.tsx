@@ -425,7 +425,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
                 className="flex max-h-[min(72vh,32rem)] w-full max-w-[38rem] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-xl"
                 role="dialog"
               >
-                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-2.5 transition-shadow focus-within:border-accent focus-within:ring-2 focus-within:ring-ring">
+                <div className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-2.5 transition-shadow focus-within:border-ring focus-within:ring-2 focus-within:ring-ring">
                   <Search className="shrink-0 text-muted-foreground" size={18} />
                   <h2 className="sr-only" id={dialogTitleId}>
                     Search or jump
