@@ -81,6 +81,7 @@ export async function preparePaidCostEvidence({
     p_organization_id: organizationId,
     p_property_id: propertyId,
     p_storage_path: storagePath,
+    ...(taskId ? { p_task_id: taskId } : {}),
   });
   if (object.error) {
     throw new Error(object.error.message ?? "Receipt evidence object verification failed.");

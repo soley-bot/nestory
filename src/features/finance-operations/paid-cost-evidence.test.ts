@@ -21,6 +21,7 @@ const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "00000000-0000-4000-8000-000000000003";
 const documentId = "00000000-0000-4000-8000-000000000008";
 const objectId = "00000000-0000-4000-8000-000000000009";
+const taskId = "00000000-0000-4000-8000-000000000010";
 const retainedHash =
   "ce67cf246af90faa45cd4b6cde1627da5683d1dbfa53ed5f7ca8a2805543be0d";
 
@@ -64,6 +65,21 @@ describe("verified paid-cost evidence", () => {
         new RegExp(`^${organizationId}/paid-cost-evidence/[0-9a-f]{64}$`),
       ),
     });
+  });
+
+  it("uses task-bound object verification before registering maintenance evidence", async () => {
+    await preparePaidCostEvidence({ ...input(), taskId });
+
+    expect(mocks.rpc).toHaveBeenNthCalledWith(
+      1,
+      "get_paid_cost_evidence_object",
+      expect.objectContaining({ p_task_id: taskId }),
+    );
+    expect(mocks.rpc).toHaveBeenNthCalledWith(
+      2,
+      "register_paid_cost_evidence_verified",
+      expect.objectContaining({ p_task_id: taskId }),
+    );
   });
 
   it("rejects a registrar response whose frozen hash differs from retained bytes", async () => {

@@ -9523,15 +9523,26 @@ export type Database = {
         Args: { p_organization_id: string; p_owner_close_revision_id: string }
         Returns: Json
       }
-      get_paid_cost_evidence_object: {
-        Args: {
-          p_actor_id: string
-          p_organization_id: string
-          p_property_id: string
-          p_storage_path: string
-        }
-        Returns: Json
-      }
+      get_paid_cost_evidence_object:
+        | {
+            Args: {
+              p_actor_id: string
+              p_organization_id: string
+              p_property_id: string
+              p_storage_path: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_actor_id: string
+              p_organization_id: string
+              p_property_id: string
+              p_storage_path: string
+              p_task_id: string
+            }
+            Returns: Json
+          }
       get_paid_cost_submission_evidence: {
         Args: { p_organization_id: string; p_submission_ids: string[] }
         Returns: {
