@@ -1436,6 +1436,33 @@ describe("AccessSettingsScreen", () => {
     ).toBe("new@example.com");
   });
 
+  it.each([
+    ["Add Staff", "Open Add Staff?"],
+    ["Grant workspace access for Mina Chen", "Open Grant access for Mina Chen?"],
+  ])("guards the %s link while a member draft is dirty", async (linkName, dialogName) => {
+    const user = userEvent.setup();
+    render(
+      <AccessSettingsScreen
+        branches={[branch]}
+        members={[admin]}
+        people={[person, adminPerson]}
+      />,
+    );
+    const member = getExpandedMember(admin.id);
+    await user.click(
+      within(member).getByRole("combobox", { name: "Access level" }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "Operations Manager" }),
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: linkName }));
+
+    expect(
+      screen.getByRole("dialog", { hidden: true, name: dialogName }).textContent,
+    ).toContain("unsaved changes");
+  });
+
   it("blocks a last-admin demotion beside the changed role control", async () => {
     const user = userEvent.setup();
     render(

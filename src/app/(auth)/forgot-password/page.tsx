@@ -4,10 +4,7 @@ import { ForgotPasswordForm } from "@/features/auth/components/forgot-password-f
 export default function ForgotPasswordPage() {
   return (
     <AuthPageShell
-      contextLabel="Account recovery"
-      contextText="Supabase securely verifies the recovery link before Nestory accepts a new password."
-      contextTitle="Recover access without creating another account."
-      description="Enter the email for your invited Nestory account."
+      description="We will email you a link to reset it."
       switchHref="/login"
       switchLabel="Sign in"
       switchText="Remember your password?"

@@ -2,7 +2,7 @@
 
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ export function PublicInterestForm({
     submitPublicInterestRequest,
     initialState,
   );
+  const [requestType, setRequestType] = useState(initialRequestType);
 
   if (state.status === "success") {
     return (
@@ -85,7 +86,6 @@ export function PublicInterestForm({
     >
       <fieldset className="space-y-5 border-0 p-0" disabled={pending}>
         <legend className="sr-only">Request details</legend>
-        <input name="requestType" type="hidden" value={initialRequestType} />
         <div className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
           <label htmlFor="request-website">Website</label>
           <input
@@ -97,20 +97,22 @@ export function PublicInterestForm({
           />
         </div>
 
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-subtle)]">
+        <fieldset className="border-0 p-0">
+          <legend className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-subtle)]">
             I want to
-          </p>
+          </legend>
           <div className="mt-3 grid grid-cols-2 rounded-lg border border-[var(--landing-border)] p-1">
-            <RequestTypeLink
-              active={initialRequestType === "information"}
-              href="/request?intent=information"
+            <RequestTypeOption
+              active={requestType === "information"}
               label="Request information"
+              onSelect={setRequestType}
+              value="information"
             />
-            <RequestTypeLink
-              active={initialRequestType === "demo"}
-              href="/request?intent=demo"
+            <RequestTypeOption
+              active={requestType === "demo"}
               label="Request a demo"
+              onSelect={setRequestType}
+              value="demo"
             />
           </div>
           {state.fieldErrors?.requestType?.[0] ? (
@@ -118,7 +120,7 @@ export function PublicInterestForm({
               {state.fieldErrors.requestType[0]}
             </p>
           ) : null}
-        </div>
+        </fieldset>
 
         <div className="grid gap-5 sm:grid-cols-2">
           <RecordField
@@ -210,7 +212,7 @@ export function PublicInterestForm({
         >
           {pending
             ? "Sending request"
-            : initialRequestType === "demo"
+            : requestType === "demo"
               ? "Request a demo"
               : "Request information"}
           <ArrowRight aria-hidden="true" size={15} />
@@ -224,28 +226,34 @@ export function PublicInterestForm({
   );
 }
 
-function RequestTypeLink({
+function RequestTypeOption({
   active,
-  href,
   label,
+  onSelect,
+  value,
 }: {
   active: boolean;
-  href: string;
   label: string;
+  onSelect: (value: "demo" | "information") => void;
+  value: "demo" | "information";
 }) {
   return (
-    <Link
-      aria-current={active ? "page" : undefined}
+    <label
       className={
         active
-          ? "rounded-md bg-[var(--landing-cta-bg)] px-3 py-2 text-center text-xs font-semibold text-[var(--landing-cta-fg)]"
-          : "rounded-md px-3 py-2 text-center text-xs font-semibold text-[var(--landing-muted)] transition-colors hover:text-[var(--landing-heading)]"
+          ? "cursor-pointer rounded-md bg-[var(--landing-cta-bg)] px-3 py-2 text-center text-xs font-semibold text-[var(--landing-cta-fg)] outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+          : "cursor-pointer rounded-md px-3 py-2 text-center text-xs font-semibold text-[var(--landing-muted)] outline-none transition-colors hover:text-[var(--landing-heading)] focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
       }
-      href={href}
-      replace
-      scroll={false}
     >
+      <input
+        checked={active}
+        className="sr-only"
+        name="requestType"
+        onChange={() => onSelect(value)}
+        type="radio"
+        value={value}
+      />
       {label}
-    </Link>
+    </label>
   );
 }

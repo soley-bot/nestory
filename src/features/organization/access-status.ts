@@ -2,6 +2,14 @@ import type { WorkspaceRole } from "@/lib/auth/context";
 
 export type WorkspaceAccessRole = WorkspaceRole;
 
+export function isOrganizationWideRole(role: WorkspaceAccessRole | string) {
+  return (
+    role === "super_admin" ||
+    role === "finance_manager" ||
+    role === "finance_member"
+  );
+}
+
 export function formatWorkspaceAccessRole(role: WorkspaceAccessRole | string) {
   if (role === "super_admin") {
     return "Super Admin";
@@ -259,8 +267,12 @@ function getScopeLabel(
   role: WorkspaceAccessRole,
   branches: AccessBranchSource[] = [],
 ) {
-  if (role === "super_admin" || !branchId) {
+  if (isOrganizationWideRole(role)) {
     return "All branches";
+  }
+
+  if (!branchId) {
+    return "Branch required";
   }
 
   return branches.find((branch) => branch.id === branchId)?.name ?? "Assigned branch";

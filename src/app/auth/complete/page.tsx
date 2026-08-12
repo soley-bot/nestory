@@ -17,11 +17,8 @@ export default async function AuthCompletePage({
 
   return (
     <AuthPageShell
-      contextLabel="Secure access"
-      contextText="Your invitation is being connected to the correct workspace and access level."
-      contextTitle="One moment while we open your workspace."
-      description="Keep this page open while Nestory verifies the secure email link."
-      title="Completing sign in"
+      description="Keep this page open."
+      title="Signing you in"
     >
       <ImplicitSessionCompletion nextPath={nextPath} />
     </AuthPageShell>

@@ -55,8 +55,12 @@ describe("platform accessibility contract", () => {
 
     const headings = screen.getAllByRole("heading");
     expect(headings[0]?.tagName).toBe("H1");
-    expect(screen.getByRole("textbox", { name: "Email" })).not.toBeNull();
-    expect(screen.getByLabelText("Password")).not.toBeNull();
+    const email = screen.getByRole("textbox", { name: "Email" });
+    const password = screen.getByLabelText("Password");
+    expect(email).not.toBeNull();
+    expect(password).not.toBeNull();
+    expect((email as HTMLInputElement).required).toBe(true);
+    expect((password as HTMLInputElement).required).toBe(true);
     expect(screen.getByRole("button", { name: "Sign in" })).not.toBeNull();
   });
 

@@ -16,16 +16,13 @@ export default async function AcceptInvitePage({
 
   return (
     <AuthPageShell
-      contextLabel="Managed access"
-      contextText="Every Nestory workspace is provisioned for a client organization and every account is explicitly invited."
-      contextTitle="Access with a verified identity."
       description={descriptionFor(invitation.state)}
       title={titleFor(invitation.state)}
       visualSrc="/marketing/login-property-building-blue-hour.png"
     >
       {invitation.state === "signed_out" ? (
         <div className="space-y-4 text-sm leading-6 text-muted-foreground">
-          <p>Open the newest invitation email to verify the invited address and continue.</p>
+          <p>Open the link in your invitation email to continue.</p>
           <Link className="font-semibold text-foreground" href="/login">
             Sign in with an existing account
           </Link>
@@ -35,8 +32,10 @@ export default async function AcceptInvitePage({
       {invitation.state === "unavailable" ? (
         <div className="space-y-4 text-sm leading-6 text-muted-foreground">
           <p>
-            The link may be invalid, expired, revoked, or assigned to a different email than
-            {invitation.accountEmail ? ` ${invitation.accountEmail}` : " this account"}.
+            It may have expired, been revoked, or been sent to an address other
+            than
+            {invitation.accountEmail ? ` ${invitation.accountEmail}` : " this one"}
+            .
           </p>
           <form action={signOutAction}>
             <button className="font-semibold text-foreground" type="submit">
@@ -114,8 +113,8 @@ function titleFor(state: Awaited<ReturnType<typeof getInvitationAcceptance>>["st
 }
 
 function descriptionFor(state: Awaited<ReturnType<typeof getInvitationAcceptance>>["state"]) {
-  if (state === "pending") return "Review the assigned access before joining this workspace.";
-  if (state === "accepted") return "This account already has workspace access.";
-  if (state === "signed_out") return "Continue from the secure link sent to the invited email.";
-  return "This invitation cannot be accepted in the current session.";
+  if (state === "pending") return "Here is the access you have been given.";
+  if (state === "accepted") return "This account already has access.";
+  if (state === "signed_out") return "Sign in to continue.";
+  return "This invitation cannot be used.";
 }

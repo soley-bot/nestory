@@ -40,6 +40,7 @@ import { PersonSelect } from "@/features/people/components/person-select";
 import {
   buildAccessByPersonId,
   formatWorkspaceAccessRole,
+  isOrganizationWideRole,
 } from "@/features/organization/access-status";
 import {
   inviteOrganizationUserAction,
@@ -77,10 +78,6 @@ const roleOptions = [
 
 function isOperationsRole(role: string) {
   return role === "operations_manager" || role === "operations_member";
-}
-
-function isOrganizationWideRole(role: string) {
-  return !isOperationsRole(role);
 }
 
 export function AccessSettingsScreen({
@@ -267,7 +264,17 @@ function AccessWorkspace({
       */}
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button asChild size="sm" variant="outline">
-          <Link href="/staff?action=create">Add Staff</Link>
+          <Link
+            href="/staff?action=create"
+            onClick={(event) =>
+              guard?.handleNavigationClick(event, {
+                href: "/staff?action=create",
+                label: "Add Staff",
+              })
+            }
+          >
+            Add Staff
+          </Link>
         </Button>
         <Button onClick={() => setInviteOpen(true)} size="sm">
           <UserPlus aria-hidden="true" size={15} />
@@ -300,6 +307,12 @@ function AccessWorkspace({
                   <Link
                     aria-label={`Grant workspace access for ${person.label}`}
                     href={`/users-roles?personId=${person.id}`}
+                    onClick={(event) =>
+                      guard?.handleNavigationClick(event, {
+                        href: `/users-roles?personId=${person.id}`,
+                        label: `Grant access for ${person.label}`,
+                      })
+                    }
                     prefetch={false}
                   >
                     Grant access
