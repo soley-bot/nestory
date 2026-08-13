@@ -33,4 +33,21 @@ describe("AuthPageShell", () => {
 
     expect(className.split(" ")).toContain("text-[var(--auth-page-fg)]");
   });
+
+  it("uses the shared semantic surface for the photo-page form", () => {
+    const html = renderToStaticMarkup(
+      <AuthPageShell
+        description="Continue to the workspace."
+        title="Sign in"
+        visualSrc="/images/auth.jpg"
+      >
+        <p>Form</p>
+      </AuthPageShell>,
+    );
+    const card = html.match(/<div class="[^"]*auth-shell-card[^"]*"/)?.[0] ?? "";
+
+    expect(card).toContain("bg-card");
+    expect(card).toContain("border-border");
+    expect(card).not.toContain("--auth-page-card-bg");
+  });
 });

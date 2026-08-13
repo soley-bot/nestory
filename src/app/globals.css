@@ -183,8 +183,6 @@
   --auth-page-muted: rgb(248 250 249 / 88%);
   --auth-page-subtle: rgb(248 250 249 / 78%);
   --auth-page-line: rgb(248 250 249 / 24%);
-  --auth-page-card-bg: rgb(250 251 250 / 96%);
-  --auth-page-card-border: rgb(17 19 20 / 24%);
   --auth-page-input-bg: #ffffff;
   --auth-page-input-border: #77817d;
   --auth-page-header-bg: rgb(17 19 20 / 68%);
@@ -207,8 +205,6 @@
   --auth-page-muted: rgb(238 240 239 / 78%);
   --auth-page-subtle: rgb(238 240 239 / 72%);
   --auth-page-line: rgb(238 240 239 / 18%);
-  --auth-page-card-bg: rgb(22 24 25 / 94%);
-  --auth-page-card-border: rgb(126 136 131 / 42%);
   --auth-page-input-bg: #1b1e1f;
   --auth-page-input-border: #7e8883;
   --auth-page-header-bg: rgb(17 19 20 / 86%);

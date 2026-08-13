@@ -170,7 +170,7 @@ export function AuthPageShell({
             className={cn(
               "auth-shell-card box-border w-full rounded-lg border p-5 sm:p-6",
               visualSrc
-                ? "border-[color:var(--auth-page-card-border)] bg-[var(--auth-page-card-bg)] shadow-[0_20px_70px_rgb(0_0_0/0.16)] backdrop-blur-xl"
+                ? "border-border bg-card shadow-[0_20px_70px_rgb(0_0_0/0.16)] backdrop-blur-xl"
                 : "border-border bg-card shadow-sm",
             )}
           >

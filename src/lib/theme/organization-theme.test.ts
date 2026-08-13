@@ -95,4 +95,24 @@ describe("organization theme", () => {
     expect(style["--primary"]).toBe("#F1F4F2");
     expect(style["--primary-foreground"]).toBe("#101313");
   });
+
+  it("keeps semantic surfaces neutral across every organization accent", () => {
+    const themes = Object.keys(ACCENT_PRESETS).map((accentPreset) => ({
+      accentPreset: accentPreset as keyof typeof ACCENT_PRESETS,
+      accentSeed: accentPreset === "custom" ? "#E11D48" : null,
+      mode: "system" as const,
+    }));
+
+    for (const theme of themes) {
+      for (const mode of ["light", "dark"] as const) {
+        const style = getOrganizationThemeStyle(theme, mode);
+        const background = mode === "dark" ? "#101313" : "#FFFFFF";
+
+        expect(style).not.toHaveProperty("--card");
+        expect(style).not.toHaveProperty("--border");
+        expect(contrastRatio(style["--primary"], background)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(style["--ring"], background)).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
 });
