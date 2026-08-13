@@ -106,8 +106,8 @@ afterEach(() => {
   delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
   delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
   vi.unstubAllGlobals();
-  delete (URL as typeof URL & { createObjectURL?: unknown }).createObjectURL;
-  delete (URL as typeof URL & { revokeObjectURL?: unknown }).revokeObjectURL;
+  Reflect.deleteProperty(URL, "createObjectURL");
+  Reflect.deleteProperty(URL, "revokeObjectURL");
 });
 
 describe("PropertyScreen redesign contract", () => {

@@ -15,7 +15,9 @@ describe("OverviewScreen", () => {
   it("uses one compact Dashboard title without legacy tabs or actions", () => {
     render(<OverviewScreen data={data} query={query} />);
 
-    const headerRows = document.querySelectorAll('[data-slot="overview-header-row"]');
+    const headerRows = document.querySelectorAll<HTMLElement>(
+      '[data-slot="overview-header-row"]',
+    );
     const headerRow = headerRows.item(0);
 
     expect(headerRows).toHaveLength(1);
@@ -119,10 +121,18 @@ describe("OverviewScreen", () => {
   it("stacks compact cash flow and properties as separate full-width rows", () => {
     render(<OverviewScreen data={data} query={query} />);
 
-    const primaryStack = document.querySelector('[data-slot="dashboard-primary-stack"]')!;
-    const cashFlow = document.querySelector('[data-slot="dashboard-cash-flow"]')!;
-    const properties = document.querySelector('[data-slot="dashboard-properties"]')!;
-    const toolbar = document.querySelector('[data-slot="dashboard-chart-toolbar"]')!;
+    const primaryStack = document.querySelector<HTMLElement>(
+      '[data-slot="dashboard-primary-stack"]',
+    )!;
+    const cashFlow = document.querySelector<HTMLElement>(
+      '[data-slot="dashboard-cash-flow"]',
+    )!;
+    const properties = document.querySelector<HTMLElement>(
+      '[data-slot="dashboard-properties"]',
+    )!;
+    const toolbar = document.querySelector<HTMLElement>(
+      '[data-slot="dashboard-chart-toolbar"]',
+    )!;
 
     expect(classTokens(primaryStack)).toContain("flex-col");
     expect(primaryStack.getAttribute("class")).not.toContain("grid-cols-[");
