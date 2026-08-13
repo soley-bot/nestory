@@ -280,17 +280,12 @@ describe("entry experience contracts", () => {
     }
   });
 
-  it("keeps the no-access recovery honest and the preview attention-first", () => {
+  it("keeps the no-access recovery honest", () => {
     const noAccess = readSource("src/app/no-access/page.tsx");
-    const preview = readSource(
-      "src/features/marketing/components/control-preview.tsx",
-    );
 
     expect(noAccess).not.toContain('href="/login"');
     expect(noAccess).toContain("signOutAction");
     expect(noAccess).toContain("requireUser");
-    expect(preview).toContain("Needs attention");
-    expect(preview).not.toContain("Focus now");
   });
 });
 

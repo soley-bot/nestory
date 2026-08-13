@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 
+import { Button } from "@/components/ui/button";
+
 import { ControlPreview } from "./components/control-preview";
 import { LandingHeader } from "./components/landing-header";
 import { LandingScrollMotion } from "./components/landing-scroll-motion";
@@ -188,12 +190,13 @@ export function LandingPage() {
               Request a demo
               <ArrowRight aria-hidden="true" size={16} />
             </Link>
-            <Link
-              className="inline-flex min-h-12 items-center px-4 text-xs font-semibold uppercase tracking-widest text-[var(--landing-accent)] outline-none hover:opacity-70 focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)]"
-              href="/request?intent=information"
+            <Button
+              asChild
+              className="h-auto min-h-12 rounded-full px-6 text-xs font-semibold uppercase tracking-widest"
+              variant="outline"
             >
-              Request information
-            </Link>
+              <Link href="/request?intent=information">Request information</Link>
+            </Button>
           </div>
         </div>
       </section>

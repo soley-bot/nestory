@@ -24,7 +24,20 @@ export function OverviewHeader({
 }) {
   return (
     <WorkspaceHeaderPortal>
-      <div className="flex min-w-0 flex-1 items-center gap-4" data-slot="overview-header-row">
+      <OverviewHeaderContent primaryAction={primaryAction} query={query} />
+    </WorkspaceHeaderPortal>
+  );
+}
+
+export function OverviewHeaderContent({
+  primaryAction,
+  query,
+}: {
+  primaryAction?: OverviewAttentionItem;
+  query: OverviewViewQuery;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-4" data-slot="overview-header-row">
         <h1 className="shrink-0 text-base font-medium">Overview</h1>
         <nav aria-label="Overview lenses" className="hidden min-w-0 items-center gap-1 md:flex">
           {lenses.map((lens) => {
@@ -57,7 +70,6 @@ export function OverviewHeader({
           ) : null}
           <OverviewMonthPicker query={query} />
         </div>
-      </div>
-    </WorkspaceHeaderPortal>
+    </div>
   );
 }

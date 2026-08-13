@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/image", () => ({
@@ -59,5 +59,18 @@ describe("LandingPage enterprise composition", () => {
     expect(container.querySelectorAll("main > section")).toHaveLength(4);
     expect(container.textContent).not.toContain("500+");
     expect(container.textContent).not.toContain("790");
+  });
+
+  it("uses the shared app outline interaction for the final information action", () => {
+    const { container } = render(<LandingPage />);
+    const finalSection = container.querySelector("#start");
+
+    expect(finalSection).not.toBeNull();
+    const informationAction = within(finalSection as HTMLElement).getByRole("link", {
+      name: "Request information",
+    });
+
+    expect(informationAction.getAttribute("data-slot")).toBe("button");
+    expect(informationAction.getAttribute("data-variant")).toBe("outline");
   });
 });

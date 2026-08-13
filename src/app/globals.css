@@ -104,7 +104,7 @@
   --landing-muted: #52605c;
   --landing-subtle: #5d6a66;
   --landing-border: #d7ddda;
-  --landing-accent: #135e4b;
+  --landing-accent: #8a5a16;
   --landing-media-bg: #111314;
   --landing-cta-bg: #050607;
   --landing-cta-fg: #ffffff;
@@ -112,7 +112,7 @@
   --landing-inverse-fg: #ffffff;
   --landing-inverse-muted: rgb(255 255 255 / 72%);
   --landing-inverse-border: rgb(255 255 255 / 10%);
-  --landing-inverse-accent: #a1d8b5;
+  --landing-inverse-accent: #d6a85f;
 }
 
 [data-theme="dark"] .landing-page {
@@ -122,7 +122,7 @@
   --landing-muted: #b8bdba;
   --landing-subtle: #a1a7a4;
   --landing-border: #343839;
-  --landing-accent: #a1d8b5;
+  --landing-accent: #d6a85f;
   --landing-media-bg: #17191a;
   --landing-cta-bg: #eef0ef;
   --landing-cta-fg: #111314;
@@ -130,7 +130,7 @@
   --landing-inverse-fg: #eef0ef;
   --landing-inverse-muted: rgb(238 240 239 / 72%);
   --landing-inverse-border: rgb(248 250 252 / 12%);
-  --landing-inverse-accent: #a1d8b5;
+  --landing-inverse-accent: #d6a85f;
 }
 
 .workspace-arrival-page {
