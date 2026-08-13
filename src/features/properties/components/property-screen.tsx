@@ -159,17 +159,20 @@ export function PropertyScreen({
   const openCreateProperty = () => {
     openPropertyAction({ mode: "create" });
   };
+  const showSetupAction = canCreate && properties.length === 0 && !hasFilters;
   const workspaceActions = (
     <>
       {canCreate ? (
         <>
-          <Link
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            href="/properties/setup"
-          >
-            <ListChecks size={15} />
-            Set up property
-          </Link>
+          {showSetupAction ? (
+            <Link
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              href="/properties/setup"
+            >
+              <ListChecks size={15} />
+              Set up property
+            </Link>
+          ) : null}
           <Button onClick={openCreateProperty} variant="default">
             <Plus size={15} />
             Add property
@@ -183,7 +186,10 @@ export function PropertyScreen({
       className="flex min-w-0 flex-col bg-background"
       data-slot="property-list-surface"
     >
-      <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
+      <div
+        className="workspace-gutter-x shrink-0 border-b border-border py-3"
+        data-slot="property-list-toolbar"
+      >
         <PropertyFilters
           displayMode={displayMode}
           onDisplayModeChange={changeDisplayMode}
@@ -226,7 +232,9 @@ export function PropertyScreen({
               sort={viewQuery.sort}
             />
           </div>
-          <PaginationControls pagination={pagination} />
+          {pagination.totalPages > 1 ? (
+            <PaginationControls pagination={pagination} />
+          ) : null}
         </>
       )}
     </section>
@@ -234,8 +242,6 @@ export function PropertyScreen({
   return (
     <WorkspacePage
       actions={workspaceActions}
-      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
-      contextHref="/properties"
       title="Properties"
     >
       <div className="flex min-w-0 flex-col">

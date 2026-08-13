@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/features/people/actions", () => ({
@@ -16,7 +16,7 @@ afterEach(cleanup);
 describe("PersonForm role-specific presentation", () => {
   it.each([
     {
-      contactHeading: "Statement contact",
+      contactHeading: "Contact",
       displayLabel: "Owner name",
       identityHeading: "Owner identity",
       notesLabel: "Owner notes",
@@ -24,7 +24,7 @@ describe("PersonForm role-specific presentation", () => {
       showsTaxIdentifier: true,
     },
     {
-      contactHeading: "Tenancy contact",
+      contactHeading: "Contact",
       displayLabel: "Tenant name",
       identityHeading: "Tenant identity",
       notesLabel: "Tenancy notes",
@@ -32,7 +32,7 @@ describe("PersonForm role-specific presentation", () => {
       showsTaxIdentifier: false,
     },
     {
-      contactHeading: "Operational contact",
+      contactHeading: "Contact",
       displayLabel: "Staff name",
       identityHeading: "Staff identity",
       notesLabel: "Staff notes",
@@ -40,7 +40,7 @@ describe("PersonForm role-specific presentation", () => {
       showsTaxIdentifier: false,
     },
     {
-      contactHeading: "Business contact",
+      contactHeading: "Contact",
       displayLabel: "Vendor or business name",
       identityHeading: "Vendor identity",
       notesLabel: "Vendor notes",
@@ -91,23 +91,34 @@ describe("PersonForm role-specific presentation", () => {
       expect(
         screen.queryByRole("group", { name: "Operational roles" }),
       ).toBeNull();
+      expect(screen.queryByRole("heading", { name: "Record type" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Role effect" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Access boundary" })).toBeNull();
+      expect(
+        container.querySelector<HTMLInputElement>('input[name="roles"]')?.value,
+      ).toBe(role);
     },
   );
 
-  it("explains that Staff identity and Workspace Access are separate", () => {
+  it("uses labels instead of example placeholders and formats phone input", () => {
     render(
       <PersonForm
-        initialRoles={["staff"]}
+        initialRoles={["owner"]}
         onClose={vi.fn()}
-        roleContext="staff"
+        roleContext="owner"
       />,
     );
 
-    expect(
-      screen.getByText(
-        "Create the Staff record first, then grant Workspace Access with an Access Level and Scope.",
-      ),
-    ).toBeTruthy();
-    expect(screen.queryByText(/auth user|membership identity/i)).toBeNull();
+    expect(screen.queryByPlaceholderText("Sokha Chan")).toBeNull();
+    expect(screen.queryByPlaceholderText("Optional registered name")).toBeNull();
+    expect(screen.queryByPlaceholderText("name@example.com")).toBeNull();
+    expect(screen.queryByPlaceholderText("+855 ...")).toBeNull();
+
+    const phone = screen.getByRole("textbox", {
+      name: "Primary phone",
+    }) as HTMLInputElement;
+    fireEvent.change(phone, { target: { value: "+85512345678" } });
+    expect(phone.value).toBe("+855 12 345 678");
   });
+
 });

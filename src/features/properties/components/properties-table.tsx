@@ -33,6 +33,7 @@ export function PropertiesTable({
     <div className="min-w-0">
       <div
         className={cn(
+          "workspace-gutter-x",
           displayMode === "cards"
             ? "grid auto-rows-max content-start items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3"
             : "space-y-3 md:hidden",
@@ -55,7 +56,7 @@ export function PropertiesTable({
 
       {displayMode === "table" ? (
         <div
-          className="hidden min-w-0 md:block"
+          className="workspace-gutter-x hidden min-w-0 md:block"
           data-slot="register-table-frame"
         >
           <div aria-label="Properties table" className="overflow-x-auto" role="region">
@@ -89,7 +90,7 @@ export function PropertiesTable({
                     }
                     sortLabel="Sort properties by net"
                   />
-                  <th className="px-1.5 py-2.5 font-semibold">Open</th>
+                  <th className="px-1.5 py-2.5 text-center font-semibold">Open</th>
                   <SortableHeader
                     active={sort === "status_asc"}
                     align="center"
@@ -166,7 +167,7 @@ export function PropertiesTable({
                     <td className="px-1.5 py-2">
                       <TableMoneyDisplay value={property.netIncome} />
                     </td>
-                    <td className="px-1.5 py-2">
+                    <td className="px-1.5 py-2 text-center">
                       <TableOpenItems property={property} />
                     </td>
                     <td className="px-1.5 py-2">
@@ -494,7 +495,7 @@ function TableOpenItems({ property }: { property: PropertySummary }) {
   }
 
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap justify-center gap-1">
       {checks.map((check) => (
         <Badge className="px-1.5 py-0.5 text-xs" key={check} tone="warning">
           {check}

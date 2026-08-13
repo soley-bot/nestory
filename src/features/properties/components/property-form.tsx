@@ -12,10 +12,13 @@ import {
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
+import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
+import type { PersonRoleValue } from "@/features/people/people.types";
 import {
   createPropertyAction,
   type PropertyActionState,
@@ -69,6 +72,8 @@ export function PropertyForm({
   const [selectedOwnerPersonId, setSelectedOwnerPersonId] = useState(
     defaults.ownerPersonId ?? "",
   );
+  const [availableOwnerOptions, setAvailableOwnerOptions] = useState(ownerOptions);
+  const [createOwnerOpen, setCreateOwnerOpen] = useState(false);
   const [ownershipFactsCleared, setOwnershipFactsCleared] = useState(false);
   const [ownershipFactsKey, setOwnershipFactsKey] = useState(0);
   const [photoPreview, setPhotoPreview] = useState<PhotoPreview | null>(null);
@@ -124,18 +129,40 @@ export function PropertyForm({
     }
     setSelectedOwnerPersonId(nextOwnerPersonId);
   };
+  const handleOwnerCreated = (
+    personId?: string,
+    roles?: PersonRoleValue[],
+    displayName?: string,
+  ) => {
+    if (!personId || !displayName || !roles?.includes("owner")) {
+      return;
+    }
+
+    setAvailableOwnerOptions((current) => [
+      {
+        archived: false,
+        description: "Owner",
+        id: personId,
+        label: displayName,
+        roles: ["owner"],
+      },
+      ...current.filter((option) => option.id !== personId),
+    ]);
+    changeOwnerPerson(personId);
+  };
 
   return (
-    <RecordForm
-      action={action}
-      ariaLabel={isEditMode ? "Edit property form" : "Add property form"}
-      hideSaveOnSuccess={!isEditMode}
-      onCancel={onClose}
-      pending={pending}
-      saveLabel={isEditMode ? "Save changes" : "Add property"}
-      savingLabel={isEditMode ? "Saving property" : "Adding property"}
-      state={state}
-    >
+    <>
+      <RecordForm
+        action={action}
+        ariaLabel={isEditMode ? "Edit property form" : "Add property form"}
+        hideSaveOnSuccess={!isEditMode}
+        onCancel={onClose}
+        pending={pending}
+        saveLabel={isEditMode ? "Save changes" : "Add property"}
+        savingLabel={isEditMode ? "Saving property" : "Adding property"}
+        state={state}
+      >
       {state.status === "success" && !isEditMode && state.propertyId ? (
         <CreateSuccessActions propertyId={state.propertyId} />
       ) : null}
@@ -226,10 +253,9 @@ export function PropertyForm({
             <PersonSelect
               allowClear
               context="Property owner"
-              defaultValue={defaults.ownerPersonId ?? ""}
               name="ownerPersonId"
               onValueChange={changeOwnerPerson}
-              options={ownerOptions}
+              options={availableOwnerOptions}
               placeholder="Choose owner"
               preservedOption={
                 defaults.ownerPersonId && defaults.owner
@@ -243,20 +269,21 @@ export function PropertyForm({
                   : undefined
               }
               roles={["owner"]}
+              value={selectedOwnerPersonId}
             />
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <span>
-                {ownerOptions.length === 0
+                {availableOwnerOptions.length === 0
                   ? "No owner records are available yet."
                   : "Need a different owner?"}
               </span>
-              <Link
+              <button
                 className="font-medium text-primary underline-offset-4 transition-colors hover:underline"
-                href="/owners?action=create"
-                prefetch={false}
+                onClick={() => setCreateOwnerOpen(true)}
+                type="button"
               >
                 Create owner
-              </Link>
+              </button>
             </div>
           </RecordField>
 
@@ -353,7 +380,24 @@ export function PropertyForm({
           />
         </RecordField>
       </FormSection>
-    </RecordForm>
+      </RecordForm>
+
+      <Modal
+        description="Add an owner record, then continue with this property."
+        onClose={() => setCreateOwnerOpen(false)}
+        open={createOwnerOpen}
+        title="Create owner"
+      >
+        <PersonForm
+          initialRoles={["owner"]}
+          onClose={() => setCreateOwnerOpen(false)}
+          onSuccess={(_message, personId, roles, displayName) =>
+            handleOwnerCreated(personId, roles, displayName)
+          }
+          roleContext="owner"
+        />
+      </Modal>
+    </>
   );
 }
 

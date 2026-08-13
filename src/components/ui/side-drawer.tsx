@@ -6,6 +6,7 @@ import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
+import { useOverlayPortalContainer } from "@/components/ui/overlay-portal-container";
 import {
   Sheet,
   SheetContent,
@@ -40,7 +41,14 @@ export function useDrawerCloseRequest(fallback: () => void) {
 }
 
 export function useDrawerPortalContainer() {
-  return React.useContext(DrawerDismissalContext)?.portalContainer ?? null;
+  const overlayPortalContainer = useOverlayPortalContainer();
+  const drawerPortalContainer = React.useContext(
+    DrawerDismissalContext,
+  )?.portalContainer;
+
+  return overlayPortalContainer === undefined
+    ? drawerPortalContainer ?? null
+    : overlayPortalContainer;
 }
 
 type SideDrawerProps = {
