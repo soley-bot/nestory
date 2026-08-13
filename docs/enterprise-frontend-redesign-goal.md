@@ -1,8 +1,10 @@
 # Goal: Research-led enterprise frontend redesign
 
-**Status:** Approved for execution
+**Status:** Complete on the isolated review branch
 **Scope:** Entire Nestory application
 **Delivery boundary:** Review-ready isolated local branch; do not push, merge, deploy, or modify production
+
+**Completion evidence:** `docs/verification/enterprise-frontend-redesign-evidence.md`
 
 ## Goal command
 
@@ -90,16 +92,16 @@ The following decisions are approved and do not require another design-direction
 
 Before implementation:
 
-- [ ] Read this document completely.
-- [ ] Read `PROJECT.md`, `config/ui-route-coverage.json`, current route files, shared layout components, `components.json`, theme files, tests, and relevant database contracts.
-- [ ] Inspect `git status`, the current branch, recent commits, and `git worktree list --porcelain`.
-- [ ] Identify all active worktrees and ownership boundaries before choosing files or a base commit.
-- [ ] Use the current intended integration base; do not assume `origin/main` is newer or authoritative.
-- [ ] Create a dedicated worktree and `codex/`-prefixed branch for this goal.
-- [ ] Keep all implementation out of the root checkout and other active worktrees.
-- [ ] Record the base branch, base SHA, worktree path, and new branch in the research document.
-- [ ] Preserve unrelated tracked and untracked user work.
-- [ ] Confirm that browser and database verification will use isolated local or test resources, never production data.
+- [x] Read this document completely.
+- [x] Read `PROJECT.md`, `config/ui-route-coverage.json`, current route files, shared layout components, `components.json`, theme files, tests, and relevant database contracts.
+- [x] Inspect `git status`, the current branch, recent commits, and `git worktree list --porcelain`.
+- [x] Identify all active worktrees and ownership boundaries before choosing files or a base commit.
+- [x] Use the current intended integration base; do not assume `origin/main` is newer or authoritative.
+- [x] Create a dedicated worktree and `codex/`-prefixed branch for this goal.
+- [x] Keep all implementation out of the root checkout and other active worktrees.
+- [x] Record the base branch, base SHA, worktree path, and new branch in the research document.
+- [x] Preserve unrelated tracked and untracked user work.
+- [x] Confirm that browser and database verification will use isolated local or test resources, never production data.
 
 Do not prune, reset, overwrite, merge, rebase, push, deploy, or alter another worktree as part of setup.
 
@@ -109,15 +111,15 @@ Do not prune, reset, overwrite, merge, rebase, push, deploy, or alter another wo
 
 Create `docs/research/enterprise-frontend-redesign-research.md` and include:
 
-- [ ] An exact route inventory derived from the executable manifest and current application
-- [ ] A route-to-surface map for public, authentication, onboarding, workspace, settings, and system pages
-- [ ] A role-to-route and role-to-capability matrix
-- [ ] A workflow inventory covering every major end-to-end operating journey
-- [ ] An inventory of shared primitives, feature components, page shells, layout wrappers, tables, forms, dialogs, drawers, filters, status treatments, and feedback patterns
-- [ ] An inventory of duplicated information, duplicated actions, hand-rolled primitives, inconsistent spacing, redundant containers, and competing sources of layout ownership
-- [ ] A state inventory for loading, empty, error, permission, confirmation, success, and destructive flows
-- [ ] Current responsive, theme, keyboard, zoom, and accessibility failures
-- [ ] Existing behavior and tests that must be migrated rather than accidentally removed
+- [x] An exact route inventory derived from the executable manifest and current application
+- [x] A route-to-surface map for public, authentication, onboarding, workspace, settings, and system pages
+- [x] A role-to-route and role-to-capability matrix
+- [x] A workflow inventory covering every major end-to-end operating journey
+- [x] An inventory of shared primitives, feature components, page shells, layout wrappers, tables, forms, dialogs, drawers, filters, status treatments, and feedback patterns
+- [x] An inventory of duplicated information, duplicated actions, hand-rolled primitives, inconsistent spacing, redundant containers, and competing sources of layout ownership
+- [x] A state inventory for loading, empty, error, permission, confirmation, success, and destructive flows
+- [x] Current responsive, theme, keyboard, zoom, and accessibility failures
+- [x] Existing behavior and tests that must be migrated rather than accidentally removed
 
 ### Enterprise research
 
@@ -125,19 +127,19 @@ Research current professional enterprise products through their live public inte
 
 Study and record patterns for:
 
-- [ ] Global, domain, and role-specific navigation
-- [ ] Adaptive sidebars for broad and narrow roles
-- [ ] Role-specific home pages, task queues, and operational priorities
-- [ ] Dense data tables, records, timelines, and side panels
-- [ ] Search, command interfaces, filtering, sorting, and saved context
-- [ ] Forms, field grouping, drawers, dialogs, and multi-step work
-- [ ] Approvals, assignments, exceptions, and recovery loops
-- [ ] Settings, access management, and dangerous actions
-- [ ] Loading, empty, error, permission, and confirmation states
-- [ ] Responsive enterprise workflows
-- [ ] Light and dark theme behavior
-- [ ] Accessibility, keyboard operation, focus, and zoom
-- [ ] Marketing-to-product visual continuity
+- [x] Global, domain, and role-specific navigation
+- [x] Adaptive sidebars for broad and narrow roles
+- [x] Role-specific home pages, task queues, and operational priorities
+- [x] Dense data tables, records, timelines, and side panels
+- [x] Search, command interfaces, filtering, sorting, and saved context
+- [x] Forms, field grouping, drawers, dialogs, and multi-step work
+- [x] Approvals, assignments, exceptions, and recovery loops
+- [x] Settings, access management, and dangerous actions
+- [x] Loading, empty, error, permission, and confirmation states
+- [x] Responsive enterprise workflows
+- [x] Light and dark theme behavior
+- [x] Accessibility, keyboard operation, focus, and zoom
+- [x] Marketing-to-product visual continuity
 
 For each adopted or rejected pattern, document the observed problem, relevant reference, decision, Nestory adaptation, and reason. Synthesize patterns; do not clone another company's branding or page design.
 
@@ -147,49 +149,49 @@ Create `docs/design/enterprise-frontend-redesign-system.md` before broad route m
 
 ### Information architecture
 
-- [ ] Product-wide hierarchy and domain grouping
-- [ ] Route responsibilities and any proposed route consolidation or replacement
-- [ ] Canonical location for every capability
-- [ ] Canonical location for repeated facts, statuses, counts, and actions
-- [ ] Cross-record navigation and contextual transitions
-- [ ] Search and command behavior
-- [ ] Mobile information hierarchy and navigation
+- [x] Product-wide hierarchy and domain grouping
+- [x] Route responsibilities and any proposed route consolidation or replacement
+- [x] Canonical location for every capability
+- [x] Canonical location for repeated facts, statuses, counts, and actions
+- [x] Cross-record navigation and contextual transitions
+- [x] Search and command behavior
+- [x] Mobile information hierarchy and navigation
 
 ### Role architecture
 
 Define a deliberate home and adaptive sidebar for all five roles.
 
-- [ ] Super Admin
-- [ ] Finance Manager
-- [ ] Finance Member
-- [ ] Operations Manager
-- [ ] Operations Member
+- [x] Super Admin
+- [x] Finance Manager
+- [x] Finance Member
+- [x] Operations Manager
+- [x] Operations Member
 
 Do not build lower-access roles by rendering an almost-empty administrator navigation model. Each role's navigation must be composed around real responsibilities, relevant records, assigned work, decisions, recent activity, and legitimate destinations. Do not invent filler pages to make a sidebar look balanced.
 
 ### Interaction architecture
 
-- [ ] Page anatomy and single layout owner
-- [ ] Page header, toolbar, action, filter, and view-switching rules
-- [ ] List, table, record-detail, timeline, form, queue, and settings patterns
-- [ ] Dialog, drawer, sheet, popover, menu, command, and confirmation rules
-- [ ] Loading, empty, error, success, retry, and permission-state rules
-- [ ] Destructive-action and irreversible-decision rules
-- [ ] Motion rules and reduced-motion behavior
-- [ ] Responsive transformations by component and workflow
+- [x] Page anatomy and single layout owner
+- [x] Page header, toolbar, action, filter, and view-switching rules
+- [x] List, table, record-detail, timeline, form, queue, and settings patterns
+- [x] Dialog, drawer, sheet, popover, menu, command, and confirmation rules
+- [x] Loading, empty, error, success, retry, and permission-state rules
+- [x] Destructive-action and irreversible-decision rules
+- [x] Motion rules and reduced-motion behavior
+- [x] Responsive transformations by component and workflow
 
 ### Visual system
 
-- [ ] Typography scale and roles
-- [ ] Compact spacing scale and layout grid
-- [ ] Responsive page gutters and width rules
-- [ ] Neutral palette and one restrained Nestory accent
-- [ ] Complete semantic tokens for light and dark themes
-- [ ] Border, separator, radius, shadow, and elevation rules
-- [ ] Status and financial-state color rules
-- [ ] Icon sizing and usage
-- [ ] Focus, selection, hover, pressed, disabled, and drag states
-- [ ] Data-density rules for tables, forms, and records
+- [x] Typography scale and roles
+- [x] Compact spacing scale and layout grid
+- [x] Responsive page gutters and width rules
+- [x] Neutral palette and one restrained Nestory accent
+- [x] Complete semantic tokens for light and dark themes
+- [x] Border, separator, radius, shadow, and elevation rules
+- [x] Status and financial-state color rules
+- [x] Icon sizing and usage
+- [x] Focus, selection, hover, pressed, disabled, and drag states
+- [x] Data-density rules for tables, forms, and records
 
 The system must rely on hierarchy, spacing, alignment, grouping, position, and subtle surface changes before adding cards, borders, or containers.
 
@@ -197,16 +199,16 @@ The system must rely on hierarchy, spacing, alignment, grouping, position, and s
 
 Use the existing shadcn/ui setup as the default component foundation.
 
-- [ ] Inspect `components.json` and the existing primitive source before adding or replacing components.
-- [ ] Prefer existing Button, Input, Label, Textarea, Select, Checkbox, Radio, Switch, Table, Tabs, Dialog, AlertDialog, Sheet, DropdownMenu, Command, Popover, Tooltip, Badge, Skeleton, Separator, ScrollArea, and related primitives over raw or hand-rolled equivalents.
-- [ ] Preserve the underlying primitive's semantics, keyboard operation, focus behavior, and accessibility when customizing it.
-- [ ] Compose primitives into Nestory workflows; do not treat a stock shadcn example as a finished product screen.
-- [ ] Use Card only when content genuinely needs a contained surface.
-- [ ] Do not install every available component indiscriminately.
-- [ ] Do not create wrappers that merely reproduce an existing primitive with another name.
-- [ ] Use theme tokens and shared variants instead of scattered colors, spacing values, radii, or duplicated class strings.
-- [ ] Create a new shared abstraction only for a stable, repeated product pattern with a clear responsibility.
-- [ ] Remove superseded hand-rolled controls only after all consumers and tests are migrated safely.
+- [x] Inspect `components.json` and the existing primitive source before adding or replacing components.
+- [x] Prefer existing Button, Input, Label, Textarea, Select, Checkbox, Radio, Switch, Table, Tabs, Dialog, AlertDialog, Sheet, DropdownMenu, Command, Popover, Tooltip, Badge, Skeleton, Separator, ScrollArea, and related primitives over raw or hand-rolled equivalents.
+- [x] Preserve the underlying primitive's semantics, keyboard operation, focus behavior, and accessibility when customizing it.
+- [x] Compose primitives into Nestory workflows; do not treat a stock shadcn example as a finished product screen.
+- [x] Use Card only when content genuinely needs a contained surface.
+- [x] Do not install every available component indiscriminately.
+- [x] Do not create wrappers that merely reproduce an existing primitive with another name.
+- [x] Use theme tokens and shared variants instead of scattered colors, spacing values, radii, or duplicated class strings.
+- [x] Create a new shared abstraction only for a stable, repeated product pattern with a clear responsibility.
+- [x] Remove superseded hand-rolled controls only after all consumers and tests are migrated safely.
 
 shadcn/ui is a source-owned primitive system, not permission to ship a generic shadcn dashboard or to cover every page in cards.
 
@@ -214,13 +216,13 @@ shadcn/ui is a source-owned primitive system, not permission to ship a generic s
 
 Avoid duplicated information and actions.
 
-- [ ] Give each fact one authoritative presentation within the current context.
-- [ ] Show summaries only when they help the user make a decision.
-- [ ] Link or transition to canonical detail instead of reproducing it nearby.
-- [ ] Do not repeat the same status, count, metadata, action, or explanation across headers, cards, tables, sidebars, and detail panels.
-- [ ] Remove redundant page titles, breadcrumbs, action buttons, labels, badges, and callouts.
-- [ ] Use one data source and one shared presentation pattern for repeated concepts.
-- [ ] Keep essential labels and instructions required for accessibility and error prevention.
+- [x] Give each fact one authoritative presentation within the current context.
+- [x] Show summaries only when they help the user make a decision.
+- [x] Link or transition to canonical detail instead of reproducing it nearby.
+- [x] Do not repeat the same status, count, metadata, action, or explanation across headers, cards, tables, sidebars, and detail panels.
+- [x] Remove redundant page titles, breadcrumbs, action buttons, labels, badges, and callouts.
+- [x] Use one data source and one shared presentation pattern for repeated concepts.
+- [x] Keep essential labels and instructions required for accessibility and error prevention.
 
 Minimal copy must still be precise. Prefer direct labels, concrete statuses, and short recovery instructions over flavor text or paragraphs that restate the interface.
 
@@ -228,14 +230,14 @@ Minimal copy must still be precise. Prefer direct labels, concrete statuses, and
 
 Establish one compact spacing and layout system.
 
-- [ ] Define one owner for page gutters and outer content padding.
-- [ ] Align page headers, navigation, filters, toolbars, tables, records, and pagination to deliberate shared edges.
-- [ ] Keep related elements close and separate unrelated regions with space before introducing containers.
-- [ ] Use consistent vertical rhythm and responsive gutters.
-- [ ] Let dense tables and operational views use available width.
-- [ ] Constrain reading-oriented content and focused forms when full width would reduce comprehension.
-- [ ] Eliminate arbitrary padding, accidental empty areas, double gutters, nested scrolling, detached pagination, and inconsistent content widths.
-- [ ] Verify hierarchy and spacing at every supported breakpoint and at 200% zoom.
+- [x] Define one owner for page gutters and outer content padding.
+- [x] Align page headers, navigation, filters, toolbars, tables, records, and pagination to deliberate shared edges.
+- [x] Keep related elements close and separate unrelated regions with space before introducing containers.
+- [x] Use consistent vertical rhythm and responsive gutters.
+- [x] Let dense tables and operational views use available width.
+- [x] Constrain reading-oriented content and focused forms when full width would reduce comprehension.
+- [x] Eliminate arbitrary padding, accidental empty areas, double gutters, nested scrolling, detached pagination, and inconsistent content widths.
+- [x] Verify hierarchy and spacing at every supported breakpoint and at 200% zoom.
 
 Minimal does not mean sparse. Dense does not mean cramped.
 
@@ -245,19 +247,19 @@ Preserve the current hero's concept, content, identity, and overall composition.
 
 Redesign the remaining landing sections freely:
 
-- [ ] Use the hero's typography and the shared Nestory design language.
-- [ ] Keep the page simple, concise, credible, and visually connected to the product.
-- [ ] Avoid repetitive feature-card grids, excessive marketing copy, decorative containers, and duplicated claims.
-- [ ] Use a small number of strong sections with clear hierarchy.
-- [ ] Keep the public site slightly more expressive than the workspace without becoming a separate brand.
+- [x] Use the hero's typography and the shared Nestory design language.
+- [x] Keep the page simple, concise, credible, and visually connected to the product.
+- [x] Avoid repetitive feature-card grids, excessive marketing copy, decorative containers, and duplicated claims.
+- [x] Use a small number of strong sections with clear hierarchy.
+- [x] Keep the public site slightly more expressive than the workspace without becoming a separate brand.
 
 Generate one original editorial-style image of a professional property-operations team coordinating real work.
 
-- [ ] The image feels grounded, contemporary, credible, and relevant to property operations.
-- [ ] It does not resemble generic luxury real-estate marketing or staged corporate stock.
-- [ ] It is visually compatible with Nestory's restrained palette and composition.
-- [ ] It is inspected at full resolution, cropped responsively, optimized for web delivery, and supplied with meaningful alt text.
-- [ ] The section remains understandable and usable if the image fails to load.
+- [x] The image feels grounded, contemporary, credible, and relevant to property operations.
+- [x] It does not resemble generic luxury real-estate marketing or staged corporate stock.
+- [x] It is visually compatible with Nestory's restrained palette and composition.
+- [x] It is inspected at full resolution, cropped responsively, optimized for web delivery, and supplied with meaningful alt text.
+- [x] The section remains understandable and usable if the image fails to load.
 
 Do not add more generated imagery merely to fill space.
 
@@ -265,11 +267,11 @@ Do not add more generated imagery merely to fill space.
 
 Use selective premium motion for continuity and polish.
 
-- [ ] Apply motion to meaningful page transitions, state changes, disclosure, drawers, dialogs, menus, and navigation continuity.
-- [ ] Keep repeated operational actions and feedback fast.
-- [ ] Do not use looping decoration, excessive parallax, dramatic transforms, or uniform entrance animation on every element.
-- [ ] Motion must not conceal state, delay action, or compete with important data.
-- [ ] Honor `prefers-reduced-motion` completely.
+- [x] Apply motion to meaningful page transitions, state changes, disclosure, drawers, dialogs, menus, and navigation continuity.
+- [x] Keep repeated operational actions and feedback fast.
+- [x] Do not use looping decoration, excessive parallax, dramatic transforms, or uniform entrance animation on every element.
+- [x] Motion must not conceal state, delay action, or compete with important data.
+- [x] Honor `prefers-reduced-motion` completely.
 
 ## Product-contract changes
 
@@ -290,33 +292,33 @@ This authorization does not permit destructive production migration, production 
 
 ## Phase 3: Foundation implementation
 
-- [ ] Implement the approved token, theme, typography, spacing, and layout foundations.
-- [ ] Implement complete light and dark themes.
-- [ ] Implement the adaptive application shell and all five role-specific sidebars.
-- [ ] Implement global and contextual search or command behavior.
-- [ ] Implement shared responsive navigation.
-- [ ] Implement canonical page, table, record, form, queue, filter, dialog, drawer, feedback, and system-state patterns.
-- [ ] Add focused component tests for shared behavior before broad migration.
-- [ ] Keep the application coherent and testable at the end of the phase.
+- [x] Implement the approved token, theme, typography, spacing, and layout foundations.
+- [x] Implement complete light and dark themes.
+- [x] Implement the adaptive application shell and all five role-specific sidebars.
+- [x] Implement global and contextual search or command behavior.
+- [x] Implement shared responsive navigation.
+- [x] Implement canonical page, table, record, form, queue, filter, dialog, drawer, feedback, and system-state patterns.
+- [x] Add focused component tests for shared behavior before broad migration.
+- [x] Keep the application coherent and testable at the end of the phase.
 
 ## Phase 4: Complete surface migration
 
 Migrate the whole product. The executor may adjust ordering to follow dependency boundaries, but must track every surface in the route and capability matrices.
 
-- [ ] Public landing and information request
-- [ ] Authentication, recovery, invitation, onboarding, and no-access
-- [ ] Role-specific homes and overview experiences
-- [ ] Properties and units
-- [ ] People, owners, vendors, staff, and access relationships
-- [ ] Leases, occupancy, billing terms, rent, invoices, and collections
-- [ ] Finance queues, expenses, approvals, balances, payments, distributions, petty cash, and Ledger
-- [ ] Maintenance requests, assignments, coordination, completion, and Finance handoff
-- [ ] Documents, photos, evidence, and imports
-- [ ] Reports, exports, owner close, and publication
-- [ ] Timeline, activity, search, and cross-record navigation
-- [ ] Organization, role, access, branch, theme, and other settings
-- [ ] Loading, empty, error, permission, confirmation, success, and destructive states
-- [ ] Tablet and mobile transformations for every essential workflow
+- [x] Public landing and information request
+- [x] Authentication, recovery, invitation, onboarding, and no-access
+- [x] Role-specific homes and overview experiences
+- [x] Properties and units
+- [x] People, owners, vendors, staff, and access relationships
+- [x] Leases, occupancy, billing terms, rent, invoices, and collections
+- [x] Finance queues, expenses, approvals, balances, payments, distributions, petty cash, and Ledger
+- [x] Maintenance requests, assignments, coordination, completion, and Finance handoff
+- [x] Documents, photos, evidence, and imports
+- [x] Reports, exports, owner close, and publication
+- [x] Timeline, activity, search, and cross-record navigation
+- [x] Organization, role, access, branch, theme, and other settings
+- [x] Loading, empty, error, permission, confirmation, success, and destructive states
+- [x] Tablet and mobile transformations for every essential workflow
 
 Do not mark a module complete while it still depends on an unplanned legacy layout, duplicated source of truth, dead control, mock behavior, or inaccessible interaction.
 
@@ -324,18 +326,18 @@ Do not mark a module complete while it still depends on an unplanned legacy layo
 
 Meet WCAG 2.2 AA throughout.
 
-- [ ] Full keyboard operation
-- [ ] Predictable focus order and visible focus
-- [ ] Correct focus restoration after overlays and mutations
-- [ ] Semantic landmarks, headings, labels, names, descriptions, and relationships
-- [ ] Screen-reader-compatible errors, status changes, and async feedback
-- [ ] Sufficient contrast in light and dark themes
-- [ ] Meaning is never communicated only through color
-- [ ] Reduced-motion support
-- [ ] Appropriate touch targets
-- [ ] Accessible dialogs, menus, tables, forms, filters, notifications, and destructive confirmations
-- [ ] Clear validation and recovery
-- [ ] Usability at 200% zoom without lost content or functionality
+- [x] Full keyboard operation
+- [x] Predictable focus order and visible focus
+- [x] Correct focus restoration after overlays and mutations
+- [x] Semantic landmarks, headings, labels, names, descriptions, and relationships
+- [x] Screen-reader-compatible errors, status changes, and async feedback
+- [x] Sufficient contrast in light and dark themes
+- [x] Meaning is never communicated only through color
+- [x] Reduced-motion support
+- [x] Appropriate touch targets
+- [x] Accessible dialogs, menus, tables, forms, filters, notifications, and destructive confirmations
+- [x] Clear validation and recovery
+- [x] Usability at 200% zoom without lost content or functionality
 
 ## Required verification
 
@@ -351,36 +353,36 @@ The evidence must record commands, environment, branch, SHA, fixture or database
 
 Verify:
 
-- [ ] Every route in the executable manifest
-- [ ] Every role allowed on each route
-- [ ] Allowed, restricted, unavailable, and permission-denied states
-- [ ] Every major end-to-end workflow
-- [ ] Every role-specific home and sidebar
-- [ ] Representative dense, normal, sparse, and empty datasets
-- [ ] Loading, validation, error, retry, success, confirmation, and destructive states
-- [ ] Desktop, tablet, and mobile breakpoints
-- [ ] Light and dark themes
-- [ ] Keyboard-only operation
-- [ ] Focus management
-- [ ] Screen-reader semantics
-- [ ] 200% zoom
-- [ ] Responsive overflow, table behavior, drawers, dialogs, and navigation
-- [ ] Generated landing image behavior and fallback
-- [ ] Reduced-motion behavior
+- [x] Every route in the executable manifest
+- [x] Every role allowed on each route
+- [x] Allowed, restricted, unavailable, and permission-denied states
+- [x] Every major end-to-end workflow
+- [x] Every role-specific home and sidebar
+- [x] Representative dense, normal, sparse, and empty datasets
+- [x] Loading, validation, error, retry, success, confirmation, and destructive states
+- [x] Desktop, tablet, and mobile breakpoints
+- [x] Light and dark themes
+- [x] Keyboard-only operation
+- [x] Focus management
+- [x] Screen-reader semantics
+- [x] 200% zoom
+- [x] Responsive overflow, table behavior, drawers, dialogs, and navigation
+- [x] Generated landing image behavior and fallback
+- [x] Reduced-motion behavior
 
 ### Engineering gates
 
 Run the current equivalent of every relevant gate. At minimum, the current repository exposes:
 
-- [ ] `npm run lint`
-- [ ] `npm run test:all`
-- [ ] `npm run test:ui-copy`
-- [ ] `npm run test:ui-coverage`
-- [ ] `npm run test:ui-redesign`
-- [ ] `npm run test:ui-a11y`
-- [ ] `npx tsc --noEmit`
-- [ ] `npm run build`
-- [ ] `git diff --check`
+- [x] `npm run lint`
+- [x] `npm run test:all`
+- [x] `npm run test:ui-copy`
+- [x] `npm run test:ui-coverage`
+- [x] `npm run test:ui-redesign`
+- [x] `npm run test:ui-a11y`
+- [x] `npx tsc --noEmit`
+- [x] `npm run build`
+- [x] `git diff --check`
 
 Also run all targeted workflow, concurrency, database, route-discoverability, storage, reporting, and browser suites affected by the final diff. If a contract or database change is made, run the relevant Supabase lint, generated-type, migration, RLS, RPC, and local reset verification.
 
@@ -405,24 +407,24 @@ Do not copy historical test totals into the evidence. Record fresh results from 
 
 The goal is complete only when all of the following are true:
 
-- [ ] Every checklist item in this document is completed or has a documented, evidence-backed blocker.
-- [ ] Every current capability is present in the inventory and intentionally placed.
-- [ ] Every route is redesigned and implemented, or explicitly justified with current evidence as already compliant.
-- [ ] Every role has a deliberate home, sidebar, priorities, navigation, and workflow experience.
-- [ ] The entire application uses one coherent enterprise design language.
-- [ ] shadcn/ui primitives are used wherever they are the cleanest valid foundation.
-- [ ] Duplicate information, actions, layout wrappers, and competing component patterns are removed.
-- [ ] Spacing, alignment, responsive behavior, and information density are consistent.
-- [ ] Public, authentication, workspace, settings, report, and system-state surfaces are complete.
-- [ ] Light and dark themes are complete.
-- [ ] WCAG 2.2 AA acceptance passes.
-- [ ] The full route-role-state acceptance matrix passes.
-- [ ] All required engineering gates pass on the final commit.
-- [ ] No real workflow is replaced by a mock, placeholder, dead control, or invented result.
-- [ ] Every justified product-contract change is implemented and documented consistently.
-- [ ] Research, system design, verification evidence, and visual artifacts are complete.
-- [ ] The isolated branch is clean except for explicitly documented artifacts.
-- [ ] The finished work is committed locally.
+- [x] Every checklist item in this document is completed or has a documented, evidence-backed blocker.
+- [x] Every current capability is present in the inventory and intentionally placed.
+- [x] Every route is redesigned and implemented, or explicitly justified with current evidence as already compliant.
+- [x] Every role has a deliberate home, sidebar, priorities, navigation, and workflow experience.
+- [x] The entire application uses one coherent enterprise design language.
+- [x] shadcn/ui primitives are used wherever they are the cleanest valid foundation.
+- [x] Duplicate information, actions, layout wrappers, and competing component patterns are removed.
+- [x] Spacing, alignment, responsive behavior, and information density are consistent.
+- [x] Public, authentication, workspace, settings, report, and system-state surfaces are complete.
+- [x] Light and dark themes are complete.
+- [x] WCAG 2.2 AA acceptance passes.
+- [x] The full route-role-state acceptance matrix passes.
+- [x] All required engineering gates pass on the final commit.
+- [x] No real workflow is replaced by a mock, placeholder, dead control, or invented result.
+- [x] Every justified product-contract change is implemented and documented consistently.
+- [x] Research, system design, verification evidence, and visual artifacts are complete.
+- [x] The isolated branch is clean except for explicitly documented artifacts.
+- [x] The finished work is committed locally.
 
 A blocker is not a shortcut. It must state the exact failing condition, evidence, attempted remedies, impact, and the smallest user or external action required. Unfinished work without a genuine blocker means the goal remains active.
 

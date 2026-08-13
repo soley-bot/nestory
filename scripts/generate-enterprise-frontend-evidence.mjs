@@ -64,7 +64,7 @@ const workflows = [
 ];
 const engineeringGates = [
   gate("npm run lint", "ESLint passed"),
-  gate("npm run test:all", "226 Vitest files / 1,590 tests and 88 Node contract tests passed"),
+  gate("npm run test:all", "226 Vitest files / 1,591 tests and 88 Node contract tests passed"),
   gate("npm run test:ui-copy", "47-route copy policy passed with 0 prohibited occurrences"),
   gate("npm run test:ui-coverage", "47/47 executable routes passed"),
   gate("npm run test:route-discoverability", "38/38 route contracts passed"),

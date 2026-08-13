@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-13T08:14:18.135Z",
+  "generatedAt": "2026-08-13T08:58:53.768Z",
   "branch": "codex/enterprise-frontend-redesign",
-  "head": "b4754f486e82ebd1ec00311936f42125e0895017",
+  "head": "b443b59dba8fc91a92e629dd53359e6ccf3f8752",
   "baseBranch": "main",
   "baseSha": "b4754f486e82ebd1ec00311936f42125e0895017",
   "worktree": "D:\\nestory\\.worktrees\\enterprise-frontend-redesign",
@@ -26,9 +26,9 @@
   },
   "themes": {
     "light": {
-      "summaryPath": "artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-axe-p6476/summary.json",
+      "summaryPath": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/summary.json",
       "baseUrl": "http://127.0.0.1:3220",
-      "completedAt": "2026-08-13T07:40:13.408Z",
+      "completedAt": "2026-08-13T08:51:24.426Z",
       "axeEnabled": true,
       "routeViewportCases": 188,
       "maintenanceBoardCases": 4,
@@ -38,9 +38,9 @@
       "status": "passed"
     },
     "dark": {
-      "summaryPath": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T07-40-24.109Z-axe-p4308/summary.json",
+      "summaryPath": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/summary.json",
       "baseUrl": "http://127.0.0.1:3220",
-      "completedAt": "2026-08-13T07:47:22.824Z",
+      "completedAt": "2026-08-13T08:58:26.297Z",
       "axeEnabled": true,
       "routeViewportCases": 188,
       "maintenanceBoardCases": 4,
@@ -51,7 +51,7 @@
     }
   },
   "discoverability": {
-    "evidenceHead": "b4754f486e82ebd1ec00311936f42125e0895017",
+    "evidenceHead": "b443b59dba8fc91a92e629dd53359e6ccf3f8752",
     "passed": 67,
     "total": 67,
     "directDenials": 4
@@ -5957,91 +5957,91 @@
       "command": "npm run test:fixture-finance-manager-day",
       "scope": "Finance Manager lease policy, payments, owner close, statement publication, reports, and retained exceptional denials",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "owner-opening",
       "command": "npm run test:owner-opening-browser-acceptance",
       "scope": "Independent submission, review, correction lineage, role denial, and database effects",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "owner-balance",
       "command": "npm run test:owner-balance-browser-acceptance",
       "scope": "Four-component opening authority, allocation, cash activity, reversal, exact two-month roll-forward, and role denial",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "owner-close",
       "command": "npm run test:owner-close-browser-acceptance",
       "scope": "Readiness, close, reopen, correction, immutable revision history, and role denial",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "owner-statement",
       "command": "npm run test:owner-statement-browser-acceptance",
       "scope": "Publication, supersession, retained bytes, Finance Member read/download, and Operations denial",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "golden-setup",
       "command": "npm run test:ips-golden-setup",
       "scope": "Nine-phase property-to-rent-ready setup with independent opening-balance review",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "rent-to-statement",
       "command": "npm run rent:test-browser",
       "scope": "Ten rent scenarios through late payment, owner close, and byte-verified PDF/Excel publication",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "paid-cost",
       "command": "npm run paid-cost:test-browser",
       "scope": "Submit, evidence review, approve, reverse, correct, reapprove, and exact database effects",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "cutover",
       "command": "npm run cutover:test-browser",
       "scope": "Blocked and corrected import plan, reconciliation, replay, exact totals, and role denial",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "maintenance-responsive",
       "command": "npm run test:maintenance-mobile",
       "scope": "Cases, board, calendar, drawer, tasks, recurring work, inspections, and work orders across four viewports",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "properties",
       "command": "npm run test:properties-flow",
       "scope": "Property and unit navigation, filters, inspector, and detail flow",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "role-homes",
       "command": "npm run test:fixture-roles",
       "scope": "All five role homes at desktop, laptop, and phone",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "id": "discoverability",
       "command": "npm run test:fixture-route-discoverability",
       "scope": "67/67 visible-link journeys and 4 direct denials",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     }
   ],
   "engineeringGates": [
@@ -6049,67 +6049,67 @@
       "command": "npm run lint",
       "result": "ESLint passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run test:all",
-      "result": "226 Vitest files / 1,590 tests and 88 Node contract tests passed",
+      "result": "226 Vitest files / 1,591 tests and 88 Node contract tests passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run test:ui-copy",
       "result": "47-route copy policy passed with 0 prohibited occurrences",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run test:ui-coverage",
       "result": "47/47 executable routes passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run test:route-discoverability",
       "result": "38/38 route contracts passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run test:ui-redesign",
       "result": "188 route/viewport, 4 Maintenance board, 235 role, and 6 keyboard/zoom cases passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run test:ui-a11y -- --write-evidence",
       "result": "Complete light-theme Chromium and axe run passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "node scripts/smoke-ui-redesign.mjs --axe --theme=dark",
       "result": "Complete dark-theme Chromium and axe run passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npx tsc --noEmit",
       "result": "TypeScript passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run build",
       "result": "Next.js production build passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "git diff --check",
       "result": "Passed; no whitespace errors",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     }
   ],
   "databaseGates": [
@@ -6117,31 +6117,31 @@
       "command": "npm run db:reset",
       "result": "All local migrations replayed successfully",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run db:test:fixture",
       "result": "Isolated five-role acceptance fixture loaded and verified",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npx supabase test db",
       "result": "53 pgTAP files / 1,864 assertions passed",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run db:lint",
       "result": "Passed with four pre-existing unused-variable warnings and no errors",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     },
     {
       "command": "npm run db:types",
       "result": "Generated database types completed without a semantic diff",
       "status": "passed",
-      "verifiedAt": "2026-08-13T08:14:18.135Z"
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
     }
   ],
   "visuals": [
@@ -6177,8 +6177,8 @@
       "width": 1440,
       "height": 900,
       "path": "artifacts/enterprise-frontend-redesign/visual/landing-operations-editorial-light.png",
-      "sizeBytes": 523947,
-      "sha256": "6a023913de6c38251558d6c9ea7b8e178669bdd2a7cbcbd284ef8ee7c1ea6e37",
+      "sizeBytes": 538932,
+      "sha256": "ca363c8943f22aaf9021e30457706e24de56967250ba7928cd79806522605b27",
       "source": "live public route"
     },
     {
@@ -6201,9 +6201,9 @@
       "width": 1440,
       "height": 900,
       "path": "artifacts/enterprise-frontend-redesign/visual/overview-desktop-light.png",
-      "sizeBytes": 107677,
-      "sha256": "ea3b79e0c6b85c03c0ab558a0f73183d094992d5ea3a8dd628b66d5ccf6979e7",
-      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-axe-p6476/desktop/overview-1440x900.png"
+      "sizeBytes": 108815,
+      "sha256": "508b6a1d0839121bd0aaf960c11c4080779d118cf17c0373c88ebbc24067a862",
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/overview-1440x900.png"
     },
     {
       "name": "overview-desktop-dark",
@@ -6213,9 +6213,9 @@
       "width": 1440,
       "height": 900,
       "path": "artifacts/enterprise-frontend-redesign/visual/overview-desktop-dark.png",
-      "sizeBytes": 114486,
-      "sha256": "d1af9a351de517bee050ee94c77b42deae113e22e7adb82c49564a336db3b0d7",
-      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T07-40-24.109Z-axe-p4308/desktop/overview-1440x900.png"
+      "sizeBytes": 114984,
+      "sha256": "230ed2944a2631a0825a80c8ae73b18fcffbd4d0c7305598db67ab542286a81f",
+      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/desktop/overview-1440x900.png"
     },
     {
       "name": "finance-desktop-light",
@@ -6225,9 +6225,9 @@
       "width": 1440,
       "height": 900,
       "path": "artifacts/enterprise-frontend-redesign/visual/finance-desktop-light.png",
-      "sizeBytes": 150464,
-      "sha256": "c158822be615bfaf3d6b6608adf2412afb8c3512b595e294c476934dcc7971d5",
-      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-axe-p6476/desktop/finance-1440x900.png"
+      "sizeBytes": 161395,
+      "sha256": "ee28266b9a233419dc05aa4fe3c2a7f9beee2c117e15b804202fa76fd405b33b",
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/finance-1440x900.png"
     },
     {
       "name": "finance-desktop-dark",
@@ -6237,9 +6237,9 @@
       "width": 1440,
       "height": 900,
       "path": "artifacts/enterprise-frontend-redesign/visual/finance-desktop-dark.png",
-      "sizeBytes": 164818,
-      "sha256": "2dd7b2abda992228a957a51ee1f142f8ef76070ce8cd6782ef87e43ec4290787",
-      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T07-40-24.109Z-axe-p4308/desktop/finance-1440x900.png"
+      "sizeBytes": 177387,
+      "sha256": "71c6e13e2f841232c19fc9991131e061518499190c186e3f280b30860d2fc364",
+      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/desktop/finance-1440x900.png"
     },
     {
       "name": "owner-balances-desktop-light",
@@ -6249,9 +6249,9 @@
       "width": 1440,
       "height": 900,
       "path": "artifacts/enterprise-frontend-redesign/visual/owner-balances-desktop-light.png",
-      "sizeBytes": 163217,
-      "sha256": "f181a39fc68ec718ccb261c51b919cc5ac161627d7dbb799ebe0b9a558865e71",
-      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-axe-p6476/desktop/balances-1440x900.png"
+      "sizeBytes": 163156,
+      "sha256": "db5fdedfb35f72524c57a01db611058ea263015a3b03cca9d839a00e10024339",
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/balances-1440x900.png"
     },
     {
       "name": "owner-balances-desktop-dark",
@@ -6261,9 +6261,9 @@
       "width": 1440,
       "height": 900,
       "path": "artifacts/enterprise-frontend-redesign/visual/owner-balances-desktop-dark.png",
-      "sizeBytes": 181276,
-      "sha256": "84aee8b528dd2629cdc44e34968fcbd2b9b09078f4f03d18e5624d9bf4aa746e",
-      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T07-40-24.109Z-axe-p4308/desktop/balances-1440x900.png"
+      "sizeBytes": 181185,
+      "sha256": "82055ea4b3c2da0b7d8459e9190bcef3ddffd78da12acfa4386ee28899409b37",
+      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/desktop/balances-1440x900.png"
     },
     {
       "name": "operations-desktop-light",
@@ -6275,7 +6275,7 @@
       "path": "artifacts/enterprise-frontend-redesign/visual/operations-desktop-light.png",
       "sizeBytes": 77566,
       "sha256": "8b65a51f18950dbd679221b955c69c878ceb508305ac9e95ab10ac1ed87e4270",
-      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-axe-p6476/desktop/maintenance-view-list-query-kitchen-1440x900.png"
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/maintenance-view-list-query-kitchen-1440x900.png"
     },
     {
       "name": "operations-phone-light",
@@ -6287,7 +6287,7 @@
       "path": "artifacts/enterprise-frontend-redesign/visual/operations-phone-light.png",
       "sizeBytes": 30428,
       "sha256": "56a402b419e183d40baeaa3f8686ad1c360b6394efdde0b2bcb18b16e4b960c4",
-      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-axe-p6476/phone/maintenance-view-list-query-kitchen-390x844.png"
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/phone/maintenance-view-list-query-kitchen-390x844.png"
     },
     {
       "name": "rent-policy-desktop-light",
@@ -6299,7 +6299,7 @@
       "path": "artifacts/enterprise-frontend-redesign/visual/rent-policy-desktop-light.png",
       "sizeBytes": 86766,
       "sha256": "be1140b5d513ae16ece2e533f0dd1ad0655201b0df5a842057ccacf2adebba7d",
-      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-axe-p6476/desktop/settings-rent-policy-1440x900.png"
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/settings-rent-policy-1440x900.png"
     },
     {
       "name": "login-phone-dark",
@@ -6311,7 +6311,7 @@
       "path": "artifacts/enterprise-frontend-redesign/visual/login-phone-dark.png",
       "sizeBytes": 55766,
       "sha256": "104a5094f33b81698eaf937aa3b8376a707fa12f8750b689e92b7618839ebc5e",
-      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T07-40-24.109Z-axe-p4308/phone/login-390x844.png"
+      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/phone/login-390x844.png"
     },
     {
       "name": "generated-editorial-source",

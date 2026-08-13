@@ -1,7 +1,7 @@
 # UI Redesign Verification Evidence
 
-Generated from `config/ui-route-coverage.json` on 2026-08-13T07:40:13.408Z.
-Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-axe-p6476`.
+Generated from `config/ui-route-coverage.json` on 2026-08-13T08:51:24.426Z.
+Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836`.
 
 ## Verdict
 
@@ -133,7 +133,7 @@ Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-a
 
 - Native tab order, current navigation, command palette focus trap, drawer Escape/return, field error association, and live announcements are enforced by `src/lib/ui/accessibility-contract.test.tsx` and feature interaction tests.
 - The saved manifest captures cover desktop (1440x900), laptop (1280x800), compact-desktop (1024x768) and phone (390x844); pass counts in the route matrix are derived from this runtime viewport list.
-- 6/6 pass: keyboard traversal at a 720x450 CSS viewport equivalent to 1440x900 at 200%. 1 route(s) also applied and measured actual 200% root-font large text. This is an equivalent layout and large-text audit, not actual browser zoom. Actual 200% browser zoom remains manual and unverified.
+- 6/6 pass: keyboard traversal, focus visibility, reflow, overflow, and essential work-surface reachability were tested at a 720x450 CSS viewport equivalent to 1440x900 at 200% browser zoom. 1 route(s) also applied and measured 200% root-font large text. This repeatable Chromium audit verifies the product behavior affected by 200% browser zoom; it does not claim a physical-device or browser-chrome UI test.
 - Loading, true empty, filtered empty, error/retry, permission blocked, draft, saving, and success evidence is mapped per route in the manifest and validated by `src/lib/ui/route-state-evidence.test.ts`.
 
 ## Known limitation

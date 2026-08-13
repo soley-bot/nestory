@@ -1,7 +1,7 @@
 # Enterprise frontend redesign verification evidence
 
-**Verification round ended:** 2026-08-13T08:14:18.135Z
-**Implementation SHA under test:** `b4754f486e82ebd1ec00311936f42125e0895017`
+**Verification round ended:** 2026-08-13T08:58:53.768Z
+**Implementation SHA under test:** `b443b59dba8fc91a92e629dd53359e6ccf3f8752`
 **Branch:** `codex/enterprise-frontend-redesign`
 **Base:** `main` at `b4754f486e82ebd1ec00311936f42125e0895017`
 **Worktree:** `D:\nestory\.worktrees\enterprise-frontend-redesign`
@@ -19,8 +19,8 @@
 
 - Application target: `http://127.0.0.1:3220` (production build served locally).
 - Database target: local Supabase project `nestory`, PostgreSQL on `127.0.0.1:54322`, guarded acceptance fixture; credentials omitted.
-- Light raw summary: `artifacts/ui-redesign/ui-redesign-2026-08-13T07-33-13.985Z-axe-p6476/summary.json` (2026-08-13T07:40:13.408Z).
-- Dark raw summary: `artifacts/ui-redesign/ui-redesign-dark-2026-08-13T07-40-24.109Z-axe-p4308/summary.json` (2026-08-13T07:47:22.824Z).
+- Light raw summary: `artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/summary.json` (2026-08-13T08:51:24.426Z).
+- Dark raw summary: `artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/summary.json` (2026-08-13T08:58:26.297Z).
 - The UI smoke blocks non-read HTTP requests. Mutation acceptance uses only scripts that require `ALLOW_LOCAL_MUTATION_SMOKE=1` and reject hosted or credential-bearing URLs.
 
 ## Engineering gates
@@ -28,7 +28,7 @@
 | Command | Result | Status |
 | --- | --- | --- |
 | `npm run lint` | ESLint passed | passed |
-| `npm run test:all` | 226 Vitest files / 1,590 tests and 88 Node contract tests passed | passed |
+| `npm run test:all` | 226 Vitest files / 1,591 tests and 88 Node contract tests passed | passed |
 | `npm run test:ui-copy` | 47-route copy policy passed with 0 prohibited occurrences | passed |
 | `npm run test:ui-coverage` | 47/47 executable routes passed | passed |
 | `npm run test:route-discoverability` | 38/38 route contracts passed | passed |
