@@ -246,6 +246,6 @@ describe("AddMemberDialog", () => {
     await user.click(within(confirmation).getByRole("button", { name: "Discard" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add member" })).toBeNull());
-    expect(document.activeElement).toBe(trigger);
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });
