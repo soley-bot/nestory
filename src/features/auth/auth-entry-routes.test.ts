@@ -263,7 +263,10 @@ describe("entry experience contracts", () => {
     expect(forgotForm).toContain("requestPasswordRecoveryAction");
     expect(forgotForm).toContain('autoComplete="email"');
     expect(updatePage).toContain("UpdatePasswordForm");
+    expect(updatePage).toContain("<AuthPageShell");
     expect(updateForm).toContain("updatePasswordAction");
+    expect(updateForm).toContain("<Input");
+    expect(updateForm).not.toContain("<input");
     expect(updateForm).toContain('autoComplete="new-password"');
   });
 
