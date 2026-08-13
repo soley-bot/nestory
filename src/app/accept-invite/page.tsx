@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { signOutAction } from "@/features/auth/actions";
 import { AcceptInvitationForm } from "@/features/auth/components/accept-invitation-form";
 import { AuthPageShell } from "@/features/auth/components/auth-page-shell";
@@ -38,9 +39,9 @@ export default async function AcceptInvitePage({
             .
           </p>
           <form action={signOutAction}>
-            <button className="font-semibold text-foreground" type="submit">
-              Use another account
-            </button>
+            <Button className="h-11 w-full" type="submit" variant="outline">
+              Sign in with another account
+            </Button>
           </form>
         </div>
       ) : null}

@@ -277,7 +277,8 @@ describe("entry experience contracts", () => {
     );
 
     expect(page).toContain("getInvitationAcceptance");
-    expect(page).toContain("Use another account");
+    expect(page).toContain("Sign in with another account");
+    expect(page).toContain('variant="outline"');
     expect(page).toContain("InvitationSummary");
     expect(form).toContain("acceptInvitationAction");
     expect(form).toContain('name="invitationId"');
