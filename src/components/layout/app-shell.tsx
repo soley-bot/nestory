@@ -128,7 +128,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     id: "overview",
     href: "/overview",
     icon: LayoutDashboard,
-    label: "Overview",
+    label: "Dashboard",
     routes: ["/overview"],
   },
   {

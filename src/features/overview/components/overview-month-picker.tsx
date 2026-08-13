@@ -10,7 +10,13 @@ import { cn } from "@/lib/utils";
 
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-export function OverviewMonthPicker({ query }: { query: OverviewViewQuery }) {
+export function OverviewMonthPicker({
+  className,
+  query,
+}: {
+  className?: string;
+  query: OverviewViewQuery;
+}) {
   const [open, setOpen] = useState(false);
   const [selectedYear, selectedMonth] = query.month.split("-").map(Number);
   const [visibleYear, setVisibleYear] = useState(selectedYear);
@@ -24,6 +30,7 @@ export function OverviewMonthPicker({ query }: { query: OverviewViewQuery }) {
           className={cn(
             "inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
             open && "bg-muted",
+            className,
           )}
           type="button"
         >

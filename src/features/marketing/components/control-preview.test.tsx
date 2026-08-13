@@ -21,12 +21,13 @@ describe("ControlPreview", () => {
     expect(preview.querySelector("[inert]")).not.toBeNull();
   });
 
-  it("shows the same exception-first hierarchy as the current dashboard", () => {
+  it("shows the same compact attention entry point as the current dashboard", () => {
     render(<ControlPreview />);
 
     const preview = screen.getByRole("region", { name: "Current dashboard preview" });
 
-    expect(within(preview).getByRole("region", { name: "Attention workspace" })).toBeTruthy();
     expect(within(preview).getByRole("region", { name: "Portfolio metrics" })).toBeTruthy();
+    expect(within(preview).getByRole("button", { name: "Needs attention, 9 open checks" })).toBeTruthy();
+    expect(within(preview).queryByRole("table", { name: "Attention queue" })).toBeNull();
   });
 });

@@ -30,9 +30,9 @@
   --state-success: #237a3e;
   --state-success-soft: #eaf7ec;
   --record-spine: var(--primary);
-  --table-header-bg: color-mix(in oklch, var(--primary) 5%, var(--background));
-  --table-row-hover: color-mix(in oklch, var(--primary) 6%, var(--background));
-  --table-row-selected: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --table-header-bg: transparent;
+  --table-row-hover: color-mix(in oklch, var(--muted) 70%, var(--background));
+  --table-row-selected: color-mix(in oklch, var(--muted) 86%, var(--background));
   --table-row-selected-indicator: var(--primary);
   --border: oklch(0.922 0 0);
   --muted: oklch(0.97 0 0);

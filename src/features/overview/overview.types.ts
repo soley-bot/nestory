@@ -145,8 +145,14 @@ export type OverviewScreenData = {
   maintenanceByProperty: OverviewMaintenancePoint[];
   metrics: OverviewMetric[];
   occupancyByProperty: OverviewOccupancyPoint[];
+  propertyOptions: OverviewPropertyOption[];
   recordsByProperty: OverviewRecordPoint[];
   quickActions: OverviewQuickAction[];
   recentChanges: RecentChange[];
   workspaceSetup: OverviewWorkspaceSetup;
+};
+
+export type OverviewPropertyOption = {
+  label: string;
+  value: string;
 };

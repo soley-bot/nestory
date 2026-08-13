@@ -24,7 +24,7 @@ import { formatMoney, type CurrencyCode } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
 const chartColors = [
-  "var(--accent)",
+  "var(--chart-accent)",
   "var(--success)",
   "var(--warning)",
   "var(--danger)",
@@ -110,8 +110,8 @@ export function OverviewLedgerAreaChart({
         <AreaChart data={points} margin={{ bottom: 0, left: 0, right: 4, top: 6 }}>
           <defs>
             <linearGradient id="income-fill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="var(--accent)" stopOpacity={0.02} />
+              <stop offset="5%" stopColor="var(--chart-accent)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--chart-accent)" stopOpacity={0.02} />
             </linearGradient>
             <linearGradient id="expense-fill" x1="0" x2="0" y1="0" y2="1">
               <stop offset="5%" stopColor="var(--chart-neutral)" stopOpacity={0.22} />
@@ -144,7 +144,7 @@ export function OverviewLedgerAreaChart({
             dataKey="income"
             fill="url(#income-fill)"
             name="Income"
-            stroke="var(--accent)"
+            stroke="var(--chart-accent)"
             strokeWidth={2}
             type="monotone"
           />
@@ -203,8 +203,8 @@ export function OverviewMetricAreaChart({
         <AreaChart data={data} margin={{ bottom: 0, left: 0, right: 4, top: 6 }}>
           <defs>
             <linearGradient id="percent-fill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="var(--accent)" stopOpacity={0.02} />
+              <stop offset="5%" stopColor="var(--chart-accent)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--chart-accent)" stopOpacity={0.02} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
@@ -234,7 +234,7 @@ export function OverviewMetricAreaChart({
             dataKey="value"
             fill="url(#percent-fill)"
             name={name}
-            stroke="var(--accent)"
+            stroke="var(--chart-accent)"
             strokeWidth={2}
             type="monotone"
           />

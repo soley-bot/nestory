@@ -23,10 +23,7 @@ export function OverviewScreen({
   return (
     <main className="flex min-h-full bg-background">
       <div className="flex min-w-0 flex-1 flex-col">
-        <OverviewHeader
-          primaryAction={attentionQueue[0]}
-          query={resolvedQuery}
-        />
+        <OverviewHeader />
         <div className="flex flex-1 flex-col">
           {resolvedQuery.lens === "all" ? (
             <PortfolioWorkspace

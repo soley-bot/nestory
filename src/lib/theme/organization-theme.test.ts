@@ -111,6 +111,11 @@ describe("organization theme", () => {
         expect(style).not.toHaveProperty("--card");
         expect(style).not.toHaveProperty("--border");
         expect(style).not.toHaveProperty("--input");
+        expect(style["--table-header-bg"]).toBe("transparent");
+        if (theme.accentPreset !== "neutral") {
+          expect(style["--table-row-hover"]).not.toContain(style["--primary"]);
+          expect(style["--table-row-selected"]).not.toContain(style["--primary"]);
+        }
         expect(contrastRatio(style["--primary"], background)).toBeGreaterThanOrEqual(4.5);
         expect(contrastRatio(style["--ring"], background)).toBeGreaterThanOrEqual(3);
       }

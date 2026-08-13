@@ -27,7 +27,7 @@ export function OverviewDetailPage({
     <main className="min-h-full bg-background px-4 py-3 sm:px-6">
       <PageBreadcrumb
         current="Needs attention"
-        items={[{ href: overviewHref, label: "Overview" }]}
+        items={[{ href: overviewHref, label: "Dashboard" }]}
       />
       <AttentionWorkspace data={data} />
     </main>

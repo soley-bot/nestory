@@ -43,7 +43,7 @@ describe("AppShell Shadcn dashboard block", () => {
 
   it("renders the eight admin destinations in the official sidebar menu", () => {
     render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
-    for (const label of ["Overview", "Properties", "People", "Finance", "Maintenance", "Records", "Reports", "Settings"]) {
+    for (const label of ["Dashboard", "Properties", "People", "Finance", "Maintenance", "Records", "Reports", "Settings"]) {
       expect(screen.getByRole("link", { name: new RegExp(label) })).toBeTruthy();
     }
   });

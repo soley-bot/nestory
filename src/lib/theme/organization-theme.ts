@@ -134,9 +134,9 @@ export function getOrganizationThemeStyle(
     "--sidebar-primary-foreground": foreground,
     "--sidebar-accent": soft,
     "--sidebar-accent-foreground": surfaceForeground,
-    "--table-header-bg": `color-mix(in oklch, ${primary} ${dark ? "8%" : "5%"}, ${background})`,
-    "--table-row-hover": `color-mix(in oklch, ${primary} ${dark ? "10%" : "6%"}, ${background})`,
-    "--table-row-selected": `color-mix(in oklch, ${primary} ${dark ? "16%" : "10%"}, ${background})`,
+    "--table-header-bg": "transparent",
+    "--table-row-hover": `color-mix(in oklch, ${surfaceForeground} ${dark ? "10%" : "6%"}, ${background})`,
+    "--table-row-selected": `color-mix(in oklch, ${surfaceForeground} ${dark ? "16%" : "10%"}, ${background})`,
     "--table-row-selected-indicator": primary,
   };
 }

@@ -116,6 +116,12 @@ const previewData = {
       vacantUnits: 1,
     },
   ],
+  propertyOptions: [
+    { label: "Bassac Garden Apartments", value: "bassac-garden" },
+    { label: "Chroy Changvar River View", value: "chroy-changvar" },
+    { label: "Central Residence", value: "central-residence" },
+    { label: "Street 178 Residence", value: "street-178" },
+  ],
   quickActions: [],
   recentChanges: [],
   recordsByProperty: [],
@@ -138,10 +144,7 @@ export function ControlPreview() {
     >
       <div inert className="pointer-events-none select-none">
         <div className="flex h-14 items-center border-b border-border bg-background px-4 lg:px-6">
-          <OverviewHeaderContent
-            primaryAction={previewAttentionQueue[0]}
-            query={previewQuery}
-          />
+          <OverviewHeaderContent />
         </div>
         <PortfolioWorkspace
           attentionQueue={previewAttentionQueue}
