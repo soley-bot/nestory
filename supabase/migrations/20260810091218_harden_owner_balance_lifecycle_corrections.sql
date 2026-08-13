@@ -412,6 +412,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'app_private.resolve_owner_event_source(uuid,text,uuid)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_marker) = 0 THEN
     RAISE EXCEPTION 'resolve_owner_event_source_patch_contract_changed';
   END IF;
@@ -610,6 +611,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'public.allocate_owner_event(uuid,text,uuid,text)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_lock_marker) = 0
     OR pg_catalog.strpos(v_definition, v_remaining_marker) = 0
     OR pg_catalog.strpos(v_definition, v_movement_marker) = 0
@@ -1369,6 +1371,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'app_private.apply_available_owner_cash(uuid,uuid,date,uuid)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_marker) = 0 THEN
     RAISE EXCEPTION 'apply_available_owner_cash_patch_contract_changed';
   END IF;

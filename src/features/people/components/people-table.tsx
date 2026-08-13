@@ -36,12 +36,12 @@ export function PeopleTable({
   const isRoleScoped = Boolean(roleContext);
 
   return (
-    <div className="h-full min-h-0">
+    <div className="min-w-0">
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid h-full auto-rows-max content-start gap-3 overflow-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
-            : "h-full space-y-3 overflow-auto pr-1 md:hidden",
+            ? "grid auto-rows-max content-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
+            : "space-y-3 md:hidden",
         )}
       >
         {people.length === 0 ? (
@@ -61,10 +61,10 @@ export function PeopleTable({
 
       {displayMode === "table" ? (
         <div
-          className="hidden h-full overflow-hidden md:block"
+          className="hidden min-w-0 md:block"
           data-slot="people-table-frame"
         >
-          <div className="h-full overflow-auto">
+          <div aria-label="People table" className="overflow-x-auto" role="region">
             <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
               {isRoleScoped ? (
                 <colgroup>

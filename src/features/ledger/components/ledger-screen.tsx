@@ -150,7 +150,7 @@ export function LedgerScreen({
     viewQuery.sort !== "date_desc" ||
     viewQuery.unitId !== "all";
   const ledgerList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
+    <section className="flex min-w-0 flex-col bg-card">
       {entries.length === 0 ? (
         <EmptyState
           action={
@@ -167,7 +167,7 @@ export function LedgerScreen({
           body={
             hasFilters
               ? "The current filters return no financial ledger records."
-              : "Source workflows have not created any operational Ledger events yet."
+              : "No financial transactions have been recorded yet."
           }
           className="h-full"
           kind={hasFilters ? "filtered" : "empty"}
@@ -231,7 +231,7 @@ export function LedgerScreen({
       )}
       title="Financial Ledger"
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col">
         {statusMessage ? (
           <div className="px-4 pt-5 sm:px-6 lg:px-6">
             <p

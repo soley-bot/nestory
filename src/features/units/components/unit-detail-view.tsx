@@ -70,7 +70,7 @@ export function UnitDetailView({
     (indicator) => indicator.tone !== "success",
   );
   return (
-    <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
+    <div className="workspace-gutter-x flex flex-col gap-3 py-4 lg:flex-1">
       <UnitRecordNav
         activeSection={activeSection}
         sourceTaskId={sourceTaskId}
@@ -79,7 +79,7 @@ export function UnitDetailView({
 
       <div
         aria-label="Unit record details"
-        className="min-h-0 flex-1 overflow-auto pr-1"
+        className="flex-1"
         role="region"
         tabIndex={0}
       >

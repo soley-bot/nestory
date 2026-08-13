@@ -169,7 +169,7 @@ export function TimelineScreen({
       mode: "create",
     });
   const timelineList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
+    <section className="flex min-w-0 flex-col bg-card">
       {events.length === 0 ? (
         <EmptyState
           action={
@@ -241,7 +241,7 @@ export function TimelineScreen({
         />
       }
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col">
         {statusMessage ? (
           <div className="shrink-0 px-4 pt-3 sm:px-6">
             <p

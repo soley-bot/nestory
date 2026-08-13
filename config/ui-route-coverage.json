@@ -12,12 +12,13 @@
       "operations_member"
     ],
     "states": [
-      "populated",
+      "redirected",
       "permission-blocked"
     ],
     "evidence": {
-      "populated": [
-        "src/app/workspace/page.tsx"
+      "redirected": [
+        "src/app/workspace/page.tsx",
+        "src/lib/auth/workspace-entry.ts"
       ],
       "permission-blocked": [
         "src/app/workspace/page.tsx",
@@ -27,13 +28,14 @@
     "smoke": {
       "path": "/workspace",
       "expectedAccess": {
-        "super_admin": "accessible",
-        "finance_manager": "accessible",
-        "finance_member": "accessible",
-        "operations_manager": "accessible",
-        "operations_member": "accessible",
+        "super_admin": "redirected",
+        "finance_manager": "redirected",
+        "finance_member": "redirected",
+        "operations_manager": "redirected",
+        "operations_member": "redirected",
         "anonymous": "login-required"
       },
+      "expectedFinalPath": "/overview",
       "queryContract": "not-applicable",
       "workflowEvidence": [
         "src/app/workspace/page.tsx",
@@ -2019,7 +2021,8 @@
     "phase": 4,
     "surface": "settings",
     "roles": [
-      "super_admin"
+      "super_admin",
+      "finance_manager"
     ],
     "states": [
       "populated",
@@ -2072,7 +2075,7 @@
       "path": "/settings/rent-policy",
       "expectedAccess": {
         "super_admin": "accessible",
-        "finance_manager": "permission-blocked",
+        "finance_manager": "accessible",
         "finance_member": "permission-blocked",
         "operations_manager": "permission-blocked",
         "operations_member": "permission-blocked",

@@ -48,6 +48,39 @@ SELECT is(
   'authenticated sessions can never delete official Owner Statement paths'
 );
 
+SELECT ok(
+  pg_catalog.has_function_privilege(
+    'authenticated',
+    'app_private.can_create_owner_statement_artifact(uuid)',
+    'EXECUTE'
+  )
+  AND NOT pg_catalog.has_function_privilege(
+    'anon',
+    'app_private.can_create_owner_statement_artifact(uuid)',
+    'EXECUTE'
+  )
+  AND NOT pg_catalog.has_function_privilege(
+    'service_role',
+    'app_private.can_create_owner_statement_artifact(uuid)',
+    'EXECUTE'
+  ),
+  'only authenticated sessions may evaluate the scoped Owner Statement upload predicate'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.count(*)::integer
+    FROM pg_catalog.pg_policies AS policy
+    WHERE policy.schemaname = 'storage'
+      AND policy.tablename = 'objects'
+      AND policy.cmd = 'INSERT'
+      AND policy.policyname = 'Finance Manager or Super Admin can create owner statement artifacts'
+      AND policy.with_check LIKE '%can_create_owner_statement_artifact%'
+  ),
+  1,
+  'Owner Statement Storage uploads use the delegated scoped Finance predicate'
+);
+
 SELECT has_function(
   'public',
   'publish_owner_statement',
@@ -274,16 +307,14 @@ SELECT lives_ok(
   ),
   'Finance Manager can read the frozen official publication'
 );
-SELECT throws_ok(
-  pg_catalog.format(
-    'SELECT public.publish_owner_statement(%L, %L, %L)',
-    '00000000-0000-0000-0000-000000000001',
-    (SELECT revision_one_id FROM owner_statement_test_runtime),
-    'track-4b-finance-publish-denied'
+RESET ROLE;
+SELECT ok(
+  app_private.can_publish_owner_statement(
+    '00000000-0000-0000-0000-000000000001'
   ),
-  '42501', 'owner_statement_publish_forbidden',
-  'Finance Manager cannot publish'
+  'Finance Manager can publish a closed owner statement'
 );
+SET LOCAL ROLE authenticated;
 
 SELECT pg_catalog.set_config(
   'request.jwt.claim.sub', '00000000-0000-0000-0000-000000000601', true

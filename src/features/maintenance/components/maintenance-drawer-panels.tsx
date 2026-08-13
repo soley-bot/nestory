@@ -89,7 +89,7 @@ export function RestoreMaintenancePanel({
         </div>
         <MaintenancePanelSummary maintenanceCase={maintenanceCase} />
         <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
-          Restoring makes this case visible in active maintenance workflows again.
+          Restoring returns this case to active maintenance lists.
         </p>
         <PanelMessage state={state} />
       </div>

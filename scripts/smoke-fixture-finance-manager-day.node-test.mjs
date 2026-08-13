@@ -4,13 +4,24 @@ import test from "node:test";
 import {
   financeManagerDaySmokeContract,
   formatFinanceManagerDayFailure,
+  getLocalGatewayContainer,
   resolveFinanceManagerDayConfig,
 } from "./smoke-fixture-finance-manager-day.mjs";
+
+test("derives the local API gateway that refreshes after a database reset", () => {
+  assert.equal(
+    getLocalGatewayContainer("supabase_db_nestory"),
+    "supabase_kong_nestory",
+  );
+  assert.throws(() => getLocalGatewayContainer("postgres"), /unexpected/i);
+});
 
 test("defines the local Finance Manager day journey and every required allowed state", () => {
   assert.equal(financeManagerDaySmokeContract.email, "finance.manager@nestory.com");
   assert.deepEqual(financeManagerDaySmokeContract.allowed, [
     "unique-finance-manager-membership",
+    "lease-configuration",
+    "historical-rent-recovery",
     "record-payment",
     "confirm-owner-direct-collection",
     "record-owner-invoice-payment",
@@ -30,8 +41,6 @@ test("defines the local Finance Manager day journey and every required allowed s
 
 test("declares every forbidden structural, maker-checker, and correction control", () => {
   assert.deepEqual(financeManagerDaySmokeContract.forbidden, [
-    "lease-configuration",
-    "historical-rent-recovery",
     "submit-paid-cost",
     "finance-correction-or-reversal",
     "finance-correction-or-reversal-expense",
@@ -40,7 +49,6 @@ test("declares every forbidden structural, maker-checker, and correction control
     "petty-cash-update",
     "petty-cash-void",
     "unlock-financial-month",
-    "publish-owner-statement",
     "reconciliation-source-configuration",
   ]);
 });

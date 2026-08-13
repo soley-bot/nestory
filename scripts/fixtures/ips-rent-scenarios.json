@@ -2,7 +2,7 @@
   "version": 1,
   "evidenceBoundary": "Deterministic local IPS workflow oracle; no hosted or real IPS data claim.",
   "roles": {
-    "financeManagerStructuralConfiguration": false,
+    "financeManagerStructuralConfiguration": true,
     "operationsAccess": false
   },
   "historicalRecovery": {

@@ -13,7 +13,7 @@ import { CutoverPanel } from "./cutover-panel";
 afterEach(cleanup);
 
 describe("CutoverPanel", () => {
-  it("shows immutable authority, blocker, selected month, and exact reconciliation totals", () => {
+  it("shows the import plan, blockers, selected months, exact totals, and optional audit data", () => {
     render(
       <CutoverPanel
         canManage
@@ -60,13 +60,14 @@ describe("CutoverPanel", () => {
     expect(screen.getByText("4000000.00 KHR")).toBeTruthy();
     expect(
       screen.getByText(
-        "cutover-exception-v1: Redacted source exception independently approved (REDACTED-DATA-OWNER, 2026-08-10T01:02:03Z)",
+        "Redacted source exception independently approved (REDACTED-DATA-OWNER, 2026-08-10T01:02:03Z)",
       ),
     ).toBeTruthy();
+    expect(screen.getByText("cutover-exception-v1")).toBeTruthy();
     expect(screen.getByText("properties: 1 expected / 1 actual")).toBeTruthy();
     expect(
       (screen.getByRole("button", {
-        name: "Commit reconciled cutover",
+        name: "Confirm imported totals",
       }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
@@ -74,7 +75,7 @@ describe("CutoverPanel", () => {
   it("keeps Finance readers read-only", () => {
     render(<CutoverPanel canManage={false} detail={null} />);
 
-    expect(screen.getByText("Cutover authority is read-only for this role.")).toBeTruthy();
+    expect(screen.getByText("Import cutover is read-only for this role.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /cutover/i })).toBeNull();
   });
 
@@ -100,15 +101,21 @@ describe("CutoverPanel", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Authority start date")).toBeTruthy();
-    expect(screen.getByLabelText("Redacted data owner")).toBeTruthy();
-    expect((screen.getByLabelText("Stage request key") as HTMLInputElement).value).toBe("");
-    expect(screen.getByLabelText("Manifest JSON")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Stage cutover manifest" })).toBeTruthy();
-    expect(screen.getByLabelText("Reconciliation sign-off reason")).toBeTruthy();
-    expect((screen.getByLabelText("Commit request key") as HTMLInputElement).value).toBe(
+    expect(screen.getByLabelText("Start date")).toBeTruthy();
+    expect(screen.getByLabelText("Data owner")).toBeTruthy();
+    expect(
+      (document.querySelector('input[name="idempotencyKey"]') as HTMLInputElement).value,
+    ).toMatch(/^ips-cutover-stage-/);
+    expect(screen.getByLabelText("Manifest data (JSON)")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Stage import plan" })).toBeTruthy();
+    expect(screen.getByLabelText("Approval reason")).toBeTruthy();
+    expect(
+      (
+        document.querySelectorAll('input[name="idempotencyKey"]')[1] as HTMLInputElement
+      ).value,
+    ).toBe(
       "ips-cutover-commit-10000000-0000-4000-8000-000000000001",
     );
-    expect(screen.getByRole("button", { name: "Commit reconciled cutover" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Confirm imported totals" })).toBeTruthy();
   });
 });

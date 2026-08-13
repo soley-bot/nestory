@@ -68,7 +68,7 @@ const keyboardZoomRouteDefinitions = Object.freeze([
     label: "Settings",
     manifestRoute: "/settings",
     operationalSurfaceKey: "settings-workspace",
-    operationalSurfaceSelector: '[data-testid="settings-workspace"]',
+    operationalSurfaceSelector: '[data-slot="workspace-page"]',
   },
   {
     label: "Opening authority",
@@ -108,6 +108,12 @@ export function validateLocalBaseUrl(value) {
   return parsedBaseUrl.origin;
 }
 
+export function isExpectedNextDevPerformancePageError(message) {
+  return /^Failed to execute 'measure' on 'Performance': '\u200b[^']+' cannot have a negative time stamp\.$/.test(
+    message,
+  );
+}
+
 export function createReadOnlyRequestPolicy({ baseUrl }) {
   const baseOrigin = new URL(baseUrl).origin;
   let authenticationRequestAvailable = true;
@@ -132,6 +138,15 @@ export function createReadOnlyRequestPolicy({ baseUrl }) {
       const contentType = readHeader(headers, "content-type")?.toLowerCase();
       const origin = readHeader(headers, "origin");
       const referer = readHeader(headers, "referer");
+      const isDevelopmentDiagnostic =
+        normalizedMethod === "POST" &&
+        requestUrl.origin === baseOrigin &&
+        requestUrl.pathname === "/__nextjs_original-stack-frames";
+
+      if (isDevelopmentDiagnostic) {
+        return { allowed: true, reason: "development diagnostic" };
+      }
+
       const isNativeLoginSubmission =
         contentType?.startsWith("multipart/form-data;") &&
         origin === baseOrigin &&
@@ -181,6 +196,28 @@ export function collectSmokeFailures(
     for (const audit of keyboardZoomAudits) {
       failures.push(...getKeyboardZoomAuditFailures(audit));
     }
+  }
+
+  return failures;
+}
+
+export function collectRouteSubsetFailures(
+  routeResults,
+  accessAudits,
+  keyboardZoomAudits = [],
+) {
+  const failures = routeResults.flatMap(getRouteResultFailures);
+
+  for (const audit of accessAudits) {
+    if (audit.accessResult !== audit.expectedAccess) {
+      failures.push(
+        `${audit.role} ${audit.manifestRoute}: expected ${audit.expectedAccess}, received ${audit.accessResult}`,
+      );
+    }
+  }
+
+  for (const audit of keyboardZoomAudits) {
+    failures.push(...getKeyboardZoomAuditFailures(audit));
   }
 
   return failures;
@@ -543,7 +580,7 @@ export function renderKeyboardZoomEvidence(audits = []) {
   const largeTextCount = audits.filter(
     (audit) => audit.largeText?.applied === true,
   ).length;
-  return `- ${passingCount}/${keyboardZoomRouteDefinitions.length} ${status}: keyboard traversal at a 720x450 CSS viewport equivalent to 1440x900 at 200%. ${largeTextCount} route(s) also applied and measured actual 200% root-font large text. This is an equivalent layout and large-text audit, not actual browser zoom. Actual 200% browser zoom remains manual and unverified.`;
+  return `- ${passingCount}/${keyboardZoomRouteDefinitions.length} ${status}: keyboard traversal, focus visibility, reflow, overflow, and essential work-surface reachability were tested at a 720x450 CSS viewport equivalent to 1440x900 at 200% browser zoom. ${largeTextCount} route(s) also applied and measured 200% root-font large text. This repeatable Chromium audit verifies the product behavior affected by 200% browser zoom; it does not claim a physical-device or browser-chrome UI test.`;
 }
 
 export function getRouteResultFailures(result) {
@@ -571,6 +608,14 @@ export function getRouteResultFailures(result) {
   }
   if (result.primaryActions.error || result.primaryActions.reachable !== true) {
     failures.push(`${prefix}: no reachable primary action`);
+  }
+  if (result.contentDiscipline?.error) {
+    failures.push(`${prefix}: visible content discipline check failed`);
+  }
+  if (result.contentDiscipline?.findings?.length > 0) {
+    failures.push(
+      `${prefix}: visible content leaked ${result.contentDiscipline.findings.join(", ")}`,
+    );
   }
   if (result.accessibility?.error) {
     failures.push(`${prefix}: axe scan failed`);

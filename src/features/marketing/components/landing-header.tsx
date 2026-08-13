@@ -1,196 +1,151 @@
 "use client";
 
-import { Menu, Moon, Sun, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { NestoryLogo } from "@/components/brand/nestory-logo";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const navItems = [
   { href: "/#workspace", label: "Workspace" },
-  { href: "/#control", label: "Control" },
   { href: "/#operations", label: "Operations" },
   { href: "/request?intent=demo", label: "Request a demo" },
-];
+] as const;
 
 export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
   const [isOpen, setIsOpen] = useState(false);
   const isHeroTone = tone === "hero";
-
-  useEffect(() => {
-    document.body.style.overflow = isOpen ? "hidden" : "";
-
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
-
-  function toggleTheme() {
-    const currentTheme =
-      document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-    const nextTheme = currentTheme === "dark" ? "light" : "dark";
-
-    document.documentElement.dataset.theme = nextTheme;
-    window.localStorage.setItem("nestory-theme", nextTheme);
-  }
+  const logoClass = isHeroTone
+    ? "leading-none text-white"
+    : "leading-none text-[var(--landing-heading)]";
+  const quietControlClass = isHeroTone
+    ? "text-white hover:bg-white/10 hover:text-white focus-visible:ring-white"
+    : "text-[var(--landing-heading)] hover:bg-black/5 hover:text-[var(--landing-heading)] focus-visible:ring-[var(--landing-accent)]";
 
   return (
-    <>
-      {!isOpen ? (
-        <header className="absolute inset-x-0 top-0 z-40">
-          <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
+    <Dialog onOpenChange={setIsOpen} open={isOpen}>
+      <header className="absolute inset-x-0 top-0 z-40">
+        <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
+          <Link aria-label="Nestory home" className={logoClass} href="/">
+            <LandingLogo hero={isHeroTone} />
+          </Link>
+
+          <div
+            className={
+              isHeroTone
+                ? "flex items-center gap-3 text-xs font-medium uppercase tracking-widest text-white/90 sm:gap-4"
+                : "flex items-center gap-3 text-xs font-medium uppercase tracking-widest text-[var(--landing-muted)] sm:gap-4"
+            }
+          >
             <Link
-              aria-label="Nestory home"
-              className={isHeroTone ? "leading-none text-white" : "leading-none text-[var(--landing-heading)]"}
-              href="/"
+              className="hidden min-h-9 items-center whitespace-nowrap rounded-sm px-1 outline-none transition-colors hover:text-current focus-visible:ring-2 sm:inline-flex"
+              href="/request?intent=demo"
             >
-              <NestoryLogo
-                markClassName="h-9 w-9"
-                markTone={isHeroTone ? "light" : "auto"}
-                priority
-                subtitleClassName={isHeroTone ? "text-white/75" : "text-[var(--landing-subtle)]"}
-                textClassName={isHeroTone ? "text-2xl text-white" : "text-2xl text-[var(--landing-heading)]"}
-              />
+              Request demo
             </Link>
-
-            <div
-              className={
-                isHeroTone
-                  ? "flex items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em] text-white/90 sm:gap-5"
-                  : "flex items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--landing-muted)] sm:gap-5"
-              }
-            >
-              <Link
-                className={
-                  isHeroTone
-                    ? "hidden whitespace-nowrap rounded-sm outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:inline"
-                    : "hidden whitespace-nowrap rounded-sm outline-none transition-colors hover:text-[var(--landing-heading)] focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] sm:inline"
-                }
-                href="/request?intent=demo"
-              >
-                Request demo
-              </Link>
-              <Link
-                className={
-                  isHeroTone
-                    ? "whitespace-nowrap rounded-sm outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white"
-                    : "whitespace-nowrap rounded-sm outline-none transition-colors hover:text-[var(--landing-heading)] focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)]"
-                }
-                href="/login"
-              >
-                Sign in
-              </Link>
-              <LandingThemeToggle onToggle={toggleTheme} variant={isHeroTone ? "hero" : "page"} />
-              <button
-                aria-label="Open menu"
-                className={
-                  isHeroTone
-                    ? "inline-flex h-8 w-8 items-center justify-center text-white outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white"
-                    : "inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)]"
-                }
-                onClick={() => setIsOpen(true)}
-                type="button"
-              >
-                <Menu size={26} strokeWidth={1.45} />
-              </button>
-            </div>
-          </div>
-        </header>
-      ) : null}
-
-      {isOpen ? (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 bg-[#090a0c] text-white"
-          role="dialog"
-        >
-          <div className="mx-auto flex h-24 max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
             <Link
-              aria-label="Nestory home"
-              className="leading-none text-white"
-              href="/"
+              className="inline-flex min-h-9 items-center whitespace-nowrap rounded-sm px-1 outline-none transition-colors hover:text-current focus-visible:ring-2"
+              href="/login"
+            >
+              Sign in
+            </Link>
+            <ThemeToggle className={quietControlClass} />
+            <DialogTrigger asChild>
+              <Button
+                aria-label="Open menu"
+                className={quietControlClass}
+                size="icon"
+                variant="ghost"
+              >
+                <Menu aria-hidden="true" size={24} strokeWidth={1.45} />
+              </Button>
+            </DialogTrigger>
+          </div>
+        </div>
+      </header>
+
+      <DialogContent
+        className="inset-0 left-0 top-0 h-svh w-screen max-w-none translate-x-0 translate-y-0 gap-0 rounded-none bg-[#090a0c] p-0 text-white ring-0"
+        showCloseButton={false}
+      >
+        <DialogTitle className="sr-only">Nestory navigation</DialogTitle>
+        <div className="mx-auto flex h-24 w-full max-w-[1360px] items-start justify-between px-6 pt-7 sm:px-10 lg:px-14">
+          <Link
+            aria-label="Nestory home"
+            className="leading-none text-white"
+            href="/"
+            onClick={() => setIsOpen(false)}
+          >
+            <LandingLogo hero />
+          </Link>
+          <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-widest text-white/85 sm:gap-4">
+            <Link
+              className="inline-flex min-h-9 items-center rounded-sm px-1 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-white"
+              href="/login"
               onClick={() => setIsOpen(false)}
             >
-              <NestoryLogo
-                markClassName="h-9 w-9"
-                markTone="light"
-                priority
-                subtitleClassName="text-white/75"
-                textClassName="text-2xl text-white"
-              />
+              Sign in
             </Link>
-
-            <div className="flex items-center gap-5 text-[11px] font-medium uppercase tracking-[0.16em] text-white/85">
-              <Link
-                className="rounded-sm outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white"
-                href="/login"
-                onClick={() => setIsOpen(false)}
-              >
-                Sign in
-              </Link>
-              <LandingThemeToggle onToggle={toggleTheme} variant="overlay" />
-              <button
+            <ThemeToggle className="text-white hover:bg-white/10 hover:text-white focus-visible:ring-white" />
+            <DialogClose asChild>
+              <Button
                 aria-label="Close menu"
-                className="inline-flex h-8 w-8 items-center justify-center text-white outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white"
-                onClick={() => setIsOpen(false)}
-                type="button"
+                className="text-white hover:bg-white/10 hover:text-white focus-visible:ring-white"
+                size="icon"
+                variant="ghost"
               >
-                <X size={28} strokeWidth={1.35} />
-              </button>
-            </div>
+                <X aria-hidden="true" size={26} strokeWidth={1.35} />
+              </Button>
+            </DialogClose>
           </div>
+        </div>
 
-          <nav
-            aria-label="Landing page sections"
-            className="flex min-h-[calc(100svh-6rem)] items-center justify-center px-6 pb-16"
-          >
-            <div className="space-y-4 text-center">
-              {navItems.map((item) => (
-                <Link
-                  className="font-display block rounded-sm text-4xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-5xl lg:text-6xl"
-                  href={item.href}
-                  key={item.href}
-                  onClick={() => setIsOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ))}
+        <nav
+          aria-label="Landing page sections"
+          className="flex min-h-[calc(100svh-6rem)] items-center justify-center px-6 pb-16"
+        >
+          <div className="space-y-4 text-center">
+            {navItems.map((item) => (
               <Link
-                className="font-display block rounded-sm pt-6 text-3xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-4xl lg:text-5xl"
-                href="/login"
+                className="font-display block rounded-sm text-4xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-5xl lg:text-6xl"
+                href={item.href}
+                key={item.href}
                 onClick={() => setIsOpen(false)}
               >
-                Sign in
+                {item.label}
               </Link>
-            </div>
-          </nav>
-        </div>
-      ) : null}
-    </>
+            ))}
+            <Link
+              className="font-display block rounded-sm pt-6 text-3xl font-semibold leading-none text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:text-4xl lg:text-5xl"
+              href="/login"
+              onClick={() => setIsOpen(false)}
+            >
+              Sign in
+            </Link>
+          </div>
+        </nav>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function LandingThemeToggle({
-  onToggle,
-  variant = "page",
-}: {
-  onToggle: () => void;
-  variant?: "hero" | "overlay" | "page";
-}) {
+function LandingLogo({ hero }: { hero: boolean }) {
   return (
-    <button
-      aria-label="Toggle color theme"
-      className={
-        variant === "overlay" || variant === "hero"
-          ? "inline-flex h-8 w-8 items-center justify-center text-white outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white"
-          : "inline-flex h-8 w-8 items-center justify-center text-[var(--landing-heading)] outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)]"
-      }
-      onClick={onToggle}
-      title="Toggle color theme"
-      type="button"
-    >
-      <Moon className="theme-toggle-moon" size={20} strokeWidth={1.45} />
-      <Sun className="theme-toggle-sun" size={20} strokeWidth={1.45} />
-    </button>
+    <NestoryLogo
+      markClassName="h-9 w-9"
+      markTone={hero ? "light" : "auto"}
+      priority
+      subtitleClassName={hero ? "hidden text-white/75 sm:block" : "hidden text-[var(--landing-subtle)] sm:block"}
+      textClassName={hero ? "hidden text-2xl text-white sm:block" : "hidden text-2xl text-[var(--landing-heading)] sm:block"}
+    />
   );
 }

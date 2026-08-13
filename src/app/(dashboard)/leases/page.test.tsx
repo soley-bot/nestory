@@ -35,7 +35,7 @@ describe("leases route", () => {
   });
 
   it.each([
-    ["finance_manager", false],
+    ["finance_manager", true],
     ["finance_member", false],
     ["super_admin", true],
   ] as const)("gives %s capability-correct lease access", async (role, canConfigure) => {

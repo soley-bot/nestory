@@ -1,15 +1,27 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
-import { useState, useTransition } from "react";
+import { Monitor, Moon, Sun } from "lucide-react";
+import { useCallback, useSyncExternalStore } from "react";
 
-import { applyOrganizationTheme } from "@/components/theme-runtime";
-import { updateOrganizationAppearanceAction } from "@/features/organization/actions";
 import {
-  ORGANIZATION_THEME_UPDATED_EVENT,
+  DISPLAY_THEME_UPDATED_EVENT,
+  getDisplayThemeStorageKey,
+  readDisplayThemeMode,
+  setPersonalDisplayTheme,
+} from "@/components/theme-runtime";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  DEFAULT_ORGANIZATION_THEME,
   type OrganizationTheme,
 } from "@/lib/theme/organization-theme";
-import { cn } from "@/lib/utils";
 
 type ThemeToggleProps = {
   className?: string;
@@ -22,63 +34,61 @@ export function ThemeToggle({
   organizationId,
   theme,
 }: ThemeToggleProps) {
-  const [error, setError] = useState<string>();
-  const [pending, startTransition] = useTransition();
-
-  function toggleTheme() {
-    const currentTheme =
-      document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-    const nextTheme = currentTheme === "dark" ? "light" : "dark";
-
-    if (!theme || !organizationId) {
-      document.documentElement.dataset.theme = nextTheme;
-      document.documentElement.classList.toggle("dark", nextTheme === "dark");
-      return;
+  const scope = organizationId ?? "public";
+  const organizationTheme = theme ?? DEFAULT_ORGANIZATION_THEME;
+  const subscribe = useCallback((notify: () => void) => {
+    function handleDisplayTheme(event: Event) {
+      const detail = (event as CustomEvent<{ organizationId?: string }>).detail;
+      if (!detail?.organizationId || detail.organizationId === scope) notify();
     }
+    function handleStorage(event: StorageEvent) {
+      if (event.key === getDisplayThemeStorageKey(scope)) notify();
+    }
+    window.addEventListener(DISPLAY_THEME_UPDATED_EVENT, handleDisplayTheme);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(DISPLAY_THEME_UPDATED_EVENT, handleDisplayTheme);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [scope]);
+  const mode = useSyncExternalStore(
+    subscribe,
+    () => readDisplayThemeMode(scope) ?? organizationTheme.mode,
+    () => organizationTheme.mode,
+  );
 
-    const next: OrganizationTheme = { ...theme, mode: nextTheme };
-    applyOrganizationTheme(organizationId, next, nextTheme === "dark");
-    setError(undefined);
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.set("mode", next.mode);
-      formData.set("accentPreset", next.accentPreset);
-      formData.set("accentSeed", next.accentSeed ?? "");
-      const result = await updateOrganizationAppearanceAction({}, formData);
-      if (result.status === "error") {
-        applyOrganizationTheme(
-          organizationId,
-          theme,
-          window.matchMedia("(prefers-color-scheme: dark)").matches,
-        );
-        setError(result.message ?? "Theme not updated.");
-        return;
-      }
-      applyOrganizationTheme(organizationId, next, nextTheme === "dark");
-      window.dispatchEvent(
-        new CustomEvent(ORGANIZATION_THEME_UPDATED_EVENT, { detail: next }),
-      );
-    });
+  function chooseMode(next: string) {
+    if (next !== "system" && next !== "light" && next !== "dark") return;
+    setPersonalDisplayTheme(scope, organizationTheme, next);
   }
 
   return (
-    <>
-      <button
-        aria-busy={pending}
-        aria-label="Toggle color theme"
-        className={cn(
-          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-          className,
-        )}
-        disabled={pending}
-        onClick={toggleTheme}
-        title="Toggle color theme"
-        type="button"
-      >
-        <Moon className="theme-toggle-moon" size={17} strokeWidth={1.6} />
-        <Sun className="theme-toggle-sun" size={17} strokeWidth={1.6} />
-      </button>
-      {error ? <span className="sr-only" role="alert">{error}</span> : null}
-    </>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label="Display theme"
+          className={className}
+          size="icon"
+          title="Display theme"
+          variant="ghost"
+        >
+          {mode === "system" ? <Monitor /> : mode === "dark" ? <Moon /> : <Sun />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-40">
+        <DropdownMenuLabel>Display theme</DropdownMenuLabel>
+        <DropdownMenuRadioGroup onValueChange={chooseMode} value={mode}>
+          <DropdownMenuRadioItem value="system">
+            <Monitor /> System
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="light">
+            <Sun /> Light
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">
+            <Moon /> Dark
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

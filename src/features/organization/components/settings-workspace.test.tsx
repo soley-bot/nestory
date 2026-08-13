@@ -172,8 +172,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     // spans the page and shares the gutter every other route uses.
     expect(workspace.className).not.toContain("grid-cols");
     expect(workspace.className).not.toContain("max-w-6xl");
-    expect(workspace.className).toContain("px-4");
-    expect(workspace.className).toContain("sm:px-6");
+    expect(workspace.className).toContain("workspace-gutter-x");
     expect(workspace.className).toContain("min-w-0");
     expect(screen.getByTestId("settings-current-content").className).toContain(
       "min-w-0",

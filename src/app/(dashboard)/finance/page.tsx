@@ -13,12 +13,17 @@ import { buildFinanceWorkspaceData } from "@/features/workspace-operations/finan
 import type { FinanceWorkspaceData } from "@/features/workspace-operations/finance-workspace.types";
 import { requireFinanceContext } from "@/lib/auth/context";
 
-export default async function FinancePage() {
+export default async function FinancePage({
+  searchParams = Promise.resolve({}),
+}: {
+  searchParams?: Promise<{ view?: string }>;
+} = {}) {
   const context = await requireFinanceContext();
   const data = await getFinanceOperationsData(context.organizationId);
+  const query = await searchParams;
 
   if (
-    context.role === "finance_manager" ||
+    (context.role === "finance_manager" && query.view !== "transactions") ||
     context.role === "finance_member"
   ) {
     const workspaceData = buildFinanceWorkspaceData({
@@ -60,12 +65,23 @@ function FinanceRoleWorkspace({ data }: { data: FinanceWorkspaceData }) {
   return (
     <WorkspacePage
       actions={
-        primaryAction ? (
-          <Button asChild variant="default">
-            <Link href={primaryAction.href} prefetch={false}>
-              {primaryAction.label}
-            </Link>
-          </Button>
+        primaryAction || data.role === "finance_manager" ? (
+          <div className="flex flex-wrap gap-2">
+            {data.role === "finance_manager" ? (
+              <Button asChild variant="outline">
+                <Link href="/finance?view=transactions" prefetch={false}>
+                  Transaction work
+                </Link>
+              </Button>
+            ) : null}
+            {primaryAction ? (
+              <Button asChild variant="default">
+                <Link href={primaryAction.href} prefetch={false}>
+                  {primaryAction.label}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         ) : undefined
       }
       context={
@@ -83,7 +99,7 @@ function FinanceRoleWorkspace({ data }: { data: FinanceWorkspaceData }) {
       }
       title="Finance"
     >
-      <div className="h-full min-h-0 overflow-y-auto px-4 py-4 sm:px-6">
+      <div className="workspace-gutter-x py-4">
         {data.role === "finance_manager" ? (
           <FinanceManagerWorkspace data={data} />
         ) : (

@@ -54,7 +54,9 @@ describe("DocumentScreen workspace contract", () => {
     expect(surface?.classList.contains("rounded-md")).toBe(false);
     expect(surface?.classList.contains("border")).toBe(false);
     expect(surface?.classList.contains("overflow-hidden")).toBe(true);
-    expect(scrollOwner?.classList.contains("overflow-auto")).toBe(true);
+    expect(scrollOwner?.classList.contains("overflow-x-auto")).toBe(true);
+    expect(scrollOwner?.classList.contains("overflow-auto")).toBe(false);
+    expect(scrollOwner?.getAttribute("aria-label")).toBe("Documents table");
     const pagination = screen
       .getByText(
         (_content, element) =>

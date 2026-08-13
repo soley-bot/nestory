@@ -25,7 +25,7 @@ export function LedgerTable({
 }: LedgerTableProps) {
   return (
     <div className="overflow-hidden bg-card">
-      <div className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]">
+      <div aria-label="Ledger table" className="overflow-x-auto" role="region">
         <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col className="w-[10%]" />

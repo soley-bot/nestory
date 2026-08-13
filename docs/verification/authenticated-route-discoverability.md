@@ -1,6 +1,6 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:496ebe83489dece339f4db33adef07b374864fe9f51fb89717c24d3c554dbcfb -->
+<!-- contract-sha256:5906e5b9fc5230306cbb5ac5ac583a164837e9e6eb7f9554557c3bfb51b7f45b -->
 
 This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 38 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 
@@ -65,7 +65,7 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 <!-- authenticated-route:/settings -->
 | `/settings` | `requireSuperAdminContext` / `canManageAccess` | global via shell-settings; passed sa:settings | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/settings/rent-policy -->
-| `/settings/rent-policy` | `requireSuperAdminContext` / `canManageAccess` | context via settings-rent-policy; passed sa:rent-policy | Intentionally inaccessible — Requires canManageAccess and canConfigureLeases. | Intentionally inaccessible — Requires canManageAccess and canConfigureLeases. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
+| `/settings/rent-policy` | `requireLeaseConfigurationContext` / `canConfigureLeases` | context via settings-rent-policy; passed sa:rent-policy | global via shell-rent-policy; passed fm:rent-policy | Intentionally inaccessible — Requires canConfigureLeases. | Intentionally inaccessible — Requires canConfigureLeases. | Intentionally inaccessible — Requires canConfigureLeases. | none |
 <!-- authenticated-route:/staff -->
 | `/staff` | `requireSuperAdminContext` / `canManageAccess` | context via people-staff; passed sa:staff | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/tasks -->
@@ -87,28 +87,28 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 
 ## Browser evidence
 
-- Tested implementation SHA: `006e1641d9d4b447e0baf32844122422c474d133`
-- Local base URL: `http://127.0.0.1:3337`
-- Result: 66/66 visible-link journeys passed
-- Role sessions: 5/5 started at `/workspace` and clicked `Open workspace` once.
-- Denied global anchors: 71 role/entry absence checks passed.
+- Tested implementation SHA: `b4754f486e82ebd1ec00311936f42125e0895017`
+- Local base URL: `http://127.0.0.1:3210`
+- Result: 67/67 visible-link journeys passed
+- Role sessions: 5/5 started at `/workspace` and resolved to the role home once.
+- Denied global anchors: 74 role/entry absence checks passed.
 - Direct denials: 4 separate probes passed; these are authorization evidence, not discoverability journeys.
 
 ### Role session starts
 
-- `super_admin`: passed — /workspace → Open workspace → /overview
-- `finance_manager`: passed — /workspace → Open workspace → /finance
-- `finance_member`: passed — /workspace → Open workspace → /finance
-- `operations_manager`: passed — /workspace → Open workspace → /maintenance
-- `operations_member`: passed — /workspace → Open workspace → /tasks
+- `super_admin`: passed — /workspace → Automatic role redirect → /overview
+- `finance_manager`: passed — /workspace → Automatic role redirect → /finance
+- `finance_member`: passed — /workspace → Automatic role redirect → /finance
+- `operations_manager`: passed — /workspace → Automatic role redirect → /maintenance
+- `operations_member`: passed — /workspace → Automatic role redirect → /tasks
 
 ### Denied global entry absence
 
 - `super_admin`: passed — 0 forbidden global hrefs checked
 - `finance_manager`: passed — 15 forbidden global hrefs checked
-- `finance_member`: passed — 16 forbidden global hrefs checked
-- `operations_manager`: passed — 18 forbidden global hrefs checked
-- `operations_member`: passed — 22 forbidden global hrefs checked
+- `finance_member`: passed — 17 forbidden global hrefs checked
+- `operations_manager`: passed — 19 forbidden global hrefs checked
+- `operations_member`: passed — 23 forbidden global hrefs checked
 
 ### Visible-link journeys from the current shell/context
 
@@ -130,8 +130,8 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 - `sa:person-detail`: passed — People → Bright Mekong Trading
 - `sa:people`: passed — People
 - `sa:petty-cash`: passed — Petty cash
-- `sa:property-account`: passed — Owner balances → CTR-RES — Central Residence
-- `sa:property-detail`: passed — Properties → Preview Central Residence → Open property
+- `sa:property-account`: passed — Ledger → Close Readiness House
+- `sa:property-detail`: passed — Properties → Preview Close Readiness House → Open property
 - `sa:properties`: passed — Properties
 - `sa:property-setup`: passed — Properties → Set up property
 - `sa:property-timeline`: passed — Property timeline
@@ -146,7 +146,7 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 - `sa:tenants`: passed — People → Tenants
 - `sa:timeline`: passed — Timeline history
 - `sa:unit-detail`: passed — Properties → Preview Central Residence → Units → Preview unit A-01 → Open unit
-- `sa:units`: passed — Properties → Preview Central Residence → Units
+- `sa:units`: passed — Properties → Preview Close Readiness House → Units
 - `sa:users-roles`: passed — Settings → Workspace Access
 - `sa:vendors`: passed — People → Vendors
 - `sa:work-orders`: passed — Work orders
@@ -157,10 +157,11 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 - `fm:leases`: passed — Leases
 - `fm:ledger`: passed — Ledger
 - `fm:petty-cash`: passed — Petty cash
-- `fm:property-account`: passed — Owner balances → CTR-RES — Central Residence
+- `fm:property-account`: passed — Ledger → Close Readiness House
 - `fm:rent`: passed — Rent
 - `fm:report-detail`: passed — Reports → Open report
 - `fm:reports`: passed — Reports
+- `fm:rent-policy`: passed — Rent policy
 - `fmem:account`: passed — Profile menu → Profile
 - `fmem:balances`: passed — Owner balances
 - `fmem:expenses`: passed — Expenses
@@ -168,7 +169,7 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 - `fmem:leases`: passed — Leases
 - `fmem:ledger`: passed — Ledger
 - `fmem:petty-cash`: passed — Petty cash
-- `fmem:property-account`: passed — Owner balances → CTR-RES — Central Residence
+- `fmem:property-account`: passed — Ledger → Close Readiness House
 - `fmem:rent`: passed — Rent
 - `om:account`: passed — Profile menu → Profile
 - `om:inspections`: passed — Inspections

@@ -46,7 +46,7 @@ export function WorkspacePage({
 
   return (
     <div
-      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background"
+      className="flex min-h-full min-w-0 flex-col overflow-x-hidden bg-background"
       data-slot="workspace-page"
     >
       {header ?? generatedHeader}
@@ -66,7 +66,7 @@ export function WorkspacePage({
           {toolbar ? (
             <div
               aria-label="Workspace tools"
-              className="min-w-0 px-4 py-2 text-sm sm:px-6 lg:ml-auto lg:pl-0"
+              className="workspace-gutter-x min-w-0 py-2 text-sm lg:ml-auto lg:pl-0"
               data-slot="workspace-toolbar"
               role="toolbar"
             >
@@ -75,7 +75,7 @@ export function WorkspacePage({
           ) : null}
         </div>
       ) : null}
-      <div className="min-h-0 min-w-0 flex-1" data-slot="workspace-body">
+      <div className="min-w-0 flex-1" data-slot="workspace-body">
         {children}
       </div>
     </div>

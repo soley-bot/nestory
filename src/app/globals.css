@@ -4,6 +4,22 @@
 
 @custom-variant dark (&:is(.dark *));
 
+.workspace-gutter-x {
+  padding-inline: 1rem;
+}
+
+@media (min-width: 40rem) {
+  .workspace-gutter-x {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 90rem) {
+  .workspace-gutter-x {
+    padding-inline: 2rem;
+  }
+}
+
 :root {
   color-scheme: light;
   --state-attention: #b7791f;

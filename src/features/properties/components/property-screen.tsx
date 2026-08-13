@@ -180,7 +180,7 @@ export function PropertyScreen({
   );
   const propertyList = (
     <section
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+      className="flex min-w-0 flex-col bg-background"
       data-slot="property-list-surface"
     >
       <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
@@ -238,7 +238,7 @@ export function PropertyScreen({
       contextHref="/properties"
       title="Properties"
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col">
 
       {statusMessage ? (
         <div className="shrink-0 px-4 py-2 sm:px-6">

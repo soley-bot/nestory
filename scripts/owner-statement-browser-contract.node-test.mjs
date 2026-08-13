@@ -4,9 +4,9 @@ import test from "node:test";
 
 const acceptance = new URL("./smoke-owner-statement-browser-acceptance.mjs", import.meta.url);
 
-test("Owner Statement acceptance retains one real-role and retained-byte lifecycle", async () => {
+test("Owner Statement acceptance retains one delegated-role and retained-byte lifecycle", async () => {
   const source = await readFile(acceptance, "utf8");
-  for (const actor of ["super_admin", "finance_manager", "operations_manager"]) {
+  for (const actor of ["finance_manager", "finance_member", "operations_manager"]) {
     assert.match(source, new RegExp(`${actor}:`));
   }
   for (const evidence of [
@@ -20,14 +20,14 @@ test("Owner Statement acceptance retains one real-role and retained-byte lifecyc
     "size_bytes",
   ]) assert.match(source, new RegExp(evidence));
   for (const visibleStep of [
-    "Ready to close revision 4",
-    "Close revision 4",
-    "Publish Owner Statement",
+    "Ready to close owner month · revision 4",
+    "Close owner month",
+    "Publish owner statement",
     "Download PDF",
     "Download Excel",
     "Superseded",
   ]) assert.match(source, new RegExp(visibleStep.replaceAll(" ", "\\s")));
-  assert.match(source, /Open workspace/);
+  assert.match(source, /waitForURL\(\(url\) => url\.pathname !== "\/workspace"/);
   assert.match(source, /a\[href="\/balances"\]/);
   assert.match(source, /loadBaseline\(\);[\s\S]*finally[\s\S]*loadBaseline\(\);/);
 });

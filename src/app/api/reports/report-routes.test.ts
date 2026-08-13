@@ -10,12 +10,14 @@ import { downloadOwnerStatementArtifact } from "@/features/reports/data/owner-st
 import {
   getCurrentUser,
   getFinanceReportMembershipForUser,
+  getOwnerStatementMembershipForUser,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 vi.mock("@/lib/auth/context", () => ({
   getCurrentUser: vi.fn(),
   getFinanceReportMembershipForUser: vi.fn(),
+  getOwnerStatementMembershipForUser: vi.fn(),
 }));
 
 vi.mock("@/features/reports/data/excel", () => ({
@@ -46,6 +48,10 @@ describe("report export routes", () => {
     vi.clearAllMocks();
     vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1" } as never);
     vi.mocked(getFinanceReportMembershipForUser).mockResolvedValue({
+      organizationId: "organization-1",
+      organizationName: "Demo Org",
+    } as never);
+    vi.mocked(getOwnerStatementMembershipForUser).mockResolvedValue({
       organizationId: "organization-1",
       organizationName: "Demo Org",
     } as never);
@@ -109,7 +115,20 @@ describe("report export routes", () => {
       "organization-1",
       "00000000-0000-4000-8000-000000000009",
     );
+    expect(getOwnerStatementMembershipForUser).toHaveBeenCalledWith("user-1");
+    expect(getFinanceReportMembershipForUser).not.toHaveBeenCalled();
     expect(format === "pdf" ? getReportPdf : getReportExcel).not.toHaveBeenCalled();
+  });
+
+  it.each(handlers)("returns 403 without owner-statement authority for %s artifacts", async (_, handler, __, route) => {
+    vi.mocked(getOwnerStatementMembershipForUser).mockResolvedValueOnce(null);
+
+    const response = await handler(new Request(
+      `http://localhost/api/reports/${route}?artifactId=00000000-0000-4000-8000-000000000009`,
+    ));
+
+    expect(response.status).toBe(403);
+    expect(downloadOwnerStatementArtifact).not.toHaveBeenCalled();
   });
 
   it.each(handlers)("authorizes Finance Manager %s exports through the report-capability helper", async (_, handler, loader, route) => {

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 const requestNotes = [
   "A guided look at the operating record, not a generic product tour",
-  "Portfolio scope and workflow fit reviewed before workspace provisioning",
+  "We confirm your portfolio and priorities before creating a workspace",
   "Client workspaces stay managed and invite-only",
 ];
 

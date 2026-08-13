@@ -45,7 +45,7 @@ export function createPassedJourneyEvidence(id, chain) {
 
 export function createSessionStartEvidence(role, destination) {
   return {
-    chain: ["/workspace", "Open workspace"],
+    chain: ["/workspace", "Automatic role redirect"],
     destination,
     role,
     status: "passed",
@@ -120,7 +120,7 @@ export function validateDiscoverabilityEvidence(contract, evidence) {
       issues.push(`${journeyId}: visible shell/context chain is missing`);
     } else if (
       journey.chain.includes("/workspace") ||
-      journey.chain.includes("Open workspace")
+      journey.chain.includes("Automatic role redirect")
     ) {
       issues.push(`${journeyId}: journey must not repeat the workspace session start`);
     }
@@ -141,7 +141,7 @@ export function validateDiscoverabilityEvidence(contract, evidence) {
       starts.length !== 1 ||
       starts[0].status !== "passed" ||
       JSON.stringify(starts[0].chain) !==
-        JSON.stringify(["/workspace", "Open workspace"]) ||
+        JSON.stringify(["/workspace", "Automatic role redirect"]) ||
       !starts[0].destination ||
       ["/login", "/no-access", "/workspace"].includes(starts[0].destination)
     ) {

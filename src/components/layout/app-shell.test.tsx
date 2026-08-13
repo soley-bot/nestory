@@ -20,6 +20,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("AppShell Shadcn dashboard block", () => {
+  it("keeps one vertical application scroll owner", () => {
+    render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
+
+    const content = document.querySelector('[data-slot="app-shell-content"]');
+    expect(content?.className).toContain("overflow-y-auto");
+    expect(document.querySelectorAll('[data-scroll-owner="application"]')).toHaveLength(1);
+    expect(content?.getAttribute("data-scroll-owner")).toBe("application");
+  });
+
   it.each([
     ["super_admin", "/overview"],
     ["finance_manager", "/finance"],
@@ -79,14 +88,20 @@ describe("AppShell Shadcn dashboard block", () => {
     }
   });
 
-  it.each(["finance_manager", "finance_member"] as const)(
-    "limits %s deep navigation to Finance",
-    (role) => {
+  it.each([
+    ["finance_manager", "Review queue"],
+    ["finance_member", "My finance work"],
+  ] as const)(
+    "composes %s navigation around its own finance responsibility",
+    (role, homeLabel) => {
       navigation.pathname = "/finance";
       render(<AppShell role={role}><div>Workspace content</div></AppShell>);
 
-      expect(screen.getByRole("link", { name: "Finance work" })).toBeTruthy();
+      expect(screen.getByRole("link", { name: homeLabel })).toBeTruthy();
       expect(screen.getByRole("link", { name: "Ledger" })).toBeTruthy();
+      expect(Boolean(screen.queryByRole("link", { name: "Rent policy" }))).toBe(
+        role === "finance_manager",
+      );
       expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();
     },
@@ -141,7 +156,7 @@ describe("AppShell Shadcn dashboard block", () => {
 
     expect(
       screen
-        .getByRole("button", { name: "Collapse Maintenance navigation" })
+        .getByRole("button", { name: "Collapse Operations navigation" })
         .getAttribute("aria-expanded"),
     ).toBe("true");
     expect(
@@ -149,21 +164,20 @@ describe("AppShell Shadcn dashboard block", () => {
     ).toBe("page");
   });
 
-  it("shows organization theme control only to the Super Admin", () => {
+  it.each([
+    "super_admin",
+    "finance_manager",
+    "finance_member",
+    "operations_manager",
+    "operations_member",
+  ] as const)("offers personal display theme control to %s", (role) => {
     const theme = { accentPreset: "neutral" as const, accentSeed: null, mode: "system" as const };
-    const { rerender } = render(
-      <AppShell organizationId="org-1" role="super_admin" theme={theme}>
+    render(
+      <AppShell organizationId="org-1" role={role} theme={theme}>
         <div>Workspace content</div>
       </AppShell>,
     );
-    expect(screen.getByRole("button", { name: "Toggle color theme" })).toBeTruthy();
-
-    rerender(
-      <AppShell organizationId="org-1" role="finance_manager" theme={theme}>
-        <div>Workspace content</div>
-      </AppShell>,
-    );
-    expect(screen.queryByRole("button", { name: "Toggle color theme" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Display theme" })).toBeTruthy();
   });
 
   it("marks the matching destination active", () => {
@@ -177,7 +191,7 @@ describe("AppShell Shadcn dashboard block", () => {
   it("keeps non-admin users out of admin destinations", () => {
     render(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
     expect(screen.queryByRole("link", { name: /Settings/ })).toBeNull();
-    expect(screen.getByRole("link", { name: /Maintenance/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Operations/ })).toBeTruthy();
   });
 
   it.each(["finance_manager", "finance_member"] as const)(
@@ -193,6 +207,16 @@ describe("AppShell Shadcn dashboard block", () => {
       expect(screen.queryByRole("link", { name: "Quick Create" })).toBeNull();
     },
   );
+
+  it("gives Operations Manager a responsibility-led Operations domain", () => {
+    navigation.pathname = "/maintenance";
+    render(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
+
+    expect(screen.getByRole("link", { name: "Operations" }).getAttribute("href")).toBe(
+      "/maintenance",
+    );
+    expect(screen.getByRole("link", { name: "Cases" })).toBeTruthy();
+  });
 
   it("keeps global search and routed content inside the sidebar inset", () => {
     render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);

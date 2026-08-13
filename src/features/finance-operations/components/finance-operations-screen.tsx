@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { WorkspacePage } from "@/components/layout/workspace-page";
+import { AuditDetails } from "@/components/ui/audit-details";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -186,7 +187,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       title={screen.title}
       toolbar={screen.toolbar}
     >
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex min-w-0 flex-col">
         {statusMessage ? (
           <div className="shrink-0 border-b border-border bg-card px-4 py-2 sm:px-6">
             <p className="text-sm" role="status">
@@ -495,7 +496,7 @@ function FinanceWorkView({
     ownerDue.length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 p-4 sm:px-6 sm:py-4">
+    <div className="workspace-gutter-x flex flex-col gap-4 py-4">
       <CompactTotals
         variant="cards"
         items={[
@@ -809,7 +810,7 @@ function RentView({
     0,
   );
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 p-4 sm:px-6 sm:py-4">
+    <div className="workspace-gutter-x flex flex-col gap-4 py-4">
       <CompactTotals
         variant="cards"
         items={[
@@ -1108,9 +1109,9 @@ function ExpenseSubmissionTable({
                         {submission.evidence.fileName} (file unavailable)
                       </p>
                     )}
-                    <p className="font-mono text-muted-foreground">
-                      SHA-256 {shortEvidenceHash(submission.evidence.sha256)}
-                    </p>
+                    <AuditDetails
+                      entries={[{ label: "Evidence fingerprint", value: submission.evidence.sha256 }]}
+                    />
                     <p className="text-muted-foreground">
                       {formatEvidenceSize(submission.evidence.sizeBytes)}
                     </p>
@@ -1259,7 +1260,7 @@ function BalancesView({
   }, [invoices]);
 
   return (
-    <div className="h-full min-h-0 overflow-auto bg-background">
+    <div className="min-w-0 bg-background">
       {openingAuthority ? <div>{openingAuthority}</div> : null}
       <section
         aria-labelledby="current-balance-projection-heading"
@@ -1270,10 +1271,10 @@ function BalancesView({
             className="text-base font-semibold"
             id="current-balance-projection-heading"
           >
-            Current balance projection
+            Current balances
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Operational view only. This is not an official owner statement.
+            This view is not an official owner statement.
           </p>
         </div>
         <Tabs
@@ -1292,7 +1293,7 @@ function BalancesView({
           Tenants &amp; companies
         </TabsTrigger>
       </TabsList>
-      <TabsContent className="min-h-0 overflow-auto" tabIndex={-1} value="owners">
+      <TabsContent tabIndex={-1} value="owners">
         <TableFrame>
           <Table className="min-w-[1040px]">
             <thead className="bg-[var(--table-header-bg)]">
@@ -1373,7 +1374,7 @@ function BalancesView({
           </Table>
         </TableFrame>
       </TabsContent>
-      <TabsContent className="min-h-0 overflow-auto" tabIndex={-1} value="tenants">
+      <TabsContent tabIndex={-1} value="tenants">
         <TableFrame>
           <Table className="min-w-[720px]">
             <thead className="bg-[var(--table-header-bg)]">
@@ -1432,7 +1433,7 @@ function PropertyAccountView({
       />
     );
   return (
-    <div className="flex h-full min-h-0 flex-col bg-card">
+    <div className="flex min-w-0 flex-col bg-card">
       <CompactTotals
         items={[
           {
@@ -2381,17 +2382,16 @@ function ExpenseReviewForm({
           ...(submission.evidence
             ? ([
                 ["Evidence size", formatEvidenceSize(submission.evidence.sizeBytes)],
-                [
-                  "Evidence SHA-256",
-                  <span className="font-mono" key="evidence-sha256">
-                    {submission.evidence.sha256}
-                  </span>,
-                ],
               ] satisfies [string, ReactNode][])
             : []),
           ["Paid from", submission.fundingSourceLabel],
         ]}
       />
+      {submission.evidence ? (
+        <AuditDetails
+          entries={[{ label: "Evidence fingerprint", value: submission.evidence.sha256 }]}
+        />
+      ) : null}
       {needsFundingSource ? (
         <Field label="Paid from">
           <SelectControl
@@ -2763,10 +2763,6 @@ function getDrawerTitle(drawer: DrawerState) {
   return "Record paid cost";
 }
 
-function shortEvidenceHash(hash: string) {
-  return `${hash.slice(0, 12)}…${hash.slice(-8)}`;
-}
-
 function formatEvidenceSize(sizeBytes: number) {
   if (sizeBytes < 1024) return `${sizeBytes} bytes`;
   return `${(sizeBytes / 1024).toFixed(1)} KB`;
@@ -2880,8 +2876,10 @@ function CompactTotals({
 function TableFrame({ children }: { children: ReactNode }) {
   return (
     <div
-      className="min-h-0 flex-1 overflow-auto p-3"
+      aria-label="Finance records"
+      className="flex-1 overflow-x-auto p-3"
       data-slot="finance-table-frame"
+      role="region"
     >
       {children}
     </div>

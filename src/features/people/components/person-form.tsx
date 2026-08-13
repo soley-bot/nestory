@@ -206,7 +206,7 @@ export function PersonForm({
           summary={
             roleContext === "staff"
               ? "Create the Staff record first, then grant Workspace Access with an Access Level and Scope."
-              : "Roles determine where this record appears in People workflows. They do not grant workspace access."
+              : "Roles determine where this record appears in People. They do not grant workspace access."
           }
           title={roleContext === "staff" ? "Access boundary" : "Role effect"}
         />

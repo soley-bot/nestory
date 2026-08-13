@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { setHiddenControlValue } from "./playwright-form-controls.mjs";
 import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
 
@@ -59,8 +60,8 @@ try {
       phase("opening components visible");
 
       const pendingRow = page.getByTestId(`owner-remediation-${pendingSourceLineId}`);
-      await pendingRow.getByText("Authority ready", { exact: true }).waitFor();
-      await pendingRow.getByRole("button", { name: "Allocate source" }).click();
+      await pendingRow.getByText("Ready", { exact: true }).waitFor();
+      await pendingRow.getByRole("button", { name: "Assign to owner balance" }).click();
       await waitForDb("pending source allocated", `
         SELECT count(*) = 1
         FROM public.owner_event_allocation_sets
@@ -112,11 +113,11 @@ try {
       `);
       await page.reload({ waitUntil: "networkidle" });
 
-      const reversal = formByHeading(page, "Reverse property withdrawal");
-      await reversal.getByLabel("Distribution / withdrawal ID").fill(withdrawalId);
+      const reversal = formByHeading(page, "Reverse owner distribution");
+      await reversal.getByLabel("Owner distribution reference").fill(withdrawalId);
       await reversal.getByLabel("Reversal date").fill(currentDate);
       await reversal.getByLabel("Reason").fill(distributionReversalReason);
-      await reversal.getByRole("button", { name: "Reverse property withdrawal" }).click();
+      await reversal.getByRole("button", { name: "Reverse owner distribution" }).click();
       await waitForDb("safe distribution reversed", `
         SELECT
           (SELECT count(*) = 1
@@ -173,14 +174,14 @@ try {
       await page.reload({ waitUntil: "networkidle" });
       await assertPeriodTable(page, nextMonthStart, {
         "IPS due to owner": "USD 200.50",
-        "IPS-held owner cash": "USD 2,250.25",
-        "Owner due to IPS": "USD 370.00",
+        "IPS-held owner cash": "USD 1,980.25",
+        "Owner due to IPS": "USD 0.00",
         "Security-deposit custody": "USD 870.00",
       });
       phase("exact two-month balances");
 
       assert.equal(
-        await page.getByRole("button", { name: "Transfer component" }).count(),
+        await page.getByRole("button", { name: "Transfer balance" }).count(),
         0,
         "Finance Manager received Super Admin transfer authority",
       );
@@ -196,6 +197,7 @@ try {
     },
     async (page) => {
       const blocked = page.getByRole("row").filter({ hasText: "Management fee occurrence" });
+      await blocked.getByText("Technical details", { exact: true }).click();
       await blocked.getByText("owner_share_total_not_100", { exact: true }).waitFor();
       await blocked.getByText("USD 116.00", { exact: true }).waitFor();
     },
@@ -217,7 +219,7 @@ try {
         "Security-deposit custody": "USD 0.00",
       });
       assert.equal(
-        await page.getByRole("button", { name: "Transfer component" }).count(),
+        await page.getByRole("button", { name: "Transfer balance" }).count(),
         1,
         "Super Admin transfer command was not visible",
       );
@@ -234,14 +236,14 @@ try {
     },
     async (page) => {
       for (const action of [
-        "Allocate source",
+        "Assign to owner balance",
         "Generate month",
         "Record owner contribution",
         "Record owner reimbursement",
         "Record owner distribution",
         "Reverse owner invoice payment",
-        "Reverse property withdrawal",
-        "Transfer component",
+        "Reverse owner distribution",
+        "Transfer balance",
       ]) {
         assert.equal(await page.getByRole("button", { name: action }).count(), 0, `${action} leaked to Finance Member`);
       }
@@ -278,8 +280,8 @@ try {
       AND period.owner_person_id = '${centralOwnerId}'
       AND period.month_start IN ('${currentMonthStart}', '${nextMonthStart}')
       AND (
-        (component.component = 'ips_held_owner_cash' AND component.closing_amount = 2250.25)
-        OR (component.component = 'owner_due_to_ips' AND component.closing_amount = 370.00)
+        (component.component = 'ips_held_owner_cash' AND component.closing_amount = 1980.25)
+        OR (component.component = 'owner_due_to_ips' AND component.closing_amount = 0.00)
         OR (component.component = 'ips_due_to_owner' AND component.closing_amount = 200.50)
         OR (component.component = 'security_deposit_custody' AND component.closing_amount = 870.00)
       );
@@ -322,12 +324,9 @@ async function withShellActor(email, run) {
       throw new Error(`${email}: ${detail}`);
     }
     await page.goto(`${baseUrl}/workspace`, { waitUntil: "networkidle" });
-    await Promise.all([
-      page.waitForURL((url) => url.pathname !== "/workspace", {
-        waitUntil: "networkidle",
-      }),
-      page.getByRole("link", { name: "Open workspace" }).click(),
-    ]);
+    await page.waitForURL((url) => url.pathname !== "/workspace", {
+      waitUntil: "networkidle",
+    });
     await run(page);
   } finally {
     await context.close();
@@ -350,15 +349,15 @@ async function openOwnerBalancesFromVisibleFinance(page) {
     }),
     link.click(),
   ]);
-  await page.getByRole("heading", { name: "Authoritative owner balance" }).waitFor();
+  await page.getByRole("heading", { name: "Owner balances", exact: true }).waitFor();
 }
 
 async function loadBalanceScope(page, scope) {
   const scopeForm = page.locator("form").filter({
-    has: page.getByRole("button", { name: "Load authority" }),
+    has: page.getByRole("button", { name: "Load balances" }),
   }).first();
-  await scopeForm.getByLabel("Property").selectOption(scope.propertyId);
-  await scopeForm.getByLabel("Owner assignment").selectOption(scope.ownerPersonId);
+  await setHiddenControlValue(scopeForm, "propertyId", scope.propertyId);
+  await setHiddenControlValue(scopeForm, "ownerPersonId", scope.ownerPersonId);
   await scopeForm.getByLabel("Month").fill(scope.month);
   await Promise.all([
     page.waitForURL((url) =>
@@ -367,12 +366,12 @@ async function loadBalanceScope(page, scope) {
       url.searchParams.get("ownerPersonId") === scope.ownerPersonId &&
       url.searchParams.get("month") === scope.month,
     ),
-    scopeForm.getByRole("button", { name: "Load authority" }).click(),
+    scopeForm.getByRole("button", { name: "Load balances" }).click(),
   ]);
 }
 
 async function assertOpeningComponentsVisible(page) {
-  const region = page.getByRole("region", { name: "Opening authority components" });
+  const region = page.getByRole("region", { name: "Opening balance components" });
   const expected = {
     "IPS due to owner": "$240.50",
     "IPS-held owner cash": "$1250.00",
@@ -433,24 +432,42 @@ function authenticatedDbSql(actorId, sql) {
 }
 
 async function waitForExactPeriod(label, monthStart) {
-  await waitForDb(label, `
-    SELECT count(*) = 4
-      AND bool_and(period.status = 'ready')
-      AND bool_and(component.closing_amount = CASE component.component
-        WHEN 'ips_held_owner_cash' THEN 2250.25
-        WHEN 'owner_due_to_ips' THEN 370.00
-        WHEN 'ips_due_to_owner' THEN 200.50
-        WHEN 'security_deposit_custody' THEN 870.00
-      END)
-    FROM public.owner_balance_periods AS period
-    JOIN public.owner_balance_period_components AS component
-      ON component.organization_id = period.organization_id
-     AND component.owner_balance_period_id = period.id
-    WHERE period.organization_id = '${organizationId}'
-      AND period.property_id = '${centralPropertyId}'
-      AND period.owner_person_id = '${centralOwnerId}'
-      AND period.month_start = '${monthStart}';
-  `);
+  try {
+    await waitForDb(label, `
+      SELECT count(*) = 4
+        AND bool_and(period.status = 'ready')
+        AND bool_and(component.closing_amount = CASE component.component
+          WHEN 'ips_held_owner_cash' THEN 1980.25
+          WHEN 'owner_due_to_ips' THEN 0.00
+          WHEN 'ips_due_to_owner' THEN 200.50
+          WHEN 'security_deposit_custody' THEN 870.00
+        END)
+      FROM public.owner_balance_periods AS period
+      JOIN public.owner_balance_period_components AS component
+        ON component.organization_id = period.organization_id
+       AND component.owner_balance_period_id = period.id
+      WHERE period.organization_id = '${organizationId}'
+        AND period.property_id = '${centralPropertyId}'
+        AND period.owner_person_id = '${centralOwnerId}'
+        AND period.month_start = '${monthStart}';
+    `);
+  } catch (error) {
+    const actual = dbScalar(`
+      SELECT coalesce(jsonb_object_agg(component.component, jsonb_build_object(
+        'closing_amount', component.closing_amount,
+        'status', period.status
+      ))::text, '{}')
+      FROM public.owner_balance_periods AS period
+      JOIN public.owner_balance_period_components AS component
+        ON component.organization_id = period.organization_id
+       AND component.owner_balance_period_id = period.id
+      WHERE period.organization_id = '${organizationId}'
+        AND period.property_id = '${centralPropertyId}'
+        AND period.owner_person_id = '${centralOwnerId}'
+        AND period.month_start = '${monthStart}';
+    `);
+    throw new Error(`${error.message}; actual period ${actual}`, { cause: error });
+  }
 }
 
 async function waitForDb(label, sql, timeoutMs = 15_000) {

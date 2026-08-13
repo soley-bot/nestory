@@ -33,7 +33,7 @@ describe("OverviewScreen", () => {
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 
-  it("uses app-shell height containment and one dashboard scroll", () => {
+  it("delegates vertical scrolling to the app shell", () => {
     render(<OverviewScreen data={data} query={query} />);
 
     const screenRoot = screen.getByRole("main");
@@ -45,15 +45,16 @@ describe("OverviewScreen", () => {
       classTokens(element).includes("overflow-y-auto"),
     );
 
-    expect(classTokens(screenRoot)).toContain("h-full");
-    expect(classTokens(screenRoot)).toContain("min-h-0");
+    expect(classTokens(screenRoot)).toContain("min-h-full");
+    expect(classTokens(screenRoot)).not.toContain("h-full");
+    expect(classTokens(screenRoot)).not.toContain("min-h-0");
     expect(classTokens(screenRoot)).not.toContain("min-h-screen");
-    expect(scrollOwners).toEqual([operatingWork]);
+    expect(scrollOwners).toEqual([]);
     expect(classTokens(operatingWork)).not.toContain("border-y");
     expect(classTokens(metrics)).toContain("grid");
   });
 
-  it("neutralizes the old lens-list frame while keeping one operating scroll", () => {
+  it("neutralizes the old lens-list frame without adding a nested scroll", () => {
     render(<OverviewScreen data={data} query={{ ...query, lens: "leasing" }} />);
 
     const operatingWork = screen.getByRole("region", {
@@ -61,7 +62,7 @@ describe("OverviewScreen", () => {
     });
 
     expect(classTokens(operatingWork)).toContain("[&>section]:border-y-0");
-    expect(classTokens(operatingWork)).toContain("overflow-y-auto");
+    expect(classTokens(operatingWork)).not.toContain("overflow-y-auto");
   });
 
   it("keeps overview controls above the official dashboard composition", () => {

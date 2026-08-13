@@ -45,12 +45,12 @@ export function UnitsTable({
   units,
 }: UnitsTableProps) {
   return (
-    <div className="h-full min-h-0">
+    <div className="min-w-0">
       <div
         className={cn(
           displayMode === "cards"
-            ? "grid h-full auto-rows-max content-start items-start gap-3 overflow-auto pr-1 sm:grid-cols-2 2xl:grid-cols-3"
-            : "max-h-[380px] space-y-3 overflow-auto pr-1 md:hidden",
+            ? "grid auto-rows-max content-start items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3"
+            : "space-y-3 md:hidden",
         )}
       >
         {units.length === 0 ? (
@@ -70,10 +70,10 @@ export function UnitsTable({
 
       {displayMode === "table" ? (
         <div
-          className="hidden h-full min-w-0 overflow-hidden md:block"
+          className="hidden min-w-0 md:block"
           data-slot="register-table-frame"
         >
-          <div className="h-full overflow-auto">
+          <div aria-label="Units table" className="overflow-x-auto" role="region">
             <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
               <colgroup>
                 <col className="w-[28%]" />

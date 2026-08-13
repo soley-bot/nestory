@@ -39,7 +39,7 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
       <section className="rounded-md border border-border bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">Policy authority</h2>
+            <h2 className="text-base font-semibold">Rent policy</h2>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
               Drafts may remain unresolved. Approval is blocked until every
               due-day, proration, notice, frequency, concession, rent-free,
@@ -70,7 +70,7 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
               <tr>
                 <th className="py-2 pr-4">Version</th>
                 <th className="py-2 pr-4">Effective</th>
-                <th className="py-2 pr-4">Lifecycle</th>
+              <th className="py-2 pr-4">Status</th>
                 <th className="py-2 pr-4">Frequencies</th>
                 <th className="py-2">Timezone</th>
               </tr>
@@ -90,7 +90,7 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
                             : "neutral"
                       }
                     >
-                      {version.lifecycle}
+                      {version.lifecycle === "approved" ? "Approved" : version.lifecycle === "draft" ? "Draft" : "Archived"}
                     </Badge>
                   </td>
                   <td className="py-2 pr-4">
@@ -149,7 +149,7 @@ function CreateDraftForm() {
         />
       </label>
       <Button className="mt-4" disabled={pending} type="submit">
-        {pending ? "Creating..." : "Create unresolved draft"}
+        {pending ? "Creating..." : "Create draft"}
       </Button>
       <ActionMessage state={state} />
     </form>

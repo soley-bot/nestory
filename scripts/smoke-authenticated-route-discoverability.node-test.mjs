@@ -19,7 +19,7 @@ const contract = JSON.parse(
 test("builds one shell-start visible-link journey for every authorized role and route", () => {
   const plan = buildDiscoverabilityPlan(contract);
 
-  assert.equal(plan.length, 66);
+  assert.equal(plan.length, 67);
   assert.deepEqual(
     Object.fromEntries(
       contract.roles.map((role) => [
@@ -28,7 +28,7 @@ test("builds one shell-start visible-link journey for every authorized role and 
       ]),
     ),
     {
-      finance_manager: 11,
+      finance_manager: 12,
       finance_member: 9,
       operations_manager: 6,
       operations_member: 2,
@@ -62,7 +62,7 @@ test("serializes click chains for the tracked report schema", () => {
   assert.deepEqual(
     createSessionStartEvidence("super_admin", "/overview"),
     {
-      chain: ["/workspace", "Open workspace"],
+      chain: ["/workspace", "Automatic role redirect"],
       destination: "/overview",
       role: "super_admin",
       status: "passed",

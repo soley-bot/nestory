@@ -126,6 +126,64 @@ describe("finance routes", () => {
     },
   );
 
+  it("keeps Finance Manager transaction work reachable from the review queue", async () => {
+    const financeData = {
+      expenseSubmissions: [],
+      ownerInvoices: [],
+      rentGenerationExceptions: [],
+      tenantInvoices: [],
+    };
+    const capabilities = {
+      canConfigureLeases: true,
+      canCorrectFinance: true,
+      canOperateFinance: true,
+      canReadFinanceReports: true,
+      canReviewExpense: true,
+      canReverseExpense: false,
+      canRetryCurrentRent: true,
+      canSubmitExpense: false,
+    };
+    getFinanceOperationsData.mockResolvedValue(financeData);
+    requireFinanceContext.mockResolvedValue({
+      capabilities,
+      organizationId: "organization-1",
+      organizationName: "Nestory Test",
+      role: "finance_manager",
+      userId: "user-1",
+    });
+    buildFinanceWorkspaceData.mockReturnValue({
+      queue: [],
+      role: "finance_manager",
+      totals: {
+        awaitingReview: 0,
+        maintenanceHandoffs: 0,
+        missingEvidence: 0,
+        rentExceptions: 0,
+      },
+    });
+
+    const queueHtml = renderToStaticMarkup(await FinancePage());
+    expect(queueHtml).toContain("Transaction work");
+    expect(queueHtml).toContain("/finance?view=transactions");
+
+    const workHtml = renderToStaticMarkup(
+      await FinancePage({
+        searchParams: Promise.resolve({ view: "transactions" }),
+      }),
+    );
+    expect(workHtml).toContain("Finance route");
+    expect(screenSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canConfigureRent: true,
+        canCorrectFinance: true,
+        canRecordOwnerCash: true,
+        canRecordPayments: true,
+        canRetryCurrentRent: true,
+        view: "work",
+      }),
+    );
+  });
+
   it.each([
     ["finance_member", RentIncomePage, "rent", false, true, false, false],
     ["finance_member", BillsExpensesPage, "expenses", false, true, false, false],

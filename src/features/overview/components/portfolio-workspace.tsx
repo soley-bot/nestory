@@ -41,7 +41,7 @@ export function PortfolioWorkspace({
   return (
     <div
       aria-label="Portfolio operating work"
-      className="@container/main flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-4 md:gap-6 md:py-6"
+      className="@container/main flex flex-1 flex-col gap-4 py-4 md:gap-6 md:py-6"
       data-slot="overview-operating-scroll"
       role="region"
     >

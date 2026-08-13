@@ -11,6 +11,8 @@ export const financeManagerDaySmokeContract = Object.freeze({
   email: "finance.manager@nestory.com",
   allowed: Object.freeze([
     "unique-finance-manager-membership",
+    "lease-configuration",
+    "historical-rent-recovery",
     "record-payment",
     "confirm-owner-direct-collection",
     "record-owner-invoice-payment",
@@ -27,8 +29,6 @@ export const financeManagerDaySmokeContract = Object.freeze({
     "read-owner-statement-publications",
   ]),
   forbidden: Object.freeze([
-    "lease-configuration",
-    "historical-rent-recovery",
     "submit-paid-cost",
     "finance-correction-or-reversal",
     "finance-correction-or-reversal-expense",
@@ -37,7 +37,6 @@ export const financeManagerDaySmokeContract = Object.freeze({
     "petty-cash-update",
     "petty-cash-void",
     "unlock-financial-month",
-    "publish-owner-statement",
     "reconciliation-source-configuration",
   ]),
   replayCoverage: Object.freeze({
@@ -85,6 +84,13 @@ export function formatFinanceManagerDayFailure(stage, reason) {
   return `Finance Manager day ${stage}: ${safeReason}`;
 }
 
+export function getLocalGatewayContainer(databaseContainer) {
+  if (!databaseContainer.startsWith("supabase_db_")) {
+    throw new Error("Unexpected local database container name");
+  }
+  return databaseContainer.replace(/^supabase_db_/, "supabase_kong_");
+}
+
 async function main() {
   const config = resolveFinanceManagerDayConfig();
   const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -108,6 +114,7 @@ async function main() {
 
   try {
     await authenticate(page, config);
+    await assertRoutineFinanceAuthority(page, config.baseUrl);
     const financeRequests = await assertFinanceWork(page, config.baseUrl);
     const paidCostRequest = await assertPaidCostReview(page, config.baseUrl);
     const ownerCashRequest = await assertOwnerCash(page, config.baseUrl);
@@ -186,7 +193,22 @@ async function main() {
 
 function resetLocalFixture(cwd) {
   runCommand(cwd, ["run", "db:reset"]);
+  restartLocalGateway(cwd);
   runCommand(cwd, ["run", "db:test:fixture"]);
+}
+
+function restartLocalGateway(cwd) {
+  const gatewayContainer = getLocalGatewayContainer(findDatabaseContainer(cwd));
+  const result = spawnSync("docker", ["restart", gatewayContainer], {
+    cwd,
+    encoding: "utf8",
+    shell: false,
+  });
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      formatFinanceManagerDayFailure("fixture-reset", "database assertion failed"),
+    );
+  }
 }
 
 function runCommand(cwd, args) {
@@ -199,6 +221,12 @@ function runCommand(cwd, args) {
       })
     : spawnSync("npm", args, { cwd, encoding: "utf8", shell: false });
   if (result.error || result.status !== 0) {
+    const diagnostic = `${result.stdout ?? ""}\n${result.stderr ?? ""}`
+      .trim()
+      .slice(-2_000);
+    process.stderr.write(
+      `Local fixture command ${args.join(" ")} failed with status ${result.status ?? "spawn-error"}.\n${diagnostic}\n`,
+    );
     throw new Error(formatFinanceManagerDayFailure("fixture-reset", "database assertion failed"));
   }
 }
@@ -362,13 +390,13 @@ async function requireAbsent(locator, stage) {
 }
 
 async function assertFinanceWork(page, baseUrl) {
-  await gotoPath(page, baseUrl, "/finance", "finance-work");
+  // The role landing remains a prioritized review queue. This discoverable
+  // manager-only state retains the full transaction work surface.
+  await gotoPath(page, baseUrl, "/finance?view=transactions", "finance-work");
   await requireVisible(page.getByRole("button", { name: "Record payment" }), "record-payment-control");
   await requireVisible(page.getByText("Confirm owner collection", { exact: true }), "confirm-owner-direct-collection-control");
   await requireVisible(page.getByText("Owner invoice payment", { exact: true }), "record-owner-invoice-payment-control");
   await requireVisible(page.getByRole("button", { name: /^Retry rent for / }), "retry-current-rent-control");
-  await requireAbsent(page.getByRole("button", { name: "Set up" }), "lease-configuration");
-  await requireAbsent(page.getByRole("button", { name: "Recover missed month" }), "historical-rent-recovery");
   await requireAbsent(page.getByRole("button", { name: /Reverse/i }), "finance-correction-or-reversal");
 
   const tenantRow = page.getByRole("row").filter({ hasText: "Tenant payment" }).first();
@@ -477,9 +505,26 @@ async function assertOwnerStatementPublications(page, baseUrl, cwd) {
     page.getByRole("heading", { name: "Official Owner Statements" }),
     "read-owner-statement-publications",
   );
-  await requireAbsent(
-    page.getByRole("button", { name: /(?:Publish|Resume) Owner Statement/ }),
-    "publish-owner-statement",
+}
+
+async function assertRoutineFinanceAuthority(page, baseUrl) {
+  await gotoPath(
+    page,
+    baseUrl,
+    "/settings/rent-policy",
+    "lease-configuration-route",
+  );
+  await requireVisible(
+    page.getByRole("button", {
+      name: /Create draft|Approve immutable version/,
+    }),
+    "lease-configuration",
+  );
+
+  await gotoPath(page, baseUrl, "/rent-income", "historical-rent-recovery-route");
+  await requireVisible(
+    page.getByRole("button", { name: "Recover missed month" }),
+    "historical-rent-recovery",
   );
 }
 

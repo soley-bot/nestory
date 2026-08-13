@@ -125,6 +125,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'public.allocate_owner_event(uuid,text,uuid,text)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'allocate_owner_event_lock_order_contract_changed';
   END IF;
@@ -141,6 +142,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'app_private.record_owner_cash_event_baseline(uuid,uuid,uuid,public.currency_code,text,date,numeric,text,text)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'record_owner_cash_event_lock_order_contract_changed';
   END IF;
@@ -157,6 +159,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'app_private.record_owner_distribution_baseline(uuid,uuid,uuid,public.currency_code,numeric,date,text,text)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'record_owner_distribution_lock_order_contract_changed';
   END IF;
@@ -173,6 +176,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'app_private.transfer_owner_balance_component_baseline(uuid,uuid,uuid,uuid,public.currency_code,date,public.owner_balance_component,numeric,text,text,text,text)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'transfer_owner_balance_component_lock_order_contract_changed';
   END IF;
@@ -189,6 +193,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'app_private.reverse_property_withdrawal_baseline(uuid,uuid,date,text,text)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'reverse_property_withdrawal_lock_order_contract_changed';
   END IF;
@@ -205,6 +210,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'app_private.reverse_owner_invoice_payment_baseline(uuid,uuid,date,text,text)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'reverse_owner_invoice_payment_lock_order_contract_changed';
   END IF;
@@ -319,6 +325,7 @@ BEGIN
   SELECT pg_catalog.pg_get_functiondef(
     'public.transfer_owner_balance_component(uuid,uuid,uuid,uuid,public.currency_code,date,public.owner_balance_component,numeric,text,text,text,text)'::regprocedure
   ) INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
   IF pg_catalog.strpos(v_definition, v_old) = 0 THEN
     RAISE EXCEPTION 'transfer_owner_balance_component_wrapper_lock_order_contract_changed';
   END IF;

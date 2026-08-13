@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { SettingsNavigationGuardProvider } from "@/components/layout/settings-navigation-guard";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
+import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   SettingsWorkspace,
   type SettingsSection,
@@ -37,17 +38,18 @@ export function OrganizationSettingsScreen({
 }) {
   return (
     <SettingsNavigationGuardProvider>
-      {header ?? <SettingsTabs activeHref="/settings" />}
-      <SettingsWorkspace
-        appearance={appearance}
-        branches={branches}
-        canManageStructure={canManageStructure}
-        organizationName={organizationName}
-        organizationSlug={organizationSlug}
-        section={section}
-        staff={staff}
-        teams={teams}
-      />
+      <WorkspacePage header={header ?? <SettingsTabs activeHref="/settings" />}>
+        <SettingsWorkspace
+          appearance={appearance}
+          branches={branches}
+          canManageStructure={canManageStructure}
+          organizationName={organizationName}
+          organizationSlug={organizationSlug}
+          section={section}
+          staff={staff}
+          teams={teams}
+        />
+      </WorkspacePage>
     </SettingsNavigationGuardProvider>
   );
 }

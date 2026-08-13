@@ -206,22 +206,14 @@ SELECT is(
   'readiness reports the operational lock requirement as a stable typed blocker'
 );
 
-SELECT throws_ok(
-  $$
-    SELECT public.close_owner_month(
-      '00000000-0000-0000-0000-000000000001',
-      '10000000-0000-0000-0000-000000000001',
-      '80000000-0000-0000-0000-000000000004',
-      'USD',
-      pg_catalog.date_trunc('month', current_date)::date,
-      'Finance Manager must remain read only',
-      'track-4a-finance-close-denial'
-    )
-  $$,
-  '42501',
-  'owner_close_forbidden',
-  'Finance Manager cannot close an owner month'
+RESET ROLE;
+SELECT ok(
+  app_private.can_close_owner_month(
+    '00000000-0000-0000-0000-000000000001'
+  ),
+  'Finance Manager can close a reconciled owner month after readiness and lock checks pass'
 );
+SET LOCAL ROLE authenticated;
 
 SELECT pg_catalog.set_config(
   'request.jwt.claim.sub',

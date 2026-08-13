@@ -154,7 +154,7 @@ export function PettyCashScreen({
 
   const registerList =
     selectedAccount && period ? (
-      <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
+      <section className="flex min-w-0 flex-col bg-card">
         {entries.length === 0 ? (
           <EmptyState
             action={
@@ -266,7 +266,7 @@ export function PettyCashScreen({
       )}
       title="Petty Cash"
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
+      <div className="flex min-w-0 flex-col bg-background">
         {statusMessage ? (
           <div className="border-b border-border bg-muted/35 px-4 py-2 sm:px-6">
             <p className="text-sm" role="status">
@@ -525,7 +525,7 @@ function PettyCashTable({
 }) {
   return (
     <div className="overflow-hidden" data-petty-cash-surface="register">
-      <div className="max-h-[min(620px,calc(100vh-310px))] overflow-auto">
+      <div aria-label="Petty cash table" className="overflow-x-auto" role="region">
         <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col className="w-[112px]" />

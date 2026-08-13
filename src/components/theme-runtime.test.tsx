@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  getDisplayThemeStorageKey,
   getThemeBootstrapScript,
   ThemeRuntime,
 } from "@/components/theme-runtime";
@@ -28,11 +29,12 @@ afterEach(() => {
 });
 
 describe("ThemeRuntime", () => {
-  it("applies the server organization theme and scoped cache", () => {
+  it("uses a personal display preference without replacing the organization accent", () => {
+    localStorage.setItem(getDisplayThemeStorageKey("org-1"), "dark");
     render(
       <ThemeRuntime
         organizationId="org-1"
-        theme={{ accentPreset: "ocean", accentSeed: null, mode: "dark" }}
+        theme={{ accentPreset: "ocean", accentSeed: null, mode: "light" }}
       >
         <span>Workspace</span>
       </ThemeRuntime>,
@@ -42,9 +44,8 @@ describe("ThemeRuntime", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.documentElement.dataset.accent).toBe("ocean");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(localStorage.getItem("nestory-theme:org-1")).toContain(
-      '"mode":"dark"',
-    );
+    expect(localStorage.getItem(getDisplayThemeStorageKey("org-1"))).toBe("dark");
+    expect(localStorage.getItem("nestory-theme:org-1")).toBeNull();
   });
 
   it("tracks system preference without creating a personal theme", () => {
@@ -62,7 +63,7 @@ describe("ThemeRuntime", () => {
       "change",
       expect.any(Function),
     );
-    expect(localStorage.getItem("nestory-theme")).toBeNull();
+    expect(localStorage.getItem(getDisplayThemeStorageKey("org-2"))).toBeNull();
   });
 
   it("serializes bootstrap data without allowing script termination", () => {
@@ -75,5 +76,6 @@ describe("ThemeRuntime", () => {
     expect(script).not.toContain("org-<script>");
     expect(script).toContain('"organizationId":"org-\\u003cscript\\u003e"');
     expect(script).not.toContain("</script>");
+    expect(script).toContain("nestory-display-mode:org-");
   });
 });

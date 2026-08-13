@@ -788,8 +788,10 @@ describe("FinanceOperationsScreen", () => {
 
     expect(tableFrame).not.toBeNull();
     const table = within(tableFrame!).getByRole("table");
-    expect(tableFrame?.className).toContain("overflow-auto");
+    expect(tableFrame?.className).toContain("overflow-x-auto");
+    expect(tableFrame?.className).not.toContain("overflow-auto");
     expect(tableFrame?.className).not.toContain("overflow-hidden");
+    expect(tableFrame?.getAttribute("aria-label")).toBe("Finance records");
     expect(table.parentElement?.getAttribute("data-slot")).toBe(
       "table-container",
     );

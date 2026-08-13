@@ -43,7 +43,8 @@ describe("OwnerCloseScreen", () => {
     expect(screen.getByText("Content hash")).toBeTruthy();
     expect(screen.getByText("e".repeat(64))).toBeTruthy();
     expect(screen.getByText(/Tenant rent receipt - IPS-held owner cash/)).toBeTruthy();
-    expect(screen.getByText(/source line .*000000000009/i)).toBeTruthy();
+    expect(screen.getByText("Source line")).toBeTruthy();
+    expect(screen.getByText(/000000000009$/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reopen month" })).toBeNull();
     expect(screen.queryByRole("button", { name: /close owner month/i })).toBeNull();
     expect(screen.queryByRole("button", { name: "Record correction" })).toBeNull();
@@ -106,7 +107,7 @@ describe("OwnerCloseScreen", () => {
     />);
 
     expect(screen.getByText("Ready to close owner month · revision 2")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Close owner month · revision 2" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Close owner month" })).toBeTruthy();
     expect(screen.getByLabelText("Close reason")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Record correction" })).toBeTruthy();
     expect(screen.getByLabelText("Signed correction amount")).toBeTruthy();
@@ -161,8 +162,8 @@ describe("OwnerCloseScreen", () => {
       propertyId={propertyId}
     />);
 
-    expect(screen.getByText("Ready to publish official Owner Statement")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Publish Owner Statement" })).toBeTruthy();
+    expect(screen.getByText("Ready to publish the owner statement")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Publish owner statement" })).toBeTruthy();
   });
 
   it("keeps superseded publications and downloads visible to read-only Finance", () => {
@@ -198,7 +199,7 @@ describe("OwnerCloseScreen", () => {
     expect(screen.getByRole("link", { name: "Download PDF" }).getAttribute("href"))
       .toBe("/api/reports/pdf?artifactId=00000000-0000-4000-8000-000000000020");
     expect(screen.getByRole("link", { name: "Download Excel" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Publish Owner Statement" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Publish owner statement" })).toBeNull();
   });
 
   it("offers Super Admin a fresh-key resume control for an incomplete publication", () => {
@@ -232,7 +233,7 @@ describe("OwnerCloseScreen", () => {
     />);
 
     expect(screen.getByText("Publication incomplete")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Resume Owner Statement" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Resume owner statement" })).toBeTruthy();
   });
 });
 

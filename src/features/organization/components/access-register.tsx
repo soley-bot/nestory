@@ -105,19 +105,19 @@ export function AccessRegister({
           >
             <TabsTrigger className="gap-2 px-2.5" value="active">
               Active
-              <Badge className="h-4 min-w-5 px-1.5 text-[10px]" tone="neutral">
+              <Badge className="h-5 min-w-5 px-1.5 text-xs" tone="neutral">
                 {members.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger className="gap-2 px-2.5" value="invitations">
               Invitations
-              <Badge className="h-4 min-w-5 px-1.5 text-[10px]" tone="neutral">
+              <Badge className="h-5 min-w-5 px-1.5 text-xs" tone="neutral">
                 {invitations.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger className="gap-2 px-2.5" value="no_access">
               No access
-              <Badge className="h-4 min-w-5 px-1.5 text-[10px]" tone="neutral">
+              <Badge className="h-5 min-w-5 px-1.5 text-xs" tone="neutral">
                 {noAccessStaff.length}
               </Badge>
             </TabsTrigger>

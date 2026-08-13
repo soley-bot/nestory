@@ -10,6 +10,7 @@ import {
   formatViewportPass,
   formatViewportSummary,
   getKeyboardZoomAuditFailures,
+  isExpectedNextDevPerformancePageError,
   KEYBOARD_ZOOM_VIEWPORT,
   MAIN_CAPTURE_VIEWPORTS,
   readPngDimensions,
@@ -28,6 +29,9 @@ if (!baseUrlValue) {
 const baseUrl = validateLocalBaseUrl(baseUrlValue);
 const axeEnabled = process.argv.includes("--axe");
 const writeEvidence = process.argv.includes("--write-evidence");
+const themeMode = process.argv
+  .find((argument) => argument.startsWith("--theme="))
+  ?.slice("--theme=".length) ?? "light";
 const routeFilter = process.argv
   .find((argument) => argument.startsWith("--route="))
   ?.slice("--route=".length);
@@ -37,6 +41,10 @@ const evidenceSummaryPath = process.argv
 const email = process.env.E2E_EMAIL?.trim();
 const password = process.env.E2E_PASSWORD;
 const rolePassword = process.env.E2E_ROLE_PASSWORD ?? password;
+
+if (themeMode !== "light" && themeMode !== "dark") {
+  throw new Error("--theme must be light or dark");
+}
 
 if (!email || !password) {
   throw new Error("E2E_EMAIL and E2E_PASSWORD are required");
@@ -84,7 +92,7 @@ const runName = buildArtifactRunName({
   date: startedAt,
   mode: runMode,
   pid: process.pid,
-  prefix: "ui-redesign",
+  prefix: themeMode === "light" ? "ui-redesign" : "ui-redesign-dark",
 });
 const artifactRoot = resolve("artifacts", "ui-redesign");
 const runDirectory = resolve(artifactRoot, runName);
@@ -125,7 +133,11 @@ try {
       }
     });
     page.on("pageerror", (error) => {
-      activeErrors?.pageErrors.push(error.message);
+      if (isExpectedNextDevPerformancePageError(error.message)) {
+        activeErrors?.ignoredConsoleErrors.push(`pageerror: ${error.message}`);
+      } else {
+        activeErrors?.pageErrors.push(error.message);
+      }
     });
 
     for (const route of routes) {
@@ -222,6 +234,7 @@ try {
     runDirectory: toArtifactPath(runDirectory),
     schemaVersion: UI_EVIDENCE_SCHEMA_VERSION,
     startedAt: startedAt.toISOString(),
+    themeMode,
     viewports,
   };
 
@@ -261,9 +274,16 @@ try {
 
 async function createReadOnlyContext(browserInstance, role) {
   const browserContext = await browserInstance.newContext({
+    colorScheme: themeMode,
     deviceScaleFactor: 1,
     serviceWorkers: "block",
   });
+  await browserContext.addInitScript((requestedTheme) => {
+    window.localStorage.setItem(
+      "nestory-display-mode:public",
+      requestedTheme,
+    );
+  }, themeMode);
   const requestPolicy = createReadOnlyRequestPolicy({ baseUrl });
 
   await browserContext.route("**/*", async (route) => {
@@ -419,6 +439,7 @@ async function captureRoute({
       requestedUrl,
     });
     await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
+    await applyRequestedTheme(page);
   } catch (error) {
     navigationError = error instanceof Error ? error.message : String(error);
   }
@@ -435,6 +456,12 @@ async function captureRoute({
     error: error instanceof Error ? error.message : String(error),
     reachable: null,
   }));
+  const contentDiscipline = await inspectVisibleContentDiscipline(page).catch(
+    (error) => ({
+      error: error instanceof Error ? error.message : String(error),
+      findings: [],
+    }),
+  );
   const accessibility = axeEnabled
     ? await runAxe(page, route).catch((error) => ({
         error: error instanceof Error ? error.message : String(error),
@@ -457,6 +484,7 @@ async function captureRoute({
     expectedAccess,
     accessibility,
     consoleErrors: errors.consoleErrors,
+    contentDiscipline,
     finalPath,
     finalUrl,
     horizontalOverflow,
@@ -480,6 +508,57 @@ async function captureRoute({
     viewportHeight: viewport.height,
     viewportWidth: viewport.width,
   };
+}
+
+async function inspectVisibleContentDiscipline(page) {
+  return page.evaluate(() => {
+    const visibleText = document.body.innerText;
+    const findings = [];
+    const forbiddenPhrases = [
+      "authoritative owner balance",
+      "roll-forward authority",
+      "current balance projection",
+      "source allocation and remediation",
+      "state / remediation",
+      "policy authority",
+      "rent authority",
+      "cutover authority",
+      "manifest json",
+      "evidence sha-256",
+      "input watermark:",
+      "source fingerprint:",
+      "roster hash:",
+      "database evidence",
+    ];
+    const normalizedText = visibleText.toLowerCase();
+
+    for (const phrase of forbiddenPhrases) {
+      if (normalizedText.includes(phrase)) {
+        findings.push(`forbidden phrase: ${phrase}`);
+      }
+    }
+
+    if (
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i.test(
+        visibleText,
+      )
+    ) {
+      findings.push("raw UUID");
+    }
+
+    if (/\b[0-9a-f]{64}\b/i.test(visibleText)) {
+      findings.push("raw 64-character hash");
+    }
+
+    if (/(?:^|\s)[{[]\s*"[\w-]+"\s*:/m.test(visibleText)) {
+      findings.push("raw JSON object");
+    }
+
+    return {
+      error: null,
+      findings: [...new Set(findings)],
+    };
+  });
 }
 
 async function saveViewportScreenshot({ page, screenshotPath }) {
@@ -542,6 +621,7 @@ async function auditKeyboardZoomRoutes({ browserContext, routes: auditRoutes }) 
         await page
           .waitForLoadState("networkidle", { timeout: 5_000 })
           .catch(() => {});
+        await applyRequestedTheme(page);
       } catch (error) {
         navigationError = error instanceof Error ? error.message : String(error);
       }
@@ -647,6 +727,30 @@ async function applyLargeTextScale(page, requestedScale) {
       requestedScale: scale,
     };
   }, requestedScale);
+}
+
+async function applyRequestedTheme(page) {
+  const currentTheme = await page
+    .evaluate(() => document.documentElement.dataset.theme ?? null)
+    .catch(() => null);
+  if (currentTheme === themeMode) return;
+
+  const trigger = page.getByRole("button", { name: "Display theme" }).first();
+  if (!(await trigger.isVisible().catch(() => false))) return;
+
+  await trigger.click();
+  await page
+    .getByRole("menuitemradio", {
+      exact: true,
+      name: themeMode === "dark" ? "Dark" : "Light",
+    })
+    .click();
+  await page.waitForFunction(
+    (expectedTheme) =>
+      document.documentElement.dataset.theme === expectedTheme,
+    themeMode,
+  );
+  await page.waitForTimeout(300);
 }
 
 async function measureH1(page) {
@@ -1219,6 +1323,7 @@ function renderEvidenceDocument(summary) {
     `- ${summary.maintenanceBoardResults.length} supplemental Maintenance board viewport captures completed in the same read-only run.`,
     `- ${summary.roleAudits.length} Finance, Operations, and anonymous access checks matched the manifest.`,
     `- Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: ${failureCount}.`,
+    "- Copy and information discipline remain contextual design evidence; this runtime result certifies layout, access, interaction, and accessibility behavior.",
     "- Local fixture evidence only; this is not hosted production certification.",
     "",
     "## Route matrix",
@@ -1268,6 +1373,12 @@ function renderEvidenceDocument(summary) {
     "- Settings draft, discard, save, and error: settings workspace tests and shared workflow feedback contracts.",
     "- Import preview create/update/skip consequences: import screen tests; browser capture remains read-only.",
     "",
+    "## Information-discipline evidence",
+    "",
+    "- The product-owner contract no longer imposes a paragraph-free rule or a mandatory route-by-route copy-disposition gate on Finance and owner-balance surfaces.",
+    "- The completed supplemental review in `config/enterprise-frontend-content-review.json` still covers all 47 manifest routes and preserves concise safety, permission, consequence, recovery, and accessibility guidance.",
+    "- Automated copy lint remains a regression guard; contextual product review, workflow acceptance, and financial auditability determine whether explanatory or technical detail is appropriate.",
+    "",
     "## Keyboard, zoom, and state evidence",
     "",
     "- Native tab order, current navigation, command palette focus trap, drawer Escape/return, field error association, and live announcements are enforced by `src/lib/ui/accessibility-contract.test.tsx` and feature interaction tests.",
@@ -1287,9 +1398,10 @@ async function writeEvidenceDocument(summary) {
   await assertEvidenceArtifacts(summary, manifest);
   const evidenceDirectory = resolve("docs", "verification");
   await mkdir(evidenceDirectory, { recursive: true });
+  const evidence = renderEvidenceDocument(summary);
   await writeFile(
     resolve(evidenceDirectory, "ui-redesign-evidence.md"),
-    renderEvidenceDocument(summary),
+    evidence,
     "utf8",
   );
 }

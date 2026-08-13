@@ -184,7 +184,7 @@ export function LeaseForm({
             value: selectedStatusOption?.label ?? "Choose lease status",
           },
           {
-            label: "Rent authority",
+            label: "Rent terms",
             value:
               termStatusOptions.find(
                 (option) => option.value === selectedTermStatus,

@@ -10,10 +10,10 @@ const source = await readFile(
 test("Track 9 browser acceptance retains the complete role and database lifecycle", () => {
   for (const required of [
     'page.goto(`${baseUrl}/import`',
-    "Stage cutover manifest",
-    "cutover import run not reconciled",
-    "Commit reconciled cutover",
-    "Replay reconciled cutover",
+    "Stage import plan",
+    "Cutover import run not reconciled",
+    "Confirm imported totals",
+    "Recheck imported totals",
     "ips_cutover_reconciliations",
     "2026-06-01",
     "Finance Manager",

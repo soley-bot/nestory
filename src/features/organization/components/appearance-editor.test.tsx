@@ -20,6 +20,19 @@ import { ORGANIZATION_THEME_UPDATED_EVENT } from "@/lib/theme/organization-theme
 afterEach(cleanup);
 
 describe("AppearanceEditor", () => {
+  it("distinguishes the shared organization default from personal display mode", () => {
+    render(
+      <AppearanceEditor
+        onDraftStatusChange={vi.fn()}
+        theme={{ accentPreset: "neutral", accentSeed: null, mode: "system" }}
+      />,
+    );
+
+    expect(screen.getByText(/Sets the organization default/)).toBeTruthy();
+    expect(screen.getByText(/Each member can choose a personal display mode/)).toBeTruthy();
+    expect(screen.getByText(/Shared across the organization/)).toBeTruthy();
+  });
+
   it("previews presets without mutating the document theme", () => {
     render(
       <AppearanceEditor

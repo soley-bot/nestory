@@ -206,12 +206,69 @@ const ADMIN_GLOBAL_DESTINATIONS = [
   },
 ] satisfies readonly GlobalDestination[];
 
-const FINANCE_GLOBAL_DESTINATIONS = ADMIN_GLOBAL_DESTINATIONS.filter(
-  (destination) => destination.id === "finance",
-);
-const FINANCE_MANAGER_GLOBAL_DESTINATIONS = ADMIN_GLOBAL_DESTINATIONS.filter(
-  (destination) => destination.id === "finance" || destination.id === "reports",
-);
+const FINANCE_MANAGER_GLOBAL_DESTINATIONS = [
+  {
+    children: [
+      { href: "/finance", label: "Review queue", routes: ["/finance"] },
+      ...FINANCE_CHILDREN.slice(1),
+      {
+        href: "/settings/rent-policy",
+        label: "Rent policy",
+        routes: ["/settings/rent-policy"],
+      },
+    ],
+    id: "finance",
+    href: "/finance",
+    icon: Landmark,
+    label: "Finance",
+    routes: [
+      ...FINANCE_CHILDREN.flatMap((destination) => destination.routes),
+      "/settings/rent-policy",
+    ],
+  },
+  {
+    id: "reports",
+    href: "/reports",
+    icon: FileChartColumn,
+    label: "Reports",
+    routes: ["/reports"],
+  },
+] satisfies readonly GlobalDestination[];
+
+const FINANCE_MEMBER_GLOBAL_DESTINATIONS = [
+  {
+    children: [
+      { href: "/finance", label: "My finance work", routes: ["/finance"] },
+      ...FINANCE_CHILDREN.slice(1),
+    ],
+    id: "finance",
+    href: "/finance",
+    icon: Landmark,
+    label: "Finance",
+    routes: FINANCE_CHILDREN.flatMap((destination) => destination.routes),
+  },
+] satisfies readonly GlobalDestination[];
+
+const OPERATIONS_MANAGER_GLOBAL_DESTINATIONS = [
+  {
+    children: MAINTENANCE_CHILDREN,
+    id: "operations",
+    href: "/maintenance",
+    icon: Wrench,
+    label: "Operations",
+    routes: MAINTENANCE_CHILDREN.flatMap((destination) => destination.routes),
+  },
+] satisfies readonly GlobalDestination[];
+
+const OPERATIONS_MEMBER_GLOBAL_DESTINATIONS = [
+  {
+    id: "assigned-work",
+    href: "/tasks",
+    icon: Wrench,
+    label: "My work",
+    routes: ["/tasks"],
+  },
+] satisfies readonly GlobalDestination[];
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -232,24 +289,11 @@ function getGlobalDestinations(
     return FINANCE_MANAGER_GLOBAL_DESTINATIONS;
   }
   if (role === "finance_member") {
-    return FINANCE_GLOBAL_DESTINATIONS;
+    return FINANCE_MEMBER_GLOBAL_DESTINATIONS;
   }
-
-  const maintenanceChildren =
-    role === "operations_manager"
-      ? MAINTENANCE_CHILDREN
-      : [MAINTENANCE_CHILDREN[1]];
-
-  return [
-    {
-      children: maintenanceChildren,
-      id: "maintenance",
-      href: role === "operations_manager" ? "/maintenance" : "/tasks",
-      icon: Wrench,
-      label: "Maintenance",
-      routes: maintenanceChildren.flatMap((child) => child.routes),
-    },
-  ];
+  return role === "operations_manager"
+    ? OPERATIONS_MANAGER_GLOBAL_DESTINATIONS
+    : OPERATIONS_MEMBER_GLOBAL_DESTINATIONS;
 }
 
 function destinationMatchesPath(
@@ -554,13 +598,14 @@ export function AppShell({
                 id="workspace-page-tools"
               />
               <WorkspaceCommandPalette role={role} />
-              {role === "super_admin" && organizationId && theme ? (
+              {organizationId && theme ? (
                 <ThemeToggle organizationId={organizationId} theme={theme} />
               ) : null}
             </div>
           </header>
           <div
             className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible"
+            data-scroll-owner="application"
             data-slot="app-shell-content"
           >
             {children}

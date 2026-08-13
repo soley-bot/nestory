@@ -25,7 +25,9 @@ describe("LedgerTable", () => {
     expect(surface?.classList.contains("rounded-md")).toBe(false);
     expect(surface?.classList.contains("border")).toBe(false);
     expect(surface?.classList.contains("overflow-hidden")).toBe(true);
-    expect(scrollOwner?.classList.contains("overflow-auto")).toBe(true);
+    expect(scrollOwner?.classList.contains("overflow-x-auto")).toBe(true);
+    expect(scrollOwner?.classList.contains("overflow-auto")).toBe(false);
+    expect(scrollOwner?.getAttribute("aria-label")).toBe("Ledger table");
     expect(table.querySelector("thead")?.classList.contains("sticky")).toBe(true);
     expect(row.classList.contains("border-t")).toBe(true);
     expect(row.getAttribute("tabindex")).toBe("0");

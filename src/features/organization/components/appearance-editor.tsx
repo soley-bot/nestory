@@ -143,7 +143,7 @@ export const AppearanceEditor = forwardRef<
                   value={draft.values.mode}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Applies to everyone in this organization.
+                  Sets the organization default. Each member can choose a personal display mode.
                 </p>
               </div>
 
@@ -179,6 +179,9 @@ export const AppearanceEditor = forwardRef<
                     );
                   })}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Shared across the organization for actions, links, focus, and selection.
+                </p>
               </fieldset>
 
               {draft.values.accentPreset === "custom" ? (

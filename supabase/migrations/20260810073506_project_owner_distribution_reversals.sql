@@ -133,6 +133,16 @@ BEGIN
     pg_catalog.chr(13) || pg_catalog.chr(10),
     pg_catalog.chr(10)
   );
+  v_target := pg_catalog.replace(
+    v_target,
+    pg_catalog.chr(13) || pg_catalog.chr(10),
+    pg_catalog.chr(10)
+  );
+  v_replacement := pg_catalog.replace(
+    v_replacement,
+    pg_catalog.chr(13) || pg_catalog.chr(10),
+    pg_catalog.chr(10)
+  );
 
   IF pg_catalog.strpos(v_definition, v_target) = 0 THEN
     RAISE EXCEPTION
