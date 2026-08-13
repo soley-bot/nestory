@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
-import { ImageIcon, X } from "lucide-react";
+import { CircleHelp, ImageIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   FileDropzoneField,
@@ -16,6 +16,12 @@ import { Modal } from "@/components/ui/modal";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
 import type { PersonRoleValue } from "@/features/people/people.types";
@@ -79,6 +85,11 @@ export function PropertyForm({
   const [photoPreview, setPhotoPreview] = useState<PhotoPreview | null>(null);
   const [dropzoneKey, setDropzoneKey] = useState(0);
   const openPhotoPickerRef = useRef<(() => void) | null>(null);
+  const ownershipShareDefault = selectedOwnerPersonId
+    ? ownershipFactsCleared
+      ? "100"
+      : defaults.ownershipPercent || "100"
+    : "";
   useEffect(() => {
     return () => {
       if (photoPreview) {
@@ -317,14 +328,39 @@ export function PropertyForm({
           </RecordField>
 
           <RecordField
+            className="[&>div]:relative"
             error={state.fieldErrors?.ownershipPercent?.[0]}
+            hint={
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      aria-label="About ownership share"
+                      className="ml-1 inline-flex size-5 shrink-0 items-center justify-center rounded-md align-middle text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      type="button"
+                    >
+                      <CircleHelp aria-hidden="true" className="size-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    className="max-w-64 text-left leading-relaxed"
+                    side="top"
+                    sideOffset={6}
+                  >
+                    Use 100% for a sole owner. Reduce the share when the property
+                    has multiple owners.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            }
             label="Ownership share (%)"
             name="ownershipPercent"
             required={Boolean(selectedOwnerPersonId)}
           >
             <Input
               aria-label="Ownership share (%)"
-              defaultValue={ownershipFactsCleared ? "" : defaults.ownershipPercent ?? ""}
+              className="pr-8"
+              defaultValue={ownershipShareDefault}
               inputMode="decimal"
               maxLength={7}
               key={`ownership-share-${ownershipFactsKey}`}
@@ -332,6 +368,12 @@ export function PropertyForm({
               required={Boolean(selectedOwnerPersonId)}
               type="text"
             />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground"
+            >
+              %
+            </span>
           </RecordField>
         </div>
 
@@ -483,10 +525,13 @@ function SelectedPropertyPhotoPreview({
 }) {
   return (
     <article className="mt-3 overflow-hidden rounded-md border border-accent/50 bg-card">
-      <div className="relative h-44 bg-muted">
+      <div
+        className="relative h-56 bg-muted/50"
+        data-slot="property-photo-preview-frame"
+      >
         <Image
           alt=""
-          className="size-full object-cover"
+          className="size-full object-contain p-2"
           fill
           sizes="560px"
           src={preview.url}

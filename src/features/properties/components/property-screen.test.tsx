@@ -78,6 +78,10 @@ beforeEach(() => {
     callback(0);
     return 1;
   });
+  Object.defineProperties(URL, {
+    createObjectURL: { configurable: true, value: vi.fn(() => "blob:property-photo") },
+    revokeObjectURL: { configurable: true, value: vi.fn() },
+  });
   vi.stubGlobal(
     "ResizeObserver",
     class ResizeObserver {
@@ -102,10 +106,12 @@ afterEach(() => {
   delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
   delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
   vi.unstubAllGlobals();
+  delete (URL as typeof URL & { createObjectURL?: unknown }).createObjectURL;
+  delete (URL as typeof URL & { revokeObjectURL?: unknown }).revokeObjectURL;
 });
 
 describe("PropertyScreen redesign contract", () => {
-  it("preserves ownership facts for the same owner and clears them when identity changes", () => {
+  it("preserves ownership facts for the same owner and defaults a replacement owner to full ownership", () => {
     const currentOwnerId = "11111111-1111-4111-8111-111111111111";
     const replacementOwnerId = "22222222-2222-4222-8222-222222222222";
     const property = makeProperty("property-edit", "EDIT", "Edit property");
@@ -134,9 +140,86 @@ describe("PropertyScreen redesign contract", () => {
     const replacementStart = document.querySelector<HTMLInputElement>('input[name="ownerStartedOn"]')!;
     const replacementShare = screen.getByRole("textbox", { name: /Ownership share/ }) as HTMLInputElement;
     expect(replacementStart.value).toBe("");
-    expect(replacementShare.value).toBe("");
+    expect(replacementShare.value).toBe("100");
     expect(replacementStart.required).toBe(true);
     expect(replacementShare.required).toBe(true);
+  });
+
+  it("keeps ownership share blank without an owner and explains the full-ownership default", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PropertyForm
+        mode="create"
+        onClose={vi.fn()}
+        ownerOptions={[]}
+      />,
+    );
+
+    const share = screen.getByRole("textbox", { name: /Ownership share/ }) as HTMLInputElement;
+    expect(share.value).toBe("");
+    expect(share.required).toBe(false);
+
+    await user.hover(screen.getByRole("button", { name: "About ownership share" }));
+    expect(
+      await screen.findByText(
+        "Use 100% for a sole owner. Reduce the share when the property has multiple owners.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("shows ownership values with a percent suffix without changing the numeric form value", () => {
+    const ownerId = "11111111-1111-4111-8111-111111111111";
+
+    render(
+      <PropertyForm
+        initialValues={{ ownerPersonId: ownerId }}
+        mode="create"
+        onClose={vi.fn()}
+        ownerOptions={[
+          {
+            archived: false,
+            description: "Owner",
+            id: ownerId,
+            label: "Current Owner",
+            roles: ["owner"],
+          },
+        ]}
+      />,
+    );
+
+    const ownershipField = screen.getByRole("group", {
+      name: /Ownership share/,
+    });
+    const share = within(ownershipField).getByRole("textbox") as HTMLInputElement;
+
+    expect(within(ownershipField).getByText("%", { selector: "span" })).toBeTruthy();
+    expect(share.value).toBe("100");
+  });
+
+  it("fits an uploaded property photo inside a stable preview frame", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <PropertyForm mode="create" onClose={vi.fn()} ownerOptions={[]} />,
+    );
+    const fileInput = container.querySelector<HTMLInputElement>(
+      'input[name="photo"]',
+    )!;
+
+    await user.upload(
+      fileInput,
+      new File(["photo"], "property.jpg", { type: "image/jpeg" }),
+    );
+
+    const frame = container.querySelector<HTMLElement>(
+      '[data-slot="property-photo-preview-frame"]',
+    );
+    const image = frame?.querySelector("img");
+
+    expect(frame).not.toBeNull();
+    expect(frame?.className).toContain("h-56");
+    expect(image?.className).toContain("object-contain");
+    expect(image?.className).not.toContain("object-cover");
   });
   it("keeps one page title in the content header without a shell breadcrumb", () => {
     const pageTools = document.createElement("div");
@@ -477,8 +560,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(startInput?.value).toBe("");
     expect(startInput?.required).toBe(true);
     expect(shareInput.getAttribute("required")).not.toBeNull();
-    expect(shareInput.getAttribute("value")).toBe("");
-    expect(screen.queryByDisplayValue("100.000")).toBeNull();
+    expect(shareInput.getAttribute("value")).toBe("100");
   });
 });
 

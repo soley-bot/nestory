@@ -231,6 +231,7 @@ type RecordFieldProps = {
   children: ReactNode;
   className?: string;
   error?: string;
+  hint?: ReactNode;
   label: string;
   name: string;
   required?: boolean;
@@ -240,6 +241,7 @@ export function RecordField({
   children,
   className,
   error,
+  hint,
   label,
   name,
   required = false,
@@ -287,6 +289,7 @@ export function RecordField({
           </>
         ) : null}
       </span>
+      {hint}
       <div className="mt-2">{decoratedChildren}</div>
       {error ? (
         <p className="mt-1 text-xs text-danger" id={errorId}>
