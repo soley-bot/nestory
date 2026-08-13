@@ -1,0 +1,6334 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-13T08:58:53.768Z",
+  "branch": "codex/enterprise-frontend-redesign",
+  "head": "b443b59dba8fc91a92e629dd53359e6ccf3f8752",
+  "baseBranch": "main",
+  "baseSha": "b4754f486e82ebd1ec00311936f42125e0895017",
+  "worktree": "D:\\nestory\\.worktrees\\enterprise-frontend-redesign",
+  "environment": {
+    "appTargets": [
+      "http://127.0.0.1:3220",
+      "http://127.0.0.1:3220"
+    ],
+    "database": "isolated local Supabase project nestory on 127.0.0.1:54322 with the guarded acceptance fixture",
+    "productionTouched": false
+  },
+  "totals": {
+    "manifestRoutes": 47,
+    "routeViewportCasesPerTheme": 188,
+    "maintenanceBoardCasesPerTheme": 4,
+    "roleCasesPerTheme": 235,
+    "keyboardZoomCasesPerTheme": 6,
+    "discoverabilityJourneys": 67,
+    "directDenials": 4,
+    "workflows": 13
+  },
+  "themes": {
+    "light": {
+      "summaryPath": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/summary.json",
+      "baseUrl": "http://127.0.0.1:3220",
+      "completedAt": "2026-08-13T08:51:24.426Z",
+      "axeEnabled": true,
+      "routeViewportCases": 188,
+      "maintenanceBoardCases": 4,
+      "roleCases": 235,
+      "keyboardZoomCases": 6,
+      "blockedMutationRequests": 0,
+      "status": "passed"
+    },
+    "dark": {
+      "summaryPath": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/summary.json",
+      "baseUrl": "http://127.0.0.1:3220",
+      "completedAt": "2026-08-13T08:58:26.297Z",
+      "axeEnabled": true,
+      "routeViewportCases": 188,
+      "maintenanceBoardCases": 4,
+      "roleCases": 235,
+      "keyboardZoomCases": 6,
+      "blockedMutationRequests": 0,
+      "status": "passed"
+    }
+  },
+  "discoverability": {
+    "evidenceHead": "b443b59dba8fc91a92e629dd53359e6ccf3f8752",
+    "passed": 67,
+    "total": 67,
+    "directDenials": 4
+  },
+  "routes": [
+    {
+      "route": "/workspace",
+      "source": "src/app/workspace/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member",
+        "operations_manager",
+        "operations_member"
+      ],
+      "states": [
+        "redirected",
+        "permission-blocked"
+      ],
+      "expectedAccess": {
+        "super_admin": "redirected",
+        "finance_manager": "redirected",
+        "finance_member": "redirected",
+        "operations_manager": "redirected",
+        "operations_member": "redirected",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/workspace/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "finance_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "operations_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/maintenance"
+            },
+            "operations_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/tasks"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "finance_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "operations_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/maintenance"
+            },
+            "operations_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/tasks"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/properties",
+      "source": "src/app/(dashboard)/properties/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/properties/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/properties?query=Central"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/properties?query=Central"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/properties/setup",
+      "source": "src/app/(dashboard)/properties/setup/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/properties/setup/page.tsx",
+        "src/app/(dashboard)/properties/setup/loading.tsx",
+        "src/features/property-setup/components/property-setup-screen.tsx",
+        "src/features/property-setup/components/property-setup-screen.test.tsx",
+        "src/features/property-setup/property-setup.test.ts"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/properties/setup?step=1"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/properties/setup?step=1"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/units",
+      "source": "src/app/(dashboard)/units/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/units/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/units?query=09"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/units?query=09"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/people",
+      "source": "src/app/(dashboard)/people/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "error",
+        "permission-blocked"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/people/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/people?query=Dara"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/people?query=Dara"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/owners",
+      "source": "src/app/(dashboard)/owners/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/owners/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/owners?query=Sokha"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/owners?query=Sokha"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/staff",
+      "source": "src/app/(dashboard)/staff/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/staff/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/staff?query=Mara"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/staff?query=Mara"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/tenants",
+      "source": "src/app/(dashboard)/tenants/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/tenants/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/tenants?query=Dara"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/tenants?query=Dara"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/vendors",
+      "source": "src/app/(dashboard)/vendors/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/vendors/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/vendors?query=Vendor"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/vendors?query=Vendor"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/leases",
+      "source": "src/app/(dashboard)/leases/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/leases/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/leases?query=Dara"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/leases?query=Dara"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/leases?query=Dara"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Leases",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/leases?query=Dara"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/leases?query=Dara"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/leases?query=Dara"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Leases",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/rent-income",
+      "source": "src/app/(dashboard)/rent-income/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/rent-income/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/rent-income?query=Central"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/rent-income?query=Central"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/rent-income?query=Central"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/rent-income?query=Central"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/rent-income?query=Central"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/rent-income?query=Central"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/bills-expenses",
+      "source": "src/app/(dashboard)/bills-expenses/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/bills-expenses/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/bills-expenses?query=Repair"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/bills-expenses?query=Repair"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/bills-expenses?query=Repair"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/bills-expenses?query=Repair"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/bills-expenses?query=Repair"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/bills-expenses?query=Repair"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/ledger",
+      "source": "src/app/(dashboard)/ledger/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/ledger/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/ledger?query=Central"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/ledger?query=Central"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/ledger?query=Central"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/ledger?query=Central"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/ledger?query=Central"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/ledger?query=Central"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/petty-cash",
+      "source": "src/app/(dashboard)/petty-cash/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/petty-cash/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/petty-cash"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/petty-cash"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/petty-cash"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/petty-cash"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/petty-cash"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/petty-cash"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/maintenance",
+      "source": "src/app/(dashboard)/maintenance/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "operations_manager"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/maintenance/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/maintenance?view=list&query=Kitchen"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/maintenance?view=list&query=Kitchen"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Maintenance",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/maintenance?view=list&query=Kitchen"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/maintenance?view=list&query=Kitchen"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Maintenance",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/tasks",
+      "source": "src/app/(dashboard)/tasks/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "operations_manager",
+        "operations_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/tasks/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/tasks?query=Kitchen"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/tasks?query=Kitchen"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/tasks?query=Kitchen"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/tasks?query=Kitchen"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/tasks?query=Kitchen"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/tasks?query=Kitchen"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/recurring-tasks",
+      "source": "src/app/(dashboard)/recurring-tasks/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "operations_manager"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/recurring-tasks/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/recurring-tasks"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/recurring-tasks"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/recurring-tasks"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/recurring-tasks"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/inspections",
+      "source": "src/app/(dashboard)/inspections/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "operations_manager"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/inspections/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/inspections"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/inspections"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/inspections"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/inspections"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/work-orders",
+      "source": "src/app/(dashboard)/work-orders/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "operations_manager"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "accessible",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/work-orders/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/work-orders"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/work-orders"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/work-orders"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/work-orders"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/timeline",
+      "source": "src/app/(dashboard)/timeline/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/timeline/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/timeline?query=Kitchen"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/timeline?query=Kitchen"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/financial-timeline",
+      "source": "src/app/(dashboard)/financial-timeline/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/financial-timeline/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/financial-timeline?query=Central"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/financial-timeline?query=Central"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/maintenance-timeline",
+      "source": "src/app/(dashboard)/maintenance-timeline/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/maintenance-timeline/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/maintenance-timeline?query=Kitchen"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/maintenance-timeline?query=Kitchen"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/property-timeline",
+      "source": "src/app/(dashboard)/property-timeline/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/property-timeline/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/property-timeline?propertyId=10000000-0000-0000-0000-000000000001"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/property-timeline?propertyId=10000000-0000-0000-0000-000000000001"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/documents",
+      "source": "src/app/(dashboard)/documents/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/documents/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/documents?query=lease"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/documents?query=lease"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/reports",
+      "source": "src/app/(dashboard)/reports/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "finance_manager"
+      ],
+      "states": [
+        "populated",
+        "permission-blocked"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/reports/page.tsx",
+        "src/app/(dashboard)/reports/page.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/reports"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/reports"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/reports"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/reports"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/reports/[reportKind]",
+      "source": "src/app/(dashboard)/reports/[reportKind]/page.tsx",
+      "surface": "detail",
+      "roles": [
+        "super_admin",
+        "finance_manager"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/reports/[reportKind]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/reports/unit-profit-loss?month=2026-07"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/reports/unit-profit-loss?month=2026-07"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/reports/unit-profit-loss?month=2026-07"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/reports/unit-profit-loss?month=2026-07"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/settings",
+      "source": "src/app/(dashboard)/settings/page.tsx",
+      "surface": "settings",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/settings"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Settings",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/settings"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Settings",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/settings/rent-policy",
+      "source": "src/app/(dashboard)/settings/rent-policy/page.tsx",
+      "surface": "settings",
+      "roles": [
+        "super_admin",
+        "finance_manager"
+      ],
+      "states": [
+        "populated",
+        "empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/rent-policy/page.tsx",
+        "src/features/leases/components/rent-policy-screen.tsx",
+        "src/features/leases/components/rent-policy-screen.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/settings/rent-policy"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/settings/rent-policy"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/settings/rent-policy"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/settings/rent-policy"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/users-roles",
+      "source": "src/app/(dashboard)/users-roles/page.tsx",
+      "surface": "settings",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/users-roles/page.tsx",
+        "src/app/(dashboard)/users-roles/page.test.tsx",
+        "src/features/organization/components/access-settings-screen.test.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/users-roles"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/users-roles"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/account",
+      "source": "src/app/(dashboard)/account/page.tsx",
+      "surface": "settings",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member",
+        "operations_manager",
+        "operations_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "error",
+        "permission-blocked"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/account/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/account"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/account"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/account"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/account"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/account"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/account"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/account"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/account"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/account"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/account"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/import",
+      "source": "src/app/(dashboard)/import/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/import/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/import"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/import"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/overview",
+      "source": "src/app/(dashboard)/overview/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/overview/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Overview",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Overview",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/overview/[view]",
+      "source": "src/app/(dashboard)/overview/[view]/page.tsx",
+      "surface": "detail",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "error",
+        "permission-blocked"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/overview/[view]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview/attention?month=2026-07"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview/attention?month=2026-07"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/properties/[propertyId]",
+      "source": "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+      "surface": "detail",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/properties/[propertyId]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/properties/10000000-0000-0000-0000-000000000001"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Property detail",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/properties/10000000-0000-0000-0000-000000000001"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Property detail",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/units/[unitId]",
+      "source": "src/app/(dashboard)/units/[unitId]/page.tsx",
+      "surface": "detail",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/units/[unitId]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/units/20000000-0000-0000-0000-000000000001"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/units/20000000-0000-0000-0000-000000000001"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/people/[personId]",
+      "source": "src/app/(dashboard)/people/[personId]/page.tsx",
+      "surface": "detail",
+      "roles": [
+        "super_admin"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "filtered-empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/people/[personId]/page.tsx",
+        "src/components/layout/module-loading.tsx",
+        "src/components/ui/empty-state.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/people/80000000-0000-4000-8000-000000000001"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/people/80000000-0000-4000-8000-000000000001"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/",
+      "source": "src/app/page.tsx",
+      "surface": "public",
+      "roles": [
+        "public"
+      ],
+      "states": [
+        "populated"
+      ],
+      "expectedAccess": {
+        "super_admin": "redirected",
+        "finance_manager": "redirected",
+        "finance_member": "redirected",
+        "operations_manager": "redirected",
+        "operations_member": "redirected",
+        "anonymous": "accessible"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/page.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "finance_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "operations_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/maintenance"
+            },
+            "operations_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/tasks"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "finance_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "operations_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/maintenance"
+            },
+            "operations_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/tasks"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/request",
+      "source": "src/app/request/page.tsx",
+      "surface": "public",
+      "roles": [
+        "public"
+      ],
+      "states": [
+        "draft",
+        "saving",
+        "error",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
+        "anonymous": "accessible"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/request/page.tsx",
+        "src/features/marketing/components/public-interest-form.tsx",
+        "src/features/marketing/request-actions.test.ts"
+      ],
+      "limitations": [
+        "Submissions are stored for follow-up; outbound email notification is not configured."
+      ],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/request?intent=demo"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/request?intent=demo"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/request?intent=demo"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/login",
+      "source": "src/app/(auth)/login/page.tsx",
+      "surface": "auth",
+      "roles": [
+        "public"
+      ],
+      "states": [
+        "draft",
+        "saving",
+        "error",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "redirected",
+        "finance_manager": "redirected",
+        "finance_member": "redirected",
+        "operations_manager": "redirected",
+        "operations_member": "redirected",
+        "anonymous": "accessible"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(auth)/login/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx",
+        "src/components/ui/error-state.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "finance_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "operations_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/maintenance"
+            },
+            "operations_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/tasks"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/overview"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "finance_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/finance"
+            },
+            "operations_manager": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/maintenance"
+            },
+            "operations_member": {
+              "actual": "redirected",
+              "expected": "redirected",
+              "finalPath": "/tasks"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/forgot-password",
+      "source": "src/app/(auth)/forgot-password/page.tsx",
+      "surface": "auth",
+      "roles": [
+        "public"
+      ],
+      "states": [
+        "draft",
+        "saving",
+        "success",
+        "error"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
+        "anonymous": "accessible"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(auth)/forgot-password/page.tsx",
+        "src/features/auth/components/forgot-password-form.tsx",
+        "src/features/auth/auth-recovery-actions.test.ts"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/forgot-password"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/forgot-password"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/forgot-password"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/update-password",
+      "source": "src/app/(auth)/update-password/page.tsx",
+      "surface": "auth",
+      "roles": [
+        "public"
+      ],
+      "states": [
+        "draft",
+        "saving",
+        "success",
+        "error"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
+        "anonymous": "accessible"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(auth)/update-password/page.tsx",
+        "src/features/auth/components/update-password-form.tsx",
+        "src/features/auth/auth-recovery-actions.test.ts"
+      ],
+      "limitations": [
+        "A valid Supabase recovery session is required for a successful password update."
+      ],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/update-password"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/update-password"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/update-password"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/auth/complete",
+      "source": "src/app/auth/complete/page.tsx",
+      "surface": "auth",
+      "roles": [
+        "public"
+      ],
+      "states": [
+        "loading",
+        "error"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
+        "anonymous": "accessible"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/auth/complete/page.tsx",
+        "src/features/auth/components/implicit-session-completion.tsx",
+        "src/features/auth/implicit-session.test.ts",
+        "src/features/auth/implicit-session-route.test.ts"
+      ],
+      "limitations": [
+        "A fresh Supabase implicit-flow email fragment is required for successful completion."
+      ],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/accept-invite",
+      "source": "src/app/accept-invite/page.tsx",
+      "surface": "auth",
+      "roles": [
+        "public"
+      ],
+      "states": [
+        "draft",
+        "saving",
+        "success",
+        "error",
+        "permission-blocked"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
+        "anonymous": "accessible"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/accept-invite/page.tsx",
+        "src/features/auth/invitation-acceptance.test.ts"
+      ],
+      "limitations": [
+        "A valid matching invitation and Supabase-authenticated email session are required for acceptance."
+      ],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            },
+            "anonymous": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/accept-invite?invitation=11111111-1111-4111-8111-111111111111"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/no-access",
+      "source": "src/app/no-access/page.tsx",
+      "surface": "auth",
+      "roles": [
+        "unlinked"
+      ],
+      "states": [
+        "permission-blocked"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "accessible",
+        "operations_member": "accessible",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/no-access/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "limitations": [
+        "Unlinked-account browser presentation is covered by unit and state contracts; the retained local fixtures represent linked roles."
+      ],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/no-access"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/no-access"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/no-access"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/no-access"
+            },
+            "operations_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/finance",
+      "source": "src/app/(dashboard)/finance/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/finance/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/finance"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/finance"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/finance"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/finance"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/finance"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/finance"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/balances",
+      "source": "src/app/(dashboard)/balances/page.tsx",
+      "surface": "workspace",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/balances/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/balances"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/balances"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/balances"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Opening authority",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/balances"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/balances"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/balances"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": [
+            {
+              "access": "accessible",
+              "label": "Opening authority",
+              "viewport": "zoom-equivalent-200"
+            }
+          ]
+        }
+      },
+      "status": "passed"
+    },
+    {
+      "route": "/properties/[propertyId]/account",
+      "source": "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+      "surface": "detail",
+      "roles": [
+        "super_admin",
+        "finance_manager",
+        "finance_member"
+      ],
+      "states": [
+        "loading",
+        "populated",
+        "empty",
+        "error",
+        "permission-blocked",
+        "draft",
+        "saving",
+        "success"
+      ],
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "limitations": [],
+      "themes": {
+        "light": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/properties/10000000-0000-0000-0000-000000000001/account"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/properties/10000000-0000-0000-0000-000000000001/account"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/properties/10000000-0000-0000-0000-000000000001/account"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        },
+        "dark": {
+          "captures": 4,
+          "viewports": [
+            "desktop",
+            "laptop",
+            "compact-desktop",
+            "phone"
+          ],
+          "finalPaths": [
+            "/properties/10000000-0000-0000-0000-000000000001/account"
+          ],
+          "queryVerified": true,
+          "axeViolations": 0,
+          "runtimeFailures": 0,
+          "roles": {
+            "finance_manager": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/properties/10000000-0000-0000-0000-000000000001/account"
+            },
+            "finance_member": {
+              "actual": "accessible",
+              "expected": "accessible",
+              "finalPath": "/properties/10000000-0000-0000-0000-000000000001/account"
+            },
+            "operations_manager": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "operations_member": {
+              "actual": "permission-blocked",
+              "expected": "permission-blocked",
+              "finalPath": "/no-access"
+            },
+            "anonymous": {
+              "actual": "login-required",
+              "expected": "login-required",
+              "finalPath": "/login"
+            }
+          },
+          "keyboardZoom": []
+        }
+      },
+      "status": "passed"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "finance-manager-day",
+      "command": "npm run test:fixture-finance-manager-day",
+      "scope": "Finance Manager lease policy, payments, owner close, statement publication, reports, and retained exceptional denials",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "owner-opening",
+      "command": "npm run test:owner-opening-browser-acceptance",
+      "scope": "Independent submission, review, correction lineage, role denial, and database effects",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "owner-balance",
+      "command": "npm run test:owner-balance-browser-acceptance",
+      "scope": "Four-component opening authority, allocation, cash activity, reversal, exact two-month roll-forward, and role denial",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "owner-close",
+      "command": "npm run test:owner-close-browser-acceptance",
+      "scope": "Readiness, close, reopen, correction, immutable revision history, and role denial",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "owner-statement",
+      "command": "npm run test:owner-statement-browser-acceptance",
+      "scope": "Publication, supersession, retained bytes, Finance Member read/download, and Operations denial",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "golden-setup",
+      "command": "npm run test:ips-golden-setup",
+      "scope": "Nine-phase property-to-rent-ready setup with independent opening-balance review",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "rent-to-statement",
+      "command": "npm run rent:test-browser",
+      "scope": "Ten rent scenarios through late payment, owner close, and byte-verified PDF/Excel publication",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "paid-cost",
+      "command": "npm run paid-cost:test-browser",
+      "scope": "Submit, evidence review, approve, reverse, correct, reapprove, and exact database effects",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "cutover",
+      "command": "npm run cutover:test-browser",
+      "scope": "Blocked and corrected import plan, reconciliation, replay, exact totals, and role denial",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "maintenance-responsive",
+      "command": "npm run test:maintenance-mobile",
+      "scope": "Cases, board, calendar, drawer, tasks, recurring work, inspections, and work orders across four viewports",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "properties",
+      "command": "npm run test:properties-flow",
+      "scope": "Property and unit navigation, filters, inspector, and detail flow",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "role-homes",
+      "command": "npm run test:fixture-roles",
+      "scope": "All five role homes at desktop, laptop, and phone",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "id": "discoverability",
+      "command": "npm run test:fixture-route-discoverability",
+      "scope": "67/67 visible-link journeys and 4 direct denials",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    }
+  ],
+  "engineeringGates": [
+    {
+      "command": "npm run lint",
+      "result": "ESLint passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run test:all",
+      "result": "226 Vitest files / 1,591 tests and 88 Node contract tests passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run test:ui-copy",
+      "result": "47-route copy policy passed with 0 prohibited occurrences",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run test:ui-coverage",
+      "result": "47/47 executable routes passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run test:route-discoverability",
+      "result": "38/38 route contracts passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run test:ui-redesign",
+      "result": "188 route/viewport, 4 Maintenance board, 235 role, and 6 keyboard/zoom cases passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run test:ui-a11y -- --write-evidence",
+      "result": "Complete light-theme Chromium and axe run passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "node scripts/smoke-ui-redesign.mjs --axe --theme=dark",
+      "result": "Complete dark-theme Chromium and axe run passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "result": "TypeScript passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run build",
+      "result": "Next.js production build passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "git diff --check",
+      "result": "Passed; no whitespace errors",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    }
+  ],
+  "databaseGates": [
+    {
+      "command": "npm run db:reset",
+      "result": "All local migrations replayed successfully",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run db:test:fixture",
+      "result": "Isolated five-role acceptance fixture loaded and verified",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npx supabase test db",
+      "result": "53 pgTAP files / 1,864 assertions passed",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run db:lint",
+      "result": "Passed with four pre-existing unused-variable warnings and no errors",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    },
+    {
+      "command": "npm run db:types",
+      "result": "Generated database types completed without a semantic diff",
+      "status": "passed",
+      "verifiedAt": "2026-08-13T08:58:53.768Z"
+    }
+  ],
+  "visuals": [
+    {
+      "name": "landing-desktop-light",
+      "route": "/",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/landing-desktop-light.png",
+      "sizeBytes": 1321004,
+      "sha256": "39126e6d5aacf380fc2af141117b274a183db7674e3d42a967566eb1581a4cb3",
+      "source": "live public route"
+    },
+    {
+      "name": "landing-phone-light",
+      "route": "/",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844,
+      "path": "artifacts/enterprise-frontend-redesign/visual/landing-phone-light.png",
+      "sizeBytes": 337968,
+      "sha256": "1b8a238d64f01a966616682847498b3e570f1cf7901a471eb73fe4095431cb2c",
+      "source": "live public route"
+    },
+    {
+      "name": "landing-operations-editorial-light",
+      "route": "/",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/landing-operations-editorial-light.png",
+      "sizeBytes": 538932,
+      "sha256": "ca363c8943f22aaf9021e30457706e24de56967250ba7928cd79806522605b27",
+      "source": "live public route"
+    },
+    {
+      "name": "landing-operations-fallback-light",
+      "route": "/",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/landing-operations-fallback-light.png",
+      "sizeBytes": 69192,
+      "sha256": "69532ecf3123c9a00ffc23134583d878780c8ce32f4b9907446bb6548e877647",
+      "source": "live public route with editorial image blocked"
+    },
+    {
+      "name": "overview-desktop-light",
+      "route": "/overview",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/overview-desktop-light.png",
+      "sizeBytes": 108815,
+      "sha256": "508b6a1d0839121bd0aaf960c11c4080779d118cf17c0373c88ebbc24067a862",
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/overview-1440x900.png"
+    },
+    {
+      "name": "overview-desktop-dark",
+      "route": "/overview",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/overview-desktop-dark.png",
+      "sizeBytes": 114984,
+      "sha256": "230ed2944a2631a0825a80c8ae73b18fcffbd4d0c7305598db67ab542286a81f",
+      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/desktop/overview-1440x900.png"
+    },
+    {
+      "name": "finance-desktop-light",
+      "route": "/finance",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/finance-desktop-light.png",
+      "sizeBytes": 161395,
+      "sha256": "ee28266b9a233419dc05aa4fe3c2a7f9beee2c117e15b804202fa76fd405b33b",
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/finance-1440x900.png"
+    },
+    {
+      "name": "finance-desktop-dark",
+      "route": "/finance",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/finance-desktop-dark.png",
+      "sizeBytes": 177387,
+      "sha256": "71c6e13e2f841232c19fc9991131e061518499190c186e3f280b30860d2fc364",
+      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/desktop/finance-1440x900.png"
+    },
+    {
+      "name": "owner-balances-desktop-light",
+      "route": "/balances",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/owner-balances-desktop-light.png",
+      "sizeBytes": 163156,
+      "sha256": "db5fdedfb35f72524c57a01db611058ea263015a3b03cca9d839a00e10024339",
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/balances-1440x900.png"
+    },
+    {
+      "name": "owner-balances-desktop-dark",
+      "route": "/balances",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/owner-balances-desktop-dark.png",
+      "sizeBytes": 181185,
+      "sha256": "82055ea4b3c2da0b7d8459e9190bcef3ddffd78da12acfa4386ee28899409b37",
+      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/desktop/balances-1440x900.png"
+    },
+    {
+      "name": "operations-desktop-light",
+      "route": "/maintenance",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/operations-desktop-light.png",
+      "sizeBytes": 77566,
+      "sha256": "8b65a51f18950dbd679221b955c69c878ceb508305ac9e95ab10ac1ed87e4270",
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/maintenance-view-list-query-kitchen-1440x900.png"
+    },
+    {
+      "name": "operations-phone-light",
+      "route": "/maintenance",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844,
+      "path": "artifacts/enterprise-frontend-redesign/visual/operations-phone-light.png",
+      "sizeBytes": 30428,
+      "sha256": "56a402b419e183d40baeaa3f8686ad1c360b6394efdde0b2bcb18b16e4b960c4",
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/phone/maintenance-view-list-query-kitchen-390x844.png"
+    },
+    {
+      "name": "rent-policy-desktop-light",
+      "route": "/settings/rent-policy",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 900,
+      "path": "artifacts/enterprise-frontend-redesign/visual/rent-policy-desktop-light.png",
+      "sizeBytes": 86766,
+      "sha256": "be1140b5d513ae16ece2e533f0dd1ad0655201b0df5a842057ccacf2adebba7d",
+      "source": "artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836/desktop/settings-rent-policy-1440x900.png"
+    },
+    {
+      "name": "login-phone-dark",
+      "route": "/login",
+      "theme": "dark",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844,
+      "path": "artifacts/enterprise-frontend-redesign/visual/login-phone-dark.png",
+      "sizeBytes": 55766,
+      "sha256": "104a5094f33b81698eaf937aa3b8376a707fa12f8750b689e92b7618839ebc5e",
+      "source": "artifacts/ui-redesign/ui-redesign-dark-2026-08-13T08-51-30.390Z-axe-p14948/phone/login-390x844.png"
+    },
+    {
+      "name": "generated-editorial-source",
+      "route": "/",
+      "theme": "light",
+      "viewport": "source",
+      "width": 1536,
+      "height": 1024,
+      "path": "artifacts/enterprise-frontend-redesign/visual/generated-editorial-source.webp",
+      "sizeBytes": 110648,
+      "sha256": "dadb038f841de2a54877a389effff52dae06d079f1f4caa9c2aa34949471239f",
+      "source": "public/property-operations-team-editorial.webp"
+    }
+  ],
+  "limitations": [
+    "Local fixture and local browser evidence only; no production deployment or production data was touched.",
+    "Automated axe coverage reports serious and critical rule violations; contextual screen-reader quality also relies on semantic and interaction tests.",
+    "Physical-device behavior was not claimed; responsive evidence uses Chromium viewports and a 200 percent zoom-equivalent viewport."
+  ]
+}

@@ -111,7 +111,7 @@ export function RestorePropertyPanel({
         </div>
         <PropertyPanelSummary property={property} />
         <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
-          Restoring makes this property visible in active property workflows again.
+          Restoring returns this property to active property lists.
         </p>
         <PanelMessage state={state} />
       </div>

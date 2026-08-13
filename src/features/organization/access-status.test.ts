@@ -88,6 +88,35 @@ describe("buildAccessByPersonId", () => {
     });
   });
 
+  it("uses the same organization-wide rule for every finance role", () => {
+    const financeMembership = {
+      ...membership,
+      role: "finance_manager" as const,
+    };
+    const financeInvitation = {
+      ...invitation,
+      branchId: "branch-1",
+      personId: "person-2",
+      role: "finance_member" as const,
+    };
+
+    const result = buildAccessByPersonId(
+      ["person-1", "person-2"],
+      [financeMembership],
+      [financeInvitation],
+      now,
+      [{ id: "branch-1", name: "Central Office" }],
+    );
+
+    expect(result["person-1"]).toMatchObject({ scopeLabel: "All branches" });
+    expect(result["person-2"]).toMatchObject({ scopeLabel: "All branches" });
+  });
+
+  it("shows a missing branch as an unresolved Operations requirement", () => {
+    expect(buildAccessByPersonId(["person-1"], [], [invitation], now)["person-1"])
+      .toMatchObject({ scopeLabel: "Branch required" });
+  });
+
   it("prefers active workspace access over any invitation", () => {
     expect(
       buildAccessByPersonId(["person-1"], [membership], [invitation], now)["person-1"],
@@ -125,7 +154,7 @@ describe("buildAccessByPersonId", () => {
         lastSentAt: "2026-07-22T12:05:00.000Z",
         primaryAction: "review_invitation",
         role: "operations_member",
-        scopeLabel: "All branches",
+        scopeLabel: "Branch required",
         state: "invitation_pending",
       },
     });
@@ -146,7 +175,7 @@ describe("buildAccessByPersonId", () => {
       lastSentAt: "2026-07-22T12:05:00.000Z",
       primaryAction: "retry_invitation",
       role: "operations_member",
-      scopeLabel: "All branches",
+      scopeLabel: "Branch required",
       state: "delivery_failed",
     });
   });
@@ -166,7 +195,7 @@ describe("buildAccessByPersonId", () => {
       lastSentAt: "2026-07-22T12:05:00.000Z",
       primaryAction: "review_invitation",
       role: "operations_member",
-      scopeLabel: "All branches",
+      scopeLabel: "Branch required",
       state: "expired",
     });
   });

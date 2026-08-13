@@ -33,6 +33,7 @@ const roles = [
 const capabilityRoles = {
   workspace: roles,
   canManageAccess: ["super_admin"],
+  canConfigureLeases: ["super_admin", "finance_manager"],
   canReadFinance: ["super_admin", "finance_manager", "finance_member"],
   canReadFinanceReports: ["super_admin", "finance_manager"],
   canManageOperations: ["super_admin", "operations_manager"],
@@ -310,7 +311,7 @@ function buildReport(currentContract, hash, evidence) {
         `- Tested implementation SHA: \`${evidence.head}\``,
         `- Local base URL: \`${evidence.baseUrl}\``,
         `- Result: ${evidence.passed}/${evidence.total} visible-link journeys passed`,
-        `- Role sessions: ${evidence.sessionStarts.length}/${roles.length} started at \`/workspace\` and clicked \`Open workspace\` once.`,
+        `- Role sessions: ${evidence.sessionStarts.length}/${roles.length} started at \`/workspace\` and resolved to the role home once.`,
         `- Denied global anchors: ${evidence.deniedGlobalAbsence.reduce((total, result) => total + result.checked, 0)} role/entry absence checks passed.`,
         `- Direct denials: ${evidence.denials.length} separate probes passed; these are authorization evidence, not discoverability journeys.`,
         "",

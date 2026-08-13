@@ -41,6 +41,7 @@ export function LoginForm() {
           className="mt-2 box-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground"
           name="email"
           placeholder="admin@example.com"
+          required
           type="email"
         />
         <FieldError errors={state.fieldErrors?.email} id={emailErrorId} />
@@ -55,6 +56,7 @@ export function LoginForm() {
           className="mt-2 box-border h-11 px-3 text-sm text-foreground placeholder:text-muted-foreground"
           name="password"
           placeholder="Enter password"
+          required
           type="password"
         />
         <FieldError errors={state.fieldErrors?.password} id={passwordErrorId} />

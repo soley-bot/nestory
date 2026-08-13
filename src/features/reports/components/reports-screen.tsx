@@ -56,7 +56,7 @@ export function ReportBuilderScreen({
       localNav={<ReportTabs viewQuery={viewQuery} />}
       title={selectedReport.title}
     >
-      <div className="flex h-full min-h-0 flex-col bg-background">
+      <div className="flex min-w-0 flex-col bg-background">
         <ReportsFilters
           action={`/reports/${viewQuery.report}`}
           actions={
@@ -67,7 +67,7 @@ export function ReportBuilderScreen({
           viewQuery={viewQuery}
         />
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6">
+        <div className="workspace-gutter-x flex-1 space-y-3 py-4">
           {validation ? (
             <div
               className={cn(
@@ -131,7 +131,7 @@ export function ReportBuilderScreen({
 
             <div
               aria-label={`${trustedReport.title} table`}
-              className="max-w-full overflow-auto"
+              className="max-w-full overflow-x-auto"
               role="region"
               tabIndex={0}
             >

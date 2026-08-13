@@ -1,23 +1,13 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const { updateOrganizationAppearanceAction } = vi.hoisted(() => ({
-  updateOrganizationAppearanceAction: vi.fn(),
-}));
-
-vi.mock("@/features/organization/actions", () => ({
-  updateOrganizationAppearanceAction,
-}));
+import { getDisplayThemeStorageKey } from "@/components/theme-runtime";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 beforeEach(() => {
-  updateOrganizationAppearanceAction.mockReset();
-  updateOrganizationAppearanceAction.mockResolvedValue({
-    message: "Appearance updated.",
-    status: "success",
-  });
+  localStorage.clear();
   vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({ matches: false })),
@@ -32,47 +22,35 @@ afterEach(() => {
 });
 
 describe("ThemeToggle", () => {
-  it("optimistically persists the organization mode while preserving accent", async () => {
-    const updated = vi.fn();
-    window.addEventListener("nestory-organization-theme-updated", updated);
+  it("stores a personal mode without mutating organization appearance", async () => {
+    const user = userEvent.setup();
     render(
       <ThemeToggle
         organizationId="org-1"
         theme={{ accentPreset: "ocean", accentSeed: null, mode: "system" }}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Toggle color theme" }));
+    await user.click(screen.getByRole("button", { name: "Display theme" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
 
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
-    await waitFor(() => expect(updateOrganizationAppearanceAction).toHaveBeenCalledOnce());
-    const submitted = updateOrganizationAppearanceAction.mock.calls[0]?.[1] as FormData;
-    expect(submitted.get("mode")).toBe("dark");
-    expect(submitted.get("accentPreset")).toBe("ocean");
-    expect(submitted.get("accentSeed")).toBe("");
-    await waitFor(() => expect(updated).toHaveBeenCalledOnce());
-    expect((updated.mock.calls[0]?.[0] as CustomEvent).detail).toMatchObject({
-      accentPreset: "ocean",
-      mode: "dark",
-    });
-    window.removeEventListener("nestory-organization-theme-updated", updated);
+    expect(localStorage.getItem(getDisplayThemeStorageKey("org-1"))).toBe("dark");
+    expect(localStorage.getItem("nestory-theme:org-1")).toBeNull();
   });
 
-  it("rolls back an optimistic update when persistence fails", async () => {
-    updateOrganizationAppearanceAction.mockResolvedValue({
-      message: "Theme not updated.",
-      status: "error",
-    });
+  it("offers system, light, and dark to every operator", async () => {
+    const user = userEvent.setup();
     render(
       <ThemeToggle
         organizationId="org-1"
         theme={{ accentPreset: "neutral", accentSeed: null, mode: "light" }}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Toggle color theme" }));
+    await user.click(screen.getByRole("button", { name: "Display theme" }));
 
-    expect((await screen.findByRole("alert")).textContent).toBe("Theme not updated.");
-    expect(document.documentElement.dataset.theme).toBe("light");
-    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(await screen.findByRole("menuitemradio", { name: "System" })).toBeTruthy();
+    expect(screen.getByRole("menuitemradio", { name: "Light" })).toBeTruthy();
+    expect(screen.getByRole("menuitemradio", { name: "Dark" })).toBeTruthy();
   });
 });

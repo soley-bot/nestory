@@ -18,13 +18,13 @@ export function ModuleLoading({
     <div
       aria-busy="true"
       className={cn(
-        "flex min-h-0 min-w-0 flex-col overflow-hidden bg-background",
-        heightMode === "viewport" ? "h-dvh" : "h-full",
+        "flex min-w-0 flex-col bg-background",
+        heightMode === "viewport" ? "min-h-dvh" : "min-h-full",
       )}
       data-loading-kind={kind}
     >
       <div
-        className="shrink-0 px-4 py-4 sm:px-6"
+        className="workspace-gutter-x shrink-0 py-4"
         data-slot="loading-header"
       >
         <div
@@ -46,7 +46,7 @@ export function ModuleLoading({
       </div>
       <main
         aria-hidden="true"
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6"
+        className="workspace-gutter-x flex flex-1 flex-col gap-3 py-4"
         data-slot="loading-workspace"
       >
         {isDashboard ? <DashboardSkeleton /> : null}

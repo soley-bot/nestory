@@ -65,6 +65,9 @@ describe("getOverviewScreenData", () => {
         urgentCount: 1,
       }),
     ]);
+    expect(data.propertyOptions).toEqual([
+      { label: "CTR / Central Residence", value: "prop-1" },
+    ]);
   });
 
   it("links missing lease tenants to the lease repair view", async () => {
@@ -93,6 +96,57 @@ describe("getOverviewScreenData", () => {
         id: "missing-tenant-links",
       }),
     );
+  });
+
+  it("builds the six-month cash-flow series from ledger entries", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        ledger_entries: {
+          data: [
+            {
+              amount: "2045.00",
+              currency: "USD",
+              direction: "income",
+              property_id: "prop-1",
+              transaction_date: "2026-08-02",
+            },
+            {
+              amount: "615.00",
+              currency: "USD",
+              direction: "expense",
+              property_id: "prop-1",
+              transaction_date: "2026-08-03",
+            },
+          ],
+        },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+      {
+        financeView: "collections",
+        lens: "all",
+        month: "2026-08",
+        propertyId: "all",
+        review: "all",
+      },
+    );
+
+    expect(data.ledgerFlow).toEqual([
+      { expense: 0, href: "/ledger?dateFrom=2026-03-01&dateTo=2026-03-31&sort=date_desc", income: 0, label: "Mar", net: 0 },
+      { expense: 0, href: "/ledger?dateFrom=2026-04-01&dateTo=2026-04-30&sort=date_desc", income: 0, label: "Apr", net: 0 },
+      { expense: 0, href: "/ledger?dateFrom=2026-05-01&dateTo=2026-05-31&sort=date_desc", income: 0, label: "May", net: 0 },
+      { expense: 0, href: "/ledger?dateFrom=2026-06-01&dateTo=2026-06-30&sort=date_desc", income: 0, label: "Jun", net: 0 },
+      { expense: 0, href: "/ledger?dateFrom=2026-07-01&dateTo=2026-07-31&sort=date_desc", income: 0, label: "Jul", net: 0 },
+      {
+        expense: 615,
+        href: "/ledger?dateFrom=2026-08-01&dateTo=2026-08-31&sort=date_desc",
+        income: 2045,
+        label: "Aug",
+        net: 1430,
+      },
+    ]);
   });
 });
 

@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { setHiddenControlValue } from "./playwright-form-controls.mjs";
 
 import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
 import {
@@ -32,6 +33,7 @@ const actorIds = {
   financeManager: "00000000-0000-0000-0000-000000000701",
   superAdmin: "00000000-0000-0000-0000-000000000101",
 };
+const currentDate = dbScalar("SELECT current_date::text;");
 
 let browser;
 try {
@@ -78,7 +80,7 @@ try {
       WHERE payment.reference = 'TRACK5-BROWSER-LATE'
       GROUP BY balance.payment_status, balance.balance_due, payment.received_date;
     `),
-    "paid|0.00|2026-08-11|1",
+    `paid|0.00|${currentDate}|1`,
   );
   phase("tenant obligation and settlement remain separate immutable records");
 
@@ -107,12 +109,12 @@ try {
   );
 
   await withBalanceActor(actors.superAdmin, async (page) => {
-    await page.getByText("Ready to close revision 1", { exact: true }).waitFor();
-    const close = formByButton(page, "Close revision 1");
+    await page.getByText("Ready to close owner month · revision 1", { exact: true }).waitFor();
+    const close = formByButton(page, "Close owner month");
     await close.getByLabel("Close reason").fill(
       "Track 5 rent-to-statement browser acceptance",
     );
-    await close.getByRole("button", { name: "Close revision 1" }).click();
+    await close.getByRole("button", { name: "Close owner month" }).click();
     await waitForDb(
       "owner close",
       `SELECT count(*) = 1 FROM public.owner_close_revisions AS revision
@@ -124,8 +126,8 @@ try {
          AND revision.revision_number = 1 AND revision.status = 'closed';`,
     );
     await page.reload({ waitUntil: "networkidle" });
-    await page.getByText("Ready to publish official Owner Statement", { exact: true }).waitFor();
-    await page.getByRole("button", { name: "Publish Owner Statement" }).click();
+    await page.getByText("Ready to publish the owner statement", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Publish owner statement" }).click();
     await waitForDb(
       "owner statement publication",
       `SELECT count(*) = 1 AND max(artifact_count) = 2
@@ -339,11 +341,11 @@ async function withBalanceActor(email, run) {
     const month = dbScalar(
       "SELECT to_char(date_trunc('month', current_date), 'YYYY-MM');",
     );
-    const form = formByButton(page, "Load authority");
-    await form.getByLabel("Property").selectOption(centralPropertyId);
-    await form.getByLabel("Owner assignment").selectOption(centralOwnerId);
+    const form = formByButton(page, "Load balances");
+    await setHiddenControlValue(form, "propertyId", centralPropertyId);
+    await setHiddenControlValue(form, "ownerPersonId", centralOwnerId);
     await form.getByLabel("Month").fill(month);
-    await form.getByRole("button", { name: "Load authority" }).click();
+    await form.getByRole("button", { name: "Load balances" }).click();
     await page.getByTestId("owner-close-readiness").waitFor();
     await run(page);
   });
@@ -359,12 +361,9 @@ async function withShellActor(email, run) {
     await page.getByRole("button", { name: /sign in/i }).click();
     await page.waitForURL((url) => url.pathname !== "/login", { timeout: 20_000 });
     await page.goto(`${baseUrl}/workspace`, { waitUntil: "networkidle" });
-    await Promise.all([
-      page.waitForURL((url) => url.pathname !== "/workspace", {
-        waitUntil: "networkidle",
-      }),
-      page.getByRole("link", { name: "Open workspace" }).click(),
-    ]);
+    await page.waitForURL((url) => url.pathname !== "/workspace", {
+      waitUntil: "networkidle",
+    });
     await run(page);
   } finally {
     await context.close();

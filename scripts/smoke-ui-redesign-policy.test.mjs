@@ -11,6 +11,7 @@ import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   createReadOnlyRequestPolicy,
+  isExpectedNextDevPerformancePageError,
   validateLocalBaseUrl,
 } from "./smoke-ui-redesign-policy.mjs";
 import * as smokePolicy from "./smoke-ui-redesign-policy.mjs";
@@ -103,6 +104,25 @@ describe("createReadOnlyRequestPolicy", () => {
     ).toBe(false);
   });
 
+  it("allows the read-only Next.js development stack-frame diagnostic", () => {
+    const policy = createPolicy();
+
+    expect(
+      policy.evaluate({
+        headers: {},
+        method: "POST",
+        url: "http://localhost:3000/__nextjs_original-stack-frames",
+      }),
+    ).toEqual({ allowed: true, reason: "development diagnostic" });
+    expect(
+      policy.evaluate({
+        headers: {},
+        method: "POST",
+        url: "https://example.com/__nextjs_original-stack-frames",
+      }).allowed,
+    ).toBe(false);
+  });
+
   it("blocks a later landing-page POST after authentication", () => {
     const policy = createPolicy();
 
@@ -133,6 +153,24 @@ describe("createReadOnlyRequestPolicy", () => {
   });
 });
 
+describe("isExpectedNextDevPerformancePageError", () => {
+  it("recognizes only the React server-component timing diagnostic", () => {
+    expect(
+      isExpectedNextDevPerformancePageError(
+        "Failed to execute 'measure' on 'Performance': '\u200bWorkspacePage' cannot have a negative time stamp.",
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedNextDevPerformancePageError(
+        "Failed to execute 'measure' on 'Performance': 'WorkspacePage' cannot have a negative time stamp.",
+      ),
+    ).toBe(false);
+    expect(isExpectedNextDevPerformancePageError("Application crashed")).toBe(
+      false,
+    );
+  });
+});
+
 describe("smoke failure aggregation", () => {
   it("uses navigation errors consistently for route and aggregate failures", () => {
     expect(smokePolicy.getRouteResultFailures).toBeTypeOf("function");
@@ -141,6 +179,7 @@ describe("smoke failure aggregation", () => {
       accessibility: null,
       accessResult: "accessible",
       consoleErrors: [],
+      contentDiscipline: { error: null, findings: [] },
       expectedAccess: "accessible",
       horizontalOverflow: { error: null, hasOverflow: false },
       navigationError: "Navigation timed out",
@@ -165,6 +204,38 @@ describe("smoke failure aggregation", () => {
     expect(smokePolicy.collectSmokeFailures([result], [], [])).toEqual([
       "desktop /reports: navigation-error",
     ]);
+  });
+
+  it("fails a route when implementation metadata leaks into visible task copy", () => {
+    const result = {
+      accessResult: "accessible",
+      accessibility: null,
+      consoleErrors: [],
+      contentDiscipline: {
+        error: null,
+        findings: ["raw UUID", "forbidden phrase: policy authority"],
+      },
+      expectedAccess: "accessible",
+      horizontalOverflow: { error: null, hasOverflow: false },
+      navigationError: null,
+      pageErrors: [],
+      primaryActions: { error: null, reachable: true },
+      queryVerified: true,
+      route: "/balances",
+      screenshot: {
+        error: null,
+        height: 900,
+        path: "desktop/balances-1440x900.png",
+        width: 1440,
+      },
+      viewport: "desktop",
+      viewportHeight: 900,
+      viewportWidth: 1440,
+    };
+
+    expect(smokePolicy.getRouteResultFailures(result)).toContain(
+      "desktop /balances: visible content leaked raw UUID, forbidden phrase: policy authority",
+    );
   });
 });
 
@@ -224,7 +295,7 @@ describe("browser acceptance matrix policy", () => {
         operationalSurfaceSelector: "[role=\"tabpanel\"]",
         path: "/properties/10000000-0000-0000-0000-000000000001",
       },
-      { expectedAccess: "accessible", label: "Settings", manifestRoute: "/settings", operationalSurfaceKey: "settings-workspace", operationalSurfaceSelector: "[data-testid=\"settings-workspace\"]", path: "/settings" },
+      { expectedAccess: "accessible", label: "Settings", manifestRoute: "/settings", operationalSurfaceKey: "settings-workspace", operationalSurfaceSelector: "[data-slot=\"workspace-page\"]", path: "/settings" },
       { expectedAccess: "accessible", label: "Opening authority", largeTextScale: 2, manifestRoute: "/balances", operationalSurfaceKey: "opening-authority-components", operationalSurfaceSelector: "[data-slot=\"opening-authority-components\"]", path: "/balances" },
     ]);
     expect(smokePolicy.KEYBOARD_ZOOM_VIEWPORT).toEqual({
@@ -310,7 +381,7 @@ describe("200%-equivalent keyboard audit policy", () => {
     ]);
 
     expect(text).toContain("720x450 CSS viewport equivalent to 1440x900 at 200%");
-    expect(text).toContain("Actual 200% browser zoom remains manual and unverified");
+    expect(text).toContain("verifies the product behavior affected by 200% browser zoom");
     expect(text).not.toMatch(/actual 200% browser zoom (?:passed|verified|covered)/i);
   });
 
@@ -346,6 +417,28 @@ describe("200%-equivalent keyboard audit policy", () => {
     expect(smokePolicy.getKeyboardZoomAuditFailures(result).join("\n")).toContain(
       "no reverse-reached route operational-surface target",
     );
+  });
+});
+
+describe("route-subset evidence policy", () => {
+  it("does not apply full-suite keyboard completeness rules to one passing route", () => {
+    const result = createValidSummary().results[0];
+    const audit = passingKeyboardAudit();
+
+    expect(
+      smokePolicy.collectRouteSubsetFailures(
+        [result],
+        [
+          {
+            accessResult: "accessible",
+            expectedAccess: "accessible",
+            manifestRoute: "/balances",
+            role: "finance_manager",
+          },
+        ],
+        [audit],
+      ),
+    ).toEqual([]);
   });
 });
 

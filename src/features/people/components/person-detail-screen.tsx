@@ -85,7 +85,7 @@ export function PersonDetailScreen({
   );
 
   return (
-    <div className="lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden">
+    <div className="lg:flex lg:flex-col">
       <PageHeader
         actions={
           person.isArchived ? (
@@ -160,7 +160,7 @@ export function PersonDetailScreen({
         />
       ) : null}
 
-      <div className="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
+      <div className="workspace-gutter-x flex flex-col gap-3 py-4 lg:flex-1">
         <PersonRecordNav
           activeSection={activeSection}
           onSectionChange={setActiveSection}
@@ -168,7 +168,7 @@ export function PersonDetailScreen({
 
         <div
           aria-label="Person record details"
-          className="min-h-0 flex-1 overflow-auto pr-1"
+          className="flex-1"
           role="region"
           tabIndex={0}
         >

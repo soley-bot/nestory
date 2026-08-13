@@ -107,10 +107,12 @@ One organization membership has exactly one role:
 | Capability | Super Admin | Finance Manager | Finance Member | Operations Manager | Operations Member |
 | --- | --- | --- | --- | --- | --- |
 | Organization and access settings | Manage | No | No | No | No |
-| Lease and rent configuration | Manage | Read | Read | Scoped context only | Assigned context only |
+| Lease and rent configuration | Manage | Manage | Read | Scoped context only | Assigned context only |
 | Finance, invoices, Ledger, petty cash | Read and manage allowed actions | Read and review | Read and submit expenses | No | No |
 | Approve or reject paid costs | Yes | Yes | No | No | No |
 | Reverse approved expense | Yes | No | No | No | No |
+| Owner opening balance | Submit, review, correct | Review and request correction | Submit and request correction | No | No |
+| Owner month close and statement publication | Close, reopen, publish | Close and publish | Inspect | No | No |
 | Submit maintenance cost | Yes | No | No | Yes, within branch | No |
 | Coordinate maintenance | Yes | No | No | Yes, within branch | Assigned work only |
 
@@ -203,10 +205,13 @@ The operational report-builder catalog contains only:
 Reports use the canonical property-cash projection, preserve reversal signs,
 and link back to operational sources. PDF and Excel are the only report export
 formats. Official Owner Statements are a separate publication workflow under
-authoritative owner balances: Finance roles may read retained publications,
-while Super Admin alone may close, reopen, publish, or resume publication. A
-separate Management Fee Statement and any balance that requires invented
-opening authority remain unavailable.
+authoritative owner balances. Finance Manager may close a reconciled, locked
+owner month and publish its official statement; Super Admin may perform those
+actions and is the only role that may reopen a closed month or resume an
+exceptional incomplete publication. Finance Member may inspect retained
+publications but cannot close, reopen, or publish. A separate Management Fee
+Statement and any balance that requires invented opening authority remain
+unavailable.
 
 ## Deliberate Limitations
 
@@ -278,8 +283,10 @@ Authenticated Nestory is quiet, neutral, dense operating software:
   UUIDs remain out of ordinary operator labels.
 - Settings uses header-level Workspace and Workspace Access navigation followed
   by a compact muted section rail and one labelled content region.
-- Organization appearance is Super-Admin-managed and defaults to a neutral
-  black-and-white theme shared by every workspace member.
+- Organization accent and the default display mode are Super-Admin-managed and
+  default to a neutral black-and-white theme. Every workspace member may choose
+  a personal Light, System, or Dark display mode stored locally per organization;
+  that preference changes no organization setting, capability, or data rule.
 - Organization accents affect actions, selection, links, and focus only. They
   never recolor structural surfaces or semantic success, warning, danger,
   finance, maintenance, or record states.

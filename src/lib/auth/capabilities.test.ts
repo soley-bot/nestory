@@ -24,7 +24,7 @@ describe("workspace role capabilities", () => {
 
   it.each<[WorkspaceRole, readonly boolean[]]>([
     ["super_admin", [true, true, true, true, true, true, true, true, true]],
-    ["finance_manager", [false, false, false, true, false, true, false, false, false]],
+    ["finance_manager", [false, true, false, true, false, true, false, false, false]],
     ["finance_member", [false, false, false, true, true, false, false, false, false]],
     ["operations_manager", [false, false, false, false, false, false, false, true, true]],
     ["operations_member", [false, false, false, false, false, false, false, false, true]],
@@ -114,13 +114,16 @@ describe("workspace role capabilities", () => {
     expect(getWorkspaceCapabilities(role)).toMatchObject(expected);
   });
 
-  it("delegates only guarded ordinary correction while keeping structural authority denied", () => {
+  it("delegates routine Finance authority while keeping governance and exceptional recovery denied", () => {
     expect(getWorkspaceCapabilities("finance_manager")).toMatchObject({
-      canConfigureLeases: false,
+      canCloseOwnerMonth: true,
+      canConfigureLeases: true,
       canCorrectFinance: true,
       canManageAccess: false,
       canManageReconciliationSources: false,
+      canPublishOwnerStatement: true,
       canReverseExpense: false,
+      canReviewOwnerOpeningBalance: true,
       canSubmitExpense: false,
       canUnlockFinancialMonth: false,
     });
@@ -143,13 +146,13 @@ describe("workspace role capabilities", () => {
     [
       "finance_manager",
       {
-        canCloseOwnerMonth: false,
+        canCloseOwnerMonth: true,
         canInspectOwnerCloseReadiness: true,
-        canPublishOwnerStatement: false,
+        canPublishOwnerStatement: true,
         canReadOwnerBalanceAuthority: true,
         canReopenOwnerMonth: false,
         canRequestOwnerOpeningBalanceCorrection: true,
-        canReviewOwnerOpeningBalance: false,
+        canReviewOwnerOpeningBalance: true,
         canSubmitOwnerOpeningBalance: false,
       },
     ],

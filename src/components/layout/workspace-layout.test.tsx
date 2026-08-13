@@ -316,6 +316,31 @@ describe("shared workspace anatomy", () => {
     );
     expect(page?.className).toContain("min-w-0");
     expect(page?.className).toContain("overflow-x-hidden");
+    const pageClasses = page?.className.split(/\s+/) ?? [];
+    expect(pageClasses).toContain("min-h-full");
+    expect(pageClasses).not.toContain("h-full");
+    expect(pageClasses).not.toContain("min-h-0");
+
+    const body = screen.getByText("Property list").closest(
+      '[data-slot="workspace-body"]',
+    );
+    expect(body?.className).not.toMatch(/overflow-(?:y-)?(?:auto|scroll)/);
+  });
+
+  it("uses one shared responsive gutter across headers and workspace controls", () => {
+    render(
+      <WorkspacePage
+        header={<PageHeader title="People" />}
+        toolbar={<button type="button">Filter people</button>}
+      >
+        <div>People register</div>
+      </WorkspacePage>,
+    );
+
+    expect(screen.getByRole("heading", { name: "People" }).closest("header")?.className)
+      .toContain("workspace-gutter-x");
+    expect(screen.getByRole("toolbar", { name: "Workspace tools" }).className)
+      .toContain("workspace-gutter-x");
   });
 
   it("renders a generated visible header with portal breadcrumbs and header actions", () => {
@@ -407,6 +432,12 @@ describe("shared workspace anatomy", () => {
       );
       expect(splitView?.className).toContain("grid-cols-[minmax(0,1fr)]");
       expect(splitView?.className).not.toContain("xl:grid-cols");
+      expect(splitView?.className).not.toContain("overflow-hidden");
+
+      const mainSurface = screen.getByRole("region", {
+        name: "Workspace content",
+      });
+      expect(mainSurface.className).not.toMatch(/overflow-(?:y-)?auto/);
     },
   );
 

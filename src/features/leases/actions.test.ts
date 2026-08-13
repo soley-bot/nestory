@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireSuperAdminContext, revalidatePath, rpc } = vi.hoisted(() => ({
-  requireSuperAdminContext: vi.fn(),
+const { requireLeaseConfigurationContext, revalidatePath, rpc } = vi.hoisted(() => ({
+  requireLeaseConfigurationContext: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requireLeaseConfigurationContext }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ rpc }),
 }));
@@ -25,10 +25,10 @@ const unitId = "00000000-0000-4000-8000-000000000008";
 
 describe("Lease occupancy evidence input", () => {
   beforeEach(() => {
-    requireSuperAdminContext.mockReset();
+    requireLeaseConfigurationContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireSuperAdminContext.mockResolvedValue({ organizationId });
+    requireLeaseConfigurationContext.mockResolvedValue({ organizationId });
     rpc.mockResolvedValue({ data: { leaseId }, error: null });
   });
 

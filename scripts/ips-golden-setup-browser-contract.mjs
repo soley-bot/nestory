@@ -24,6 +24,8 @@ export function readGoldenSetupSmokeConfig(env = process.env) {
       env.NESTORY_BASE_URL ?? "http://localhost:3000",
     ),
     password: env.NESTORY_TEST_PASSWORD ?? "123456789",
+    managerEmail:
+      env.NESTORY_FINANCE_MANAGER_EMAIL ?? "finance.manager@nestory.com",
     superAdminEmail: env.NESTORY_TEST_EMAIL ?? "nestory@gmail.com",
     submitterEmail:
       env.NESTORY_FINANCE_MEMBER_EMAIL ?? "finance.member@nestory.com",

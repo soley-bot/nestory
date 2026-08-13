@@ -700,17 +700,11 @@ SELECT throws_ok(
   'a Super Admin submitter cannot review their own opening request'
 );
 
-SELECT throws_ok(
-  $$
-    SELECT pg_temp.review_opening(
-      'b2200000-0000-4000-8000-000000000012',
-      (SELECT first_request_id FROM owner_opening_workflow_state),
-      'reject', 'Manager review denied', 'manager-review-0001'
-    )
-  $$,
-  '42501',
-  'Not authorized to review owner opening balances',
-  'Finance Manager cannot review an opening request'
+SELECT ok(
+  app_private.can_review_owner_opening_balance(
+    'b2200000-0000-4000-8000-000000000001'
+  ),
+  'Finance Manager can independently review a Finance Member opening request'
 );
 
 SELECT throws_ok(

@@ -2,7 +2,7 @@
 
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -33,27 +33,28 @@ export function PublicInterestForm({
     submitPublicInterestRequest,
     initialState,
   );
+  const [requestType, setRequestType] = useState(initialRequestType);
 
   if (state.status === "success") {
     return (
       <div
-        className="flex min-h-[430px] flex-col justify-between rounded-lg border border-[var(--landing-border)] bg-[var(--card)] p-6 sm:p-8"
+        className="flex min-h-[430px] flex-col justify-between rounded-xl border border-border bg-card p-6 text-card-foreground shadow-sm sm:p-8"
         role="status"
       >
         <div>
           <CheckCircle2
             aria-hidden="true"
-            className="text-[var(--landing-accent)]"
+            className="text-success"
             size={30}
             strokeWidth={1.6}
           />
-          <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--landing-subtle)]">
+          <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             Request received
           </p>
-          <h2 className="mt-4 font-display text-3xl font-semibold leading-tight text-[var(--landing-heading)]">
+          <h2 className="mt-4 font-display text-3xl font-semibold leading-tight text-foreground">
             We have your operating brief.
           </h2>
-          <p className="mt-4 max-w-md text-sm leading-6 text-[var(--landing-muted)]">
+          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
             We will use the context you shared to prepare a focused follow-up.
           </p>
           <StatusNotice
@@ -65,7 +66,7 @@ export function PublicInterestForm({
         </div>
         <div className="mt-10 flex flex-wrap gap-4">
           <Link
-            className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[var(--landing-accent)]"
+            className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-primary transition-colors hover:text-primary/80"
             href="/"
           >
             Return home
@@ -81,11 +82,10 @@ export function PublicInterestForm({
       action={action}
       aria-busy={pending ? "true" : "false"}
       aria-label="Request information or a demo"
-      className="rounded-lg border border-[var(--landing-border)] bg-[var(--card)] p-5 shadow-sm sm:p-7"
+      className="rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm sm:p-7"
     >
       <fieldset className="space-y-5 border-0 p-0" disabled={pending}>
         <legend className="sr-only">Request details</legend>
-        <input name="requestType" type="hidden" value={initialRequestType} />
         <div className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
           <label htmlFor="request-website">Website</label>
           <input
@@ -97,20 +97,22 @@ export function PublicInterestForm({
           />
         </div>
 
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-subtle)]">
+        <fieldset className="border-0 p-0">
+          <legend className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             I want to
-          </p>
-          <div className="mt-3 grid grid-cols-2 rounded-lg border border-[var(--landing-border)] p-1">
-            <RequestTypeLink
-              active={initialRequestType === "information"}
-              href="/request?intent=information"
+          </legend>
+          <div className="mt-3 grid grid-cols-2 rounded-lg border border-border bg-muted/30 p-1">
+            <RequestTypeOption
+              active={requestType === "information"}
               label="Request information"
+              onSelect={setRequestType}
+              value="information"
             />
-            <RequestTypeLink
-              active={initialRequestType === "demo"}
-              href="/request?intent=demo"
+            <RequestTypeOption
+              active={requestType === "demo"}
               label="Request a demo"
+              onSelect={setRequestType}
+              value="demo"
             />
           </div>
           {state.fieldErrors?.requestType?.[0] ? (
@@ -118,7 +120,7 @@ export function PublicInterestForm({
               {state.fieldErrors.requestType[0]}
             </p>
           ) : null}
-        </div>
+        </fieldset>
 
         <div className="grid gap-5 sm:grid-cols-2">
           <RecordField
@@ -131,14 +133,13 @@ export function PublicInterestForm({
               autoComplete="name"
               maxLength={120}
               name="fullName"
-              placeholder="Mara Sok"
               required
               type="text"
             />
           </RecordField>
           <RecordField
             error={state.fieldErrors?.workEmail?.[0]}
-            label="Work email"
+            label="Email"
             name="workEmail"
             required
           >
@@ -146,7 +147,6 @@ export function PublicInterestForm({
               autoComplete="email"
               maxLength={254}
               name="workEmail"
-              placeholder="mara@company.com"
               required
               type="email"
             />
@@ -164,7 +164,6 @@ export function PublicInterestForm({
               autoComplete="organization"
               maxLength={160}
               name="companyName"
-              placeholder="Central Property Group"
               required
               type="text"
             />
@@ -191,7 +190,6 @@ export function PublicInterestForm({
           <Textarea
             maxLength={1200}
             name="message"
-            placeholder="Current portfolio, operating challenges, or what you want to see."
             rows={5}
           />
         </RecordField>
@@ -205,17 +203,18 @@ export function PublicInterestForm({
         ) : null}
 
         <Button
-          className="h-11 w-full rounded-full border-0 bg-[var(--landing-cta-bg)] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--landing-cta-fg)] hover:bg-[var(--landing-cta-bg)] hover:opacity-90"
+          className="h-11 w-full rounded-lg px-5 text-[12px] font-semibold uppercase tracking-[0.14em]"
+          size="lg"
           type="submit"
         >
           {pending
             ? "Sending request"
-            : initialRequestType === "demo"
+            : requestType === "demo"
               ? "Request a demo"
               : "Request information"}
           <ArrowRight aria-hidden="true" size={15} />
         </Button>
-        <p className="text-xs leading-5 text-[var(--landing-subtle)]">
+        <p className="text-xs leading-5 text-muted-foreground">
           By submitting, you ask Nestory to contact you about this request. No
           workspace is created automatically.
         </p>
@@ -224,28 +223,34 @@ export function PublicInterestForm({
   );
 }
 
-function RequestTypeLink({
+function RequestTypeOption({
   active,
-  href,
   label,
+  onSelect,
+  value,
 }: {
   active: boolean;
-  href: string;
   label: string;
+  onSelect: (value: "demo" | "information") => void;
+  value: "demo" | "information";
 }) {
   return (
-    <Link
-      aria-current={active ? "page" : undefined}
+    <label
       className={
         active
-          ? "rounded-md bg-[var(--landing-cta-bg)] px-3 py-2 text-center text-xs font-semibold text-[var(--landing-cta-fg)]"
-          : "rounded-md px-3 py-2 text-center text-xs font-semibold text-[var(--landing-muted)] transition-colors hover:text-[var(--landing-heading)]"
+          ? "cursor-pointer rounded-md bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground shadow-sm outline-none transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-card"
+          : "cursor-pointer rounded-md px-3 py-2 text-center text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-card"
       }
-      href={href}
-      replace
-      scroll={false}
     >
+      <input
+        checked={active}
+        className="sr-only"
+        name="requestType"
+        onChange={() => onSelect(value)}
+        type="radio"
+        value={value}
+      />
       {label}
-    </Link>
+    </label>
   );
 }

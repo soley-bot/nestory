@@ -463,7 +463,7 @@ export function MaintenanceScreen({
     />
   ) : null;
   const maintenanceList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
+    <section className="flex min-w-0 flex-col bg-card">
       {showScopeSummary && visibleCases.length > 0 ? (
         <div className="shrink-0 border-b border-border px-3 py-2">
           <MaintenanceScopeSummary
@@ -531,7 +531,7 @@ export function MaintenanceScreen({
           <PaginationControls pagination={pagination} />
         </>
       ) : (
-        <div className="min-h-0 min-w-0 flex-1 overflow-auto p-3">
+        <div className="min-w-0 flex-1 p-3">
           <MaintenanceWorkflowSurface
             actorRole={actor.role}
             cases={visibleCases}
@@ -593,7 +593,7 @@ export function MaintenanceScreen({
       }
       title={title}
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col">
         {showCaseViewTabs ? (
           <MaintenanceCasesCommandBar
             listLabel={listLabel}
@@ -1153,17 +1153,15 @@ function MaintenanceTable({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-md border border-border bg-card md:rounded-none md:border-0",
-        fillHeight && "flex h-[calc(100%-41px)] min-h-0 flex-col",
+        "rounded-md border border-border bg-card md:rounded-none md:border-0",
+        fillHeight && "flex flex-col",
       )}
       data-maintenance-surface="table"
     >
       <div
         className={cn(
-          "overflow-auto",
-          fillHeight
-            ? "min-h-0 flex-1"
-            : "max-h-[min(620px,calc(100vh-350px))]",
+          "overflow-x-auto",
+          fillHeight ? "flex-1" : undefined,
         )}
       >
         <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
@@ -1528,7 +1526,7 @@ function getDrawerDescription(drawer: DrawerState) {
 
   return drawer.mode === "archive"
     ? "Hide this case from active views without deleting its history."
-    : "Return this case to active maintenance workflows.";
+    : "Return this case to active maintenance lists.";
 }
 
 function LinkGrid({ maintenanceCase }: { maintenanceCase: MaintenanceCase }) {

@@ -4,6 +4,22 @@
 
 @custom-variant dark (&:is(.dark *));
 
+.workspace-gutter-x {
+  padding-inline: 1rem;
+}
+
+@media (min-width: 40rem) {
+  .workspace-gutter-x {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 90rem) {
+  .workspace-gutter-x {
+    padding-inline: 2rem;
+  }
+}
+
 :root {
   color-scheme: light;
   --state-attention: #b7791f;
@@ -14,9 +30,9 @@
   --state-success: #237a3e;
   --state-success-soft: #eaf7ec;
   --record-spine: var(--primary);
-  --table-header-bg: color-mix(in oklch, var(--primary) 5%, var(--background));
-  --table-row-hover: color-mix(in oklch, var(--primary) 6%, var(--background));
-  --table-row-selected: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --table-header-bg: transparent;
+  --table-row-hover: color-mix(in oklch, var(--muted) 70%, var(--background));
+  --table-row-selected: color-mix(in oklch, var(--muted) 86%, var(--background));
   --table-row-selected-indicator: var(--primary);
   --border: oklch(0.922 0 0);
   --muted: oklch(0.97 0 0);
@@ -88,7 +104,7 @@
   --landing-muted: #52605c;
   --landing-subtle: #5d6a66;
   --landing-border: #d7ddda;
-  --landing-accent: #135e4b;
+  --landing-accent: #8a5a16;
   --landing-media-bg: #111314;
   --landing-cta-bg: #050607;
   --landing-cta-fg: #ffffff;
@@ -96,7 +112,7 @@
   --landing-inverse-fg: #ffffff;
   --landing-inverse-muted: rgb(255 255 255 / 72%);
   --landing-inverse-border: rgb(255 255 255 / 10%);
-  --landing-inverse-accent: #a1d8b5;
+  --landing-inverse-accent: #d6a85f;
 }
 
 [data-theme="dark"] .landing-page {
@@ -106,7 +122,7 @@
   --landing-muted: #b8bdba;
   --landing-subtle: #a1a7a4;
   --landing-border: #343839;
-  --landing-accent: #a1d8b5;
+  --landing-accent: #d6a85f;
   --landing-media-bg: #17191a;
   --landing-cta-bg: #eef0ef;
   --landing-cta-fg: #111314;
@@ -114,7 +130,7 @@
   --landing-inverse-fg: #eef0ef;
   --landing-inverse-muted: rgb(238 240 239 / 72%);
   --landing-inverse-border: rgb(248 250 252 / 12%);
-  --landing-inverse-accent: #a1d8b5;
+  --landing-inverse-accent: #d6a85f;
 }
 
 .workspace-arrival-page {
@@ -167,10 +183,6 @@
   --auth-page-muted: rgb(248 250 249 / 88%);
   --auth-page-subtle: rgb(248 250 249 / 78%);
   --auth-page-line: rgb(248 250 249 / 24%);
-  --auth-page-card-bg: rgb(250 251 250 / 96%);
-  --auth-page-card-border: rgb(17 19 20 / 24%);
-  --auth-page-input-bg: #ffffff;
-  --auth-page-input-border: #77817d;
   --auth-page-header-bg: rgb(17 19 20 / 68%);
   --auth-page-header-border: rgb(248 250 249 / 24%);
   --auth-page-scrim:
@@ -185,16 +197,10 @@
   --card: #1b1e1f;
   --muted: #141617;
   --border: #363b3c;
-  --accent: #a1d8b5;
-  --ring: #a1d8b5;
   --auth-page-fg: #eef0ef;
   --auth-page-muted: rgb(238 240 239 / 78%);
   --auth-page-subtle: rgb(238 240 239 / 72%);
   --auth-page-line: rgb(238 240 239 / 18%);
-  --auth-page-card-bg: rgb(22 24 25 / 94%);
-  --auth-page-card-border: rgb(126 136 131 / 42%);
-  --auth-page-input-bg: #1b1e1f;
-  --auth-page-input-border: #7e8883;
   --auth-page-header-bg: rgb(17 19 20 / 86%);
   --auth-page-header-border: rgb(126 136 131 / 42%);
   --auth-page-scrim:
@@ -290,11 +296,6 @@ input,
 select,
 textarea {
   font: inherit;
-}
-
-.auth-photo-page .auth-shell-card input {
-  background: var(--auth-page-input-bg);
-  border-color: var(--auth-page-input-border);
 }
 
 .auth-photo-page .auth-shell-context {

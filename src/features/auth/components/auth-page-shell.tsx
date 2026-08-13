@@ -21,9 +21,9 @@ type AuthPageShellProps = {
 
 export function AuthPageShell({
   children,
-  contextLabel = "Private workspace",
-  contextText = "Your operating record stays connected and scoped to your workspace.",
-  contextTitle = "Continue where the work is.",
+  contextLabel,
+  contextText,
+  contextTitle,
   description,
   switchHref,
   switchLabel,
@@ -31,6 +31,9 @@ export function AuthPageShell({
   title,
   visualSrc,
 }: AuthPageShellProps) {
+  // Only the front door carries a standing message. Mid-task screens — recovery,
+  // verification, accepting an invitation — render the card alone.
+  const hasContext = Boolean(contextLabel || contextTitle || contextText);
   return (
     <main
       className={cn(
@@ -101,51 +104,73 @@ export function AuthPageShell({
         </div>
       </header>
 
-      <section className="mx-auto box-border flex min-h-screen w-full max-w-[1180px] flex-col justify-center gap-10 px-6 pb-12 pt-32 sm:px-10 lg:grid lg:grid-cols-[minmax(0,1fr)_430px] lg:items-center lg:px-14">
-        <aside className="auth-shell-context hidden max-w-[560px] lg:block">
-          <p
-            className={cn(
-              "text-xs font-semibold uppercase tracking-[0.22em]",
-              visualSrc ? "text-[var(--auth-page-subtle)]" : "text-muted-foreground",
-            )}
-          >
-            {contextLabel}
-          </p>
-          <p
-            className={cn(
-              "mt-5 font-display text-3xl font-semibold leading-[1.12]",
-              visualSrc ? "text-[var(--auth-page-fg)]" : "text-foreground",
-            )}
-          >
-            {contextTitle}
-          </p>
-          <p
-            className={cn(
-              "mt-5 max-w-md text-sm font-medium leading-6",
-              visualSrc ? "text-[var(--auth-page-muted)]" : "text-muted-foreground",
-            )}
-          >
-            {contextText}
-          </p>
+      <section
+        className={cn(
+          "mx-auto box-border flex min-h-screen w-full max-w-[1180px] flex-col justify-center gap-10 px-6 pb-12 pt-32 sm:px-10 lg:items-center lg:px-14",
+          hasContext
+            ? "lg:grid lg:grid-cols-[minmax(0,1fr)_430px]"
+            : "lg:flex lg:justify-center",
+        )}
+      >
+        {hasContext ? (
+          <aside className="auth-shell-context hidden max-w-[560px] lg:block">
+            {contextLabel ? (
+              <p
+                className={cn(
+                  "text-xs font-semibold uppercase tracking-[0.22em]",
+                  visualSrc
+                    ? "text-[var(--auth-page-subtle)]"
+                    : "text-muted-foreground",
+                )}
+              >
+                {contextLabel}
+              </p>
+            ) : null}
+            {contextTitle ? (
+              <p
+                className={cn(
+                  "mt-5 font-display text-3xl font-semibold leading-[1.12]",
+                  visualSrc ? "text-[var(--auth-page-fg)]" : "text-foreground",
+                )}
+              >
+                {contextTitle}
+              </p>
+            ) : null}
+            {contextText ? (
+              <p
+                className={cn(
+                  "mt-5 max-w-md text-sm font-medium leading-6",
+                  visualSrc
+                    ? "text-[var(--auth-page-muted)]"
+                    : "text-muted-foreground",
+                )}
+              >
+                {contextText}
+              </p>
+            ) : null}
 
-          <div
-            aria-hidden="true"
-            className={cn(
-              "mt-10 h-px w-24",
-              visualSrc ? "bg-[var(--auth-page-line)]" : "bg-border",
-            )}
-          />
-        </aside>
+            <div
+              aria-hidden="true"
+              className={cn(
+                "mt-10 h-px w-24",
+                visualSrc ? "bg-[var(--auth-page-line)]" : "bg-border",
+              )}
+            />
+          </aside>
+        ) : null}
 
         <div
-          className="min-w-0 self-center justify-self-center lg:justify-self-end"
+          className={cn(
+            "min-w-0 self-center justify-self-center",
+            hasContext && "lg:justify-self-end",
+          )}
           style={{ maxWidth: "430px", width: "calc(100vw - 48px)" }}
         >
           <div
             className={cn(
               "auth-shell-card box-border w-full rounded-lg border p-5 sm:p-6",
               visualSrc
-                ? "border-[color:var(--auth-page-card-border)] bg-[var(--auth-page-card-bg)] shadow-[0_20px_70px_rgb(0_0_0/0.16)] backdrop-blur-xl"
+                ? "border-border bg-card shadow-[0_20px_70px_rgb(0_0_0/0.16)] backdrop-blur-xl"
                 : "border-border bg-card shadow-sm",
             )}
           >

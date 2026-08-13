@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { setHiddenControlValue } from "./playwright-form-controls.mjs";
 
 import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
@@ -15,6 +16,7 @@ const password = process.env.NESTORY_TEST_PASSWORD ?? "123456789";
 const actors = {
   super_admin: "nestory@gmail.com",
   finance_manager: "finance.manager@nestory.com",
+  finance_member: "finance.member@nestory.com",
   operations_manager: "operations.manager@nestory.com",
 };
 const organizationId = "00000000-0000-0000-0000-000000000001";
@@ -35,17 +37,17 @@ try {
   const firstSnapshot = publicationSnapshot(initial[0].id);
 
   browser = await chromium.launch({ headless: true });
-  await withBalanceActor(actors.super_admin, async (page) => {
-    await page.getByText("Ready to close revision 4", { exact: true }).waitFor();
+  await withBalanceActor(actors.finance_manager, async (page) => {
+    await page.getByText("Ready to close owner month · revision 4", { exact: true }).waitFor();
     await page.getByText(initial[0].statement_number, { exact: true }).waitFor();
     await assertPublicationDownloads(page, initial[0]);
-    phase("Super Admin sees retained revision three publication and ready revision four");
+    phase("Finance Manager sees retained revision three publication and ready revision four");
 
-    const close = formByButton(page, "Close revision 4");
+    const close = formByButton(page, "Close owner month");
     await close.getByLabel("Close reason").fill(
       "Browser revision four approved for superseding official Owner Statement",
     );
-    await close.getByRole("button", { name: "Close revision 4" }).click();
+    await close.getByRole("button", { name: "Close owner month" }).click();
     await waitForDb("revision four close", `
       SELECT count(*) = 1 FROM public.owner_close_revisions AS revision
       JOIN public.owner_close_series AS series ON series.id = revision.owner_close_series_id
@@ -55,8 +57,8 @@ try {
         AND revision.revision_number = 4 AND revision.status = 'closed';
     `);
     await page.reload({ waitUntil: "networkidle" });
-    await page.getByText("Ready to publish official Owner Statement", { exact: true }).waitFor();
-    await page.getByRole("button", { name: "Publish Owner Statement" }).click();
+    await page.getByText("Ready to publish the owner statement", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Publish owner statement" }).click();
     await waitForDb("superseding publication and retained artifacts", `
       SELECT count(*) = 2
         AND count(*) FILTER (WHERE artifact_count = 2) = 2
@@ -91,16 +93,16 @@ try {
     phase("N plus one supersedes N while both retained byte sets verify");
   });
 
-  await withBalanceActor(actors.finance_manager, async (page) => {
+  await withBalanceActor(actors.finance_member, async (page) => {
     const publications = publicationRows();
     for (const publication of publications) {
       await page.getByText(publication.statement_number, { exact: true }).waitFor();
       await assertPublicationDownloads(page, publication);
     }
-    assert.equal(await page.getByRole("button", { name: "Publish Owner Statement" }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: /Close revision/ }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Publish owner statement" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Close owner month" }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Reopen month" }).count(), 0);
-    phase("Finance Manager reads and downloads without mutation authority");
+    phase("Finance Member reads and downloads without mutation authority");
   });
 
   await withShellActor(actors.operations_manager, async (page) => {
@@ -120,7 +122,7 @@ try {
     WHERE status = 'pending' AND operation IN
       ('publish_owner_statement','register_owner_statement_artifact');`), "0");
   process.stdout.write(
-    "PASS one official Owner Statement browser lifecycle: retained N, close R4, publish N+1, immutable bytes, Finance read-only, Operations denied\n",
+    "PASS one official Owner Statement browser lifecycle: Finance Manager close and publish, retained N, immutable bytes, Finance Member read-only, Operations denied\n",
   );
 } finally {
   await browser?.close();
@@ -187,13 +189,13 @@ async function withBalanceActor(email, run) {
       page.waitForURL((url) => url.pathname === "/balances", { waitUntil: "networkidle" }),
       link.click(),
     ]);
-    const form = formByButton(page, "Load authority");
-    await form.getByLabel("Property").selectOption(propertyId);
-    await form.getByLabel("Owner assignment").selectOption(ownerId);
+    const form = formByButton(page, "Load balances");
+    await setHiddenControlValue(form, "propertyId", propertyId);
+    await setHiddenControlValue(form, "ownerPersonId", ownerId);
     await form.getByLabel("Month").fill(month);
     await Promise.all([
       page.waitForURL((url) => url.pathname === "/balances" && url.searchParams.get("month") === month),
-      form.getByRole("button", { name: "Load authority" }).click(),
+      form.getByRole("button", { name: "Load balances" }).click(),
     ]);
     await page.getByTestId("owner-close-readiness").waitFor();
     await run(page);
@@ -210,10 +212,9 @@ async function withShellActor(email, run) {
     await page.getByRole("button", { name: /sign in/i }).click();
     await page.waitForURL((url) => url.pathname !== "/login", { timeout: 15_000 });
     await page.goto(`${baseUrl}/workspace`, { waitUntil: "networkidle" });
-    await Promise.all([
-      page.waitForURL((url) => url.pathname !== "/workspace", { waitUntil: "networkidle" }),
-      page.getByRole("link", { name: "Open workspace" }).click(),
-    ]);
+    await page.waitForURL((url) => url.pathname !== "/workspace", {
+      waitUntil: "networkidle",
+    });
     await run(page);
   } finally {
     await context.close();

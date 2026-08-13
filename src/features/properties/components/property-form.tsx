@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
-import { ImageIcon, X } from "lucide-react";
+import { CircleHelp, ImageIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   FileDropzoneField,
@@ -12,10 +12,19 @@ import {
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
+import type { PersonRoleValue } from "@/features/people/people.types";
 import {
   createPropertyAction,
   type PropertyActionState,
@@ -69,11 +78,18 @@ export function PropertyForm({
   const [selectedOwnerPersonId, setSelectedOwnerPersonId] = useState(
     defaults.ownerPersonId ?? "",
   );
+  const [availableOwnerOptions, setAvailableOwnerOptions] = useState(ownerOptions);
+  const [createOwnerOpen, setCreateOwnerOpen] = useState(false);
   const [ownershipFactsCleared, setOwnershipFactsCleared] = useState(false);
   const [ownershipFactsKey, setOwnershipFactsKey] = useState(0);
   const [photoPreview, setPhotoPreview] = useState<PhotoPreview | null>(null);
   const [dropzoneKey, setDropzoneKey] = useState(0);
   const openPhotoPickerRef = useRef<(() => void) | null>(null);
+  const ownershipShareDefault = selectedOwnerPersonId
+    ? ownershipFactsCleared
+      ? "100"
+      : defaults.ownershipPercent || "100"
+    : "";
   useEffect(() => {
     return () => {
       if (photoPreview) {
@@ -124,18 +140,40 @@ export function PropertyForm({
     }
     setSelectedOwnerPersonId(nextOwnerPersonId);
   };
+  const handleOwnerCreated = (
+    personId?: string,
+    roles?: PersonRoleValue[],
+    displayName?: string,
+  ) => {
+    if (!personId || !displayName || !roles?.includes("owner")) {
+      return;
+    }
+
+    setAvailableOwnerOptions((current) => [
+      {
+        archived: false,
+        description: "Owner",
+        id: personId,
+        label: displayName,
+        roles: ["owner"],
+      },
+      ...current.filter((option) => option.id !== personId),
+    ]);
+    changeOwnerPerson(personId);
+  };
 
   return (
-    <RecordForm
-      action={action}
-      ariaLabel={isEditMode ? "Edit property form" : "Add property form"}
-      hideSaveOnSuccess={!isEditMode}
-      onCancel={onClose}
-      pending={pending}
-      saveLabel={isEditMode ? "Save changes" : "Add property"}
-      savingLabel={isEditMode ? "Saving property" : "Adding property"}
-      state={state}
-    >
+    <>
+      <RecordForm
+        action={action}
+        ariaLabel={isEditMode ? "Edit property form" : "Add property form"}
+        hideSaveOnSuccess={!isEditMode}
+        onCancel={onClose}
+        pending={pending}
+        saveLabel={isEditMode ? "Save changes" : "Add property"}
+        savingLabel={isEditMode ? "Saving property" : "Adding property"}
+        state={state}
+      >
       {state.status === "success" && !isEditMode && state.propertyId ? (
         <CreateSuccessActions propertyId={state.propertyId} />
       ) : null}
@@ -226,10 +264,9 @@ export function PropertyForm({
             <PersonSelect
               allowClear
               context="Property owner"
-              defaultValue={defaults.ownerPersonId ?? ""}
               name="ownerPersonId"
               onValueChange={changeOwnerPerson}
-              options={ownerOptions}
+              options={availableOwnerOptions}
               placeholder="Choose owner"
               preservedOption={
                 defaults.ownerPersonId && defaults.owner
@@ -243,20 +280,21 @@ export function PropertyForm({
                   : undefined
               }
               roles={["owner"]}
+              value={selectedOwnerPersonId}
             />
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <span>
-                {ownerOptions.length === 0
+                {availableOwnerOptions.length === 0
                   ? "No owner records are available yet."
                   : "Need a different owner?"}
               </span>
-              <Link
+              <button
                 className="font-medium text-primary underline-offset-4 transition-colors hover:underline"
-                href="/owners?action=create"
-                prefetch={false}
+                onClick={() => setCreateOwnerOpen(true)}
+                type="button"
               >
                 Create owner
-              </Link>
+              </button>
             </div>
           </RecordField>
 
@@ -290,14 +328,39 @@ export function PropertyForm({
           </RecordField>
 
           <RecordField
+            className="[&>div]:relative"
             error={state.fieldErrors?.ownershipPercent?.[0]}
+            hint={
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      aria-label="About ownership share"
+                      className="ml-1 inline-flex size-5 shrink-0 items-center justify-center rounded-md align-middle text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      type="button"
+                    >
+                      <CircleHelp aria-hidden="true" className="size-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    className="max-w-64 text-left leading-relaxed"
+                    side="top"
+                    sideOffset={6}
+                  >
+                    Use 100% for a sole owner. Reduce the share when the property
+                    has multiple owners.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            }
             label="Ownership share (%)"
             name="ownershipPercent"
             required={Boolean(selectedOwnerPersonId)}
           >
             <Input
               aria-label="Ownership share (%)"
-              defaultValue={ownershipFactsCleared ? "" : defaults.ownershipPercent ?? ""}
+              className="pr-8"
+              defaultValue={ownershipShareDefault}
               inputMode="decimal"
               maxLength={7}
               key={`ownership-share-${ownershipFactsKey}`}
@@ -305,6 +368,12 @@ export function PropertyForm({
               required={Boolean(selectedOwnerPersonId)}
               type="text"
             />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground"
+            >
+              %
+            </span>
           </RecordField>
         </div>
 
@@ -353,7 +422,24 @@ export function PropertyForm({
           />
         </RecordField>
       </FormSection>
-    </RecordForm>
+      </RecordForm>
+
+      <Modal
+        description="Add an owner record, then continue with this property."
+        onClose={() => setCreateOwnerOpen(false)}
+        open={createOwnerOpen}
+        title="Create owner"
+      >
+        <PersonForm
+          initialRoles={["owner"]}
+          onClose={() => setCreateOwnerOpen(false)}
+          onSuccess={(_message, personId, roles, displayName) =>
+            handleOwnerCreated(personId, roles, displayName)
+          }
+          roleContext="owner"
+        />
+      </Modal>
+    </>
   );
 }
 
@@ -439,10 +525,13 @@ function SelectedPropertyPhotoPreview({
 }) {
   return (
     <article className="mt-3 overflow-hidden rounded-md border border-accent/50 bg-card">
-      <div className="relative h-44 bg-muted">
+      <div
+        className="relative h-56 bg-muted/50"
+        data-slot="property-photo-preview-frame"
+      >
         <Image
           alt=""
-          className="size-full object-cover"
+          className="size-full object-contain p-2"
           fill
           sizes="560px"
           src={preview.url}

@@ -23,7 +23,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <header
-      className={cn("bg-background px-4 py-4 sm:px-6 lg:py-5", className)}
+      className={cn("workspace-gutter-x bg-background py-4 lg:py-5", className)}
     >
       {breadcrumb ? (
         <WorkspaceHeaderPortal>

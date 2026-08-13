@@ -13,9 +13,12 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { AuditDetails } from "@/components/ui/audit-details";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
+import { SelectControl } from "@/components/ui/select-control";
 import { sha256Hex } from "@/features/documents/content-fingerprint";
 import {
   reviewOwnerOpeningBalanceAction,
@@ -101,11 +104,10 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
           <div className="min-w-0 max-w-3xl">
             <h2 className="text-base font-semibold" id="opening-authority-heading">
-              Opening balance
+              Opening balances
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Approved cutover balances with immutable ownership and evidence history.
-              Missing authority stays Unknown until independently approved.
+              Approved starting balances for each owner and property. Missing values remain unknown until independently approved.
             </p>
           </div>
           <form
@@ -123,20 +125,32 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
               />
             </FilterLabel>
             <FilterLabel label="Property">
-              <NativeSelect
+              <SelectControl
                 ariaLabel="Opening property"
                 defaultValue={props.selectedPropertyId ?? ""}
                 name="propertyId"
-                options={props.propertyOptions}
+                options={[
+                  { label: "All properties", value: "" },
+                  ...props.propertyOptions.map((option) => ({
+                    label: option.label,
+                    value: option.id,
+                  })),
+                ]}
                 placeholder="All properties"
               />
             </FilterLabel>
             <FilterLabel label="Owner">
-              <NativeSelect
+              <SelectControl
                 ariaLabel="Opening owner"
                 defaultValue={props.selectedOwnerPersonId ?? ""}
                 name="ownerPersonId"
-                options={props.ownerOptions}
+                options={[
+                  { label: "All owners", value: "" },
+                  ...props.ownerOptions.map((option) => ({
+                    label: option.label,
+                    value: option.id,
+                  })),
+                ]}
                 placeholder="All owners"
               />
             </FilterLabel>
@@ -153,7 +167,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
         className={cn(
           "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
           announcement
-            ? "border-b bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-800 sm:px-6"
+            ? "border-b bg-success-soft px-4 py-3 text-sm font-medium text-success sm:px-6"
             : "sr-only",
         )}
         ref={statusRef}
@@ -164,12 +178,12 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
       </div>
 
       {blockers.length > 0 ? (
-        <div aria-live="polite" className="border-b bg-amber-500/5 px-4 py-3 sm:px-6">
+        <div aria-live="polite" className="border-b bg-warning-soft px-4 py-3 sm:px-6">
           {blockers.map((blocker) => (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" key={`${blocker.propertyId}-${blocker.boundaryDate}-${blocker.issueCode}`}>
               <strong>Ownership setup required</strong>
               <span className="text-muted-foreground">
-                {labels.properties.get(blocker.propertyId) ?? "Selected property"}: {blocker.ownershipPercentTotal}% assigned ({humanize(blocker.issueCode)}).
+                {labels.properties.get(blocker.propertyId) ?? "Selected property"}: {blocker.ownershipPercentTotal}% assigned.
               </span>
               {props.isSuperAdmin ? (
                 <Link className="font-medium text-primary underline-offset-4 hover:underline" href={`/properties/${blocker.propertyId}#property-ownership`}>
@@ -178,6 +192,10 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
               ) : (
                 <span className="font-medium">Ask a Super Admin to correct the ownership facts.</span>
               )}
+              <AuditDetails
+                entries={[{ label: "Issue code", value: blocker.issueCode }]}
+                label="Technical details"
+              />
             </div>
           ))}
         </div>
@@ -195,9 +213,9 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
             <tr>
               <th className="px-4 py-2 font-medium sm:px-6">Property / owner</th>
               <th className="px-3 py-2 font-medium">Component</th>
-              <th className="px-3 py-2 font-medium">Authority</th>
-              <th className="px-3 py-2 font-medium">Workflow &amp; lineage</th>
-              <th className="px-3 py-2 font-medium">Evidence &amp; ownership</th>
+              <th className="px-3 py-2 font-medium">Approved balance</th>
+              <th className="px-3 py-2 font-medium">Request history</th>
+              <th className="px-3 py-2 font-medium">Evidence</th>
               <th className="px-4 py-2 text-right font-medium sm:px-6">Action</th>
             </tr>
           </thead>
@@ -224,7 +242,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
         {groups.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-6">
             {blockers.length > 0
-              ? "Resolve the ownership roster before submitting the opening balance."
+              ? "Resolve the ownership details before submitting the opening balance."
               : "No effective property-owner assignments match this month and filter scope."}
           </div>
         ) : null}
@@ -308,8 +326,8 @@ function OpeningRow({
         ) : (
           <div className="space-y-1">
             <p className="font-mono font-semibold tabular-nums">{formatUsd(component.authority.amount)}</p>
-            {component.authority.knownZero ? <StatusPill tone="success">Known zero</StatusPill> : <StatusPill tone="success">Known</StatusPill>}
-            <p className="text-xs text-muted-foreground">{component.authority.entryCount} immutable {component.authority.entryCount === 1 ? "entry" : "entries"}</p>
+            {component.authority.knownZero ? <StatusPill tone="success">Approved zero</StatusPill> : <StatusPill tone="success">Approved</StatusPill>}
+            <p className="text-xs text-muted-foreground">{component.authority.entryCount} approved {component.authority.entryCount === 1 ? "entry" : "entries"}</p>
           </div>
         )}
       </td>
@@ -319,11 +337,11 @@ function OpeningRow({
           {component.requests.map((request, index) => (
             <details key={request.id} open={request.status === "submitted"}>
               <summary className="cursor-pointer font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                {index === 0 ? "Current — " : "Lineage — "}{capitalize(request.status)} {request.requestKind}
+                {index === 0 ? "Current — " : "Earlier request — "}{capitalize(request.status)} {request.requestKind}
               </summary>
               <div className="mt-1 space-y-1 pl-2 text-xs text-muted-foreground">
-                <p>Submitted {shortDate(request.submittedAt)} by {shortId(request.submittedBy)}</p>
-                {request.reviewedAt ? <p>Reviewed {shortDate(request.reviewedAt)} by {shortId(request.reviewedBy)}</p> : null}
+                <p>Submitted {shortDate(request.submittedAt)}</p>
+                {request.reviewedAt ? <p>Reviewed {shortDate(request.reviewedAt)}</p> : null}
                 {request.reviewReason ? <p>{request.reviewReason}</p> : null}
                 {request.resubmissionOfRequestId ? <p>Resubmission of rejected request</p> : null}
               </div>
@@ -345,15 +363,17 @@ function OpeningRow({
         {ownership ? (
           <div className="space-y-1 text-xs">
             <p><span className="text-muted-foreground">Ownership:</span> {ownership.ownershipPercentSnapshot}%</p>
-            <p className="text-muted-foreground">Roster {ownership.ownershipRosterHash.slice(0, 8)}</p>
             {evidence ? (
-              <>
-                <p className="font-medium">{evidence.fileName}</p>
-                <p className="max-w-64 break-all font-mono text-muted-foreground">{evidence.contentSha256}</p>
-              </>
+              <p className="font-medium">{evidence.fileName}</p>
             ) : (
               <p className="text-muted-foreground">Reference: {ownership.sourceReference ?? "Document unavailable"}</p>
             )}
+            <AuditDetails
+              entries={[
+                { label: "Ownership hash", value: ownership.ownershipRosterHash },
+                { label: "Evidence fingerprint", value: evidence?.contentSha256 },
+              ]}
+            />
           </div>
         ) : (
           <span className="text-muted-foreground">Captured on submission</span>
@@ -494,8 +514,8 @@ function OpeningFormModal({
               }}
               value={evidence?.id ?? ""}
             >
-              <option value="">Use file fingerprint and source reference</option>
-              {eligibleEvidence.map((item) => <option key={item.id} value={item.id}>{item.fileName} · {item.contentSha256?.slice(0, 10)}</option>)}
+              <option value="">Use an evidence file or reference</option>
+              {eligibleEvidence.map((item) => <option key={item.id} value={item.id}>{item.fileName}</option>)}
             </select>
           </Field>
           {isSuperAdmin ? (
@@ -515,18 +535,27 @@ function OpeningFormModal({
           ) : null}
           {evidenceFile ? <p className="text-xs font-medium">{evidenceFile.name} ready for final submission</p> : null}
           {!evidence ? (
-            <Field label="Source snapshot fingerprint">
-              <Input
-                maxLength={64}
-                minLength={64}
-                name="sourceSnapshotFingerprint"
-                onChange={(event) => setLocalHash(event.target.value)}
-                readOnly={Boolean(evidenceFile)}
-                value={localHash}
-              />
-            </Field>
+            <details>
+              <summary className="w-fit cursor-pointer text-sm font-medium">Audit evidence</summary>
+              <div className="mt-3">
+                <Field label="Evidence file fingerprint">
+                  <Input
+                    maxLength={64}
+                    minLength={64}
+                    name="sourceSnapshotFingerprint"
+                    onChange={(event) => setLocalHash(event.target.value)}
+                    readOnly={Boolean(evidenceFile)}
+                    value={localHash}
+                  />
+                </Field>
+              </div>
+            </details>
           ) : null}
-          {evidenceHash ? <p className="break-all font-mono text-xs text-muted-foreground">Fingerprint {evidenceHash}</p> : <p className="text-xs text-muted-foreground">Choose registered evidence or a real file to compute its fingerprint.</p>}
+          {evidenceHash ? (
+            <AuditDetails entries={[{ label: "Evidence fingerprint", value: evidenceHash }]} />
+          ) : (
+            <p className="text-xs text-muted-foreground">Choose registered evidence, upload a file, or add the audit fingerprint.</p>
+          )}
           <Field label="Source reference">
             <Input maxLength={240} minLength={3} name="sourceReference" onChange={(event) => setSourceReference(event.target.value)} value={sourceReference} />
           </Field>
@@ -555,7 +584,7 @@ function ReviewFormModal({ intent, onClose, onSuccess }: { intent: ReviewIntent;
   }, [onSuccess, router, state]);
 
   return (
-    <Modal description="The database revalidates evidence, ownership, month state, and independent review." onClose={onClose} open title={intent.decision === "approve" ? "Approve opening balance" : "Reject opening balance"}>
+    <Modal description="Approval checks the evidence, ownership, month status, and independent review." onClose={onClose} open title={intent.decision === "approve" ? "Approve opening balance" : "Reject opening balance"}>
       <form action={action} className="space-y-4 p-4 sm:p-6">
         <Hidden name="decision" value={intent.decision} />
         <Hidden name="idempotencyKey" value={idempotencyKey} />
@@ -607,29 +636,16 @@ function FilterLabel({ children, label }: { children: ReactNode; label: string }
   return <label className="grid min-w-0 gap-1 text-xs font-medium text-muted-foreground"><span>{label}</span>{children}</label>;
 }
 
-function NativeSelect({ ariaLabel, defaultValue, name, options, placeholder }: { ariaLabel: string; defaultValue: string; name: string; options: Option[]; placeholder: string }) {
-  return (
-    <select aria-label={ariaLabel} className="h-8 min-w-0 w-full rounded-md border border-input bg-card px-2 text-sm text-foreground" defaultValue={defaultValue} name={name}>
-      <option value="">{placeholder}</option>
-      {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-    </select>
-  );
-}
-
 function Hidden({ name, value }: { name: string; value: string }) {
   return <input name={name} type="hidden" value={value} />;
 }
 
 function StatusPill({ children, tone }: { children: ReactNode; tone: "neutral" | "success" }) {
-  return <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-xs font-medium", tone === "success" ? "border-emerald-600/20 bg-emerald-500/10 text-emerald-700" : "border-border bg-muted text-foreground")}>{children}</span>;
+  return <Badge tone={tone}>{children}</Badge>;
 }
 
 function formatUsd(value: string) {
   return value.startsWith("-") ? `-$${value.slice(1)}` : `$${value}`;
-}
-
-function shortId(value: string | null) {
-  return value ? value.slice(0, 8) : "—";
 }
 
 function shortDate(value: string) {
@@ -638,8 +654,4 @@ function shortDate(value: string) {
 
 function capitalize(value: string) {
   return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
-}
-
-function humanize(value: string) {
-  return value.replaceAll("_", " ");
 }

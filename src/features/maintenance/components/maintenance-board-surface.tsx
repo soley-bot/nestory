@@ -338,7 +338,7 @@ function BoardColumn({
           {tasks.length}
         </Badge>
       </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+      <div className="flex-1 space-y-2 p-2">
         {tasks.length === 0 ? (
           <p className="px-1 py-4 text-sm text-muted-foreground">No work here.</p>
         ) : (

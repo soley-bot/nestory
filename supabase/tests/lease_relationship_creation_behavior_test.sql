@@ -1159,29 +1159,11 @@ SELECT set_config(
   (SELECT manager_id::text FROM lease_relationship_state),
   true
 );
-SELECT is(
-  (
-    SELECT pg_temp.capture_error(
-      format(
-        'SELECT public.create_lease_with_relationships(%L,%L,%L,%L,DATE %L,DATE %L,1000,%L,5,%L,%L,NULL,NULL,%L,%L::jsonb,%L)',
-        organization_id,
-        property_id,
-        import_unit_id,
-        tenant_id,
-        '2032-01-01',
-        '2032-12-31',
-        'USD',
-        'monthly',
-        'upcoming',
-        'draft',
-        '{}'::jsonb,
-        'lease-relationship-manager'
-      )
-    ) ->> 'sqlstate'
-    FROM lease_relationship_state
+SELECT ok(
+  app_private.can_configure_leases(
+    (SELECT organization_id FROM lease_relationship_state)
   ),
-  '42501',
-  'manager cannot create normalized Lease relationships'
+  'Finance Manager receives checked Lease configuration authority'
 );
 
 SELECT set_config(

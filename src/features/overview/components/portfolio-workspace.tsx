@@ -5,8 +5,6 @@ import {
   Card,
   CardAction,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -18,14 +16,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { OverviewAttentionCard } from "@/features/overview/components/overview-attention-card";
 import { OverviewLedgerAreaChart } from "@/features/overview/components/overview-charts";
+import { OverviewMonthPicker } from "@/features/overview/components/overview-month-picker";
+import { OverviewPropertyPicker } from "@/features/overview/components/overview-property-picker";
 import type {
   OverviewAttentionItem,
   OverviewMetric,
   OverviewScreenData,
   OverviewViewQuery,
 } from "@/features/overview/overview.types";
-import { AdminWorkspaceQueue } from "@/features/workspace-operations/components/admin-workspace-queue";
 
 export function PortfolioWorkspace({
   attentionQueue,
@@ -41,90 +41,106 @@ export function PortfolioWorkspace({
   return (
     <div
       aria-label="Portfolio operating work"
-      className="@container/main flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-4 md:gap-6 md:py-6"
+      className="@container/main flex flex-1 flex-col gap-3 py-3"
       data-slot="overview-operating-scroll"
       role="region"
     >
-      <div className="px-4 lg:px-6">
-        <AdminWorkspaceQueue items={attentionQueue} />
-      </div>
-
       <section
         aria-label="Portfolio metrics"
-        className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 lg:px-6 dark:*:data-[slot=card]:bg-card"
+        className="grid grid-cols-1 gap-3 px-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 lg:px-6"
       >
-        {cards.map((metric) => (
-          <MetricCard key={metric.label} metric={metric} />
-        ))}
+        {cards.map((metric) =>
+          metric.label === "Attention" ? (
+            <OverviewAttentionCard
+              items={attentionQueue}
+              key={metric.label}
+              metric={metric}
+              month={query.month}
+            />
+          ) : (
+            <MetricCard key={metric.label} metric={metric} />
+          ),
+        )}
       </section>
 
-      <div className="px-4 lg:px-6">
-        <Card>
-          <CardHeader>
-            <CardTitle><h2>Portfolio cash flow</h2></CardTitle>
-            <CardDescription>Income and expenses across the recent operating period.</CardDescription>
-            <CardAction>
-              <Badge variant="outline">USD</Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            {data.ledgerFlow.length > 0 ? (
-              <OverviewLedgerAreaChart
-                className="h-[260px] md:h-[320px]"
-                currency={data.ledgerCurrency}
-                points={data.ledgerFlow}
-              />
-            ) : (
-              <div className="flex h-[260px] items-center justify-center rounded-lg bg-muted/30 text-sm text-muted-foreground md:h-[320px]">
-                Add ledger entries to populate the cash-flow chart.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <div
+        className="flex justify-end px-4 lg:px-6"
+        data-slot="dashboard-chart-toolbar"
+        role="toolbar"
+        aria-label="Dashboard filters"
+      >
+        <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-1">
+          <OverviewPropertyPicker options={data.propertyOptions} query={query} />
+          <OverviewMonthPicker className="border-0 bg-background px-2.5 shadow-xs" query={query} />
+        </div>
       </div>
 
-      <div className="px-4 lg:px-6">
-        <Card>
+      <div
+        className="flex flex-col gap-3 px-4 lg:px-6"
+        data-slot="dashboard-primary-stack"
+      >
+        <Card data-slot="dashboard-cash-flow" size="sm">
+          <CardHeader className="border-b">
+            <CardTitle><h2>Portfolio cash flow</h2></CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[280px]" data-slot="dashboard-cash-flow-chart">
+              {data.ledgerFlow.length > 0 ? (
+                <OverviewLedgerAreaChart
+                  className="h-full"
+                  currency={data.ledgerCurrency}
+                  points={data.ledgerFlow}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-lg bg-muted/30 text-sm text-muted-foreground">
+                  Add ledger entries to populate the cash-flow chart.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card data-slot="dashboard-properties" size="sm">
           <CardHeader className="border-b">
             <CardTitle><h2>Properties</h2></CardTitle>
-            <CardDescription>Occupancy and current operating records.</CardDescription>
-            <CardAction>
+            <CardAction className="self-center">
               <Link
+                aria-label="View all properties"
                 className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                 href="/properties"
               >
-                View all <ArrowRight className="size-4" />
+                View all <ArrowRight aria-hidden="true" className="size-4" />
               </Link>
             </CardAction>
           </CardHeader>
           <CardContent className="px-0">
             {data.occupancyByProperty.length > 0 ? (
-              <Table>
+              <Table aria-label="Property occupancy">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-4">Property</TableHead>
-                    <TableHead>Occupancy</TableHead>
-                    <TableHead>Occupied</TableHead>
-                    <TableHead className="pr-4 text-right">Open units</TableHead>
+                    <TableHead className="h-8 pl-3 text-xs">Property</TableHead>
+                    <TableHead className="h-8 text-xs">Occupancy</TableHead>
+                    <TableHead className="h-8 text-xs">Occupied</TableHead>
+                    <TableHead className="h-8 pr-3 text-right text-xs">Open</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.occupancyByProperty.map((property) => (
                     <TableRow key={property.href}>
-                      <TableCell className="pl-4 font-medium">
+                      <TableCell className="max-w-56 truncate py-1.5 pl-3 font-medium">
                         <Link className="hover:underline" href={property.href}>
                           {property.label}
                         </Link>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-1.5">
                         <Badge tone={property.percent >= 85 ? "success" : property.percent >= 50 ? "warning" : "danger"}>
                           {property.percent}%
                         </Badge>
                       </TableCell>
-                      <TableCell className="tabular-nums">
+                      <TableCell className="py-1.5 tabular-nums">
                         {property.occupiedUnits} of {property.totalUnits}
                       </TableCell>
-                      <TableCell className="pr-4 text-right tabular-nums">
+                      <TableCell className="py-1.5 pr-3 text-right tabular-nums">
                         {property.unoccupiedUnits}
                       </TableCell>
                     </TableRow>
@@ -132,27 +148,11 @@ export function PortfolioWorkspace({
                 </TableBody>
               </Table>
             ) : (
-              <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+              <p className="px-4 py-10 text-center text-sm text-muted-foreground">
                 No properties are available.
               </p>
             )}
           </CardContent>
-          <CardFooter className="justify-between gap-4">
-            <span className="flex items-center gap-2 text-sm font-medium">
-              {data.attentionTotal > 0 ? (
-                <CircleAlert className="size-4 text-amber-600 dark:text-amber-400" />
-              ) : null}
-              {data.attentionTotal > 0
-                ? `${data.attentionTotal} open checks need attention`
-                : "No open checks need attention"}
-            </span>
-            <Link
-              className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
-              href={`/overview/attention?month=${query.month}`}
-            >
-              Review <ArrowRight className="size-4" />
-            </Link>
-          </CardFooter>
         </Card>
       </div>
     </div>
@@ -168,25 +168,25 @@ function MetricCard({ metric }: { metric: OverviewMetric }) {
   const StatusIcon = needsReview ? CircleAlert : TrendingUp;
 
   return (
-    <Card className="@container/card">
+    <Card size="sm">
       <CardHeader>
-        <CardDescription>{metric.label}</CardDescription>
-        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-          {value}
-        </CardTitle>
+        <CardTitle><h2>{metricLabel(metric.label)}</h2></CardTitle>
+        <p className="text-2xl font-semibold tabular-nums">{value}</p>
         <CardAction>
           <Badge tone={needsReview ? "warning" : metric.tone === "neutral" ? "neutral" : metric.tone}>
-            <StatusIcon className="size-3" />
+            <StatusIcon aria-hidden="true" className="size-3" />
             {needsReview ? "Review" : "Current"}
           </Badge>
         </CardAction>
       </CardHeader>
-      <CardFooter className="flex-col items-start gap-1.5 text-sm">
-        <div className="font-medium">{metric.helper}</div>
-        <div className="text-muted-foreground">Based on current workspace records</div>
-      </CardFooter>
     </Card>
   );
+}
+
+function metricLabel(label: string) {
+  if (label === "Occupancy") return "Portfolio occupancy";
+  if (label === "Lease gaps") return "Units without leases";
+  return label;
 }
 
 function dashboardMetrics(metrics: OverviewMetric[]) {

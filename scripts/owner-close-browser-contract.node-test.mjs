@@ -35,7 +35,7 @@ test("owner-close acceptance is retained as one real role and database lifecycle
   }
 
   assert.match(source, /goto\(`\$\{baseUrl\}\/workspace/);
-  assert.match(source, /Open workspace/);
+  assert.match(source, /waitForURL\(\(url\) => url\.pathname !== "\/workspace"/);
   assert.match(source, /Expand\|Collapse\) Finance navigation/);
   assert.match(source, /a\[href="\/balances"\]/);
   assert.equal(
@@ -45,12 +45,12 @@ test("owner-close acceptance is retained as one real role and database lifecycle
   );
 
   for (const operatorStep of [
-    "Ready to close revision 1",
-    "Close revision 1",
+    "Ready to close owner month · revision 1",
+    "Close owner month",
     "Reopen month",
     "Record correction",
     "Generate month",
-    "Close revision 2",
+    "Close owner month",
     "Revision 1 - Closed",
     "Revision 2 - Closed",
   ]) {
@@ -59,5 +59,5 @@ test("owner-close acceptance is retained as one real role and database lifecycle
 
   assert.match(source, /loadBaseline\(\);[\s\S]*finally[\s\S]*loadBaseline\(\);/);
   assert.match(source, /Operations role route denial/);
-  assert.match(source, /Finance role frozen-history read only/);
+  assert.match(source, /Finance role frozen-history/);
 });

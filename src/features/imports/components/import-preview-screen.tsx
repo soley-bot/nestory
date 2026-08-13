@@ -233,7 +233,7 @@ export function ImportPreviewScreen({
         title="Import"
       />
 
-      <main className="mx-auto w-full max-w-[1120px] space-y-3 px-4 py-4 sm:px-6 lg:max-h-[calc(100vh-112px)] lg:overflow-auto lg:py-5">
+      <main className="workspace-gutter-x mx-auto w-full max-w-[1120px] space-y-3 py-4 lg:py-5">
         <section className="rounded-md border border-border bg-card p-4">
           <CutoverPanel canManage detail={cutoverDetail} />
         </section>
@@ -390,7 +390,7 @@ export function ImportPreviewScreen({
 
             <div
               aria-label="Import preview rows"
-              className="max-h-[380px] max-w-full overflow-auto"
+              className="max-w-full overflow-x-auto"
               role="region"
               tabIndex={0}
             >

@@ -35,15 +35,17 @@ describe("ModuleLoading task-first layout", () => {
       )!;
 
       expect(state.classList.contains("min-h-screen")).toBe(false);
-      expect(state.classList.contains("h-full")).toBe(true);
-      expect(state.classList.contains("min-h-0")).toBe(true);
+      expect(state.classList.contains("min-h-full")).toBe(true);
+      expect(state.classList.contains("h-full")).toBe(false);
+      expect(state.classList.contains("min-h-0")).toBe(false);
       expect(state.classList.contains("flex")).toBe(true);
       expect(state.classList.contains("flex-col")).toBe(true);
-      expect(state.classList.contains("overflow-hidden")).toBe(true);
+      expect(state.classList.contains("overflow-hidden")).toBe(false);
       expect(titleActions.querySelector(".space-y-3")).toBeNull();
       expect(titleContext.classList.contains("flex-col")).toBe(true);
       expect(titleContext.classList.contains("sm:flex-row")).toBe(true);
-      expect(workspace.classList.contains("min-h-0")).toBe(true);
+      expect(workspace.classList.contains("min-h-0")).toBe(false);
+      expect(workspace.classList.contains("overflow-y-auto")).toBe(false);
       expect(workspace.classList.contains("flex-1")).toBe(true);
       expect(workspace.classList.contains("flex-col")).toBe(true);
       expect(workSurface.classList.contains("flex-1")).toBe(true);
@@ -64,7 +66,7 @@ describe("ModuleLoading task-first layout", () => {
       '[data-slot="loading-title-actions"]',
     )!;
 
-    expect(state.classList.contains("h-dvh")).toBe(true);
+    expect(state.classList.contains("min-h-dvh")).toBe(true);
     expect(state.classList.contains("h-full")).toBe(false);
     expect(state.classList.contains("min-h-screen")).toBe(false);
     expect(titleActions.classList.contains("sm:flex-row")).toBe(true);
@@ -75,7 +77,7 @@ describe("ModuleLoading task-first layout", () => {
     const { container } = render(<AuthCompleteLoading />);
     const state = container.querySelector('[data-loading-kind="list"]')!;
 
-    expect(state.classList.contains("h-dvh")).toBe(true);
+    expect(state.classList.contains("min-h-dvh")).toBe(true);
     expect(state.classList.contains("h-full")).toBe(false);
     expect(screen.getByRole("status").textContent).toContain(
       "Secure email verification is loading",

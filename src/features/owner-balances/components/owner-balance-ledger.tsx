@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { AuditDetails } from "@/components/ui/audit-details";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SelectControl } from "@/components/ui/select-control";
 import {
   allocateOwnerEventAction,
   generateOwnerBalancePeriodAction,
@@ -55,56 +59,55 @@ export function OwnerBalanceLedger({
     <main className="space-y-5 pb-12">
       <header className="rounded-2xl border border-border/80 bg-card px-5 py-5 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          {organizationName} · Owner authority
+          {organizationName} · Owner balances
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-          Authoritative owner balance
+          Owner balances
         </h1>
         <p className="mt-2 max-w-4xl text-sm text-muted-foreground">
-          Persisted opening, movement, and closing values for all four components.
-          No current-primary-owner projection or presentation-time balancing plug is used.
+          Monthly opening, activity, and closing balances for the selected property and owner.
         </p>
       </header>
 
       <form className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4 md:grid-cols-[1fr_1fr_11rem_auto]" method="get">
         <label className="grid gap-1 text-sm font-medium">
           Property
-          <select
-            className="h-10 rounded-lg border border-input bg-background px-3"
+          <SelectControl
+            ariaLabel="Property"
+            className="h-10"
             defaultValue={selectedPropertyId ?? ""}
             name="propertyId"
-          >
-            <option value="">Select property</option>
-            {data.propertyOptions.map((option) => (
-              <option key={option.id} value={option.id}>{option.label}</option>
-            ))}
-          </select>
+            options={[
+              { label: "Select property", value: "" },
+              ...data.propertyOptions.map((option) => ({ label: option.label, value: option.id })),
+            ]}
+          />
         </label>
         <label className="grid gap-1 text-sm font-medium">
           Owner assignment
-          <select
-            className="h-10 rounded-lg border border-input bg-background px-3"
+          <SelectControl
+            ariaLabel="Owner assignment"
+            className="h-10"
             defaultValue={selectedOwnerPersonId ?? ""}
             name="ownerPersonId"
-          >
-            <option value="">Select owner</option>
-            {data.ownerOptions.map((option) => (
-              <option key={option.id} value={option.id}>{option.label}</option>
-            ))}
-          </select>
+            options={[
+              { label: "Select owner", value: "" },
+              ...data.ownerOptions.map((option) => ({ label: option.label, value: option.id })),
+            ]}
+          />
         </label>
         <label className="grid gap-1 text-sm font-medium">
           Month
-          <input
-            className="h-10 rounded-lg border border-input bg-background px-3"
+          <Input
+            className="h-10"
             defaultValue={selectedMonth}
             name="month"
             type="month"
           />
         </label>
-        <button className="self-end rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground" type="submit">
-          Load authority
-        </button>
+        <Button className="h-10 self-end px-4" type="submit">
+          Load balances
+        </Button>
       </form>
 
       {openingAuthority}
@@ -113,7 +116,7 @@ export function OwnerBalanceLedger({
 
       {!hasExactScope ? (
         <section className="rounded-2xl border border-amber-300/60 bg-amber-50/70 p-5 text-sm text-amber-950">
-          <h2 className="font-semibold">Exact authority scope required</h2>
+          <h2 className="font-semibold">Select a property and owner</h2>
           <p className="mt-1">
             Select an exact property and owner assignment. Nestory will not guess from a
             current primary owner.
@@ -127,12 +130,12 @@ export function OwnerBalanceLedger({
               <input name="monthStart" type="hidden" value={`${selectedMonth}-01`} />
               <input name="idempotencyKey" type="hidden" value={`owner-period-${randomUUID()}`} />
               <div className="mr-auto">
-                <h2 className="font-semibold">Roll-forward authority</h2>
-                <p className="text-sm text-muted-foreground">Generate or recompute this open month from persisted inputs.</p>
+                <h2 className="font-semibold">Calculate month</h2>
+                <p className="text-sm text-muted-foreground">Calculate this open month from approved opening balances and recorded activity.</p>
               </div>
-              <button className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground" type="submit">
+              <Button className="h-9 px-4" type="submit">
                 Generate month
-              </button>
+              </Button>
             </form>
           ) : null}
 
@@ -140,12 +143,11 @@ export function OwnerBalanceLedger({
 
           <section aria-labelledby="owner-periods-heading" className="space-y-3">
             <div>
-              <h2 className="text-lg font-semibold" id="owner-periods-heading">Four-component periods</h2>
-              <p className="text-sm text-muted-foreground">Every ready, stale, or closed period must carry all four persisted components.</p>
+              <h2 className="text-lg font-semibold" id="owner-periods-heading">Monthly balances</h2>
             </div>
             {data.periods.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
-                    No authoritative period exists for this scope. Generate the month after the opening balance and source remediation are complete.
+                No monthly balance exists. Approve the opening balances and resolve source issues, then calculate the month.
               </p>
             ) : data.periods.map((period) => (
               <article className="overflow-hidden rounded-2xl border border-border/80 bg-card" data-testid={`owner-period-${period.monthStart}`} key={period.id}>
@@ -155,8 +157,7 @@ export function OwnerBalanceLedger({
                     <p className="text-xs text-muted-foreground">Status: <span className="font-medium uppercase">{period.status}</span></p>
                   </div>
                   <div className="text-right text-sm">
-                    <p className="font-semibold">Held cash closing: {period.availableWithdrawal === null ? "Unavailable" : formatExactMoney(period.availableWithdrawal)}</p>
-                    <p className="text-xs text-muted-foreground">Input watermark: {period.inputWatermark ?? "Not ready"}</p>
+                    <p className="font-semibold">Available owner cash: {period.availableWithdrawal === null ? "Unavailable" : formatExactMoney(period.availableWithdrawal)}</p>
                   </div>
                 </div>
                 {period.components.length > 0 ? (
@@ -185,24 +186,34 @@ export function OwnerBalanceLedger({
                 ) : (
                   <div className="bg-amber-50/70 px-4 py-4 text-sm text-amber-950">
                     <p className="font-semibold">{remediationLabel(period.blockedReasonCode)}</p>
-                    <p className="mt-1 font-mono text-xs">{period.blockedReasonCode ?? "authority_blocked"}</p>
-                    <JsonDetail value={period.blockedReasonDetail} />
+                    <AuditDetails
+                      className="mt-2"
+                      entries={[
+                        { label: "Reason code", value: period.blockedReasonCode },
+                        ...auditEntries(period.blockedReasonDetail),
+                      ]}
+                      label="Technical details"
+                    />
                   </div>
                 )}
-                <p className="border-t border-border/60 px-4 py-2 font-mono text-xs text-muted-foreground">
-                  Input hash: {period.inputHash ?? "Not available until ready"}
-                </p>
+                <AuditDetails
+                  className="border-t border-border/60 px-4 py-2"
+                  entries={[
+                    { label: "Input watermark", value: period.inputWatermark },
+                    { label: "Input hash", value: period.inputHash },
+                  ]}
+                />
               </article>
             ))}
           </section>
 
           <section aria-labelledby="owner-remediation-heading" className="space-y-3">
             <div>
-              <h2 className="text-lg font-semibold" id="owner-remediation-heading">Source allocation and remediation</h2>
-              <p className="text-sm text-muted-foreground">Every supported source is allocated exactly once or remains visibly blocked.</p>
+              <h2 className="text-lg font-semibold" id="owner-remediation-heading">Source issues</h2>
+              <p className="text-sm text-muted-foreground">Each supported transaction must be assigned once before the month can close.</p>
             </div>
             {data.queue.length === 0 ? (
-              <p className="rounded-2xl border border-border/80 bg-card p-4 text-sm text-muted-foreground">No source allocation exceptions in this period.</p>
+              <p className="rounded-2xl border border-border/80 bg-card p-4 text-sm text-muted-foreground">No source issues in this month.</p>
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-border/80 bg-card">
                 <table className="w-full min-w-[56rem] text-left text-sm">
@@ -211,7 +222,7 @@ export function OwnerBalanceLedger({
                       <th className="px-4 py-2" scope="col">Event</th>
                       <th className="px-4 py-2" scope="col">Source</th>
                       <th className="px-4 py-2 text-right" scope="col">Amount</th>
-                      <th className="px-4 py-2" scope="col">State / remediation</th>
+                      <th className="px-4 py-2" scope="col">Status</th>
                       <th className="px-4 py-2" scope="col">Action</th>
                     </tr>
                   </thead>
@@ -231,25 +242,21 @@ export function OwnerBalanceLedger({
 
           <section aria-labelledby="owner-sources-heading" className="space-y-3">
             <div>
-              <h2 className="text-lg font-semibold" id="owner-sources-heading">Source drill-through</h2>
-              <p className="text-sm text-muted-foreground">Immutable source fingerprints, owner snapshots, component movements, and reversal links.</p>
+              <h2 className="text-lg font-semibold" id="owner-sources-heading">Balance sources</h2>
             </div>
             <div className="space-y-2">
               {data.sources.map((source) => (
-                <details className="rounded-xl border border-border/80 bg-card" data-testid={`owner-source-${source.allocationSetId}`} key={source.allocationSetId} open>
+                <details className="rounded-xl border border-border/80 bg-card" data-testid={`owner-source-${source.allocationSetId}`} key={source.allocationSetId}>
                   <summary className="cursor-pointer list-none px-4 py-3">
                     <div className="flex flex-wrap justify-between gap-2">
                       <span className="font-semibold">{sourceTypeLabel(source.sourceType)}</span>
                       <span className="tabular-nums">{source.eventDate} · {formatExactMoney(source.allocatedGrossSignedAmount)}</span>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">Roster {source.ownershipPercentSnapshot}% · {source.allocationBasis.replaceAll("_", " ")}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Ownership at event {source.ownershipPercentSnapshot}% · {source.allocationBasis.replaceAll("_", " ")}</p>
                   </summary>
                   <div className="space-y-2 border-t border-border/60 px-4 py-3 text-xs">
-                    <p className="font-mono break-all">Source {source.sourceType}:{source.sourceLineId}</p>
-                    <p className="font-mono break-all">Source fingerprint: {source.sourceFingerprint}</p>
-                    <p className="font-mono break-all">Roster hash: {source.ownershipRosterHash}</p>
                     {source.reversalOfAllocationSetId ? (
-                      <p className="font-medium text-amber-800">Reverses allocation set {source.reversalOfAllocationSetId}</p>
+                      <p className="font-medium text-warning">Reverses an earlier balance assignment.</p>
                     ) : null}
                     <ul className="space-y-1">
                       {source.movements.length === 0 ? (
@@ -257,10 +264,19 @@ export function OwnerBalanceLedger({
                       ) : source.movements.map((movement) => (
                         <li className="flex flex-wrap justify-between gap-2" key={movement.id}>
                           <span>{OWNER_BALANCE_COMPONENT_LABELS[movement.component]} {formatSignedExactMoney(movement.signedAmount)}</span>
-                          {movement.reversalOfMovementId ? <span>Reverses movement {movement.reversalOfMovementId}</span> : null}
+                          {movement.reversalOfMovementId ? <span>Reversal</span> : null}
                         </li>
                       ))}
                     </ul>
+                    <AuditDetails
+                      entries={[
+                        { label: "Source type", value: source.sourceType },
+                        { label: "Source line", value: source.sourceLineId },
+                        { label: "Source fingerprint", value: source.sourceFingerprint },
+                        { label: "Ownership hash", value: source.ownershipRosterHash },
+                        { label: "Reversed assignment", value: source.reversalOfAllocationSetId },
+                      ]}
+                    />
                   </div>
                 </details>
               ))}
@@ -303,8 +319,8 @@ function WithdrawalCapacityCard({
     >
       <h2 className="font-semibold">
         {available
-          ? "Current checked withdrawal capacity"
-          : "Withdrawal capacity unavailable"}
+          ? "Available to distribute"
+          : "Distribution amount unavailable"}
       </h2>
       {available ? (
         <>
@@ -317,7 +333,7 @@ function WithdrawalCapacityCard({
         </>
       ) : (
         <p className="mt-1 text-sm text-muted-foreground">
-          This period is not eligible for a current withdrawal check.
+          This month is not ready for an owner distribution.
         </p>
       )}
     </section>
@@ -331,13 +347,19 @@ function RemediationRow({ canAllocate, item }: { canAllocate: boolean; item: Own
       <td className="px-4 py-3">{item.eventDate}</td>
       <td className="px-4 py-3">
         <p className="font-medium">{sourceTypeLabel(item.sourceType)}</p>
-        <p className="font-mono text-xs text-muted-foreground">{item.sourceLineId}</p>
       </td>
       <td className="px-4 py-3 text-right tabular-nums">{formatExactMoney(item.grossSignedAmount)}</td>
       <td className="px-4 py-3">
         <p className="font-semibold">{remediationLabel(item.remediationCode)}</p>
-        <p className="font-mono text-xs text-muted-foreground">{item.remediationCode ?? item.allocationState}</p>
-        <JsonDetail value={item.remediationDetail} />
+        <AuditDetails
+          className="mt-1"
+          entries={[
+            { label: "Source line", value: item.sourceLineId },
+            { label: "Reason code", value: item.remediationCode ?? item.allocationState },
+            ...auditEntries(item.remediationDetail),
+          ]}
+          label="Technical details"
+        />
       </td>
       <td className="px-4 py-3">
         {setupPath ? <Link className="text-sm font-semibold text-primary underline-offset-4 hover:underline" href={setupPath}>Resolve ownership</Link> : null}
@@ -346,7 +368,7 @@ function RemediationRow({ canAllocate, item }: { canAllocate: boolean; item: Own
             <input name="sourceType" type="hidden" value={item.sourceType} />
             <input name="sourceLineId" type="hidden" value={item.sourceLineId} />
             <input name="idempotencyKey" type="hidden" value={`owner-allocate-${randomUUID()}`} />
-            <button className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold" type="submit">Allocate source</button>
+            <Button size="sm" type="submit" variant="outline">Assign to owner balance</Button>
           </form>
         ) : null}
       </td>
@@ -358,8 +380,7 @@ function OwnerCashActions({ scopedHiddenFields, selectedMonth }: { scopedHiddenF
   return (
     <section aria-labelledby="owner-cash-actions-heading" className="space-y-3">
       <div>
-        <h2 className="text-lg font-semibold" id="owner-cash-actions-heading">Checked owner cash</h2>
-        <p className="text-sm text-muted-foreground">Contributions, reimbursements, distributions, and reversals remain distinct commands.</p>
+        <h2 className="text-lg font-semibold" id="owner-cash-actions-heading">Owner cash activity</h2>
       </div>
       <div className="grid gap-3 xl:grid-cols-3">
         {(["owner_contribution", "owner_reimbursement"] as const).map((eventType) => (
@@ -369,10 +390,10 @@ function OwnerCashActions({ scopedHiddenFields, selectedMonth }: { scopedHiddenF
             <input name="idempotencyKey" type="hidden" value={`owner-cash-${randomUUID()}`} />
             <h3 className="font-semibold">{eventType === "owner_contribution" ? "Owner contribution" : "Owner reimbursement"}</h3>
             <MoneyAndDateFields dateName="eventDate" selectedMonth={selectedMonth} />
-            <label className="grid gap-1 text-sm">Reason<input className="h-9 rounded-md border border-input bg-background px-3" minLength={3} name="reason" required /></label>
-            <button className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" type="submit">
+            <label className="grid gap-1 text-sm">Reason<Input className="h-9" minLength={3} name="reason" required /></label>
+            <Button className="h-9 px-3" type="submit">
               {eventType === "owner_contribution" ? "Record owner contribution" : "Record owner reimbursement"}
-            </button>
+            </Button>
           </form>
         ))}
         <form action={recordOwnerDistributionAction} className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4">
@@ -380,13 +401,13 @@ function OwnerCashActions({ scopedHiddenFields, selectedMonth }: { scopedHiddenF
           <input name="idempotencyKey" type="hidden" value={`owner-distribution-${randomUUID()}`} />
           <h3 className="font-semibold">Owner distribution</h3>
           <MoneyAndDateFields dateName="distributionDate" selectedMonth={selectedMonth} />
-          <label className="grid gap-1 text-sm">Reference<input className="h-9 rounded-md border border-input bg-background px-3" name="reference" required /></label>
-          <button className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" type="submit">Record owner distribution</button>
+          <label className="grid gap-1 text-sm">Reference<Input className="h-9" name="reference" required /></label>
+          <Button className="h-9 px-3" type="submit">Record owner distribution</Button>
         </form>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
-        <ReversalForm action={reverseOwnerInvoicePaymentAction} idLabel="Owner invoice payment ID" idName="ownerPaymentId" selectedMonth={selectedMonth} submitLabel="Reverse owner invoice payment" />
-        <ReversalForm action={reversePropertyWithdrawalAction} idLabel="Owner distribution ID" idName="withdrawalId" selectedMonth={selectedMonth} submitLabel="Reverse owner distribution" />
+        <ReversalForm action={reverseOwnerInvoicePaymentAction} idLabel="Owner invoice payment reference" idName="ownerPaymentId" selectedMonth={selectedMonth} submitLabel="Reverse owner invoice payment" />
+        <ReversalForm action={reversePropertyWithdrawalAction} idLabel="Owner distribution reference" idName="withdrawalId" selectedMonth={selectedMonth} submitLabel="Reverse owner distribution" />
       </div>
     </section>
   );
@@ -397,10 +418,10 @@ function ReversalForm({ action, idLabel, idName, selectedMonth, submitLabel }: {
     <form action={action} className="grid gap-3 rounded-2xl border border-border/80 bg-card p-4">
       <input name="idempotencyKey" type="hidden" value={`owner-reversal-${randomUUID()}`} />
       <h3 className="font-semibold">{submitLabel}</h3>
-      <label className="grid gap-1 text-sm">{idLabel}<input className="h-9 rounded-md border border-input bg-background px-3" name={idName} required /></label>
-      <label className="grid gap-1 text-sm">Reversal date<input className="h-9 rounded-md border border-input bg-background px-3" defaultValue={`${selectedMonth}-01`} name="reversalDate" required type="date" /></label>
-      <label className="grid gap-1 text-sm">Reason<input className="h-9 rounded-md border border-input bg-background px-3" minLength={3} name="reason" required /></label>
-      <button className="rounded-lg border border-border px-3 py-2 text-sm font-semibold" type="submit">{submitLabel}</button>
+      <label className="grid gap-1 text-sm">{idLabel}<Input className="h-9" name={idName} required /></label>
+      <label className="grid gap-1 text-sm">Reversal date<Input className="h-9" defaultValue={`${selectedMonth}-01`} name="reversalDate" required type="date" /></label>
+      <label className="grid gap-1 text-sm">Reason<Input className="h-9" minLength={3} name="reason" required /></label>
+      <Button className="h-9 px-3" type="submit" variant="outline">{submitLabel}</Button>
     </form>
   );
 }
@@ -408,20 +429,25 @@ function ReversalForm({ action, idLabel, idName, selectedMonth, submitLabel }: {
 function TransferAction({ ownerOptions, scopedHiddenFields, selectedMonth, selectedOwnerPersonId }: { ownerOptions: OwnerBalanceData["ownerOptions"]; scopedHiddenFields: ReactNode; selectedMonth: string; selectedOwnerPersonId: string }) {
   return (
     <section aria-labelledby="owner-transfer-heading" className="rounded-2xl border border-border/80 bg-card p-4">
-      <h2 className="text-lg font-semibold" id="owner-transfer-heading">Explicit ownership transfer</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Super Admin only. The instruction persists equal opposite movements with evidence.</p>
+      <h2 className="text-lg font-semibold" id="owner-transfer-heading">Transfer balance between owners</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Super Admin only. Creates equal and opposite balance changes and keeps the evidence.</p>
       <form action={transferOwnerBalanceComponentAction} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {scopedHiddenFields}
         <input name="fromOwnerPersonId" type="hidden" value={selectedOwnerPersonId} />
         <input name="idempotencyKey" type="hidden" value={`owner-transfer-${randomUUID()}`} />
-        <label className="grid gap-1 text-sm">To owner<select className="h-9 rounded-md border border-input bg-background px-3" name="toOwnerPersonId" required><option value="">Select owner</option>{ownerOptions.filter((item) => item.id !== selectedOwnerPersonId).map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-        <label className="grid gap-1 text-sm">Component<select className="h-9 rounded-md border border-input bg-background px-3" name="component" required>{OWNER_BALANCE_COMPONENTS.map((component) => <option key={component} value={component}>{OWNER_BALANCE_COMPONENT_LABELS[component]}</option>)}</select></label>
-        <label className="grid gap-1 text-sm">Amount<input className="h-9 rounded-md border border-input bg-background px-3" inputMode="decimal" name="amount" required /></label>
-        <label className="grid gap-1 text-sm">Effective date<input className="h-9 rounded-md border border-input bg-background px-3" defaultValue={`${selectedMonth}-01`} name="effectiveDate" required type="date" /></label>
-        <label className="grid gap-1 text-sm xl:col-span-2">Reason<input className="h-9 rounded-md border border-input bg-background px-3" minLength={3} name="reason" required /></label>
-        <label className="grid gap-1 text-sm">Evidence reference<input className="h-9 rounded-md border border-input bg-background px-3" minLength={3} name="evidenceReference" required /></label>
-        <label className="grid gap-1 text-sm">Evidence SHA-256<input className="h-9 rounded-md border border-input bg-background px-3 font-mono" minLength={64} name="evidenceSha256" required /></label>
-        <button className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground md:col-span-2 xl:col-span-4" type="submit">Transfer component</button>
+        <label className="grid gap-1 text-sm">To owner<SelectControl ariaLabel="To owner" className="h-9" name="toOwnerPersonId" options={[{ label: "Select owner", value: "" }, ...ownerOptions.filter((item) => item.id !== selectedOwnerPersonId).map((item) => ({ label: item.label, value: item.id }))]} required /></label>
+        <label className="grid gap-1 text-sm">Component<SelectControl ariaLabel="Component" className="h-9" name="component" options={OWNER_BALANCE_COMPONENTS.map((component) => ({ label: OWNER_BALANCE_COMPONENT_LABELS[component], value: component }))} required /></label>
+        <label className="grid gap-1 text-sm">Amount<Input className="h-9" inputMode="decimal" name="amount" required /></label>
+        <label className="grid gap-1 text-sm">Effective date<Input className="h-9" defaultValue={`${selectedMonth}-01`} name="effectiveDate" required type="date" /></label>
+        <label className="grid gap-1 text-sm xl:col-span-2">Reason<Input className="h-9" minLength={3} name="reason" required /></label>
+        <details className="md:col-span-2 xl:col-span-4">
+          <summary className="w-fit cursor-pointer text-sm font-medium">Audit evidence</summary>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="grid gap-1 text-sm">Evidence reference<Input className="h-9" minLength={3} name="evidenceReference" required /></label>
+            <label className="grid gap-1 text-sm">Evidence file fingerprint<Input className="h-9 font-mono" minLength={64} name="evidenceSha256" required /></label>
+          </div>
+        </details>
+        <Button className="h-9 px-3 md:col-span-2 xl:col-span-4" type="submit">Transfer balance</Button>
       </form>
     </section>
   );
@@ -430,15 +456,10 @@ function TransferAction({ ownerOptions, scopedHiddenFields, selectedMonth, selec
 function MoneyAndDateFields({ dateName, selectedMonth }: { dateName: string; selectedMonth: string }) {
   return (
     <div className="grid grid-cols-2 gap-2">
-      <label className="grid gap-1 text-sm">Amount<input className="h-9 rounded-md border border-input bg-background px-3" inputMode="decimal" name="amount" required /></label>
-      <label className="grid gap-1 text-sm">Date<input className="h-9 rounded-md border border-input bg-background px-3" defaultValue={`${selectedMonth}-01`} name={dateName} required type="date" /></label>
+      <label className="grid gap-1 text-sm">Amount<Input className="h-9" inputMode="decimal" name="amount" required /></label>
+      <label className="grid gap-1 text-sm">Date<Input className="h-9" defaultValue={`${selectedMonth}-01`} name={dateName} required type="date" /></label>
     </div>
   );
-}
-
-function JsonDetail({ value }: { value: unknown }) {
-  if (value === null || value === undefined) return null;
-  return <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{JSON.stringify(value)}</p>;
 }
 
 function remediationSetupPath(value: unknown) {
@@ -456,7 +477,28 @@ function remediationLabel(code: string | null) {
   if (code === "source_fingerprint_drift") return "Source changed after allocation";
   if (code === "unresolved_transfer") return "Transfer instruction required";
   if (code === "source_unsupported") return "Unsupported owner source";
-  return code ? "Authority needs remediation" : "Authority ready";
+  return code ? "Needs review" : "Ready";
+}
+
+function auditEntries(
+  value: unknown,
+  prefix = "",
+): Array<{ label: string; value: string }> {
+  if (!value || typeof value !== "object") return [];
+
+  return Object.entries(value).flatMap(([key, item]) => {
+    const label = [prefix, key]
+      .filter(Boolean)
+      .join(" ")
+      .replaceAll("_", " ")
+      .replace(/^./, (character) => character.toUpperCase());
+
+    if (item && typeof item === "object") {
+      return auditEntries(item, label);
+    }
+
+    return [{ label, value: item === null ? "None" : String(item) }];
+  });
 }
 
 function sourceTypeLabel(value: string) {

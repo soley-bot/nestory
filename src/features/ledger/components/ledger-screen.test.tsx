@@ -212,7 +212,7 @@ describe("LedgerScreen finance workspace contract", () => {
       .closest("section")!;
     expect(emptyState.getAttribute("data-kind")).toBe("empty");
     expect(within(emptyState).queryByRole("button")).toBeNull();
-    expect(emptyState.textContent).toMatch(/source workflows/i);
+    expect(emptyState.textContent).toMatch(/no financial transactions have been recorded/i);
   });
 
   it("keeps Finance roles read-only while preserving ledger inspection", async () => {

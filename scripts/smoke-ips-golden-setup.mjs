@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
+import { isExpectedNextDevPerformancePageError } from "./smoke-ui-redesign-policy.mjs";
 import {
   goldenSetupPhases,
   makeGoldenSetupNames,
@@ -30,7 +31,7 @@ try {
     return createSetupRecords(page, origin);
   });
 
-  await withActor(config.superAdminEmail, async (page, origin) => {
+  await withActor(config.managerEmail, async (page, origin) => {
     await activateBilling(page, origin, setup);
   });
 
@@ -154,7 +155,8 @@ async function submitOpeningBalances(page, origin, propertyId) {
     const dialog = page.getByRole("dialog", { name: "Submit opening balance" });
     await dialog.getByLabel("Opening amount").fill("0");
     await dialog.getByLabel("Reason").fill("Golden setup known-zero cutover");
-    await dialog.getByLabel("Source snapshot fingerprint").fill(fingerprint);
+    await dialog.getByText("Audit evidence", { exact: true }).click();
+    await dialog.getByLabel("Evidence file fingerprint").fill(fingerprint);
     await dialog.getByLabel("Source reference").fill(`${names.propertyCode}-OPENING-${index + 1}`);
     await dialog.getByRole("button", { name: "Submit for review" }).click();
     await dialog.waitFor({ state: "detached" });
@@ -181,7 +183,7 @@ async function approveOpeningBalances(page, origin, propertyId) {
     await page.getByRole("status").filter({ hasText: /approved/i }).waitFor();
   }
 
-  assert.equal(await page.getByText("Known zero", { exact: true }).count(), componentCount);
+  assert.equal(await page.getByText("Approved zero", { exact: true }).count(), componentCount);
 }
 
 async function assertRentReadyAndDownstream(page, origin, setup) {
@@ -245,7 +247,9 @@ async function withActor(email, run) {
   const context = await browser.newContext({ viewport: { height: 900, width: 1440 } });
   const page = await context.newPage();
   const pageErrors = [];
-  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("pageerror", (error) => {
+    if (!isExpectedNextDevPerformancePageError(error.message)) pageErrors.push(error.message);
+  });
   try {
     const loginResponse = await page.goto(`${config.baseUrl}/login`, {
       waitUntil: "domcontentloaded",
@@ -258,7 +262,13 @@ async function withActor(email, run) {
 
     await gotoOk(page, `${config.baseUrl}/workspace`);
     const openWorkspace = page.getByRole("link", { name: "Open workspace" });
-    if ((await openWorkspace.count()) > 0) {
+    if (new URL(page.url()).pathname === "/workspace") {
+      await Promise.race([
+        page.waitForURL((url) => url.pathname !== "/workspace", { timeout: 10_000 }),
+        openWorkspace.waitFor({ state: "visible", timeout: 10_000 }),
+      ]);
+    }
+    if (new URL(page.url()).pathname === "/workspace" && await openWorkspace.isVisible()) {
       await Promise.all([
         page.waitForURL((url) => url.pathname !== "/workspace"),
         openWorkspace.click(),
@@ -280,7 +290,16 @@ async function withActor(email, run) {
 }
 
 async function gotoOk(page, url) {
-  const response = await page.goto(url, { waitUntil: "domcontentloaded" });
+  let response;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      response = await page.goto(url, { waitUntil: "domcontentloaded" });
+      break;
+    } catch (error) {
+      if (!String(error).includes("net::ERR_ABORTED") || attempt === 3) throw error;
+      await page.waitForTimeout(250 * attempt);
+    }
+  }
   assert.ok(response?.ok(), `Route did not load: ${new URL(url).pathname}`);
   assert.equal(
     new URL(page.url()).origin,

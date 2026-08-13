@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { setHiddenControlValue } from "./playwright-form-controls.mjs";
 import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
 
@@ -27,6 +28,9 @@ const ownerId = "80000000-0000-0000-0000-000000000005";
 const component = "owner_due_to_ips";
 const componentLabel = "Owner due to IPS";
 const evidenceHash = "9".repeat(64);
+const openingMonth = dbScalar(
+  "SELECT to_char(date_trunc('month', current_date) + interval '1 month', 'YYYY-MM')",
+);
 
 let browser;
 try {
@@ -53,7 +57,7 @@ try {
       AND proposed_amount = 0.00 AND supporting_document_id IS NULL;
   `);
 
-  await withActor(actors.super_admin, async (page) => {
+  await withActor(actors.finance_manager, async (page) => {
     await reviewCurrent(page, "approve", "Independent zero opening approval");
     await expectSuccessFocus(page, /approved/i);
   });
@@ -108,7 +112,7 @@ try {
       await dialog.getByLabel("Source reference").inputValue(),
       "BROWSER-ZERO-CORRECTION-001",
     );
-    await dialog.getByLabel("Source snapshot fingerprint").fill(evidenceHash);
+    await fillEvidenceFingerprint(dialog);
     await dialog.getByRole("button", { name: "Submit for review" }).click();
     await expectSuccessFocus(page, /submitted for review/i);
   });
@@ -167,10 +171,18 @@ try {
 async function withActor(email, run) {
   return withShellActor(email, async (page) => {
     await openOwnerBalancesFromVisibleFinance(page);
-    await page.getByLabel("Opening property").selectOption(propertyId);
+    const scopeForm = page.locator("form").filter({
+      has: page.getByRole("button", { name: "Apply" }),
+    }).first();
+    await setHiddenControlValue(scopeForm, "month", openingMonth);
+    await setHiddenControlValue(scopeForm, "propertyId", propertyId);
     await Promise.all([
-      page.waitForURL((url) => url.pathname === "/balances" && url.searchParams.get("propertyId") === propertyId),
-      page.getByRole("button", { name: "Apply" }).click(),
+      page.waitForURL((url) =>
+        url.pathname === "/balances" &&
+        url.searchParams.get("month") === openingMonth &&
+        url.searchParams.get("propertyId") === propertyId,
+      ),
+      scopeForm.getByRole("button", { name: "Apply" }).click(),
     ]);
     await page.getByText(componentLabel, { exact: true }).waitFor();
     await run(page);
@@ -180,10 +192,13 @@ async function withActor(email, run) {
 async function assertEqualTimestampFixtureCurrentLineage() {
   await withShellActor(actors.finance_manager, async (page) => {
     await openOwnerBalancesFromVisibleFinance(page);
-    await page.getByLabel("Opening property").selectOption(fixturePropertyId);
+    const scopeForm = page.locator("form").filter({
+      has: page.getByRole("button", { name: "Apply" }),
+    }).first();
+    await setHiddenControlValue(scopeForm, "propertyId", fixturePropertyId);
     await Promise.all([
       page.waitForURL((url) => url.pathname === "/balances" && url.searchParams.get("propertyId") === fixturePropertyId),
-      page.getByRole("button", { name: "Apply" }).click(),
+      scopeForm.getByRole("button", { name: "Apply" }).click(),
     ]);
 
     const deposit = page.getByRole("row").filter({ hasText: "Security-deposit custody" });
@@ -197,7 +212,7 @@ async function assertEqualTimestampFixtureCurrentLineage() {
 
     const zero = page.getByRole("row").filter({ hasText: "Owner due to IPS" });
     await zero.getByText("Current — Approved correction", { exact: true }).waitFor();
-    await zero.getByText("Lineage — Rejected correction", { exact: true }).waitFor();
+    await zero.getByText("Earlier request — Rejected correction", { exact: true }).waitFor();
     assert.equal(
       await zero.locator("summary").first().innerText(),
       "Current — Approved correction",
@@ -224,10 +239,7 @@ async function withShellActor(email, run) {
       throw new Error(`${email}: ${detail}`);
     }
     await page.goto(`${baseUrl}/workspace`, { waitUntil: "domcontentloaded" });
-    await Promise.all([
-      page.waitForURL((url) => url.pathname !== "/workspace"),
-      page.getByRole("link", { name: "Open workspace" }).click(),
-    ]);
+    await page.waitForURL((url) => url.pathname !== "/workspace");
     await run(page);
   } finally {
     await context.close();
@@ -280,9 +292,17 @@ async function fillOpeningDialog(page, title, amountLabel, values) {
   const dialog = page.getByRole("dialog", { name: title });
   await dialog.getByLabel(amountLabel).fill(values.amount);
   await dialog.getByLabel("Reason").fill(values.reason);
-  await dialog.getByLabel("Source snapshot fingerprint").fill(evidenceHash);
+  await fillEvidenceFingerprint(dialog);
   await dialog.getByLabel("Source reference").fill(values.source);
   await dialog.getByRole("button", { name: "Submit for review" }).click();
+}
+
+async function fillEvidenceFingerprint(dialog) {
+  const field = dialog.getByLabel("Evidence file fingerprint");
+  if (!(await field.isVisible())) {
+    await dialog.getByText("Audit evidence", { exact: true }).click();
+  }
+  await field.fill(evidenceHash);
 }
 
 async function reviewCurrent(page, decision, reason) {

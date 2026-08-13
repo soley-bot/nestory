@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { AuditDetails } from "@/components/ui/audit-details";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SelectControl } from "@/components/ui/select-control";
 import {
   closeOwnerMonthAction,
   publishOwnerStatementAction,
@@ -54,7 +59,7 @@ export function OwnerCloseScreen({
           Close owner month
         </h2>
         <p className="text-sm text-muted-foreground">
-          Readiness, reasoned revisions, frozen lines, and source evidence for this exact owner month.
+          Close the selected owner month only after every balance and source check passes.
         </p>
       </header>
 
@@ -69,7 +74,7 @@ export function OwnerCloseScreen({
           {mayClose ? (
             <form
               action={closeOwnerMonthAction}
-              className="grid gap-3 rounded-2xl border border-emerald-300/70 bg-emerald-50/60 p-4 md:grid-cols-[1fr_auto]"
+              className="grid gap-3 rounded-lg border border-success/30 bg-success-soft/50 p-4 md:grid-cols-[1fr_auto]"
             >
               <input name="currency" type="hidden" value="USD" />
               <input name="monthStart" type="hidden" value={monthStart} />
@@ -82,26 +87,26 @@ export function OwnerCloseScreen({
               />
               <label className="grid gap-1 text-sm font-medium">
                 Close reason
-                <input
-                  className="h-10 rounded-lg border border-input bg-background px-3"
+                <Input
+                  className="h-10"
                   minLength={3}
                   name="closeReason"
                   required
                 />
               </label>
-              <button
-                className="self-end rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+              <Button
+                className="h-10 self-end px-4"
                 type="submit"
               >
-                Close owner month · revision {closeRevisionNumber}
-              </button>
+                Close owner month
+              </Button>
             </form>
           ) : null}
 
           {mayReopen ? (
             <form
               action={reopenOwnerMonthAction}
-              className="grid gap-3 rounded-2xl border border-amber-300/70 bg-amber-50/60 p-4 md:grid-cols-[1fr_auto]"
+              className="grid gap-3 rounded-lg border border-warning/30 bg-warning-soft/50 p-4 md:grid-cols-[1fr_auto]"
             >
               <input name="seriesId" type="hidden" value={data.series!.id} />
               <input
@@ -111,19 +116,20 @@ export function OwnerCloseScreen({
               />
               <label className="grid gap-1 text-sm font-medium">
                 Reopen reason
-                <input
-                  className="h-10 rounded-lg border border-input bg-background px-3"
+                <Input
+                  className="h-10"
                   minLength={3}
                   name="reopenReason"
                   required
                 />
               </label>
-              <button
-                className="self-end rounded-lg border border-amber-500 bg-background px-4 py-2.5 text-sm font-semibold"
+              <Button
+                className="h-10 self-end px-4"
                 type="submit"
+                variant="outline"
               >
                 Reopen month
-              </button>
+              </Button>
             </form>
           ) : null}
 
@@ -153,17 +159,17 @@ function PublicationAuthority({
     <section aria-labelledby="owner-statement-publication-heading" className="space-y-3">
       <div>
         <h3 className="font-semibold" id="owner-statement-publication-heading">
-          Official Owner Statements
+          Official owner statements
         </h3>
         <p className="text-sm text-muted-foreground">
-          Numbered publications and retained PDF and Excel bytes from immutable close evidence.
+          Numbered PDF and Excel statements saved from a closed owner month.
         </p>
       </div>
 
       {canPublish && readiness?.isReady ? (
         <form
           action={publishOwnerStatementAction}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-300/70 bg-emerald-50/60 p-4"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-success/30 bg-success-soft/50 p-4"
         >
           <input name="revisionId" type="hidden" value={readiness.revisionId} />
           <input
@@ -172,17 +178,17 @@ function PublicationAuthority({
             value={`owner-statement-${readiness.revisionId}-${randomUUID()}`}
           />
           <div>
-            <p className="font-semibold">Ready to publish official Owner Statement</p>
+            <p className="font-semibold">Ready to publish the owner statement</p>
             <p className="text-sm text-muted-foreground">
-              Publication freezes a permanent statement number and retained artifacts.
+              Publishing assigns a permanent statement number and saves both file formats.
             </p>
           </div>
-          <button
-            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+          <Button
+            className="h-10 px-4"
             type="submit"
           >
-            Publish Owner Statement
-          </button>
+            Publish owner statement
+          </Button>
         </form>
       ) : canPublish &&
         readiness?.existingPublicationId &&
@@ -191,7 +197,7 @@ function PublicationAuthority({
         ) ? (
         <form
           action={resumeOwnerStatementPublicationAction}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300/70 bg-amber-50/60 p-4"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning-soft/50 p-4"
         >
           <input name="publicationId" type="hidden" value={readiness.existingPublicationId} />
           <input
@@ -202,15 +208,15 @@ function PublicationAuthority({
           <div>
             <p className="font-semibold">Publication incomplete</p>
             <p className="text-sm text-muted-foreground">
-              Resume verifies retained bytes and creates only the missing official format.
+              Resume checks the saved files and creates only the missing format.
             </p>
           </div>
-          <button
-            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+          <Button
+            className="h-10 px-4"
             type="submit"
           >
-            Resume Owner Statement
-          </button>
+            Resume owner statement
+          </Button>
         </form>
       ) : readiness && readiness.blockers.length > 0 ? (
         <div className="rounded-2xl border border-border/80 bg-card p-4 text-sm">
@@ -240,13 +246,14 @@ function PublicationAuthority({
                   <p className="text-xs text-muted-foreground">
                     Revision {publication.revisionNumber} · {publication.generatedAt}
                   </p>
-                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                    {publication.contentHash}
-                  </p>
+                  <AuditDetails
+                    className="mt-1"
+                    entries={[{ label: "Content hash", value: publication.contentHash }]}
+                  />
                 </div>
-                <span className="rounded-full border border-border px-2 py-1 text-xs font-medium">
+                <Badge tone={publication.supersededByPublicationId ? "neutral" : "success"}>
                   {publication.supersededByPublicationId ? "Superseded" : "Current"}
-                </span>
+                </Badge>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {publication.artifacts.map((artifact) => (
@@ -303,10 +310,10 @@ function ReadinessCard({
           {readiness.blockers.map((blocker, index) => (
             <li key={`${blocker.code}:${index}`}>
               <p className="font-semibold text-amber-950">{blockerLabel(blocker)}</p>
-              <p className="font-mono text-xs text-amber-900">{blocker.code}</p>
-              <p className="break-all font-mono text-xs text-muted-foreground">
-                {JSON.stringify(blocker)}
-              </p>
+              <AuditDetails
+                entries={blockerAuditEntries(blocker)}
+                label="Technical details"
+              />
             </li>
           ))}
         </ul>
@@ -344,10 +351,13 @@ function ReadinessCard({
           </table>
         </div>
       ) : null}
-      <div className="space-y-1 border-t border-border/60 px-4 py-2 font-mono text-xs text-muted-foreground">
-        <p>Input watermark: {readiness.inputWatermark ?? "Unavailable"}</p>
-        <p className="break-all">Input hash: {readiness.inputHash ?? "Unavailable"}</p>
-      </div>
+      <AuditDetails
+        className="border-t border-border/60 px-4 py-2"
+        entries={[
+          { label: "Input watermark", value: readiness.inputWatermark },
+          { label: "Input hash", value: readiness.inputHash },
+        ]}
+      />
     </article>
   );
 }
@@ -375,25 +385,27 @@ function CorrectionForm({
         value={`owner-close-correction-${randomUUID()}`}
       />
       <div className="md:col-span-2 xl:col-span-4">
-        <h3 className="font-semibold">Append-only close correction</h3>
+        <h3 className="font-semibold">Record close correction</h3>
         <p className="text-sm text-muted-foreground">
-          Adds evidence-backed movement to the preparing revision; it never edits the prior close.
+          Adds an evidence-backed balance change without editing the prior close.
         </p>
       </div>
       <label className="grid gap-1 text-sm font-medium">
         Component
-        <select className="h-10 rounded-lg border border-input bg-background px-3" name="component">
-          {OWNER_BALANCE_COMPONENTS.map((component) => (
-            <option key={component} value={component}>
-              {OWNER_BALANCE_COMPONENT_LABELS[component]}
-            </option>
-          ))}
-        </select>
+        <SelectControl
+          ariaLabel="Component"
+          className="h-10"
+          name="component"
+          options={OWNER_BALANCE_COMPONENTS.map((component) => ({
+            label: OWNER_BALANCE_COMPONENT_LABELS[component],
+            value: component,
+          }))}
+        />
       </label>
       <label className="grid gap-1 text-sm font-medium">
         Effective date
-        <input
-          className="h-10 rounded-lg border border-input bg-background px-3"
+        <Input
+          className="h-10"
           defaultValue={monthEnd(monthStart)}
           name="effectiveDate"
           required
@@ -402,8 +414,8 @@ function CorrectionForm({
       </label>
       <label className="grid gap-1 text-sm font-medium">
         Signed correction amount
-        <input
-          className="h-10 rounded-lg border border-input bg-background px-3"
+        <Input
+          className="h-10"
           inputMode="decimal"
           name="signedAmount"
           placeholder="-25.00"
@@ -412,22 +424,26 @@ function CorrectionForm({
       </label>
       <label className="grid gap-1 text-sm font-medium">
         Source reference
-        <input className="h-10 rounded-lg border border-input bg-background px-3" minLength={3} name="sourceReference" required />
+        <Input className="h-10" minLength={3} name="sourceReference" required />
       </label>
       <label className="grid gap-1 text-sm font-medium md:col-span-2">
         Reason
-        <input className="h-10 rounded-lg border border-input bg-background px-3" minLength={3} name="reason" required />
+        <Input className="h-10" minLength={3} name="reason" required />
       </label>
-      <label className="grid gap-1 text-sm font-medium md:col-span-2">
-        Evidence SHA-256
-        <input className="h-10 rounded-lg border border-input bg-background px-3 font-mono" minLength={64} name="evidenceSha256" required />
-      </label>
-      <button
-        className="rounded-lg border border-border px-4 py-2.5 text-sm font-semibold md:col-span-2 xl:col-span-4"
+      <details className="md:col-span-2">
+        <summary className="w-fit cursor-pointer text-sm font-medium">Audit evidence</summary>
+        <label className="mt-3 grid gap-1 text-sm font-medium">
+          Evidence file fingerprint
+          <Input className="h-10 font-mono" minLength={64} name="evidenceSha256" required />
+        </label>
+      </details>
+      <Button
+        className="h-10 px-4 md:col-span-2 xl:col-span-4"
         type="submit"
+        variant="outline"
       >
         Record correction
-      </button>
+      </Button>
     </form>
   );
 }
@@ -438,7 +454,7 @@ function RevisionHistory({ data }: { data: OwnerCloseData }) {
       <div>
         <h3 className="font-semibold" id="owner-close-history-heading">Revision history</h3>
         <p className="text-sm text-muted-foreground">
-          Closed revisions remain byte-for-byte database evidence after reopen and correction.
+          Closed revisions remain unchanged after a reopen or correction.
         </p>
       </div>
       {data.revisions.length === 0 ? (
@@ -461,10 +477,13 @@ function RevisionHistory({ data }: { data: OwnerCloseData }) {
             {revision.closeReason ? (
               <p className="mt-1 text-sm">Close reason: {revision.closeReason}</p>
             ) : null}
-            <dl className="mt-2 grid gap-1 text-xs text-muted-foreground">
-              <div><dt className="inline font-medium">Input hash</dt><dd className="ml-2 inline break-all font-mono">{revision.inputHash ?? "Pending"}</dd></div>
-              <div><dt className="inline font-medium">Content hash</dt><dd className="ml-2 inline break-all font-mono">{revision.contentHash ?? "Pending"}</dd></div>
-            </dl>
+            <AuditDetails
+              className="mt-2"
+              entries={[
+                { label: "Input hash", value: revision.inputHash ?? "Pending" },
+                { label: "Content hash", value: revision.contentHash ?? "Pending" },
+              ]}
+            />
           </div>
           {revision.lines.length === 0 ? (
             <p className="px-4 py-3 text-sm text-muted-foreground">
@@ -487,7 +506,7 @@ function RevisionHistory({ data }: { data: OwnerCloseData }) {
                   {correction.effectiveDate} - {OWNER_BALANCE_COMPONENT_LABELS[correction.component]} - {formatExactMoney(correction.signedAmount)}
                 </p>
                 <p>{correction.reason} - {correction.sourceReference}</p>
-                <p className="break-all font-mono text-xs text-muted-foreground">{correction.evidenceSha256}</p>
+                <AuditDetails entries={[{ label: "Evidence fingerprint", value: correction.evidenceSha256 }]} />
               </li>
             ))}
           </ul>
@@ -499,22 +518,26 @@ function RevisionHistory({ data }: { data: OwnerCloseData }) {
 
 function FrozenLine({ line }: { line: OwnerCloseLine }) {
   return (
-    <details className="px-4 py-3" open>
+    <details className="px-4 py-3">
       <summary className="cursor-pointer list-none">
         <div className="flex flex-wrap justify-between gap-2 text-sm">
           <span className="font-medium">{line.lineNumber}. {line.description}</span>
           <span className="tabular-nums">{line.businessDate} - {formatExactMoney(line.signedAmount)}</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          {line.lineKind}{line.component ? ` - ${OWNER_BALANCE_COMPONENT_LABELS[line.component]}` : ""}
+          {line.component ? OWNER_BALANCE_COMPONENT_LABELS[line.component] : "Balance activity"}
         </p>
       </summary>
       <ul className="mt-2 space-y-2 border-l border-border pl-3 text-xs">
         {line.sources.map((source) => (
           <li key={source.id}>
             <p className="font-medium">{sourceTypeLabel(source.sourceType)}</p>
-            <p className="break-all font-mono">Source line {source.sourceLineId}</p>
-            <p className="break-all font-mono text-muted-foreground">Fingerprint {source.sourceFingerprint}</p>
+            <AuditDetails
+              entries={[
+                { label: "Source line", value: source.sourceLineId },
+                { label: "Source fingerprint", value: source.sourceFingerprint },
+              ]}
+            />
           </li>
         ))}
       </ul>
@@ -528,11 +551,18 @@ function blockerLabel(blocker: OwnerCloseBlocker) {
   }
   if (blocker.code === "financial_month_not_locked") return "Financial month is not locked";
   if (blocker.code === "owner_balance_period_missing") return "Owner balance period is missing";
-  if (blocker.code === "owner_balance_period_stale") return "Owner balance period must be rerolled";
+  if (blocker.code === "owner_balance_period_stale") return "Owner balance month must be recalculated";
   if (blocker.code === "pending_owner_opening_or_correction") return "Opening balance review is pending";
-  if (blocker.code === "source_allocation_incomplete") return "Source allocation is incomplete";
-  if (blocker.code === "pending_financial_idempotency") return "A financial command is still pending";
-  return blocker.code.replaceAll("_", " ");
+  if (blocker.code === "source_allocation_incomplete") return "A transaction has not been assigned to the owner balance";
+  if (blocker.code === "pending_financial_idempotency") return "A financial update is still pending";
+  return "This month needs review";
+}
+
+function blockerAuditEntries(blocker: OwnerCloseBlocker) {
+  return Object.entries(blocker).map(([key, value]) => ({
+    label: key.replaceAll("_", " ").replace(/^./, (character) => character.toUpperCase()),
+    value: value && typeof value === "object" ? "Additional structured detail retained" : String(value ?? "None"),
+  }));
 }
 
 function statusLabel(value: string) {

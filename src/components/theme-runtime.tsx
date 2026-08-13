@@ -4,10 +4,16 @@ import { useLayoutEffect, type ReactNode } from "react";
 
 import {
   getOrganizationThemeStyle,
-  resolveOrganizationTheme,
   type OrganizationTheme,
   type ResolvedThemeMode,
+  type ThemeMode,
 } from "@/lib/theme/organization-theme";
+
+export const DISPLAY_THEME_UPDATED_EVENT = "nestory-display-theme-updated";
+
+export function getDisplayThemeStorageKey(organizationId: string) {
+  return `nestory-display-mode:${organizationId}`;
+}
 
 type ThemeRuntimeProps = {
   children: ReactNode;
@@ -22,11 +28,24 @@ export function ThemeRuntime({
 }: ThemeRuntimeProps) {
   useLayoutEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => applyOrganizationTheme(organizationId, theme, media.matches);
+    const apply = () =>
+      applyOrganizationTheme(
+        organizationId,
+        theme,
+        media.matches,
+        readDisplayThemeMode(organizationId),
+      );
+    const handleDisplayTheme = (event: Event) => {
+      const detail = (event as CustomEvent<{ organizationId: string }>).detail;
+      if (detail?.organizationId === organizationId) apply();
+    };
     apply();
-    if (theme.mode !== "system") return undefined;
     media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
+    window.addEventListener(DISPLAY_THEME_UPDATED_EVENT, handleDisplayTheme);
+    return () => {
+      media.removeEventListener("change", apply);
+      window.removeEventListener(DISPLAY_THEME_UPDATED_EVENT, handleDisplayTheme);
+    };
   }, [organizationId, theme]);
 
   return (
@@ -49,6 +68,7 @@ export function getThemeBootstrapScript(
   const payload = escapeScriptJson(
     JSON.stringify({
       organizationId,
+      storageKey: getDisplayThemeStorageKey(organizationId),
       styles: {
         dark: getOrganizationThemeStyle(theme, "dark"),
         light: getOrganizationThemeStyle(theme, "light"),
@@ -60,13 +80,15 @@ export function getThemeBootstrapScript(
     try {
       const payload = ${payload};
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const resolved = payload.theme.mode === "system" ? (prefersDark ? "dark" : "light") : payload.theme.mode;
+      const stored = window.localStorage.getItem(payload.storageKey);
+      const requested = ["light", "dark", "system"].includes(stored) ? stored : payload.theme.mode;
+      const resolved = requested === "system" ? (prefersDark ? "dark" : "light") : requested;
       const root = document.documentElement;
       root.dataset.theme = resolved;
+      root.dataset.themePreference = requested;
       root.dataset.accent = payload.theme.accentPreset;
       root.classList.toggle("dark", resolved === "dark");
       Object.entries(payload.styles[resolved]).forEach(([name, value]) => root.style.setProperty(name, value));
-      window.localStorage.setItem("nestory-theme:" + payload.organizationId, JSON.stringify(payload.theme));
     } catch {}
   })();`;
 }
@@ -75,17 +97,42 @@ export function applyOrganizationTheme(
   organizationId: string,
   theme: OrganizationTheme,
   prefersDark: boolean,
+  displayMode: ThemeMode | null = null,
 ) {
-  const resolved = resolveOrganizationTheme(theme, prefersDark);
+  const requested = displayMode ?? theme.mode;
+  const resolved = requested === "system" ? (prefersDark ? "dark" : "light") : requested;
   const root = document.documentElement;
   root.dataset.theme = resolved;
+  root.dataset.themePreference = requested;
   root.dataset.accent = theme.accentPreset;
   root.classList.toggle("dark", resolved === "dark");
   setThemeStyle(root, getOrganizationThemeStyle(theme, resolved));
-  window.localStorage.setItem(
-    `nestory-theme:${organizationId}`,
-    JSON.stringify(theme),
+}
+
+export function setPersonalDisplayTheme(
+  organizationId: string,
+  theme: OrganizationTheme,
+  mode: ThemeMode,
+) {
+  window.localStorage.setItem(getDisplayThemeStorageKey(organizationId), mode);
+  applyOrganizationTheme(
+    organizationId,
+    theme,
+    window.matchMedia("(prefers-color-scheme: dark)").matches,
+    mode,
   );
+  window.dispatchEvent(
+    new CustomEvent(DISPLAY_THEME_UPDATED_EVENT, {
+      detail: { organizationId, mode },
+    }),
+  );
+}
+
+export function readDisplayThemeMode(organizationId: string): ThemeMode | null {
+  const stored = window.localStorage.getItem(getDisplayThemeStorageKey(organizationId));
+  return stored === "light" || stored === "dark" || stored === "system"
+    ? stored
+    : null;
 }
 
 function setThemeStyle(

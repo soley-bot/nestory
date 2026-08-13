@@ -46,7 +46,7 @@ export function UnitDetailScreen({
   const returnLink = getUnitRecordReturnLink(sourceTaskId);
 
   return (
-    <div className="lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden">
+    <div className="lg:flex lg:flex-col">
       <PageHeader
         actions={
           unit.isArchived ? (

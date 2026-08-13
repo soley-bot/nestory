@@ -49,10 +49,10 @@ try {
   await page.waitForURL(/view=cards/);
   const cardGrid = page.locator('[data-property-record-list="cards"]');
   await cardGrid.getByText("Needs photo").first().waitFor();
-  if (await cardGrid.getByText("Occupancy").count()) {
+  if (await cardGrid.getByText("Occupancy", { exact: true }).count()) {
     throw new Error("Property cards should leave occupancy detail to the inspector.");
   }
-  if (await cardGrid.getByText("Net").count()) {
+  if (await cardGrid.getByText("Net", { exact: true }).count()) {
     throw new Error("Property cards should leave net income detail to the inspector.");
   }
   const cardGridLayout = await cardGrid.evaluate((element) => {
@@ -66,9 +66,18 @@ try {
     };
   });
 
-  if (!["auto", "scroll"].includes(cardGridLayout.overflowY)) {
+  if (cardGridLayout.overflowY !== "visible") {
     throw new Error(
-      `Expected card grid to be scrollable, got ${cardGridLayout.overflowY}`,
+      `Expected card grid to defer vertical scrolling to the workspace, got ${cardGridLayout.overflowY}`,
+    );
+  }
+
+  const workspaceOverflowY = await page
+    .locator('[data-slot="app-shell-content"]')
+    .evaluate((element) => window.getComputedStyle(element).overflowY);
+  if (!["auto", "scroll"].includes(workspaceOverflowY)) {
+    throw new Error(
+      `Expected the workspace to own vertical scrolling, got ${workspaceOverflowY}`,
     );
   }
 
@@ -84,13 +93,22 @@ try {
     );
   }
 
+  const firstPropertyLabel = await cardGrid
+    .getByRole("button")
+    .first()
+    .getAttribute("aria-label");
+  const firstPropertyName = firstPropertyLabel?.replace(/^Preview /, "");
+  if (!firstPropertyName) {
+    throw new Error("Expected a property card with an accessible preview name.");
+  }
+  const temporaryPropertyName = `${firstPropertyName} Smoke`;
   await renamePropertyCard({
-    fromName: "Street 178 Residence",
-    toName: "Street 178 Residence Smoke",
+    fromName: firstPropertyName,
+    toName: temporaryPropertyName,
   });
   await renamePropertyCard({
-    fromName: "Street 178 Residence Smoke",
-    toName: "Street 178 Residence",
+    fromName: temporaryPropertyName,
+    toName: firstPropertyName,
   });
 
   await page.getByTitle("Table view").click();
@@ -171,7 +189,7 @@ try {
     throw new Error("Property records should keep mutations in the inspector.");
   }
 
-  await page.locator('tr[aria-label^="Preview "]').first().click();
+  await page.getByRole("row", { name: "Preview Central Residence" }).click();
   await page
     .getByRole("button", { name: /More actions for /i })
     .click();

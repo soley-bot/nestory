@@ -299,8 +299,8 @@ SELECT results_eq(
       app_private.can_execute_operations(organization_id)
     FROM fixed_role_state
   $$,
-  $$ VALUES (false, false, true, false, true, false, false, false) $$,
-  'Finance Manager can read and review finance only'
+  $$ VALUES (false, true, true, false, true, false, false, false) $$,
+  'Finance Manager can configure leases and run guarded Finance review work'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT finance_member_id::text FROM fixed_role_state), true);
@@ -947,8 +947,8 @@ SELECT results_eq(
       app_private.can_publish_owner_statement(organization_id)
     FROM fixed_role_state
   $$,
-  $$ VALUES (true, false, true, false, true, false, false, false) $$,
-  'Finance Manager can read, request correction, and inspect readiness without opening approval or close authority'
+  $$ VALUES (true, false, true, true, true, true, false, true) $$,
+  'Finance Manager reviews submitted openings, closes reconciled months, and publishes without reopen authority'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT finance_member_id::text FROM fixed_role_state), true);

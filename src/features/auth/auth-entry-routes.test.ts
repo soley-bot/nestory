@@ -199,20 +199,39 @@ describe("entry experience contracts", () => {
     const loginForm = readSource(
       "src/features/auth/components/login-form.tsx",
     );
+    const forgotPasswordForm = readSource(
+      "src/features/auth/components/forgot-password-form.tsx",
+    );
+    const globals = readSource("src/app/globals.css");
+    const rootLayout = readSource("src/app/layout.tsx");
+    const darkAuthTheme = globals.match(
+      /\[data-theme="dark"\] \.auth-photo-page \{([^}]*)\}/,
+    )?.[1] ?? "";
     const shell = readSource("src/features/auth/components/auth-page-shell.tsx");
     const themeToggle = readSource(
       "src/components/theme-toggle.tsx",
+    );
+    const themeRuntime = readSource(
+      "src/components/theme-runtime.tsx",
     );
 
     expect(login).toContain('contextLabel="Property operations"');
     expect(login).toContain('contextTitle="See the full record."');
     expect(login).toContain("history stay connected to each property");
     expect(shell).not.toContain("contextItems.map");
-    expect(shell).toContain("bg-[var(--auth-page-card-bg)]");
+    expect(shell).toContain("border-border bg-card");
+    expect(shell).not.toContain("--auth-page-card-bg");
+    expect(globals).not.toContain("--auth-page-input-bg");
+    expect(globals).not.toContain("--auth-page-input-border");
+    expect(darkAuthTheme).not.toContain("--accent:");
+    expect(darkAuthTheme).not.toContain("--ring:");
+    expect(forgotPasswordForm).toContain("<Input");
+    expect(rootLayout).toContain('dataset.accent = "neutral"');
     expect(shell).toContain('markTone={visualSrc ? "light" : "auto"}');
     expect(shell).toContain("<ThemeToggle");
     expect(themeToggle).not.toContain('localStorage.setItem("nestory-theme"');
-    expect(themeToggle).toContain('classList.toggle("dark"');
+    expect(themeToggle).toContain("setPersonalDisplayTheme");
+    expect(themeRuntime).toContain('classList.toggle("dark"');
     expect(login).not.toContain('switchHref="/signup"');
     expect(login).not.toContain("Create workspace");
     expect(loginForm).toContain('href="/forgot-password"');
@@ -244,7 +263,10 @@ describe("entry experience contracts", () => {
     expect(forgotForm).toContain("requestPasswordRecoveryAction");
     expect(forgotForm).toContain('autoComplete="email"');
     expect(updatePage).toContain("UpdatePasswordForm");
+    expect(updatePage).toContain("<AuthPageShell");
     expect(updateForm).toContain("updatePasswordAction");
+    expect(updateForm).toContain("<Input");
+    expect(updateForm).not.toContain("<input");
     expect(updateForm).toContain('autoComplete="new-password"');
   });
 
@@ -255,7 +277,8 @@ describe("entry experience contracts", () => {
     );
 
     expect(page).toContain("getInvitationAcceptance");
-    expect(page).toContain("Use another account");
+    expect(page).toContain("Sign in with another account");
+    expect(page).toContain('variant="outline"');
     expect(page).toContain("InvitationSummary");
     expect(form).toContain("acceptInvitationAction");
     expect(form).toContain('name="invitationId"');
@@ -276,17 +299,12 @@ describe("entry experience contracts", () => {
     }
   });
 
-  it("keeps the no-access recovery honest and the preview attention-first", () => {
+  it("keeps the no-access recovery honest", () => {
     const noAccess = readSource("src/app/no-access/page.tsx");
-    const preview = readSource(
-      "src/features/marketing/components/control-preview.tsx",
-    );
 
     expect(noAccess).not.toContain('href="/login"');
     expect(noAccess).toContain("signOutAction");
     expect(noAccess).toContain("requireUser");
-    expect(preview).toContain("Needs attention");
-    expect(preview).not.toContain("Focus now");
   });
 });
 

@@ -22,7 +22,7 @@ const TASK_SCOPES = ["tasks"] satisfies readonly WorkspaceSearchScope[];
 const FINANCE_SCOPES = ["leases"] satisfies readonly WorkspaceSearchScope[];
 
 const ADMIN_ACTIONS = [
-  action("overview", "Overview", "/overview", ["dashboard", "home"]),
+  action("overview", "Dashboard", "/overview", ["overview", "home"]),
   action("properties", "Properties", "/properties", ["buildings"]),
   action("units", "Units", "/units", ["apartments"]),
   action("people", "People", "/people", ["contacts"]),

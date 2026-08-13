@@ -1,6 +1,11 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import {
+  useActionState,
+  useEffect,
+  useState,
+  type ComponentProps,
+} from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { FormSection } from "@/components/ui/form-section";
@@ -42,6 +47,7 @@ type PersonFormProps = {
     message: string,
     personId?: string,
     roles?: PersonRoleValue[],
+    displayName?: string,
   ) => void;
   person?: PeopleSummary | null;
   roleContext?: PersonRoleValue;
@@ -63,15 +69,27 @@ export function PersonForm({
   const defaults = getPersonDefaults(person, initialRoles);
   const presentation = getPersonFormPresentation(roleContext);
   const locksRole = !isEditMode && Boolean(roleContext);
+  const submittedRoles =
+    defaults.roles.length > 0
+      ? defaults.roles
+      : roleContext
+        ? [roleContext]
+        : [];
 
   useEffect(() => {
     if (state.status === "success") {
-      onSuccess?.(state.message ?? "Person saved.", state.personId, state.roles);
+      onSuccess?.(
+        state.message ?? "Person saved.",
+        state.personId,
+        state.roles,
+        state.displayName,
+      );
       onClose();
     }
   }, [
     onClose,
     onSuccess,
+    state.displayName,
     state.message,
     state.personId,
     state.roles,
@@ -107,7 +125,6 @@ export function PersonForm({
             <Input
               defaultValue={defaults.displayName}
               name="displayName"
-              placeholder="Sokha Chan"
               required
               type="text"
             />
@@ -140,7 +157,6 @@ export function PersonForm({
           <Input
             defaultValue={defaults.legalName}
             name="legalName"
-            placeholder="Optional registered name"
             type="text"
           />
         </RecordField>
@@ -156,7 +172,6 @@ export function PersonForm({
             <Input
               defaultValue={defaults.primaryEmail}
               name="primaryEmail"
-              placeholder="name@example.com"
               type="email"
             />
           </RecordField>
@@ -166,24 +181,17 @@ export function PersonForm({
             label="Primary phone"
             name="primaryPhone"
           >
-            <Input
-              defaultValue={defaults.primaryPhone}
-              name="primaryPhone"
-              placeholder="+855 ..."
-              type="tel"
-            />
+            <PrimaryPhoneInput defaultValue={defaults.primaryPhone} />
           </RecordField>
         </div>
       </FormSection>
 
-      <FormSection title={locksRole ? "Record type" : "Roles"}>
-        {locksRole && roleContext ? (
-          <LockedRoleField
-            error={state.fieldErrors?.roles?.[0]}
-            role={roleContext}
-            roles={defaults.roles}
-          />
-        ) : (
+      {locksRole ? (
+        submittedRoles.map((role) => (
+          <input key={role} name="roles" type="hidden" value={role} />
+        ))
+      ) : (
+        <FormSection title="Roles">
           <RecordField
             error={state.fieldErrors?.roles?.[0]}
             label="Operational roles"
@@ -200,17 +208,13 @@ export function PersonForm({
               ))}
             </div>
           </RecordField>
-        )}
 
-        <ConsequencePanel
-          summary={
-            roleContext === "staff"
-              ? "Create the Staff record first, then grant Workspace Access with an Access Level and Scope."
-              : "Roles determine where this record appears in People workflows. They do not grant workspace access."
-          }
-          title={roleContext === "staff" ? "Access boundary" : "Role effect"}
-        />
-      </FormSection>
+          <ConsequencePanel
+            summary="Roles determine where this record appears in People. They do not grant workspace access."
+            title="Role effect"
+          />
+        </FormSection>
+      )}
 
       <FormSection title={presentation.administrationHeading}>
         {presentation.showTaxIdentifier ? (
@@ -258,7 +262,7 @@ function getPersonFormPresentation(
     case "owner":
       return {
         administrationHeading: "Owner details",
-        contactHeading: "Statement contact",
+        contactHeading: "Contact",
         displayNameLabel: "Owner name",
         identityHeading: "Owner identity",
         notesLabel: "Owner notes",
@@ -267,7 +271,7 @@ function getPersonFormPresentation(
     case "tenant":
       return {
         administrationHeading: "Tenancy details",
-        contactHeading: "Tenancy contact",
+        contactHeading: "Contact",
         displayNameLabel: "Tenant name",
         identityHeading: "Tenant identity",
         notesLabel: "Tenancy notes",
@@ -276,7 +280,7 @@ function getPersonFormPresentation(
     case "staff":
       return {
         administrationHeading: "Staff context",
-        contactHeading: "Operational contact",
+        contactHeading: "Contact",
         displayNameLabel: "Staff name",
         identityHeading: "Staff identity",
         notesLabel: "Staff notes",
@@ -285,7 +289,7 @@ function getPersonFormPresentation(
     case "vendor":
       return {
         administrationHeading: "Vendor details",
-        contactHeading: "Business contact",
+        contactHeading: "Contact",
         displayNameLabel: "Vendor or business name",
         identityHeading: "Vendor identity",
         notesLabel: "Vendor notes",
@@ -303,37 +307,63 @@ function getPersonFormPresentation(
   }
 }
 
-function LockedRoleField({
-  error,
-  role,
-  roles,
-}: {
-  error?: string;
-  role: PersonRoleValue;
-  roles: PersonRoleValue[];
-}) {
-  const submittedRoles = roles.length > 0 ? roles : [role];
+function PrimaryPhoneInput({
+  defaultValue,
+  ...props
+}: Omit<
+  ComponentProps<typeof Input>,
+  "defaultValue" | "name" | "onChange" | "type" | "value"
+> & { defaultValue: string }) {
+  const [value, setValue] = useState(() => formatPhoneInput(defaultValue));
 
   return (
-    <RecordField
-      error={error}
-      label="Record type"
-      name="roles"
-      required
-    >
-      <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm font-medium">
-        {formatRole(role)}
-      </div>
-      {submittedRoles.map((submittedRole) => (
-        <input
-          key={submittedRole}
-          name="roles"
-          type="hidden"
-          value={submittedRole}
-        />
-      ))}
-    </RecordField>
+    <Input
+      {...props}
+      autoComplete="tel"
+      inputMode="tel"
+      name="primaryPhone"
+      onChange={(event) => setValue(formatPhoneInput(event.currentTarget.value))}
+      type="tel"
+      value={value}
+    />
   );
+}
+
+function formatPhoneInput(value: string) {
+  const trimmed = value.trimStart();
+  const hasLeadingPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "").slice(0, 15);
+
+  if (!digits) {
+    return hasLeadingPlus ? "+" : "";
+  }
+
+  if (hasLeadingPlus && digits.startsWith("855")) {
+    return joinPhoneGroups("+855", digits.slice(3), [2, 3, 3, 3]);
+  }
+
+  if (!hasLeadingPlus && digits.startsWith("0")) {
+    return joinPhoneGroups("", digits, [3, 3, 3, 3]);
+  }
+
+  return hasLeadingPlus ? `+${digits}` : digits;
+}
+
+function joinPhoneGroups(prefix: string, digits: string, sizes: number[]) {
+  const groups: string[] = [];
+  let offset = 0;
+
+  for (const size of sizes) {
+    if (offset >= digits.length) break;
+    groups.push(digits.slice(offset, offset + size));
+    offset += size;
+  }
+
+  if (offset < digits.length) {
+    groups.push(digits.slice(offset));
+  }
+
+  return [prefix, ...groups].filter(Boolean).join(" ");
 }
 
 function RoleCheckbox({

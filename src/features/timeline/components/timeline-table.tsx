@@ -28,7 +28,9 @@ export function TimelineTable({
 }: TimelineTableProps) {
   return (
     <div
-      className="max-h-[330px] overflow-auto md:max-h-[min(620px,calc(100vh-320px))]"
+      aria-label="Timeline table"
+      className="overflow-x-auto"
+      role="region"
       data-slot="timeline-table-shell"
     >
         <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">

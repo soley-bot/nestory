@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { setHiddenControlValue } from "./playwright-form-controls.mjs";
 
 import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
@@ -47,11 +48,11 @@ try {
     actors.super_admin,
     { month: currentMonth, ownerPersonId: centralOwnerId, propertyId: centralPropertyId },
     async (page) => {
-      await page.getByRole("heading", { name: "Owner close authority" }).waitFor();
-      await page.getByText("Opening authority review is pending", { exact: true }).waitFor();
-      assert.equal(await page.getByRole("button", { name: "Load authority" }).count(), 1);
+      await page.getByRole("heading", { name: "Close owner month", exact: true }).waitFor();
+      await page.getByText("Opening balance review is pending", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: "Load balances" }).count(), 1);
       assert.equal(await page.getByRole("button", { name: "Generate month" }).count(), 1);
-      assert.equal(await page.getByRole("button", { name: /Close revision/ }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Close owner month" }).count(), 0);
       phase("rendered selector audit before mutation");
     },
   );
@@ -65,7 +66,7 @@ try {
     actors.super_admin,
     { month: currentMonth, ownerPersonId: centralOwnerId, propertyId: centralPropertyId },
     async (page) => {
-      await page.getByText("Ready to close revision 1", { exact: true }).waitFor();
+      await page.getByText("Ready to close owner month · revision 1", { exact: true }).waitFor();
       await assertReadinessComponents(page, {
         "IPS due to owner": "USD 200.50",
         "IPS-held owner cash": "USD 1,855.00",
@@ -74,11 +75,11 @@ try {
       });
       phase("Super Admin exact readiness");
 
-      const closeOne = formByButton(page, "Close revision 1");
+      const closeOne = formByButton(page, "Close owner month");
       await closeOne.getByLabel("Close reason").fill(
         "Browser revision one reconciled to bank and owner authority",
       );
-      await closeOne.getByRole("button", { name: "Close revision 1" }).click();
+      await closeOne.getByRole("button", { name: "Close owner month" }).click();
       await waitForDb("revision one close", `
         SELECT count(*) = 1
           AND bool_and(revision.status = 'closed')
@@ -114,11 +115,13 @@ try {
       await page.reload({ waitUntil: "networkidle" });
       const revisionOne = page.getByTestId("owner-close-revision-1");
       await revisionOne.getByText("Revision 1 - Closed", { exact: true }).waitFor();
+      await revisionOne.getByText("Audit details", { exact: true }).first().click();
       await revisionOne.getByText(revisionOneHash, { exact: true }).waitFor();
-      assert.ok(
-        await revisionOne.getByText(/^Source line /).count() > 0,
-        "revision one source drill-through was empty",
-      );
+      const frozenLine = revisionOne.locator("details.px-4.py-3").first();
+      assert.ok(await frozenLine.count() > 0, "revision one source drill-through was empty");
+      await frozenLine.locator(":scope > summary").click();
+      await frozenLine.getByText("Audit details", { exact: true }).first().click();
+      await frozenLine.getByText("Source line", { exact: true }).first().waitFor();
 
       const reopen = formByButton(page, "Reopen month");
       await reopen.getByLabel("Reopen reason").fill(
@@ -149,16 +152,18 @@ try {
       phase("reasoned reopen preserves revision one and stales continuity");
 
       await page.reload({ waitUntil: "networkidle" });
-      await page.getByText("Owner balance period must be rerolled", { exact: true }).waitFor();
+      await page.getByText("Owner balance month must be recalculated", { exact: true }).waitFor();
       const correction = formByButton(page, "Record correction");
-      await correction.getByLabel("Component").selectOption("ips_held_owner_cash");
+      await correction.getByLabel("Component").click();
+      await page.getByRole("option", { name: "IPS-held owner cash", exact: true }).click();
       await correction.getByLabel("Effective date").fill(currentMonthEnd);
       await correction.getByLabel("Signed correction amount").fill(correctionAmount);
       await correction.getByLabel("Source reference").fill(correctionReference);
       await correction.getByLabel("Reason").fill(
         "Record late bank charge after immutable revision one",
       );
-      await correction.getByLabel("Evidence SHA-256").fill(correctionEvidence);
+      await correction.getByText("Audit evidence", { exact: true }).click();
+      await correction.getByLabel("Evidence file fingerprint").fill(correctionEvidence);
       await correction.getByRole("button", { name: "Record correction" }).click();
       await waitForDb("append-only close correction", `
         SELECT count(*) = 1
@@ -230,12 +235,12 @@ try {
         ownerPersonId: centralOwnerId,
         propertyId: centralPropertyId,
       });
-      await page.getByText("Ready to close revision 2", { exact: true }).waitFor();
-      const closeTwo = formByButton(page, "Close revision 2");
+      await page.getByText("Ready to close owner month · revision 2", { exact: true }).waitFor();
+      const closeTwo = formByButton(page, "Close owner month");
       await closeTwo.getByLabel("Close reason").fill(
         "Browser revision two reconciled after correction and ordered reroll",
       );
-      await closeTwo.getByRole("button", { name: "Close revision 2" }).click();
+      await closeTwo.getByRole("button", { name: "Close owner month" }).click();
       await waitForDb("revision two close", finalCloseSql());
       assert.equal(frozenRevisionSnapshot(revisionOneId), revisionOneSnapshot);
       phase("revision two close preserves revision one byte for byte");
@@ -243,8 +248,9 @@ try {
       await page.reload({ waitUntil: "networkidle" });
       await page.getByTestId("owner-close-revision-2")
         .getByText("Revision 2 - Closed", { exact: true }).waitFor();
-      await page.getByTestId("owner-close-revision-1")
-        .getByText(revisionOneHash, { exact: true }).waitFor();
+      const retainedRevisionOne = page.getByTestId("owner-close-revision-1");
+      await retainedRevisionOne.getByText("Audit details", { exact: true }).first().click();
+      await retainedRevisionOne.getByText(revisionOneHash, { exact: true }).waitFor();
       await page.getByText(correctionReference, { exact: false }).waitFor();
       phase("both frozen revisions and correction visible");
     },
@@ -265,11 +271,11 @@ try {
           );
         }
         assert.equal(
-          await page.getByRole("button", { name: /Close revision/ }).count(),
+          await page.getByRole("button", { name: "Close owner month" }).count(),
           0,
           `${financeActor} received close authority`,
         );
-        phase("Finance role frozen-history read only");
+        phase("Finance role frozen-history safeguards");
       },
     );
   }
@@ -303,6 +309,12 @@ try {
 
 function prepareCentralCloseReadiness() {
   dbExec(authenticatedDbSql(superAdminId, `
+    SELECT public.set_financial_month_lock(
+      '${organizationId}',
+      '${currentMonthStart}',
+      true,
+      'Owner close browser acceptance prerequisite'
+    );
     SELECT public.review_owner_opening_balance(
       request.organization_id,
       request.id,
@@ -425,10 +437,9 @@ async function withShellActor(email, run) {
       waitUntil: "networkidle",
     });
     await page.goto(`${baseUrl}/workspace`, { waitUntil: "networkidle" });
-    await Promise.all([
-      page.waitForURL((url) => url.pathname !== "/workspace", { waitUntil: "networkidle" }),
-      page.getByRole("link", { name: "Open workspace" }).click(),
-    ]);
+    await page.waitForURL((url) => url.pathname !== "/workspace", {
+      waitUntil: "networkidle",
+    });
     await run(page);
   } finally {
     await context.close();
@@ -449,13 +460,13 @@ async function openOwnerBalancesFromVisibleFinance(page) {
     page.waitForURL((url) => url.pathname === "/balances", { waitUntil: "networkidle" }),
     link.click(),
   ]);
-  await page.getByRole("heading", { name: "Authoritative owner balance" }).waitFor();
+  await page.getByRole("heading", { name: "Owner balances", exact: true }).waitFor();
 }
 
 async function loadBalanceScope(page, scope) {
-  const form = formByButton(page, "Load authority");
-  await form.getByLabel("Property").selectOption(scope.propertyId);
-  await form.getByLabel("Owner assignment").selectOption(scope.ownerPersonId);
+  const form = formByButton(page, "Load balances");
+  await setHiddenControlValue(form, "propertyId", scope.propertyId);
+  await setHiddenControlValue(form, "ownerPersonId", scope.ownerPersonId);
   await form.getByLabel("Month").fill(scope.month);
   await Promise.all([
     page.waitForURL((url) =>
@@ -464,7 +475,7 @@ async function loadBalanceScope(page, scope) {
       url.searchParams.get("ownerPersonId") === scope.ownerPersonId &&
       url.searchParams.get("month") === scope.month,
     ),
-    form.getByRole("button", { name: "Load authority" }).click(),
+    form.getByRole("button", { name: "Load balances" }).click(),
   ]);
   await page.getByTestId("owner-close-readiness").waitFor();
 }

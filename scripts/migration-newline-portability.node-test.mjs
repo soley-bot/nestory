@@ -136,6 +136,86 @@ test("normalizes LF and CRLF predecessor bodies before exact-one Petty Cash rewr
   );
 });
 
+test("normalizes every dollar-quoted owner-distribution rewrite value before matching", () => {
+  const migration = readMigration(
+    "20260810073506_project_owner_distribution_reversals.sql",
+  );
+  const matchIndex = migration.indexOf(
+    "IF pg_catalog.strpos(v_definition, v_target) = 0 THEN",
+  );
+
+  for (const variable of ["v_definition", "v_target", "v_replacement"]) {
+    const normalization = [
+      `${variable} := pg_catalog.replace(`,
+      `    ${variable},`,
+      "    pg_catalog.chr(13) || pg_catalog.chr(10),",
+      "    pg_catalog.chr(10)",
+      "  );",
+    ].join("\n");
+    const normalizationIndex = migration.indexOf(normalization);
+
+    assert.ok(
+      normalizationIndex >= 0 && normalizationIndex < matchIndex,
+      `${variable} must be LF-normalized before the exact rewrite match`,
+    );
+  }
+});
+
+test("normalizes every owner-lifecycle predecessor definition before matching", () => {
+  const migration = readMigration(
+    "20260810091218_harden_owner_balance_lifecycle_corrections.sql",
+  );
+  const normalization =
+    "v_definition := pg_catalog.replace(v_definition, E'\\r\\n', E'\\n');";
+
+  for (const tag of [
+    "patch_owner_source_resolver",
+    "patch_owner_allocator",
+    "patch_automatic_owner_cash_lock",
+  ]) {
+    const blockStart = migration.indexOf(`DO $${tag}$`);
+    const blockEnd = migration.indexOf(`$${tag}$;`, blockStart);
+    const block = migration.slice(blockStart, blockEnd);
+
+    assert.ok(blockStart >= 0 && blockEnd > blockStart, `${tag} block must exist`);
+    assert.ok(
+      block.indexOf("pg_get_functiondef") < block.indexOf(normalization) &&
+        block.indexOf(normalization) < block.indexOf("pg_catalog.strpos"),
+      `${tag} must normalize the predecessor before matching`,
+    );
+  }
+});
+
+test("normalizes every global owner-lock predecessor definition before matching", () => {
+  const migration = readMigration(
+    "20260810103823_enforce_owner_balance_global_lock_order.sql",
+  );
+  const normalization =
+    "v_definition := pg_catalog.replace(v_definition, E'\\r\\n', E'\\n');";
+
+  for (const tag of [
+    "patch_owner_allocator_lock_order",
+    "patch_owner_cash_baseline_lock_order",
+    "patch_owner_distribution_baseline_lock_order",
+    "patch_owner_transfer_baseline_lock_order",
+    "patch_withdrawal_reversal_baseline_lock_order",
+    "patch_payment_reversal_baseline_lock_order",
+    "patch_owner_transfer_wrapper_lock_order",
+    "patch_automatic_owner_cash_lock_order",
+  ]) {
+    const blockStart = migration.indexOf(`DO $${tag}$`);
+    const blockEnd = migration.indexOf(`$${tag}$;`, blockStart);
+    const block = migration.slice(blockStart, blockEnd);
+
+    assert.ok(blockStart >= 0 && blockEnd > blockStart, `${tag} block must exist`);
+    assert.ok(
+      block.indexOf("pg_get_functiondef") < block.indexOf(normalization) &&
+        block.indexOf(normalization) < block.indexOf("pg_catalog.strpos"),
+      `${tag} must normalize the predecessor before matching`,
+    );
+  }
+});
+
 test("all branch text-rewrite constants are invariant in fresh autocrlf sources", () => {
   const contracts = [
     {

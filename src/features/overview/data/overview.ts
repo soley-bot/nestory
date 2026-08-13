@@ -144,6 +144,12 @@ export async function getOverviewScreenData(
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .order("code", { ascending: true });
+  const propertyOptionsQuery = supabase
+    .from("properties")
+    .select("id, code, name")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .order("code", { ascending: true });
   let unitsQuery = supabase
     .from("units")
     .select("id, property_id, status")
@@ -220,6 +226,7 @@ export async function getOverviewScreenData(
 
   const [
     propertiesResult,
+    propertyOptionsResult,
     unitsResult,
     leasesResult,
     ledgerWindowResult,
@@ -233,6 +240,7 @@ export async function getOverviewScreenData(
     recentActivityResult,
   ] = await Promise.all([
     loadAllRows(pageFactory(propertiesQuery), "overview properties"),
+    loadAllRows(pageFactory(propertyOptionsQuery), "overview property options"),
     loadAllRows(pageFactory(unitsQuery), "overview units"),
     loadAllRows(pageFactory(leasesQuery), "overview leases"),
     loadAllRows(pageFactory(ledgerWindowQuery), "overview ledger window"),
@@ -257,6 +265,7 @@ export async function getOverviewScreenData(
   ]);
 
   assertNoError(propertiesResult.error, "overview properties");
+  assertNoError(propertyOptionsResult.error, "overview property options");
   assertNoError(unitsResult.error, "overview units");
   assertNoError(leasesResult.error, "overview leases");
   assertNoError(ledgerWindowResult.error, "overview ledger window");
@@ -270,6 +279,7 @@ export async function getOverviewScreenData(
   assertNoError(recentActivityResult.error, "overview activity");
 
   const properties = (propertiesResult.data ?? []) as PropertyRow[];
+  const propertyOptions = (propertyOptionsResult.data ?? []) as PropertyRow[];
   const operationalUnits = (unitsResult.data ?? []) as UnitRow[];
   const currentLeases = (leasesResult.data ?? []) as LeaseRow[];
   const ledgerRows = (ledgerWindowResult.data ?? []) as LedgerWindowRow[];
@@ -407,6 +417,10 @@ export async function getOverviewScreenData(
       currentLeasedUnitIds,
       operationalUnits,
     }),
+    propertyOptions: propertyOptions.map((property) => ({
+      label: `${property.code} / ${property.name}`,
+      value: property.id,
+    })),
     recordsByProperty: buildRecordsByProperty({
       activeProperties,
       documents,

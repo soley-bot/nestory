@@ -105,6 +105,7 @@ try {
           .getByRole("dialog", { name: /quick view$/i })
           .first();
         await preview.waitFor();
+        await waitForMotionToSettle(preview);
         const previewMeasurement = await measureLayout(`${label}-preview`, {
           drawer: preview,
           primary,
@@ -265,7 +266,11 @@ async function openRoute(route, viewport) {
   });
   await page.goto(`${baseUrl}${route.path}`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { level: 1, name: route.heading }).waitFor();
-  await page.getByRole("navigation", { name: "Maintenance workspace" }).waitFor();
+  await page
+    .getByRole("navigation", {
+      name: viewport.width < 768 ? "Maintenance workspace" : "Global navigation",
+    })
+    .waitFor();
 }
 
 async function waitForRecordFocus(recordTriggerId) {
@@ -288,25 +293,41 @@ async function getWorkspaceContractFailures(route, viewport, primary) {
   const failures = [];
   const label = `${route.label}-${viewport.width}`;
   const localNavs = page.getByRole("navigation", { name: "Maintenance workspace" });
-  const currentItems = localNavs.locator('[aria-current="page"]');
+  const globalNavs = page.getByRole("navigation", { name: "Global navigation" });
   const expectedSurfaces = page.locator(
     `[data-maintenance-surface="${route.surface}"]`,
   );
   const localNavCount = await localNavs.count();
-  const currentItemCount = await currentItems.count();
   const expectedSurfaceCount = await expectedSurfaces.count();
+  const usesCompactNavigation = viewport.width < 768;
 
-  if (localNavCount !== 1) {
-    failures.push(`${label} has ${localNavCount} maintenance local navigations.`);
-  }
-  if (currentItemCount !== 1) {
-    failures.push(`${label} has ${currentItemCount} active local destinations.`);
+  if (usesCompactNavigation) {
+    if (localNavCount !== 1) {
+      failures.push(`${label} has ${localNavCount} compact maintenance navigations.`);
+    } else {
+      const trigger = localNavs.getByRole("button", { name: route.active });
+      if ((await trigger.count()) !== 1 || !(await trigger.isVisible())) {
+        failures.push(`${label} does not show ${JSON.stringify(route.active)} in compact navigation.`);
+      } else {
+        const bounds = await trigger.boundingBox();
+        if (
+          !bounds ||
+          bounds.x < -0.5 ||
+          bounds.x + bounds.width > viewport.width + 0.5
+        ) {
+          failures.push(`${label} compact navigation trigger escapes the viewport: ${JSON.stringify(bounds)}.`);
+        }
+      }
+    }
   } else {
-    const currentLabel = (await currentItems.first().textContent())?.trim();
-    if (currentLabel !== route.active) {
-      failures.push(
-        `${label} marks ${JSON.stringify(currentLabel)} active instead of ${JSON.stringify(route.active)}.`,
-      );
+    if (localNavCount !== 0) {
+      failures.push(`${label} duplicates desktop navigation with ${localNavCount} local navigation(s).`);
+    }
+    const activeDestination = globalNavs.locator(
+      `a[href="${new URL(route.path, baseUrl).pathname}"][aria-current="page"]:visible`,
+    );
+    if ((await activeDestination.count()) < 1 || !(await activeDestination.first().isVisible())) {
+      failures.push(`${label} has no visible active destination in global navigation.`);
     }
   }
   if (expectedSurfaceCount !== 1) {
@@ -327,37 +348,6 @@ async function getWorkspaceContractFailures(route, viewport, primary) {
     failures.push(`${label} hides its expected ${route.surface} surface.`);
   }
 
-  if (localNavCount === 1 && currentItemCount === 1) {
-    const navMetrics = await localNavs.first().evaluate((nav) => {
-      const current = nav.querySelector('[aria-current="page"]');
-      if (!current) throw new Error("Maintenance local navigation has no current item.");
-      const navBounds = nav.getBoundingClientRect();
-      const currentBounds = current.getBoundingClientRect();
-      return {
-        clientWidth: nav.clientWidth,
-        currentLeft: Math.round(currentBounds.left),
-        currentRight: Math.round(currentBounds.right),
-        left: Math.round(navBounds.left),
-        overflowX: window.getComputedStyle(nav).overflowX,
-        right: Math.round(navBounds.right),
-        scrollLeft: Math.round(nav.scrollLeft),
-        scrollWidth: nav.scrollWidth,
-      };
-    });
-
-    if (navMetrics.left < -0.5 || navMetrics.right > viewport.width + 0.5) {
-      failures.push(`${label} local navigation escapes the viewport: ${JSON.stringify(navMetrics)}.`);
-    }
-    if (!["auto", "scroll"].includes(navMetrics.overflowX)) {
-      failures.push(`${label} local navigation does not own horizontal scrolling: ${JSON.stringify(navMetrics)}.`);
-    }
-    if (
-      navMetrics.currentLeft < navMetrics.left - 0.5 ||
-      navMetrics.currentRight > navMetrics.right + 0.5
-    ) {
-      failures.push(`${label} active local destination is not visible: ${JSON.stringify(navMetrics)}.`);
-    }
-  }
   if (!(await primary.isVisible())) {
     failures.push(`${label} hides its primary action (${route.primary}).`);
   } else {
@@ -379,7 +369,10 @@ async function getWorkspaceContractFailures(route, viewport, primary) {
 async function verifyMaintenanceListInteractions() {
   const failures = [];
   const measurements = [];
-  const primary = page.getByRole("button", { name: "New case", exact: true });
+  const primary = page
+    .locator("button")
+    .filter({ hasText: /^New case$/ })
+    .first();
   const filtersButton = page.getByRole("button", { name: /^Filters/ });
 
   await filtersButton.click();
@@ -389,7 +382,7 @@ async function verifyMaintenanceListInteractions() {
   failures.push(...getDocumentOverflowFailures(filtersOpen));
   await filtersButton.click();
 
-  const table = page.getByRole("table");
+  const table = page.locator("table").first();
   const tableScrollResult = await table.evaluate((element) => {
     const scrollRegion = element.parentElement;
     if (!scrollRegion) throw new Error("Maintenance table is missing its scroll region.");
@@ -417,6 +410,7 @@ async function verifyMaintenanceListInteractions() {
     exact: true,
   });
   await createDrawer.waitFor();
+  await waitForMotionToSettle(createDrawer);
   const createOpen = await measureLayout("create-open-390", {
     drawer: createDrawer,
     primary,
@@ -434,6 +428,16 @@ async function verifyMaintenanceListInteractions() {
   }
 
   return { failures, measurements };
+}
+
+async function waitForMotionToSettle(locator) {
+  await locator.evaluate(async (element) => {
+    await Promise.all(
+      element
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished.catch(() => undefined)),
+    );
+  });
 }
 
 async function measureLayout(label, { drawer, primary, table } = {}) {

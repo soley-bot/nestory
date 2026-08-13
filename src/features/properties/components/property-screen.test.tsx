@@ -8,7 +8,19 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const peopleActions = vi.hoisted(() => ({
+  createPerson: vi.fn(),
+  updatePerson: vi.fn(),
+}));
+
+vi.mock("@/features/people/actions", () => ({
+  createPersonAction: peopleActions.createPerson,
+  updatePersonAction: peopleActions.updatePerson,
+}));
+
 import { PropertyScreen } from "@/features/properties/components/property-screen";
 import { PropertyForm } from "@/features/properties/components/property-form";
 import { buildPropertySummary } from "@/features/properties/data/property-summary";
@@ -48,6 +60,15 @@ const properties = [
 ];
 
 beforeEach(() => {
+  peopleActions.createPerson.mockReset();
+  peopleActions.createPerson.mockResolvedValue({
+    displayName: "New Owner",
+    message: "Person added.",
+    personId: "33333333-3333-4333-8333-333333333333",
+    roles: ["owner"],
+    status: "success",
+  });
+  peopleActions.updatePerson.mockReset();
   navigation.pathname = "/properties";
   navigation.push.mockReset();
   navigation.replace.mockReset();
@@ -57,15 +78,40 @@ beforeEach(() => {
     callback(0);
     return 1;
   });
+  Object.defineProperties(URL, {
+    createObjectURL: { configurable: true, value: vi.fn(() => "blob:property-photo") },
+    revokeObjectURL: { configurable: true, value: vi.fn() },
+  });
+  vi.stubGlobal(
+    "ResizeObserver",
+    class ResizeObserver {
+      disconnect() {}
+      observe() {}
+      unobserve() {}
+    },
+  );
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
 });
 
 afterEach(() => {
   cleanup();
+  document.querySelectorAll("#workspace-page-tools").forEach((node) => node.remove());
+  delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
   vi.unstubAllGlobals();
+  Reflect.deleteProperty(URL, "createObjectURL");
+  Reflect.deleteProperty(URL, "revokeObjectURL");
 });
 
 describe("PropertyScreen redesign contract", () => {
-  it("preserves ownership facts for the same owner and clears them when identity changes", () => {
+  it("preserves ownership facts for the same owner and defaults a replacement owner to full ownership", () => {
     const currentOwnerId = "11111111-1111-4111-8111-111111111111";
     const replacementOwnerId = "22222222-2222-4222-8222-222222222222";
     const property = makeProperty("property-edit", "EDIT", "Edit property");
@@ -94,11 +140,88 @@ describe("PropertyScreen redesign contract", () => {
     const replacementStart = document.querySelector<HTMLInputElement>('input[name="ownerStartedOn"]')!;
     const replacementShare = screen.getByRole("textbox", { name: /Ownership share/ }) as HTMLInputElement;
     expect(replacementStart.value).toBe("");
-    expect(replacementShare.value).toBe("");
+    expect(replacementShare.value).toBe("100");
     expect(replacementStart.required).toBe(true);
     expect(replacementShare.required).toBe(true);
   });
-  it("renders one page heading and keeps the primary actions in the header", () => {
+
+  it("keeps ownership share blank without an owner and explains the full-ownership default", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PropertyForm
+        mode="create"
+        onClose={vi.fn()}
+        ownerOptions={[]}
+      />,
+    );
+
+    const share = screen.getByRole("textbox", { name: /Ownership share/ }) as HTMLInputElement;
+    expect(share.value).toBe("");
+    expect(share.required).toBe(false);
+
+    await user.hover(screen.getByRole("button", { name: "About ownership share" }));
+    expect(
+      await screen.findByText(
+        "Use 100% for a sole owner. Reduce the share when the property has multiple owners.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("shows ownership values with a percent suffix without changing the numeric form value", () => {
+    const ownerId = "11111111-1111-4111-8111-111111111111";
+
+    render(
+      <PropertyForm
+        initialValues={{ ownerPersonId: ownerId }}
+        mode="create"
+        onClose={vi.fn()}
+        ownerOptions={[
+          {
+            archived: false,
+            description: "Owner",
+            id: ownerId,
+            label: "Current Owner",
+            roles: ["owner"],
+          },
+        ]}
+      />,
+    );
+
+    const ownershipField = screen.getByRole("group", {
+      name: /Ownership share/,
+    });
+    const share = within(ownershipField).getByRole("textbox") as HTMLInputElement;
+
+    expect(within(ownershipField).getByText("%", { selector: "span" })).toBeTruthy();
+    expect(share.value).toBe("100");
+  });
+
+  it("fits an uploaded property photo inside a stable preview frame", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <PropertyForm mode="create" onClose={vi.fn()} ownerOptions={[]} />,
+    );
+    const fileInput = container.querySelector<HTMLInputElement>(
+      'input[name="photo"]',
+    )!;
+
+    await user.upload(
+      fileInput,
+      new File(["photo"], "property.jpg", { type: "image/jpeg" }),
+    );
+
+    const frame = container.querySelector<HTMLElement>(
+      '[data-slot="property-photo-preview-frame"]',
+    );
+    const image = frame?.querySelector("img");
+
+    expect(frame).not.toBeNull();
+    expect(frame?.className).toContain("h-56");
+    expect(image?.className).toContain("object-contain");
+    expect(image?.className).not.toContain("object-cover");
+  });
+  it("keeps one page title in the content header without a shell breadcrumb", () => {
     const pageTools = document.createElement("div");
     pageTools.id = "workspace-page-tools";
     document.body.append(pageTools);
@@ -109,11 +232,9 @@ describe("PropertyScreen redesign contract", () => {
       screen.getAllByRole("heading", { level: 1, name: "Properties" }),
     ).toHaveLength(1);
 
-    const breadcrumb = within(pageTools).getByRole("navigation", {
-      name: "Breadcrumb",
-    });
-    expect(within(breadcrumb).getByRole("link", { name: "Properties" })).toBeTruthy();
-    expect(within(breadcrumb).getByText("2 records")).toBeTruthy();
+    expect(within(pageTools).queryByRole("heading", { name: "Properties" })).toBeNull();
+    expect(within(pageTools).queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    expect(within(pageTools).queryByText("2 records")).toBeNull();
 
     const headerActions = container.querySelector<HTMLElement>(
       '[data-slot="page-header-actions"]',
@@ -122,11 +243,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(
       within(headerActions!).getByRole("button", { name: "Add property" }),
     ).toBeTruthy();
-    expect(
-      within(headerActions!)
-        .getByRole("link", { name: "Set up property" })
-        .getAttribute("href"),
-    ).toBe("/properties/setup");
+    expect(within(headerActions!).queryByRole("link", { name: "Set up property" })).toBeNull();
   });
 
   it("keeps search visible and discloses the existing advanced filters", () => {
@@ -157,24 +274,25 @@ describe("PropertyScreen redesign contract", () => {
     const frame = container.querySelector<HTMLElement>(
       '[data-slot="register-table-frame"]',
     );
+    const toolbar = container.querySelector<HTMLElement>(
+      '[data-slot="property-list-toolbar"]',
+    );
 
     expect(surface).not.toBeNull();
     expect(surface!.className).not.toMatch(/(?:^|\s)rounded-lg(?:\s|$)/);
     expect(surface!.className).not.toMatch(/(?:^|\s)border(?:\s|$)/);
+    expect(toolbar).not.toBeNull();
+    expect(toolbar!.className).toContain("workspace-gutter-x");
     expect(
       within(surface!).getByRole("textbox", { name: "Search properties" }),
     ).toBeTruthy();
     expect(frame).not.toBeNull();
+    expect(frame!.className).toContain("workspace-gutter-x");
     expect(frame!.className).not.toMatch(/(?:^|\s)rounded(?:-|\s|$)/);
     expect(frame!.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
-    expect(frame!.className).not.toMatch(/(?:^|\s)(?:p|px|py)-/);
     expect(within(frame!).getByRole("table")).toBeTruthy();
 
-    const pagination = screen.getByText(/Showing/).parentElement;
-    expect(pagination).not.toBeNull();
-    expect(pagination!.className.split(" ")).not.toContain("rounded-b-md");
-    expect(pagination!.className.split(" ")).not.toContain("border");
-    expect(pagination!.className.split(" ")).not.toContain("border-t-0");
+    expect(screen.queryByText(/Showing/)).toBeNull();
   });
 
   it("uses one predictable row action, opens details only from preview, and preserves URL-backed sorting", async () => {
@@ -280,13 +398,36 @@ describe("PropertyScreen redesign contract", () => {
   });
 
   it("shows create actions only when the caller is authorized", () => {
+    const pageTools = document.createElement("div");
+    pageTools.id = "workspace-page-tools";
+    document.body.append(pageTools);
+
     const authorized = renderProperties({ canCreate: true, properties: [] });
     expect(screen.getAllByRole("button", { name: "Add property" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "Set up property" })).toBeTruthy();
     authorized.unmount();
 
     renderProperties({ canCreate: false, properties: [] });
     expect(screen.queryByRole("button", { name: "Add property" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Set up property" })).toBeNull();
+  });
+
+  it("omits pagination controls when every property fits on one page", () => {
+    renderProperties();
+
+    expect(screen.queryByText(/Showing 1-2 of 2/)).toBeNull();
+    expect(screen.queryByText("Page 1 of 1")).toBeNull();
+  });
+
+  it("centers the Open column like Status", () => {
+    renderProperties();
+
+    const table = screen.getByRole("table");
+    const openHeader = within(table).getByRole("columnheader", { name: "Open" });
+    const openCell = within(table).getAllByRole("row")[1]!.children[4];
+
+    expect(openHeader.className).toContain("text-center");
+    expect(openCell.className).toContain("text-center");
   });
 
   it("keeps the create form concise without redundant helper copy", () => {
@@ -327,9 +468,54 @@ describe("PropertyScreen redesign contract", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Identity" })).toBeNull();
     expect(screen.queryByText("Ownership and location")).toBeNull();
-    expect(screen.getByRole("link", { name: "Create owner" }).className).toContain(
+    expect(screen.getByRole("button", { name: "Create owner" }).className).toContain(
       "text-primary",
     );
+    expect(screen.queryByRole("link", { name: "Create owner" })).toBeNull();
+  });
+
+  it("creates and selects an owner without leaving the property draft", async () => {
+    const user = userEvent.setup();
+    renderProperties();
+
+    await user.click(screen.getByRole("button", { name: "Add property" }));
+    const propertyDrawer = screen.getByRole("dialog", { name: "Add property" });
+    await user.type(
+      within(propertyDrawer).getByRole("textbox", { name: /Property name/ }),
+      "Draft Property",
+    );
+
+    await user.click(
+      within(propertyDrawer).getByRole("button", { name: "Create owner" }),
+    );
+    const ownerDialog = screen.getByRole("dialog", { name: "Create owner" });
+    await user.click(
+      within(ownerDialog).getByRole("combobox", { name: /Party type/ }),
+    );
+    await user.click(screen.getByRole("option", { name: "Company" }));
+    expect(
+      within(ownerDialog).getByRole("combobox", { name: /Party type/ })
+        .textContent,
+    ).toContain("Company");
+    await user.type(
+      within(ownerDialog).getByRole("textbox", { name: /Owner name/ }),
+      "New Owner",
+    );
+    await user.click(
+      within(ownerDialog).getByRole("button", { name: "Add owner" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Create owner" })).toBeNull();
+    });
+    expect(screen.getByDisplayValue("Draft Property")).toBeTruthy();
+    expect(within(propertyDrawer).getByText("New Owner")).toBeTruthy();
+    expect(
+      propertyDrawer.querySelector<HTMLInputElement>(
+        'input[name="ownerPersonId"]',
+      )?.value,
+    ).toBe("33333333-3333-4333-8333-333333333333");
+    expect(navigation.push).not.toHaveBeenCalled();
   });
 
   it("does not open an action=create drawer when create is unauthorized", () => {
@@ -374,8 +560,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(startInput?.value).toBe("");
     expect(startInput?.required).toBe(true);
     expect(shareInput.getAttribute("required")).not.toBeNull();
-    expect(shareInput.getAttribute("value")).toBe("");
-    expect(screen.queryByDisplayValue("100.000")).toBeNull();
+    expect(shareInput.getAttribute("value")).toBe("100");
   });
 });
 

@@ -12,28 +12,25 @@ import type {
 describe("OverviewScreen", () => {
   afterEach(cleanup);
 
-  it("keeps the title, lenses, and month control in one compact site-header row", () => {
+  it("uses one compact Dashboard title without legacy tabs or actions", () => {
     render(<OverviewScreen data={data} query={query} />);
 
-    const headerRows = document.querySelectorAll('[data-slot="overview-header-row"]');
+    const headerRows = document.querySelectorAll<HTMLElement>(
+      '[data-slot="overview-header-row"]',
+    );
     const headerRow = headerRows.item(0);
 
     expect(headerRows).toHaveLength(1);
     expect(classTokens(headerRow)).toContain("items-center");
-    expect(headerRow.contains(screen.getByRole("heading", { name: "Overview", level: 1 }))).toBe(true);
-    expect(headerRow.contains(screen.getByRole("navigation", { name: "Overview lenses" }))).toBe(true);
-    expect(
-      headerRow.contains(
-        screen.getByRole("button", {
-          name: "Change reporting month, currently August 2026",
-        }),
-      ),
-    ).toBe(true);
+    expect(headerRow.contains(screen.getByRole("heading", { name: "Dashboard", level: 1 }))).toBe(true);
+    expect(screen.queryByRole("navigation", { name: "Overview lenses" })).toBeNull();
+    expect(within(headerRow).queryByRole("link", { name: /Review maintenance/i })).toBeNull();
+    expect(within(headerRow).queryByRole("button", { name: /Change reporting month/i })).toBeNull();
 
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 
-  it("uses app-shell height containment and one dashboard scroll", () => {
+  it("delegates vertical scrolling to the app shell", () => {
     render(<OverviewScreen data={data} query={query} />);
 
     const screenRoot = screen.getByRole("main");
@@ -45,15 +42,16 @@ describe("OverviewScreen", () => {
       classTokens(element).includes("overflow-y-auto"),
     );
 
-    expect(classTokens(screenRoot)).toContain("h-full");
-    expect(classTokens(screenRoot)).toContain("min-h-0");
+    expect(classTokens(screenRoot)).toContain("min-h-full");
+    expect(classTokens(screenRoot)).not.toContain("h-full");
+    expect(classTokens(screenRoot)).not.toContain("min-h-0");
     expect(classTokens(screenRoot)).not.toContain("min-h-screen");
-    expect(scrollOwners).toEqual([operatingWork]);
+    expect(scrollOwners).toEqual([]);
     expect(classTokens(operatingWork)).not.toContain("border-y");
     expect(classTokens(metrics)).toContain("grid");
   });
 
-  it("neutralizes the old lens-list frame while keeping one operating scroll", () => {
+  it("neutralizes the old lens-list frame without adding a nested scroll", () => {
     render(<OverviewScreen data={data} query={{ ...query, lens: "leasing" }} />);
 
     const operatingWork = screen.getByRole("region", {
@@ -61,40 +59,21 @@ describe("OverviewScreen", () => {
     });
 
     expect(classTokens(operatingWork)).toContain("[&>section]:border-y-0");
-    expect(classTokens(operatingWork)).toContain("overflow-y-auto");
+    expect(classTokens(operatingWork)).not.toContain("overflow-y-auto");
   });
 
-  it("keeps overview controls above the official dashboard composition", () => {
+  it("shows clear metrics without duplicated explanatory copy", () => {
     render(<OverviewScreen data={data} query={query} />);
 
-    expect(screen.getAllByRole("heading", { name: "Overview", level: 1 })).toHaveLength(1);
-    expect(
-      screen.getByRole("button", {
-        name: "Change reporting month, currently August 2026",
-      }),
-    ).toBeTruthy();
-    const lenses = within(screen.getByRole("navigation", { name: "Overview lenses" }));
-    expect(lenses.getByRole("link", { name: "Portfolio" }).getAttribute("href")).toBe(
-      "/overview?month=2026-08",
-    );
-    expect(lenses.getByRole("link", { name: "Leasing" }).getAttribute("href")).toBe(
-      "/overview?lens=leasing&month=2026-08",
-    );
-    expect(lenses.getByRole("link", { name: "Maintenance" }).getAttribute("href")).toBe(
-      "/overview?lens=maintenance&month=2026-08",
-    );
-    expect(lenses.getByRole("link", { name: "Records" }).getAttribute("href")).toBe(
-      "/overview?lens=records&month=2026-08",
-    );
-
     const metrics = screen.getByRole("region", { name: "Portfolio metrics" });
-    expect(within(metrics).getByText("Occupancy")).toBeTruthy();
-    expect(within(metrics).getByText("Active leases")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Portfolio cash flow" })).toBeTruthy();
-    expect(screen.getByRole("table")).toBeTruthy();
+    for (const label of ["Portfolio occupancy", "Active leases", "Units without leases", "Needs attention"]) {
+      expect(within(metrics).getByText(label)).toBeTruthy();
+    }
+    expect(within(metrics).queryByText("Based on current workspace records")).toBeNull();
+    expect(screen.queryByRole("table", { name: "Attention queue" })).toBeNull();
   });
 
-  it("places the prioritized attention queue before portfolio context", () => {
+  it("opens the attention details from the metric card", () => {
     render(
       <OverviewScreen
         attentionQueue={[
@@ -115,22 +94,17 @@ describe("OverviewScreen", () => {
       />,
     );
 
-    const queue = screen.getByRole("table", { name: "Attention queue" });
-    const portfolio = screen.getByRole("region", {
-      name: "Portfolio metrics",
-    });
+    fireEvent.click(screen.getByRole("button", { name: /Needs attention, 2 open checks/i }));
 
+    const dialog = screen.getByRole("dialog", { name: "Needs attention" });
+    expect(within(dialog).getByText("Rent exceptions")).toBeTruthy();
+    expect(within(dialog).getByText("Two collections need review")).toBeTruthy();
+    expect(within(dialog).getByRole("link", { name: "Review rent" }).getAttribute("href")).toBe(
+      "/rent-income",
+    );
     expect(
-      queue.compareDocumentPosition(portfolio) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    const header = document.querySelector<HTMLElement>(
-      '[data-slot="overview-header-row"]',
-    )!;
-    expect(
-      within(header).getByRole("link", { name: "Review rent" }).getAttribute(
-        "href",
-      ),
-    ).toBe("/rent-income");
+      within(dialog).getByRole("link", { name: "View all checks" }).getAttribute("href"),
+    ).toBe("/overview/attention?month=2026-08");
   });
 
   it("keeps the active reporting month readable in every theme", () => {
@@ -147,6 +121,39 @@ describe("OverviewScreen", () => {
     expect(classTokens(activeMonth)).not.toContain("text-background");
   });
 
+  it("stacks compact cash flow and properties as separate full-width rows", () => {
+    render(<OverviewScreen data={data} query={query} />);
+
+    const primaryStack = document.querySelector<HTMLElement>(
+      '[data-slot="dashboard-primary-stack"]',
+    )!;
+    const cashFlow = document.querySelector<HTMLElement>(
+      '[data-slot="dashboard-cash-flow"]',
+    )!;
+    const properties = document.querySelector<HTMLElement>(
+      '[data-slot="dashboard-properties"]',
+    )!;
+    const toolbar = document.querySelector<HTMLElement>(
+      '[data-slot="dashboard-chart-toolbar"]',
+    )!;
+
+    expect(classTokens(primaryStack)).toContain("flex-col");
+    expect(primaryStack.getAttribute("class")).not.toContain("grid-cols-[");
+    expect(primaryStack.children.item(0)).toBe(cashFlow);
+    expect(primaryStack.children.item(1)).toBe(properties);
+    expect(cashFlow.contains(toolbar)).toBe(false);
+    expect(within(toolbar).queryByText("Property", { exact: true })).toBeNull();
+    expect(within(toolbar).queryByText("Period", { exact: true })).toBeNull();
+    expect(within(toolbar).getByRole("button", { name: "Change property, currently All properties" })).toBeTruthy();
+    expect(within(toolbar).getByRole("button", { name: "Change reporting month, currently August 2026" })).toBeTruthy();
+    expect(classTokens(within(toolbar).getByRole("button", { name: "Change property, currently All properties" }))).toContain("w-64");
+    expect(classTokens(cashFlow.querySelector('[data-slot="dashboard-cash-flow-chart"]')!)).toContain("h-[280px]");
+    expect(within(properties).getByRole("link", { name: "View all properties" }).getAttribute("href")).toBe("/properties");
+    expect(within(properties).queryByText(/open checks need attention/i)).toBeNull();
+    expect(screen.queryByText("Occupancy and current operating records.")).toBeNull();
+    expect(screen.queryByText("Income and expenses across the recent operating period.")).toBeNull();
+  });
+
   it("uses the inline summary for operating lenses instead of a metric-card region", () => {
     render(<OverviewScreen data={data} query={{ ...query, lens: "leasing" }} />);
 
@@ -154,12 +161,11 @@ describe("OverviewScreen", () => {
     expect(screen.queryByRole("region", { name: "Leasing metrics" })).toBeNull();
   });
 
-  it("keeps finance out of Overview and shows operating portfolio counts", () => {
+  it("keeps finance out of Dashboard and shows operating portfolio counts", () => {
     render(<OverviewScreen data={data} query={query} />);
 
     expect(screen.queryByRole("link", { name: "Property finance" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Properties" })).toBeTruthy();
-    expect(screen.getByText("2 open checks need attention")).toBeTruthy();
     expect(screen.getByRole("link", { name: /RIV \/ Riverside Apartments/ })).toBeTruthy();
   });
 
@@ -171,9 +177,9 @@ describe("OverviewScreen", () => {
       />,
     );
 
-    expect(screen.getByRole("link", { name: "Review" }).getAttribute("href")).toBe(
-      "/overview/attention?month=2026-08",
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Needs attention, no open checks/i }));
+    expect(screen.getByRole("dialog", { name: "Needs attention" })).toBeTruthy();
+    expect(screen.getByText("No open checks need attention.")).toBeTruthy();
   });
 
   it("opens records without owner-statement language", () => {
@@ -225,6 +231,9 @@ const data = {
       unoccupiedUnits: 0,
       vacantUnits: 0,
     },
+  ],
+  propertyOptions: [
+    { label: "RIV / Riverside Apartments", value: "property-1" },
   ],
   quickActions: [],
   recentChanges: [],

@@ -185,7 +185,7 @@ export function DocumentScreen({
       mode: "create",
     });
   const documentList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
+    <section className="flex min-w-0 flex-col bg-card">
       {documents.length === 0 ? (
         <EmptyState
           action={
@@ -256,7 +256,7 @@ export function DocumentScreen({
         />
       }
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col">
         {statusMessage ? (
           <div className="shrink-0 px-4 pt-3 sm:px-6">
             <p
@@ -465,7 +465,7 @@ function DocumentTable({
 }) {
   return (
     <div className="overflow-hidden bg-card">
-      <div className="max-h-[min(620px,calc(100vh-320px))] overflow-auto">
+      <div aria-label="Documents table" className="overflow-x-auto" role="region">
         <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col />

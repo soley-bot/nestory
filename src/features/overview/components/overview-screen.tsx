@@ -21,13 +21,10 @@ export function OverviewScreen({
   if (!data.workspaceSetup.hasAnyOperatingData) return <EmptyWorkspaceOnboarding data={data} />;
   const resolvedQuery = query ?? defaultQuery();
   return (
-    <main className="flex h-full min-h-0 bg-background">
-      <div className="flex h-full min-h-0 flex-1 flex-col">
-        <OverviewHeader
-          primaryAction={attentionQueue[0]}
-          query={resolvedQuery}
-        />
-        <div className="flex min-h-0 flex-1 flex-col">
+    <main className="flex min-h-full bg-background">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <OverviewHeader />
+        <div className="flex flex-1 flex-col">
           {resolvedQuery.lens === "all" ? (
             <PortfolioWorkspace
               attentionQueue={attentionQueue}
@@ -45,7 +42,7 @@ export function OverviewScreen({
 
 function EmptyWorkspaceOnboarding({ data }: { data: OverviewScreenData }) {
   return (
-    <main className="h-full min-h-0 overflow-y-auto bg-background px-4 py-5 sm:px-6 sm:py-7">
+    <main className="workspace-gutter-x min-h-full bg-background py-5 sm:py-7">
       <section data-slot="empty-workspace-onboarding">
         <header className="border-b border-border pb-5">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Start with your operating records.</h1>

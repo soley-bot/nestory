@@ -57,7 +57,7 @@ try {
       const checked = await assertInaccessibleGlobalEntriesAreAbsent(page, role);
       deniedGlobalAbsence.push({ checked, role, status: "passed" });
       process.stdout.write(
-        `PASS session ${role} /workspace -> Open workspace -> ${arrivalDestination}\n`,
+        `PASS session ${role} /workspace -> automatic role redirect -> ${arrivalDestination}\n`,
       );
       process.stdout.write(`PASS denied-global ${role} checked=${checked}\n`);
 
@@ -126,7 +126,6 @@ async function openWorkspaceArrival(page) {
   });
   if (!response?.ok()) throw new Error("Workspace arrival did not load");
 
-  await page.getByRole("link", { name: "Open workspace" }).click();
   await page.waitForURL(
     (url) => !["/login", "/workspace"].includes(url.pathname),
     { timeout: 30_000 },
@@ -186,13 +185,16 @@ async function openJourney(page, journey) {
 async function openContextJourney(page, journey, chain) {
   const contextJourney = {
     "overview-drilldown": async () => {
-      await fromGlobal(page, chain, "/overview", "Overview");
+      await fromGlobal(page, chain, "/overview", "Dashboard");
+      await page
+        .getByRole("button", { name: /^Needs attention,/ })
+        .click();
       await clickAndWait(
         page,
-        page.getByRole("link", { name: "Review", exact: true }),
+        page.getByRole("link", { name: "View all checks", exact: true }),
         journey.route,
       );
-      chain.push("Review");
+      chain.push("Needs attention", "View all checks");
     },
     "people-owners": () => openPeopleTab(page, chain, journey.route, "Owners"),
     "people-staff": () => openPeopleTab(page, chain, journey.route, "Staff"),
@@ -236,7 +238,7 @@ async function openContextJourney(page, journey, chain) {
       chain.push("Units");
     },
     "unit-detail": async () => {
-      await openPropertyInspector(page, chain);
+      await openPropertyInspector(page, chain, "Central Residence");
       await clickAndWait(
         page,
         page.getByRole("link", { name: /^Units/ }),
@@ -254,7 +256,7 @@ async function openContextJourney(page, journey, chain) {
       chain.push(unitLabel, "Open unit");
     },
     "property-account": async () => {
-      await fromGlobal(page, chain, "/balances", "Owner balances");
+      await fromGlobal(page, chain, "/ledger", "Ledger");
       const accountLink = page
         .locator(
           '[data-slot="app-shell-content"] a[href^="/properties/"][href$="/account"]:visible',
@@ -297,9 +299,11 @@ async function openSettingsTab(page, chain, route, label) {
   chain.push(label);
 }
 
-async function openPropertyInspector(page, chain) {
+async function openPropertyInspector(page, chain, propertyName) {
   await fromGlobal(page, chain, "/properties", "Properties");
-  const preview = page.locator('[aria-label^="Preview "]:visible').first();
+  const preview = propertyName
+    ? page.getByRole("row", { name: `Preview ${propertyName}` })
+    : page.locator('[aria-label^="Preview "]:visible').first();
   await preview.click();
   await page.getByText("Open property", { exact: true }).waitFor({
     state: "visible",
@@ -314,20 +318,23 @@ async function fromGlobal(page, chain, route, label) {
 }
 
 async function clickGlobalRoute(page, route) {
-  const group = routeGroup(route);
-  if (group) {
-    const toggle = page.getByRole("button", {
-      name: new RegExp(`(?:Expand|Collapse) ${group} navigation`),
-    });
-    if ((await toggle.getAttribute("aria-expanded")) !== "true") {
-      await toggle.click();
-    }
-  }
-
   const href = staticRoute(route);
   const link = page
     .locator(`nav[aria-label="Global navigation"] a[href="${href}"]:visible`)
     .first();
+  const group = routeGroup(route);
+  if (group && !(await link.isVisible())) {
+    const toggle = page.getByRole("button", {
+      name: new RegExp(`(?:Expand|Collapse) ${group} navigation`),
+    });
+    if (
+      (await toggle.count()) > 0 &&
+      (await toggle.getAttribute("aria-expanded")) !== "true"
+    ) {
+      await toggle.click();
+    }
+  }
+
   await clickAndWait(page, link, route);
 }
 
@@ -391,7 +398,7 @@ function routeGroup(route) {
     return "Finance";
   }
   if (["/maintenance", "/tasks", "/recurring-tasks", "/inspections", "/work-orders"].includes(route)) {
-    return "Maintenance";
+    return "(?:Maintenance|Operations)";
   }
   if (["/timeline", "/property-timeline", "/maintenance-timeline", "/financial-timeline", "/documents", "/import"].includes(route)) {
     return "Records";

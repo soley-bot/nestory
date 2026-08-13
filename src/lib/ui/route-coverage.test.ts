@@ -40,6 +40,7 @@ const validStates = new Set([
   "draft",
   "saving",
   "success",
+  "redirected",
 ]);
 
 function findPageSources(directory: string): string[] {
@@ -132,7 +133,7 @@ describe("UI route coverage contract", () => {
         "operations_manager",
         "operations_member",
       ],
-      states: ["populated", "permission-blocked"],
+      states: ["redirected", "permission-blocked"],
       surface: "workspace",
     });
   });

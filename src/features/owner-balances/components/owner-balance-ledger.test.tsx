@@ -41,26 +41,28 @@ describe("OwnerBalanceLedger", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Authoritative owner balance" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Owner balances" })).toBeTruthy();
     expect(screen.getByText("Opening balance queue")).toBeTruthy();
     const period = screen.getByTestId("owner-period-2026-08-01");
     expect(within(period).getByText("USD 900,719,925,474.09")).toBeTruthy();
     expect(within(period).getByText("USD 0.09")).toBeTruthy();
     expect(within(period).getByText("USD 2.00")).toBeTruthy();
-    expect(within(period).getByText(/Held cash closing: USD 900,719,925,474.09/)).toBeTruthy();
+    expect(within(period).getByText(/Available owner cash: USD 900,719,925,474.09/)).toBeTruthy();
     expect(within(period).queryByText(/Available withdrawal/)).toBeNull();
-    expect(within(period).getByText(/Input watermark: 2026-08-31T00:00:00Z/)).toBeTruthy();
+    expect(within(period).getByText("Input watermark")).toBeTruthy();
+    expect(within(period).getByText("2026-08-31T00:00:00Z")).toBeTruthy();
 
     const capacity = screen.getByTestId("owner-withdrawal-capacity");
-    expect(within(capacity).getByText("Current checked withdrawal capacity")).toBeTruthy();
+    expect(within(capacity).getByText("Available to distribute")).toBeTruthy();
     expect(within(capacity).getByText("USD 900,719,925,374.09")).toBeTruthy();
     expect(within(capacity).getByText(/As of 2026-08-31/)).toBeTruthy();
     expect(within(capacity).getByText(/Committed or reserved: USD 100.00/)).toBeTruthy();
 
     const source = screen.getByTestId(`owner-source-${allocationSetId}`);
     expect(within(source).getByText("Tenant rent receipt")).toBeTruthy();
-    expect(within(source).getByText(/Roster 100.000%/)).toBeTruthy();
-    expect(within(source).getByText(/Source fingerprint: b{64}/)).toBeTruthy();
+    expect(within(source).getByText(/Ownership at event 100.000%/)).toBeTruthy();
+    expect(within(source).getByText("Source fingerprint")).toBeTruthy();
+    expect(within(source).getByText("b".repeat(64))).toBeTruthy();
     expect(within(source).getByText("IPS-held owner cash +USD 100.01")).toBeTruthy();
 
     const remediation = screen.getByTestId(`owner-remediation-${sourceLineId}`);
@@ -84,12 +86,12 @@ describe("OwnerBalanceLedger", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Allocate source" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Assign to owner balance" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Generate month" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Record owner contribution" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Record owner reimbursement" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Record owner distribution" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Transfer component" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Transfer balance" })).toBeNull();
 
     rerender(
       <OwnerBalanceLedger
@@ -104,7 +106,7 @@ describe("OwnerBalanceLedger", () => {
       />,
     );
 
-    expect(screen.queryByRole("button", { name: "Allocate source" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Assign to owner balance" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Generate month" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Record owner/ })).toBeNull();
   });
@@ -154,7 +156,7 @@ describe("OwnerBalanceLedger", () => {
       );
 
       const capacity = screen.getByTestId("owner-withdrawal-capacity");
-      expect(within(capacity).getByText("Withdrawal capacity unavailable")).toBeTruthy();
+      expect(within(capacity).getByText("Distribution amount unavailable")).toBeTruthy();
       expect(within(capacity).queryByText("USD 500.00")).toBeNull();
     },
   );

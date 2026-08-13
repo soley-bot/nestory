@@ -245,7 +245,7 @@ describe("getAccessByPersonId", () => {
       "person-pending": {
         invitationId: "invitation-1",
         lastSentAt: "2026-07-22T12:05:00.000Z",
-        scopeLabel: "All branches",
+        scopeLabel: "Branch required",
         state: "invitation_pending",
       },
     });

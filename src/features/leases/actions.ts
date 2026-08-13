@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requireLeaseConfigurationContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   getLeaseMutationErrorMessage,
@@ -286,7 +286,7 @@ export async function createLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const parsed = leaseMutationSchema.safeParse(readLeaseMutationInput(formData));
 
   if (!parsed.success) {
@@ -359,7 +359,7 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const parsed = currentOccupancyEvidenceSchema.safeParse({
     actualMoveInDate: readString(formData, "actualMoveInDate"),
     leaseId: readString(formData, "leaseId"),
@@ -414,7 +414,7 @@ export async function updateLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
   const parsed = leaseMutationSchema.safeParse(readLeaseMutationInput(formData));
 
@@ -487,7 +487,7 @@ export async function scheduleFutureRentTermAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const parsed = parseFutureRentTermInput({
     endDate: readString(formData, "endDate"),
     leaseId: readString(formData, "leaseId"),
@@ -565,7 +565,7 @@ export async function archiveLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
 
   if (!parsedLeaseId.success) {
@@ -611,7 +611,7 @@ export async function restoreLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
 
   if (!parsedLeaseId.success) {
@@ -779,7 +779,7 @@ function leaseActionErrorMessage(message: string) {
 }
 
 export async function recordLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const parsed = depositEventSchema.safeParse({ amount: readString(formData, "amount"), eventDate: readString(formData, "eventDate"), eventType: readString(formData, "eventType"), leaseDepositId: readString(formData, "leaseDepositId"), reference: readString(formData, "reference") });
   if (!parsed.success) return invalidFormState(parsed.error);
   const supabase = await createSupabaseServerClient();
@@ -790,7 +790,7 @@ export async function recordLeaseDepositEventAction(_state: LeaseActionState, fo
 }
 
 export async function reverseLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const eventId = z.uuid().safeParse(readString(formData, "eventId"));
   const eventDate = dateSchema.safeParse(readString(formData, "eventDate"));
   if (!eventId.success || !eventDate.success) return { message: "Choose a valid event and date.", status: "error" };
@@ -805,7 +805,7 @@ export async function createRentPolicyDraftAction(
   _state: RentPolicyActionState,
   formData: FormData,
 ): Promise<RentPolicyActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const effectiveFrom = dateSchema.safeParse(
     readString(formData, "effectiveFrom"),
   );
@@ -883,7 +883,7 @@ export async function updateRentPolicyDraftAction(
   _state: RentPolicyActionState,
   formData: FormData,
 ): Promise<RentPolicyActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const parsed = rentPolicyDraftSchema.safeParse({
     concessionsSupportState: readString(formData, "concessionsSupportState"),
     dueDaySource: readString(formData, "dueDaySource"),
@@ -978,7 +978,7 @@ export async function approveRentPolicyVersionAction(
   _state: RentPolicyActionState,
   formData: FormData,
 ): Promise<RentPolicyActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireLeaseConfigurationContext();
   const policyId = z.uuid().safeParse(readString(formData, "policyId"));
   if (!policyId.success) {
     return { message: "Choose a policy version.", status: "error" };

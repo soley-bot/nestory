@@ -4,6 +4,7 @@ import { parseReportSearchParams } from "@/features/reports/reports.filters";
 import {
   getCurrentUser,
   getFinanceReportMembershipForUser,
+  getOwnerStatementMembershipForUser,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -17,15 +18,13 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const membership = await getFinanceReportMembershipForUser(user.id);
-
-  if (!membership) {
-    return new Response("Forbidden", { status: 403 });
-  }
-
   const url = new URL(request.url);
   const artifactId = url.searchParams.get("artifactId");
   if (artifactId) {
+    const membership = await getOwnerStatementMembershipForUser(user.id);
+    if (!membership) {
+      return new Response("Forbidden", { status: 403 });
+    }
     try {
       const supabase = await createSupabaseServerClient();
       const artifact = await downloadOwnerStatementArtifact(
@@ -40,6 +39,11 @@ export async function GET(request: Request) {
     } catch {
       return new Response("Official Owner Statement artifact is unavailable.", { status: 409 });
     }
+  }
+
+  const membership = await getFinanceReportMembershipForUser(user.id);
+  if (!membership) {
+    return new Response("Forbidden", { status: 403 });
   }
 
   const searchParams = Object.fromEntries(url.searchParams);

@@ -1,7 +1,7 @@
 # UI Redesign Verification Evidence
 
-Generated from `config/ui-route-coverage.json` on 2026-08-11T15:52:42.794Z.
-Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-11T15-44-38.141Z-axe-p28852`.
+Generated from `config/ui-route-coverage.json` on 2026-08-13T08:51:24.426Z.
+Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-13T08-44-22.376Z-axe-p13836`.
 
 ## Verdict
 
@@ -9,6 +9,7 @@ Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-11T15-44-38.141Z-a
 - 4 supplemental Maintenance board viewport captures completed in the same read-only run.
 - 235 Finance, Operations, and anonymous access checks matched the manifest.
 - Serious/critical axe findings, application errors, document overflow, unreachable actions, blocked mutations, and query-contract failures: 0.
+- Copy and information discipline remain contextual design evidence; this runtime result certifies layout, access, interaction, and accessibility behavior.
 - Local fixture evidence only; this is not hosted production certification.
 
 ## Route matrix
@@ -16,7 +17,7 @@ Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-11T15-44-38.141Z-a
 | Manifest route | Smoke path | Super Admin final path | Finance Manager | Finance Member | Operations Manager | Operations Member | Anonymous | States | Viewports / a11y | Query | Limitation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 <!-- route-evidence:/workspace -->
-| /workspace | /workspace | /workspace | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | login-required (expected login-required) | populated, permission-blocked | 4/4 pass | not-applicable | None |
+| /workspace | /workspace | /overview | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | login-required (expected login-required) | redirected, permission-blocked | 4/4 pass | not-applicable | None |
 <!-- route-evidence:/properties -->
 | /properties | /properties?query=Central | /properties?query=Central | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 4/4 pass | preserved | None |
 <!-- route-evidence:/properties/setup -->
@@ -70,7 +71,7 @@ Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-11T15-44-38.141Z-a
 <!-- route-evidence:/settings -->
 | /settings | /settings | /settings | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 4/4 pass | not-applicable | None |
 <!-- route-evidence:/settings/rent-policy -->
-| /settings/rent-policy | /settings/rent-policy | /settings/rent-policy | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | populated, empty, error, permission-blocked, draft, saving, success | 4/4 pass | not-applicable | None |
+| /settings/rent-policy | /settings/rent-policy | /settings/rent-policy | accessible (expected accessible) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | populated, empty, error, permission-blocked, draft, saving, success | 4/4 pass | not-applicable | None |
 <!-- route-evidence:/users-roles -->
 | /users-roles | /users-roles | /users-roles | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, error, permission-blocked, draft, saving, success | 4/4 pass | preserved | None |
 <!-- route-evidence:/account -->
@@ -88,11 +89,11 @@ Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-11T15-44-38.141Z-a
 <!-- route-evidence:/people/[personId] -->
 | /people/[personId] | /people/80000000-0000-4000-8000-000000000001 | /people/80000000-0000-4000-8000-000000000001 | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | permission-blocked (expected permission-blocked) | login-required (expected login-required) | loading, populated, empty, filtered-empty, error, permission-blocked, draft, saving, success | 4/4 pass | not-applicable | None |
 <!-- route-evidence:/ -->
-| / | / | /workspace | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | populated | 4/4 pass | not-applicable | None |
+| / | / | /overview | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | populated | 4/4 pass | not-applicable | None |
 <!-- route-evidence:/request -->
 | /request | /request?intent=demo | /request?intent=demo | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, error, success | 4/4 pass | preserved | Submissions are stored for follow-up; outbound email notification is not configured. |
 <!-- route-evidence:/login -->
-| /login | /login | /workspace | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | draft, saving, error, success | 4/4 pass | not-applicable | None |
+| /login | /login | /overview | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | redirected (expected redirected) | accessible (expected accessible) | draft, saving, error, success | 4/4 pass | not-applicable | None |
 <!-- route-evidence:/forgot-password -->
 | /forgot-password | /forgot-password | /forgot-password | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | accessible (expected accessible) | draft, saving, success, error | 4/4 pass | not-applicable | None |
 <!-- route-evidence:/update-password -->
@@ -122,11 +123,17 @@ Browser artifacts: `artifacts/ui-redesign/ui-redesign-2026-08-11T15-44-38.141Z-a
 - Settings draft, discard, save, and error: settings workspace tests and shared workflow feedback contracts.
 - Import preview create/update/skip consequences: import screen tests; browser capture remains read-only.
 
+## Information-discipline evidence
+
+- The product-owner contract no longer imposes a paragraph-free rule or a mandatory route-by-route copy-disposition gate on Finance and owner-balance surfaces.
+- The completed supplemental review in `config/enterprise-frontend-content-review.json` still covers all 47 manifest routes and preserves concise safety, permission, consequence, recovery, and accessibility guidance.
+- Automated copy lint remains a regression guard; contextual product review, workflow acceptance, and financial auditability determine whether explanatory or technical detail is appropriate.
+
 ## Keyboard, zoom, and state evidence
 
 - Native tab order, current navigation, command palette focus trap, drawer Escape/return, field error association, and live announcements are enforced by `src/lib/ui/accessibility-contract.test.tsx` and feature interaction tests.
 - The saved manifest captures cover desktop (1440x900), laptop (1280x800), compact-desktop (1024x768) and phone (390x844); pass counts in the route matrix are derived from this runtime viewport list.
-- 6/6 pass: keyboard traversal at a 720x450 CSS viewport equivalent to 1440x900 at 200%. 1 route(s) also applied and measured actual 200% root-font large text. This is an equivalent layout and large-text audit, not actual browser zoom. Actual 200% browser zoom remains manual and unverified.
+- 6/6 pass: keyboard traversal, focus visibility, reflow, overflow, and essential work-surface reachability were tested at a 720x450 CSS viewport equivalent to 1440x900 at 200% browser zoom. 1 route(s) also applied and measured 200% root-font large text. This repeatable Chromium audit verifies the product behavior affected by 200% browser zoom; it does not claim a physical-device or browser-chrome UI test.
 - Loading, true empty, filtered empty, error/retry, permission blocked, draft, saving, and success evidence is mapped per route in the manifest and validated by `src/lib/ui/route-state-evidence.test.ts`.
 
 ## Known limitation

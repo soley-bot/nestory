@@ -124,7 +124,7 @@ test("Track 5 retains all ten rent scenarios and downstream evidence gates", () 
     },
   );
   assert.equal(manifest.historicalRecovery.adjacentMonthsGenerated, false);
-  assert.equal(manifest.roles.financeManagerStructuralConfiguration, false);
+  assert.equal(manifest.roles.financeManagerStructuralConfiguration, true);
   assert.equal(manifest.roles.operationsAccess, false);
 });
 
@@ -137,7 +137,7 @@ test("Track 5 retains one complete workspace-first browser acceptance contract",
     'navigateFinanceChild(page, "/rent-income")',
     "runScenarioContract();",
     "advanceOwnerAccounting();",
-    'name: "Publish Owner Statement"',
+    'name: "Publish owner statement"',
     'finance.manager@nestory.com',
     'finance.member@nestory.com',
     'operations.manager@nestory.com',

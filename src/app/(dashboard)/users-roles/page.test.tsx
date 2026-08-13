@@ -51,6 +51,7 @@ describe("UsersRolesPage", () => {
         currentUserId: "user-1",
         invitations: [],
         inviteDefaults: undefined,
+        staff: [],
       }),
     );
   });
@@ -187,6 +188,43 @@ describe("UsersRolesPage", () => {
       focusedInvitationId: undefined,
       focusedMemberId: memberId,
       inviteDefaults: undefined,
+    }));
+  });
+
+  it("keeps active Staff separate from historical linked people", async () => {
+    const activeStaff = {
+      activeStaff: true,
+      archived: false,
+      description: "Staff - active@example.com",
+      id: "77777777-7777-4777-8777-777777777777",
+      label: "Active Staff",
+      primaryEmail: "active@example.com",
+      roles: ["staff"],
+    };
+    const archivedLinked = {
+      activeStaff: false,
+      archived: true,
+      description: "Archived Staff",
+      id: "88888888-8888-4888-8888-888888888888",
+      label: "Archived Linked Staff",
+      primaryEmail: "archived@example.com",
+      roles: ["staff"],
+    };
+    getAccessSettingsData.mockResolvedValue({
+      branches: [],
+      invitations: [],
+      linkedPeople: [activeStaff, archivedLinked],
+      members: [],
+      staff: [activeStaff],
+    });
+
+    renderToStaticMarkup(
+      await UsersRolesPage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({
+      people: [activeStaff, archivedLinked],
+      staff: [activeStaff],
     }));
   });
 });

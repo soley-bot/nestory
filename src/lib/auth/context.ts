@@ -107,6 +107,18 @@ export async function getFinanceReportMembershipForUser(
     : null;
 }
 
+export async function getOwnerStatementMembershipForUser(
+  userId: string,
+  client?: SupabaseServerClient,
+  options?: WorkspaceMembershipOptions,
+): Promise<WorkspaceMembership | null> {
+  const membership = await getWorkspaceMembershipForUser(userId, client, options);
+
+  return membership && getWorkspaceCapabilities(membership.role).canReadOwnerBalanceAuthority
+    ? membership
+    : null;
+}
+
 export async function getWorkspaceMembershipForUser(
   userId: string,
   client?: SupabaseServerClient,
@@ -205,7 +217,7 @@ export const requireSuperAdminContext = cache(async () =>
 export const requireLeaseConfigurationContext = cache(async () =>
   requireCapability("canConfigureLeases").then((context) => ({
     ...context,
-    role: context.role as "super_admin",
+    role: context.role as FinanceManagerRole,
   })),
 );
 
@@ -289,7 +301,7 @@ export const requireOwnerOpeningBalanceCorrectionContext = cache(async () =>
 export const requireOwnerOpeningBalanceReviewContext = cache(async () =>
   requireCapability("canReviewOwnerOpeningBalance").then((context) => ({
     ...context,
-    role: context.role as "super_admin",
+    role: context.role as FinanceManagerRole,
   })),
 );
 
@@ -303,7 +315,7 @@ export const requireOwnerCloseReadinessContext = cache(async () =>
 export const requireOwnerCloseContext = cache(async () =>
   requireCapability("canCloseOwnerMonth").then((context) => ({
     ...context,
-    role: context.role as "super_admin",
+    role: context.role as FinanceManagerRole,
   })),
 );
 
@@ -317,7 +329,7 @@ export const requireOwnerMonthReopenContext = cache(async () =>
 export const requireOwnerStatementPublicationContext = cache(async () =>
   requireCapability("canPublishOwnerStatement").then((context) => ({
     ...context,
-    role: context.role as "super_admin",
+    role: context.role as FinanceManagerRole,
   })),
 );
 

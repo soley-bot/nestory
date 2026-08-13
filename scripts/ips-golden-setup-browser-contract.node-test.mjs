@@ -45,6 +45,16 @@ test("golden setup smoke exposes the complete required browser journey", () => {
   ]);
 });
 
+test("golden setup assigns recurring rent activation to Finance Manager", () => {
+  const config = readGoldenSetupSmokeConfig({
+    ALLOW_LOCAL_MUTATION_SMOKE: "1",
+    NESTORY_BASE_URL: "http://localhost:3014",
+  });
+  assert.equal(config.managerEmail, "finance.manager@nestory.com");
+  assert.equal(config.superAdminEmail, "nestory@gmail.com");
+  assert.equal(config.submitterEmail, "finance.member@nestory.com");
+});
+
 test("golden setup names are unique, compact, and traceable", () => {
   assert.deepEqual(makeGoldenSetupNames("20260811T153045Z"), {
     owner: "Golden Owner 153045",

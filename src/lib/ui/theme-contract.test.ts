@@ -20,6 +20,10 @@ const interactiveTable = fs.readFileSync(
   path.join(root, "src/components/data/interactive-table.tsx"),
   "utf8",
 );
+const overviewCharts = fs.readFileSync(
+  path.join(root, "src/features/overview/components/overview-charts.tsx"),
+  "utf8",
+);
 const components = JSON.parse(
   fs.readFileSync(path.join(root, "components.json"), "utf8"),
 ) as { style?: string; tailwind?: { cssVariables?: boolean } };
@@ -114,7 +118,14 @@ describe("Shadcn theme contract", () => {
     }
   });
 
-  it("applies organization accents to table hierarchy without recoloring table text", () => {
+  it("keeps overview charts on dedicated semantic chart tokens", () => {
+    expect(globals).toContain("--chart-accent: var(--primary)");
+    expect(overviewCharts).toContain('stroke="var(--chart-accent)"');
+    expect(overviewCharts).toContain('stroke="var(--chart-neutral)"');
+    expect(overviewCharts).not.toContain("var(--accent)");
+  });
+
+  it("keeps table hierarchy on shared structural tokens without recoloring table text", () => {
     for (const token of [
       '"--table-header-bg"',
       '"--table-row-hover"',

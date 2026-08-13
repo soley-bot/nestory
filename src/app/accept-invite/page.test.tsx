@@ -87,4 +87,19 @@ describe("AcceptInvitePage", () => {
     expect(html).toContain("Create password");
     expect(html).toContain("Confirm password");
   });
+
+  it("renders the unavailable recovery action as an explicit secondary button", async () => {
+    getInvitationAcceptance.mockResolvedValue({
+      accountEmail: null,
+      state: "unavailable",
+    });
+
+    const html = renderToStaticMarkup(
+      await AcceptInvitePage({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(html).toContain("Sign in with another account");
+    expect(html).toContain('data-variant="outline"');
+    expect(html).not.toContain(">Use another account<");
+  });
 });

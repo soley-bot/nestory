@@ -68,13 +68,13 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
   const reportMonth = getBusinessMonthValue();
 
   return (
-    <div className="flex flex-col gap-5 px-4 py-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:px-6 lg:py-4">
+    <div className="workspace-gutter-x flex flex-col gap-5 py-4 lg:flex-1">
       <PropertyRecordNav
         activeSection={activeSection}
         onSectionChange={setActiveSection}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto pr-1">
+      <div className="flex-1">
         <PropertyRecordPanel
           activeSection={activeSection}
           property={property}

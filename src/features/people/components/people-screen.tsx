@@ -135,7 +135,7 @@ export function PeopleScreen({
     lockedRole ?? (viewQuery.role === "all" ? undefined : viewQuery.role);
   const peopleList = (
     <section
-      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+      className="flex min-w-0 flex-col bg-background"
       data-slot="people-list-surface"
     >
       <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
@@ -213,7 +213,7 @@ export function PeopleScreen({
       }
       title={title}
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col">
         {feedback ? (
           <TransientFeedback
             action={feedback.action}
@@ -386,7 +386,7 @@ function getPeopleReviewContext(
     return {
       countLabel: "without an assigned role",
       description:
-        "Showing people records that need a tenant, owner, vendor, or staff role before they can drive linked workflows.",
+        "Showing people who need a tenant, owner, vendor, or staff role before they can be linked to work.",
       nextStep: "Assign the operating role in Edit.",
     };
   }
@@ -434,7 +434,7 @@ function getPeopleDrawerDescription(
   }
 
   if (drawer.mode === "create") {
-    return "Create a durable person or company record for tenant, owner, vendor, or staff work.";
+    return "Create a person or company record for tenant, owner, vendor, or staff work.";
   }
 
   if (drawer.mode === "edit") {
@@ -442,10 +442,10 @@ function getPeopleDrawerDescription(
   }
 
   if (drawer.mode === "restore") {
-    return "Return this person to normal operational views.";
+    return "Return this person to active People lists.";
   }
 
-  return "Hide this person from active operational views without deleting linked history.";
+  return "Hide this person from active People lists without deleting linked history.";
 }
 
 function getRoleDrawerDescription(
@@ -475,7 +475,7 @@ function getRoleDrawerDescription(
   }
 
   if (mode === "restore") {
-    return `Return this ${record} to active People workflows.`;
+    return `Return this ${record} to active People lists.`;
   }
 
   return `Archive this ${record} without losing linked history.`;

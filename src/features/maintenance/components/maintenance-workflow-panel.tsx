@@ -45,7 +45,7 @@ export function MaintenanceWorkflowPanel({
     <section className="space-y-3 rounded-md border border-border bg-muted/50 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">Workflow</p>
+          <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">Current stage</p>
           <p className="mt-1 font-semibold">{workflow.stageLabel}</p>
         </div>
         <Badge tone={workflow.isWaitingOnCurrentActor ? "warning" : "neutral"}>

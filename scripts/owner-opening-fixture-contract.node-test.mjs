@@ -206,7 +206,7 @@ test("authenticated acceptance starts at the shell and covers the independent-re
   const source = await readFile(browserUrl, "utf8");
 
   assert.match(source, /goto\(`?\$\{baseUrl\}\/workspace/);
-  assert.match(source, /Open workspace/);
+  assert.match(source, /waitForURL\(\(url\) => url\.pathname !== "\/workspace"\)/);
   assert.match(source, /Finance/);
   assert.match(source, /Owner balances/);
   assert.doesNotMatch(source, /goto\([^\n]*owner-balances/);

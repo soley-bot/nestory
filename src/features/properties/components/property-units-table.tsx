@@ -44,7 +44,7 @@ export function PropertyUnitsTable({
         ))}
       </div>
 
-      <div className="hidden overflow-auto md:block">
+      <div aria-label="Property units table" className="hidden overflow-x-auto md:block" role="region">
         <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-sm">
             <colgroup>
               <col className="w-[34%]" />

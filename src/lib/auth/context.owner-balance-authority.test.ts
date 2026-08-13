@@ -72,18 +72,18 @@ describe("owner balance authority contexts", () => {
     });
   });
 
-  it("allows Finance Manager only the approved owner authority read, correction, and readiness contexts", async () => {
+  it("lets Finance Manager review, close, and publish while reserving submission and reopen", async () => {
     const allowedContexts = [
       authContext.requireOwnerBalanceReadContext,
       authContext.requireOwnerOpeningBalanceCorrectionContext,
+      authContext.requireOwnerOpeningBalanceReviewContext,
       authContext.requireOwnerCloseReadinessContext,
+      authContext.requireOwnerCloseContext,
+      authContext.requireOwnerStatementPublicationContext,
     ];
     const deniedContexts = [
       authContext.requireOwnerOpeningBalanceSubmissionContext,
-      authContext.requireOwnerOpeningBalanceReviewContext,
-      authContext.requireOwnerCloseContext,
       authContext.requireOwnerMonthReopenContext,
-      authContext.requireOwnerStatementPublicationContext,
     ];
 
     expect(

@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { chromium } from "playwright";
 
 import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
+import { setHiddenControlValue } from "./playwright-form-controls.mjs";
 import { validateLocalBaseUrl } from "./smoke-ui-redesign-policy.mjs";
 
 const cwd = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -33,13 +34,13 @@ try {
 
   await withShellActor(actors.superAdmin, async (page) => {
     await page.goto(`${baseUrl}/import`, { waitUntil: "networkidle" });
-    await page.getByRole("heading", { name: "IPS cutover reconciliation" }).waitFor();
-    await page.getByText("No cutover manifest has been staged.", { exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Import cutover" }).waitFor();
+    await page.getByText("No import plan has been staged.", { exact: true }).waitFor();
 
     await stageManifest(page, blockedManifest, "ips-cutover-browser-blocked-v1");
     await waitForDb("blocked manifest", `SELECT count(*)=1 FROM public.ips_cutover_batches WHERE organization_id='${organizationId}' AND status='blocked';`);
     await page.reload({ waitUntil: "networkidle" });
-    await page.getByText("cutover import run not reconciled", { exact: true }).waitFor();
+    await page.getByText("Cutover import run not reconciled", { exact: true }).waitFor();
     phase("Super Admin stages a redacted manifest and sees the exact blocking source");
 
     await stageManifest(page, manifest, "ips-cutover-browser-ready-v1");
@@ -50,10 +51,9 @@ try {
     await page.getByText("2290.50 USD", { exact: true }).waitFor();
     phase("corrected manifest is frozen with exact counts, months, and opening money");
 
-    const commitForm = page.getByRole("button", { name: "Commit reconciled cutover" }).locator("xpath=ancestor::form");
-    await commitForm.getByLabel("Commit request key").fill("ips-cutover-browser-commit-v1");
-    await commitForm.getByLabel("Reconciliation sign-off reason").fill("Browser redacted source totals independently checked");
-    await commitForm.getByRole("button", { name: "Commit reconciled cutover" }).click();
+    const commitForm = page.getByRole("button", { name: "Confirm imported totals" }).locator("xpath=ancestor::form");
+    await commitForm.getByLabel("Approval reason").fill("Browser redacted source totals independently checked");
+    await commitForm.getByRole("button", { name: "Confirm imported totals" }).click();
     await waitForDb("reconciled cutover", `
       SELECT count(*)=1 FROM public.ips_cutover_reconciliations AS reconciliation
       JOIN public.ips_cutover_batches AS batch ON batch.id=reconciliation.batch_id
@@ -63,11 +63,10 @@ try {
         AND reconciliation.differences='[]'::jsonb;
     `);
     await page.reload({ waitUntil: "networkidle" });
-    await page.getByText("reconciled", { exact: true }).waitFor();
-    const replayForm = page.getByRole("button", { name: "Replay reconciled cutover" }).locator("xpath=ancestor::form");
-    await replayForm.getByLabel("Commit request key").fill("ips-cutover-browser-commit-v1");
-    await replayForm.getByLabel("Reconciliation sign-off reason").fill("Browser redacted source totals independently checked");
-    await replayForm.getByRole("button", { name: "Replay reconciled cutover" }).click();
+    await page.getByText("Reconciled", { exact: true }).waitFor();
+    const replayForm = page.getByRole("button", { name: "Recheck imported totals" }).locator("xpath=ancestor::form");
+    await replayForm.getByLabel("Approval reason").fill("Browser redacted source totals independently checked");
+    await replayForm.getByRole("button", { name: "Recheck imported totals" }).click();
     await page.waitForTimeout(500);
     assert.equal(dbScalar(`SELECT count(*) FROM public.ips_cutover_reconciliations;`), "1");
     assert.equal(dbScalar(`SELECT count(*) FROM public.ips_cutover_transitions WHERE to_status='reconciled';`), "1");
@@ -95,7 +94,7 @@ try {
     await withShellActor(email, async (page) => {
       await page.goto(`${baseUrl}/import`, { waitUntil: "networkidle" });
       assert.notEqual(new URL(page.url()).pathname, "/import", `${role} reached cutover authority`);
-      assert.equal(await page.getByRole("button", { name: "Stage cutover manifest" }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Stage import plan" }).count(), 0);
     });
   }
   phase("Finance and Operations roles are denied cutover route and mutations");
@@ -106,12 +105,13 @@ try {
 }
 
 async function stageManifest(page, value, requestKey) {
-  const form = page.getByRole("button", { name: "Stage cutover manifest" }).locator("xpath=ancestor::form");
-  await form.getByLabel("Authority start date").fill("2026-09-01");
-  await form.getByLabel("Redacted data owner").fill("REDACTED-IPS-DATA-OWNER");
-  await form.getByLabel("Stage request key").fill(requestKey);
-  await form.getByLabel("Manifest JSON").fill(JSON.stringify(value));
-  await form.getByRole("button", { name: "Stage cutover manifest" }).click();
+  const form = page.getByRole("button", { name: "Stage import plan" }).locator("xpath=ancestor::form");
+  await form.getByLabel("Start date").fill("2026-09-01");
+  await form.getByLabel("Data owner").fill("REDACTED-IPS-DATA-OWNER");
+  await setHiddenControlValue(form, "idempotencyKey", requestKey);
+  await form.getByText("Technical manifest", { exact: true }).click();
+  await form.getByLabel("Manifest data (JSON)").fill(JSON.stringify(value));
+  await form.getByRole("button", { name: "Stage import plan" }).click();
 }
 
 async function withShellActor(email, run) {
@@ -124,10 +124,9 @@ async function withShellActor(email, run) {
     await page.getByRole("button", { name: /sign in/i }).click();
     await page.waitForURL((url) => url.pathname !== "/login", { timeout: 20_000 });
     await page.goto(`${baseUrl}/workspace`, { waitUntil: "networkidle" });
-    await Promise.all([
-      page.waitForURL((url) => url.pathname !== "/workspace", { waitUntil: "networkidle" }),
-      page.getByRole("link", { name: "Open workspace" }).click(),
-    ]);
+    await page.waitForURL((url) => url.pathname !== "/workspace", {
+      waitUntil: "networkidle",
+    });
     await run(page);
   } finally {
     await context.close();
@@ -165,8 +164,23 @@ function runNpm(script, attempts = 1) {
       : spawnSync("npm", ["run", script], { cwd, encoding: "utf8", shell: false, timeout: 180_000 });
     if (result.status === 0) return;
     if (attempt === attempts) throw new Error(result.stderr || result.stdout || `${script} failed`);
+    if (script === "db:test:fixture" && `${result.stderr}\n${result.stdout}`.includes("status\":502")) {
+      restartLocalGateway();
+    }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_000);
   }
+}
+
+function restartLocalGateway() {
+  const gateway = container.replace(/^supabase_db_/, "supabase_kong_");
+  const result = spawnSync("docker", ["restart", gateway], {
+    cwd,
+    encoding: "utf8",
+    shell: false,
+    timeout: 30_000,
+  });
+  if (result.status !== 0) throw new Error(result.stderr || "Could not restart the local Supabase gateway.");
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2_000);
 }
 
 function dbScalar(sql) {

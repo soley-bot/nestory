@@ -223,7 +223,7 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
-SELECT throws_ok(
+SELECT lives_ok(
   $$
     SELECT public.set_lease_billing_term(
       organization_id,
@@ -239,13 +239,11 @@ SELECT throws_ok(
       NULL,
       NULL,
       through_billing_id,
-      'invoice-through-billing-manager-denied'
+      'invoice-through-billing-manager-configured'
     )
     FROM tenant_invoice_state
   $$,
-  '42501',
-  'Not authorized',
-  'Finance Manager cannot configure lease billing terms'
+  'Finance Manager can configure a future lease billing term'
 );
 
 SELECT lives_ok(

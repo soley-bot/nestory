@@ -92,9 +92,9 @@ describe("OpeningBalanceScreen", () => {
   it("renders the four fixed components and distinguishes Unknown from Known zero", () => {
     renderScreen(superAdminProps());
 
-    expect(screen.getByRole("heading", { name: "Opening balance" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Opening balances" })).toBeTruthy();
     expect(screen.getAllByText("Unknown").length).toBeGreaterThan(0);
-    expect(screen.getByText("Known zero")).toBeTruthy();
+    expect(screen.getByText("Approved zero")).toBeTruthy();
     expect(screen.getByText("$0.00")).toBeTruthy();
     for (const label of [
       "IPS-held owner cash",
@@ -110,9 +110,9 @@ describe("OpeningBalanceScreen", () => {
     renderScreen(superAdminProps());
 
     expect(screen.getAllByText("100.000%").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Roster cccccccc/).length).toBeGreaterThan(0);
     expect(screen.getByText("opening.pdf")).toBeTruthy();
-    expect(screen.getByText(fingerprint)).toBeTruthy();
+    expect(screen.getAllByText(fingerprint).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Audit details").length).toBeGreaterThan(0);
     expect(screen.getByText("Reversal of opening entry")).toBeTruthy();
     expect(screen.getByText("Current replacement")).toBeTruthy();
     expect(screen.getByText("Resubmission of rejected request")).toBeTruthy();
@@ -431,7 +431,7 @@ describe("OpeningBalanceScreen", () => {
     const recovered = screen.getByRole("dialog");
     expect(within(recovered).getByText("recoverable.pdf ready for final submission"))
       .toBeTruthy();
-    expect(within(recovered).getByText(/Fingerprint 039058c6f2c0/)).toBeTruthy();
+    expect(within(recovered).getByText(/039058c6f2c0/)).toBeTruthy();
     expect(within(recovered).getByLabelText<HTMLInputElement>("Opening amount").value)
       .toBe("19.50");
     expect(within(recovered).getByLabelText<HTMLInputElement>("Reason").value)

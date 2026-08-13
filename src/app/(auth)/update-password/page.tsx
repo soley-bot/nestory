@@ -4,10 +4,7 @@ import { UpdatePasswordForm } from "@/features/auth/components/update-password-f
 export default function UpdatePasswordPage() {
   return (
     <AuthPageShell
-      contextLabel="Account recovery"
-      contextText="Choose a new password only after opening a valid Supabase recovery link."
-      contextTitle="Secure the invited account."
-      description="Set a new password for this account."
+      description="Choose a new password."
       title="Update password"
       visualSrc="/marketing/login-property-building-blue-hour.png"
     >

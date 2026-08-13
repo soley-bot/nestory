@@ -20,7 +20,7 @@ export function OverviewLensWorkspace({ data, query }: { data: OverviewScreenDat
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <section
         aria-label={`${config.title} operating work`}
-        className="min-h-0 flex-1 overflow-y-auto [&>section]:border-y-0"
+        className="flex-1 [&>section]:border-y-0"
         data-slot="overview-operating-scroll"
       >
         {lens === "leasing" ? (

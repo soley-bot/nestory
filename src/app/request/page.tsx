@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 const requestNotes = [
   "A guided look at the operating record, not a generic product tour",
-  "Portfolio scope and workflow fit reviewed before workspace provisioning",
+  "We confirm your portfolio and priorities before creating a workspace",
   "Client workspaces stay managed and invite-only",
 ];
 
@@ -26,7 +26,7 @@ export default async function RequestPage({
 
   return (
     <main className="landing-page min-h-svh bg-[var(--landing-bg)] text-[var(--landing-fg)] transition-colors">
-      <LandingHeader />
+      <LandingHeader tone="semantic" />
       <section className="px-6 pb-16 pt-32 sm:px-10 sm:pb-24 sm:pt-36 lg:px-14">
         <div className="mx-auto max-w-[1180px]">
           <Link
@@ -39,7 +39,7 @@ export default async function RequestPage({
 
           <div className="mt-10 grid gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(420px,0.72fr)] lg:items-start lg:gap-20">
             <div className="lg:sticky lg:top-32">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--landing-accent)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                 Managed access
               </p>
               <h1 className="mt-5 max-w-2xl font-display text-4xl font-semibold leading-[1.06] text-[var(--landing-heading)] sm:text-5xl">
@@ -58,7 +58,7 @@ export default async function RequestPage({
                   >
                     <Check
                       aria-hidden="true"
-                      className="mt-1 text-[var(--landing-accent)]"
+                      className="mt-1 text-muted-foreground"
                       size={15}
                     />
                     <p>{note}</p>
@@ -69,7 +69,7 @@ export default async function RequestPage({
               <p className="mt-8 text-sm leading-6 text-[var(--landing-muted)]">
                 Already invited?{" "}
                 <Link
-                  className="font-semibold text-[var(--landing-accent)] hover:opacity-75"
+                  className="font-semibold text-foreground underline-offset-4 transition-colors hover:text-muted-foreground hover:underline"
                   href="/login"
                 >
                   Sign in to your workspace

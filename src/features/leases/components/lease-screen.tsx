@@ -179,7 +179,7 @@ export function LeaseScreen({
 
   const hasFilters = hasActiveLeaseFilters(viewQuery);
   const leaseList = (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-card">
+    <section className="flex min-w-0 flex-col bg-card">
       {leases.length === 0 ? (
         <EmptyState
           action={
@@ -267,7 +267,7 @@ export function LeaseScreen({
         viewQuery={viewQuery}
       />}
     >
-      <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col">
 
       {statusMessage ? (
         <div className="shrink-0 px-4 py-2 sm:px-6">

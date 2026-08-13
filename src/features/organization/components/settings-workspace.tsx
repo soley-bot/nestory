@@ -99,7 +99,7 @@ function SettingsWorkspaceContent({
 
   return (
     <div
-      className="min-w-0 px-4 py-4 sm:px-6"
+      className="workspace-gutter-x min-w-0 py-4"
       data-testid="settings-workspace"
     >
       <section

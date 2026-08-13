@@ -76,6 +76,7 @@ try {
     const row = paidCostRow(page, originalReference);
     await row.getByRole("button", { name: `Approve ${originalVendor}` }).click();
     const dialog = page.getByRole("dialog", { name: "Approve paid cost" });
+    await dialog.getByText("Audit details", { exact: true }).click();
     await dialog.getByText(originalHash, { exact: true }).waitFor();
     await dialog.getByText("track6-browser-original.pdf", { exact: true }).waitFor();
     await dialog.getByRole("textbox", { name: "Review note" }).fill(
@@ -221,13 +222,10 @@ async function withShellActor(email, run) {
     await page.getByRole("button", { name: /sign in/i }).click();
     await page.waitForURL((url) => url.pathname !== "/login", { timeout: 20_000 });
     await page.goto(`${baseUrl}/workspace`, { waitUntil: "networkidle" });
-    await Promise.all([
-      page.waitForURL((url) => url.pathname !== "/workspace", {
-        timeout: 20_000,
-        waitUntil: "networkidle",
-      }),
-      page.getByRole("link", { name: "Open workspace" }).click(),
-    ]);
+    await page.waitForURL((url) => url.pathname !== "/workspace", {
+      timeout: 20_000,
+      waitUntil: "networkidle",
+    });
     await run(page);
   } finally {
     await context.close();

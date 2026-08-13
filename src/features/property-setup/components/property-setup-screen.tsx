@@ -128,7 +128,7 @@ export function PropertySetupScreen({
       contextHref="/properties/setup"
       title="Set up property"
     >
-      <div className="h-full overflow-y-auto px-4 py-4 sm:px-6">
+      <div className="workspace-gutter-x py-4">
         <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
           <SetupRail
             currentStep={step}
@@ -496,8 +496,8 @@ function ReviewStep({
         ]}
         summary={
           ready
-            ? "The authoritative owner, unit, lease, occupancy, billing, policy, opening-balance, and deposit checks are ready for rent operations."
-            : "The core records are linked, but rent operations stay blocked until every authority below is complete."
+            ? "The owner, unit, lease, occupancy, billing, policy, opening-balance, and deposit checks are ready for rent operations."
+            : "The core records are linked, but rent operations stay blocked until every required check below is complete."
         }
         title={ready ? "Rent ready" : "Setup needs attention"}
       />

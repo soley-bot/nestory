@@ -20,6 +20,7 @@ type PeopleFieldErrors = {
 };
 
 export type PeopleActionState = {
+  displayName?: string;
   fieldErrors?: PeopleFieldErrors;
   message?: string;
   personId?: string;
@@ -138,6 +139,7 @@ export async function createPersonAction(
   revalidatePeoplePaths();
 
   return {
+    displayName: parsed.data.displayName,
     message: "Person added.",
     personId,
     roles: parsed.data.roles,
@@ -180,6 +182,7 @@ export async function updatePersonAction(
   revalidatePeoplePaths();
 
   return {
+    displayName: parsed.data.displayName,
     message: "Person updated.",
     personId: parsedPersonId.data,
     roles: parsed.data.roles,

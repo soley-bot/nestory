@@ -36,13 +36,18 @@ export const metadata: Metadata = {
 
 const themeScript = `
 (() => {
+  document.documentElement.dataset.accent = "neutral";
   try {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const theme = prefersDark ? "dark" : "light";
+    const stored = window.localStorage.getItem("nestory-display-mode:public");
+    const requested = ["light", "dark", "system"].includes(stored) ? stored : "system";
+    const theme = requested === "system" ? (prefersDark ? "dark" : "light") : requested;
     document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.themePreference = requested;
     document.documentElement.classList.toggle("dark", theme === "dark");
   } catch {
     document.documentElement.dataset.theme = "light";
+    document.documentElement.dataset.themePreference = "system";
     document.documentElement.classList.remove("dark");
   }
 })();
