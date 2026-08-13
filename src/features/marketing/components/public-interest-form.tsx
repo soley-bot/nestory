@@ -38,23 +38,23 @@ export function PublicInterestForm({
   if (state.status === "success") {
     return (
       <div
-        className="flex min-h-[430px] flex-col justify-between rounded-lg border border-[var(--landing-border)] bg-[var(--card)] p-6 sm:p-8"
+        className="flex min-h-[430px] flex-col justify-between rounded-xl border border-border bg-card p-6 text-card-foreground shadow-sm sm:p-8"
         role="status"
       >
         <div>
           <CheckCircle2
             aria-hidden="true"
-            className="text-[var(--landing-accent)]"
+            className="text-success"
             size={30}
             strokeWidth={1.6}
           />
-          <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--landing-subtle)]">
+          <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             Request received
           </p>
-          <h2 className="mt-4 font-display text-3xl font-semibold leading-tight text-[var(--landing-heading)]">
+          <h2 className="mt-4 font-display text-3xl font-semibold leading-tight text-foreground">
             We have your operating brief.
           </h2>
-          <p className="mt-4 max-w-md text-sm leading-6 text-[var(--landing-muted)]">
+          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
             We will use the context you shared to prepare a focused follow-up.
           </p>
           <StatusNotice
@@ -66,7 +66,7 @@ export function PublicInterestForm({
         </div>
         <div className="mt-10 flex flex-wrap gap-4">
           <Link
-            className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-[var(--landing-accent)]"
+            className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-primary transition-colors hover:text-primary/80"
             href="/"
           >
             Return home
@@ -82,7 +82,7 @@ export function PublicInterestForm({
       action={action}
       aria-busy={pending ? "true" : "false"}
       aria-label="Request information or a demo"
-      className="rounded-lg border border-[var(--landing-border)] bg-[var(--card)] p-5 shadow-sm sm:p-7"
+      className="rounded-xl border border-border bg-card p-5 text-card-foreground shadow-sm sm:p-7"
     >
       <fieldset className="space-y-5 border-0 p-0" disabled={pending}>
         <legend className="sr-only">Request details</legend>
@@ -98,10 +98,10 @@ export function PublicInterestForm({
         </div>
 
         <fieldset className="border-0 p-0">
-          <legend className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-subtle)]">
+          <legend className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             I want to
           </legend>
-          <div className="mt-3 grid grid-cols-2 rounded-lg border border-[var(--landing-border)] p-1">
+          <div className="mt-3 grid grid-cols-2 rounded-lg border border-border bg-muted/30 p-1">
             <RequestTypeOption
               active={requestType === "information"}
               label="Request information"
@@ -133,14 +133,13 @@ export function PublicInterestForm({
               autoComplete="name"
               maxLength={120}
               name="fullName"
-              placeholder="Mara Sok"
               required
               type="text"
             />
           </RecordField>
           <RecordField
             error={state.fieldErrors?.workEmail?.[0]}
-            label="Work email"
+            label="Email"
             name="workEmail"
             required
           >
@@ -148,7 +147,6 @@ export function PublicInterestForm({
               autoComplete="email"
               maxLength={254}
               name="workEmail"
-              placeholder="mara@company.com"
               required
               type="email"
             />
@@ -166,7 +164,6 @@ export function PublicInterestForm({
               autoComplete="organization"
               maxLength={160}
               name="companyName"
-              placeholder="Central Property Group"
               required
               type="text"
             />
@@ -193,7 +190,6 @@ export function PublicInterestForm({
           <Textarea
             maxLength={1200}
             name="message"
-            placeholder="Current portfolio, operating challenges, or what you want to see."
             rows={5}
           />
         </RecordField>
@@ -207,7 +203,8 @@ export function PublicInterestForm({
         ) : null}
 
         <Button
-          className="h-11 w-full rounded-full border-0 bg-[var(--landing-cta-bg)] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--landing-cta-fg)] hover:bg-[var(--landing-cta-bg)] hover:opacity-90"
+          className="h-11 w-full rounded-lg px-5 text-[12px] font-semibold uppercase tracking-[0.14em]"
+          size="lg"
           type="submit"
         >
           {pending
@@ -217,7 +214,7 @@ export function PublicInterestForm({
               : "Request information"}
           <ArrowRight aria-hidden="true" size={15} />
         </Button>
-        <p className="text-xs leading-5 text-[var(--landing-subtle)]">
+        <p className="text-xs leading-5 text-muted-foreground">
           By submitting, you ask Nestory to contact you about this request. No
           workspace is created automatically.
         </p>
@@ -241,8 +238,8 @@ function RequestTypeOption({
     <label
       className={
         active
-          ? "cursor-pointer rounded-md bg-[var(--landing-cta-bg)] px-3 py-2 text-center text-xs font-semibold text-[var(--landing-cta-fg)] outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
-          : "cursor-pointer rounded-md px-3 py-2 text-center text-xs font-semibold text-[var(--landing-muted)] outline-none transition-colors hover:text-[var(--landing-heading)] focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+          ? "cursor-pointer rounded-md bg-primary px-3 py-2 text-center text-xs font-semibold text-primary-foreground shadow-sm outline-none transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-card"
+          : "cursor-pointer rounded-md px-3 py-2 text-center text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-card"
       }
     >
       <input

@@ -21,15 +21,22 @@ const navItems = [
   { href: "/request?intent=demo", label: "Request a demo" },
 ] as const;
 
-export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
+export function LandingHeader({
+  tone = "page",
+}: {
+  tone?: "hero" | "page" | "semantic";
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const isHeroTone = tone === "hero";
+  const isSemanticTone = tone === "semantic";
   const logoClass = isHeroTone
     ? "leading-none text-white"
     : "leading-none text-[var(--landing-heading)]";
   const quietControlClass = isHeroTone
     ? "text-white hover:bg-white/10 hover:text-white focus-visible:ring-white"
-    : "text-[var(--landing-heading)] hover:bg-black/5 hover:text-[var(--landing-heading)] focus-visible:ring-[var(--landing-accent)]";
+    : isSemanticTone
+      ? "text-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring/50"
+      : "text-[var(--landing-heading)] hover:bg-black/5 hover:text-[var(--landing-heading)] focus-visible:ring-[var(--landing-accent)]";
 
   return (
     <Dialog onOpenChange={setIsOpen} open={isOpen}>
@@ -43,7 +50,9 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
             className={
               isHeroTone
                 ? "flex items-center gap-3 text-xs font-medium uppercase tracking-widest text-white/90 sm:gap-4"
-                : "flex items-center gap-3 text-xs font-medium uppercase tracking-widest text-[var(--landing-muted)] sm:gap-4"
+                : isSemanticTone
+                  ? "flex items-center gap-3 text-xs font-medium uppercase tracking-widest text-muted-foreground sm:gap-4"
+                  : "flex items-center gap-3 text-xs font-medium uppercase tracking-widest text-[var(--landing-muted)] sm:gap-4"
             }
           >
             <Link

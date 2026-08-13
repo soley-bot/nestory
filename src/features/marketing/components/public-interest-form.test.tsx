@@ -33,4 +33,42 @@ describe("PublicInterestForm", () => {
     expect(demo.checked).toBe(true);
     expect(screen.getByRole("button", { name: "Request a demo" })).not.toBeNull();
   });
+
+  it("inherits the neutral semantic interaction surfaces used by the app", () => {
+    render(<PublicInterestForm initialRequestType="information" />);
+
+    const form = screen.getByRole("form", {
+      name: "Request information or a demo",
+    });
+    const information = screen.getByRole("radio", {
+      name: "Request information",
+    });
+    const demo = screen.getByRole("radio", { name: "Request a demo" });
+    const submit = screen.getByRole("button", {
+      name: "Request information",
+    });
+
+    expect(form.className).toContain("border-border");
+    expect(form.className).toContain("bg-card");
+    expect(information.closest("label")?.className).toContain("bg-primary");
+    expect(demo.closest("label")?.className).toContain("hover:bg-muted");
+    expect(submit.dataset.variant).toBe("default");
+    expect(submit.className).not.toContain("--landing-cta");
+  });
+
+  it("uses concise labels without example text inside the entry fields", () => {
+    render(<PublicInterestForm initialRequestType="information" />);
+
+    const form = screen.getByRole("form", {
+      name: "Request information or a demo",
+    });
+
+    expect(screen.getByRole("group", { name: /^Email/ })).not.toBeNull();
+    expect(screen.queryByRole("group", { name: /^Work email/ })).toBeNull();
+
+    for (const name of ["fullName", "workEmail", "companyName", "message"]) {
+      expect(form.querySelector(`[name="${name}"]`)?.getAttribute("placeholder"))
+        .toBeNull();
+    }
+  });
 });
