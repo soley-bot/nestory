@@ -55,6 +55,7 @@ export function PortfolioWorkspace({
               items={attentionQueue}
               key={metric.label}
               metric={metric}
+              month={query.month}
             />
           ) : (
             <MetricCard key={metric.label} metric={metric} />

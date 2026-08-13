@@ -20,9 +20,11 @@ import type {
 export function OverviewAttentionCard({
   items,
   metric,
+  month,
 }: {
   items: readonly OverviewAttentionItem[];
   metric: OverviewMetric;
+  month: string;
 }) {
   const value = typeof metric.value === "string" ? metric.value : metric.value.primary;
   const count = items.reduce((total, item) => total + item.count, 0);
@@ -82,6 +84,14 @@ export function OverviewAttentionCard({
             No open checks need attention.
           </p>
         )}
+        <div className="flex justify-end border-t border-border pt-3">
+          <Link
+            className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:underline"
+            href={`/overview/attention?month=${month}`}
+          >
+            View all checks <ArrowRight aria-hidden="true" className="size-4" />
+          </Link>
+        </div>
       </DialogContent>
     </Dialog>
   );

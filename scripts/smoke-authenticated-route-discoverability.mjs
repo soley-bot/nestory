@@ -185,13 +185,16 @@ async function openJourney(page, journey) {
 async function openContextJourney(page, journey, chain) {
   const contextJourney = {
     "overview-drilldown": async () => {
-      await fromGlobal(page, chain, "/overview", "Overview");
+      await fromGlobal(page, chain, "/overview", "Dashboard");
+      await page
+        .getByRole("button", { name: /^Needs attention,/ })
+        .click();
       await clickAndWait(
         page,
-        page.getByRole("link", { name: "Review", exact: true }),
+        page.getByRole("link", { name: "View all checks", exact: true }),
         journey.route,
       );
-      chain.push("Review");
+      chain.push("Needs attention", "View all checks");
     },
     "people-owners": () => openPeopleTab(page, chain, journey.route, "Owners"),
     "people-staff": () => openPeopleTab(page, chain, journey.route, "Staff"),

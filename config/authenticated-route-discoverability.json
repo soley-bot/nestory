@@ -7,7 +7,7 @@
   },
   "roles": ["super_admin", "finance_manager", "finance_member", "operations_manager", "operations_member"],
   "entries": {
-    "shell-overview": { "kind": "global", "href": "/overview", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/overview\"", "labelToken": "label: \"Overview\"" },
+    "shell-overview": { "kind": "global", "href": "/overview", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/overview\"", "labelToken": "label: \"Dashboard\"" },
     "shell-properties": { "kind": "global", "href": "/properties", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/properties\"", "labelToken": "label: \"Properties\"" },
     "shell-people": { "kind": "global", "href": "/people", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/people\"", "labelToken": "label: \"People\"" },
     "shell-finance": { "kind": "global", "href": "/finance", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/finance\"", "labelToken": "label: \"Finance work\"" },
@@ -31,7 +31,7 @@
     "shell-reports": { "kind": "global", "href": "/reports", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/reports\"", "labelToken": "label: \"Reports\"" },
     "shell-settings": { "kind": "global", "href": "/settings", "source": "src/components/layout/app-shell.tsx", "hrefToken": "href: \"/settings\"", "labelToken": "label: \"Settings\"" },
     "profile-account": { "kind": "profile", "source": "src/components/layout/app-shell.tsx", "hrefToken": "<Link href=\"/account\">", "labelToken": "Profile" },
-    "overview-drilldown": { "kind": "context", "source": "src/features/overview/components/portfolio-workspace.tsx", "hrefToken": "href={`/overview/attention?month=${query.month}`}", "labelToken": "Review" },
+    "overview-drilldown": { "kind": "context", "source": "src/features/overview/components/overview-attention-card.tsx", "hrefToken": "href={`/overview/attention?month=${month}`}", "labelToken": "View all checks" },
     "people-owners": { "kind": "context", "source": "src/features/people/components/people-workspace-navigation.tsx", "hrefToken": "href: \"/owners\"", "labelToken": "label: \"Owners\"" },
     "people-staff": { "kind": "context", "source": "src/features/people/components/people-workspace-navigation.tsx", "hrefToken": "href: \"/staff\"", "labelToken": "label: \"Staff\"" },
     "people-tenants": { "kind": "context", "source": "src/features/people/components/people-workspace-navigation.tsx", "hrefToken": "href: \"/tenants\"", "labelToken": "label: \"Tenants\"" },

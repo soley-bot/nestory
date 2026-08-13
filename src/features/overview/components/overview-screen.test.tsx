@@ -102,6 +102,9 @@ describe("OverviewScreen", () => {
     expect(within(dialog).getByRole("link", { name: "Review rent" }).getAttribute("href")).toBe(
       "/rent-income",
     );
+    expect(
+      within(dialog).getByRole("link", { name: "View all checks" }).getAttribute("href"),
+    ).toBe("/overview/attention?month=2026-08");
   });
 
   it("keeps the active reporting month readable in every theme", () => {
