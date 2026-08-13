@@ -183,8 +183,6 @@
   --auth-page-muted: rgb(248 250 249 / 88%);
   --auth-page-subtle: rgb(248 250 249 / 78%);
   --auth-page-line: rgb(248 250 249 / 24%);
-  --auth-page-input-bg: #ffffff;
-  --auth-page-input-border: #77817d;
   --auth-page-header-bg: rgb(17 19 20 / 68%);
   --auth-page-header-border: rgb(248 250 249 / 24%);
   --auth-page-scrim:
@@ -199,14 +197,10 @@
   --card: #1b1e1f;
   --muted: #141617;
   --border: #363b3c;
-  --accent: #a1d8b5;
-  --ring: #a1d8b5;
   --auth-page-fg: #eef0ef;
   --auth-page-muted: rgb(238 240 239 / 78%);
   --auth-page-subtle: rgb(238 240 239 / 72%);
   --auth-page-line: rgb(238 240 239 / 18%);
-  --auth-page-input-bg: #1b1e1f;
-  --auth-page-input-border: #7e8883;
   --auth-page-header-bg: rgb(17 19 20 / 86%);
   --auth-page-header-border: rgb(126 136 131 / 42%);
   --auth-page-scrim:
@@ -302,11 +296,6 @@ input,
 select,
 textarea {
   font: inherit;
-}
-
-.auth-photo-page .auth-shell-card input {
-  background: var(--auth-page-input-bg);
-  border-color: var(--auth-page-input-border);
 }
 
 .auth-photo-page .auth-shell-context {

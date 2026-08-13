@@ -199,6 +199,14 @@ describe("entry experience contracts", () => {
     const loginForm = readSource(
       "src/features/auth/components/login-form.tsx",
     );
+    const forgotPasswordForm = readSource(
+      "src/features/auth/components/forgot-password-form.tsx",
+    );
+    const globals = readSource("src/app/globals.css");
+    const rootLayout = readSource("src/app/layout.tsx");
+    const darkAuthTheme = globals.match(
+      /\[data-theme="dark"\] \.auth-photo-page \{([^}]*)\}/,
+    )?.[1] ?? "";
     const shell = readSource("src/features/auth/components/auth-page-shell.tsx");
     const themeToggle = readSource(
       "src/components/theme-toggle.tsx",
@@ -213,6 +221,12 @@ describe("entry experience contracts", () => {
     expect(shell).not.toContain("contextItems.map");
     expect(shell).toContain("border-border bg-card");
     expect(shell).not.toContain("--auth-page-card-bg");
+    expect(globals).not.toContain("--auth-page-input-bg");
+    expect(globals).not.toContain("--auth-page-input-border");
+    expect(darkAuthTheme).not.toContain("--accent:");
+    expect(darkAuthTheme).not.toContain("--ring:");
+    expect(forgotPasswordForm).toContain("<Input");
+    expect(rootLayout).toContain('dataset.accent = "neutral"');
     expect(shell).toContain('markTone={visualSrc ? "light" : "auto"}');
     expect(shell).toContain("<ThemeToggle");
     expect(themeToggle).not.toContain('localStorage.setItem("nestory-theme"');

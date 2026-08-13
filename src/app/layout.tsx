@@ -36,6 +36,7 @@ export const metadata: Metadata = {
 
 const themeScript = `
 (() => {
+  document.documentElement.dataset.accent = "neutral";
   try {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const stored = window.localStorage.getItem("nestory-display-mode:public");

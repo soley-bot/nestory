@@ -110,6 +110,7 @@ describe("organization theme", () => {
 
         expect(style).not.toHaveProperty("--card");
         expect(style).not.toHaveProperty("--border");
+        expect(style).not.toHaveProperty("--input");
         expect(contrastRatio(style["--primary"], background)).toBeGreaterThanOrEqual(4.5);
         expect(contrastRatio(style["--ring"], background)).toBeGreaterThanOrEqual(3);
       }
