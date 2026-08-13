@@ -26,6 +26,9 @@ describe("LandingHeader", () => {
     expect(screen.getByRole("dialog", { name: "Nestory navigation" })).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Landing page sections" })).toBeTruthy();
 
+    const dialog = screen.getByRole("dialog", { name: "Nestory navigation" });
+    expect(dialog.className).toContain("sm:max-w-none");
+
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("dialog", { name: "Nestory navigation" })).toBeNull();

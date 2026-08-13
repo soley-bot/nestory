@@ -74,7 +74,7 @@ export function LandingHeader({ tone = "page" }: { tone?: "hero" | "page" }) {
       </header>
 
       <DialogContent
-        className="inset-0 left-0 top-0 h-svh w-screen max-w-none translate-x-0 translate-y-0 gap-0 rounded-none bg-[#090a0c] p-0 text-white ring-0"
+        className="inset-0 left-0 top-0 h-svh w-screen max-w-none translate-x-0 translate-y-0 gap-0 rounded-none bg-[#090a0c] p-0 text-white ring-0 sm:max-w-none"
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">Nestory navigation</DialogTitle>
