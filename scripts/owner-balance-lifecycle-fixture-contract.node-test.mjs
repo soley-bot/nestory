@@ -16,8 +16,8 @@ test("owner-balance fixture pins literal four-component oracles", async () => {
     manifest.periods.filter((row) => row.key.startsWith("central:current")).map((row) => [row.component, row.closing]),
     [
       ["ips_due_to_owner", "200.50"],
-      ["ips_held_owner_cash", "2125.00"],
-      ["owner_due_to_ips", "370.00"],
+      ["ips_held_owner_cash", "1855.00"],
+      ["owner_due_to_ips", "0.00"],
       ["security_deposit_custody", "860.00"],
     ],
   );

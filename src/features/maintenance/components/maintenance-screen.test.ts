@@ -5,7 +5,7 @@ import {
   MAINTENANCE_ATTENTION_FILTER_OPTIONS,
   MAINTENANCE_PRIORITY_FILTER_OPTIONS,
   MAINTENANCE_STATUS_FILTER_OPTIONS,
-} from "@/features/maintenance/components/maintenance-screen";
+} from "@/features/maintenance/maintenance-screen-model";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
 
 describe("maintenance screen report links", () => {

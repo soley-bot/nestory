@@ -58,6 +58,14 @@ import type {
   TenantInvoiceSettlement,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
+import {
+  categoryLabel,
+  expenseStatusPresentation,
+  formatEvidenceSize,
+  getInvoiceStatusPresentation,
+  getRentGenerationLabel,
+  maintenanceStatusLabel,
+} from "@/features/finance-operations/finance-operations-view-model";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
@@ -2763,16 +2771,6 @@ function getDrawerTitle(drawer: DrawerState) {
   return "Record paid cost";
 }
 
-function formatEvidenceSize(sizeBytes: number) {
-  if (sizeBytes < 1024) return `${sizeBytes} bytes`;
-  return `${(sizeBytes / 1024).toFixed(1)} KB`;
-}
-function maintenanceStatusLabel(status: string) {
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
 function useSuccess(
   state: FinanceOperationsActionState,
   onSuccess: (message: string) => void,
@@ -2788,24 +2786,14 @@ function useStableActionId(prefix: string) {
 function stableId(prefix: string) {
   return `${prefix}-${globalThis.crypto.randomUUID()}`;
 }
-function categoryLabel(category: string) {
-  return category === "repairs_maintenance"
-    ? "Repairs and Maintenance"
-    : category.charAt(0).toUpperCase() + category.slice(1);
-}
-
 function expenseStatusLabel(status: ExpenseSubmissionSummary["status"]) {
-  if (status === "submitted") return "Awaiting approval";
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return expenseStatusPresentation(status).label;
 }
 
 function expenseStatusTone(
   status: ExpenseSubmissionSummary["status"],
 ): "danger" | "neutral" | "success" | "warning" {
-  if (status === "approved") return "success";
-  if (status === "rejected") return "danger";
-  if (status === "reversed") return "neutral";
-  return "warning";
+  return expenseStatusPresentation(status).tone;
 }
 
 function formatLeaseMonth(value: string) {
@@ -2821,15 +2809,6 @@ function getPreviousBusinessMonthValue() {
   return new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
 }
 
-function getRentGenerationLabel(
-  source: TenantInvoiceSummary["generationSource"],
-) {
-  if (source === "manual_recovery") return "Recovered by Super Admin";
-  if (source === "scheduled" || source === "activation_catch_up") {
-    return "Generated automatically";
-  }
-  return "Existing invoice";
-}
 
 function CompactTotals({
   items,
@@ -2936,47 +2915,14 @@ function StatusBadge({
   settlements?: TenantInvoiceSummary["settlements"];
   status: string;
 }) {
-  const activeSettlementDates = settlements
-    .filter((settlement) => !settlement.isReversed)
-    .map((settlement) => settlement.date)
-    .sort();
-  const paidLate =
-    status === "paid" &&
-    dueDate !== undefined &&
-    activeSettlementDates.at(-1) !== undefined &&
-    activeSettlementDates.at(-1)! > dueDate;
-  const overdue =
-    (status === "unpaid" || status === "partly_paid") &&
-    dueDate !== undefined &&
-    dueDate < getBusinessDateValue();
-  const label =
-    paidLate
-      ? "Paid late"
-      : overdue && status === "partly_paid"
-        ? "Partly paid · overdue"
-        : overdue
-          ? "Overdue"
-          : status === "partly_paid"
-            ? "Partly paid"
-            : status === "paid"
-              ? "Paid"
-              : status === "voided"
-                ? "Voided"
-                : "Unpaid";
+  const presentation = getInvoiceStatusPresentation({
+    businessDate: getBusinessDateValue(),
+    dueDate,
+    settlements,
+    status,
+  });
   return (
-    <Badge
-      tone={
-        status === "paid"
-          ? "success"
-          : status === "partly_paid"
-            ? "warning"
-            : status === "voided"
-              ? "neutral"
-              : "danger"
-      }
-    >
-      {label}
-    </Badge>
+    <Badge tone={presentation.tone}>{presentation.label}</Badge>
   );
 }
 function Field({ children, label }: { children: ReactNode; label: string }) {

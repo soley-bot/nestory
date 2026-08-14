@@ -344,7 +344,7 @@ function renderEnterpriseEvidence({
     "",
     "- Machine-readable matrix: `artifacts/enterprise-frontend-redesign/route-role-state-acceptance-matrix.json`.",
     "- Detailed human-readable route matrix: `docs/verification/ui-redesign-evidence.md`.",
-    "- Executable route contract: `config/ui-route-coverage.json`; all 47 routes have source, surface, roles, states, expected access, query behavior, workflow evidence, and explicit limitations.",
+    `- Executable route contract: \`config/ui-route-coverage.json\`; all ${manifest.length} routes have source, surface, roles, states, expected access, query behavior, workflow evidence, and explicit limitations.`,
     "- Complete viewports per theme: desktop 1440x900, laptop 1280x800, compact desktop 1024x768, and phone 390x844.",
     "- The 200% audit verifies reflow, overflow, keyboard reachability, focus visibility, and essential work-surface access at the 720x450 CSS layout viewport produced by zooming 1440x900 to 200%; the owner-opening authority surface additionally passed measured 200% root-font text.",
     "- Reduced-motion CSS and interaction contracts, semantic component tests, live-region/error association tests, and serious/critical axe scans passed in both themes.",

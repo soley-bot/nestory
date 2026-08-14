@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { chromium } from "playwright";
@@ -15,14 +15,14 @@ import {
   fixtureRoleEmails,
   validateDiscoverabilityEvidence,
 } from "./smoke-authenticated-route-discoverability-core.mjs";
+import { loadRouteRegistry } from "./route-registry-core.mjs";
 
 const projectRoot = process.cwd();
-const contract = JSON.parse(
-  await readFile(
-    resolve(projectRoot, "config/authenticated-route-discoverability.json"),
-    "utf8",
-  ),
-);
+const registry = await loadRouteRegistry({ projectRoot });
+if (registry.issues.length > 0) {
+  throw new Error(`Invalid route registry:\n${registry.issues.join("\n")}`);
+}
+const contract = registry.authenticated;
 const plan = buildDiscoverabilityPlan(contract);
 const baseUrl = validateLocalBaseUrl(
   process.env.NESTORY_BASE_URL ?? "http://localhost:3000",

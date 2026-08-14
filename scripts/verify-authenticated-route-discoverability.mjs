@@ -8,15 +8,10 @@ import {
   buildDeniedGlobalEntryChecks,
   validateDiscoverabilityEvidence,
 } from "./smoke-authenticated-route-discoverability-core.mjs";
+import { loadRouteRegistry } from "./route-registry-core.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dashboardRoot = join(projectRoot, "src", "app", "(dashboard)");
-const contractPath = join(
-  projectRoot,
-  "config",
-  "authenticated-route-discoverability.json",
-);
-const uiCoveragePath = join(projectRoot, "config", "ui-route-coverage.json");
 const reportPath = join(
   projectRoot,
   "docs",
@@ -51,11 +46,11 @@ const classifications = new Set([
   "inaccessible",
 ]);
 
-const contractText = await readFile(contractPath, "utf8");
-const contract = JSON.parse(contractText);
-const uiCoverage = JSON.parse(await readFile(uiCoveragePath, "utf8"));
+const registry = await loadRouteRegistry({ projectRoot });
+const contract = registry.authenticated;
+const uiCoverage = registry.routes;
 const contractHash = createHash("sha256")
-  .update(`${JSON.stringify(contract)}\n`)
+  .update(`${JSON.stringify({ contract, uiCoverage })}\n`)
   .digest("hex");
 
 if (process.argv.includes("--write-report")) {
@@ -80,6 +75,7 @@ if (process.argv.includes("--write-report")) {
 }
 
 const issues = [];
+issues.push(...registry.issues);
 const pageSources = await findPageSources(dashboardRoot);
 const dashboardRoutes = new Map(
   pageSources.map((source) => [normalizeDashboardRoute(source), source]),

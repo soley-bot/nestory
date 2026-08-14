@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolve as resolvePath } from "node:path";
 
-const repositoryRoot = resolvePath(fileURLToPath(new URL("..", import.meta.url)));
+const repositoryRoot = resolvePath(fileURLToPath(new URL("../..", import.meta.url)));
 
 export async function resolve(specifier, context, nextResolve) {
   if (specifier.startsWith("@/")) {

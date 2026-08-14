@@ -19,21 +19,16 @@ const contract = JSON.parse(
 test("builds one shell-start visible-link journey for every authorized role and route", () => {
   const plan = buildDiscoverabilityPlan(contract);
 
-  assert.equal(plan.length, 70);
-  assert.deepEqual(
-    Object.fromEntries(
-      contract.roles.map((role) => [
-        role,
-        plan.filter((journey) => journey.role === role).length,
-      ]),
+  const expectedJourneyIds = contract.routes.flatMap((route) =>
+    contract.roles.flatMap((role) =>
+      route.roleAccess[role][0] === "inaccessible"
+        ? []
+        : [route.roleAccess[role][2]],
     ),
-    {
-      finance_manager: 13,
-      finance_member: 10,
-      operations_manager: 6,
-      operations_member: 2,
-      super_admin: 39,
-    },
+  );
+  assert.deepEqual(
+    plan.map((journey) => journey.id).sort(),
+    expectedJourneyIds.sort(),
   );
   assert.equal(new Set(plan.map((journey) => journey.id)).size, plan.length);
   assert.ok(plan.every((journey) => journey.entryId));

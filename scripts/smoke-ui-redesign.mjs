@@ -1376,7 +1376,7 @@ function renderEvidenceDocument(summary) {
     "## Information-discipline evidence",
     "",
     "- The product-owner contract no longer imposes a paragraph-free rule or a mandatory route-by-route copy-disposition gate on Finance and owner-balance surfaces.",
-    "- The completed supplemental review in `config/enterprise-frontend-content-review.json` still covers all 47 manifest routes and preserves concise safety, permission, consequence, recovery, and accessibility guidance.",
+    `- The completed supplemental review in \`config/enterprise-frontend-content-review.json\` still covers all ${manifest.length} manifest routes and preserves concise safety, permission, consequence, recovery, and accessibility guidance.`,
     "- Automated copy lint remains a regression guard; contextual product review, workflow acceptance, and financial auditability determine whether explanatory or technical detail is appropriate.",
     "",
     "## Keyboard, zoom, and state evidence",
