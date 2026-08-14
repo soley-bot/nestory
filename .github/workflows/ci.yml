@@ -85,7 +85,30 @@ jobs:
 
       - name: Verify generated database types
         run: |
-          npm run db:types
+          max_attempts=4
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            error_log=$(mktemp)
+
+            if npm run db:types 2>"$error_log"; then
+              rm -f "$error_log"
+              break
+            else
+              status=$?
+            fi
+
+            cat "$error_log" >&2
+
+            if ! grep -Eqi 'toomanyrequests|rate exceeded' "$error_log" || [ "$attempt" -eq "$max_attempts" ]; then
+              rm -f "$error_log"
+              exit "$status"
+            fi
+
+            rm -f "$error_log"
+            echo "Supabase image pull was rate-limited; retrying type generation ($attempt/$max_attempts)." >&2
+            sleep $((attempt * 10))
+          done
+
           git diff --exit-code -- src/types/database.generated.ts
 
       - name: Load database test baseline
