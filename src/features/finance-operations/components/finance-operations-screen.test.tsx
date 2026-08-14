@@ -710,7 +710,9 @@ describe("FinanceOperationsScreen", () => {
         .getAttribute("href"),
     ).toBe("/properties/property-1/account");
     expect(screen.queryByRole("button", { name: "Owner invoice payment" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Owner distribution" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Record owner distribution" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "More" })).toBeNull();
     await user.click(screen.getByRole("tab", { name: "Tenants & companies" }));
     expect(screen.getByText("Partly paid")).not.toBeNull();
@@ -724,8 +726,12 @@ describe("FinanceOperationsScreen", () => {
         view="balances"
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Owner distribution" }));
-    const dialog = screen.getByRole("dialog", { name: "Owner distribution" });
+    await user.click(
+      screen.getByRole("button", { name: "Record owner distribution" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Record owner distribution",
+    });
     expect(
       dialog.querySelector<HTMLInputElement>('input[name="ownerPersonId"]')?.value,
     ).toBe("person-owner");
@@ -804,12 +810,14 @@ describe("FinanceOperationsScreen", () => {
       {
         amount: 780,
         category: "rent_income",
+        createdAt: "2026-08-05T08:00:00Z",
         date: "2026-08-05",
         id: "entry-1",
         label: "Rent income",
         note: "August rent",
         propertyId: "property-1",
         runningBalance: 780,
+        sourceType: "tenant_invoice_payment",
       },
     ];
 
@@ -826,6 +834,183 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.getByRole("region", { name: "Property account activity" }),
     ).not.toBeNull();
+  });
+
+  it("orders same-day account entries by their balance calculation sequence", () => {
+    const input = data();
+    input.accountEntries = [
+      {
+        amount: 100,
+        category: "rent_income",
+        createdAt: "2026-08-13T09:00:00Z",
+        date: "2026-08-13",
+        id: "rent-1",
+        label: "Rent received first",
+        note: "Collected by IPS",
+        propertyId: "property-1",
+        runningBalance: 100,
+        sourceType: "tenant_invoice_payment",
+      },
+      {
+        amount: 50,
+        category: "owner_expense",
+        createdAt: "2026-08-13T10:00:00Z",
+        date: "2026-08-13",
+        id: "expense-1",
+        label: "Cleaning recorded later",
+        note: "Vendor",
+        propertyId: "property-1",
+        runningBalance: 50,
+        sourceType: "ips_expense_responsibility",
+      },
+    ] as FinanceOperationsData["accountEntries"];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        selectedPropertyId="property-1"
+        view="account"
+      />,
+    );
+
+    const rows = screen.getAllByRole("row").map((row) => row.textContent ?? "");
+    expect(rows.findIndex((row) => row.includes("Cleaning recorded later"))).toBeLessThan(
+      rows.findIndex((row) => row.includes("Rent received first")),
+    );
+  });
+
+  it("separates account money in from money out with semantic color", () => {
+    const input = data();
+    input.accountEntries = [
+      {
+        amount: 825,
+        category: "rent_income",
+        createdAt: "2026-08-13T09:00:00Z",
+        date: "2026-08-13",
+        id: "rent-1",
+        label: "Rent",
+        note: "Collected by IPS",
+        propertyId: "property-1",
+        runningBalance: 1000,
+        sourceType: "tenant_invoice_payment",
+      },
+      {
+        amount: 125,
+        category: "owner_expense",
+        createdAt: "2026-08-12T09:00:00Z",
+        date: "2026-08-12",
+        id: "expense-1",
+        label: "Repairs and maintenance",
+        note: "Khmer Home Services",
+        propertyId: "property-1",
+        runningBalance: 175,
+        sourceType: "ips_expense_responsibility",
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        selectedPropertyId="property-1"
+        view="account"
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Money in" })).not.toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Money out" })).not.toBeNull();
+    expect(
+      screen.getByRole("columnheader", { name: "Balance after" }),
+    ).not.toBeNull();
+
+    const rentRow = screen.getByRole("row", {
+      name: /Rent Collected by IPS/,
+    });
+    const rentCells = within(rentRow).getAllByRole("cell");
+    expect(rentCells[2].textContent).toContain("USD 825.00");
+    expect(rentCells[2].querySelector(".text-success")).not.toBeNull();
+    expect(rentCells[3].textContent).toContain("—");
+
+    const expenseRow = screen.getByRole("row", {
+      name: /Repairs and maintenance Khmer Home Services/,
+    });
+    const expenseCells = within(expenseRow).getAllByRole("cell");
+    expect(expenseCells[2].textContent).toContain("—");
+    expect(expenseCells[3].textContent).toContain("USD 125.00");
+    expect(expenseCells[3].querySelector(".text-destructive")).not.toBeNull();
+    expect(expenseCells[3].textContent).not.toContain("-");
+  });
+
+  it("distinguishes the owner balance from cash available to distribute", async () => {
+    const user = userEvent.setup();
+    const input = data();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordOwnerCash: true })}
+        organizationName="Sokha Property Services"
+        selectedPropertyId="property-1"
+        view="account"
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Property account" }),
+    ).not.toBeNull();
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(
+      within(breadcrumb).getByRole("link", { name: "Properties" }).getAttribute("href"),
+    ).toBe("/properties");
+    expect(
+      within(breadcrumb)
+        .getByRole("link", { name: "HOME — Riverside Home" })
+        .getAttribute("href"),
+    ).toBe("/properties/property-1");
+    expect(within(breadcrumb).getByText("Account")).not.toBeNull();
+
+    const summary = screen.getByRole("region", { name: "Account position" });
+    expect(within(summary).getByText("Owner balance")).not.toBeNull();
+    expect(
+      within(summary).getByText("Income minus owner costs and distributions"),
+    ).not.toBeNull();
+    expect(within(summary).getByText("Cash available")).not.toBeNull();
+    expect(
+      within(summary).getByText("Cash held here and ready to distribute"),
+    ).not.toBeNull();
+    expect(within(summary).queryByText("Running balance")).toBeNull();
+    expect(within(summary).queryByText("Owner funds held")).toBeNull();
+    expect(within(summary).queryByText("Owner amount due")).toBeNull();
+
+    const action = within(summary).getByRole("button", {
+      name: "Record owner distribution",
+    });
+    await user.click(action);
+    expect(
+      screen.getByRole("dialog", { name: "Record owner distribution" }),
+    ).not.toBeNull();
+  });
+
+  it("surfaces a nonzero owner amount due as an account warning", () => {
+    const input = data();
+    input.positions[0].ownerOwesIps = 125;
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        selectedPropertyId="property-1"
+        view="account"
+      />,
+    );
+
+    const warning = screen.getByRole("status", { name: "Owner amount due" });
+    expect(within(warning).getByText("Owner amount due")).not.toBeNull();
+    expect(within(warning).getByText("USD 125.00")).not.toBeNull();
   });
 });
 

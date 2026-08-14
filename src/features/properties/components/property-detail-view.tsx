@@ -6,79 +6,83 @@ import type { ReactNode } from "react";
 import {
   Building2,
   CalendarDays,
-  ExternalLink,
   FileText,
-  Landmark,
-  ListTree,
+  Plus,
   ScrollText,
   UserRound,
   Wrench,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PhotoGallery } from "@/features/photos/components/photo-gallery";
 import { PropertyUnitsTable } from "@/features/properties/components/property-units-table";
 import type {
   PropertyDetail,
   PropertyDetailLease,
   PropertyDocumentContext,
-  PropertyLedgerContext,
   PropertyMaintenanceContext,
   PropertyOwnerHistory,
-  PropertyTimelineContext,
 } from "@/features/properties/data/property-detail";
 import type { RecentChange } from "@/features/activity/activity.types";
 import {
   buildReportBuilderHref,
-  reportCatalog,
   type CurrentReportKind,
 } from "@/features/reports/report-catalog";
-import { getBusinessMonthValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
 
-type PropertyRecordSection =
+export type PropertyRecordSection =
   | "overview"
-  | "photos"
   | "units"
-  | "finance"
+  | "account"
   | "maintenance"
-  | "documents"
-  | "reports"
-  | "timeline";
+  | "files";
+
+type PropertyLocalSection = Exclude<PropertyRecordSection, "account">;
 
 const propertyRecordSections: Array<{
   id: PropertyRecordSection;
   label: string;
 }> = [
   { id: "overview", label: "Overview" },
-  { id: "photos", label: "Photos" },
   { id: "units", label: "Units" },
-  { id: "finance", label: "Finance" },
+  { id: "account", label: "Account" },
   { id: "maintenance", label: "Maintenance" },
-  { id: "documents", label: "Documents" },
-  { id: "reports", label: "Reports" },
-  { id: "timeline", label: "Timeline" },
+  { id: "files", label: "Files" },
 ];
 
-export function PropertyDetailView({ property }: { property: PropertyDetail }) {
+export function PropertyDetailView({
+  initialSection = "overview",
+  onAddUnit,
+  property,
+}: {
+  initialSection?: PropertyLocalSection;
+  onAddUnit: () => void;
+  property: PropertyDetail;
+}) {
   const [activeSection, setActiveSection] =
-    useState<PropertyRecordSection>("overview");
-  const reportMonth = getBusinessMonthValue();
+    useState<PropertyLocalSection>(initialSection);
 
   return (
-    <div className="workspace-gutter-x flex flex-col gap-5 py-4 lg:flex-1">
-      <PropertyRecordNav
+    <div
+      className="workspace-gutter-x flex flex-col gap-5 px-4 py-4 sm:px-6 lg:flex-1 2xl:px-8"
+      data-slot="property-record-workspace"
+    >
+      <PropertyRecordNavigation
         activeSection={activeSection}
+        accountHref={property.hrefs.account}
+        openMaintenanceCount={property.counts.openMaintenanceCases}
         onSectionChange={setActiveSection}
+        propertyId={property.id}
       />
 
       <div className="flex-1">
         <PropertyRecordPanel
           activeSection={activeSection}
+          onAddUnit={onAddUnit}
           property={property}
-          reportMonth={reportMonth}
         />
       </div>
     </div>
@@ -87,14 +91,14 @@ export function PropertyDetailView({ property }: { property: PropertyDetail }) {
 
 function PropertyRecordPanel({
   activeSection,
+  onAddUnit,
   property,
-  reportMonth,
 }: {
-  activeSection: PropertyRecordSection;
+  activeSection: PropertyLocalSection;
+  onAddUnit: () => void;
   property: PropertyDetail;
-  reportMonth: string;
 }) {
-  const content = getPropertyRecordPanelContent({ activeSection, property, reportMonth });
+  const content = getPropertyRecordPanelContent({ activeSection, onAddUnit, property });
 
   return (
     <div
@@ -110,38 +114,41 @@ function PropertyRecordPanel({
 
 function getPropertyRecordPanelContent({
   activeSection,
+  onAddUnit,
   property,
-  reportMonth,
 }: {
-  activeSection: PropertyRecordSection;
+  activeSection: PropertyLocalSection;
+  onAddUnit: () => void;
   property: PropertyDetail;
-  reportMonth: string;
 }) {
-  if (activeSection === "photos") {
-    return (
-      <PhotoGallery
-        emptyLabel="No property photos yet."
-        photos={property.photos}
-        propertyId={property.id}
-        title="Property photos"
-      />
-    );
-  }
-
   if (activeSection === "units") {
     return (
       <section id="property-units">
         <SectionTitle
-          description={`${property.totalUnitCount} unit records`}
+          actions={
+            <Button onClick={onAddUnit} size="sm" variant="outline">
+              <Building2 size={14} />
+              Add unit
+            </Button>
+          }
           icon={<Building2 size={16} />}
           title="Units"
         />
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-3 text-sm">
+          <p className="font-medium">
+            {formatUnitOperationalSummary(property)}
+          </p>
+          <p className="flex items-baseline gap-1.5 text-muted-foreground">
+            <MoneyDisplay value={property.monthlyRentDisplay} />
+            <span className="text-xs">monthly rent</span>
+          </p>
+        </div>
         <div className="pt-4">
           {property.unitsList.length === 0 ? (
             <EmptyBlock
-              actionHref={property.hrefs.addUnit}
               actionLabel="Add unit"
               label="Property-only record. There are no units attached."
+              onAction={onAddUnit}
             />
           ) : (
             <PropertyUnitsTable units={property.unitsList} />
@@ -151,84 +158,31 @@ function getPropertyRecordPanelContent({
     );
   }
 
-  if (activeSection === "finance") {
-    return (
-      <>
-        <section id="property-finance">
-          <SectionTitle
-            description={property.financialSummary.periodLabel}
-            icon={<Landmark size={16} />}
-            title="Property performance"
-          />
-          <dl
-            aria-label="Financial summary"
-            className="grid gap-4 pt-4 sm:grid-cols-2 xl:grid-cols-4"
-          >
-            <Metric
-              label="Revenue"
-              value={<MoneyDisplay size="large" value={property.financialSummary.incomeDisplay} />}
-            />
-            <Metric
-              label="Expenses"
-              value={<MoneyDisplay size="large" value={property.financialSummary.expenseDisplay} />}
-            />
-            <Metric
-              label="NOI"
-              note={property.financialSummary.marginLabel}
-              value={<MoneyDisplay size="large" value={property.financialSummary.noiDisplay} />}
-            />
-            <Metric
-              label="Repair cost"
-              value={
-                <MoneyDisplay
-                  size="large"
-                  value={property.financialSummary.maintenanceExpenseDisplay}
-                />
-              }
-            />
-          </dl>
-        </section>
-
-        <section id="property-ledger">
-          <SectionTitle
-            description={`${property.counts.ledgerEntries} active ledger rows`}
-            icon={<Landmark size={16} />}
-            title="Ledger history"
-          />
-          <div className="divide-y divide-border">
-            {property.recentLedgerEntries.length === 0 ? (
-              <EmptyRow
-                actionHref={property.hrefs.addLedgerEntry}
-                actionLabel="Add ledger entry"
-                label="No property ledger entries yet."
-              />
-            ) : null}
-            {property.recentLedgerEntries.map((entry) => (
-              <LedgerRow entry={entry} key={entry.id} />
-            ))}
-          </div>
-        </section>
-      </>
-    );
-  }
-
   if (activeSection === "maintenance") {
     return (
       <section id="property-maintenance">
         <SectionTitle
-          description={`${property.counts.openMaintenanceCases ?? 0} open / ${
-            property.counts.overdueMaintenanceCases ?? 0
-          } overdue`}
+          actions={
+            <>
+              <span className="text-xs text-muted-foreground">
+                {property.counts.openMaintenanceCases ?? 0} open · {property.counts.overdueMaintenanceCases ?? 0} overdue
+              </span>
+              <ActionLink
+                href={property.hrefs.addMaintenanceCase}
+                icon={<Plus size={14} />}
+              >
+                New case
+              </ActionLink>
+            </>
+          }
           icon={<Wrench size={16} />}
-          title="Maintenance cases"
+          title="Maintenance"
         />
         <div className="divide-y divide-border">
           {property.recentMaintenanceCases.length === 0 ? (
-            <EmptyRow
-              actionHref={property.hrefs.addMaintenanceCase}
-              actionLabel="New case"
-              label="No property maintenance cases yet."
-            />
+            <p className="py-6 text-sm text-muted-foreground">
+              No maintenance cases yet.
+            </p>
           ) : null}
           {property.recentMaintenanceCases.map((maintenanceCase) => (
             <MaintenanceRow key={maintenanceCase.id} maintenanceCase={maintenanceCase} />
@@ -238,91 +192,64 @@ function getPropertyRecordPanelContent({
     );
   }
 
-  if (activeSection === "timeline") {
+  if (activeSection === "files") {
     return (
-      <section id="property-timeline">
-        <SectionTitle
-          description={`${property.counts.timelineEvents} active timeline records`}
-          icon={<ListTree size={16} />}
-          title="Timeline history"
+      <>
+        <PhotoGallery
+          emptyLabel="No photos yet."
+          photos={property.photos}
+          propertyId={property.id}
+          title="Photos"
         />
-        <div className="divide-y divide-border">
-          {property.recentTimelineEvents.length === 0 ? (
-            <EmptyRow
-              actionHref={property.hrefs.addTimelineEvent}
-              actionLabel="Add timeline event"
-              label="No property timeline events yet."
-            />
-          ) : null}
-          {property.recentTimelineEvents.map((event) => (
-            <TimelineRow event={event} key={event.id} />
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  if (activeSection === "documents") {
-    return (
-      <section id="property-documents">
-        <SectionTitle
-          description={`${property.counts.documents} active evidence records`}
-          icon={<FileText size={16} />}
-          title="Documents and evidence"
-        />
-        <div className="divide-y divide-border">
-          {property.documents.length === 0 ? (
-            <EmptyRow
-              actionHref={property.hrefs.documents}
-              actionLabel="Open documents"
-              label="No property-scoped evidence or receipts yet."
-            />
-          ) : null}
-          {property.documents.map((document) => (
-            <DocumentRow document={document} key={document.id} />
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  if (activeSection === "reports") {
-    return (
-      <section id="property-reports">
-        <PropertyReportsPanel property={property} reportMonth={reportMonth} />
-      </section>
+        <section id="property-documents">
+          <SectionTitle
+            actions={
+              <ActionLink href={property.hrefs.addDocument} icon={<FileText size={14} />}>
+                Add document
+              </ActionLink>
+            }
+            icon={<FileText size={16} />}
+            title="Documents"
+          />
+          <div className="divide-y divide-border">
+            {property.documents.length === 0 ? (
+              <p className="py-5 text-sm text-muted-foreground">No documents yet.</p>
+            ) : null}
+            {property.documents.map((document) => (
+              <DocumentRow document={document} key={document.id} />
+            ))}
+          </div>
+        </section>
+      </>
     );
   }
 
   return (
     <>
       <section id="property-overview">
-        <div className="min-w-0">
-          <h2 className="break-words text-base font-semibold">Property context</h2>
-          <p className="mt-1 break-words text-sm text-muted-foreground">{property.address}</p>
+        <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:gap-3">
+          <p className="break-words text-foreground">{property.address}</p>
+          <span className="hidden text-border sm:inline" aria-hidden="true">
+            /
+          </span>
+          <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+            <UserRound aria-hidden="true" size={14} />
+            <span className="break-words">{property.owner}</span>
+          </p>
         </div>
 
-        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
-          <Detail label="Code" value={property.code} />
-          <Detail label="Type" value={property.type} />
-          <Detail label="Owner" value={property.owner}>
-            <UserRound size={14} />
-          </Detail>
-          <Detail label="Units" value={property.unitSummary} />
-          <Detail label="Net income" moneyValue={property.netIncome} />
-          <Detail
-            label="Records"
-            value={`${property.counts.ledgerEntries} ledger / ${property.counts.timelineEvents} timeline / ${property.counts.maintenanceCases ?? 0} maintenance / ${property.counts.documents} docs`}
-          />
-          <Detail label="Photos" value={String(property.counts.photos)} />
+        <dl
+          aria-label="Property summary"
+          className="mt-4 grid grid-cols-1 divide-y divide-border border-y border-border py-3 text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+        >
+          <Detail label="Occupancy" value={property.unitSummary} />
           <Detail label="Active leases" value={String(property.counts.activeLeases)} />
-          <Detail label="Notes" value={property.notesLabel} />
+          <Detail label="Net income" moneyValue={property.netIncome} />
         </dl>
       </section>
 
       <section id="property-ownership">
         <SectionTitle
-          description={`${property.activeLeases.length} current lease links`}
           icon={<ScrollText size={16} />}
           title="Owners and leases"
         />
@@ -389,12 +316,18 @@ function getPropertyRecordPanelContent({
   );
 }
 
-function PropertyRecordNav({
+export function PropertyRecordNavigation({
+  accountHref,
   activeSection,
+  openMaintenanceCount = 0,
   onSectionChange,
+  propertyId,
 }: {
+  accountHref?: string;
   activeSection: PropertyRecordSection;
-  onSectionChange: (section: PropertyRecordSection) => void;
+  openMaintenanceCount?: number;
+  onSectionChange?: (section: PropertyLocalSection) => void;
+  propertyId: string;
 }) {
   return (
     <nav
@@ -402,68 +335,66 @@ function PropertyRecordNav({
       className="overflow-x-auto border-b border-border"
     >
       <div className="flex min-w-max items-center gap-1" role="tablist">
-        {propertyRecordSections.map((item) => (
-          <button
-            aria-controls={
-              activeSection === item.id ? `property-panel-${item.id}` : undefined
-            }
-            aria-selected={activeSection === item.id}
-            className={cn(
-              "inline-flex h-9 items-center border-b-2 border-transparent px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-              activeSection === item.id && "border-primary text-foreground",
-            )}
-            id={`property-tab-${item.id}`}
-            key={item.id}
-            onClick={() => onSectionChange(item.id)}
-            role="tab"
-            type="button"
-          >
-            {item.label}
-          </button>
-        ))}
+        {propertyRecordSections.map((item) => {
+          const href =
+            item.id === "account"
+              ? accountHref ?? `/properties/${propertyId}/account`
+              : item.id === "overview"
+                ? `/properties/${propertyId}`
+                : `/properties/${propertyId}?section=${item.id}`;
+          const className = cn(
+            "inline-flex h-9 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+            activeSection === item.id && "border-primary text-foreground",
+          );
+          const label = (
+            <>
+              {item.label}
+              {item.id === "maintenance" && openMaintenanceCount > 0 ? (
+                <span className="rounded-full bg-warning-soft px-1.5 py-0.5 text-[10px] leading-none text-warning">
+                  {openMaintenanceCount} open
+                </span>
+              ) : null}
+            </>
+          );
+
+          if (item.id === "account" || !onSectionChange) {
+            return (
+              <Link
+                aria-selected={activeSection === item.id}
+                className={className}
+                href={href}
+                id={`property-tab-${item.id}`}
+                key={item.id}
+                prefetch={false}
+                role="tab"
+              >
+                {label}
+              </Link>
+            );
+          }
+
+          return (
+            <button
+              aria-controls={
+                activeSection === item.id ? `property-panel-${item.id}` : undefined
+              }
+              aria-selected={activeSection === item.id}
+              className={className}
+              id={`property-tab-${item.id}`}
+              key={item.id}
+              onClick={() => {
+                onSectionChange(item.id as PropertyLocalSection);
+                window.history.pushState(null, "", href);
+              }}
+              role="tab"
+              type="button"
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
     </nav>
-  );
-}
-
-function PropertyReportsPanel({
-  property,
-  reportMonth,
-}: {
-  property: PropertyDetail;
-  reportMonth: string;
-}) {
-  return (
-    <>
-      <SectionTitle
-        description="Monthly owner activity and unit profit and loss"
-        icon={<FileText size={16} />}
-        title="Reports"
-      />
-      <div className="grid gap-2 p-4 md:grid-cols-2">
-        {reportCatalog.map((statement) => (
-          <Link
-            className="group flex min-h-32 flex-col rounded-md border border-border bg-card p-3 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-            href={buildPropertyStatementHref(
-              property.id,
-              statement.kind,
-              reportMonth,
-            )}
-            key={statement.kind}
-            prefetch={false}
-          >
-            <h3 className="text-sm font-semibold">{statement.title}</h3>
-            <p className="mt-1 text-sm leading-5 text-muted-foreground">
-              {statement.description}
-            </p>
-            <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-xs font-medium text-foreground">
-              Open report
-              <ExternalLink aria-hidden="true" size={13} />
-            </span>
-          </Link>
-        ))}
-      </div>
-    </>
   );
 }
 
@@ -478,6 +409,18 @@ export function buildPropertyStatementHref(
   });
 
   return buildReportBuilderHref(report, params);
+}
+
+function formatUnitOperationalSummary(property: PropertyDetail) {
+  const activeUnits = property.unitsList.filter((unit) => !unit.isArchived);
+  const occupiedUnits = activeUnits.filter(
+    (unit) => unit.occupancy.toLowerCase() === "occupied",
+  ).length;
+  const vacantUnits = activeUnits.filter(
+    (unit) => unit.occupancy.toLowerCase() === "vacant",
+  ).length;
+
+  return `${activeUnits.length} ${activeUnits.length === 1 ? "unit" : "units"} · ${occupiedUnits} occupied · ${vacantUnits} vacant`;
 }
 
 function ActionLink({
@@ -508,55 +451,34 @@ function ActionLink({
 }
 
 function Detail({
-  children,
   label,
   moneyValue,
   value,
 }: {
-  children?: ReactNode;
   label: string;
   moneyValue?: MoneyDisplayValue;
   value?: string;
 }) {
   return (
-    <div className="min-w-0">
-      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
-        {children}
+    <div className="min-w-0 py-3 first:pt-0 last:pb-0 sm:px-4 sm:py-0 sm:first:pl-0 sm:last:pr-0">
+      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </dt>
-      <dd className="mt-1 break-words font-medium">
+      <dd className="mt-1 break-words text-lg font-semibold">
         {moneyValue ? <MoneyDisplay value={moneyValue} /> : value}
       </dd>
     </div>
   );
 }
 
-function Metric({
-  label,
-  note,
-  value,
-}: {
-  label: string;
-  note?: string;
-  value: ReactNode;
-}) {
-  return (
-    <div className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
-      <dt className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="mt-2">{value}</dd>
-      {note ? <dd className="mt-2 text-xs text-muted-foreground">{note}</dd> : null}
-    </div>
-  );
-}
-
 function SectionTitle({
+  actions,
   description,
   icon,
   title,
 }: {
-  description: string;
+  actions?: ReactNode;
+  description?: string;
   icon: ReactNode;
   title: string;
 }) {
@@ -566,7 +488,11 @@ function SectionTitle({
         <span className="text-muted-foreground">{icon}</span>
         <h2 className="text-sm font-semibold">{title}</h2>
       </div>
-      <p className="text-xs text-muted-foreground">{description}</p>
+      {actions ? (
+        <div className="flex flex-wrap items-center gap-2">{actions}</div>
+      ) : description ? (
+        <p className="text-xs text-muted-foreground">{description}</p>
+      ) : null}
     </div>
   );
 }
@@ -575,36 +501,26 @@ function EmptyBlock({
   actionHref,
   actionLabel,
   label,
+  onAction,
 }: {
-  actionHref: string;
+  actionHref?: string;
   actionLabel: string;
   label: string;
+  onAction?: () => void;
 }) {
   return (
     <div className="rounded-md border border-border bg-muted/60 p-3 text-sm">
       <p className="text-muted-foreground">{label}</p>
-      <ActionLink className="mt-3" href={actionHref} icon={<FileText size={14} />}>
-        {actionLabel}
-      </ActionLink>
-    </div>
-  );
-}
-
-function EmptyRow({
-  actionHref,
-  actionLabel,
-  label,
-}: {
-  actionHref: string;
-  actionLabel: string;
-  label: string;
-}) {
-  return (
-    <div className="flex flex-col gap-3 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-muted-foreground">{label}</p>
-      <ActionLink href={actionHref} icon={<FileText size={14} />}>
-        {actionLabel}
-      </ActionLink>
+      {onAction ? (
+        <Button className="mt-3" onClick={onAction} size="sm" variant="outline">
+          <FileText size={14} />
+          {actionLabel}
+        </Button>
+      ) : actionHref ? (
+        <ActionLink className="mt-3" href={actionHref} icon={<FileText size={14} />}>
+          {actionLabel}
+        </ActionLink>
+      ) : null}
     </div>
   );
 }
@@ -612,7 +528,7 @@ function EmptyRow({
 function OwnerRow({ owner }: { owner: PropertyOwnerHistory }) {
   return (
     <Link
-      className="block px-3 py-3 text-sm transition-colors hover:bg-muted"
+      className="block px-3 py-2.5 text-sm transition-colors hover:bg-muted"
       href={owner.href}
       prefetch={false}
     >
@@ -634,7 +550,7 @@ function OwnerRow({ owner }: { owner: PropertyOwnerHistory }) {
 function LeaseRow({ lease }: { lease: PropertyDetailLease }) {
   return (
     <Link
-      className="block px-3 py-3 text-sm transition-colors hover:bg-muted"
+      className="block px-3 py-2.5 text-sm transition-colors hover:bg-muted"
       href={lease.href}
       prefetch={false}
     >
@@ -649,32 +565,6 @@ function LeaseRow({ lease }: { lease: PropertyDetailLease }) {
           <Badge tone="success">{lease.statusLabel}</Badge>
           <MoneyDisplay align="right" value={lease.rentDisplay} />
         </div>
-      </div>
-    </Link>
-  );
-}
-
-function LedgerRow({ entry }: { entry: PropertyLedgerContext }) {
-  return (
-    <Link
-      className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
-      href={entry.href}
-      prefetch={false}
-    >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="break-words font-medium">{entry.category}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            <CalendarDays size={13} />
-            <span>{formatDate(entry.transactionDate)}</span>
-            <Badge tone={entry.direction === "expense" ? "warning" : "success"}>
-              {entry.direction}
-            </Badge>
-            <span aria-hidden="true">/</span>
-            <span>{entry.unitLabel}</span>
-          </div>
-        </div>
-        <MoneyDisplay align="right" value={entry.amountDisplay} />
       </div>
     </Link>
   );
@@ -706,31 +596,6 @@ function MaintenanceRow({
           <span className="text-xs font-medium text-muted-foreground">
             {maintenanceCase.actualCostLabel}
           </span>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function TimelineRow({ event }: { event: PropertyTimelineContext }) {
-  return (
-    <Link
-      className="block px-4 py-3 text-sm transition-colors hover:bg-muted"
-      href={event.href}
-      prefetch={false}
-    >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="break-words font-medium">{event.title}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {formatDate(event.eventDate)} / {event.eventType} / {event.unitLabel}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-          <Badge tone="neutral">{event.eventType}</Badge>
-          {event.costDisplay ? (
-            <MoneyDisplay align="right" value={event.costDisplay} />
-          ) : null}
         </div>
       </div>
     </Link>

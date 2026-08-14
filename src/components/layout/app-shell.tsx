@@ -80,6 +80,19 @@ type GlobalDestinationChild = {
   routes: readonly string[];
 };
 
+const PROPERTIES_CHILDREN = [
+  { href: "/properties", label: "Register", routes: ["/properties"] },
+  { href: "/units", label: "Units", routes: ["/units"] },
+] satisfies readonly GlobalDestinationChild[];
+
+const PEOPLE_CHILDREN = [
+  { href: "/people", label: "Directory", routes: ["/people"] },
+  { href: "/tenants", label: "Tenants", routes: ["/tenants"] },
+  { href: "/owners", label: "Owners", routes: ["/owners"] },
+  { href: "/vendors", label: "Vendors", routes: ["/vendors"] },
+  { href: "/staff", label: "Staff", routes: ["/staff"] },
+] satisfies readonly GlobalDestinationChild[];
+
 const FINANCE_CHILDREN = [
   { href: "/finance", label: "Finance work", routes: ["/finance"] },
   { href: "/rent-income", label: "Rent", routes: ["/rent-income"] },
@@ -132,6 +145,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     routes: ["/overview"],
   },
   {
+    children: PROPERTIES_CHILDREN,
     id: "properties",
     href: "/properties",
     icon: Building2,
@@ -139,6 +153,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     routes: ["/properties", "/units"],
   },
   {
+    children: PEOPLE_CHILDREN,
     id: "people",
     href: "/people",
     icon: UsersRound,
@@ -328,6 +343,9 @@ function DomainDestinationMenuItem({
   const { isMobile, state } = useSidebar();
   const Icon = destination.icon;
   const children = destination.children ?? [];
+  const hasActiveChild = children.some((child) =>
+    childDestinationMatchesPath(pathname, child),
+  );
 
   // Open the domain the operator navigated into, without closing the ones they
   // opened by hand. Adjusting state during render is React's documented answer
@@ -372,11 +390,11 @@ function DomainDestinationMenuItem({
       <SidebarMenuItem>
         <SidebarMenuButton
           asChild
-          isActive={active}
+          isActive={active && !hasActiveChild}
           tooltip={destination.label}
         >
           <Link
-            aria-current={active ? "page" : undefined}
+            aria-current={active && !hasActiveChild ? "page" : undefined}
             href={destination.href}
             prefetch={false}
           >

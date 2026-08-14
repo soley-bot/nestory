@@ -8,10 +8,15 @@ import PropertyNotFound from "./not-found";
 
 type PropertyPageProps = {
   params: Promise<{ propertyId: string }>;
+  searchParams?: Promise<{ section?: string }>;
 };
 
-export default async function PropertyPage({ params }: PropertyPageProps) {
+export default async function PropertyPage({
+  params,
+  searchParams = Promise.resolve({}),
+}: PropertyPageProps) {
   const { propertyId } = await params;
+  const { section } = await searchParams;
   const context = await requireSuperAdminContext();
   const [property, ownerOptions] = await Promise.all([
     getPropertyDetail(context.organizationId, propertyId),
@@ -23,6 +28,16 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
   }
 
   return (
-    <PropertyDetailScreen ownerOptions={ownerOptions} property={property} />
+    <PropertyDetailScreen
+      initialSection={getInitialPropertySection(section)}
+      ownerOptions={ownerOptions}
+      property={property}
+    />
   );
+}
+
+function getInitialPropertySection(section?: string) {
+  return section === "units" || section === "maintenance" || section === "files"
+    ? section
+    : "overview";
 }

@@ -10,6 +10,7 @@ import {
   type PropertySummary,
   type PropertyUnitRecord,
 } from "@/features/properties/data/property-summary";
+import { ACTIVE_UNIT_LEASE_STATUSES } from "@/features/units/data/unit-summary";
 import {
   getAssetPhotosForScope,
   getPropertyPhotoThumbnailUrls,
@@ -61,6 +62,10 @@ type PropertyPersonRow = {
 };
 type PropertyUnitSummaryRow = PropertyUnitRecord & { property_id: string };
 type PropertyLedgerSummaryRow = PropertyLedgerRecord & { property_id: string };
+type PropertyCurrentLeaseSummaryRow = {
+  property_id: string;
+  unit_id: string | null;
+};
 
 const propertySelect =
   "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at";
@@ -181,7 +186,13 @@ async function loadPropertySummariesForRows({
     activeOwnerLinks ?? (await getActiveOwnerLinks(organizationId, propertyIds));
 
   const propertyIdList = [...propertyIds];
-  const [unitRows, ledgerRows, imageRows, photoThumbnailUrls] = await Promise.all([
+  const [
+    unitRows,
+    currentLeaseRows,
+    ledgerRows,
+    imageRows,
+    photoThumbnailUrls,
+  ] = await Promise.all([
     queryValueBatches(propertyIdList, async (batch) => {
       const result = await supabase
         .from("units")
@@ -195,6 +206,24 @@ async function loadPropertySummariesForRows({
       }
 
       return (result.data ?? []) as PropertyUnitSummaryRow[];
+    }),
+    queryValueBatches(propertyIdList, async (batch) => {
+      const result = await supabase
+        .from("current_leases")
+        .select("property_id, unit_id")
+        .eq("organization_id", organizationId)
+        .in("property_id", batch)
+        .in("status", [...ACTIVE_UNIT_LEASE_STATUSES])
+        .not("unit_id", "is", null)
+        .is("archived_at", null);
+
+      if (result.error) {
+        throw new Error(
+          `Could not load current property leases: ${result.error.message}`,
+        );
+      }
+
+      return (result.data ?? []) as PropertyCurrentLeaseSummaryRow[];
     }),
     queryValueBatches(propertyIdList, async (batch) => {
       const result = await supabase
@@ -234,6 +263,7 @@ async function loadPropertySummariesForRows({
   ]);
 
   const unitsByProperty = groupByProperty(unitRows);
+  const currentLeasesByProperty = groupByProperty(currentLeaseRows);
   const ledgerByProperty = groupByProperty(ledgerRows);
   const thumbnailUrls = await getPropertyThumbnailUrls({
     imageRows,
@@ -242,10 +272,16 @@ async function loadPropertySummariesForRows({
 
   return properties.map((property): PropertySummary => {
     const units = unitsByProperty.get(property.id) ?? [];
+    const currentLeaseUnitCount = new Set(
+      (currentLeasesByProperty.get(property.id) ?? []).flatMap((lease) =>
+        lease.unit_id ? [lease.unit_id] : [],
+      ),
+    ).size;
     const ledgerEntries = ledgerByProperty.get(property.id) ?? [];
 
     return buildPropertySummary({
       activeOwner: ownerLinks.get(property.id),
+      currentLeaseUnitCount,
       hasActiveOwnerLink: ownerLinks.has(property.id),
       ledgerEntries,
       property,

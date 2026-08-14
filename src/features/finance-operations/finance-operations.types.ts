@@ -170,12 +170,14 @@ export type PropertyFinancePosition = {
 export type PropertyAccountEntry = {
   amount: number;
   category: string;
+  createdAt: string;
   date: string;
   id: string;
   label: string;
   note: string | null;
   propertyId: string;
   runningBalance: number;
+  sourceType: string;
 };
 
 export type FinanceOperationsData = {

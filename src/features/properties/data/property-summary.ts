@@ -58,6 +58,7 @@ export type ActivePropertyOwnerLink = {
 
 export function buildPropertySummary({
   activeOwner,
+  currentLeaseUnitCount,
   ledgerEntries,
   property,
   units,
@@ -65,6 +66,7 @@ export function buildPropertySummary({
   thumbnailUrl,
 }: {
   activeOwner?: ActivePropertyOwnerLink | null;
+  currentLeaseUnitCount?: number;
   hasActiveOwnerLink?: boolean;
   ledgerEntries: PropertyLedgerRecord[];
   property: PropertyRecord;
@@ -73,7 +75,11 @@ export function buildPropertySummary({
 }): PropertySummary {
   const status = normalizePropertyStatus(property.status);
   const netIncomeUsd = calculateNetIncomeUsd(ledgerEntries);
-  const occupiedUnits = units.filter((unit) => unit.status === "occupied").length;
+  const occupiedUnits = Math.min(
+    units.length,
+    currentLeaseUnitCount ??
+      units.filter((unit) => unit.status === "occupied").length,
+  );
 
   return {
     address: property.address ?? "No address recorded",

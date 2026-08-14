@@ -102,13 +102,19 @@ export type PropertyOwnerHistoryRecord = {
 };
 
 export type PropertyDetailUnit = {
+  attention: string;
   archivedAt: string | null;
   currentRent: string;
   currentRentDisplay?: MoneyDisplayValue;
   floor: string;
   id: string;
   isArchived: boolean;
+  leaseEndLabel: string;
+  monthlyRent: string;
+  monthlyRentDisplay?: MoneyDisplayValue;
+  occupancy: string;
   status: string;
+  tenantName?: string;
   unitNumber: string;
 };
 
@@ -189,6 +195,7 @@ export type PropertyDetailCounts = {
 };
 
 export type PropertyDetailHrefs = {
+  account: string;
   addDocument: string;
   addLedgerEntry: string;
   addLease: string;
@@ -243,6 +250,7 @@ export type PropertyDetail = ReturnType<typeof buildPropertySummary> & {
   financialSummary: PropertyFinancialSummary;
   healthIndicators: PropertyHealthIndicator[];
   hrefs: PropertyDetailHrefs;
+  monthlyRentDisplay: MoneyDisplayValue;
   nextAction: PropertyNextAction;
   notesLabel: string;
   ownerHistory: PropertyOwnerHistory[];
@@ -286,6 +294,16 @@ export function buildPropertyDetail({
 }): PropertyDetail {
   const activeUnits = units.filter((unit) => !unit.archived_at);
   const unitsById = indexById(units);
+  const activeLeaseByUnitId = new Map(
+    activeLeases
+      .filter((lease) => lease.unit_id)
+      .map((lease) => [lease.unit_id as string, lease]),
+  );
+  const occupiedUnitCount = activeUnits.filter(
+    (unit) =>
+      activeLeaseByUnitId.has(unit.id) ||
+      unit.status.trim().toLowerCase() === "occupied",
+  ).length;
   const summary = buildPropertySummary({
     activeOwner,
     hasActiveOwnerLink: Boolean(activeOwner),
@@ -332,9 +350,16 @@ export function buildPropertyDetail({
       financialSummary,
       hasActiveOwnerLink: Boolean(activeOwner),
       maintenanceCases,
-      occupiedUnitCount: summary.occupiedUnits,
+      occupiedUnitCount,
     }),
     hrefs,
+    monthlyRentDisplay: formatMoneyTotalsDisplay(
+      activeLeases.map((lease) => ({
+        amount: lease.monthly_rent_amount,
+        currency: lease.monthly_rent_currency,
+        direction: "income",
+      })),
+    ),
     nextAction: buildPropertyNextAction({
       activeLeases,
       activeUnitCount: activeUnits.length,
@@ -350,19 +375,23 @@ export function buildPropertyDetail({
     recentLedgerEntries: recentLedgerEntries.map((entry) =>
       toLedgerContext(entry, unitsById),
     ),
-    recentMaintenanceCases: maintenanceCases
+    recentMaintenanceCases: [...maintenanceCases]
+      .sort(compareMaintenanceCases)
       .slice(0, 8)
       .map((maintenanceCase) => toMaintenanceContext(maintenanceCase, unitsById)),
     recentTimelineEvents: recentTimelineEvents.map((event) =>
       toTimelineContext(event, unitsById),
     ),
     totalUnitCount: units.length,
+    occupiedUnits: occupiedUnitCount,
     unitSummary: formatUnitSummary({
       activeUnitCount: activeUnits.length,
       archivedUnitCount: units.length - activeUnits.length,
-      occupiedUnitCount: summary.occupiedUnits,
+      occupiedUnitCount,
     }),
-    unitsList: units.map(formatUnit),
+    unitsList: units.map((unit) =>
+      formatUnit(unit, activeLeaseByUnitId.get(unit.id)),
+    ),
   };
 }
 
@@ -374,6 +403,7 @@ export function buildPropertyDetailHrefs({
   propertyId: string;
 }): PropertyDetailHrefs {
   return {
+    account: `/properties/${propertyId}/account`,
     addDocument: buildHref("/documents", {
       action: "create",
       category: "Property",
@@ -435,17 +465,55 @@ export function buildPropertyDetailHrefs({
   };
 }
 
-function formatUnit(unit: PropertyDetailUnitRecord): PropertyDetailUnit {
+function formatUnit(
+  unit: PropertyDetailUnitRecord,
+  activeLease?: PropertyDetailLeaseRecord,
+): PropertyDetailUnit {
+  const rawStatus = formatStatusLabel(unit.status);
+  const occupancy = activeLease ? "Occupied" : rawStatus;
+  const rentAmount = activeLease?.monthly_rent_amount ?? unit.current_rent_amount;
+  const rentCurrency = activeLease?.monthly_rent_currency ?? unit.current_rent_currency;
+  const monthlyRent =
+    rentAmount === null || rentAmount === undefined || !rentCurrency
+      ? "—"
+      : formatMoney(Number(rentAmount), rentCurrency);
+  const monthlyRentDisplay =
+    rentAmount === null || rentAmount === undefined || !rentCurrency
+      ? undefined
+      : formatMoneyDisplay(Number(rentAmount), rentCurrency);
+
   return {
+    attention: getUnitAttention({ activeLease, occupancy, unit }),
     archivedAt: unit.archived_at,
     currentRent: formatCurrentRent(unit),
     currentRentDisplay: formatCurrentRentDisplay(unit),
     floor: unit.floor?.trim() || "Not set",
     id: unit.id,
     isArchived: Boolean(unit.archived_at),
-    status: formatStatusLabel(unit.status),
+    leaseEndLabel: activeLease ? formatDate(activeLease.lease_end_date) : "—",
+    monthlyRent,
+    monthlyRentDisplay,
+    occupancy,
+    status: occupancy,
+    tenantName: activeLease?.tenant_name,
     unitNumber: unit.unit_number,
   };
+}
+
+function getUnitAttention({
+  activeLease,
+  occupancy,
+  unit,
+}: {
+  activeLease?: PropertyDetailLeaseRecord;
+  occupancy: string;
+  unit: PropertyDetailUnitRecord;
+}) {
+  if (unit.archived_at) return "Archived";
+  if (activeLease) return "—";
+  if (occupancy.toLowerCase() === "occupied") return "Lease missing";
+  if (unit.current_rent_amount === null) return "Needs rent / Ready to lease";
+  return "Ready to lease";
 }
 
 function formatCurrentRent(unit: PropertyDetailUnitRecord) {
@@ -1023,6 +1091,22 @@ function isOpenMaintenanceTask(task: PropertyDetailMaintenanceRecord) {
   const status = normalizeStatusValue(task.status);
 
   return status !== "completed" && status !== "cancelled";
+}
+
+function compareMaintenanceCases(
+  left: PropertyDetailMaintenanceRecord,
+  right: PropertyDetailMaintenanceRecord,
+) {
+  const openPriority =
+    Number(isOpenMaintenanceTask(right)) - Number(isOpenMaintenanceTask(left));
+
+  if (openPriority !== 0) {
+    return openPriority;
+  }
+
+  return (left.due_date ?? "9999-12-31").localeCompare(
+    right.due_date ?? "9999-12-31",
+  );
 }
 
 function isOverdueMaintenanceTask(task: PropertyDetailMaintenanceRecord) {

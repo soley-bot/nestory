@@ -10,13 +10,14 @@ import {
 } from "react";
 import { useFormStatus } from "react-dom";
 import {
-  ArrowLeft,
   Check,
   ChevronRight,
   Plus,
   WalletCards,
 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { AuditDetails } from "@/components/ui/audit-details";
 import { Badge } from "@/components/ui/badge";
@@ -53,11 +54,13 @@ import type {
   FinanceOperationsActionState,
   FinanceOperationsData,
   OwnerInvoiceSummary,
+  PropertyAccountEntry,
   PropertyFinancePosition,
   RentGenerationException,
   TenantInvoiceSettlement,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
+import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
@@ -177,6 +180,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       actions={screen.actions}
       context={screen.context}
       contextHref={screen.contextHref}
+      header={"header" in screen ? screen.header : undefined}
       headerClassName="py-3 lg:py-3"
       localNav={(
         <FinanceWorkspaceNavigation
@@ -397,35 +401,43 @@ function getScreen(
       ) ?? null;
     return {
       activeRoute: "/balances" as const,
-      actions:
-        props.canRecordOwnerCash &&
-        position?.ownerPersonId &&
-        position.availableWithdrawal > 0 ? (
-          <Button
-            onClick={() => openModal({ mode: "withdrawal", position })}
-            variant="default"
-          >
-            Record withdrawal
-          </Button>
-        ) : undefined,
+      actions: undefined,
       body: (
         <PropertyAccountView
           entries={props.accountEntries}
+          onRecordWithdrawal={
+            props.canRecordOwnerCash &&
+            position?.ownerPersonId &&
+            position.availableWithdrawal > 0
+              ? () => openModal({ mode: "withdrawal", position })
+              : undefined
+          }
           position={position}
         />
       ),
-      context: (
-        <Link
-          className="inline-flex items-center gap-1 text-sm"
-          href="/balances"
-        >
-          <ArrowLeft size={13} /> Balances
-        </Link>
-      ),
+      context: position?.propertyLabel,
       contextHref: position
         ? `/properties/${position.propertyId}/account`
         : "/balances",
-      title: position?.propertyLabel ?? "Property account",
+      header: position ? (
+        <PageHeader
+          breadcrumb={
+            <PageBreadcrumb
+              current="Account"
+              items={[
+                { href: "/properties", label: "Properties" },
+                {
+                  href: `/properties/${position.propertyId}`,
+                  label: position.propertyLabel,
+                },
+              ]}
+            />
+          }
+          className="px-4 py-3 sm:px-6 2xl:px-8 lg:py-3"
+          title="Property account"
+        />
+      ) : undefined,
+      title: "Property account",
       toolbar: undefined,
     };
   }
@@ -1362,7 +1374,7 @@ function BalancesView({
                               openModal({ mode: "withdrawal", position })
                             }
                           >
-                            Owner distribution
+                            Record owner distribution
                           </Button>
                         ) : null}
                       </div>
@@ -1418,9 +1430,11 @@ function BalancesView({
 
 function PropertyAccountView({
   entries,
+  onRecordWithdrawal,
   position,
 }: {
   entries: FinanceOperationsData["accountEntries"];
+  onRecordWithdrawal?: () => void;
   position: PropertyFinancePosition | null;
 }) {
   if (!position)
@@ -1432,29 +1446,44 @@ function PropertyAccountView({
         title="Account unavailable"
       />
     );
+  const orderedEntries = sortPropertyAccountEntriesNewestFirst(entries);
   return (
-    <div className="flex min-w-0 flex-col bg-card">
-      <CompactTotals
-        items={[
-          {
-            label: "Running balance",
-            value: <Money amount={position.runningBalance} />,
-          },
-          {
-            label: "Owner funds held",
-            value: <Money amount={position.cashHeldByIps} />,
-          },
-          {
-            label: "Owner amount due",
-            value: <Money amount={position.ownerOwesIps} />,
-          },
-          {
-            label: "Available withdrawal",
-            value: <Money amount={position.availableWithdrawal} />,
-          },
-        ]}
-      />
-      {entries.length === 0 ? (
+    <div className="flex min-w-0 flex-col bg-background px-4 pb-6 sm:px-6 2xl:px-8">
+      <section
+        aria-label="Account position"
+        className="grid shrink-0 grid-cols-1 pb-5 sm:grid-cols-2"
+      >
+        <AccountPositionItem
+          description="Income minus owner costs and distributions"
+          label="Owner balance"
+          value={<Money amount={position.runningBalance} />}
+        />
+        <AccountPositionItem
+          action={
+            onRecordWithdrawal ? (
+              <Button onClick={onRecordWithdrawal} size="sm" variant="outline">
+                Record owner distribution
+              </Button>
+            ) : undefined
+          }
+          description="Cash held here and ready to distribute"
+          label="Cash available"
+          value={<Money amount={position.availableWithdrawal} />}
+        />
+      </section>
+      {position.ownerOwesIps > 0 ? (
+        <div
+          aria-label="Owner amount due"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 border-y border-warning/30 bg-warning-soft/20 px-3 py-2 text-sm"
+          role="status"
+        >
+          <span className="font-medium text-warning">Owner amount due</span>
+          <span className="font-semibold tabular-nums text-foreground">
+            <Money amount={position.ownerOwesIps} />
+          </span>
+        </div>
+      ) : null}
+      {orderedEntries.length === 0 ? (
         <EmptyState
           body="Rent, fees, owner costs, and withdrawals will appear here."
           className="flex-1"
@@ -1462,47 +1491,95 @@ function PropertyAccountView({
           title="No account activity"
         />
       ) : (
-        <TableFrame>
+        <TableFrame className="p-0">
           <Table
-            className="min-w-[820px]"
+            className="min-w-[760px]"
             scrollRegionLabel="Property account activity"
           >
             <thead className="bg-[var(--table-header-bg)]">
               <tr>
                 <Th>Date</Th>
-                <Th>Type</Th>
-                <Th>Details</Th>
-                <Th>Amount</Th>
-                <Th>Running balance</Th>
+                <Th>Activity</Th>
+                <Th align="right">Money in</Th>
+                <Th align="right">Money out</Th>
+                <Th align="right">Balance after</Th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                <tr
-                  className="border-b border-border"
-                  key={`${entry.category}-${entry.id}`}
-                >
-                  <Td>{formatDate(entry.date)}</Td>
-                  <Td>{entry.label}</Td>
-                  <Td className="text-muted-foreground">{entry.note ?? "—"}</Td>
-                  <Td>
-                    <Money
-                      amount={
-                        entry.category === "rent_income"
-                          ? entry.amount
-                          : -entry.amount
-                      }
-                    />
-                  </Td>
-                  <Td>
-                    <Money amount={entry.runningBalance} />
-                  </Td>
-                </tr>
-              ))}
+              {orderedEntries.map((entry) => {
+                const balanceEffect = getAccountEntryBalanceEffect(entry);
+                return (
+                  <tr
+                    className="border-b border-border transition-colors hover:bg-muted/35"
+                    key={`${entry.category}-${entry.id}`}
+                  >
+                    <Td className="text-muted-foreground">
+                      {formatDate(entry.date)}
+                    </Td>
+                    <Td>
+                      <p className="font-medium text-foreground">{entry.label}</p>
+                      {entry.note ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {entry.note}
+                        </p>
+                      ) : null}
+                    </Td>
+                    <Td align="right">
+                      {balanceEffect > 0 ? (
+                        <Money amount={balanceEffect} className="text-success" />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </Td>
+                    <Td align="right">
+                      {balanceEffect < 0 ? (
+                        <Money
+                          amount={Math.abs(balanceEffect)}
+                          className="text-destructive"
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </Td>
+                    <Td align="right">
+                      <Money amount={entry.runningBalance} />
+                    </Td>
+                  </tr>
+                );
+              })}
             </tbody>
           </Table>
         </TableFrame>
       )}
+    </div>
+  );
+}
+
+function getAccountEntryBalanceEffect(entry: PropertyAccountEntry) {
+  return entry.category === "rent_income" ? entry.amount : -entry.amount;
+}
+
+function AccountPositionItem({
+  action,
+  description,
+  label,
+  value,
+}: {
+  action?: ReactNode;
+  description: string;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-4 border-t border-border py-2.5 first:border-t-0 sm:flex sm:border-l sm:border-t-0 sm:px-5 sm:py-0 sm:first:border-l-0 sm:first:pl-0">
+      <div className="min-w-0">
+        <div className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+          {value}
+        </div>
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        <p className="text-xs leading-4 text-muted-foreground">{description}</p>
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }
@@ -2709,7 +2786,7 @@ function WithdrawalForm({
       <ActionMessage state={state} />
       <FormFooter>
         <span />
-        <SubmitButton label="Record withdrawal" />
+        <SubmitButton label="Record owner distribution" />
       </FormFooter>
     </form>
   );
@@ -2728,7 +2805,7 @@ function getModalTitle(modal: ModalState) {
   }
   if (modal.mode === "expense-reversal") return "Reverse paid cost";
   if (modal.mode === "settlement-reversal") return "Correct settlement";
-  return "Owner distribution";
+  return "Record owner distribution";
 }
 
 function canRenderFinanceModal(
@@ -2873,11 +2950,17 @@ function CompactTotals({
     </div>
   );
 }
-function TableFrame({ children }: { children: ReactNode }) {
+function TableFrame({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <div
       aria-label="Finance records"
-      className="flex-1 overflow-x-auto p-3"
+      className={cn("flex-1 overflow-x-auto p-3", className)}
       data-slot="finance-table-frame"
       role="region"
     >
@@ -2924,8 +3007,14 @@ function Td({
     </TableCell>
   );
 }
-function Money({ amount }: { amount: number }) {
-  return <MoneyDisplay align="right" value={formatMoneyDisplay(amount)} />;
+function Money({ amount, className }: { amount: number; className?: string }) {
+  return (
+    <MoneyDisplay
+      align="right"
+      className={className}
+      value={formatMoneyDisplay(amount)}
+    />
+  );
 }
 function StatusBadge({
   dueDate,

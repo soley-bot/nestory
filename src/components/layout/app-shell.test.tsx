@@ -88,6 +88,45 @@ describe("AppShell Shadcn dashboard block", () => {
     }
   });
 
+  it("groups the Properties and People registers without repeating their domain labels", () => {
+    navigation.pathname = "/overview";
+    render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
+
+    for (const domain of ["Properties", "People"]) {
+      fireEvent.click(
+        screen.getByRole("button", { name: `Expand ${domain} navigation` }),
+      );
+    }
+
+    for (const label of [
+      "Register",
+      "Units",
+      "Directory",
+      "Tenants",
+      "Owners",
+      "Vendors",
+      "Staff",
+    ]) {
+      expect(screen.getByRole("link", { name: label })).toBeTruthy();
+    }
+
+    expect(screen.getAllByRole("link", { name: "Properties" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "People" })).toHaveLength(1);
+  });
+
+  it("shows one selected state when the current page is inside an expanded domain", () => {
+    navigation.pathname = "/properties";
+    render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
+
+    const properties = screen.getByRole("link", { name: "Properties" });
+    const register = screen.getByRole("link", { name: "Register" });
+
+    expect(properties.closest('[data-active="true"]')).toBeNull();
+    expect(properties.getAttribute("aria-current")).toBeNull();
+    expect(register.closest('[data-active="true"]')).not.toBeNull();
+    expect(register.getAttribute("aria-current")).toBe("page");
+  });
+
   it.each([
     ["finance_manager", "Review queue"],
     ["finance_member", "My finance work"],
@@ -180,12 +219,16 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(screen.getByRole("button", { name: "Display theme" })).toBeTruthy();
   });
 
-  it("marks the matching destination active", () => {
+  it("marks the matching child active without duplicating the group selected state", () => {
     navigation.pathname = "/people/person-1";
     render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
-    const activeLink = screen.getByRole("link", { name: "People" });
-    expect(activeLink.closest('[data-active="true"]')).not.toBeNull();
-    expect(activeLink.getAttribute("aria-current")).toBe("page");
+    const people = screen.getByRole("link", { name: "People" });
+    const directory = screen.getByRole("link", { name: "Directory" });
+
+    expect(people.closest('[data-active="true"]')).toBeNull();
+    expect(people.getAttribute("aria-current")).toBeNull();
+    expect(directory.closest('[data-active="true"]')).not.toBeNull();
+    expect(directory.getAttribute("aria-current")).toBe("page");
   });
 
   it("keeps non-admin users out of admin destinations", () => {

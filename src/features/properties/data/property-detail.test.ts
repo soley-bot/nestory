@@ -101,6 +101,46 @@ describe("buildPropertyDetail", () => {
     ]);
   });
 
+  it("uses the active lease as the source of truth for unit occupancy and rent", () => {
+    const detail = buildPropertyDetail({
+      activeLeases: [
+        {
+          id: "lease-1",
+          lease_end_date: "2028-01-31",
+          lease_start_date: "2026-08-01",
+          monthly_rent_amount: 850,
+          monthly_rent_currency: "USD",
+          status: "active",
+          tenant_name: "Dara Chan",
+          unit_id: "unit-1",
+        },
+      ],
+      ledgerEntries: [],
+      property,
+      units: [
+        {
+          archived_at: null,
+          current_rent_amount: null,
+          current_rent_currency: null,
+          floor: "1",
+          id: "unit-1",
+          status: "vacant",
+          unit_number: "A-01",
+        },
+      ],
+    });
+
+    expect(detail.occupiedUnits).toBe(1);
+    expect(detail.unitSummary).toBe("1/1 occupied");
+    expect(detail.unitsList[0]).toMatchObject({
+      attention: "—",
+      leaseEndLabel: "31 Jan 2028",
+      monthlyRent: "USD 850.00",
+      occupancy: "Occupied",
+      tenantName: "Dara Chan",
+    });
+  });
+
   it("builds linked property context, risk, next action, and route contracts", () => {
     const detail = buildPropertyDetail({
       activeLeases: [

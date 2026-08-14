@@ -18,6 +18,7 @@ import type {
   TenantInvoiceSettlement,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
+import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
 
 type TenantInvoiceBalanceRow =
   Database["public"]["Views"]["tenant_invoice_balances"]["Row"];
@@ -468,8 +469,10 @@ export async function getFinanceOperationsData(
     ]),
   );
   return {
-    accountEntries: (entriesResult.data ?? []).flatMap((row) =>
-      toAccountEntry(row as AccountEntryRow),
+    accountEntries: sortPropertyAccountEntriesNewestFirst(
+      (entriesResult.data ?? []).flatMap((row) =>
+        toAccountEntry(row as AccountEntryRow),
+      ),
     ),
     expenseSubmissions: (expenseSubmissionsResult.data ?? []).map(
       (submission) =>
@@ -869,7 +872,12 @@ function buildAccountEntryQuery(
     .select("*")
     .eq("organization_id", organizationId);
   if (propertyId) query = query.eq("property_id", propertyId);
-  return query.order("event_date", { ascending: false }).limit(300);
+  return query
+    .order("event_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("source_type", { ascending: false })
+    .order("source_id", { ascending: false })
+    .limit(300);
 }
 
 function toBilling(
@@ -1040,20 +1048,24 @@ function toAccountEntry(row: AccountEntryRow): PropertyAccountEntry[] {
     !row.source_id ||
     !row.property_id ||
     !row.event_date ||
+    !row.created_at ||
     !row.category ||
-    !row.label
+    !row.label ||
+    !row.source_type
   )
     return [];
   return [
     {
       amount: Number(row.amount ?? 0),
       category: row.category,
+      createdAt: row.created_at,
       date: row.event_date,
       id: row.source_id,
       label: row.label,
       note: row.note,
       propertyId: row.property_id,
       runningBalance: Number(row.running_balance ?? 0),
+      sourceType: row.source_type,
     },
   ];
 }

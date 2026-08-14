@@ -13,18 +13,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
 export function Modal({
   children,
   description,
   onClose,
   open,
+  size = "default",
   title,
 }: {
   children: React.ReactNode
   description?: string
   onClose: () => void
   open: boolean
+  size?: "compact" | "default"
   title: string
 }) {
   const [portalContainer, setPortalContainer] = React.useState<HTMLDivElement | null>(null)
@@ -38,7 +41,12 @@ export function Modal({
     >
       <OverlayPortalContainerProvider value={portalContainer}>
         <DialogContent
-          className="max-h-[min(82vh,680px)] max-w-2xl gap-0 overflow-hidden p-0 sm:max-w-2xl"
+          className={cn(
+            "max-h-[min(82vh,680px)] gap-0 overflow-hidden p-0",
+            size === "compact"
+              ? "max-w-md sm:max-w-md"
+              : "max-w-2xl sm:max-w-2xl",
+          )}
           showCloseButton={false}
         >
           <DialogHeader className="relative gap-1 border-b p-4 pr-12 text-left">
