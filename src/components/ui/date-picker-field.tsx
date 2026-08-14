@@ -18,6 +18,7 @@ type DatePickerFieldProps = {
   className?: string;
   defaultValue?: string;
   name: string;
+  onValueChange?: (value: string) => void;
   required?: boolean;
 };
 
@@ -31,6 +32,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
   className,
   defaultValue = "",
   name,
+  onValueChange,
   required = false,
   } = props;
   const [open, setOpen] = useState(false);
@@ -61,6 +63,11 @@ export function DatePickerField(props: DatePickerFieldProps) {
         aria-invalid={ariaInvalid}
         aria-required={ariaRequired ?? required}
         name={name}
+        onInput={(event) => {
+          const nextValue = event.currentTarget.value;
+          setValue(nextValue);
+          onValueChange?.(nextValue);
+        }}
         ref={hiddenInputRef}
         required={required}
         type="hidden"
@@ -144,7 +151,9 @@ export function DatePickerField(props: DatePickerFieldProps) {
                   return;
                 }
 
-                setValue(toDateValue(day));
+                const nextValue = toDateValue(day);
+                setValue(nextValue);
+                onValueChange?.(nextValue);
                 setOpen(false);
               }}
               selected={selectedDate ?? undefined}
@@ -156,6 +165,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 className="rounded-md px-2 py-1 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
                   setValue("");
+                  onValueChange?.("");
                   setOpen(false);
                 }}
                 type="button"
@@ -167,6 +177,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 onClick={() => {
                   const today = getBusinessDateValue();
                   setValue(today);
+                  onValueChange?.(today);
                   setVisibleMonth(getVisibleMonth(today));
                   setOpen(false);
                 }}

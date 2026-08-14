@@ -46,14 +46,33 @@ type RentPolicyCalendarDateRow = {
   rent_calculation_timezone: string | null;
   version_number: number;
 };
+type LeaseAvailabilityLeaseRow = {
+  archived_at: string | null;
+  id: string;
+  unit_id: string | null;
+};
+type LeaseAvailabilityTermRow = {
+  archived_at: string | null;
+  end_date: string;
+  lease_id: string;
+  start_date: string;
+  status: string;
+};
 const RENT_SORT_CURRENCIES: CurrencyCode[] = ["USD"];
+const BLOCKING_LEASE_TERM_STATUSES = new Set(["active", "draft", "upcoming"]);
 
 export async function getLeasesScreenData(
   organizationId: string,
   viewQuery: LeaseViewQuery = parseLeaseSearchParams({}),
 ) {
   const supabase = await createSupabaseServerClient();
-  const [propertiesResult, unitsResult, tenantOptions, readinessDate] =
+  const [
+    propertiesResult,
+    unitsResult,
+    availabilityLeasesResult,
+    tenantOptions,
+    readinessDate,
+  ] =
     await Promise.all([
       supabase
         .from("properties")
@@ -65,6 +84,11 @@ export async function getLeasesScreenData(
         .select(unitSelect)
         .eq("organization_id", organizationId)
         .order("unit_number", { ascending: true }),
+      supabase
+        .from("leases")
+        .select("id, unit_id, archived_at")
+        .eq("organization_id", organizationId)
+        .not("unit_id", "is", null),
       getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
       loadEffectiveRentPolicyCalendarDate(supabase, organizationId),
     ]);
@@ -79,14 +103,49 @@ export async function getLeasesScreenData(
     throw new Error(`Could not load lease units: ${unitsResult.error.message}`);
   }
 
+  if (availabilityLeasesResult.error) {
+    throw new Error(
+      `Could not load lease availability: ${availabilityLeasesResult.error.message}`,
+    );
+  }
+
   const properties = (propertiesResult.data ?? []) as Array<
     LeasePropertyRow & { archived_at: string | null }
   >;
   const units = (unitsResult.data ?? []) as Array<
     LeaseUnitRow & { archived_at: string | null }
   >;
+  const availabilityLeases = (availabilityLeasesResult.data ?? []) as
+    LeaseAvailabilityLeaseRow[];
+  const availabilityLeaseIds = availabilityLeases
+    .filter((lease) => !lease.archived_at && lease.unit_id)
+    .map((lease) => lease.id);
+  const availabilityTermsResult = availabilityLeaseIds.length
+    ? await supabase
+        .from("lease_terms")
+        .select("lease_id, start_date, end_date, status, archived_at")
+        .eq("organization_id", organizationId)
+        .in("lease_id", availabilityLeaseIds)
+        .in("status", [...BLOCKING_LEASE_TERM_STATUSES])
+    : { data: [], error: null };
+
+  if (availabilityTermsResult.error) {
+    throw new Error(
+      `Could not load lease availability terms: ${availabilityTermsResult.error.message}`,
+    );
+  }
+
+  const reservationsByUnitId = buildLeaseUnitReservations(
+    availabilityLeases,
+    (availabilityTermsResult.data ?? []) as LeaseAvailabilityTermRow[],
+  );
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
+  const unitOptions = toUnitOptions(
+    units,
+    propertiesById,
+    reservationsByUnitId,
+  );
   const buildLeasesQuery = ({
     count,
     currency,
@@ -235,7 +294,7 @@ export async function getLeasesScreenData(
         pagination,
         propertyOptions: toPropertyOptions(properties),
         tenantOptions,
-        unitOptions: toUnitOptions(units, propertiesById),
+        unitOptions,
       };
     }
 
@@ -275,7 +334,7 @@ export async function getLeasesScreenData(
       pagination,
       propertyOptions: toPropertyOptions(properties),
       tenantOptions,
-      unitOptions: toUnitOptions(units, propertiesById),
+      unitOptions,
     };
   }
 
@@ -327,7 +386,7 @@ export async function getLeasesScreenData(
     pagination,
     propertyOptions: toPropertyOptions(properties),
     tenantOptions,
-    unitOptions: toUnitOptions(units, propertiesById),
+    unitOptions,
   };
 }
 
@@ -830,6 +889,10 @@ function toPropertyOptions(
 function toUnitOptions(
   units: Array<LeaseUnitRow & { archived_at?: string | null }>,
   propertiesById: Map<string, LeasePropertyRow>,
+  reservationsByUnitId: ReadonlyMap<
+    string,
+    NonNullable<LeaseUnitOption["reservations"]>
+  >,
 ): LeaseUnitOption[] {
   return units.map((unit) => {
     const property = propertiesById.get(unit.property_id);
@@ -843,8 +906,46 @@ function toUnitOptions(
         unit.archived_at ? " (archived)" : ""
       }`,
       propertyId: unit.property_id,
+      reservations: reservationsByUnitId.get(unit.id) ?? [],
     };
   });
+}
+
+export function buildLeaseUnitReservations(
+  leases: LeaseAvailabilityLeaseRow[],
+  terms: LeaseAvailabilityTermRow[],
+) {
+  const unitByLeaseId = new Map(
+    leases
+      .filter((lease) => !lease.archived_at && lease.unit_id)
+      .map((lease) => [lease.id, lease.unit_id as string]),
+  );
+  const reservationsByUnitId = new Map<
+    string,
+    NonNullable<LeaseUnitOption["reservations"]>
+  >();
+
+  for (const term of terms) {
+    const unitId = unitByLeaseId.get(term.lease_id);
+
+    if (
+      !unitId ||
+      term.archived_at ||
+      !BLOCKING_LEASE_TERM_STATUSES.has(term.status)
+    ) {
+      continue;
+    }
+
+    const reservations = reservationsByUnitId.get(unitId) ?? [];
+    reservations.push({
+      endDate: term.end_date,
+      leaseId: term.lease_id,
+      startDate: term.start_date,
+    });
+    reservationsByUnitId.set(unitId, reservations);
+  }
+
+  return reservationsByUnitId;
 }
 
 function buildLeaseSearchFilters(

@@ -9,7 +9,13 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    exclude: ["**/.worktrees/**", "**/node_modules/**", "**/dist/**", "**/.next/**"],
+    exclude: [
+      "**/.worktrees/**",
+      "**/.claude/worktrees/**",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+    ],
     maxWorkers: 4,
   },
 });

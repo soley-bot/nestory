@@ -5,7 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeaseScreen } from "@/features/leases/components/lease-screen";
 import { buildLeaseSummary } from "@/features/leases/data/lease-summary";
-import type { LeaseViewQuery } from "@/features/leases/lease.types";
+import type {
+  LeaseUnitOption,
+  LeaseViewQuery,
+} from "@/features/leases/lease.types";
 
 const navigation = vi.hoisted(() => ({
   pathname: "/leases",
@@ -98,7 +101,8 @@ describe("LeaseScreen redesign contract", () => {
     expect(screen.queryByRole("region", { name: "Lease summary" })).toBeNull();
     expect(screen.queryByText("This page")).toBeNull();
     expect(screen.queryByRole("button", { name: "Generate rent" })).toBeNull();
-    expect(screen.getByText(/rent is generated automatically/i)).not.toBeNull();
+    expect(screen.queryByText(/rent is generated automatically/i)).toBeNull();
+    expect(screen.getByRole("toolbar", { name: "Workspace tools" })).not.toBeNull();
 
     const tableFrame = container.querySelector<HTMLElement>(
       '[data-slot="register-table-frame"]',
@@ -122,17 +126,17 @@ describe("LeaseScreen redesign contract", () => {
     expect(table.className).toContain("text-sm");
     expect(table.querySelector("thead")?.className).toContain("text-xs");
     expect(within(table).getByText("Term")).not.toBeNull();
-    expect(within(table).getByText("Deposit")).not.toBeNull();
+    expect(within(table).queryByText("Deposit")).toBeNull();
 
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(
       within(rows[0]!).getByRole("link", { name: "Alice Tenant" }).getAttribute("href"),
-    ).toContain("leaseId=lease-1");
+    ).toBe("/leases/lease-1");
     // Term is one cell now, not stacked start/end lines.
     expect(rows[0]!.textContent).toContain(leases[0]!.startDateLabel);
     expect(rows[0]!.textContent).toContain(leases[0]!.endDateLabel);
-    expect(within(rows[0]!).getByText("Active deposit")).not.toBeNull();
+    expect(within(rows[0]!).queryByText("Active deposit")).toBeNull();
     expect(within(rows[0]!).getByText("Riverside House")).not.toBeNull();
     expect(within(rows[0]!).getByText("Unit 2A")).not.toBeNull();
 
@@ -140,28 +144,27 @@ describe("LeaseScreen redesign contract", () => {
     const firstQuickView = screen.getByRole("dialog", {
       name: "Alice Tenant lease quick view",
     });
-    const firstScheduleKey = firstQuickView
-      .querySelector<HTMLInputElement>('input[name="idempotencyKey"]')
-      ?.value;
-    expect(firstScheduleKey).toContain("lease-1");
     expect(
-      within(firstQuickView).getByText("Readiness not checked"),
+      within(firstQuickView).getByText((_, element) =>
+        element?.textContent === "Riverside House / Unit 2A",
+      ),
     ).not.toBeNull();
     expect(within(firstQuickView).getByText("USD 1,200.00 held")).not.toBeNull();
-    expect(within(firstQuickView).getByText("Event type")).not.toBeNull();
-    expect(within(firstQuickView).getByText("Event date")).not.toBeNull();
-    expect(within(firstQuickView).getByText("Amount")).not.toBeNull();
-    expect(within(firstQuickView).getByText("Reference")).not.toBeNull();
     expect(
-      within(firstQuickView).getByRole("heading", {
+      within(firstQuickView).getByRole("link", { name: "Open lease record" })
+        .getAttribute("href"),
+    ).toBe("/leases/lease-1");
+    expect(within(firstQuickView).queryByText("Event type")).toBeNull();
+    expect(
+      within(firstQuickView).queryByRole("heading", {
         name: "Schedule future rent",
       }),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
-      within(firstQuickView).getByRole("button", {
-        name: "Schedule future term",
+      within(firstQuickView).queryByRole("region", {
+        name: "Occupancy evidence",
       }),
-    ).not.toBeNull();
+    ).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
 
     fireEvent.click(rows[1]!);
@@ -171,15 +174,9 @@ describe("LeaseScreen redesign contract", () => {
     });
     expect(secondQuickView).not.toBeNull();
     expect(
-      secondQuickView.querySelector<HTMLInputElement>(
-        'input[name="idempotencyKey"]',
-      )?.value,
-    ).toContain("lease-2");
-    expect(
-      secondQuickView.querySelector<HTMLInputElement>(
-        'input[name="idempotencyKey"]',
-      )?.value,
-    ).not.toBe(firstScheduleKey);
+      within(secondQuickView).getByRole("link", { name: "Open lease record" })
+        .getAttribute("href"),
+    ).toBe("/leases/lease-2");
     expect(screen.queryByText(/select a lease row/i)).toBeNull();
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
@@ -272,148 +269,91 @@ describe("LeaseScreen redesign contract", () => {
     expect(document.activeElement).toBe(preview);
   });
 
-  it("replaces the quick view with one edit drawer", async () => {
-    installMatchMedia(1024);
-    const user = userEvent.setup();
-    renderLeases();
-    const preview = screen.getByRole("button", { name: "Preview lease for Alice Tenant" });
-
-    await user.click(preview);
-    await user.click(screen.getByRole("button", { name: "Edit lease for Alice Tenant" }));
-
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    const drawer = screen.getByRole("dialog", { name: "Edit lease" });
-    expect(drawer).not.toBeNull();
-    expect(screen.queryByRole("dialog", { name: "Alice Tenant lease quick view" })).toBeNull();
-    expect(
-      (
-        within(drawer).getByRole("combobox", {
-          name: /Tenant/,
-        }) as HTMLInputElement
-      ).disabled,
-    ).toBe(true);
-    expect(
-      (
-        within(drawer).getByRole("combobox", {
-          name: "Status",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-    expect(
-      (
-        within(drawer).getByRole("combobox", {
-          name: "Property",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-    expect(
-      (
-        within(drawer).getByRole("combobox", {
-          name: "Unit",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-    expect(
-      drawer.querySelector<HTMLInputElement>(
-        'input[name="tenantPersonId"]:not([disabled])',
-      )?.value,
-    ).toBe("person-1");
-    expect(
-      drawer.querySelector<HTMLInputElement>(
-        'input[name="propertyId"]:not([disabled])',
-      )?.value,
-    ).toBe("property-1");
-    expect(
-      drawer.querySelector<HTMLInputElement>(
-        'input[name="unitId"]:not([disabled])',
-      )?.value,
-    ).toBe("unit-1");
-    expect(
-      drawer.querySelector<HTMLInputElement>(
-        'input[name="status"]:not([disabled])',
-      )?.value,
-    ).toBe("active");
-    expect(
-      (
-        within(drawer).getByRole("textbox", {
-          name: /Rent amount/,
-        }) as HTMLInputElement
-      ).disabled,
-    ).toBe(false);
-    expect(
-      within(drawer).getByText(
-        /relationship, occupancy, and Lease lifecycle changes require a checked transition/i,
-      ),
-    ).not.toBeNull();
-  });
-
-  it("shows archived Lease restore as unavailable pending checked review", async () => {
-    const user = userEvent.setup();
-    renderLeases({
-      leases: [makeLease("lease-archived", "Archived Tenant", "Unit 4C", true)],
-      viewQuery: { ...defaultViewQuery, archiveState: "archived" },
-    });
-
-    await user.click(
-      screen.getByRole("button", { name: "Preview lease for Archived Tenant" }),
-    );
-    await user.click(
-      screen.getByRole("button", {
-        name: "Review restore requirements for Archived Tenant",
-      }),
-    );
-
-    const drawer = screen.getByRole("dialog", { name: "Restore unavailable" });
-    expect(
-      within(drawer).getByText(
-        /relationship, occupancy, and dependency review/i,
-      ),
-    ).not.toBeNull();
-    expect(
-      (
-        within(drawer).getByRole("button", {
-          name: "Restore unavailable",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-  });
-
-  it("requires explicit lease, term, and occupancy choices in the create drawer", async () => {
+  it("keeps Lease creation compact and monthly while lifecycle evidence stays downstream", async () => {
     const user = userEvent.setup();
     renderLeases();
 
     await user.click(screen.getByRole("button", { name: "Add lease" }));
 
     const drawer = screen.getByRole("dialog", { name: "Add lease" });
+    expect(within(drawer).getByText("Lease details")).not.toBeNull();
+    expect(within(drawer).getByText("Rent and deposit")).not.toBeNull();
     expect(
-      within(drawer).getByRole("group", { name: /Rent due day/ }),
+      within(drawer).getByRole("button", { name: "New tenant" }),
     ).not.toBeNull();
-    expect(
-      within(drawer).getByRole("group", { name: /Payment frequency/ }),
-    ).not.toBeNull();
-    expect(
-      within(drawer).getByRole("group", { name: /Term status/ }),
-    ).not.toBeNull();
-    expect(
-      within(drawer).getByRole("combobox", { name: /Status/ }).textContent,
-    ).toContain("Choose lease status");
     expect(
       drawer.querySelector<HTMLInputElement>('input[name="status"]')?.value,
-    ).toBe("");
+    ).toBe("draft");
     expect(
-      within(drawer).getByRole("group", { name: /Scheduled move-in/ }),
+      drawer.querySelector<HTMLInputElement>('input[name="termStatus"]')
+        ?.value,
+    ).toBe("draft");
+    expect(
+      drawer.querySelector<HTMLInputElement>('input[name="paymentFrequency"]')
+        ?.value,
+    ).toBe("monthly");
+    expect(
+      within(drawer).queryByRole("group", { name: /Scheduled move-in/ }),
+    ).toBeNull();
+    expect(
+      within(drawer).queryByRole("group", { name: /Payment frequency/ }),
+    ).toBeNull();
+    expect(
+      within(drawer).getByRole("group", { name: /Security deposit/ }),
     ).not.toBeNull();
     expect(
-      within(drawer).getByRole("group", { name: /Confirmed move-in/ }),
-    ).not.toBeNull();
-    expect(
-      within(drawer).getByText(
-        /no policy default is inferred/i,
+      within(drawer).getByRole("textbox", { name: /Rent amount/ }).getAttribute(
+        "min",
       ),
-    ).not.toBeNull();
+    ).toBe("0.01");
+    expect(
+      (within(drawer).getByRole("combobox", {
+        name: /Property/,
+      }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
-  it("offers the narrow occupancy evidence repair on the selected current lease", () => {
+  it("shows only units and properties available for the inclusive Lease dates", async () => {
+    const user = userEvent.setup();
+    renderLeases({
+      propertyOptions: [
+        { id: "property-1", label: "Riverside House" },
+        { id: "property-2", label: "Garden House" },
+      ],
+      unitOptions: [
+        {
+          id: "unit-1",
+          label: "Unit 2A",
+          propertyId: "property-1",
+          reservations: [
+            {
+              endDate: "2026-08-31",
+              leaseId: "lease-existing",
+              startDate: "2026-08-01",
+            },
+          ],
+        },
+        {
+          id: "unit-2",
+          label: "Unit 1A",
+          propertyId: "property-2",
+          reservations: [],
+        },
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Add lease" }));
+    const drawer = screen.getByRole("dialog", { name: "Add lease" });
+    setLeaseDates(drawer, "2026-08-15", "2026-08-31");
+    await user.click(within(drawer).getByRole("combobox", { name: /Property/ }));
+
+    expect(
+      screen.queryByRole("option", { name: "Riverside House" }),
+    ).toBeNull();
+    expect(screen.getByRole("option", { name: "Garden House" })).not.toBeNull();
+  });
+
+  it("keeps occupancy repair out of the register quick view", () => {
     const lease = makeLease("lease-1", "Alice Tenant", "Unit 2A");
     lease.occupancies = [
       {
@@ -435,69 +375,12 @@ describe("LeaseScreen redesign contract", () => {
     const quickView = screen.getByRole("dialog", {
       name: "Alice Tenant lease quick view",
     });
-    const occupancySection = within(quickView).getByRole("region", {
-      name: "Occupancy evidence",
-    });
-
-    expect(within(occupancySection).getByText("Resident evidence missing")).not.toBeNull();
     expect(
-      within(occupancySection).getByRole("button", {
-        name: "Record occupancy evidence",
-      }),
-    ).not.toBeNull();
-    expect(
-      occupancySection.querySelector<HTMLInputElement>(
-        'input[name="occupancyId"]',
-      )?.value,
-    ).toBe("occupancy-1");
-  });
-
-  it("hides repair after an accepted successor supersedes stale evidence", () => {
-    const lease = makeLease("lease-1", "Alice Tenant", "Unit 2A");
-    lease.occupancies = [
-      {
-        actualLabel: "Not recorded",
-        datesLabel: "Not recorded",
-        evidenceLabel: "Superseded",
-        evidenceState: "superseded",
-        id: "occupancy-predecessor",
-        residentLabel: "Resident evidence missing",
-        scheduledLabel: "20 Jan 2026 - Current",
-        statusLabel: "Reserved",
-        unitHref: "/units/unit-1",
-        unitLabel: "Unit 2A",
-      },
-      {
-        actualLabel: "01 Feb 2026 - Current",
-        datesLabel: "01 Feb 2026 - Current",
-        evidenceLabel: "Accepted",
-        evidenceState: "accepted",
-        id: "occupancy-successor",
-        residentLabel: "Confirmed resident",
-        scheduledLabel: "20 Jan 2026 - Current",
-        statusLabel: "Occupied",
-        unitHref: "/units/unit-1",
-        unitLabel: "Unit 2A",
-      },
-    ];
-    renderLeases({ leases: [lease] });
-
-    fireEvent.click(screen.getAllByRole("row")[1]!);
-    const occupancySection = within(
-      screen.getByRole("dialog", {
-        name: "Alice Tenant lease quick view",
-      }),
-    ).getByRole("region", { name: "Occupancy evidence" });
-
-    expect(within(occupancySection).getByText("Confirmed resident")).not.toBeNull();
-    expect(
-      within(occupancySection).queryByRole("button", {
+      within(quickView).queryByRole("button", {
         name: "Record occupancy evidence",
       }),
     ).toBeNull();
-    expect(
-      occupancySection.querySelector('input[name="occupancyId"]'),
-    ).toBeNull();
+    expect(within(quickView).queryByText("Resident evidence missing")).toBeNull();
   });
 
   it("distinguishes filtered and true empty states and hides unauthorized actions", () => {
@@ -531,21 +414,13 @@ describe("LeaseScreen redesign contract", () => {
     ).toBeNull();
     expect(
       within(quickView).queryByRole("button", {
-        name: "Edit lease for Alice Tenant",
+        name: /edit|archive|restore|record|schedule/i,
       }),
     ).toBeNull();
     expect(
-      within(quickView).queryByRole("button", {
-        name: "Archive lease for Alice Tenant",
-      }),
-    ).toBeNull();
-    expect(within(quickView).queryByRole("link", { name: "Open rent policy" })).toBeNull();
-    expect(within(quickView).queryByRole("link", { name: "Open Unit 2A" })).toBeNull();
-    expect(
-      within(quickView).getByRole("link", { name: "Open property account" }).getAttribute(
-        "href",
-      ),
-    ).toBe("/properties/property-1/account");
+      within(quickView).getByRole("link", { name: "Open lease record" })
+        .getAttribute("href"),
+    ).toBe("/leases/lease-1");
     const financeRow = screen.getAllByRole("row")[1]!;
     expect(within(financeRow).queryByRole("link", { name: "Unit 2A" })).toBeNull();
     expect(
@@ -553,11 +428,7 @@ describe("LeaseScreen redesign contract", () => {
         "href",
       ),
     ).toBe("/properties/property-1/account");
-    expect(
-      within(quickView).queryByRole("link", {
-        name: "Open ledger filtered to Alice Tenant",
-      }),
-    ).toBeNull();
+    expect(within(quickView).getAllByRole("link")).toHaveLength(1);
   });
 
   it("does not open action=create when creation is unauthorized", () => {
@@ -596,6 +467,8 @@ function renderLeases({
   canConfigure = true,
   leases: nextLeases = leases,
   pagination,
+  propertyOptions,
+  unitOptions,
   viewQuery = defaultViewQuery,
 }: {
   canConfigure?: boolean;
@@ -608,6 +481,8 @@ function renderLeases({
     totalCount: number;
     totalPages: number;
   };
+  propertyOptions?: { id: string; label: string }[];
+  unitOptions?: LeaseUnitOption[];
   viewQuery?: LeaseViewQuery;
 } = {}) {
   return render(
@@ -622,7 +497,9 @@ function renderLeases({
           totalCount: nextLeases.length,
           totalPages: nextLeases.length > 0 ? 1 : 0,
         }}
-      propertyOptions={[{ id: "property-1", label: "Riverside House" }]}
+      propertyOptions={
+        propertyOptions ?? [{ id: "property-1", label: "Riverside House" }]
+      }
       tenantOptions={[
         {
           archived: false,
@@ -639,12 +516,29 @@ function renderLeases({
           roles: ["tenant"],
         },
       ]}
-      unitOptions={[
-        { id: "unit-1", label: "Unit 2A", propertyId: "property-1" },
-        { id: "unit-2", label: "Unit 3B", propertyId: "property-1" },
-      ]}
+      unitOptions={
+        unitOptions ?? [
+          { id: "unit-1", label: "Unit 2A", propertyId: "property-1" },
+          { id: "unit-2", label: "Unit 3B", propertyId: "property-1" },
+        ]
+      }
       viewQuery={viewQuery}
     />,
+  );
+}
+
+function setLeaseDates(
+  drawer: HTMLElement,
+  startDate: string,
+  endDate: string,
+) {
+  fireEvent.input(
+    drawer.querySelector<HTMLInputElement>('input[name="leaseStartDate"]')!,
+    { target: { value: startDate } },
+  );
+  fireEvent.input(
+    drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
+    { target: { value: endDate } },
   );
 }
 

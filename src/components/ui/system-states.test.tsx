@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, render, screen, within } from "@testing-library/react";
+import Link from "next/link";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ModuleLoading } from "@/components/layout/module-loading";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -92,7 +93,7 @@ describe("shared system states", () => {
   it("announces success without blocking continued work", () => {
     render(
       <StatusNotice
-        action={<a href="/leases/lease-1">Open lease</a>}
+        action={<Link href="/leases/lease-1">Open lease</Link>}
         message="The lease is active and rent can now be posted."
         title="Lease created"
         tone="success"

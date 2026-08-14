@@ -15,8 +15,11 @@ type LeaseFieldErrors = {
   actualMoveInDate?: string[];
   actualMoveOutDate?: string[];
   amount?: string[];
+  effectiveDate?: string[];
   eventDate?: string[];
   eventType?: string[];
+  expectedOccupancyId?: string[];
+  expectedStatus?: string[];
   leaseDepositId?: string[];
   depositAmount?: string[];
   leaseEndDate?: string[];
@@ -33,6 +36,7 @@ type LeaseFieldErrors = {
   status?: string[];
   tenantPersonId?: string[];
   termStatus?: string[];
+  transition?: string[];
   unitId?: string[];
 };
 
@@ -99,6 +103,37 @@ const currentOccupancyEvidenceSchema = z
     }
   });
 
+const leaseLifecycleTransitionSchema = z
+  .object({
+    effectiveDate: dateSchema,
+    expectedOccupancyId: z.uuid("Choose the current occupancy record."),
+    expectedStatus: leaseStatusSchema,
+    idempotencyKey: z.string().trim().min(1),
+    leaseId: leaseIdSchema,
+    reason: z.string().trim().min(8, "Explain the lifecycle evidence."),
+    scheduledMoveOutDate: optionalDateSchema,
+    transition: z.enum([
+      "activate",
+      "cancel",
+      "end",
+      "give_notice",
+      "terminate",
+    ]),
+  })
+  .superRefine((data, context) => {
+    if (
+      data.transition === "give_notice" &&
+      (!data.scheduledMoveOutDate ||
+        data.scheduledMoveOutDate < data.effectiveDate)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a move-out date on or after the notice date.",
+        path: ["scheduledMoveOutDate"],
+      });
+    }
+  });
+
 const leaseMutationSchema = z
   .object({
     actualMoveInDate: optionalDateSchema,
@@ -128,10 +163,10 @@ const leaseMutationSchema = z
 
     const rentAmount = Number(data.monthlyRentAmount);
 
-    if (!Number.isFinite(rentAmount) || rentAmount < 0) {
+    if (!Number.isFinite(rentAmount) || rentAmount <= 0) {
       context.addIssue({
         code: "custom",
-        message: "Enter a valid non-negative rent amount.",
+        message: "Enter a rent amount greater than zero.",
         path: ["monthlyRentAmount"],
       });
     }
@@ -321,6 +356,16 @@ export async function createLeaseAction(
   );
 
   if (error) {
+    if (isLeaseUnitTermConflict(error.message)) {
+      return {
+        fieldErrors: {
+          unitId: ["This unit is already reserved for those dates."],
+        },
+        message: "Choose another unit or change the lease dates.",
+        status: "error",
+      };
+    }
+
     return {
       message: leaseActionErrorMessage(error.message),
       status: "error",
@@ -406,6 +451,70 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
   return {
     leaseId: parsed.data.leaseId,
     message: "Occupancy evidence recorded.",
+    status: "success",
+  };
+}
+
+export async function transitionLeaseLifecycleAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requireLeaseConfigurationContext();
+  const parsed = leaseLifecycleTransitionSchema.safeParse({
+    effectiveDate: readString(formData, "effectiveDate"),
+    expectedOccupancyId: readString(formData, "expectedOccupancyId"),
+    expectedStatus: readString(formData, "expectedStatus"),
+    idempotencyKey: readString(formData, "idempotencyKey"),
+    leaseId: readString(formData, "leaseId"),
+    reason: readString(formData, "reason"),
+    scheduledMoveOutDate: readString(formData, "scheduledMoveOutDate"),
+    transition: readString(formData, "transition"),
+  });
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const scheduledMoveOutDate =
+    (parsed.data.scheduledMoveOutDate || null) as string;
+  const { data: result, error } = await supabase.rpc(
+    "transition_lease_lifecycle",
+    {
+      p_effective_date: parsed.data.effectiveDate,
+      p_expected_occupancy_id: parsed.data.expectedOccupancyId,
+      p_expected_status: parsed.data.expectedStatus,
+      p_idempotency_key: parsed.data.idempotencyKey,
+      p_lease_id: parsed.data.leaseId,
+      p_organization_id: context.organizationId,
+      p_reason: parsed.data.reason,
+      p_scheduled_move_out_date: scheduledMoveOutDate,
+      p_transition: parsed.data.transition,
+    },
+  );
+
+  const returnedLeaseId =
+    result &&
+    typeof result === "object" &&
+    !Array.isArray(result) &&
+    typeof result.leaseId === "string"
+      ? result.leaseId
+      : null;
+
+  if (error || !returnedLeaseId) {
+    return {
+      message: error
+        ? leaseActionErrorMessage(error.message)
+        : "The lease lifecycle transition was not returned.",
+      status: "error",
+    };
+  }
+
+  revalidateLeasePaths([], [], returnedLeaseId);
+
+  return {
+    leaseId: returnedLeaseId,
+    message: getLeaseLifecycleSuccessMessage(parsed.data.transition),
     status: "success",
   };
 }
@@ -717,10 +826,31 @@ function revalidateLeasePaths(
 
   if (leaseId) {
     revalidatePath(`/leases?query=${leaseId}`);
+    revalidatePath(`/leases/${leaseId}`);
+  }
+}
+
+function getLeaseLifecycleSuccessMessage(
+  transition: z.infer<typeof leaseLifecycleTransitionSchema>["transition"],
+) {
+  switch (transition) {
+    case "activate":
+      return "Lease activated.";
+    case "give_notice":
+      return "Notice recorded.";
+    case "end":
+      return "Lease ended.";
+    case "terminate":
+      return "Lease terminated.";
+    case "cancel":
+      return "Draft lease cancelled.";
   }
 }
 
 function leaseActionErrorMessage(message: string) {
+  if (isLeaseUnitTermConflict(message)) {
+    return "This unit is already reserved for those dates.";
+  }
   if (message.includes("Tenant not found")) {
     return "Choose an active tenant in this workspace.";
   }
@@ -742,6 +872,26 @@ function leaseActionErrorMessage(message: string) {
 
   if (message.includes("Lease not found")) {
     return "We could not find that lease.";
+  }
+
+  if (
+    message.includes("lease_lifecycle_stale_status") ||
+    message.includes("lease_lifecycle_stale_occupancy") ||
+    message.includes("lease_lifecycle_scope_changed")
+  ) {
+    return "This lease changed after the page loaded. Refresh it before trying again.";
+  }
+
+  if (message.includes("lease_lifecycle_notice_move_out_required")) {
+    return "Choose a planned move-out date on or after the notice date.";
+  }
+
+  if (message.includes("lease_lifecycle_reason_required")) {
+    return "Add an evidence note with at least 8 characters.";
+  }
+
+  if (message.includes("lease_lifecycle_transition_invalid")) {
+    return "This lifecycle change is not available from the lease's current status.";
   }
 
   if (message.includes("overlaps existing key")) {
@@ -776,6 +926,13 @@ function leaseActionErrorMessage(message: string) {
   }
 
   return "We could not save the lease. Please check the fields and try again.";
+}
+
+function isLeaseUnitTermConflict(message: string) {
+  return (
+    message.includes("Unit is already reserved for the selected Lease dates") ||
+    message.includes("lease_unit_term_conflict")
+  );
 }
 
 export async function recordLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {

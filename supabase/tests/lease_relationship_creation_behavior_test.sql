@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(35);
+SELECT plan(36);
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_error(p_sql text)
 RETURNS jsonb
@@ -579,6 +579,74 @@ SELECT is(
   ),
   1,
   'same-payload retry does not duplicate the occupancy'
+);
+
+SELECT is(
+  (
+    SELECT pg_temp.capture_error(
+      format(
+        'SELECT public.create_lease_with_relationships(%L,%L,%L,%L,DATE %L,DATE %L,1000,%L,5,%L,%L,NULL,NULL,%L,%L::jsonb,%L)',
+        organization_id,
+        property_id,
+        planned_unit_id,
+        second_tenant_id,
+        '2027-06-01',
+        '2028-05-31',
+        'USD',
+        'monthly',
+        'draft',
+        'draft',
+        jsonb_build_object(
+          'primaryParty', jsonb_build_object(
+            'personId', second_tenant_id,
+            'lifecycle', 'planned',
+            'recordSource', 'operator_confirmed',
+            'reason', 'new_lease_relationship_composition',
+            'startedOn', jsonb_build_object(
+              'date', NULL,
+              'kind', 'unknown',
+              'confidence', 'unknown'
+            ),
+            'endedOn', jsonb_build_object(
+              'date', NULL,
+              'kind', 'unknown',
+              'confidence', 'unknown'
+            )
+          ),
+          'occupancy', jsonb_build_object(
+            'lifecycle', 'reserved',
+            'recordSource', 'operator_confirmed',
+            'reason', 'new_lease_relationship_composition',
+            'scheduledMoveIn', jsonb_build_object(
+              'date', NULL,
+              'kind', 'unknown',
+              'confidence', 'unknown'
+            ),
+            'scheduledMoveOut', jsonb_build_object(
+              'date', NULL,
+              'kind', 'unknown',
+              'confidence', 'unknown'
+            ),
+            'actualMoveIn', jsonb_build_object(
+              'date', NULL,
+              'kind', 'unknown',
+              'confidence', 'unknown'
+            ),
+            'actualMoveOut', jsonb_build_object(
+              'date', NULL,
+              'kind', 'unknown',
+              'confidence', 'unknown'
+            )
+          ),
+          'participants', '[]'::jsonb
+        ),
+        'lease-relationship-overlap'
+      )
+    ) ->> 'detail'
+    FROM lease_relationship_state
+  ),
+  'lease_unit_term_conflict',
+  'checked Lease creation rejects an overlapping term on the same Unit'
 );
 SELECT is(
   (

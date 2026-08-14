@@ -1,13 +1,17 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { FormSection } from "@/components/ui/form-section";
+import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
+import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
+import type { PersonRoleValue } from "@/features/people/people.types";
 import {
   createLeaseAction,
   type LeaseActionState,
@@ -53,7 +57,10 @@ const termStatusOptions: { label: string; value: LeaseTermStatus }[] = [
 ];
 
 type LeaseFormProps = {
+  allowStatusChange?: boolean;
   initialValues?: LeaseFormInitialValues;
+  initialStatus?: LeaseStatusValue;
+  initialTermStatus?: LeaseTermStatus;
   lease?: LeaseSummary | null;
   mode?: "create" | "edit";
   onClose: () => void;
@@ -68,7 +75,10 @@ type LeaseFormInitialValues = Partial<
 >;
 
 export function LeaseForm({
+  allowStatusChange = false,
   initialValues,
+  initialStatus,
+  initialTermStatus,
   lease,
   mode = "create",
   onClose,
@@ -82,7 +92,12 @@ export function LeaseForm({
     isEditMode ? updateLeaseAction : createLeaseAction,
     initialState,
   );
-  const defaults = getLeaseDefaults(lease, initialValues);
+  const defaults = getLeaseDefaults(
+    lease,
+    initialValues,
+    initialStatus,
+    initialTermStatus,
+  );
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [selectedPropertyId, setSelectedPropertyId] = useState(
     defaults.propertyId,
@@ -98,25 +113,57 @@ export function LeaseForm({
     defaults.tenantPersonId,
   );
   const [selectedUnitId, setSelectedUnitId] = useState(defaults.unitId);
-  const propertyOptions = ensureSelectedProperty(
-    properties,
-    selectedPropertyId,
+  const [leaseStartDate, setLeaseStartDate] = useState(defaults.leaseStartDate);
+  const [leaseEndDate, setLeaseEndDate] = useState(defaults.leaseEndDate);
+  const [availableTenantOptions, setAvailableTenantOptions] = useState(tenants);
+  const [createTenantOpen, setCreateTenantOpen] = useState(false);
+  const hasValidLeaseDates =
+    Boolean(leaseStartDate && leaseEndDate) && leaseEndDate > leaseStartDate;
+  const availableUnits = useMemo(
+    () =>
+      hasValidLeaseDates
+        ? units.filter((unit) =>
+            isUnitAvailableForLease(
+              unit,
+              leaseStartDate,
+              leaseEndDate,
+              isEditMode ? lease?.id : undefined,
+            ),
+          )
+        : [],
+    [hasValidLeaseDates, isEditMode, lease?.id, leaseEndDate, leaseStartDate, units],
   );
+  const availablePropertyIds = useMemo(
+    () => new Set(availableUnits.map((unit) => unit.propertyId)),
+    [availableUnits],
+  );
+  const availableProperties = useMemo(
+    () =>
+      hasValidLeaseDates
+        ? properties.filter((property) => availablePropertyIds.has(property.id))
+        : [],
+    [availablePropertyIds, hasValidLeaseDates, properties],
+  );
+  const propertyOptions = isEditMode
+    ? ensureSelectedProperty(availableProperties, selectedPropertyId)
+    : availableProperties;
   const unitOptions = useMemo(
     () =>
       ensureSelectedUnit(
-        units.filter((unit) => unit.propertyId === selectedPropertyId),
+        availableUnits.filter(
+          (unit) => unit.propertyId === selectedPropertyId,
+        ),
         units,
         selectedUnitId,
       ),
-    [selectedPropertyId, selectedUnitId, units],
+    [availableUnits, selectedPropertyId, selectedUnitId, units],
   );
   const normalizedStatusOptions = ensureSelectedStatus(
     statusOptions,
     defaults.status,
   );
   const tenantOptions = ensureSelectedTenant(
-    tenants,
+    availableTenantOptions,
     selectedTenantId,
     defaults.tenantName,
   );
@@ -124,16 +171,6 @@ export function LeaseForm({
     selectedUnitId && unitOptions.some((unit) => unit.id === selectedUnitId)
       ? selectedUnitId
       : "";
-  const selectedUnitOption = units.find((unit) => unit.id === formUnitId);
-  const selectedPropertyOption = properties.find(
-    (property) => property.id === selectedPropertyId,
-  );
-  const selectedTenantOption = tenantOptions.find(
-    (tenant) => tenant.id === selectedTenantId,
-  );
-  const selectedStatusOption = normalizedStatusOptions.find(
-    (status) => status.value === selectedStatus,
-  );
 
   useEffect(() => {
     if (state.status === "success") {
@@ -142,13 +179,53 @@ export function LeaseForm({
     }
   }, [onClose, onSuccess, state.leaseId, state.message, state.status]);
 
+  function handleTenantCreated(
+    personId?: string,
+    roles?: PersonRoleValue[],
+    displayName?: string,
+  ) {
+    if (!personId || !displayName || !roles?.includes("tenant")) return;
+
+    setAvailableTenantOptions((current) => [
+      {
+        archived: false,
+        description: "Tenant",
+        id: personId,
+        label: displayName,
+        roles: ["tenant"],
+      },
+      ...current.filter((option) => option.id !== personId),
+    ]);
+    setSelectedTenantId(personId);
+    setCreateTenantOpen(false);
+  }
+
+  function handleLeaseStartDateChange(value: string) {
+    setLeaseStartDate(value);
+
+    if (!isEditMode) {
+      setSelectedPropertyId("");
+      setSelectedUnitId("");
+    }
+  }
+
+  function handleLeaseEndDateChange(value: string) {
+    setLeaseEndDate(value);
+
+    if (!isEditMode) {
+      setSelectedPropertyId("");
+      setSelectedUnitId("");
+    }
+  }
+
   return (
+    <>
     <RecordForm
       action={action}
       ariaLabel={isEditMode ? "Edit lease form" : "Add lease form"}
       onCancel={onClose}
       pending={pending}
-      saveLabel={isEditMode ? "Save changes" : "Add lease"}
+      saveLabel={isEditMode ? "Save changes" : "Save draft"}
       savingLabel={isEditMode ? "Saving lease" : "Adding lease"}
       state={{
         ...state,
@@ -165,44 +242,26 @@ export function LeaseForm({
         value={idempotencyKey}
       />
 
-      <ConsequencePanel
-        rows={[
-          {
-            label: "Tenant",
-            value: selectedTenantOption?.label ?? "Select tenant",
-          },
-          {
-            label: "Property",
-            value: selectedPropertyOption?.label ?? "Select property",
-          },
-          {
-            label: "Unit",
-            value: selectedUnitOption?.label ?? "No unit assigned",
-          },
-          {
-            label: "Status",
-            value: selectedStatusOption?.label ?? "Choose lease status",
-          },
-          {
-            label: "Rent terms",
-            value:
-              termStatusOptions.find(
-                (option) => option.value === selectedTermStatus,
-              )?.label ?? "Choose term status",
-          },
-        ]}
-        summary={
-          isEditMode
-            ? "Relationship, occupancy, and Lease lifecycle changes require a checked transition. Tenant, property, unit, and Lease status stay unchanged here."
-            : initialValues?.unitId
-            ? "Saving links this tenant to the selected vacancy. Open lease statuses affect unit occupancy."
-            : "Saving links this tenant, property, and unit. Rent due day and frequency are recorded explicitly; no policy default is inferred."
-        }
-        title="Tenancy effect"
-      />
+      {!isEditMode ? (
+        <>
+          <input name="status" type="hidden" value="draft" />
+          <input name="termStatus" type="hidden" value="draft" />
+          <input name="paymentFrequency" type="hidden" value="monthly" />
+          <input name="scheduledMoveInDate" type="hidden" value="" />
+          <input name="scheduledMoveOutDate" type="hidden" value="" />
+          <input name="actualMoveInDate" type="hidden" value="" />
+          <input name="actualMoveOutDate" type="hidden" value="" />
+        </>
+      ) : null}
 
-      <FormSection title="Lease party">
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
+      <FormSection title={isEditMode ? "Lease party" : "Lease details"}>
+        <div
+          className={
+            isEditMode
+              ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]"
+              : "grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+          }
+        >
           <RecordField
             error={state.fieldErrors?.tenantPersonId?.[0]}
             label="Tenant"
@@ -232,19 +291,28 @@ export function LeaseForm({
             />
           </RecordField>
 
-          <RecordField
+          {!isEditMode ? (
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => setCreateTenantOpen(true)}
+              type="button"
+              variant="outline"
+            >
+              <Plus aria-hidden size={15} />
+              New tenant
+            </Button>
+          ) : null}
+
+          {isEditMode ? <RecordField
             error={state.fieldErrors?.status?.[0]}
             label="Status"
             name="status"
             required
           >
-            {isEditMode ? (
-              <input name="status" type="hidden" value={selectedStatus} />
-            ) : null}
+            <input name="status" type="hidden" value={selectedStatus} />
             <SelectControl
               ariaLabel="Status"
-              disabled={isEditMode}
-              name={isEditMode ? undefined : "status"}
+              disabled={!allowStatusChange}
               onValueChange={(value) =>
                 setSelectedStatus(value as LeaseStatusValue)
               }
@@ -252,6 +320,38 @@ export function LeaseForm({
               placeholder="Choose lease status"
               required
               value={selectedStatus}
+            />
+          </RecordField> : null}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RecordField
+            label="Start date"
+            name="leaseStartDate"
+            error={state.fieldErrors?.leaseStartDate?.[0]}
+            required
+          >
+            <DatePickerField
+              ariaLabel="Lease start date"
+              defaultValue={defaults.leaseStartDate}
+              name="leaseStartDate"
+              onValueChange={handleLeaseStartDateChange}
+              required
+            />
+          </RecordField>
+
+          <RecordField
+            error={state.fieldErrors?.leaseEndDate?.[0]}
+            label="End date"
+            name="leaseEndDate"
+            required
+          >
+            <DatePickerField
+              ariaLabel="Lease end date"
+              defaultValue={defaults.leaseEndDate}
+              name="leaseEndDate"
+              onValueChange={handleLeaseEndDateChange}
+              required
             />
           </RecordField>
         </div>
@@ -272,7 +372,7 @@ export function LeaseForm({
             ) : null}
             <SelectControl
               ariaLabel="Property"
-              disabled={isEditMode}
+              disabled={isEditMode || !hasValidLeaseDates}
               name={isEditMode ? undefined : "propertyId"}
               onValueChange={(value) => {
                 setSelectedPropertyId(value);
@@ -294,122 +394,31 @@ export function LeaseForm({
             error={state.fieldErrors?.unitId?.[0]}
             label="Unit"
             name="unitId"
+            required
           >
             {isEditMode ? (
               <input name="unitId" type="hidden" value={formUnitId} />
             ) : null}
             <SelectControl
               ariaLabel="Unit"
-              disabled={isEditMode || !selectedPropertyId}
+              disabled={isEditMode || !hasValidLeaseDates || !selectedPropertyId}
               name={isEditMode ? undefined : "unitId"}
               onValueChange={setSelectedUnitId}
               options={[
-                { label: "No unit assigned", value: "" },
+                { label: "Select unit", value: "" },
                 ...unitOptions.map((unit) => ({
                   label: formatUnitSelectLabel(unit.label),
                   value: unit.id,
                 })),
               ]}
+              required
               value={formUnitId}
             />
           </RecordField>
         </div>
       </FormSection>
 
-      {!isEditMode ? (
-        <FormSection title="Occupancy evidence">
-          <p className="text-sm text-muted-foreground">
-            Lease dates are contractual. Record planned and confirmed physical
-            occupancy separately; move dates are never copied from the term.
-          </p>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <RecordField
-              error={state.fieldErrors?.scheduledMoveInDate?.[0]}
-              label="Scheduled move-in"
-              name="scheduledMoveInDate"
-            >
-              <DatePickerField
-                ariaLabel="Scheduled move-in date"
-                name="scheduledMoveInDate"
-              />
-            </RecordField>
-
-            <RecordField
-              error={state.fieldErrors?.scheduledMoveOutDate?.[0]}
-              label="Scheduled move-out"
-              name="scheduledMoveOutDate"
-            >
-              <DatePickerField
-                ariaLabel="Scheduled move-out date"
-                name="scheduledMoveOutDate"
-              />
-            </RecordField>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <RecordField
-              error={state.fieldErrors?.actualMoveInDate?.[0]}
-              label="Confirmed move-in"
-              name="actualMoveInDate"
-            >
-              <DatePickerField
-                ariaLabel="Confirmed move-in date"
-                name="actualMoveInDate"
-              />
-            </RecordField>
-
-            <RecordField
-              error={state.fieldErrors?.actualMoveOutDate?.[0]}
-              label="Confirmed move-out"
-              name="actualMoveOutDate"
-            >
-              <DatePickerField
-                ariaLabel="Confirmed move-out date"
-                name="actualMoveOutDate"
-              />
-            </RecordField>
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            Active and notice leases stay open after confirmed move-in. Ended
-            leases may leave confirmed occupancy unknown or record both dates.
-            Leave unknown facts blank.
-          </p>
-        </FormSection>
-      ) : null}
-
-      <FormSection title="Term and money">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <RecordField
-            label="Start date"
-            name="leaseStartDate"
-            error={state.fieldErrors?.leaseStartDate?.[0]}
-            required
-          >
-            <DatePickerField
-              ariaLabel="Lease start date"
-              defaultValue={defaults.leaseStartDate}
-              name="leaseStartDate"
-              required
-            />
-          </RecordField>
-
-          <RecordField
-            error={state.fieldErrors?.leaseEndDate?.[0]}
-            label="End date"
-            name="leaseEndDate"
-            required
-          >
-            <DatePickerField
-              ariaLabel="Lease end date"
-              defaultValue={defaults.leaseEndDate}
-              name="leaseEndDate"
-              required
-            />
-          </RecordField>
-        </div>
-
+      <FormSection title="Rent and deposit">
         <div className="grid gap-4 sm:grid-cols-2">
           <RecordField
             label="Rent amount"
@@ -419,7 +428,7 @@ export function LeaseForm({
           >
             <NumberInput
               defaultValue={defaults.monthlyRentAmount}
-              min="0"
+              min="0.01"
               name="monthlyRentAmount"
               placeholder="0.00"
               required
@@ -445,7 +454,7 @@ export function LeaseForm({
           </RecordField>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        {isEditMode ? <div className="grid gap-4 sm:grid-cols-2">
           <RecordField
             error={state.fieldErrors?.paymentFrequency?.[0]}
             label="Payment frequency"
@@ -487,11 +496,11 @@ export function LeaseForm({
               value={selectedTermStatus}
             />
           </RecordField>
-        </div>
+        </div> : null}
 
         <RecordField
           error={state.fieldErrors?.depositAmount?.[0]}
-          label="Deposit"
+          label="Security deposit"
           name="depositAmount"
         >
           <NumberInput
@@ -503,18 +512,31 @@ export function LeaseForm({
           />
         </RecordField>
 
-        <p className="text-xs text-muted-foreground">
-          Readiness stays blocked until an approved rent policy supports this
-          frequency and the term is authoritative.
-        </p>
       </FormSection>
     </RecordForm>
+    <Modal
+      onClose={() => setCreateTenantOpen(false)}
+      open={createTenantOpen}
+      title="Create tenant"
+    >
+      <PersonForm
+        initialRoles={["tenant"]}
+        onClose={() => setCreateTenantOpen(false)}
+        onSuccess={(_message, personId, roles, displayName) =>
+          handleTenantCreated(personId, roles, displayName)
+        }
+        roleContext="tenant"
+      />
+    </Modal>
+    </>
   );
 }
 
 function getLeaseDefaults(
   lease?: LeaseSummary | null,
   initialValues: LeaseFormInitialValues = {},
+  initialStatus?: LeaseStatusValue,
+  initialTermStatus?: LeaseTermStatus,
 ) {
   const formValues = lease?.formValues;
 
@@ -526,11 +548,11 @@ function getLeaseDefaults(
     paymentFrequency: formValues?.paymentFrequency ?? "",
     propertyId: formValues?.propertyId ?? initialValues.propertyId ?? "",
     rentDueDay: toInputNumber(formValues?.rentDueDay),
-    status: formValues?.status ?? "",
+    status: initialStatus ?? formValues?.status ?? "",
     tenantPersonId:
       formValues?.tenantPersonId ?? initialValues.tenantPersonId ?? "",
     tenantName: formValues?.tenantName ?? "",
-    termStatus: formValues?.termStatus ?? "",
+    termStatus: initialTermStatus ?? formValues?.termStatus ?? "",
     unitId: formValues?.unitId ?? initialValues.unitId ?? "",
   };
 }
@@ -600,6 +622,20 @@ function ensureSelectedTenant(
 
 function formatUnitSelectLabel(label: string) {
   return label.includes(" / ") ? (label.split(" / ").at(-1) ?? label) : label;
+}
+
+function isUnitAvailableForLease(
+  unit: LeaseUnitOption,
+  startDate: string,
+  endDate: string,
+  currentLeaseId?: string,
+) {
+  return !(unit.reservations ?? []).some(
+    (reservation) =>
+      reservation.leaseId !== currentLeaseId &&
+      reservation.startDate <= endDate &&
+      reservation.endDate >= startDate,
+  );
 }
 
 function ensureSelectedStatus(

@@ -50,6 +50,13 @@ export type LeaseUnitOption = {
   id: string;
   label: string;
   propertyId: string;
+  reservations?: LeaseUnitReservation[];
+};
+
+export type LeaseUnitReservation = {
+  endDate: string;
+  leaseId: string;
+  startDate: string;
 };
 
 export type LeaseTenantOption = PersonSelectOption;

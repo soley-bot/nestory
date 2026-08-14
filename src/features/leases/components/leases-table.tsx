@@ -46,14 +46,13 @@ export function LeasesTable({
         data-slot="register-table-frame"
       >
         <div aria-label="Leases table" className="overflow-x-auto" role="region">
-          <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
+          <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
             <colgroup>
-              <col className="w-[20%]" />
-              <col className="w-[20%]" />
-              <col className="w-[15%]" />
-              <col className="w-[12%]" />
-              <col className="w-[19%]" />
-              <col className="w-[14%]" />
+              <col className="w-[22%]" />
+              <col className="w-[25%]" />
+              <col className="w-[24%]" />
+              <col className="w-[13%]" />
+              <col className="w-[16%]" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
@@ -61,14 +60,13 @@ export function LeasesTable({
                 <th className="px-1.5 py-2.5 font-semibold">Property / Unit</th>
                 <th className="px-1.5 py-2.5 font-semibold">Term</th>
                 <th className="px-1.5 py-2.5 text-right font-semibold">Rent</th>
-                <th className="px-1.5 py-2.5 font-semibold">Deposit</th>
                 <th className="px-1.5 py-2.5 font-semibold">Status</th>
               </tr>
             </thead>
             <tbody>
               {leases.length === 0 ? (
                 <tr className="border-t border-border">
-                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
+                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
                     {getEmptyMessage(archiveState)}
                   </td>
                 </tr>
@@ -127,9 +125,6 @@ export function LeasesTable({
                     <TableMoneyDisplay value={lease.rentDisplay} />
                   </td>
                   <td className="px-1.5 py-2 align-middle">
-                    <p className="truncate">{getDepositStatus(lease)}</p>
-                  </td>
-                  <td className="px-1.5 py-2 align-middle">
                     <div className="flex min-w-0 flex-wrap items-center gap-1">
                       <Badge className="px-2 text-xs" tone={lease.statusTone}>
                         {lease.statusLabel}
@@ -138,7 +133,11 @@ export function LeasesTable({
                         <Badge className="px-2 text-xs" tone="warning">Archived</Badge>
                       ) : null}
                     </div>
-
+                    {getDepositAttention(lease) ? (
+                      <p className="mt-1 truncate text-xs text-warning">
+                        {getDepositAttention(lease)}
+                      </p>
+                    ) : null}
                   </td>
                 </tr>
                 );
@@ -211,7 +210,13 @@ function LeaseCard({
         <LeaseCardDetail label="Start" value={lease.startDateLabel} />
         <LeaseCardDetail align="right" label="End" value={lease.endDateLabel} />
         <LeaseCardDetail label="Payment" value={formatLedgerCount(lease)} />
-        <LeaseCardDetail align="right" label="Deposit" value={getDepositStatus(lease)} />
+        {getDepositAttention(lease) ? (
+          <LeaseCardDetail
+            align="right"
+            label="Deposit"
+            value={getDepositAttention(lease)}
+          />
+        ) : null}
       </dl>
 
       <button
@@ -282,14 +287,24 @@ function formatLedgerCount(lease: LeaseSummary) {
   return `${count} ledger ${count === 1 ? "entry" : "entries"}`;
 }
 
-function getDepositStatus(lease: LeaseSummary) {
+function getDepositAttention(lease: LeaseSummary) {
   const deposit = lease.deposits[0];
 
-  if (deposit) {
-    return `${deposit.statusLabel} deposit`;
+  if (!lease.depositDisplay) {
+    return null;
   }
 
-  return lease.depositDisplay ? "Deposit recorded" : "No deposit";
+  if (!deposit) {
+    return "Deposit not received";
+  }
+
+  const status = deposit.statusLabel.toLowerCase();
+
+  if (status === "active" || status === "held" || status === "returned") {
+    return null;
+  }
+
+  return `${deposit.statusLabel} deposit`;
 }
 
 function getEmptyMessage(archiveState: LeaseArchiveState) {

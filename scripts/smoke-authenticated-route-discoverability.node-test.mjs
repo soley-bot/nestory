@@ -19,7 +19,7 @@ const contract = JSON.parse(
 test("builds one shell-start visible-link journey for every authorized role and route", () => {
   const plan = buildDiscoverabilityPlan(contract);
 
-  assert.equal(plan.length, 67);
+  assert.equal(plan.length, 70);
   assert.deepEqual(
     Object.fromEntries(
       contract.roles.map((role) => [
@@ -28,11 +28,11 @@ test("builds one shell-start visible-link journey for every authorized role and 
       ]),
     ),
     {
-      finance_manager: 12,
-      finance_member: 9,
+      finance_manager: 13,
+      finance_member: 10,
       operations_manager: 6,
       operations_member: 2,
-      super_admin: 38,
+      super_admin: 39,
     },
   );
   assert.equal(new Set(plan.map((journey) => journey.id)).size, plan.length);

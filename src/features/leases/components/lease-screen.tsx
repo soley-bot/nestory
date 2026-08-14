@@ -27,6 +27,7 @@ import { LeaseFilters } from "@/features/leases/components/lease-filters";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import { LeaseInspector } from "@/features/leases/components/lease-inspector";
 import { LeasesTable } from "@/features/leases/components/leases-table";
+import { buildLeaseRecordHref } from "@/features/leases/lease-detail-route";
 import type {
   LeaseFormValues,
   LeasePagination,
@@ -129,7 +130,7 @@ export function LeaseScreen({
     viewQuery.propertyId,
   );
   const getLeaseRecordHref = (leaseId: string) =>
-    getFocusedRecordHref(pathname, searchParams, "leaseId", leaseId);
+    buildLeaseRecordHref({ leaseId });
   const openLeaseAction = (nextDrawer: DrawerState) => {
     setCompactInspectorOpen(false);
     setStatusMessage(null);
@@ -221,11 +222,7 @@ export function LeaseScreen({
   );
   const leaseInspector = selectedLease ? (
     <LeaseInspector
-      canConfigure={canConfigure}
       lease={selectedLease}
-      onArchiveLease={(lease) => openLeaseAction({ lease, mode: "archive" })}
-      onEditLease={(lease) => openLeaseAction({ lease, mode: "edit" })}
-      onRestoreLease={(lease) => openLeaseAction({ lease, mode: "restore" })}
       getLeaseHref={getLeaseRecordHref}
     />
   ) : null;
@@ -233,27 +230,19 @@ export function LeaseScreen({
   return (
     <WorkspacePage
       actions={
-        <div className="flex flex-wrap gap-2">
-            <div
-              className="inline-flex min-h-8 items-center gap-1.5 text-xs text-muted-foreground"
-              role="status"
-            >
-              <CheckCircle2 className="text-success" size={14} />
-              Rent is generated automatically
-            </div>
-            {canConfigure ? (
-              <Button
-                onClick={() => openLeaseAction({ mode: "create" })}
-                variant="default"
-              >
-                <Plus size={15} />
-                Add lease
-              </Button>
-            ) : null}
-        </div>
+        canConfigure ? (
+          <Button
+            onClick={() => openLeaseAction({ mode: "create" })}
+            variant="default"
+          >
+            <Plus size={15} />
+            Add lease
+          </Button>
+        ) : null
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/leases"
+      headerClassName="py-3 lg:py-3"
       localNav={(
         <FinanceWorkspaceNavigation
           activeRoute="/leases"
@@ -261,13 +250,20 @@ export function LeaseScreen({
         />
       )}
       title="Leases"
-      toolbar={<LeaseFilters
-        properties={propertyOptions}
-        units={unitOptions}
-        viewQuery={viewQuery}
-      />}
     >
       <div className="flex min-w-0 flex-col">
+
+      <div
+        aria-label="Workspace tools"
+        className="workspace-gutter-x shrink-0 border-b border-border py-2"
+        role="toolbar"
+      >
+        <LeaseFilters
+          properties={propertyOptions}
+          units={unitOptions}
+          viewQuery={viewQuery}
+        />
+      </div>
 
       {statusMessage ? (
         <div className="shrink-0 px-4 py-2 sm:px-6">
@@ -342,18 +338,6 @@ export function LeaseScreen({
       ) : null}
     </WorkspacePage>
   );
-}
-
-function getFocusedRecordHref(
-  pathname: string,
-  searchParams: { toString(): string },
-  key: string,
-  value: string,
-) {
-  const nextParams = new URLSearchParams(searchParams.toString());
-  nextParams.set(key, value);
-
-  return `${pathname}?${nextParams.toString()}`;
 }
 
 function getHrefWithoutActionParam(
@@ -442,10 +426,10 @@ function getLeaseDrawerTitle(drawer: DrawerState) {
 function getLeaseDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "create") {
     if (drawer.intent === "fill-vacancy") {
-      return "Create an active lease for the selected vacant unit and tenant. Saving the lease will mark the unit occupied.";
+      return "Create a draft lease for the selected unit.";
     }
 
-    return "Create a lease record tied to a People tenant, property, optional unit, rent, and deposit.";
+    return "Set the tenant, dates, unit, rent, and deposit.";
   }
 
   if (drawer.mode === "edit") {

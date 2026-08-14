@@ -2645,6 +2645,103 @@ export type Database = {
           },
         ]
       }
+      lease_lifecycle_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_date: string
+          expected_occupancy_id: string
+          from_status: string
+          id: string
+          idempotency_key: string
+          lease_id: string
+          occupancy_id: string
+          organization_id: string
+          reason: string
+          scheduled_move_out_date: string | null
+          term_id: string | null
+          to_status: string
+          transition: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_date: string
+          expected_occupancy_id: string
+          from_status: string
+          id?: string
+          idempotency_key: string
+          lease_id: string
+          occupancy_id: string
+          organization_id: string
+          reason: string
+          scheduled_move_out_date?: string | null
+          term_id?: string | null
+          to_status: string
+          transition: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_date?: string
+          expected_occupancy_id?: string
+          from_status?: string
+          id?: string
+          idempotency_key?: string
+          lease_id?: string
+          occupancy_id?: string
+          organization_id?: string
+          reason?: string
+          scheduled_move_out_date?: string | null
+          term_id?: string | null
+          to_status?: string
+          transition?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_lifecycle_events_expected_occupancy_fk"
+            columns: ["expected_occupancy_id"]
+            isOneToOne: false
+            referencedRelation: "lease_occupancies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_lifecycle_events_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_lifecycle_events_lease_fk"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_lifecycle_events_occupancy_fk"
+            columns: ["occupancy_id"]
+            isOneToOne: false
+            referencedRelation: "lease_occupancies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_lifecycle_events_term_fk"
+            columns: ["term_id"]
+            isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["lease_term_id"]
+          },
+          {
+            foreignKeyName: "lease_lifecycle_events_term_fk"
+            columns: ["term_id"]
+            isOneToOne: false
+            referencedRelation: "lease_terms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lease_occupancies: {
         Row: {
           actual_effective_range: unknown
@@ -8837,6 +8934,10 @@ export type Database = {
         }
         Returns: string
       }
+      begin_paid_cost_evidence_cleanup: {
+        Args: { p_organization_id: string; p_storage_path: string }
+        Returns: boolean
+      }
       close_owner_month: {
         Args: {
           p_close_reason: string
@@ -9142,8 +9243,6 @@ export type Database = {
       }
       create_unit: {
         Args: {
-          p_current_rent_amount: number
-          p_current_rent_currency: Database["public"]["Enums"]["currency_code"]
           p_floor: string
           p_organization_id: string
           p_property_id: string
@@ -9180,6 +9279,10 @@ export type Database = {
           p_organization_id: string
         }
         Returns: string
+      }
+      finish_paid_cost_evidence_cleanup: {
+        Args: { p_organization_id: string; p_storage_path: string }
+        Returns: boolean
       }
       generate_owner_balance_period: {
         Args: {
@@ -9618,6 +9721,18 @@ export type Database = {
       get_report_documents_snapshot: {
         Args: { p_organization_id: string }
         Returns: Json
+      }
+      list_paid_cost_evidence_orphans: {
+        Args: { p_grace_seconds?: number }
+        Returns: {
+          created_at: string
+          mime_type: string
+          organization_id: string
+          size_bytes: number
+          storage_object_id: string
+          storage_object_version: string
+          storage_path: string
+        }[]
       }
       mark_organization_invitation_delivery_failed: {
         Args: { p_error: string; p_invitation_id: string }
@@ -10304,6 +10419,20 @@ export type Database = {
         }
         Returns: Json
       }
+      transition_lease_lifecycle: {
+        Args: {
+          p_effective_date: string
+          p_expected_occupancy_id: string
+          p_expected_status: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+          p_reason: string
+          p_scheduled_move_out_date: string
+          p_transition: string
+        }
+        Returns: Json
+      }
       update_document: {
         Args: {
           p_category: string
@@ -10486,8 +10615,6 @@ export type Database = {
       }
       update_unit: {
         Args: {
-          p_current_rent_amount: number
-          p_current_rent_currency: Database["public"]["Enums"]["currency_code"]
           p_floor: string
           p_organization_id: string
           p_property_id: string

@@ -1,8 +1,8 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:5cbf9567346eeef14bee0cae1f5c22946ef072ad6b14208999fa86bc4aaa4c70 -->
+<!-- contract-sha256:8ac38813fa20dcb71bf08d00542b19eb39abb6188f35c7b6e7097de36e35f4e0 -->
 
-This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 38 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
+This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 39 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 
 Classifications are `global`, `context`, `profile`, or `intentionally inaccessible`. An authorized page is incomplete unless its visible entry and browser journey from the current shell or contextual origin both exist.
 
@@ -26,6 +26,8 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 | `/inspections` | `requireOperationsManagementContext` / `canManageOperations` | global via shell-inspections; pending sa:inspections | Intentionally inaccessible — Requires canManageOperations. | Intentionally inaccessible — Requires canManageOperations. | global via shell-inspections; pending om:inspections | Intentionally inaccessible — Requires canManageOperations. | none |
 <!-- authenticated-route:/leases -->
 | `/leases` | `requireFinanceContext` / `canReadFinance` | global via shell-leases; pending sa:leases | global via shell-leases; pending fm:leases | global via shell-leases; pending fmem:leases | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link |
+<!-- authenticated-route:/leases/[leaseId] -->
+| `/leases/[leaseId]` | `requireFinanceContext` / `canReadFinance` | context via lease-detail; pending sa:lease-detail | context via lease-detail; pending fm:lease-detail | context via lease-detail; pending fmem:lease-detail | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link |
 <!-- authenticated-route:/ledger -->
 | `/ledger` | `requireFinanceContext` / `canReadFinance` | global via shell-ledger; pending sa:ledger | global via shell-ledger; pending fm:ledger | global via shell-ledger; pending fmem:ledger | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link |
 <!-- authenticated-route:/maintenance -->

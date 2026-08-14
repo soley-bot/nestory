@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildLeaseUnitReservations,
   getCalendarDateInTimeZone,
   getEffectiveRentPolicyCalendarDate,
 } from "@/features/leases/data/leases";
@@ -55,5 +56,26 @@ describe("lease data dates", () => {
         new Date("2026-08-01T23:30:00.000Z"),
       ),
     ).toBe("2026-08-01");
+  });
+});
+
+describe("lease unit availability", () => {
+  it("attaches only unarchived draft, upcoming, and active term reservations", () => {
+    const reservations = buildLeaseUnitReservations(
+      [
+        { archived_at: null, id: "lease-1", unit_id: "unit-1" },
+        { archived_at: null, id: "lease-2", unit_id: "unit-1" },
+        { archived_at: "2026-08-01", id: "lease-3", unit_id: "unit-1" },
+      ],
+      [
+        { archived_at: null, end_date: "2026-08-31", lease_id: "lease-1", start_date: "2026-08-01", status: "draft" },
+        { archived_at: null, end_date: "2026-09-30", lease_id: "lease-2", start_date: "2026-09-01", status: "expired" },
+        { archived_at: null, end_date: "2026-10-31", lease_id: "lease-3", start_date: "2026-10-01", status: "active" },
+      ],
+    );
+
+    expect(reservations.get("unit-1")).toEqual([
+      { endDate: "2026-08-31", leaseId: "lease-1", startDate: "2026-08-01" },
+    ]);
   });
 });

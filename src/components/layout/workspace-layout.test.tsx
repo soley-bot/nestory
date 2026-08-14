@@ -2,6 +2,7 @@
 
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import Link from "next/link";
 import { useState, type ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
@@ -152,7 +153,7 @@ describe("shared workspace anatomy", () => {
           actions={<button type="button">Add lease</button>}
           navigation={
             <nav aria-label="Lease sections">
-              <a href="/leases?status=active">Active leases</a>
+              <Link href="/leases?status=active">Active leases</Link>
             </nav>
           }
           title="Leases"

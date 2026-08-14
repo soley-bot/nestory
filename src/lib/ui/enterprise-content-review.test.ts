@@ -23,7 +23,7 @@ describe("enterprise route content review", () => {
     expect(review.routes.map((entry) => entry.route).sort()).toEqual(
       manifest.map((entry) => entry.route).sort(),
     );
-    expect(new Set(review.routes.map((entry) => entry.route)).size).toBe(47);
+    expect(new Set(review.routes.map((entry) => entry.route)).size).toBe(48);
     expect(review.routes.every((entry) => entry.result === "pass")).toBe(true);
   });
 
