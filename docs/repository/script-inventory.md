@@ -7,7 +7,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 - default-gate: 34
 - documented-operator: 2
 - reusable-support: 19
-- specialist-command: 51
+- specialist-command: 52
 
 ## Inventory
 
@@ -49,6 +49,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/owner-balance-lifecycle-concurrency.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:owners:test-lifecycle` |
 | `scripts/owner-balance-lifecycle-correction-concurrency.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:owners:test-lifecycle` |
 | `scripts/owner-balance-lifecycle-fixture-contract.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `package:owners:test-lifecycle`, `package:test:contracts` |
+| `scripts/owner-balance-lifecycle-loaded-fixture.node-test.mjs` | specialist-command | `package:owners:test-lifecycle`, `package:test:database:contracts` |
 | `scripts/owner-close-browser-contract.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `package:test:contracts` |
 | `scripts/owner-close-concurrency.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:owners:test-close` |
 | `scripts/owner-opening-balance-schema-concurrency.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:owners:test-workflow` |
@@ -74,7 +75,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/smoke-authenticated-route-discoverability.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `package:test:contracts` |
 | `scripts/smoke-fixture-finance-manager-day.mjs` | specialist-command | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-09-ips-operational-readiness-program.md`, `package:test:fixture-finance-manager-day`, `scripts/smoke-fixture-finance-manager-day.node-test.mjs` |
 | `scripts/smoke-fixture-finance-manager-day.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-09-ips-operational-readiness-program.md`, `package:test:contracts` |
-| `scripts/smoke-fixture-owner-balance-lifecycle.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:test:fixture-owner-balance-lifecycle`, `scripts/owner-balance-lifecycle-fixture-contract.node-test.mjs` |
+| `scripts/smoke-fixture-owner-balance-lifecycle.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:test:fixture-owner-balance-lifecycle`, `scripts/owner-balance-lifecycle-loaded-fixture.node-test.mjs` |
 | `scripts/smoke-fixture-owner-close.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:test:fixture-owner-close` |
 | `scripts/smoke-fixture-owner-opening-balances.mjs` | specialist-command | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-09-ips-operational-readiness-program.md`, `package:test:fixture-owner-opening-balances`, `scripts/owner-opening-fixture-contract.node-test.mjs` |
 | `scripts/smoke-fixture-owner-statement-publication.mjs` | specialist-command | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-10-owner-statement-publication.md`, `package:test:fixture-owner-statement-publication` |

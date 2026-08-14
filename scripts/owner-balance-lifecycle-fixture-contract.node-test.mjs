@@ -2,11 +2,6 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import {
-  queryOwnerBalanceFixture,
-  validateOwnerBalanceFixture,
-} from "./smoke-fixture-owner-balance-lifecycle.mjs";
-
 const manifestUrl = new URL("./fixtures/owner-balance-lifecycle.json", import.meta.url);
 
 test("owner-balance fixture pins literal four-component oracles", async () => {
@@ -39,10 +34,4 @@ test("owner-balance fixture covers every required lifecycle source", async () =>
     "security_deposit_refund",
     "tenant_rent_receipt",
   ]);
-});
-
-test("loaded fixture proves two-property, two-month lifecycle authority", async () => {
-  const manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
-  const report = queryOwnerBalanceFixture();
-  validateOwnerBalanceFixture(report, manifest);
 });
