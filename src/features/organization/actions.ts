@@ -107,7 +107,10 @@ export async function updateOrganizationAppearanceAction(
     p_theme_mode: parsed.data.mode,
   });
   if (error) {
-    return { message: organizationErrorMessage(error.message), status: "error" };
+    return {
+      message: organizationErrorMessage(error.message),
+      status: "error",
+    };
   }
 
   revalidateSettings();
@@ -136,7 +139,10 @@ export async function updateOrganizationIdentityAction(
     p_organization_id: context.organizationId,
   });
   if (error) {
-    return { message: organizationErrorMessage(error.message), status: "error" };
+    return {
+      message: organizationErrorMessage(error.message),
+      status: "error",
+    };
   }
 
   revalidatePath("/settings/organization");
@@ -168,7 +174,8 @@ export async function uploadOrganizationLogoAction(
     context.organizationId,
     validation.extension,
   );
-  const contentType = validation.extension === "png" ? "image/png" : "image/jpeg";
+  const contentType =
+    validation.extension === "png" ? "image/png" : "image/jpeg";
   const bucket = supabase.storage.from("organization-assets");
   const { error: uploadError } = await bucket.upload(storagePath, file, {
     cacheControl: "31536000",
@@ -176,7 +183,10 @@ export async function uploadOrganizationLogoAction(
     upsert: false,
   });
   if (uploadError) {
-    return { message: "We could not upload the company logo.", status: "error" };
+    return {
+      message: "We could not upload the company logo.",
+      status: "error",
+    };
   }
 
   const { error } = await supabase.rpc("update_organization_logo", {
@@ -199,6 +209,8 @@ export async function removeOrganizationLogoAction(
   _state: OrganizationActionState,
   _formData: FormData,
 ): Promise<OrganizationActionState> {
+  void _state;
+  void _formData;
   const context = await requireSuperAdminContext();
   const supabase = await createSupabaseServerClient();
   const previousPath = await getCurrentLogoPath(
@@ -210,7 +222,10 @@ export async function removeOrganizationLogoAction(
     p_organization_id: context.organizationId,
   });
   if (error) {
-    return { message: "We could not remove the company logo.", status: "error" };
+    return {
+      message: "We could not remove the company logo.",
+      status: "error",
+    };
   }
 
   if (previousPath) {
@@ -244,7 +259,10 @@ export async function createBranchAction(
   });
 
   if (error) {
-    return { message: organizationErrorMessage(error.message), status: "error" };
+    return {
+      message: organizationErrorMessage(error.message),
+      status: "error",
+    };
   }
 
   revalidateSettings();
@@ -275,7 +293,10 @@ export async function createTeamAction(
   });
 
   if (error) {
-    return { message: organizationErrorMessage(error.message), status: "error" };
+    return {
+      message: organizationErrorMessage(error.message),
+      status: "error",
+    };
   }
 
   revalidateSettings();
@@ -313,7 +334,10 @@ export async function updateMemberAccessAction(
   });
 
   if (error) {
-    return { message: organizationErrorMessage(error.message), status: "error" };
+    return {
+      message: organizationErrorMessage(error.message),
+      status: "error",
+    };
   }
 
   revalidateSettings(parsed.data.personId);
@@ -334,7 +358,8 @@ export async function inviteOrganizationUserAction(
 
   if (!parsed.success) {
     return {
-      message: "Choose a valid Staff member, invitation email, and access level.",
+      message:
+        "Choose a valid Staff member, invitation email, and access level.",
       status: "error",
     };
   }
@@ -355,12 +380,17 @@ export async function inviteOrganizationUserAction(
 
   if (createResult.error || !createResult.data) {
     return {
-      message: organizationErrorMessage(createResult.error?.message ?? "Invitation was not created"),
+      message: organizationErrorMessage(
+        createResult.error?.message ?? "Invitation was not created",
+      ),
       status: "error",
     };
   }
 
-  const delivery = await deliverInvitation(parsed.data.email, createResult.data);
+  const delivery = await deliverInvitation(
+    parsed.data.email,
+    createResult.data,
+  );
   const finalizeResult = delivery.error
     ? await supabase.rpc("mark_organization_invitation_delivery_failed", {
         p_error: delivery.error,
@@ -374,12 +404,16 @@ export async function inviteOrganizationUserAction(
 
   revalidateSettings(parsed.data.personId);
   if (finalizeResult.error) {
-    return { message: "Invitation state could not be finalized.", status: "error" };
+    return {
+      message: "Invitation state could not be finalized.",
+      status: "error",
+    };
   }
 
   return delivery.error
     ? {
-        message: "Invitation saved, but email delivery failed. Retry from Pending invitations.",
+        message:
+          "Invitation saved, but email delivery failed. Retry from Pending invitations.",
         status: "error",
       }
     : {
@@ -443,7 +477,10 @@ export async function resendOrganizationInvitationAction(
       status: "error",
     };
   }
-  const delivery = await deliverInvitation(invitation.email, invitation.invitation_id);
+  const delivery = await deliverInvitation(
+    invitation.email,
+    invitation.invitation_id,
+  );
   const finalizeResult = delivery.error
     ? await supabase.rpc("mark_organization_invitation_delivery_failed", {
         p_error: delivery.error,
@@ -457,7 +494,10 @@ export async function resendOrganizationInvitationAction(
 
   revalidateSettings();
   if (finalizeResult.error || delivery.error) {
-    return { message: "Invitation email could not be resent.", status: "error" };
+    return {
+      message: "Invitation email could not be resent.",
+      status: "error",
+    };
   }
 
   return { message: "Invitation resent.", status: "success" };
@@ -480,7 +520,10 @@ export async function revokeOrganizationInvitationAction(
     p_invitation_id: parsed.data.invitationId,
   });
   if (error) {
-    return { message: organizationErrorMessage(error.message), status: "error" };
+    return {
+      message: organizationErrorMessage(error.message),
+      status: "error",
+    };
   }
 
   revalidateSettings();
@@ -505,7 +548,10 @@ export async function removeMemberAccessAction(
     p_organization_id: context.organizationId,
   });
   if (error) {
-    return { message: organizationErrorMessage(error.message), status: "error" };
+    return {
+      message: organizationErrorMessage(error.message),
+      status: "error",
+    };
   }
 
   revalidateSettings();
@@ -587,7 +633,11 @@ async function deliverInvitation(email: string, invitationId: string) {
     );
 
     if (!error) {
-      return { authUserId: data.user?.id ?? null, error: null, method: "invite" };
+      return {
+        authUserId: data.user?.id ?? null,
+        error: null,
+        method: "invite",
+      };
     }
 
     if (isExistingAuthUserError(error)) {
@@ -617,7 +667,9 @@ async function deliverInvitation(email: string, invitationId: string) {
 
 function isExistingAuthUserError(error: { code?: string; message: string }) {
   if (error.code) {
-    return error.code === "email_exists" || error.code === "user_already_exists";
+    return (
+      error.code === "email_exists" || error.code === "user_already_exists"
+    );
   }
 
   const normalized = error.message.toLowerCase();

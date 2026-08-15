@@ -41,7 +41,6 @@ export function CompanyLogoEditor({
 
   useEffect(() => {
     if (uploadState.status === "success" || removeState.status === "success") {
-      setSelectedFileName("");
       router.refresh();
     }
   }, [removeState.status, router, uploadState.status]);
