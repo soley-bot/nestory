@@ -18,7 +18,9 @@ vi.mock("@/lib/db/auth-route", () => ({
 }));
 
 import { GET as callbackGet } from "@/app/auth/callback/route";
-import { GET as confirmGet } from "@/app/auth/confirm/route";
+import * as confirmRoute from "@/app/auth/confirm/route";
+
+const confirmGet = confirmRoute.GET;
 
 describe("successful auth entry routes", () => {
   beforeEach(() => {
@@ -149,6 +151,39 @@ describe("successful auth entry routes", () => {
     );
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
     expect(response.headers.get("set-cookie")).toContain("Max-Age=600");
+    expect(response.cookies.get("sb-session")?.value).toBe("recovery:valid");
+  });
+
+  it("consumes a recovery token only after an explicit form submission", async () => {
+    const confirmPost = (
+      confirmRoute as typeof confirmRoute & {
+        POST?: typeof confirmRoute.GET;
+      }
+    ).POST;
+
+    expect(confirmPost).toBeTypeOf("function");
+    if (!confirmPost) {
+      return;
+    }
+
+    const response = await confirmPost(
+      new NextRequest("http://localhost:3000/auth/confirm", {
+        body: new URLSearchParams({
+          token_hash: "valid",
+          type: "recovery",
+        }),
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/update-password",
+    );
+    expect(response.headers.get("set-cookie")).toContain(
+      "nestory_recovery=signed-recovery-marker",
+    );
     expect(response.cookies.get("sb-session")?.value).toBe("recovery:valid");
   });
 
@@ -300,11 +335,10 @@ describe("entry experience contracts", () => {
     expect(form).toContain('autoComplete="new-password"');
   });
 
-  it("routes hosted email templates through the browser session completion boundary", () => {
+  it("routes hosted sign-in templates through the browser session completion boundary", () => {
     for (const path of [
       "supabase/templates/invite.html",
       "supabase/templates/magic_link.html",
-      "supabase/templates/recovery.html",
     ]) {
       const template = readSource(path);
 
@@ -312,6 +346,15 @@ describe("entry experience contracts", () => {
       expect(template).not.toContain("{{ .TokenHash }}");
       expect(template).not.toContain("{{ .RedirectTo }}");
     }
+  });
+
+  it("keeps recovery verification behind an explicit app-owned confirmation", () => {
+    const template = readSource("supabase/templates/recovery.html");
+
+    expect(template).toContain(
+      'href="{{ .SiteURL }}/auth/complete?token_hash={{ .TokenHash }}&type=recovery"',
+    );
+    expect(template).not.toContain("{{ .ConfirmationURL }}");
   });
 
   it("keeps the no-access recovery honest", () => {

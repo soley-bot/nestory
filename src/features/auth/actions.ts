@@ -3,7 +3,6 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { getAuthCallbackUrl } from "@/lib/auth/callback-url";
 import {
   RECOVERY_MARKER_COOKIE,
   verifyRecoveryMarker,
@@ -106,9 +105,7 @@ export async function requestPasswordRecoveryAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: getAuthCallbackUrl("/auth/callback", "/update-password"),
-  });
+  await supabase.auth.resetPasswordForEmail(parsed.data.email);
 
   return {
     message: "If that account exists, a password reset link has been sent.",
