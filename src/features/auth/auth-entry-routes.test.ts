@@ -119,6 +119,21 @@ describe("successful auth entry routes", () => {
     );
   });
 
+  it("marks a verified PKCE recovery callback for password updates", async () => {
+    const response = await callbackGet(
+      new NextRequest(
+        "http://localhost:3000/auth/callback?code=valid&next=%2Fupdate-password",
+      ),
+    );
+
+    expect(response.headers.get("set-cookie")).toContain(
+      "nestory_recovery=signed-recovery-marker",
+    );
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=600");
+    expect(response.cookies.get("sb-session")?.value).toBe("code:valid");
+  });
+
   it("marks only a verified recovery-token response for password updates", async () => {
     const response = await confirmGet(
       new NextRequest(

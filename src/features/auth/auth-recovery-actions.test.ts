@@ -70,7 +70,7 @@ describe("password recovery actions", () => {
 
     expect(resetPasswordForEmail).toHaveBeenCalledWith("missing@example.com", {
       redirectTo:
-        "http://localhost:3000/auth/complete?next=%2Fupdate-password",
+        "http://localhost:3000/auth/callback?next=%2Fupdate-password",
     });
     expect(result).toEqual({
       message: "If that account exists, a password reset link has been sent.",
