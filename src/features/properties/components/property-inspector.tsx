@@ -133,18 +133,12 @@ export function PropertyInspector({
             className="min-w-0 rounded-xl bg-muted/55 p-4"
             data-slot="property-preview-fact-card"
           >
-            <dt className="text-sm font-medium text-muted-foreground">Net income</dt>
+            <dt className="text-sm font-medium text-muted-foreground">
+              Ledger net (all time)
+            </dt>
             <dd className="mt-1 text-2xl font-semibold tracking-tight">
               <MoneyDisplay value={property.netIncome} />
             </dd>
-            <p
-              className={cn(
-                "mt-1 text-xs font-medium",
-                property.netIncomeUsd >= 0 ? "text-success" : "text-danger",
-              )}
-            >
-              {property.netIncomeUsd >= 0 ? "Positive this period" : "Negative this period"}
-            </p>
           </div>
           <div
             className="min-w-0 rounded-xl bg-muted/55 p-4"

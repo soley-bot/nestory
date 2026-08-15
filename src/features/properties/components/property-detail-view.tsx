@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import {
+  AlertTriangle,
+  ArrowRight,
   Building2,
   CalendarDays,
   FileText,
@@ -253,6 +255,10 @@ function getPropertyRecordPanelContent({
     );
   }
 
+  const actionableHealthIndicators = property.healthIndicators.filter(
+    (indicator) => indicator.tone === "warning" || indicator.tone === "danger",
+  );
+
   return (
     <>
       <section id="property-overview">
@@ -267,13 +273,69 @@ function getPropertyRecordPanelContent({
           </p>
         </div>
 
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-start">
+          <Link
+            aria-label={property.nextAction.label}
+            className={cn(
+              "flex min-w-0 items-start gap-3 border-l-2 px-3 py-2.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              property.nextAction.tone === "danger" &&
+                "border-danger bg-danger-soft/35 hover:bg-danger-soft/55",
+              property.nextAction.tone === "warning" &&
+                "border-warning bg-warning-soft/35 hover:bg-warning-soft/55",
+              property.nextAction.tone === "success" &&
+                "border-success bg-success-soft/35 hover:bg-success-soft/55",
+            )}
+            href={property.nextAction.href}
+            prefetch={false}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">
+                {property.nextAction.label}
+              </p>
+              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                {property.nextAction.description}
+              </p>
+            </div>
+            <ArrowRight aria-hidden="true" className="mt-0.5 shrink-0" size={16} />
+          </Link>
+
+          {actionableHealthIndicators.length > 0 ? (
+            <ul
+              aria-label="Property alerts"
+              className="divide-y divide-border border-y border-border"
+            >
+              {actionableHealthIndicators.map((indicator) => (
+                <li className="flex items-start gap-3 py-2 text-xs" key={indicator.id}>
+                  <AlertTriangle
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-0.5 shrink-0",
+                      indicator.tone === "danger" ? "text-danger" : "text-warning",
+                    )}
+                    size={14}
+                  />
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">{indicator.label}</p>
+                    <p className="mt-0.5 leading-5 text-muted-foreground">
+                      {indicator.description}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+
         <dl
           aria-label="Property summary"
           className="mt-4 grid grid-cols-1 divide-y divide-border border-y border-border py-3 text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0"
         >
           <Detail label="Occupancy" value={property.unitSummary} />
           <Detail label="Active leases" value={String(property.counts.activeLeases)} />
-          <Detail label="Net income" moneyValue={property.netIncome} />
+          <Detail
+            label={`NOI / ${property.financialSummary.periodLabel}`}
+            moneyValue={property.financialSummary.noiDisplay}
+          />
         </dl>
       </section>
 

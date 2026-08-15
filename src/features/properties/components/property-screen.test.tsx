@@ -425,9 +425,10 @@ describe("PropertyScreen redesign contract", () => {
       within(summary).getByText((_, node) => node?.tagName === "DD" && node.textContent === "2/3"),
     ).toBeTruthy();
     expect(within(summary).getByText("USD 1,200.00")).toBeTruthy();
+    expect(within(summary).getByText("Ledger net (all time)")).toBeTruthy();
     expect(within(summary).getByText("3")).toBeTruthy();
     expect(within(summary).getByText("2 leases active")).toBeTruthy();
-    expect(within(summary).getByText("Positive this period")).toBeTruthy();
+    expect(within(summary).queryByText("Positive this period")).toBeNull();
     expect(within(summary).getByRole("progressbar", { name: "Occupancy 2 of 3 units" })).toBeTruthy();
     expect(within(details).getByText("Sokha Vannak")).toBeTruthy();
     expect(within(details).getByText("Street 360, Boeung Keng Kang 1, Phnom Penh")).toBeTruthy();

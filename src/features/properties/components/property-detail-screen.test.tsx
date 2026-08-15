@@ -30,9 +30,6 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(propertyHeading.closest("header")?.className).toContain("px-4");
     expect(propertyHeading.closest("header")?.className).toContain("sm:px-6");
     expect(screen.getByText("NST-001 / Serviced Apartment")).toBeTruthy();
-    expect(
-      screen.queryByRole("link", { name: property.nextAction.label }),
-    ).toBeNull();
     expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "More" })).toBeTruthy();
 
@@ -59,8 +56,10 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
   });
 
-  it("keeps the overview quiet with essential context and three operational metrics", () => {
-    const { container } = renderPropertyDetail();
+  it("shows one primary next action, actionable alerts, and period-specific NOI", () => {
+    const { container } = renderPropertyDetail({
+      propertyOverride: propertyWithWorkflowAttention,
+    });
 
     const workspace = container.querySelector<HTMLElement>(
       '[data-slot="property-record-workspace"]',
@@ -76,9 +75,34 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(within(propertySummary!).getAllByRole("term")).toHaveLength(3);
     expect(within(propertySummary!).getByText("Occupancy")).toBeTruthy();
     expect(within(propertySummary!).getByText("Active leases")).toBeTruthy();
-    expect(within(propertySummary!).getByText("Net income")).toBeTruthy();
+    expect(
+      within(propertySummary!).getByText("NOI / Trailing 12 months"),
+    ).toBeTruthy();
+    expect(within(propertySummary!).getByText("USD 1,100.00")).toBeTruthy();
     expect(within(overviewPanel).getByText("District 1")).toBeTruthy();
     expect(within(overviewPanel).getByText("Jane Owner")).toBeTruthy();
+
+    const nextActions = within(overviewPanel).getAllByRole("link", {
+      name: "Review overdue issue",
+    });
+    expect(nextActions).toHaveLength(1);
+    expect(nextActions[0]?.getAttribute("href")).toBe(
+      "/maintenance?archiveState=all&taskId=case-overdue",
+    );
+    expect(
+      within(nextActions[0]!).getByText(
+        "Annual inspection is overdue under this property.",
+      ),
+    ).toBeTruthy();
+
+    const alerts = within(overviewPanel).getByRole("list", {
+      name: "Property alerts",
+    });
+    expect(within(alerts).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(alerts).getByText("Evidence missing")).toBeTruthy();
+    expect(within(alerts).getByText("Maintenance overdue")).toBeTruthy();
+    expect(within(alerts).queryByText("Owner linked")).toBeNull();
+    expect(within(alerts).queryByText("NOI positive")).toBeNull();
     expect(
       within(overviewPanel).queryByRole("heading", { name: "Property context" }),
     ).toBeNull();
@@ -431,4 +455,45 @@ const property = {
     overdueMaintenanceCases: 0,
   },
   recentMaintenanceCases: [],
+};
+
+const propertyWithWorkflowAttention: PropertyDetail = {
+  ...property,
+  financialSummary: {
+    ...property.financialSummary,
+    noiDisplay: { primary: "USD 1,100.00" },
+    periodLabel: "Trailing 12 months",
+  },
+  healthIndicators: [
+    {
+      description: "A current owner/person link is available for reports and follow-up.",
+      id: "owner",
+      label: "Owner linked",
+      tone: "success",
+    },
+    {
+      description: "One open maintenance case is overdue.",
+      id: "open-maintenance",
+      label: "Maintenance overdue",
+      tone: "danger",
+    },
+    {
+      description: "No property evidence or supporting documents are attached yet.",
+      id: "evidence",
+      label: "Evidence missing",
+      tone: "warning",
+    },
+    {
+      description: "Property income covers recorded expenses in the trailing 12 months.",
+      id: "noi",
+      label: "NOI positive",
+      tone: "success",
+    },
+  ],
+  nextAction: {
+    description: "Annual inspection is overdue under this property.",
+    href: "/maintenance?archiveState=all&taskId=case-overdue",
+    label: "Review overdue issue",
+    tone: "danger",
+  },
 };
