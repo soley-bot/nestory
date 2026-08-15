@@ -109,6 +109,7 @@ const FINANCE_CHILDREN = [
 
 const FINANCE_MANAGER_CHILDREN = [
   { href: "/finance", label: "Review queue", routes: ["/finance"] },
+  { href: "/leases", label: "Leases", routes: ["/leases"] },
   ...FINANCE_CHILDREN.slice(1),
 ] satisfies readonly GlobalDestinationChild[];
 

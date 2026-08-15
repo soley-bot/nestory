@@ -23,6 +23,10 @@ const navigation = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
 }));
 
+const leaseActions = vi.hoisted(() => ({
+  createLeaseAction: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
   useRouter: () => ({
@@ -34,7 +38,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/features/leases/actions", () => ({
   archiveLeaseAction: async () => ({}),
-  createLeaseAction: async () => ({}),
+  createLeaseAction: leaseActions.createLeaseAction,
   recordCurrentLeaseOccupancyEvidenceAction: async () => ({}),
   recordLeaseDepositEventAction: async () => ({}),
   restoreLeaseAction: async () => ({}),
@@ -68,6 +72,8 @@ beforeEach(() => {
   navigation.push.mockReset();
   navigation.replace.mockReset();
   navigation.searchParams = new URLSearchParams();
+  leaseActions.createLeaseAction.mockReset();
+  leaseActions.createLeaseAction.mockResolvedValue({});
   installMatchMedia(1440);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -416,6 +422,11 @@ describe("LeaseScreen redesign contract", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
+    expect(
+      within(drawer).getByText(
+        /valid start and end date.*property and unit availability/i,
+      ),
+    ).not.toBeNull();
   });
 
   it("shows only units and properties available for the inclusive Lease dates", async () => {
@@ -458,6 +469,161 @@ describe("LeaseScreen redesign contract", () => {
       screen.queryByRole("option", { name: "Riverside House" }),
     ).toBeNull();
     expect(screen.getByRole("option", { name: "Garden House" })).not.toBeNull();
+  });
+
+  it("preserves the selected Property and Unit when both remain eligible after a date change", async () => {
+    const user = userEvent.setup();
+    renderLeases();
+
+    await user.click(screen.getByRole("button", { name: "Add lease" }));
+    const drawer = screen.getByRole("dialog", { name: "Add lease" });
+    setLeaseDates(drawer, "2026-09-01", "2026-09-30");
+    await selectLeasePlacement(user, drawer, "Riverside House", "Unit 2A");
+
+    fireEvent.input(
+      drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
+      { target: { value: "2026-10-31" } },
+    );
+
+    expect(getLeaseFormValue(drawer, "propertyId")).toBe("property-1");
+    expect(getLeaseFormValue(drawer, "unitId")).toBe("unit-1");
+  });
+
+  it("clears only an ineligible Unit when its Property still has an eligible Unit", async () => {
+    const user = userEvent.setup();
+    renderLeases({
+      unitOptions: [
+        {
+          id: "unit-1",
+          label: "Unit 2A",
+          propertyId: "property-1",
+          reservations: [
+            {
+              endDate: "2026-10-31",
+              leaseId: "lease-existing",
+              startDate: "2026-10-01",
+            },
+          ],
+        },
+        {
+          id: "unit-2",
+          label: "Unit 3B",
+          propertyId: "property-1",
+          reservations: [],
+        },
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Add lease" }));
+    const drawer = screen.getByRole("dialog", { name: "Add lease" });
+    setLeaseDates(drawer, "2026-09-01", "2026-09-30");
+    await selectLeasePlacement(user, drawer, "Riverside House", "Unit 2A");
+
+    fireEvent.input(
+      drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
+      { target: { value: "2026-10-15" } },
+    );
+
+    expect(getLeaseFormValue(drawer, "propertyId")).toBe("property-1");
+    expect(getLeaseFormValue(drawer, "unitId")).toBe("");
+  });
+
+  it("clears Property and Unit only when the selected Property has no eligible Unit", async () => {
+    const user = userEvent.setup();
+    renderLeases({
+      propertyOptions: [
+        { id: "property-1", label: "Riverside House" },
+        { id: "property-2", label: "Garden House" },
+      ],
+      unitOptions: [
+        {
+          id: "unit-1",
+          label: "Unit 2A",
+          propertyId: "property-1",
+          reservations: [
+            {
+              endDate: "2026-10-31",
+              leaseId: "lease-existing",
+              startDate: "2026-10-01",
+            },
+          ],
+        },
+        {
+          id: "unit-2",
+          label: "Unit 1A",
+          propertyId: "property-2",
+          reservations: [],
+        },
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Add lease" }));
+    const drawer = screen.getByRole("dialog", { name: "Add lease" });
+    setLeaseDates(drawer, "2026-09-01", "2026-09-30");
+    await selectLeasePlacement(user, drawer, "Riverside House", "Unit 2A");
+
+    fireEvent.input(
+      drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
+      { target: { value: "2026-10-15" } },
+    );
+
+    expect(getLeaseFormValue(drawer, "propertyId")).toBe("");
+    expect(getLeaseFormValue(drawer, "unitId")).toBe("");
+  });
+
+  it("keeps a successful creation visibly saved with an Open draft handoff", async () => {
+    leaseActions.createLeaseAction.mockResolvedValue({
+      leaseId: "lease-new",
+      message: "Draft lease created.",
+      status: "success",
+    });
+    const user = userEvent.setup();
+    renderLeases();
+
+    await user.click(screen.getByRole("button", { name: "Add lease" }));
+    const drawer = screen.getByRole("dialog", { name: "Add lease" });
+    fireEvent.submit(
+      within(drawer).getByRole("form", { name: "Add lease form" }),
+    );
+
+    const openDraft = await within(drawer).findByRole("link", {
+      name: "Open draft",
+    });
+    expect(openDraft.getAttribute("href")).toBe("/leases/lease-new");
+    expect(within(drawer).getByText("Draft lease created.")).not.toBeNull();
+    expect(within(drawer).getByText("Changes saved")).not.toBeNull();
+    expect(
+      within(drawer).queryByRole("button", { name: "Create draft lease" }),
+    ).toBeNull();
+  });
+
+  it("links the inspector next action and related Property and Unit destinations", () => {
+    const lease = makeLease("lease-1", "Alice Tenant", "Unit 2A");
+    renderLeases({ leases: [lease] });
+
+    fireEvent.click(screen.getAllByRole("row")[1]!);
+    const quickView = screen.getByRole("dialog", {
+      name: "Alice Tenant lease quick view",
+    });
+
+    expect(
+      within(quickView)
+        .getByRole("link", { name: lease.nextAction.label })
+        .getAttribute("href"),
+    ).toBe(lease.nextAction.href);
+    expect(
+      within(quickView)
+        .getByRole("link", { name: "Riverside House" })
+        .getAttribute("href"),
+    ).toBe("/properties/property-1");
+    expect(
+      within(quickView)
+        .getByRole("link", { name: "Unit 2A" })
+        .getAttribute("href"),
+    ).toBe("/units/unit-1");
+    expect(
+      within(quickView).getAllByRole("link", { name: "Open lease record" }),
+    ).toHaveLength(1);
   });
 
   it("keeps occupancy repair out of the register quick view", () => {
@@ -548,7 +714,7 @@ describe("LeaseScreen redesign contract", () => {
         .getByRole("link", { name: "Riverside House" })
         .getAttribute("href"),
     ).toBe("/properties/property-1/account");
-    expect(within(quickView).getAllByRole("link")).toHaveLength(1);
+    expect(within(quickView).getAllByRole("link")).toHaveLength(4);
   });
 
   it("does not open action=create when creation is unauthorized", () => {
@@ -662,6 +828,24 @@ function setLeaseDates(
     drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
     { target: { value: endDate } },
   );
+}
+
+async function selectLeasePlacement(
+  user: ReturnType<typeof userEvent.setup>,
+  drawer: HTMLElement,
+  propertyLabel: string,
+  unitLabel: string,
+) {
+  await user.click(
+    within(drawer).getByRole("combobox", { name: /Property/ }),
+  );
+  await user.click(screen.getByRole("option", { name: propertyLabel }));
+  await user.click(within(drawer).getByRole("combobox", { name: /Unit/ }));
+  await user.click(screen.getByRole("option", { name: unitLabel }));
+}
+
+function getLeaseFormValue(drawer: HTMLElement, name: string) {
+  return drawer.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value;
 }
 
 function makeLease(

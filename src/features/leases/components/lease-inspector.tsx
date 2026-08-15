@@ -28,7 +28,25 @@ export function LeaseInspector({ getLeaseHref, lease }: LeaseInspectorProps) {
               {lease.tenantName}
             </h2>
             <p className="mt-1 break-words text-sm text-muted-foreground">
-              {lease.propertyName} / {lease.unitLabel}
+              <Link
+                className="font-medium text-foreground outline-none hover:text-accent focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring"
+                href={lease.hrefs.property}
+                prefetch={false}
+              >
+                {lease.propertyName}
+              </Link>{" "}
+              /{" "}
+              {lease.hrefs.unit ? (
+                <Link
+                  className="font-medium text-foreground outline-none hover:text-accent focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring"
+                  href={lease.hrefs.unit}
+                  prefetch={false}
+                >
+                  {lease.unitLabel}
+                </Link>
+              ) : (
+                lease.unitLabel
+              )}
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
@@ -51,7 +69,19 @@ export function LeaseInspector({ getLeaseHref, lease }: LeaseInspectorProps) {
           <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
             Next action
           </p>
-          <p className="mt-1 text-sm font-medium">{lease.nextAction.label}</p>
+          {lease.nextAction.href ? (
+            <Link
+              className="mt-1 inline-flex rounded-sm text-sm font-medium text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              href={lease.nextAction.href}
+              prefetch={false}
+            >
+              {lease.nextAction.label}
+            </Link>
+          ) : (
+            <p className="mt-1 text-sm font-medium">
+              {lease.nextAction.label}
+            </p>
+          )}
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             {lease.nextAction.description}
           </p>

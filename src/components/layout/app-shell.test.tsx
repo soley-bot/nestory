@@ -148,6 +148,9 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(screen.getByRole("link", { name: "Review queue" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Ledger" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Petty cash" })).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Leases" }).getAttribute("href"),
+    ).toBe("/leases");
     expect(screen.getByRole("link", { name: "Rent policy" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();

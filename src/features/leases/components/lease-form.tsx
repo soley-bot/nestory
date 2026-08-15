@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import Link from "next/link";
+import { useActionState, useEffect, useId, useMemo, useState } from "react";
+import { ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { FormSection } from "@/components/ui/form-section";
@@ -95,8 +96,11 @@ export function LeaseForm({
   const [leaseEndDate, setLeaseEndDate] = useState(defaults.leaseEndDate);
   const [availableTenantOptions, setAvailableTenantOptions] = useState(tenants);
   const [createTenantOpen, setCreateTenantOpen] = useState(false);
-  const hasValidLeaseDates =
-    Boolean(leaseStartDate && leaseEndDate) && leaseEndDate > leaseStartDate;
+  const placementPrerequisiteId = useId();
+  const hasValidLeaseDates = hasCompleteLeaseTerm(
+    leaseStartDate,
+    leaseEndDate,
+  );
   const availableUnits = useMemo(
     () =>
       hasValidLeaseDates
@@ -152,9 +156,11 @@ export function LeaseForm({
   useEffect(() => {
     if (state.status === "success") {
       onSuccess?.(state.message ?? "Lease saved.", state.leaseId);
-      onClose();
+      if (isEditMode) {
+        onClose();
+      }
     }
-  }, [onClose, onSuccess, state.leaseId, state.message, state.status]);
+  }, [isEditMode, onClose, onSuccess, state.leaseId, state.message, state.status]);
 
   function handleTenantCreated(
     personId?: string,
@@ -179,20 +185,43 @@ export function LeaseForm({
 
   function handleLeaseStartDateChange(value: string) {
     setLeaseStartDate(value);
-
-    if (!isEditMode) {
-      setSelectedPropertyId("");
-      setSelectedUnitId("");
-    }
+    reconcileCreatePlacement(value, leaseEndDate);
   }
 
   function handleLeaseEndDateChange(value: string) {
     setLeaseEndDate(value);
 
-    if (!isEditMode) {
-      setSelectedPropertyId("");
-      setSelectedUnitId("");
+    reconcileCreatePlacement(leaseStartDate, value);
+  }
+
+  function reconcileCreatePlacement(startDate: string, endDate: string) {
+    if (isEditMode || !hasCompleteLeaseTerm(startDate, endDate)) {
+      return;
     }
+
+    const eligibleUnits = units.filter((unit) =>
+      isUnitAvailableForLease(unit, startDate, endDate),
+    );
+    const selectedUnitRemainsEligible = eligibleUnits.some(
+      (unit) =>
+        unit.id === selectedUnitId && unit.propertyId === selectedPropertyId,
+    );
+
+    if (selectedUnitRemainsEligible) {
+      return;
+    }
+
+    const selectedPropertyHasEligibleUnit = eligibleUnits.some(
+      (unit) => unit.propertyId === selectedPropertyId,
+    );
+
+    if (selectedPropertyHasEligibleUnit) {
+      setSelectedUnitId("");
+      return;
+    }
+
+    setSelectedPropertyId("");
+    setSelectedUnitId("");
   }
 
   return (
@@ -204,6 +233,7 @@ export function LeaseForm({
         pending={pending}
         saveLabel={isEditMode ? "Save draft changes" : "Create draft lease"}
         savingLabel={isEditMode ? "Saving draft" : "Creating draft"}
+        hideSaveOnSuccess={!isEditMode}
         state={{
           ...state,
           fieldErrors: state.fieldErrors ? { ...state.fieldErrors } : undefined,
@@ -218,6 +248,22 @@ export function LeaseForm({
           type="hidden"
           value={idempotencyKey}
         />
+
+        {!isEditMode && state.status === "success" && state.leaseId ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm">
+            <p className="font-medium text-foreground">
+              Draft saved and ready for review.
+            </p>
+            <Link
+              className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 font-medium text-accent outline-none transition-colors hover:bg-background/70 focus-visible:ring-2 focus-visible:ring-ring"
+              href={`/leases/${state.leaseId}`}
+              prefetch={false}
+            >
+              Open draft
+              <ArrowRight aria-hidden size={14} />
+            </Link>
+          </div>
+        ) : null}
 
         {isEditMode ? (
           <>
@@ -324,6 +370,16 @@ export function LeaseForm({
               </Button>
             </div>
 
+            {!hasValidLeaseDates ? (
+              <p
+                className="text-xs leading-5 text-muted-foreground"
+                id={placementPrerequisiteId}
+              >
+                Enter a valid start and end date to check Property and Unit
+                availability.
+              </p>
+            ) : null}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <RecordField
                 error={state.fieldErrors?.propertyId?.[0]}
@@ -332,6 +388,9 @@ export function LeaseForm({
                 required
               >
                 <SelectControl
+                  aria-describedby={
+                    hasValidLeaseDates ? undefined : placementPrerequisiteId
+                  }
                   ariaLabel="Property"
                   disabled={!hasValidLeaseDates}
                   name="propertyId"
@@ -358,6 +417,9 @@ export function LeaseForm({
                 required
               >
                 <SelectControl
+                  aria-describedby={
+                    hasValidLeaseDates ? undefined : placementPrerequisiteId
+                  }
                   ariaLabel="Unit"
                   disabled={!hasValidLeaseDates || !selectedPropertyId}
                   name="unitId"
@@ -547,6 +609,10 @@ function ensureSelectedTenant(
 
 function formatUnitSelectLabel(label: string) {
   return label.includes(" / ") ? (label.split(" / ").at(-1) ?? label) : label;
+}
+
+function hasCompleteLeaseTerm(startDate: string, endDate: string) {
+  return Boolean(startDate && endDate) && endDate > startDate;
 }
 
 function isUnitAvailableForLease(
