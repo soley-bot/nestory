@@ -101,6 +101,46 @@ describe("buildPropertyDetail", () => {
     ]);
   });
 
+  it("uses the active lease as the source of truth for unit occupancy and rent", () => {
+    const detail = buildPropertyDetail({
+      activeLeases: [
+        {
+          id: "lease-1",
+          lease_end_date: "2028-01-31",
+          lease_start_date: "2026-08-01",
+          monthly_rent_amount: 850,
+          monthly_rent_currency: "USD",
+          status: "active",
+          tenant_name: "Dara Chan",
+          unit_id: "unit-1",
+        },
+      ],
+      ledgerEntries: [],
+      property,
+      units: [
+        {
+          archived_at: null,
+          current_rent_amount: null,
+          current_rent_currency: null,
+          floor: "1",
+          id: "unit-1",
+          status: "vacant",
+          unit_number: "A-01",
+        },
+      ],
+    });
+
+    expect(detail.occupiedUnits).toBe(1);
+    expect(detail.unitSummary).toBe("1/1 occupied");
+    expect(detail.unitsList[0]).toMatchObject({
+      attention: "—",
+      leaseEndLabel: "31 Jan 2028",
+      monthlyRent: "USD 850.00",
+      occupancy: "Occupied",
+      tenantName: "Dara Chan",
+    });
+  });
+
   it("builds linked property context, risk, next action, and route contracts", () => {
     const detail = buildPropertyDetail({
       activeLeases: [
@@ -237,6 +277,71 @@ describe("buildPropertyDetail", () => {
     });
   });
 
+  it("separates property documents from source-linked workflow evidence", () => {
+    const detail = buildPropertyDetail({
+      documents: [
+        {
+          category: "Insurance",
+          file_name: "property-insurance.pdf",
+          id: "doc-property",
+          lease_id: null,
+          ledger_entry_id: null,
+          mime_type: "application/pdf",
+          size_bytes: 1024,
+          storage_path: "org/documents/property-insurance.pdf",
+          task_id: null,
+          timeline_event_id: null,
+          unit_id: null,
+          uploaded_at: "2026-08-01",
+        },
+        {
+          category: "Paid cost evidence",
+          file_name: "cleaning-receipt.pdf",
+          id: "doc-expense",
+          lease_id: null,
+          ledger_entry_id: null,
+          mime_type: "application/pdf",
+          size_bytes: 2048,
+          storage_path: "org/paid-cost-evidence/hash",
+          task_id: null,
+          timeline_event_id: null,
+          unit_id: null,
+          uploaded_at: "2026-08-02",
+        },
+      ],
+      expenseEvidence: [
+        {
+          currency: "USD",
+          customer_category: "cleaning",
+          id: "submission-1",
+          internal_cost_amount: 85,
+          source_id: null,
+          source_type: "general",
+          status: "reversed",
+          supporting_document_id: "doc-expense",
+          vendor_label: "Khmer Home Services",
+        },
+      ],
+      ledgerEntries: [],
+      property,
+      units: [],
+    });
+
+    expect(detail.propertyDocuments.map((document) => document.fileName)).toEqual([
+      "property-insurance.pdf",
+    ]);
+    expect(detail.workflowEvidence).toEqual([
+      expect.objectContaining({
+        amountLabel: "USD 85.00",
+        fileName: "cleaning-receipt.pdf",
+        href: "/bills-expenses?submission=submission-1",
+        sourceLabel: "Cleaning expense",
+        statusLabel: "Reversed",
+        vendorLabel: "Khmer Home Services",
+      }),
+    ]);
+  });
+
   it("opens scoped upload when property evidence is missing", () => {
     const detail = buildPropertyDetail({
       activeLeases: [
@@ -283,7 +388,7 @@ describe("buildPropertyDetail", () => {
     });
 
     expect(detail.nextAction).toMatchObject({
-      href: "/documents?action=create&category=Property&propertyId=property-1",
+      href: "/documents?action=create&category=Property+record&propertyId=property-1",
       label: "Attach evidence",
       tone: "warning",
     });
@@ -298,7 +403,7 @@ describe("buildPropertyDetailHrefs", () => {
         propertyId: "property-1",
       }),
     ).toMatchObject({
-      addDocument: "/documents?action=create&category=Property&propertyId=property-1",
+      addDocument: "/documents?action=create&category=Property+record&propertyId=property-1",
       addLedgerEntry: "/ledger?action=create&propertyId=property-1",
       addLease: "/leases?action=create&propertyId=property-1",
       addTimelineEvent: "/timeline?action=create&propertyId=property-1",

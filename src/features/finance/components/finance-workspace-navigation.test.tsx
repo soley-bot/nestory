@@ -16,16 +16,28 @@ describe("FinanceWorkspaceNavigation", () => {
     expect(navigation.className).toContain("md:hidden");
 
     for (const label of [
-      "Finance work",
-      "Rent",
+      "Work queue",
+      "Rent & collections",
       "Expenses",
-      "Owner balances",
-      "Leases",
-      "Ledger",
+      "Owner accounts",
       "Petty cash",
+      "Ledger",
     ]) {
       expect(within(navigation).getByRole("link", { name: label })).toBeTruthy();
     }
+    expect(within(navigation).queryByRole("link", { name: "Leases" })).toBeNull();
+    expect(
+      within(navigation)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual([
+      "Work queue",
+      "Rent & collections",
+      "Expenses",
+      "Owner accounts",
+      "Petty cash",
+      "Ledger",
+    ]);
     expect(
       within(navigation).getByRole("link", { name: "Ledger" }).getAttribute(
         "aria-current",

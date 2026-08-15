@@ -21,6 +21,7 @@ import {
   FileDropzoneField,
 } from "@/components/ui/file-dropzone-field";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
+import { Modal } from "@/components/ui/modal";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,7 +55,6 @@ const periodLockInitialState: LedgerActionState = {};
 
 type DrawerState =
   | { mode: "receipt"; entry: LedgerEntry }
-  | { mode: "period-lock"; entry?: never }
   | { mode: "activity"; change: RecentChange };
 
 type LedgerScreenProps = {
@@ -87,6 +87,7 @@ export function LedgerScreen({
   viewQuery,
 }: LedgerScreenProps) {
   const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
+  const [periodControlsOpen, setPeriodControlsOpen] = useState(false);
   const [selectedEntryId, setSelectedEntryId] = useState(() =>
     getInitialRecordId(entries, initialEntryId),
   );
@@ -212,7 +213,11 @@ export function LedgerScreen({
           {canLockFinancialMonth ? (
             <>
               <Button
-                onClick={() => openLedgerAction({ mode: "period-lock" })}
+                onClick={() => {
+                  setCompactInspectorOpen(false);
+                  setStatusMessage(null);
+                  setPeriodControlsOpen(true);
+                }}
               >
                 <Lock size={15} />
                 Month lock
@@ -221,7 +226,7 @@ export function LedgerScreen({
           ) : null}
         </>
       }
-      context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
+      context={`${reviewPropertyLabel ?? "All properties"} · ${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/ledger"
       localNav={(
         <FinanceWorkspaceNavigation
@@ -229,7 +234,7 @@ export function LedgerScreen({
           canReadFinanceReports={canReadFinanceReports}
         />
       )}
-      title="Financial Ledger"
+      title="Ledger"
     >
       <div className="flex min-w-0 flex-col">
         {statusMessage ? (
@@ -277,9 +282,7 @@ export function LedgerScreen({
         </div>
 
         {drawerState &&
-        (canManageFinance ||
-          (canLockFinancialMonth && drawerState.mode === "period-lock") ||
-          drawerState.mode === "activity") ? (
+        (canManageFinance || drawerState.mode === "activity") ? (
           <SideDrawer
             description={getLedgerDrawerDescription(drawerState)}
             onClose={() => setDrawerState(null)}
@@ -292,17 +295,25 @@ export function LedgerScreen({
                 onClose={() => setDrawerState(null)}
                 onSuccess={setStatusMessage}
               />
-            ) : drawerState.mode === "period-lock" ? (
-              <PeriodLockPanel
-                canUnlockFinancialMonth={canUnlockFinancialMonth}
-                onClose={() => setDrawerState(null)}
-                onSuccess={setStatusMessage}
-                periodLocks={periodLocks}
-              />
             ) : drawerState.mode === "activity" ? (
               <ActivityDetailPanel change={drawerState.change} />
             ) : null}
           </SideDrawer>
+        ) : null}
+        {canLockFinancialMonth ? (
+          <Modal
+            description="Lock or unlock a financial month for the organization."
+            onClose={() => setPeriodControlsOpen(false)}
+            open={periodControlsOpen}
+            title="Month lock"
+          >
+            <PeriodLockPanel
+              canUnlockFinancialMonth={canUnlockFinancialMonth}
+              onClose={() => setPeriodControlsOpen(false)}
+              onSuccess={setStatusMessage}
+              periodLocks={periodLocks}
+            />
+          </Modal>
         ) : null}
       </div>
     </WorkspacePage>
@@ -312,10 +323,6 @@ export function LedgerScreen({
 function getLedgerDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "receipt") {
     return "Attach receipt";
-  }
-
-  if (drawer.mode === "period-lock") {
-    return "Month lock";
   }
 
   if (drawer.mode === "activity") {
@@ -328,10 +335,6 @@ function getLedgerDrawerTitle(drawer: DrawerState) {
 function getLedgerDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "receipt") {
     return "Attach a receipt or invoice to this ledger entry and its linked timeline event.";
-  }
-
-  if (drawer.mode === "period-lock") {
-    return "Lock or unlock operational months so historical financial records cannot be changed accidentally.";
   }
 
   if (drawer.mode === "activity") {
@@ -628,7 +631,7 @@ function PeriodLockPanel({
 
   useEffect(() => {
     if (state.status === "success") {
-      onSuccess(state.message ?? "Month lock updated.");
+      onSuccess(state.message ?? "Financial month lock updated.");
       onClose();
     }
   }, [onClose, onSuccess, state.message, state.status]);
@@ -639,8 +642,8 @@ function PeriodLockPanel({
         <ConsequencePanel
           summary={
             canUnlockFinancialMonth
-              ? "Locking prevents changes to historical financial records in the selected month. Unlocking reopens that month for authorized changes."
-              : "Locking closes the current open operational month to further financial changes. A reason is required, and only Super Admin can unlock it."
+              ? "Locking pauses authorized financial mutations for the selected month. Unlocking allows authorized corrections."
+              : "Locking pauses authorized financial mutations for the selected month. A reason is required, and only Super Admin can unlock it."
           }
           title="Month lock consequence"
         />
@@ -682,7 +685,7 @@ function PeriodLockPanel({
           <Textarea
             className="mt-2"
             name="reason"
-            placeholder="Routine month lock, correction window, or audit note"
+            placeholder="Month-end review, correction window, or audit note"
             required={!canUnlockFinancialMonth}
           />
           {state.fieldErrors?.reason?.[0] ? (
@@ -701,16 +704,16 @@ function PeriodLockPanel({
           </p>
         ) : null}
 
-        <section className="rounded-md border border-border">
-          <div className="border-b border-border px-3 py-2">
-            <p className="text-sm font-semibold">Locked months</p>
-          </div>
+        <details className="border-y border-border py-2">
+          <summary className="cursor-pointer text-sm font-medium">
+            Locked months ({periodLocks.length})
+          </summary>
           {periodLocks.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-muted-foreground">
+            <p className="pt-3 text-sm text-muted-foreground">
               No months are locked.
             </p>
           ) : (
-            <div className="divide-y divide-border">
+            <div className="mt-2 divide-y divide-border">
               {periodLocks.map((periodLock) => (
                 <div className="px-3 py-3 text-sm" key={periodLock.id}>
                   <div className="flex items-center justify-between gap-3">
@@ -728,7 +731,7 @@ function PeriodLockPanel({
               ))}
             </div>
           )}
-        </section>
+        </details>
       </div>
 
       <div className="border-t border-border px-4 py-4 sm:px-5">
@@ -743,7 +746,7 @@ function PeriodLockPanel({
             variant="default"
           >
             <Lock size={15} />
-            {pending ? "Updating..." : "Update month"}
+            {pending ? "Updating..." : "Update lock"}
           </Button>
         </div>
       </div>

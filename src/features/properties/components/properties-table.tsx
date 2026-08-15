@@ -33,7 +33,7 @@ export function PropertiesTable({
     <div className="min-w-0">
       <div
         className={cn(
-          "workspace-gutter-x",
+          "workspace-gutter-x px-4 sm:px-6 2xl:px-8",
           displayMode === "cards"
             ? "grid auto-rows-max content-start items-start gap-3 sm:grid-cols-2 2xl:grid-cols-3"
             : "space-y-3 md:hidden",
@@ -56,18 +56,17 @@ export function PropertiesTable({
 
       {displayMode === "table" ? (
         <div
-          className="workspace-gutter-x hidden min-w-0 md:block"
+          className="workspace-gutter-x hidden min-w-0 px-4 sm:px-6 md:block 2xl:px-8"
           data-slot="register-table-frame"
         >
           <div aria-label="Properties table" className="overflow-x-auto" role="region">
             <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
               <colgroup>
-                <col className="w-[30%]" />
-                <col className="w-[19%]" />
-                <col className="w-[19%]" />
-                <col className="w-[14%]" />
-                <col className="w-[10%]" />
-                <col className="w-[8%]" />
+                <col className="w-[32%]" />
+                <col className="w-[21%]" />
+                <col className="w-[23%]" />
+                <col className="w-[15%]" />
+                <col className="w-[9%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -90,7 +89,6 @@ export function PropertiesTable({
                     }
                     sortLabel="Sort properties by net"
                   />
-                  <th className="px-1.5 py-2.5 text-center font-semibold">Open</th>
                   <SortableHeader
                     active={sort === "status_asc"}
                     align="center"
@@ -104,7 +102,7 @@ export function PropertiesTable({
               <tbody>
                 {properties.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
                       No properties match the current filters.
                     </td>
                   </tr>
@@ -166,9 +164,6 @@ export function PropertiesTable({
                     </td>
                     <td className="px-1.5 py-2">
                       <TableMoneyDisplay value={property.netIncome} />
-                    </td>
-                    <td className="px-1.5 py-2 text-center">
-                      <TableOpenItems property={property} />
                     </td>
                     <td className="px-1.5 py-2">
                       <PropertyStatusBadges compact property={property} />
@@ -478,29 +473,6 @@ function TableOccupancy({ property }: { property: PropertySummary }) {
           style={{ width: `${Math.max(occupancyRate, property.units > 0 ? 4 : 0)}%` }}
         />
       </div>
-    </div>
-  );
-}
-
-function TableOpenItems({ property }: { property: PropertySummary }) {
-  const openUnits = Math.max(0, property.units - property.occupiedUnits);
-  const checks = [
-    openUnits > 0 ? `${openUnits} open` : null,
-    property.hasActiveOwnerLink ? null : "owner",
-    property.netIncomeUsd < 0 ? "net" : null,
-  ].filter(Boolean);
-
-  if (checks.length === 0) {
-    return <span className="text-xs text-success">Clear</span>;
-  }
-
-  return (
-    <div className="flex flex-wrap justify-center gap-1">
-      {checks.map((check) => (
-        <Badge className="px-1.5 py-0.5 text-xs" key={check} tone="warning">
-          {check}
-        </Badge>
-      ))}
     </div>
   );
 }

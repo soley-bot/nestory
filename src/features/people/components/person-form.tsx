@@ -7,8 +7,6 @@ import {
   type ComponentProps,
 } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
-import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
@@ -31,10 +29,7 @@ const initialState: PeopleActionState = {};
 const roleOptions: PersonRoleValue[] = ["tenant", "owner", "vendor", "staff"];
 
 type PersonFormPresentation = {
-  administrationHeading: string;
-  contactHeading: string;
   displayNameLabel: string;
-  identityHeading: string;
   notesLabel: string;
   showTaxIdentifier: boolean;
 };
@@ -114,7 +109,7 @@ export function PersonForm({
         <input name="personId" type="hidden" value={person.id} />
       ) : null}
 
-      <FormSection title={presentation.identityHeading}>
+      <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
           <RecordField
             error={state.fieldErrors?.displayName?.[0]}
@@ -160,10 +155,7 @@ export function PersonForm({
             type="text"
           />
         </RecordField>
-      </FormSection>
-
-      <FormSection title={presentation.contactHeading}>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
           <RecordField
             error={state.fieldErrors?.primaryEmail?.[0]}
             label="Primary email"
@@ -184,73 +176,69 @@ export function PersonForm({
             <PrimaryPhoneInput defaultValue={defaults.primaryPhone} />
           </RecordField>
         </div>
-      </FormSection>
 
-      {locksRole ? (
-        submittedRoles.map((role) => (
-          <input key={role} name="roles" type="hidden" value={role} />
-        ))
-      ) : (
-        <FormSection title="Roles">
-          <RecordField
-            error={state.fieldErrors?.roles?.[0]}
-            label="Operational roles"
-            name="roles"
-            required
-          >
-            <div className="grid gap-2 sm:grid-cols-3">
-              {roleOptions.map((role) => (
-                <RoleCheckbox
-                  defaultChecked={defaults.roles.includes(role)}
-                  key={role}
-                  role={role}
-                />
-              ))}
-            </div>
-          </RecordField>
-
-          <ConsequencePanel
-            summary="Roles determine where this record appears in People. They do not grant workspace access."
-            title="Role effect"
-          />
-        </FormSection>
-      )}
-
-      <FormSection title={presentation.administrationHeading}>
-        {presentation.showTaxIdentifier ? (
-          <RecordField
-            error={state.fieldErrors?.taxIdentifier?.[0]}
-            label="Tax identifier"
-            name="taxIdentifier"
-          >
-            <Input
-              defaultValue={defaults.taxIdentifier}
-              name="taxIdentifier"
-              placeholder="Optional"
-              type="text"
-            />
-          </RecordField>
+        {locksRole ? (
+          submittedRoles.map((role) => (
+            <input key={role} name="roles" type="hidden" value={role} />
+          ))
         ) : (
-          <input
-            name="taxIdentifier"
-            type="hidden"
-            value={defaults.taxIdentifier}
-          />
+          <div className="space-y-2 border-t border-border pt-4">
+            <RecordField
+              error={state.fieldErrors?.roles?.[0]}
+              label="Operational roles"
+              name="roles"
+              required
+            >
+              <div className="grid gap-2 sm:grid-cols-3">
+                {roleOptions.map((role) => (
+                  <RoleCheckbox
+                    defaultChecked={defaults.roles.includes(role)}
+                    key={role}
+                    role={role}
+                  />
+                ))}
+              </div>
+            </RecordField>
+            <p className="text-xs text-muted-foreground">
+              Roles control directory placement, not workspace access.
+            </p>
+          </div>
         )}
 
-        <RecordField
-          error={state.fieldErrors?.notes?.[0]}
-          label={presentation.notesLabel}
-          name="notes"
-        >
-          <Textarea
-            className="min-h-28 resize-y"
-            defaultValue={defaults.notes}
+        <div className="space-y-4 border-t border-border pt-4">
+          {presentation.showTaxIdentifier ? (
+            <RecordField
+              error={state.fieldErrors?.taxIdentifier?.[0]}
+              label="Tax identifier"
+              name="taxIdentifier"
+            >
+              <Input
+                defaultValue={defaults.taxIdentifier}
+                name="taxIdentifier"
+                type="text"
+              />
+            </RecordField>
+          ) : (
+            <input
+              name="taxIdentifier"
+              type="hidden"
+              value={defaults.taxIdentifier}
+            />
+          )}
+
+          <RecordField
+            error={state.fieldErrors?.notes?.[0]}
+            label={presentation.notesLabel}
             name="notes"
-            placeholder="Internal relationship, billing, or access notes"
-          />
-        </RecordField>
-      </FormSection>
+          >
+            <Textarea
+              className="min-h-20 resize-y"
+              defaultValue={defaults.notes}
+              name="notes"
+            />
+          </RecordField>
+        </div>
+      </div>
     </RecordForm>
   );
 }
@@ -261,46 +249,31 @@ function getPersonFormPresentation(
   switch (role) {
     case "owner":
       return {
-        administrationHeading: "Owner details",
-        contactHeading: "Contact",
         displayNameLabel: "Owner name",
-        identityHeading: "Owner identity",
         notesLabel: "Owner notes",
         showTaxIdentifier: true,
       };
     case "tenant":
       return {
-        administrationHeading: "Tenancy details",
-        contactHeading: "Contact",
         displayNameLabel: "Tenant name",
-        identityHeading: "Tenant identity",
         notesLabel: "Tenancy notes",
         showTaxIdentifier: false,
       };
     case "staff":
       return {
-        administrationHeading: "Staff context",
-        contactHeading: "Contact",
         displayNameLabel: "Staff name",
-        identityHeading: "Staff identity",
         notesLabel: "Staff notes",
         showTaxIdentifier: false,
       };
     case "vendor":
       return {
-        administrationHeading: "Vendor details",
-        contactHeading: "Contact",
         displayNameLabel: "Vendor or business name",
-        identityHeading: "Vendor identity",
         notesLabel: "Vendor notes",
         showTaxIdentifier: true,
       };
     default:
       return {
-        administrationHeading: "Administration",
-        contactHeading: "Contact",
         displayNameLabel: "Display name",
-        identityHeading: "Identity",
         notesLabel: "Internal notes",
         showTaxIdentifier: true,
       };
@@ -322,7 +295,9 @@ function PrimaryPhoneInput({
       autoComplete="tel"
       inputMode="tel"
       name="primaryPhone"
-      onChange={(event) => setValue(formatPhoneInput(event.currentTarget.value))}
+      onChange={(event) =>
+        setValue(formatPhoneInput(event.currentTarget.value))
+      }
       type="tel"
       value={value}
     />
@@ -380,11 +355,7 @@ function RoleCheckbox({
         "hover:bg-muted",
       )}
     >
-      <Checkbox
-        defaultChecked={defaultChecked}
-        name="roles"
-        value={role}
-      />
+      <Checkbox defaultChecked={defaultChecked} name="roles" value={role} />
       <span>{formatRole(role)}</span>
     </label>
   );

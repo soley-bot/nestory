@@ -677,8 +677,10 @@ function DocumentInspector({
   );
 }
 
-function DocumentForm({
+export function DocumentForm({
   document,
+  fixedPropertyId,
+  fixedUnitId,
   initialValues,
   mode,
   onClose,
@@ -687,6 +689,8 @@ function DocumentForm({
   units,
 }: {
   document?: DocumentSummary;
+  fixedPropertyId?: string;
+  fixedUnitId?: string;
   initialValues?: Partial<
     Pick<
       DocumentSummary["formValues"],
@@ -708,9 +712,13 @@ function DocumentForm({
       document?.formValues.category ?? initialValues?.category ?? "General",
     leaseId: document?.formValues.leaseId ?? initialValues?.leaseId ?? "",
     propertyId:
-      document?.formValues.propertyId ?? initialValues?.propertyId ?? "",
+      fixedPropertyId ??
+      document?.formValues.propertyId ??
+      initialValues?.propertyId ??
+      "",
     taskId: document?.formValues.taskId ?? initialValues?.taskId ?? "",
-    unitId: document?.formValues.unitId ?? initialValues?.unitId ?? "",
+    unitId:
+      fixedUnitId ?? document?.formValues.unitId ?? initialValues?.unitId ?? "",
   };
   const [propertyId, setPropertyId] = useState(defaults.propertyId);
   const [unitId, setUnitId] = useState(defaults.unitId ?? "");
@@ -756,25 +764,32 @@ function DocumentForm({
       {defaults.taskId ? (
         <input name="taskId" type="hidden" value={defaults.taskId} />
       ) : null}
-      <ConsequencePanel
-        rows={[
-          { label: "File", value: "PDF, JPG, PNG, or WebP up to 10 MB" },
-          { label: "Property", value: propertyLabel },
-          { label: "Unit", value: unitLabel },
-        ]}
-        summary={
-          defaults.leaseId
-            ? "The saved document stays linked to the selected property and lease."
-            : defaults.taskId
-              ? "The saved document stays linked to the selected property and maintenance case."
-              : "The saved document appears in the selected property or unit record."
-        }
-        title="Document link and file limits"
-      >
-        {hiddenLinkError ? (
-          <p className="text-danger">{hiddenLinkError}</p>
-        ) : null}
-      </ConsequencePanel>
+      {fixedPropertyId ? (
+        <input name="propertyId" type="hidden" value={fixedPropertyId} />
+      ) : (
+        <ConsequencePanel
+          rows={[
+            { label: "File", value: "PDF, JPG, PNG, or WebP up to 10 MB" },
+            { label: "Property", value: propertyLabel },
+            { label: "Unit", value: unitLabel },
+          ]}
+          summary={
+            defaults.leaseId
+              ? "The saved document stays linked to the selected property and lease."
+              : defaults.taskId
+                ? "The saved document stays linked to the selected property and maintenance case."
+                : "The saved document appears in the selected property or unit record."
+          }
+          title="Document link and file limits"
+        >
+          {hiddenLinkError ? (
+            <p className="text-danger">{hiddenLinkError}</p>
+          ) : null}
+        </ConsequencePanel>
+      )}
+      {fixedUnitId ? (
+        <input name="unitId" type="hidden" value={fixedUnitId} />
+      ) : null}
 
       <FormSection title="File details">
         <RecordField
@@ -783,7 +798,17 @@ function DocumentForm({
           name="category"
           required
         >
-          <Input defaultValue={defaults.category} name="category" required />
+          {mode === "create" ? (
+            <SelectControl
+              ariaLabel="Category"
+              defaultValue={defaults.category}
+              name="category"
+              options={DOCUMENT_CATEGORY_OPTIONS}
+              required
+            />
+          ) : (
+            <Input defaultValue={defaults.category} name="category" required />
+          )}
         </RecordField>
         <RecordField
           label={mode === "create" ? "File" : "Replace file"}
@@ -805,52 +830,54 @@ function DocumentForm({
         </RecordField>
       </FormSection>
 
-      <FormSection title="Record link">
-        <RecordField
-          error={state.fieldErrors?.propertyId?.[0]}
-          label="Property"
-          name="propertyId"
-          required
-        >
-          <SelectControl
-            ariaLabel="Property"
+      {fixedPropertyId ? null : (
+        <FormSection title="Record link">
+          <RecordField
+            error={state.fieldErrors?.propertyId?.[0]}
+            label="Property"
             name="propertyId"
-            onValueChange={(value) => {
-              setPropertyId(value);
-              setUnitId("");
-            }}
-            options={[
-              { label: "Select property", value: "" },
-              ...properties.map((property) => ({
-                label: property.label,
-                value: property.id,
-              })),
-            ]}
             required
-            value={propertyId}
-          />
-        </RecordField>
-        <RecordField
-          error={state.fieldErrors?.unitId?.[0]}
-          label="Unit"
-          name="unitId"
-        >
-          <SelectControl
-            ariaLabel="Unit"
-            disabled={!propertyId}
+          >
+            <SelectControl
+              ariaLabel="Property"
+              name="propertyId"
+              onValueChange={(value) => {
+                setPropertyId(value);
+                setUnitId("");
+              }}
+              options={[
+                { label: "Select property", value: "" },
+                ...properties.map((property) => ({
+                  label: property.label,
+                  value: property.id,
+                })),
+              ]}
+              required
+              value={propertyId}
+            />
+          </RecordField>
+          <RecordField
+            error={state.fieldErrors?.unitId?.[0]}
+            label="Unit"
             name="unitId"
-            onValueChange={setUnitId}
-            options={[
-              { label: "Property level", value: "" },
-              ...visibleUnits.map((unit) => ({
-                label: unit.label,
-                value: unit.id,
-              })),
-            ]}
-            value={unitId}
-          />
-        </RecordField>
-      </FormSection>
+          >
+            <SelectControl
+              ariaLabel="Unit"
+              disabled={!propertyId}
+              name="unitId"
+              onValueChange={setUnitId}
+              options={[
+                { label: "Property level", value: "" },
+                ...visibleUnits.map((unit) => ({
+                  label: unit.label,
+                  value: unit.id,
+                })),
+              ]}
+              value={unitId}
+            />
+          </RecordField>
+        </FormSection>
+      )}
     </RecordForm>
   );
 }
@@ -1156,3 +1183,12 @@ function getDrawerDescription(drawer: DrawerState) {
     ? "Hide this evidence from active views without deleting the file."
     : "Return this evidence to active document views.";
 }
+const DOCUMENT_CATEGORY_OPTIONS = [
+  { label: "Property record", value: "Property record" },
+  { label: "Ownership", value: "Ownership" },
+  { label: "Insurance", value: "Insurance" },
+  { label: "Contract", value: "Contract" },
+  { label: "Inspection", value: "Inspection" },
+  { label: "General", value: "General" },
+  { label: "Other", value: "Other" },
+];

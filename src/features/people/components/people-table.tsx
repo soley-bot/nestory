@@ -60,11 +60,12 @@ export function PeopleTable({
       </div>
 
       {displayMode === "table" ? (
-        <div
-          className="hidden min-w-0 md:block"
-          data-slot="people-table-frame"
-        >
-          <div aria-label="People table" className="overflow-x-auto" role="region">
+        <div className="hidden min-w-0 md:block" data-slot="people-table-frame">
+          <div
+            aria-label="People table"
+            className="overflow-x-auto"
+            role="region"
+          >
             <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
               {isRoleScoped ? (
                 <colgroup>
@@ -96,7 +97,7 @@ export function PeopleTable({
                       {getContextHeader(roleContext)}
                     </th>
                     <th className="px-1.5 py-2.5 font-semibold">
-                      {roleContext === "staff" ? "Workspace Access" : "Next"}
+                      {roleContext === "staff" ? "Workspace Access" : "Status"}
                     </th>
                   </tr>
                 ) : (
@@ -127,71 +128,74 @@ export function PeopleTable({
                   const secondaryName = getSecondaryName(person);
 
                   return (
-                  <tr
-                    className={cn(
-                      "border-t border-border transition-colors hover:bg-muted/50",
-                      person.isArchived && "text-muted-foreground",
-                    )}
-                    key={person.id}
-                  >
-                    <td className="px-2.5 py-2">
-                      <div className="min-w-0">
-                        <Link
-                          className="block truncate rounded-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          href={`/people/${person.id}`}
-                          onClick={(event) => event.stopPropagation()}
-                          prefetch={false}
-                          title={person.displayName}
-                        >
-                          {person.displayName}
-                        </Link>
-                        {secondaryName ? (
-                          <p
-                            className="mt-0.5 truncate text-xs text-muted-foreground"
-                            title={secondaryName}
+                    <tr
+                      className={cn(
+                        "border-t border-border transition-colors hover:bg-muted/50",
+                        person.isArchived && "text-muted-foreground",
+                      )}
+                      key={person.id}
+                    >
+                      <td className="px-2.5 py-2">
+                        <div className="min-w-0">
+                          <Link
+                            className="block truncate rounded-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            href={`/people/${person.id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            prefetch={false}
+                            title={person.displayName}
                           >
-                            {secondaryName}
-                          </p>
-                        ) : null}
-                      </div>
-                    </td>
-                    {isRoleScoped ? null : (
-                      <td className="px-1.5 py-2">
-                        <RoleBadges roles={person.roles} />
+                            {person.displayName}
+                          </Link>
+                          {secondaryName ? (
+                            <p
+                              className="mt-0.5 truncate text-xs text-muted-foreground"
+                              title={secondaryName}
+                            >
+                              {secondaryName}
+                            </p>
+                          ) : null}
+                        </div>
                       </td>
-                    )}
-                    <td className="px-2 py-2">
-                      <EmailCell person={person} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <PhoneCell person={person} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <ContextCell person={person} roleContext={roleContext} />
-                    </td>
-                    {isRoleScoped ? (
+                      {isRoleScoped ? null : (
+                        <td className="px-1.5 py-2">
+                          <RoleBadges roles={person.roles} />
+                        </td>
+                      )}
                       <td className="px-2 py-2">
-                        {roleContext === "staff" ? (
-                          canManageWorkspaceAccess(person) &&
-                          accessByPersonId?.[person.id] ? (
-                            <WorkspaceAccessStatus
-                              personId={person.id}
-                              personName={person.displayName}
-                              status={accessByPersonId[person.id]}
-                            />
+                        <EmailCell person={person} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <PhoneCell person={person} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <ContextCell
+                          person={person}
+                          roleContext={roleContext}
+                        />
+                      </td>
+                      {isRoleScoped ? (
+                        <td className="px-2 py-2">
+                          {roleContext === "staff" ? (
+                            canManageWorkspaceAccess(person) &&
+                            accessByPersonId?.[person.id] ? (
+                              <WorkspaceAccessStatus
+                                personId={person.id}
+                                personName={person.displayName}
+                                status={accessByPersonId[person.id]}
+                              />
+                            ) : (
+                              <WorkspaceAccessUnavailable />
+                            )
                           ) : (
-                            <WorkspaceAccessUnavailable />
-                          )
-                        ) : (
-                          <NextActionCell person={person} />
-                        )}
-                      </td>
-                    ) : (
-                      <td className="px-1.5 py-2">
-                        <StatusBadges compact person={person} />
-                      </td>
-                    )}
-                  </tr>
+                            <StatusCell person={person} />
+                          )}
+                        </td>
+                      ) : (
+                        <td className="px-1.5 py-2">
+                          <StatusBadges compact person={person} />
+                        </td>
+                      )}
+                    </tr>
                   );
                 })}
               </tbody>
@@ -308,7 +312,10 @@ function ContextCell({
       <p className="line-clamp-1 break-words font-medium" title={label}>
         {label}
       </p>
-      <p className="line-clamp-1 break-words text-xs text-muted-foreground" title={detail}>
+      <p
+        className="line-clamp-1 break-words text-xs text-muted-foreground"
+        title={detail}
+      >
         {detail}
       </p>
     </div>
@@ -357,21 +364,11 @@ function PhoneCell({ person }: { person: PeopleSummary }) {
   );
 }
 
-function NextActionCell({ person }: { person: PeopleSummary }) {
+function StatusCell({ person }: { person: PeopleSummary }) {
   return (
-    <div className="min-w-0 space-y-1">
-      <div className="flex min-w-0 flex-wrap gap-1">
-        <Badge className="max-w-full px-2 text-xs" tone={person.statusTone}>
-          {person.statusLabel}
-        </Badge>
-        <Badge
-          className="max-w-full px-2 text-xs"
-          tone={person.nextAction.tone}
-        >
-          <span className="truncate">{person.nextAction.label}</span>
-        </Badge>
-      </div>
-    </div>
+    <Badge className="max-w-full px-2 text-xs" tone={person.statusTone}>
+      {person.statusLabel}
+    </Badge>
   );
 }
 

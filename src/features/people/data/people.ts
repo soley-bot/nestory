@@ -248,9 +248,7 @@ export async function getPersonDetail(
 
   const data = await getPeopleScreenData(organizationId, viewQuery);
 
-  return (
-    data.people.find((person) => person.id === viewQuery.personId) ?? null
-  );
+  return data.people.find((person) => person.id === viewQuery.personId) ?? null;
 }
 
 export function canUsePagedPeopleBaseQuery(viewQuery: PeopleViewQuery) {
@@ -705,24 +703,6 @@ async function getPeopleIdPrefilter({
       includeIds: activeIdsResult.ids,
       requireMissingPrimaryContact: false,
     });
-  } else if (viewQuery.status === "inactive") {
-    const [visibleRoleIdsResult, activeIdsResult] = await Promise.all([
-      getPeopleIdsFromRoles({ organizationId, supabase }),
-      getPeopleIdsFromRoles({ organizationId, status: "active", supabase }),
-    ]);
-
-    if (
-      visibleRoleIdsResult.kind === "unsupported" ||
-      activeIdsResult.kind === "unsupported"
-    ) {
-      throw new Error("Unsupported people inactive status filter.");
-    }
-
-    filter = mergePeopleIdPrefilters(filter, {
-      excludeIds: new Set<string>(),
-      includeIds: differenceSets(visibleRoleIdsResult.ids, activeIdsResult.ids),
-      requireMissingPrimaryContact: false,
-    });
   } else if (viewQuery.status === "no_role") {
     const visibleRoleIdsResult = await getPeopleIdsFromRoles({
       organizationId,
@@ -830,11 +810,7 @@ async function loadPeopleSummariesForRows({
       ),
     ]);
   const leaseIds = new Set(leaseParties.map((party) => party.leaseId));
-  const leases = await getCurrentLeaseRows(
-    supabase,
-    organizationId,
-    leaseIds,
-  );
+  const leases = await getCurrentLeaseRows(supabase, organizationId, leaseIds);
   const propertyIds = new Set([
     ...leases.map((lease) => lease.propertyId),
     ...propertyOwners.map((owner) => owner.propertyId),
@@ -1691,11 +1667,7 @@ async function filterPeopleRowsByQuery({
       ),
     ]);
   const leaseIds = new Set(leaseParties.map((party) => party.leaseId));
-  const leases = await getCurrentLeaseRows(
-    supabase,
-    organizationId,
-    leaseIds,
-  );
+  const leases = await getCurrentLeaseRows(supabase, organizationId, leaseIds);
   const propertyIds = new Set([
     ...leases.map((lease) => lease.propertyId),
     ...propertyOwners.map((owner) => owner.propertyId),
@@ -1763,7 +1735,9 @@ async function getPersonActivityRows(
         .limit(120);
 
       if (result.error) {
-        throw new Error(`Could not load people activity: ${result.error.message}`);
+        throw new Error(
+          `Could not load people activity: ${result.error.message}`,
+        );
       }
 
       return asRows(result.data, toActivityLogRow);
@@ -2279,6 +2253,13 @@ function buildPeopleRiskIndicators({
   const hasActiveStaffRole = roles.some(
     (role) => role.role === "staff" && role.status === "active",
   );
+  const hasActiveRelationshipRole = roles.some(
+    (role) =>
+      role.status === "active" &&
+      (role.role === "tenant" ||
+        role.role === "owner" ||
+        role.role === "vendor"),
+  );
   const hasLinkedRecord =
     linked.activeLeaseCount > 0 ||
     linked.ownerPropertyCount > 0 ||
@@ -2324,16 +2305,22 @@ function buildPeopleRiskIndicators({
         : "No linked records",
       tone: hasOperationalContext ? "success" : "warning",
     },
-    {
-      description:
-        recordCounts.documents > 0
-          ? "Related lease, property, or unit documents are attached."
-          : "No related lease, property, or unit documents are attached yet.",
-      id: "documents",
-      label:
-        recordCounts.documents > 0 ? "Evidence attached" : "Evidence missing",
-      tone: recordCounts.documents > 0 ? "success" : "warning",
-    },
+    ...(!hasActiveStaffRole || hasActiveRelationshipRole
+      ? [
+          {
+            description:
+              recordCounts.documents > 0
+                ? "Related lease, property, or unit documents are attached."
+                : "No related lease, property, or unit documents are attached yet.",
+            id: "documents",
+            label:
+              recordCounts.documents > 0
+                ? "Evidence attached"
+                : "Evidence missing",
+            tone: recordCounts.documents > 0 ? "success" : "warning",
+          } satisfies PeopleRiskIndicator,
+        ]
+      : []),
   ];
 }
 
@@ -2394,8 +2381,7 @@ function buildPeopleNextAction({
     if (hasActiveStaffRole) {
       return {
         // ponytail: staff is directory-only; add assignment checks when staff assignment tables exist.
-        description:
-          "Staff records are ready once contact and role are set.",
+        description: "Staff records are ready once contact and role are set.",
         href: detailHrefs.people,
         label: "Review staff profile",
         tone: "neutral",
@@ -2495,10 +2481,7 @@ export function personMatchesStatusFilter(
     return person.roles.some((role) => role.status === "active");
   }
 
-  return (
-    person.roles.length > 0 &&
-    person.roles.every((role) => role.status === "inactive")
-  );
+  return false;
 }
 
 function personMatchesQueryTokens({
@@ -2549,10 +2532,55 @@ function personMatchesQueryTokens({
     formatPartyType(person.partyType),
     roleLabel,
     getPrimaryContact(person, contacts).label,
+    person.primaryEmail ?? "",
+    person.primaryPhone ?? "",
+    person.taxIdentifier ?? "",
+    ...contacts
+      .filter((contact) => !contact.archivedAt)
+      .flatMap((contact) => [
+        contact.contactName ?? "",
+        contact.contactType ?? "",
+        contact.email ?? "",
+        contact.phone ?? "",
+      ]),
     linked.activeLease?.propertyLabel ?? "",
     linked.activeLease?.unitLabel ?? "",
     linked.ownerProperty?.label ?? "",
     linked.vendorProfile?.label ?? "",
+    ...leaseParties
+      .filter((party) => !party.archivedAt && !party.endedOn)
+      .flatMap((party) => {
+        const lease = leasesById.get(party.leaseId);
+        const property = lease ? propertiesById.get(lease.propertyId) : null;
+        const unit = lease?.unitId ? unitsById.get(lease.unitId) : null;
+
+        return [
+          party.partyRole,
+          lease?.tenantName ?? "",
+          lease?.status ?? "",
+          property?.code ?? "",
+          property?.name ?? "",
+          unit?.unitNumber ?? "",
+        ];
+      }),
+    ...propertyOwners
+      .filter((owner) => !owner.archivedAt && !owner.endedOn)
+      .flatMap((owner) => {
+        const property = propertiesById.get(owner.propertyId);
+
+        return [
+          owner.ownershipLabel ?? "",
+          property?.code ?? "",
+          property?.name ?? "",
+        ];
+      }),
+    ...vendorProfiles
+      .filter((profile) => !profile.archivedAt)
+      .flatMap((profile) => [
+        profile.serviceCategory ?? "",
+        profile.serviceArea ?? "",
+        profile.status,
+      ]),
     person.notes ?? "",
   ]
     .join(" ")

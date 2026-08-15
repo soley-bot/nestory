@@ -31,7 +31,7 @@ afterEach(() => {
 describe("ThemeRuntime", () => {
   it("uses a personal display preference without replacing the organization accent", () => {
     localStorage.setItem(getDisplayThemeStorageKey("org-1"), "dark");
-    render(
+    const { container } = render(
       <ThemeRuntime
         organizationId="org-1"
         theme={{ accentPreset: "ocean", accentSeed: null, mode: "light" }}
@@ -46,6 +46,7 @@ describe("ThemeRuntime", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(localStorage.getItem(getDisplayThemeStorageKey("org-1"))).toBe("dark");
     expect(localStorage.getItem("nestory-theme:org-1")).toBeNull();
+    expect(container.querySelector("script")).toBeNull();
   });
 
   it("tracks system preference without creating a personal theme", () => {

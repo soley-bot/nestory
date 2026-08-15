@@ -1,8 +1,23 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import type { OpeningBalanceAuthorityData } from "../owner-balance.types";
 import {
@@ -46,11 +61,14 @@ const documentId = "00000000-0000-4000-8000-000000000011";
 const fingerprint = "a".repeat(64);
 
 beforeAll(() => {
-  vi.stubGlobal("ResizeObserver", class {
-    disconnect() {}
-    observe() {}
-    unobserve() {}
-  });
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      disconnect() {}
+      observe() {}
+      unobserve() {}
+    },
+  );
   vi.stubGlobal("crypto", {
     randomUUID: vi.fn(() => "00000000-0000-4000-8000-000000000099"),
     subtle: globalThis.crypto?.subtle,
@@ -89,10 +107,40 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("OpeningBalanceScreen", () => {
+  it("keeps request history and evidence behind one details action per component", async () => {
+    const user = userEvent.setup();
+    renderScreen(superAdminProps());
+
+    expect(
+      screen.getAllByRole("columnheader").map((header) => header.textContent),
+    ).toEqual(["Property / owner", "Component", "Balance", "Action"]);
+    expect(screen.queryByText("opening.pdf")).toBeNull();
+    expect(screen.queryByText("Resubmission of rejected request")).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "View opening balance details for IPS due to owner",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Opening balance details",
+    });
+    expect(within(dialog).getByText("opening.pdf")).toBeTruthy();
+    expect(within(dialog).getByText("100.000%")).toBeTruthy();
+    expect(
+      within(dialog).getByText("Resubmission of rejected request"),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByRole("button", { name: "Request correction" }),
+    ).toBeTruthy();
+  });
+
   it("renders the four fixed components and distinguishes Unknown from Known zero", () => {
     renderScreen(superAdminProps());
 
-    expect(screen.getByRole("heading", { name: "Opening balances" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Opening balances" }),
+    ).toBeTruthy();
     expect(screen.getAllByText("Unknown").length).toBeGreaterThan(0);
     expect(screen.getByText("Approved zero")).toBeTruthy();
     expect(screen.getByText("$0.00")).toBeTruthy();
@@ -106,25 +154,45 @@ describe("OpeningBalanceScreen", () => {
     }
   });
 
-  it("shows exact ownership, evidence, review, and append-only correction lineage", () => {
+  it("shows exact ownership, evidence, review, and append-only correction lineage", async () => {
+    const user = userEvent.setup();
     renderScreen(superAdminProps());
 
-    expect(screen.getAllByText("100.000%").length).toBeGreaterThan(0);
-    expect(screen.getByText("opening.pdf")).toBeTruthy();
-    expect(screen.getAllByText(fingerprint).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Audit details").length).toBeGreaterThan(0);
-    expect(screen.getByText("Reversal of opening entry")).toBeTruthy();
-    expect(screen.getByText("Current replacement")).toBeTruthy();
-    expect(screen.getByText("Resubmission of rejected request")).toBeTruthy();
-    expect(screen.getByText("Evidence did not reconcile")).toBeTruthy();
+    let dialog = await openOpeningDetails(user, "IPS due to owner");
+    expect(within(dialog).getByText("100.000%")).toBeTruthy();
+    expect(within(dialog).getByText("opening.pdf")).toBeTruthy();
+    expect(within(dialog).getAllByText(fingerprint).length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText("Audit details").length).toBeGreaterThan(
+      0,
+    );
+    expect(within(dialog).getByText("Reversal of opening entry")).toBeTruthy();
+    expect(within(dialog).getByText("Current replacement")).toBeTruthy();
+    expect(
+      within(dialog).getByText("Resubmission of rejected request"),
+    ).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+
+    dialog = await openOpeningDetails(user, "Security-deposit custody");
+    expect(within(dialog).getByText("Evidence did not reconcile")).toBeTruthy();
   });
 
-  it("applies capability controls and never offers self-review", () => {
+  it("applies capability controls and never offers self-review", async () => {
+    const user = userEvent.setup();
     const admin = renderScreen(superAdminProps());
-    expect(screen.getAllByRole("button", { name: "Submit opening balance" }).length)
-      .toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Request correction" })).toBeTruthy();
-    expect(screen.getByText("Independent review required")).toBeTruthy();
+    let dialog = await openOpeningDetails(user, "Owner due to IPS");
+    expect(
+      within(dialog).getByRole("button", { name: "Submit opening balance" }),
+    ).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    dialog = await openOpeningDetails(user, "IPS due to owner");
+    expect(
+      within(dialog).getByRole("button", { name: "Request correction" }),
+    ).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    dialog = await openOpeningDetails(user, "IPS-held owner cash");
+    expect(
+      within(dialog).getByText("Independent review required"),
+    ).toBeTruthy();
     admin.unmount();
 
     const reviewable = authorityData();
@@ -136,19 +204,35 @@ describe("OpeningBalanceScreen", () => {
       status: "submitted",
     };
     const review = renderScreen({ ...superAdminProps(), data: reviewable });
-    expect(screen.getByRole("button", { name: "Approve opening balance" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Reject opening balance" })).toBeTruthy();
+    dialog = await openOpeningDetails(user, "IPS due to owner");
+    expect(
+      within(dialog).getByRole("button", { name: "Approve opening balance" }),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByRole("button", { name: "Reject opening balance" }),
+    ).toBeTruthy();
     review.unmount();
 
     const financeManager = renderScreen({
       ...baseProps(),
       canSubmitCorrection: true,
     });
-    expect(screen.queryByRole("button", { name: "Submit opening balance" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Request correction" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Approve opening balance/ })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Resolve ownership" })).toBeNull();
-    expect(screen.getByText("Ask a Super Admin to correct the ownership facts.")).toBeTruthy();
+    dialog = await openOpeningDetails(user, "IPS due to owner");
+    expect(
+      within(dialog).queryByRole("button", { name: "Submit opening balance" }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Request correction" }),
+    ).toBeTruthy();
+    expect(
+      within(dialog).queryByRole("button", { name: /Approve opening balance/ }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Resolve ownership" }),
+    ).toBeNull();
+    expect(
+      screen.getByText("Ask a Super Admin to correct the ownership facts."),
+    ).toBeTruthy();
     financeManager.unmount();
 
     renderScreen({
@@ -156,40 +240,55 @@ describe("OpeningBalanceScreen", () => {
       canSubmitCorrection: true,
       canSubmitInitial: true,
     });
-    expect(screen.getAllByRole("button", { name: "Submit opening balance" }).length)
-      .toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Request correction" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Approve opening balance/ })).toBeNull();
+    dialog = await openOpeningDetails(user, "Owner due to IPS");
+    expect(
+      within(dialog).getByRole("button", { name: "Submit opening balance" }),
+    ).toBeTruthy();
+    expect(
+      within(dialog).queryByRole("button", { name: /Approve opening balance/ }),
+    ).toBeNull();
   });
 
   it("links rejected resubmission to its predecessor and withholds stale correction", async () => {
     const user = userEvent.setup();
     renderScreen(superAdminProps());
 
-    expect(screen.getByRole("button", { name: "Resubmit rejected opening" })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Request correction" })).toHaveLength(1);
+    const details = await openOpeningDetails(user, "Security-deposit custody");
+    expect(
+      within(details).getByRole("button", {
+        name: "Resubmit rejected opening",
+      }),
+    ).toBeTruthy();
+    expect(
+      within(details).queryByRole("button", { name: "Request correction" }),
+    ).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Resubmit rejected opening" }));
+    await user.click(
+      within(details).getByRole("button", {
+        name: "Resubmit rejected opening",
+      }),
+    );
     const dialog = screen.getByRole("dialog");
     expect(
-      within(dialog)
-        .getByDisplayValue(rejectedRequestId)
-        .getAttribute("name"),
+      within(dialog).getByDisplayValue(rejectedRequestId).getAttribute("name"),
     ).toBe("resubmissionOfRequestId");
   });
 
-  it("offers only Resubmit for an unresolved rejected leaf", () => {
+  it("offers only Resubmit for an unresolved rejected leaf", async () => {
+    const user = userEvent.setup();
     renderScreen(superAdminProps());
 
-    const row = screen.getByText("Security-deposit custody").closest("tr");
-    expect(row).toBeTruthy();
-    expect(within(row!).getByRole("button", { name: "Resubmit rejected opening" }))
-      .toBeTruthy();
-    expect(within(row!).queryByRole("button", { name: "Submit opening balance" }))
-      .toBeNull();
+    const dialog = await openOpeningDetails(user, "Security-deposit custody");
+    expect(
+      within(dialog).getByRole("button", { name: "Resubmit rejected opening" }),
+    ).toBeTruthy();
+    expect(
+      within(dialog).queryByRole("button", { name: "Submit opening balance" }),
+    ).toBeNull();
   });
 
-  it("uses only the newest request as current workflow, evidence, ownership, and action", () => {
+  it("uses only the newest request as current workflow, evidence, ownership, and action", async () => {
+    const user = userEvent.setup();
     const data = authorityData();
     const component = data.groups[0]!.components[3]!;
     const rejected = component.requests[0]!;
@@ -214,18 +313,21 @@ describe("OpeningBalanceScreen", () => {
 
     renderScreen({ ...superAdminProps(), data });
 
-    const row = screen.getByText("Security-deposit custody").closest("tr");
-    expect(row).toBeTruthy();
-    expect(within(row!).getByText("88.000%")).toBeTruthy();
-    expect(within(row!).getByText("Reference: Current successor evidence"))
-      .toBeTruthy();
-    expect(within(row!).queryByText("Reference: Older rejected evidence")).toBeNull();
-    expect(within(row!).queryByRole("button", { name: "Resubmit rejected opening" }))
-      .toBeNull();
-    expect(within(row!).getByRole("button", { name: "Approve opening balance" }))
-      .toBeTruthy();
-    expect(within(row!).getByRole("button", { name: "Reject opening balance" }))
-      .toBeTruthy();
+    const dialog = await openOpeningDetails(user, "Security-deposit custody");
+    expect(within(dialog).getByText("88.000%")).toBeTruthy();
+    expect(within(dialog).getByText("Current successor evidence")).toBeTruthy();
+    expect(within(dialog).queryByText("Older rejected evidence")).toBeNull();
+    expect(
+      within(dialog).queryByRole("button", {
+        name: "Resubmit rejected opening",
+      }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Approve opening balance" }),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByRole("button", { name: "Reject opening balance" }),
+    ).toBeTruthy();
   });
 
   it("does not fabricate a selected property-owner pair when the roster is invalid", () => {
@@ -235,25 +337,33 @@ describe("OpeningBalanceScreen", () => {
     renderScreen({ ...superAdminProps(), data });
 
     expect(screen.getByText("Ownership setup required")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Submit opening balance" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Resolve ownership" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Submit opening balance" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Resolve ownership" }),
+    ).toBeTruthy();
   });
 
   it("uses exact text amounts, stable intent IDs, and real-byte evidence controls", async () => {
     const user = userEvent.setup();
     renderScreen(superAdminProps());
 
-    await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
+    const details = await openOpeningDetails(user, "Owner due to IPS");
+    await user.click(
+      within(details).getByRole("button", { name: "Submit opening balance" }),
+    );
     const dialog = screen.getByRole("dialog");
     const amount = within(dialog).getByLabelText("Opening amount");
     expect(amount.getAttribute("type")).toBe("text");
     expect(amount.getAttribute("inputmode")).toBe("decimal");
     expect(
-      dialog.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')?.value,
+      dialog.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')
+        ?.value,
     ).toBe("owner-opening-initial-00000000-0000-4000-8000-000000000099");
-    expect(within(dialog).getByLabelText("Evidence file").getAttribute("type")).toBe(
-      "file",
-    );
+    expect(
+      within(dialog).getByLabelText("Evidence file").getAttribute("type"),
+    ).toBe("file");
     expect(within(dialog).getByText("Existing eligible evidence")).toBeTruthy();
   });
 
@@ -265,7 +375,10 @@ describe("OpeningBalanceScreen", () => {
     });
     const user = userEvent.setup();
     renderScreen(superAdminProps());
-    await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
+    const details = await openOpeningDetails(user, "Owner due to IPS");
+    await user.click(
+      within(details).getByRole("button", { name: "Submit opening balance" }),
+    );
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Opening amount"), {
       target: { value: "999999999999.99" },
@@ -276,7 +389,9 @@ describe("OpeningBalanceScreen", () => {
     fireEvent.change(within(dialog).getByLabelText("Source reference"), {
       target: { value: "IPS workbook row 8" },
     });
-    await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Submit for review" }),
+    );
 
     expect(mocks.initial).toHaveBeenCalledOnce();
     const submitted = mocks.initial.mock.calls[0]?.[1] as FormData;
@@ -294,22 +409,34 @@ describe("OpeningBalanceScreen", () => {
       );
     });
     expect(
-      screen.getByRole("dialog").querySelector<HTMLInputElement>(
-        'input[name="idempotencyKey"]',
-      )?.value,
+      screen
+        .getByRole("dialog")
+        .querySelector<HTMLInputElement>('input[name="idempotencyKey"]')?.value,
     ).toBe("owner-opening-initial-00000000-0000-4000-8000-000000000099");
-    expect(within(screen.getByRole("dialog")).getByLabelText<HTMLInputElement>("Opening amount").value)
-      .toBe("999999999999.99");
-    expect(within(screen.getByRole("dialog")).getByLabelText<HTMLInputElement>("Reason").value)
-      .toBe("Reconciled opening evidence");
-    expect(within(screen.getByRole("dialog")).getByLabelText<HTMLInputElement>("Source reference").value)
-      .toBe("IPS workbook row 8");
+    expect(
+      within(screen.getByRole("dialog")).getByLabelText<HTMLInputElement>(
+        "Opening amount",
+      ).value,
+    ).toBe("999999999999.99");
+    expect(
+      within(screen.getByRole("dialog")).getByLabelText<HTMLInputElement>(
+        "Reason",
+      ).value,
+    ).toBe("Reconciled opening evidence");
+    expect(
+      within(screen.getByRole("dialog")).getByLabelText<HTMLInputElement>(
+        "Source reference",
+      ).value,
+    ).toBe("IPS workbook row 8");
   });
 
   it("keeps a new evidence file local until final submission", async () => {
     const user = userEvent.setup();
     renderScreen(superAdminProps());
-    await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
+    const details = await openOpeningDetails(user, "Owner due to IPS");
+    await user.click(
+      within(details).getByRole("button", { name: "Submit opening balance" }),
+    );
 
     const dialog = screen.getByRole("dialog");
     const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
@@ -317,9 +444,12 @@ describe("OpeningBalanceScreen", () => {
     });
     await user.upload(within(dialog).getByLabelText("Evidence file"), file);
 
-    expect(within(dialog).queryByRole("button", { name: "Register file" })).toBeNull();
-    expect(within(dialog).getByText("opening.pdf ready for final submission"))
-      .toBeTruthy();
+    expect(
+      within(dialog).queryByRole("button", { name: "Register file" }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByText("opening.pdf ready for final submission"),
+    ).toBeTruthy();
     expect(mocks.createDocument).not.toHaveBeenCalled();
 
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
@@ -331,7 +461,10 @@ describe("OpeningBalanceScreen", () => {
     const user = userEvent.setup();
     renderScreen(superAdminProps());
 
-    await user.click(screen.getByRole("button", { name: "Request correction" }));
+    const details = await openOpeningDetails(user, "IPS due to owner");
+    await user.click(
+      within(details).getByRole("button", { name: "Request correction" }),
+    );
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Replacement amount"), {
       target: { value: "999999999999.99" },
@@ -339,7 +472,9 @@ describe("OpeningBalanceScreen", () => {
     fireEvent.change(within(dialog).getByLabelText("Reason"), {
       target: { value: "Corrected from reconciled evidence" },
     });
-    await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Submit for review" }),
+    );
 
     const submitted = mocks.correction.mock.calls[0]?.[1] as FormData;
     expect(Object.fromEntries(submitted)).toMatchObject({
@@ -362,10 +497,17 @@ describe("OpeningBalanceScreen", () => {
     };
     renderScreen({ ...superAdminProps(), data });
 
-    await user.click(screen.getByRole("button", { name: "Approve opening balance" }));
+    const details = await openOpeningDetails(user, "IPS due to owner");
+    await user.click(
+      within(details).getByRole("button", { name: "Approve opening balance" }),
+    );
     const dialog = screen.getByRole("dialog");
-    const key = dialog.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')?.value;
-    expect(key).toBe("owner-opening-review-00000000-0000-4000-8000-000000000099");
+    const key = dialog.querySelector<HTMLInputElement>(
+      'input[name="idempotencyKey"]',
+    )?.value;
+    expect(key).toBe(
+      "owner-opening-review-00000000-0000-4000-8000-000000000099",
+    );
     await user.click(within(dialog).getByRole("button", { name: "Approve" }));
 
     const submitted = mocks.review.mock.calls[0]?.[1] as FormData;
@@ -379,12 +521,16 @@ describe("OpeningBalanceScreen", () => {
   it("submits the selected file through the final opening command", async () => {
     const user = userEvent.setup();
     renderScreen(superAdminProps());
-    await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
+    const details = await openOpeningDetails(user, "Owner due to IPS");
+    await user.click(
+      within(details).getByRole("button", { name: "Submit opening balance" }),
+    );
     const dialog = screen.getByRole("dialog");
     const file = new File([new Uint8Array([1, 2, 3])], "opening.pdf", {
       type: "application/pdf",
     });
-    const input = within(dialog).getByLabelText<HTMLInputElement>("Evidence file");
+    const input =
+      within(dialog).getByLabelText<HTMLInputElement>("Evidence file");
     await user.upload(input, file);
     expect(input.files?.[0]).toBe(file);
     fireEvent.change(within(dialog).getByLabelText("Opening amount"), {
@@ -393,7 +539,9 @@ describe("OpeningBalanceScreen", () => {
     fireEvent.change(within(dialog).getByLabelText("Reason"), {
       target: { value: "Reconciled uploaded evidence" },
     });
-    await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Submit for review" }),
+    );
 
     await waitFor(() => expect(mocks.initial).toHaveBeenCalledOnce());
     const submitted = mocks.initial.mock.calls[0]?.[1] as FormData;
@@ -404,14 +552,20 @@ describe("OpeningBalanceScreen", () => {
   it("retains a selected file, its fingerprint, source, amount, reason, and key after a network error", async () => {
     mocks.initial.mockResolvedValueOnce({
       errorCode: "database",
-      message: "We could not save the opening balance. Review it and try again.",
+      message:
+        "We could not save the opening balance. Review it and try again.",
       status: "error",
     });
     const user = userEvent.setup();
     renderScreen(superAdminProps());
-    await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
+    const details = await openOpeningDetails(user, "Owner due to IPS");
+    await user.click(
+      within(details).getByRole("button", { name: "Submit opening balance" }),
+    );
     const dialog = screen.getByRole("dialog");
-    const key = dialog.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')!.value;
+    const key = dialog.querySelector<HTMLInputElement>(
+      'input[name="idempotencyKey"]',
+    )!.value;
     const file = new File([new Uint8Array([1, 2, 3])], "recoverable.pdf", {
       type: "application/pdf",
     });
@@ -425,21 +579,31 @@ describe("OpeningBalanceScreen", () => {
     fireEvent.change(within(dialog).getByLabelText("Source reference"), {
       target: { value: "IPS workbook row 19" },
     });
-    await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Submit for review" }),
+    );
 
     expect(await screen.findByRole("alert")).toBeTruthy();
     const recovered = screen.getByRole("dialog");
-    expect(within(recovered).getByText("recoverable.pdf ready for final submission"))
-      .toBeTruthy();
+    expect(
+      within(recovered).getByText("recoverable.pdf ready for final submission"),
+    ).toBeTruthy();
     expect(within(recovered).getByText(/039058c6f2c0/)).toBeTruthy();
-    expect(within(recovered).getByLabelText<HTMLInputElement>("Opening amount").value)
-      .toBe("19.50");
-    expect(within(recovered).getByLabelText<HTMLInputElement>("Reason").value)
-      .toBe("Recover after network failure");
-    expect(within(recovered).getByLabelText<HTMLInputElement>("Source reference").value)
-      .toBe("IPS workbook row 19");
-    expect(recovered.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')!.value)
-      .toBe(key);
+    expect(
+      within(recovered).getByLabelText<HTMLInputElement>("Opening amount")
+        .value,
+    ).toBe("19.50");
+    expect(
+      within(recovered).getByLabelText<HTMLInputElement>("Reason").value,
+    ).toBe("Recover after network failure");
+    expect(
+      within(recovered).getByLabelText<HTMLInputElement>("Source reference")
+        .value,
+    ).toBe("IPS workbook row 19");
+    expect(
+      recovered.querySelector<HTMLInputElement>('input[name="idempotencyKey"]')!
+        .value,
+    ).toBe(key);
   });
 
   it("announces success persistently and moves focus away from the removed dialog", async () => {
@@ -447,7 +611,10 @@ describe("OpeningBalanceScreen", () => {
     renderScreen(superAdminProps());
     const status = screen.getByRole("status");
     expect(status.textContent).toBe("");
-    await user.click(screen.getAllByRole("button", { name: "Submit opening balance" })[0]);
+    const details = await openOpeningDetails(user, "Owner due to IPS");
+    await user.click(
+      within(details).getByRole("button", { name: "Submit opening balance" }),
+    );
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Opening amount"), {
       target: { value: "10.00" },
@@ -455,10 +622,14 @@ describe("OpeningBalanceScreen", () => {
     fireEvent.change(within(dialog).getByLabelText("Reason"), {
       target: { value: "Reconciled opening evidence" },
     });
-    await user.click(within(dialog).getByRole("button", { name: "Submit for review" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Submit for review" }),
+    );
 
     await waitFor(() => {
-      expect(status.textContent).toContain("Opening balance submitted for review.");
+      expect(status.textContent).toContain(
+        "Opening balance submitted for review.",
+      );
       expect(document.activeElement).toBe(status);
     });
     expect(document.activeElement).not.toBe(document.body);
@@ -468,15 +639,31 @@ describe("OpeningBalanceScreen", () => {
   it("keeps its table usable as a labelled keyboard-scroll region at narrow widths", () => {
     renderScreen(superAdminProps());
 
-    const region = screen.getByRole("region", { name: "Opening balance components" });
+    const region = screen.getByRole("region", {
+      name: "Opening balance components",
+    });
     expect(region.getAttribute("tabindex")).toBe("0");
     expect(region.className).toContain("overflow-x-auto");
     expect(within(region).getByRole("table")).toBeTruthy();
   });
 });
 
-function renderScreen(overrides: Partial<React.ComponentProps<typeof OpeningBalanceScreen>>) {
+function renderScreen(
+  overrides: Partial<React.ComponentProps<typeof OpeningBalanceScreen>>,
+) {
   return render(<OpeningBalanceScreen {...baseProps()} {...overrides} />);
+}
+
+async function openOpeningDetails(
+  user: ReturnType<typeof userEvent.setup>,
+  componentLabel: string,
+) {
+  await user.click(
+    screen.getByRole("button", {
+      name: `View opening balance details for ${componentLabel}`,
+    }),
+  );
+  return screen.getByRole("dialog", { name: "Opening balance details" });
 }
 
 function baseProps(): React.ComponentProps<typeof OpeningBalanceScreen> {

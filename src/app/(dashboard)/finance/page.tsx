@@ -85,9 +85,7 @@ function FinanceRoleWorkspace({ data }: { data: FinanceWorkspaceData }) {
         ) : undefined
       }
       context={
-        data.role === "finance_manager"
-          ? `${data.totals.awaitingReview} awaiting review`
-          : `${data.queue.length} submissions`
+        "Work queue"
       }
       contextHref="/finance"
       headerClassName="py-3 lg:py-3"

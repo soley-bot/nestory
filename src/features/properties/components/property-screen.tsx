@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, ListChecks, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,7 @@ import { PropertyForm } from "@/features/properties/components/property-form";
 import { PropertyInspector } from "@/features/properties/components/property-inspector";
 import { PropertiesTable } from "@/features/properties/components/properties-table";
 import type { PropertySummary } from "@/features/properties/data/properties";
+import type { PropertyPortfolioSummary } from "@/features/properties/data/property-portfolio-summary";
 import { DEFAULT_PROPERTY_SORT } from "@/features/properties/property.filters";
 import type {
   PropertyDisplayMode,
@@ -45,6 +48,7 @@ type PropertyScreenProps = {
   initialPropertyId?: string;
   ownerOptions: PropertyOwnerOption[];
   pagination: PropertyPagination;
+  portfolioSummary: PropertyPortfolioSummary;
   properties: PropertySummary[];
   viewQuery: PropertyViewQuery;
 };
@@ -54,6 +58,7 @@ export function PropertyScreen({
   initialPropertyId,
   ownerOptions,
   pagination,
+  portfolioSummary,
   properties,
   viewQuery,
 }: PropertyScreenProps) {
@@ -187,7 +192,7 @@ export function PropertyScreen({
       data-slot="property-list-surface"
     >
       <div
-        className="workspace-gutter-x shrink-0 border-b border-border py-3"
+        className="workspace-gutter-x shrink-0 border-b border-border px-4 py-3 sm:px-6 2xl:px-8"
         data-slot="property-list-toolbar"
       >
         <PropertyFilters
@@ -241,10 +246,23 @@ export function PropertyScreen({
   );
   return (
     <WorkspacePage
-      actions={workspaceActions}
-      title="Properties"
+      header={
+        <PageHeader
+          actions={workspaceActions}
+          breadcrumb={
+            <PageBreadcrumb
+              current="Properties"
+              items={[{ href: "/overview", label: "Workspace" }]}
+            />
+          }
+          className="px-4 sm:px-6 2xl:px-8"
+          title="Properties"
+        />
+      }
     >
       <div className="flex min-w-0 flex-col">
+
+      <PropertyPortfolioSummaryNav summary={portfolioSummary} />
 
       {statusMessage ? (
         <div className="shrink-0 px-4 py-2 sm:px-6">
@@ -287,6 +305,7 @@ export function PropertyScreen({
                 : "Property quick view"
             }
             inspectorOpen={quickViewOpen && selectedProperty !== null}
+            inspectorSize="wide"
             list={propertyList}
             onInspectorOpenChange={setQuickViewOpen}
           />
@@ -332,6 +351,50 @@ export function PropertyScreen({
         </SideDrawer>
       ) : null}
     </WorkspacePage>
+  );
+}
+
+function PropertyPortfolioSummaryNav({
+  summary,
+}: {
+  summary: PropertyPortfolioSummary;
+}) {
+  const items = [
+    {
+      href: "/properties?status=active",
+      label: "Active properties",
+      value: summary.activeProperties,
+    },
+    { href: "/units", label: "Units", value: summary.totalUnits },
+    {
+      href: "/units?leaseStatus=missing",
+      label: "Without current lease",
+      value: summary.unitsWithoutCurrentLease,
+    },
+  ] as const;
+
+  return (
+    <nav
+      aria-label="Portfolio summary"
+      className="workspace-gutter-x grid shrink-0 grid-cols-1 px-4 pb-5 sm:grid-cols-3 sm:px-6 2xl:px-8"
+    >
+      {items.map((item) => (
+        <Link
+          className="group flex min-w-0 items-baseline justify-between gap-4 border-t border-border py-2.5 first:border-t-0 sm:block sm:border-l sm:border-t-0 sm:px-5 sm:py-0 sm:first:border-l-0 sm:first:pl-0"
+          data-slot="portfolio-summary-item"
+          href={item.href}
+          key={item.href}
+          prefetch={false}
+        >
+          <span className="block text-2xl font-semibold tabular-nums tracking-tight text-foreground transition-colors group-hover:text-primary">
+            {item.value}
+          </span>
+          <span className="block truncate text-xs font-medium text-muted-foreground">
+            {item.label}
+          </span>
+        </Link>
+      ))}
+    </nav>
   );
 }
 

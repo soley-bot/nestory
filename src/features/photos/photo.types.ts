@@ -5,6 +5,7 @@ export type AssetPhoto = {
   isCover: boolean;
   mimeType: string;
   propertyId: string;
+  scopeLabel?: string;
   sizeBytes: number;
   storagePath: string;
   takenAt?: string;

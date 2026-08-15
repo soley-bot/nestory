@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDownCircle, ArrowUpCircle, Eye, Lock } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Eye } from "lucide-react";
 import {
   previewRowClassName,
   selectedPreviewRowClassName,
@@ -28,18 +28,16 @@ export function LedgerTable({
       <div aria-label="Ledger table" className="overflow-x-auto" role="region">
         <table className="w-full min-w-[940px] table-fixed border-collapse text-left text-sm">
           <colgroup>
-            <col className="w-[10%]" />
-            <col className="w-[11%]" />
-            <col className="w-[34%]" />
-            <col className="w-[27%]" />
-            <col className="w-[18%]" />
+            <col className="w-[12%]" />
+            <col className="w-[35%]" />
+            <col className="w-[30%]" />
+            <col className="w-[17%]" />
             <col className="w-[74px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
-              <th className="px-3 py-2.5 font-semibold">Flow</th>
-              <th className="px-4 py-2.5 font-semibold">Category</th>
+              <th className="px-4 py-2.5 font-semibold">Entry</th>
               <th className="px-3 py-2.5 font-semibold">Property</th>
               <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
               <th className="px-3 py-2.5 text-right font-semibold">Preview</th>
@@ -48,7 +46,10 @@ export function LedgerTable({
           <tbody>
             {entries.length === 0 ? (
               <tr className="border-t border-border">
-                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
+                <td
+                  className="px-4 py-8 text-center text-muted-foreground"
+                  colSpan={5}
+                >
                   No ledger rows match the current filters.
                 </td>
               </tr>
@@ -77,30 +78,19 @@ export function LedgerTable({
                 <td className="whitespace-nowrap px-3 py-2.5 align-middle text-muted-foreground">
                   {formatDate(entry.transactionDate)}
                 </td>
-                <td className="px-3 py-2.5 align-middle">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <DirectionBadge direction={entry.direction} />
-                    <p className="truncate text-xs text-muted-foreground">
-                    {entry.sourceLabel}
-                    </p>
-                  </div>
-                </td>
                 <td className="px-4 py-2.5 align-middle">
                   <div className="flex min-w-0 items-center gap-2">
+                    <DirectionBadge direction={entry.direction} />
                     <p className="truncate font-medium text-foreground">
                       {entry.category}
                     </p>
-                    <LedgerInlineBadges entry={entry} />
                   </div>
-                  <p
-                    className="mt-0.5 truncate text-xs text-muted-foreground"
-                    title={entry.description || entry.nextAction.description}
-                  >
-                    {entry.description || entry.nextAction.label}
-                  </p>
                 </td>
                 <td className="px-3 py-2.5 align-middle">
-                  <p className="truncate font-medium" title={entry.propertyCode}>
+                  <p
+                    className="truncate font-medium"
+                    title={entry.propertyCode}
+                  >
                     {entry.propertyCode}
                   </p>
                   <Link
@@ -110,20 +100,22 @@ export function LedgerTable({
                   >
                     {entry.propertyName}
                   </Link>
-                  {entry.unitNumber ? (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      Unit {entry.unitNumber}
-                    </p>
-                  ) : null}
                 </td>
-                <td className="px-3 py-2.5 align-middle tabular-nums" data-money-cell="true">
+                <td
+                  className="px-3 py-2.5 align-middle tabular-nums"
+                  data-money-cell="true"
+                >
                   <MoneyDisplay
                     align="right"
                     className={
-                      entry.direction === "expense" ? "text-danger" : "text-success"
+                      entry.direction === "expense"
+                        ? "text-danger"
+                        : "text-success"
                     }
                     value={formatMoneyDisplay(
-                      entry.direction === "expense" ? -entry.amount : entry.amount,
+                      entry.direction === "expense"
+                        ? -entry.amount
+                        : entry.amount,
                       entry.currency,
                     )}
                   />
@@ -152,34 +144,11 @@ export function LedgerTable({
   );
 }
 
-function LedgerInlineBadges({ entry }: { entry: LedgerEntry }) {
-  if (!entry.archivedAt && !entry.isLocked && !entry.riskIndicators[0]) {
-    return null;
-  }
-
-  return (
-    <span className="flex min-w-0 shrink-0 items-center gap-1.5">
-      {entry.riskIndicators[0] ? (
-        <Badge className="px-2 text-xs" tone={entry.riskIndicators[0].tone}>
-          {entry.riskIndicators[0].label}
-        </Badge>
-      ) : null}
-      {entry.archivedAt ? (
-        <Badge className="px-2 text-xs" tone="warning">
-          Archived
-        </Badge>
-      ) : null}
-      {entry.isLocked ? (
-        <Badge className="px-2 text-xs" tone="warning">
-          <Lock size={12} />
-          Locked
-        </Badge>
-      ) : null}
-    </span>
-  );
-}
-
-function DirectionBadge({ direction }: { direction: LedgerEntry["direction"] }) {
+function DirectionBadge({
+  direction,
+}: {
+  direction: LedgerEntry["direction"];
+}) {
   if (direction === "income") {
     return (
       <Badge tone="success">

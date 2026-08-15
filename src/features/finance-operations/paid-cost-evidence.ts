@@ -59,84 +59,127 @@ export async function preparePaidCostEvidence({
     contentType: file.type,
     upsert: false,
   });
+  const uploadedNewObject = !upload.error;
 
   if (upload.error && !isExistingObjectError(upload.error)) {
     throw new Error("Receipt evidence upload failed.");
   }
 
-  const retained = await bucket.download(storagePath);
-  if (retained.error || !retained.data) {
-    throw new Error("Receipt evidence retained bytes are unavailable.");
-  }
-  const retainedBytes = new Uint8Array(await retained.data.arrayBuffer());
-  if (
-    retainedBytes.byteLength !== bytes.byteLength ||
-    sha256Hex(retainedBytes) !== contentSha256
-  ) {
-    throw new Error("Existing receipt evidence bytes conflict with this submission.");
-  }
+  try {
+    const retained = await bucket.download(storagePath);
+    if (retained.error || !retained.data) {
+      throw new Error("Receipt evidence retained bytes are unavailable.");
+    }
+    const retainedBytes = new Uint8Array(await retained.data.arrayBuffer());
+    if (
+      retainedBytes.byteLength !== bytes.byteLength ||
+      sha256Hex(retainedBytes) !== contentSha256
+    ) {
+      throw new Error("Existing receipt evidence bytes conflict with this submission.");
+    }
 
-  const object = await admin.rpc("get_paid_cost_evidence_object", {
-    p_actor_id: actorId,
-    p_organization_id: organizationId,
-    p_property_id: propertyId,
-    p_storage_path: storagePath,
-    ...(taskId ? { p_task_id: taskId } : {}),
-  });
-  if (object.error) {
-    throw new Error(object.error.message ?? "Receipt evidence object verification failed.");
-  }
-  const objectIdentity = requiredObjectIdentity(object.data);
-  if (
-    objectIdentity.contentType !== file.type ||
-    objectIdentity.metadataSizeBytes !== retainedBytes.byteLength
-  ) {
-    throw new Error("Receipt evidence Storage metadata does not match retained bytes.");
-  }
-
-  const registration = await admin.rpc(
-    "register_paid_cost_evidence_verified",
-    {
+    const object = await admin.rpc("get_paid_cost_evidence_object", {
       p_actor_id: actorId,
-      p_content_sha256: contentSha256,
-      p_content_type: objectIdentity.contentType,
-      p_file_name: file.name,
-      p_idempotency_key: evidenceReplayKey(
-        idempotencyKey,
-        organizationId,
-        propertyId,
-        contentSha256,
-      ),
       p_organization_id: organizationId,
       p_property_id: propertyId,
-      p_size_bytes: retainedBytes.byteLength,
-      p_storage_object_id: objectIdentity.storageObjectId,
-      p_storage_object_version: objectIdentity.storageObjectVersion,
       p_storage_path: storagePath,
       ...(taskId ? { p_task_id: taskId } : {}),
-    },
-  );
-  if (registration.error) {
-    throw new Error(
-      registration.error.message ?? "Receipt evidence registration failed.",
+    });
+    if (object.error) {
+      throw new Error(
+        object.error.message ?? "Receipt evidence object verification failed.",
+      );
+    }
+    const objectIdentity = requiredObjectIdentity(object.data);
+    if (
+      objectIdentity.contentType !== file.type ||
+      objectIdentity.metadataSizeBytes !== retainedBytes.byteLength
+    ) {
+      throw new Error("Receipt evidence Storage metadata does not match retained bytes.");
+    }
+
+    const registration = await admin.rpc(
+      "register_paid_cost_evidence_verified",
+      {
+        p_actor_id: actorId,
+        p_content_sha256: contentSha256,
+        p_content_type: objectIdentity.contentType,
+        p_file_name: file.name,
+        p_idempotency_key: evidenceReplayKey(
+          idempotencyKey,
+          organizationId,
+          propertyId,
+          contentSha256,
+        ),
+        p_organization_id: organizationId,
+        p_property_id: propertyId,
+        p_size_bytes: retainedBytes.byteLength,
+        p_storage_object_id: objectIdentity.storageObjectId,
+        p_storage_object_version: objectIdentity.storageObjectVersion,
+        p_storage_path: storagePath,
+        ...(taskId ? { p_task_id: taskId } : {}),
+      },
     );
+    if (registration.error) {
+      throw new Error(
+        registration.error.message ?? "Receipt evidence registration failed.",
+      );
+    }
+    const documentId = requiredString(registration.data, "document_id");
+    const registeredHash = requiredString(registration.data, "content_sha256");
+    const registeredPath = requiredString(registration.data, "storage_path");
+    const registeredSize =
+      registration.data && typeof registration.data === "object"
+        ? (registration.data as Record<string, unknown>).size_bytes
+        : null;
+    if (
+      registeredHash !== contentSha256 ||
+      registeredPath !== storagePath ||
+      registeredSize !== retainedBytes.byteLength
+    ) {
+      throw new Error("Receipt evidence registration does not match retained bytes.");
+    }
+
+    return { contentSha256, documentId, storagePath };
+  } catch (error) {
+    if (uploadedNewObject) {
+      await removeUnregisteredPaidCostEvidence({
+        admin,
+        organizationId,
+        storagePath,
+      });
+    }
+
+    throw error;
   }
-  const documentId = requiredString(registration.data, "document_id");
-  const registeredHash = requiredString(registration.data, "content_sha256");
-  const registeredPath = requiredString(registration.data, "storage_path");
-  const registeredSize =
-    registration.data && typeof registration.data === "object"
-      ? (registration.data as Record<string, unknown>).size_bytes
-      : null;
-  if (
-    registeredHash !== contentSha256 ||
-    registeredPath !== storagePath ||
-    registeredSize !== retainedBytes.byteLength
-  ) {
-    throw new Error("Receipt evidence registration does not match retained bytes.");
+}
+
+async function removeUnregisteredPaidCostEvidence({
+  admin,
+  organizationId,
+  storagePath,
+}: {
+  admin: ReturnType<typeof createSupabaseAdminClient>;
+  organizationId: string;
+  storagePath: string;
+}) {
+  const claim = await admin.rpc("begin_paid_cost_evidence_cleanup", {
+    p_organization_id: organizationId,
+    p_storage_path: storagePath,
+  });
+
+  if (claim.error || claim.data !== true) {
+    return;
   }
 
-  return { contentSha256, documentId, storagePath };
+  try {
+    await admin.storage.from("nestory-documents").remove([storagePath]);
+  } finally {
+    await admin.rpc("finish_paid_cost_evidence_cleanup", {
+      p_organization_id: organizationId,
+      p_storage_path: storagePath,
+    });
+  }
 }
 
 function evidenceReplayKey(

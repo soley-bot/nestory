@@ -604,7 +604,7 @@ function revalidateFinance() {
 function expenseWorkflowError(message: string) {
   if (message.includes("period is locked")) {
     return actionError(
-      "This paid-cost month is locked. Super Admin must reopen it before approval.",
+      "This paid-cost month is locked. Super Admin must unlock it before approval.",
     );
   }
   if (message.includes("already settled this charge")) {

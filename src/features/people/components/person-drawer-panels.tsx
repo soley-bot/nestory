@@ -17,12 +17,14 @@ type PersonPanelProps = {
   onClose: () => void;
   onSuccess: (message: string) => void;
   person: PeopleSummary;
+  presentation?: "drawer" | "modal";
 };
 
 export function ArchivePersonPanel({
   onClose,
   onSuccess,
   person,
+  presentation = "drawer",
 }: PersonPanelProps) {
   const [state, action, pending] = useActionState(
     archivePersonAction,
@@ -37,18 +39,26 @@ export function ArchivePersonPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <form
+      action={action}
+      className={
+        presentation === "modal" ? "flex flex-col" : "flex h-full flex-col"
+      }
+    >
       <input name="personId" type="hidden" value={person.id} />
-      <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <div className="flex items-center gap-2 text-danger">
-          <Archive size={16} />
-          <p className="text-sm font-semibold">Archive confirmation</p>
-        </div>
-        <PersonPanelSummary person={person} />
-        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
+      <div className="flex-1 space-y-4 px-4 py-4 sm:px-5">
+        {presentation === "drawer" ? (
+          <>
+            <div className="flex items-center gap-2 text-danger">
+              <Archive size={16} />
+              <p className="text-sm font-semibold">Archive confirmation</p>
+            </div>
+            <PersonPanelSummary person={person} />
+          </>
+        ) : null}
+        <p className="text-sm text-muted-foreground">
           Open Lease roles must be ended or cancelled through a checked
-          relationship transition first. Archiving preserves linked ownership,
-          vendor, document, and activity history.
+          relationship transition first. Linked history is preserved.
         </p>
         <PanelMessage state={state} />
       </div>
@@ -56,8 +66,10 @@ export function ArchivePersonPanel({
       <PanelFooter
         confirmLabel={pending ? "Archiving..." : "Archive person"}
         icon={<Archive size={15} />}
+        intent="danger"
         onClose={onClose}
         pending={pending}
+        presentation={presentation}
       />
     </form>
   );
@@ -67,6 +79,7 @@ export function RestorePersonPanel({
   onClose,
   onSuccess,
   person,
+  presentation = "drawer",
 }: PersonPanelProps) {
   const [state, action, pending] = useActionState(
     restorePersonAction,
@@ -81,16 +94,25 @@ export function RestorePersonPanel({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
+    <form
+      action={action}
+      className={
+        presentation === "modal" ? "flex flex-col" : "flex h-full flex-col"
+      }
+    >
       <input name="personId" type="hidden" value={person.id} />
-      <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <div className="flex items-center gap-2 text-primary">
-          <RotateCcw size={16} />
-          <p className="text-sm font-semibold">Restore confirmation</p>
-        </div>
-        <PersonPanelSummary person={person} />
-        <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
-          Restoring makes this person visible in normal operational views again.
+      <div className="flex-1 space-y-4 px-4 py-4 sm:px-5">
+        {presentation === "drawer" ? (
+          <>
+            <div className="flex items-center gap-2 text-primary">
+              <RotateCcw size={16} />
+              <p className="text-sm font-semibold">Restore confirmation</p>
+            </div>
+            <PersonPanelSummary person={person} />
+          </>
+        ) : null}
+        <p className="text-sm text-muted-foreground">
+          This person will return to active directory views.
         </p>
         <PanelMessage state={state} />
       </div>
@@ -100,6 +122,7 @@ export function RestorePersonPanel({
         icon={<RotateCcw size={15} />}
         onClose={onClose}
         pending={pending}
+        presentation={presentation}
       />
     </form>
   );
@@ -112,7 +135,9 @@ function PersonPanelSummary({ person }: { person: PeopleSummary }) {
       <p className="mt-1 text-sm text-muted-foreground">
         {person.partyTypeLabel} / {person.roleLabel}
       </p>
-      <p className="mt-1 text-sm text-muted-foreground">{person.contact.label}</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {person.contact.label}
+      </p>
     </div>
   );
 }
@@ -135,25 +160,44 @@ function PanelMessage({ state }: { state: PeopleActionState }) {
 function PanelFooter({
   confirmLabel,
   icon,
+  intent = "default",
   onClose,
   pending,
+  presentation = "drawer",
 }: {
   confirmLabel: string;
   icon: React.ReactNode;
+  intent?: "danger" | "default";
   onClose: () => void;
   pending: boolean;
+  presentation?: "drawer" | "modal";
 }) {
   return (
-    <div className="border-t border-border px-4 py-4 sm:px-5">
+    <div
+      className={
+        presentation === "modal"
+          ? "border-t border-border px-4 py-3 sm:px-5"
+          : "border-t border-border px-4 py-4 sm:px-5"
+      }
+    >
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+        <Button
+          className="w-full sm:w-auto"
+          onClick={onClose}
+          type="button"
+          variant={presentation === "modal" ? "outline" : "default"}
+        >
           Cancel
         </Button>
         <Button
           className="w-full sm:w-auto"
           disabled={pending}
           type="submit"
-          variant="default"
+          variant={
+            presentation === "modal" && intent === "danger"
+              ? "destructive"
+              : "default"
+          }
         >
           {icon}
           {confirmLabel}

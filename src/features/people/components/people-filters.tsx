@@ -1,11 +1,11 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, RotateCcw, SlidersHorizontal, Table2 } from "lucide-react";
+import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { SearchCombo } from "@/components/ui/search-combo";
 import { SelectControl } from "@/components/ui/select-control";
 import {
@@ -14,22 +14,15 @@ import {
   DEFAULT_PEOPLE_SORT,
   PEOPLE_PAGE_SIZE_OPTIONS,
 } from "@/features/people/people.filters";
-import type {
-  PeopleDisplayMode,
-  PeopleViewQuery,
-} from "@/features/people/people.types";
+import type { PeopleViewQuery } from "@/features/people/people.types";
 import { cn } from "@/lib/utils";
 
 type PeopleFiltersProps = {
-  displayMode: PeopleDisplayMode;
-  onDisplayModeChange: (mode: PeopleDisplayMode) => void;
   searchPlaceholder?: string;
   viewQuery: PeopleViewQuery;
 };
 
 export function PeopleFilters({
-  displayMode,
-  onDisplayModeChange,
   searchPlaceholder = "Search name, contact, role, lease, or property",
   viewQuery,
 }: PeopleFiltersProps) {
@@ -99,10 +92,6 @@ export function PeopleFilters({
           />
 
           <div className="flex min-w-0 items-center gap-1.5">
-            <ViewModeToggle
-              displayMode={displayMode}
-              onDisplayModeChange={onDisplayModeChange}
-            />
             <Popover.Root>
               <Popover.Trigger asChild>
                 <button
@@ -162,7 +151,6 @@ export function PeopleFilters({
                           options={[
                             { label: "All statuses", value: "all" },
                             { label: "Active", value: "active" },
-                            { label: "Inactive", value: "inactive" },
                             {
                               label: "Missing contact",
                               value: "missing_contact",
@@ -297,62 +285,5 @@ function FilterField({
       <span>{label}</span>
       {children}
     </div>
-  );
-}
-
-function ViewModeToggle({
-  displayMode,
-  onDisplayModeChange,
-}: {
-  displayMode: PeopleDisplayMode;
-  onDisplayModeChange: (mode: PeopleDisplayMode) => void;
-}) {
-  return (
-    <div
-      aria-label="People view"
-      className="hidden h-8 rounded-md border border-border bg-muted p-0.5 text-xs md:inline-flex"
-      role="group"
-    >
-      <ViewModeButton
-        active={displayMode === "table"}
-        icon={<Table2 size={14} />}
-        label="Table"
-        onClick={() => onDisplayModeChange("table")}
-      />
-      <ViewModeButton
-        active={displayMode === "cards"}
-        icon={<LayoutGrid size={14} />}
-        label="Cards"
-        onClick={() => onDisplayModeChange("cards")}
-      />
-    </div>
-  );
-}
-
-function ViewModeButton({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      aria-pressed={active}
-      className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
-        active && "bg-card text-foreground shadow-sm",
-      )}
-      onClick={onClick}
-      title={`${label} view`}
-      type="button"
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
   );
 }

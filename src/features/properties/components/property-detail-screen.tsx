@@ -1,48 +1,75 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Archive, ArrowRight, Pencil, RotateCcw } from "lucide-react";
+import { useRef, useState } from "react";
+import { Archive, History, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { DocumentForm } from "@/features/documents/components/document-screen";
 import {
   ArchivePropertyPanel,
   RestorePropertyPanel,
 } from "@/features/properties/components/property-drawer-panels";
 import { PropertyDetailView } from "@/features/properties/components/property-detail-view";
 import { PropertyForm } from "@/features/properties/components/property-form";
+import type { PropertyRecordSection } from "@/features/properties/components/property-detail-view";
 import type { PropertyDetail } from "@/features/properties/data/property-detail";
 import type { PropertyOwnerOption } from "@/features/properties/property.types";
+import { UnitForm } from "@/features/units/components/unit-form";
 
 type DrawerState =
   | { mode: "edit"; property: PropertyDetail }
-  | { mode: "archive"; property: PropertyDetail }
-  | { mode: "restore"; property: PropertyDetail };
+  | { mode: "create-unit"; property: PropertyDetail }
+  | { mode: "create-document"; property: PropertyDetail };
+
+type ConfirmationState = {
+  mode: "archive" | "restore";
+  property: PropertyDetail;
+};
 
 type PropertyDetailScreenProps = {
+  initialSection?: Exclude<PropertyRecordSection, "account">;
   ownerOptions: PropertyOwnerOption[];
   property: PropertyDetail;
 };
 
 export function PropertyDetailScreen({
+  initialSection = "overview",
   ownerOptions,
   property,
 }: PropertyDetailScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const confirmationTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const closeConfirmation = () => {
+    setConfirmation(null);
+    window.requestAnimationFrame(() => confirmationTriggerRef.current?.focus());
+  };
 
   return (
     <div className="lg:flex lg:flex-col">
       <PageHeader
+        className="px-4 sm:px-6 2xl:px-8"
         actions={
           property.isArchived ? (
             <Button
+              ref={confirmationTriggerRef}
               onClick={() => {
                 setStatusMessage(null);
-                setDrawer({ mode: "restore", property });
+                setConfirmation({ mode: "restore", property });
               }}
               variant="default"
             >
@@ -51,14 +78,6 @@ export function PropertyDetailScreen({
             </Button>
           ) : (
             <>
-              <Link
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-primary px-2.5 text-sm font-medium text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                href={property.nextAction.href}
-                prefetch={false}
-              >
-                {property.nextAction.label}
-                <ArrowRight size={14} />
-              </Link>
               <Button
                 onClick={() => {
                   setStatusMessage(null);
@@ -68,15 +87,37 @@ export function PropertyDetailScreen({
                 <Pencil size={15} />
                 Edit
               </Button>
-              <Button
-                onClick={() => {
-                  setStatusMessage(null);
-                  setDrawer({ mode: "archive", property });
-                }}
-              >
-                <Archive size={15} />
-                Archive
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-label="More"
+                    ref={confirmationTriggerRef}
+                    variant="outline"
+                  >
+                    <MoreHorizontal size={16} />
+                    More
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-44">
+                  <DropdownMenuItem asChild>
+                    <Link href={property.hrefs.timeline} prefetch={false}>
+                      <History size={15} />
+                      View history
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setStatusMessage(null);
+                      setConfirmation({ mode: "archive", property });
+                    }}
+                    variant="destructive"
+                  >
+                    <Archive size={15} />
+                    Archive
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )
         }
@@ -107,7 +148,19 @@ export function PropertyDetailScreen({
         </div>
       ) : null}
 
-      <PropertyDetailView property={property} />
+      <PropertyDetailView
+        initialSection={initialSection}
+        key={`${property.id}:${initialSection}`}
+        onAddDocument={() => {
+          setStatusMessage(null);
+          setDrawer({ mode: "create-document", property });
+        }}
+        onAddUnit={() => {
+          setStatusMessage(null);
+          setDrawer({ mode: "create-unit", property });
+        }}
+        property={property}
+      />
 
       {drawer ? (
         <SideDrawer
@@ -116,17 +169,36 @@ export function PropertyDetailScreen({
           open
           title={getPropertyDrawerTitle(drawer)}
         >
-          {drawer.mode === "archive" ? (
-            <ArchivePropertyPanel
+          {drawer.mode === "create-unit" ? (
+            <UnitForm
+              closeOnCreateSuccess
+              initialValues={{ propertyId: drawer.property.id }}
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
-              property={drawer.property}
+              properties={[
+                { id: drawer.property.id, label: drawer.property.name },
+              ]}
             />
-          ) : drawer.mode === "restore" ? (
-            <RestorePropertyPanel
+          ) : drawer.mode === "create-document" ? (
+            <DocumentForm
+              fixedPropertyId={drawer.property.id}
+              initialValues={{
+                category: "Property record",
+                propertyId: drawer.property.id,
+              }}
+              mode="create"
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
-              property={drawer.property}
+              properties={[
+                { id: drawer.property.id, label: drawer.property.name },
+              ]}
+              units={drawer.property.unitsList
+                .filter((unit) => !unit.isArchived)
+                .map((unit) => ({
+                  id: unit.id,
+                  label: `Unit ${unit.unitNumber}`,
+                  propertyId: drawer.property.id,
+                }))}
             />
           ) : (
             <PropertyForm
@@ -140,30 +212,49 @@ export function PropertyDetailScreen({
           )}
         </SideDrawer>
       ) : null}
+
+      {confirmation ? (
+        <Modal
+          onClose={closeConfirmation}
+          open
+          size="compact"
+          title={`${confirmation.mode === "archive" ? "Archive" : "Restore"} ${confirmation.property.name}?`}
+        >
+          {confirmation.mode === "archive" ? (
+            <ArchivePropertyPanel
+              onClose={closeConfirmation}
+              onSuccess={setStatusMessage}
+              presentation="modal"
+              property={confirmation.property}
+            />
+          ) : (
+            <RestorePropertyPanel
+              onClose={closeConfirmation}
+              onSuccess={setStatusMessage}
+              presentation="modal"
+              property={confirmation.property}
+            />
+          )}
+        </Modal>
+      ) : null}
     </div>
   );
 }
 
 function getPropertyDrawerTitle(drawer: DrawerState) {
-  if (drawer.mode === "edit") {
-    return "Edit property";
+  if (drawer.mode === "create-unit") {
+    return "Add unit";
   }
 
-  if (drawer.mode === "restore") {
-    return "Restore property";
-  }
-
-  return "Archive property";
+  return drawer.mode === "create-document" ? "Upload document" : "Edit property";
 }
 
 function getPropertyDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "edit") {
-    return "Update the property profile used by units, owners, timeline, and ledger rows.";
+  if (drawer.mode === "create-unit") {
+    return `Add a unit to ${drawer.property.name}.`;
   }
 
-  if (drawer.mode === "restore") {
-    return "Return this archived property to normal operational views.";
-  }
-
-  return "Hide this property from active operational views without deleting its history.";
+  return drawer.mode === "create-document"
+    ? undefined
+    : "Update the property profile used by units, owners, timeline, and ledger rows.";
 }

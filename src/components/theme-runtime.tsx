@@ -48,17 +48,7 @@ export function ThemeRuntime({
     };
   }, [organizationId, theme]);
 
-  return (
-    <>
-      <script
-        dangerouslySetInnerHTML={{
-          __html: getThemeBootstrapScript(organizationId, theme),
-        }}
-        suppressHydrationWarning
-      />
-      {children}
-    </>
-  );
+  return children;
 }
 
 export function getThemeBootstrapScript(

@@ -31,12 +31,14 @@ export type RecordFormActionState = {
 
 type RecordFormProps = {
   action: FormHTMLAttributes<HTMLFormElement>["action"];
+  allowSaveWhenClean?: boolean;
   ariaLabel: string;
   children: ReactNode;
   className?: string;
   contentClassName?: string;
   hideSaveOnSuccess?: boolean;
   onCancel: () => void;
+  onSave?: (form: HTMLFormElement) => void;
   pending: boolean;
   saveLabel: string;
   savingLabel?: string;
@@ -56,12 +58,14 @@ function serializeForm(form: HTMLFormElement) {
 
 export function RecordForm({
   action,
+  allowSaveWhenClean = true,
   ariaLabel,
   children,
   className,
   contentClassName,
   hideSaveOnSuccess = false,
   onCancel,
+  onSave,
   pending,
   saveLabel,
   savingLabel = "Saving changes",
@@ -190,6 +194,11 @@ export function RecordForm({
       onChangeCapture={updateDirty}
       onClickCapture={updateDirty}
       onInputCapture={updateDirty}
+      onSubmit={(event) => {
+        if (!onSave) return;
+        event.preventDefault();
+        onSave(event.currentTarget);
+      }}
       ref={formRef}
     >
       <fieldset
@@ -213,11 +222,19 @@ export function RecordForm({
 
       <DraftActionBar
         allowDiscardWhenClean
-        allowSaveWhenClean
+        allowSaveWhenClean={allowSaveWhenClean}
         confirmDiscard={false}
         discardLabel={hideSaveOnSuccess && status === "saved" ? "Close" : "Cancel"}
         onDiscard={requestClose}
-        onSave={() => formRef.current?.requestSubmit()}
+        onSave={() => {
+          const form = formRef.current;
+          if (!form) return;
+          if (onSave) {
+            onSave(form);
+            return;
+          }
+          form.requestSubmit();
+        }}
         saveLabel={saveLabel}
         showSave={!(hideSaveOnSuccess && status === "saved")}
         status={status}

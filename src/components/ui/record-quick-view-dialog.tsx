@@ -3,12 +3,14 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type RecordQuickViewDialogProps = {
   children: ReactNode;
   label: string;
   onClose: () => void;
   open: boolean;
+  size?: "default" | "wide";
 };
 
 const FOCUSABLE_SELECTOR = [
@@ -25,6 +27,7 @@ export function RecordQuickViewDialog({
   label,
   onClose,
   open,
+  size = "default",
 }: RecordQuickViewDialogProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
@@ -156,7 +159,10 @@ export function RecordQuickViewDialog({
       <section
         aria-label={label}
         aria-modal="true"
-        className="record-quick-view-dialog relative z-10 flex max-h-[min(82dvh,720px)] w-full max-w-[640px] flex-col overflow-hidden rounded-lg border border-border bg-popover shadow-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn(
+          "record-quick-view-dialog relative z-10 flex max-h-[min(82dvh,720px)] w-full flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-2xl outline-none",
+          size === "wide" ? "max-w-[760px]" : "max-w-[640px]",
+        )}
         data-slot="record-quick-view-dialog"
         ref={dialogRef}
         role="dialog"

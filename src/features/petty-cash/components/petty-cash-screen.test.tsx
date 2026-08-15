@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -35,6 +36,71 @@ afterEach(() => {
 });
 
 describe("PettyCashScreen finance workspace contract", () => {
+  it("keeps one primary header action and a six-column register", async () => {
+    const user = userEvent.setup();
+    renderPettyCash();
+
+    expect(screen.getByRole("button", { name: "Add cash row" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Add account" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open next month" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Account actions" }));
+    expect(screen.getByRole("menuitem", { name: "Add account" })).not.toBeNull();
+    expect(
+      screen.getByRole("menuitem", { name: "Open next month" }),
+    ).not.toBeNull();
+    await user.keyboard("{Escape}");
+
+    expect(
+      within(screen.getByRole("table"))
+        .getAllByRole("columnheader")
+        .map((header) => header.textContent),
+    ).toEqual(["Date", "Entry", "Property / Unit", "Amount", "Balance", "Status"]);
+  });
+
+  it("keeps the account strip focused and property links legible", () => {
+    renderPettyCash();
+
+    const summaryRegion = screen.getByRole("region", {
+      name: "Petty cash summary",
+    });
+    expect(summaryRegion.textContent).toContain("On handUSD 410.00");
+    expect(summaryRegion.textContent).toContain("01 Jul 2026");
+    expect(summaryRegion.textContent).toContain("Open");
+    expect(summaryRegion.textContent).not.toContain("Opening");
+    expect(summaryRegion.textContent).not.toContain("In USD");
+    expect(summaryRegion.textContent).not.toContain("ready");
+
+    const propertyLink = within(screen.getAllByRole("row")[1]!).getByRole(
+      "link",
+      { name: "HOME" },
+    );
+    expect(propertyLink.className).toContain("text-foreground");
+    expect(propertyLink.className).not.toContain("text-accent");
+  });
+
+  it("uses compact modals for account operations and keeps row entry in a drawer", async () => {
+    const user = userEvent.setup();
+    renderPettyCash();
+
+    await user.click(screen.getByRole("button", { name: "Account actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Add account" }));
+    expect(
+      screen.getByRole("dialog", { name: "Create petty cash account" }),
+    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Close modal" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Close drawer" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Close modal" }));
+
+    await user.click(screen.getByRole("button", { name: "Add cash row" }));
+    expect(
+      screen.getByRole("dialog", { name: "Add petty cash row" }),
+    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
+    expect(
+      screen.getByText("Receipt and reconciliation").closest("details")?.open,
+    ).toBe(false);
+  });
+
   it("keeps register totals, cash states, links, currency columns, and deliberate quick views", () => {
     const { container } = renderPettyCash();
 
@@ -49,7 +115,6 @@ describe("PettyCashScreen finance workspace contract", () => {
     });
     expect(summaryRegion.className).not.toContain("overflow-x-auto");
     expect(summaryRegion.getAttribute("tabindex")).toBeNull();
-    expect(summaryRegion.textContent).toContain("USD 500.00");
     expect(summaryRegion.textContent).toContain("USD 410.00");
 
     const table = screen.getByRole("table");
@@ -142,23 +207,22 @@ describe("PettyCashScreen finance workspace contract", () => {
       });
       expect(consequence.textContent).toContain("USD 90.00");
       expect(consequence.textContent).toContain("one ledger expense");
-      expect(consequence.textContent).toContain(
-        "ResultLedger expense and linked timeline event",
-      );
+      expect(consequence.textContent).toContain("linked timeline event");
       expect(
         (document.querySelector('input[name="entryId"]') as HTMLInputElement)
           .value,
       ).toBe("cash-1");
 
-      await user.click(screen.getByRole("button", { name: "Close drawer" }));
-      expect(document.activeElement).toBe(preview);
+      await user.click(screen.getByRole("button", { name: "Close modal" }));
+      await waitFor(() => expect(document.activeElement).toBe(preview));
     },
   );
 
   it("places reconciliation consequences beside the unchanged rollover payload", async () => {
     const user = userEvent.setup();
     renderPettyCash();
-    await user.click(screen.getByRole("button", { name: "Open next month" }));
+    await user.click(screen.getByRole("button", { name: "Account actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Open next month" }));
 
     const consequence = screen.getByRole("region", {
       name: "Reconciliation consequence",

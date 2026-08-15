@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, UsersRound } from "lucide-react";
@@ -23,11 +23,9 @@ import { PersonForm } from "@/features/people/components/person-form";
 import { PeopleCommandCenter } from "@/features/people/components/people-command-center";
 import { PeopleFilters } from "@/features/people/components/people-filters";
 import { PeopleTable } from "@/features/people/components/people-table";
-import { PeopleWorkspaceNavigation } from "@/features/people/components/people-workspace-navigation";
 import { formatRole } from "@/features/people/people.labels";
 import type { PeopleInsights } from "@/features/people/people.insights";
 import type {
-  PeopleDisplayMode,
   PeoplePagination,
   PeopleSummary,
   PeopleViewQuery,
@@ -53,7 +51,6 @@ type PeopleScreenProps = {
   description?: string;
   initialPersonId?: string;
   insights?: PeopleInsights;
-  localNavigation?: ReactNode;
   lockedRole?: PersonRoleValue;
   pagination: PeoplePagination;
   people: PeopleSummary[];
@@ -69,7 +66,6 @@ export function PeopleScreen({
   createRole,
   initialPersonId,
   insights,
-  localNavigation,
   lockedRole,
   pagination,
   people,
@@ -85,7 +81,6 @@ export function PeopleScreen({
       ? { mode: "create" }
       : null,
   );
-  const [displayMode, setDisplayMode] = useState<PeopleDisplayMode>("table");
   const [feedback, setFeedback] = useState<PeopleFeedback | null>(null);
   const focusedPerson = initialPersonId
     ? (people.find((person) => person.id === initialPersonId) ?? null)
@@ -131,8 +126,6 @@ export function PeopleScreen({
   }, [canCreate, pathname, router, searchParams]);
 
   const hasFilters = hasActivePeopleFilters(viewQuery);
-  const activeRole =
-    lockedRole ?? (viewQuery.role === "all" ? undefined : viewQuery.role);
   const peopleList = (
     <section
       className="flex min-w-0 flex-col bg-background"
@@ -140,8 +133,6 @@ export function PeopleScreen({
     >
       <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
         <PeopleFilters
-          displayMode={displayMode}
-          onDisplayModeChange={setDisplayMode}
           searchPlaceholder={searchPlaceholder}
           viewQuery={viewQuery}
         />
@@ -179,7 +170,7 @@ export function PeopleScreen({
             <PeopleTable
               accessByPersonId={accessByPersonId}
               archiveState={viewQuery.archiveState}
-              displayMode={displayMode}
+              displayMode="table"
               people={people}
               roleContext={lockedRole}
             />
@@ -207,10 +198,7 @@ export function PeopleScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref={pathname}
-      headerClassName="py-3 lg:py-3"
-      localNav={
-        localNavigation ?? <PeopleWorkspaceNavigation activeRole={activeRole} />
-      }
+      headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"
       title={title}
     >
       <div className="flex min-w-0 flex-col">
@@ -229,14 +217,16 @@ export function PeopleScreen({
           />
         ) : null}
 
-        <div className="min-h-0 min-w-0 flex-1">
-          {peopleList}
-        </div>
+        <div className="min-h-0 min-w-0 flex-1">{peopleList}</div>
       </div>
 
       {drawer ? (
         <SideDrawer
-          description={getPeopleDrawerDescription(drawer, moduleRole)}
+          description={
+            drawer.mode === "archive" || drawer.mode === "restore"
+              ? getPeopleDrawerDescription(drawer, moduleRole)
+              : undefined
+          }
           onClose={() => setDrawer(null)}
           open
           title={getPeopleDrawerTitle(drawer, moduleRole)}

@@ -16,54 +16,37 @@ afterEach(cleanup);
 describe("PersonForm role-specific presentation", () => {
   it.each([
     {
-      contactHeading: "Contact",
       displayLabel: "Owner name",
-      identityHeading: "Owner identity",
       notesLabel: "Owner notes",
       role: "owner",
       showsTaxIdentifier: true,
     },
     {
-      contactHeading: "Contact",
       displayLabel: "Tenant name",
-      identityHeading: "Tenant identity",
       notesLabel: "Tenancy notes",
       role: "tenant",
       showsTaxIdentifier: false,
     },
     {
-      contactHeading: "Contact",
       displayLabel: "Staff name",
-      identityHeading: "Staff identity",
       notesLabel: "Staff notes",
       role: "staff",
       showsTaxIdentifier: false,
     },
     {
-      contactHeading: "Contact",
       displayLabel: "Vendor or business name",
-      identityHeading: "Vendor identity",
       notesLabel: "Vendor notes",
       role: "vendor",
       showsTaxIdentifier: true,
     },
   ] satisfies Array<{
-    contactHeading: string;
     displayLabel: string;
-    identityHeading: string;
     notesLabel: string;
     role: PersonRoleValue;
     showsTaxIdentifier: boolean;
   }>)(
-    "shows supported $role fields without unrelated administration",
-    ({
-      contactHeading,
-      displayLabel,
-      identityHeading,
-      notesLabel,
-      role,
-      showsTaxIdentifier,
-    }) => {
+    "shows supported $role fields as one continuous form",
+    ({ displayLabel, notesLabel, role, showsTaxIdentifier }) => {
       const { container } = render(
         <PersonForm
           initialRoles={[role]}
@@ -72,8 +55,7 @@ describe("PersonForm role-specific presentation", () => {
         />,
       );
 
-      expect(screen.getByRole("heading", { name: identityHeading })).toBeTruthy();
-      expect(screen.getByRole("heading", { name: contactHeading })).toBeTruthy();
+      expect(screen.queryAllByRole("heading", { level: 3 })).toHaveLength(0);
       expect(
         screen.getByRole("group", { name: new RegExp(displayLabel) }),
       ).toBeTruthy();
@@ -82,18 +64,19 @@ describe("PersonForm role-specific presentation", () => {
       ).toBeTruthy();
       expect(
         Boolean(screen.queryByRole("group", { name: "Tax identifier" })),
-      ).toBe(
-        showsTaxIdentifier,
-      );
+      ).toBe(showsTaxIdentifier);
       expect(
-        container.querySelector<HTMLInputElement>('input[name="taxIdentifier"]'),
+        container.querySelector<HTMLInputElement>(
+          'input[name="taxIdentifier"]',
+        ),
       ).not.toBeNull();
       expect(
         screen.queryByRole("group", { name: "Operational roles" }),
       ).toBeNull();
-      expect(screen.queryByRole("heading", { name: "Record type" })).toBeNull();
       expect(screen.queryByRole("region", { name: "Role effect" })).toBeNull();
-      expect(screen.queryByRole("region", { name: "Access boundary" })).toBeNull();
+      expect(
+        screen.queryByRole("region", { name: "Access boundary" }),
+      ).toBeNull();
       expect(
         container.querySelector<HTMLInputElement>('input[name="roles"]')?.value,
       ).toBe(role);
@@ -110,7 +93,9 @@ describe("PersonForm role-specific presentation", () => {
     );
 
     expect(screen.queryByPlaceholderText("Sokha Chan")).toBeNull();
-    expect(screen.queryByPlaceholderText("Optional registered name")).toBeNull();
+    expect(
+      screen.queryByPlaceholderText("Optional registered name"),
+    ).toBeNull();
     expect(screen.queryByPlaceholderText("name@example.com")).toBeNull();
     expect(screen.queryByPlaceholderText("+855 ...")).toBeNull();
 
@@ -120,5 +105,4 @@ describe("PersonForm role-specific presentation", () => {
     fireEvent.change(phone, { target: { value: "+85512345678" } });
     expect(phone.value).toBe("+855 12 345 678");
   });
-
 });

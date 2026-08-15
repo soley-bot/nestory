@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   PlusCircle,
+  ScrollText,
   Settings,
   UserRound,
   UsersRound,
@@ -80,15 +81,40 @@ type GlobalDestinationChild = {
   routes: readonly string[];
 };
 
-const FINANCE_CHILDREN = [
-  { href: "/finance", label: "Finance work", routes: ["/finance"] },
-  { href: "/rent-income", label: "Rent", routes: ["/rent-income"] },
-  { href: "/bills-expenses", label: "Expenses", routes: ["/bills-expenses"] },
-  { href: "/balances", label: "Owner balances", routes: ["/balances"] },
+const PROPERTIES_CHILDREN = [
+  { href: "/properties", label: "Register", routes: ["/properties"] },
+  { href: "/units", label: "Units", routes: ["/units"] },
   { href: "/leases", label: "Leases", routes: ["/leases"] },
-  { href: "/ledger", label: "Ledger", routes: ["/ledger"] },
-  { href: "/petty-cash", label: "Petty cash", routes: ["/petty-cash"] },
 ] satisfies readonly GlobalDestinationChild[];
+
+const PEOPLE_CHILDREN = [
+  { href: "/people", label: "Directory", routes: ["/people"] },
+  { href: "/tenants", label: "Tenants", routes: ["/tenants"] },
+  { href: "/owners", label: "Owners", routes: ["/owners"] },
+  { href: "/vendors", label: "Vendors", routes: ["/vendors"] },
+  { href: "/staff", label: "Staff", routes: ["/staff"] },
+] satisfies readonly GlobalDestinationChild[];
+
+const FINANCE_CHILDREN = [
+  { href: "/finance", label: "Work queue", routes: ["/finance"] },
+  {
+    href: "/rent-income",
+    label: "Rent & collections",
+    routes: ["/rent-income"],
+  },
+  { href: "/bills-expenses", label: "Expenses", routes: ["/bills-expenses"] },
+  { href: "/balances", label: "Owner accounts", routes: ["/balances"] },
+  { href: "/petty-cash", label: "Petty cash", routes: ["/petty-cash"] },
+  { href: "/ledger", label: "Ledger", routes: ["/ledger"] },
+] satisfies readonly GlobalDestinationChild[];
+
+const LEASE_DESTINATION = {
+  id: "leases",
+  href: "/leases",
+  icon: ScrollText,
+  label: "Leases",
+  routes: ["/leases"],
+} satisfies GlobalDestination;
 
 const MAINTENANCE_CHILDREN = [
   { href: "/maintenance", label: "Cases", routes: ["/maintenance"] },
@@ -132,13 +158,15 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     routes: ["/overview"],
   },
   {
+    children: PROPERTIES_CHILDREN,
     id: "properties",
     href: "/properties",
     icon: Building2,
     label: "Properties",
-    routes: ["/properties", "/units"],
+    routes: ["/properties", "/units", "/leases"],
   },
   {
+    children: PEOPLE_CHILDREN,
     id: "people",
     href: "/people",
     icon: UsersRound,
@@ -152,13 +180,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     icon: Landmark,
     label: "Finance",
     routes: [
-      "/rent-income",
-      "/bills-expenses",
-      "/leases",
-      "/ledger",
-      "/petty-cash",
-      "/finance",
-      "/balances",
+      ...FINANCE_CHILDREN.flatMap((destination) => destination.routes),
     ],
   },
   {
@@ -209,8 +231,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
 const FINANCE_MANAGER_GLOBAL_DESTINATIONS = [
   {
     children: [
-      { href: "/finance", label: "Review queue", routes: ["/finance"] },
-      ...FINANCE_CHILDREN.slice(1),
+      ...FINANCE_CHILDREN,
       {
         href: "/settings/rent-policy",
         label: "Rent policy",
@@ -226,6 +247,7 @@ const FINANCE_MANAGER_GLOBAL_DESTINATIONS = [
       "/settings/rent-policy",
     ],
   },
+  LEASE_DESTINATION,
   {
     id: "reports",
     href: "/reports",
@@ -237,16 +259,14 @@ const FINANCE_MANAGER_GLOBAL_DESTINATIONS = [
 
 const FINANCE_MEMBER_GLOBAL_DESTINATIONS = [
   {
-    children: [
-      { href: "/finance", label: "My finance work", routes: ["/finance"] },
-      ...FINANCE_CHILDREN.slice(1),
-    ],
+    children: FINANCE_CHILDREN,
     id: "finance",
     href: "/finance",
     icon: Landmark,
     label: "Finance",
     routes: FINANCE_CHILDREN.flatMap((destination) => destination.routes),
   },
+  LEASE_DESTINATION,
 ] satisfies readonly GlobalDestination[];
 
 const OPERATIONS_MANAGER_GLOBAL_DESTINATIONS = [
@@ -328,6 +348,9 @@ function DomainDestinationMenuItem({
   const { isMobile, state } = useSidebar();
   const Icon = destination.icon;
   const children = destination.children ?? [];
+  const hasActiveChild = children.some((child) =>
+    childDestinationMatchesPath(pathname, child),
+  );
 
   // Open the domain the operator navigated into, without closing the ones they
   // opened by hand. Adjusting state during render is React's documented answer
@@ -372,11 +395,11 @@ function DomainDestinationMenuItem({
       <SidebarMenuItem>
         <SidebarMenuButton
           asChild
-          isActive={active}
+          isActive={active && !hasActiveChild}
           tooltip={destination.label}
         >
           <Link
-            aria-current={active ? "page" : undefined}
+            aria-current={active && !hasActiveChild ? "page" : undefined}
             href={destination.href}
             prefetch={false}
           >

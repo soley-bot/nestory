@@ -53,6 +53,9 @@ describe("LedgerScreen finance workspace contract", () => {
     const user = userEvent.setup();
     const { container } = renderLedger();
 
+    expect(screen.getByRole("heading", { name: "Ledger" })).toBeTruthy();
+    expect(screen.getAllByText("All properties · 2 records")).toHaveLength(2);
+
     expect(
       container.querySelector('[data-slot="workspace-page"]'),
     ).not.toBeNull();
@@ -154,15 +157,20 @@ describe("LedgerScreen finance workspace contract", () => {
     },
   );
 
-  it("places the month-lock consequence beside the unchanged mutation fields", async () => {
+  it("presents month locking as a narrow financial control", async () => {
     const user = userEvent.setup();
     renderLedger();
     await user.click(screen.getByRole("button", { name: "Month lock" }));
 
+    expect(
+      screen.getByRole("dialog", { name: "Month lock" }),
+    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Close modal" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Close drawer" })).toBeNull();
     const consequence = screen.getByRole("region", {
       name: "Month lock consequence",
     });
-    expect(consequence.textContent).toContain("historical financial records");
+    expect(consequence.textContent).toContain("authorized financial mutations");
     expect(document.querySelector('[name="periodStart"]')).not.toBeNull();
     expect(
       (document.querySelector('[name="lockState"]') as HTMLSelectElement).value,
@@ -177,7 +185,7 @@ describe("LedgerScreen finance workspace contract", () => {
     await user.click(screen.getByRole("button", { name: "Month lock" }));
     expect(
       screen.getByRole("region", { name: "Month lock consequence" }).textContent,
-    ).toContain("current open operational month");
+    ).toContain("selected month");
     expect(
       (screen.getByRole("textbox", { name: "Reason" }) as HTMLTextAreaElement)
         .required,
@@ -188,7 +196,7 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(screen.queryByRole("option", { name: "Unlock" })).toBeNull();
     await user.keyboard("{Escape}");
 
-    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    await user.click(screen.getByRole("button", { name: "Close modal" }));
     await user.click(screen.getByRole("button", { name: "Preview Rent" }));
     expect(screen.queryByRole("button", { name: "Attach receipt" })).toBeNull();
   });

@@ -3,6 +3,7 @@ import {
   getPropertiesScreenData,
   getPropertyOwnerOptions,
 } from "@/features/properties/data/properties";
+import { getPropertyPortfolioSummary } from "@/features/properties/data/property-portfolio-summary";
 import { parsePropertySearchParams } from "@/features/properties/property.filters";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { getUuidSearchParam } from "@/lib/validation/search-params";
@@ -17,9 +18,10 @@ export default async function PropertiesPage({
   const context = await requireSuperAdminContext();
   const params = await searchParams;
   const viewQuery = parsePropertySearchParams(params);
-  const [{ pagination, properties }, ownerOptions] = await Promise.all([
+  const [{ pagination, properties }, ownerOptions, portfolioSummary] = await Promise.all([
     getPropertiesScreenData(context.organizationId, viewQuery),
     getPropertyOwnerOptions(context.organizationId),
+    getPropertyPortfolioSummary(context.organizationId),
   ]);
   const initialPropertyId = getUuidSearchParam(params.propertyId);
 
@@ -30,6 +32,7 @@ export default async function PropertiesPage({
       initialPropertyId={initialPropertyId}
       ownerOptions={ownerOptions}
       pagination={pagination}
+      portfolioSummary={portfolioSummary}
       properties={properties}
       viewQuery={viewQuery}
     />

@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDownCircle,
-  ArrowUpCircle,
   CalendarPlus,
   Eye,
   ExternalLink,
   FileText,
+  MoreHorizontal,
   Pencil,
   Plus,
   Send,
@@ -21,10 +20,16 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import { WorkspaceSplitView } from "@/components/layout/workspace-split-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
 import { SearchableSelectControl } from "@/components/ui/searchable-select-control";
@@ -132,6 +137,11 @@ export function PettyCashScreen({
     Boolean(focusedEntry),
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const returnFocusTargetRef = useRef<
+    | { action: "account" | "add-entry"; kind: "action" }
+    | { entryId: string; kind: "preview" }
+    | null
+  >(null);
   const selectedEntry =
     entries.find((entry) => entry.id === selectedEntryId) ??
     (hasFocusedEntry ? null : entries[0]) ??
@@ -140,17 +150,98 @@ export function PettyCashScreen({
     canManagePettyCash &&
     selectedAccount?.status === "active" &&
     period?.status === "open";
+  const canRenderOverlay =
+    drawerState &&
+    (canManageFinance ||
+      (canManagePettyCash &&
+        (drawerState.mode === "entry" || drawerState.mode === "post")));
+  const usesCompactModal =
+    drawerState &&
+    drawerState.mode !== "entry" &&
+    drawerState.mode !== "edit";
 
   const openDrawer = (nextDrawer: DrawerState) => {
+    returnFocusTargetRef.current = compactInspectorOpen
+      ? { entryId: selectedEntryId, kind: "preview" }
+      : nextDrawer.mode === "account" || nextDrawer.mode === "rollover"
+        ? { action: "account", kind: "action" }
+        : nextDrawer.mode === "entry"
+          ? { action: "add-entry", kind: "action" }
+          : null;
     setCompactInspectorOpen(false);
     setStatusMessage(null);
     setDrawerState(nextDrawer);
+  };
+
+  const closeOverlay = () => {
+    const returnTarget = returnFocusTargetRef.current;
+    returnFocusTargetRef.current = null;
+    setDrawerState(null);
+    requestAnimationFrame(() => {
+      const target =
+        returnTarget?.kind === "preview"
+          ? Array.from(
+              document.querySelectorAll<HTMLButtonElement>(
+                "[data-petty-cash-preview-id]",
+              ),
+            ).find(
+              (button) =>
+                button.dataset.pettyCashPreviewId === returnTarget.entryId,
+            )
+          : returnTarget?.kind === "action"
+            ? document.querySelector<HTMLButtonElement>(
+                `[data-petty-cash-action="${returnTarget.action}"]`,
+              )
+            : null;
+      target?.focus();
+    });
   };
 
   const previewEntry = (entryId: string) => {
     setSelectedEntryId(entryId);
     setCompactInspectorOpen(true);
   };
+
+  const overlayContent = drawerState ? (
+    drawerState.mode === "account" ? (
+      <PettyCashAccountForm
+        onClose={closeOverlay}
+        onSuccess={setStatusMessage}
+        staffOptions={staffOptions}
+      />
+    ) : drawerState.mode === "post" ? (
+      <PostPettyCashPanel
+        entry={drawerState.entry}
+        onClose={closeOverlay}
+        onSuccess={setStatusMessage}
+      />
+    ) : drawerState.mode === "void" ? (
+      <VoidPettyCashPanel
+        entry={drawerState.entry}
+        onClose={closeOverlay}
+        onSuccess={setStatusMessage}
+      />
+    ) : drawerState.mode === "rollover" ? (
+      <OpenNextPeriodPanel
+        account={drawerState.account}
+        onClose={closeOverlay}
+        onSuccess={setStatusMessage}
+        period={drawerState.period}
+        summary={drawerState.summary}
+      />
+    ) : (
+      <PettyCashEntryForm
+        account={selectedAccount}
+        counterpartyOptions={counterpartyOptions}
+        entry={drawerState.mode === "edit" ? drawerState.entry : undefined}
+        onClose={closeOverlay}
+        onSuccess={setStatusMessage}
+        period={period}
+        properties={propertyOptions}
+        units={unitOptions}
+      />
+    )
+  ) : null;
 
   const registerList =
     selectedAccount && period ? (
@@ -160,6 +251,7 @@ export function PettyCashScreen({
             action={
               canAddEntry ? (
                 <Button
+                  data-petty-cash-action="add-entry"
                   onClick={() => openDrawer({ mode: "entry" })}
                   variant="default"
                 >
@@ -216,38 +308,47 @@ export function PettyCashScreen({
         !schemaStatus.isReady || (!canManageFinance && !canManagePettyCash) ? undefined : (
           <div className="flex flex-wrap gap-2">
             {canManageFinance ? (
-              <Button onClick={() => openDrawer({ mode: "account" })}>
-                <Wallet size={15} />
-                Add account
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button data-petty-cash-action="account" variant="outline">
+                    <MoreHorizontal size={15} />
+                    Account actions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onSelect={() => openDrawer({ mode: "account" })}>
+                    <Wallet size={15} />
+                    Add account
+                  </DropdownMenuItem>
+                  {selectedAccount?.status === "active" && period ? (
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        openDrawer({
+                          account: selectedAccount,
+                          mode: "rollover",
+                          period,
+                          summary,
+                        })
+                      }
+                    >
+                      <CalendarPlus size={15} />
+                      Open next month
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
             {selectedAccount?.status === "active" && period ? (
-              <>
-                {canManageFinance ? (
-                  <Button
-                    onClick={() =>
-                      openDrawer({
-                        account: selectedAccount,
-                        mode: "rollover",
-                        period,
-                        summary,
-                      })
-                    }
-                  >
-                    <CalendarPlus size={15} />
-                    Open next month
-                  </Button>
-                ) : null}
-                {canAddEntry ? (
-                  <Button
-                    onClick={() => openDrawer({ mode: "entry" })}
-                    variant="default"
-                  >
-                    <Plus size={15} />
-                    Add cash row
-                  </Button>
-                ) : null}
-              </>
+              canAddEntry ? (
+                <Button
+                  data-petty-cash-action="add-entry"
+                  onClick={() => openDrawer({ mode: "entry" })}
+                  variant="default"
+                >
+                  <Plus size={15} />
+                  Add cash row
+                </Button>
+              ) : null
             ) : null}
           </div>
         )
@@ -264,7 +365,7 @@ export function PettyCashScreen({
           canReadFinanceReports={canReadFinanceReports}
         />
       )}
-      title="Petty Cash"
+      title="Petty cash"
     >
       <div className="flex min-w-0 flex-col bg-background">
         {statusMessage ? (
@@ -342,56 +443,24 @@ export function PettyCashScreen({
           )}
         </div>
 
-        {drawerState &&
-        (canManageFinance ||
-          (canManagePettyCash &&
-            (drawerState.mode === "entry" || drawerState.mode === "post"))) ? (
+        {canRenderOverlay && drawerState && usesCompactModal ? (
+          <Modal
+            description={getDrawerDescription(drawerState)}
+            onClose={closeOverlay}
+            open
+            size={drawerState.mode === "account" ? "default" : "compact"}
+            title={getDrawerTitle(drawerState)}
+          >
+            {overlayContent}
+          </Modal>
+        ) : canRenderOverlay && drawerState ? (
           <SideDrawer
             description={getDrawerDescription(drawerState)}
-            onClose={() => setDrawerState(null)}
+            onClose={closeOverlay}
             open
             title={getDrawerTitle(drawerState)}
           >
-            {drawerState.mode === "account" ? (
-              <PettyCashAccountForm
-                onClose={() => setDrawerState(null)}
-                onSuccess={setStatusMessage}
-                staffOptions={staffOptions}
-              />
-            ) : drawerState.mode === "post" ? (
-              <PostPettyCashPanel
-                entry={drawerState.entry}
-                onClose={() => setDrawerState(null)}
-                onSuccess={setStatusMessage}
-              />
-            ) : drawerState.mode === "void" ? (
-              <VoidPettyCashPanel
-                entry={drawerState.entry}
-                onClose={() => setDrawerState(null)}
-                onSuccess={setStatusMessage}
-              />
-            ) : drawerState.mode === "rollover" ? (
-              <OpenNextPeriodPanel
-                account={drawerState.account}
-                onClose={() => setDrawerState(null)}
-                onSuccess={setStatusMessage}
-                period={drawerState.period}
-                summary={drawerState.summary}
-              />
-            ) : (
-              <PettyCashEntryForm
-                account={selectedAccount}
-                counterpartyOptions={counterpartyOptions}
-                entry={
-                  drawerState.mode === "edit" ? drawerState.entry : undefined
-                }
-                onClose={() => setDrawerState(null)}
-                onSuccess={setStatusMessage}
-                period={period}
-                properties={propertyOptions}
-                units={unitOptions}
-              />
-            )}
+            {overlayContent}
           </SideDrawer>
         ) : null}
       </div>
@@ -466,8 +535,8 @@ function PettyCashSummaryStrip({
       aria-label="Petty cash summary"
       className="border-b border-border/70 bg-background px-4 py-2 sm:px-6"
     >
-      <div className="inline-flex max-w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-border/70 bg-card px-3 py-2">
-        <div className="w-[210px] min-w-0">
+      <div className="flex max-w-full flex-wrap items-center gap-x-6 gap-y-2">
+        <div className="w-[260px] min-w-0">
           <SearchableSelectControl
             ariaLabel="Petty cash account"
             onValueChange={onSelectAccount}
@@ -486,19 +555,14 @@ function PettyCashSummaryStrip({
             value={account.id}
           />
         </div>
-        <SummaryValue label="Balance" value={summary.balance.primary} />
-        <SummaryValue label="Opening" value={summary.openingFloat.primary} />
-        <p className="whitespace-nowrap text-xs text-muted-foreground">
-          In {summary.cashIn.primary} · Out {summary.cashOut.primary}
-        </p>
-        <p className="whitespace-nowrap text-xs text-muted-foreground">
-          {summary.readyToPostCount} ready · {summary.receiptMissingCount}{" "}
-          missing receipts
-        </p>
+        <SummaryValue label="On hand" value={summary.balance.primary} />
         {period ? (
-          <p className="whitespace-nowrap text-xs text-muted-foreground">
-            {formatDate(period.periodStart)} · {period.status}
-          </p>
+          <div className="ml-auto flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground">
+            <span>{formatDate(period.periodStart)}</span>
+            <Badge tone={period.status === "open" ? "success" : "neutral"}>
+              {period.status === "open" ? "Open" : "Closed"}
+            </Badge>
+          </div>
         ) : null}
       </div>
     </section>
@@ -507,7 +571,7 @@ function PettyCashSummaryStrip({
 
 function SummaryValue({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-l border-border/70 pl-4">
+    <div className="min-w-[120px] border-l border-border/70 pl-5">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="truncate text-sm font-semibold tabular-nums">{value}</p>
     </div>
@@ -526,29 +590,23 @@ function PettyCashTable({
   return (
     <div className="overflow-hidden" data-petty-cash-surface="register">
       <div aria-label="Petty cash table" className="overflow-x-auto" role="region">
-        <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
+        <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-sm">
           <colgroup>
-            <col className="w-[112px]" />
-            <col className="w-[118px]" />
-            <col className="w-[140px]" />
+            <col className="w-[104px]" />
             <col />
+            <col className="w-[140px]" />
             <col className="w-[118px]" />
             <col className="w-[118px]" />
-            <col className="w-[96px]" />
-            <col className="w-[74px]" />
+            <col className="w-[132px]" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className="px-3 py-2.5 font-semibold">Date</th>
-              <th className="px-3 py-2.5 font-semibold">Type</th>
+              <th className="px-3 py-2.5 font-semibold">Entry</th>
               <th className="px-3 py-2.5 font-semibold">Property / Unit</th>
-              <th className="px-3 py-2.5 font-semibold">
-                Counterparty / Description
-              </th>
-              <th className="px-3 py-2.5 text-right font-semibold">Movement</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
               <th className="px-3 py-2.5 text-right font-semibold">Balance</th>
-              <th className="px-3 py-2.5 font-semibold">Status</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Actions</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -556,7 +614,7 @@ function PettyCashTable({
               <tr>
                 <td
                   className="px-4 py-8 text-center text-muted-foreground"
-                  colSpan={8}
+                  colSpan={6}
                 >
                   No petty cash rows yet.
                 </td>
@@ -587,25 +645,19 @@ function PettyCashTable({
                   <p className="text-muted-foreground">
                     {formatDate(entry.invoiceDate)}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {entry.clearDate
-                      ? `Clear ${formatDate(entry.clearDate)}`
-                      : "Not cleared"}
-                  </p>
                 </td>
                 <td className="px-3 py-2">
-                  <EntryKindBadge entry={entry} />
-                  {entry.entryKind === "expense" &&
-                  entry.economicScope !== "property_expense" ? (
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {entry.economicScopeLabel}
-                    </p>
-                  ) : null}
+                  <p className="truncate font-medium">
+                    {entry.supplier ?? entry.category}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {entry.category} · {entry.description}
+                  </p>
                 </td>
                 <td className="px-3 py-2">
                   {entry.propertyId ? (
                     <Link
-                      className="block truncate font-medium text-accent hover:underline"
+                      className="block truncate font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary"
                       href={`/properties/${entry.propertyId}/account`}
                       onClick={(event) => event.stopPropagation()}
                     >
@@ -618,23 +670,6 @@ function PettyCashTable({
                     {entry.unitNumber
                       ? `Unit ${entry.unitNumber}`
                       : "Property level"}
-                  </p>
-                </td>
-                <td className="px-3 py-2">
-                  <p className="truncate font-medium">
-                    {entry.supplier ?? entry.category}
-                  </p>
-                  {entry.counterpartyPersonId ? (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      Linked person
-                      {entry.counterpartyCurrentName &&
-                      entry.counterpartyCurrentName !== entry.supplier
-                        ? ` · now ${entry.counterpartyCurrentName}`
-                        : ""}
-                    </p>
-                  ) : null}
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {entry.description}
                   </p>
                 </td>
                 <td
@@ -670,14 +705,14 @@ function PettyCashTable({
                       .primary
                   }
                 </td>
-                <td className="px-3 py-2">
-                  <StatusBadge status={entry.status} />
-                </td>
                 <td className="px-3 py-2 text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <StatusBadge status={entry.status} />
                   <Button
                     aria-label={`Preview ${entry.category}`}
                     aria-pressed={selectedEntryId === entry.id}
                     className="h-8 w-8 px-0"
+                    data-petty-cash-preview-id={entry.id}
                     onClick={(event) => {
                       event.stopPropagation();
                       onSelectEntry(entry.id);
@@ -687,6 +722,7 @@ function PettyCashTable({
                   >
                     <Eye size={15} />
                   </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -768,41 +804,32 @@ function PettyCashInspector({
         </div>
       </div>
 
-      <div className="space-y-3 p-4 text-sm">
-        <div className="grid grid-cols-2 gap-3">
-          <CompactFact label="Counterparty">
-            {entry.supplier ?? entry.counterpartyCurrentName ?? "Not recorded"}
-          </CompactFact>
-          <CompactFact label="Period">
-            {formatDate(period.periodStart)}
-          </CompactFact>
-          <CompactFact label="Account">
-            {account.accountNumber} · {account.name}
-          </CompactFact>
-          <CompactFact label="Cash impact">
-            {entry.status === "void"
-              ? "Zero · original retained"
-              : formatMoneyDisplay(
-                  entry.outAmount > 0 ? -entry.outAmount : entry.inAmount,
-                  entry.currency,
-                ).primary}
-          </CompactFact>
-          <CompactFact label="Property">
-            {entry.propertyId ? (
-              <Link
-                className="line-clamp-2 text-accent hover:underline"
-                href={`/properties/${entry.propertyId}/account`}
-              >
-                {entry.propertyCode}
-              </Link>
-            ) : (
-              "Cash account"
-            )}
-          </CompactFact>
-          <CompactFact label="Unit">
-            {entry.unitId ? `Unit ${entry.unitNumber}` : "Property level"}
-          </CompactFact>
-        </div>
+      <div className="space-y-4 p-4 text-sm">
+        <dl className="divide-y divide-border border-y border-border">
+          <InspectorFact
+            label="Counterparty"
+            value={
+              entry.supplier ?? entry.counterpartyCurrentName ?? "Not recorded"
+            }
+          />
+          <InspectorFact
+            label="Property / unit"
+            value={
+              entry.propertyId ? (
+                <Link
+                  className="text-foreground underline decoration-border underline-offset-4 hover:text-primary"
+                  href={`/properties/${entry.propertyId}/account`}
+                >
+                  {entry.propertyCode}
+                  {entry.unitId ? ` / Unit ${entry.unitNumber}` : ""}
+                </Link>
+              ) : (
+                "Cash account"
+              )
+            }
+          />
+          <InspectorFact label="Period" value={formatDate(period.periodStart)} />
+        </dl>
 
         {entry.voidReason ? (
           <div className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5">
@@ -819,37 +846,26 @@ function PettyCashInspector({
         ) : null}
 
         {entry.entryKind === "expense" ? (
-          <div className="rounded-md border border-border bg-muted/60 px-3 py-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-semibold">
-                {entry.receiptReference
-                  ? "Receipt referenced"
-                  : "Receipt missing"}
+          <div className="flex items-start justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <p className="font-semibold">Receipt</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {entry.receiptReference ?? "Missing reference"}
               </p>
-              <Badge tone={entry.receiptReference ? "success" : "warning"}>
-                {entry.receiptReference ? "Ready" : "Review"}
-              </Badge>
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {entry.receiptReference ??
-                "Add the receipt or invoice number before month-end clearing."}
-            </p>
+            <Badge tone={entry.receiptReference ? "success" : "warning"}>
+              {entry.receiptReference ? "Ready" : "Review"}
+            </Badge>
           </div>
         ) : (
-          <div className="rounded-md border border-border bg-muted/60 px-3 py-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-semibold">Reconciliation movement</p>
-              <Badge tone="success">Cash in</Badge>
-            </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Advances and cash-in rows support the cash balance but do not post
-              as income.
-            </p>
-          </div>
+          <p className="border-b border-border pb-3 text-xs leading-5 text-muted-foreground">
+            Cash-in movement for reconciliation; it does not post as income.
+          </p>
         )}
 
-        {entry.entryKind === "expense" ? (
-          <div className="rounded-md border border-border px-3 py-2.5">
+        {entry.entryKind === "expense" &&
+        entry.economicScope !== "property_expense" ? (
+          <div className="border-b border-border pb-3">
             <div className="flex items-center justify-between gap-3">
               <p className="font-semibold">{entry.economicScopeLabel}</p>
               <Badge
@@ -869,7 +885,7 @@ function PettyCashInspector({
                 ? `${entry.ownerReceivable.primary} still receivable from owner.`
                 : entry.economicScope === "company_cost"
                   ? "This cash spend reduces company P&L."
-                  : "This remains ordinary property expense handling."}
+                  : null}
             </p>
           </div>
         ) : null}
@@ -940,12 +956,9 @@ function PettyCashAccountForm({
   }, [onClose, onSuccess, state.message, state.status]);
 
   return (
-    <form action={action} className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <Field
-          label="Account number"
-          error={state.fieldErrors?.accountNumber?.[0]}
-        >
+    <form action={action}>
+      <div className="grid gap-4 p-4 sm:grid-cols-2">
+        <Field label="Account number" error={state.fieldErrors?.accountNumber?.[0]}>
           <Input name="accountNumber" placeholder="PM-CASH-01" required />
         </Field>
         <Field label="Account name" error={state.fieldErrors?.name?.[0]}>
@@ -975,11 +988,9 @@ function PettyCashAccountForm({
             roles={["staff"]}
           />
         </Field>
-        <ConsequencePanel
-          summary="Creates the cash account and opens the current month with its opening float."
-          title="Opening-float consequence"
-        />
-        <FormMessage state={state} />
+        <div className="sm:col-span-2">
+          <FormMessage state={state} />
+        </div>
       </div>
       <DrawerFooter
         disabled={pending}
@@ -1100,18 +1111,6 @@ function PettyCashEntryForm({
               value={entryKind}
             />
           </Field>
-          <Field label="Status" error={state.fieldErrors?.status?.[0]}>
-            <SelectControl
-              ariaLabel="Status"
-              name="status"
-              onValueChange={setStatus}
-              options={[
-                { label: "Draft", value: "draft" },
-                { label: "Cleared", value: "cleared" },
-              ]}
-              value={status}
-            />
-          </Field>
           <Field
             label="Invoice date"
             error={state.fieldErrors?.invoiceDate?.[0]}
@@ -1121,9 +1120,6 @@ function PettyCashEntryForm({
               name="invoiceDate"
               required
             />
-          </Field>
-          <Field label="Clear date" error={state.fieldErrors?.clearDate?.[0]}>
-            <DatePickerField defaultValue={entry?.clearDate} name="clearDate" />
           </Field>
         </div>
 
@@ -1263,131 +1259,143 @@ function PettyCashEntryForm({
             required
           />
         </Field>
-        <Field
-          label="Receipt / invoice reference"
-          error={state.fieldErrors?.receiptReference?.[0]}
+        <details
+          className="group rounded-md border border-border"
+          open={Boolean(entry)}
         >
-          <Input
-            defaultValue={entry?.receiptReference}
-            name="receiptReference"
-            placeholder="Receipt number or file note"
-          />
-        </Field>
+          <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-semibold outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring">
+            Receipt and reconciliation
+          </summary>
+          <div className="space-y-4 border-t border-border p-3">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Status" error={state.fieldErrors?.status?.[0]}>
+                <SelectControl
+                  ariaLabel="Status"
+                  name="status"
+                  onValueChange={setStatus}
+                  options={[
+                    { label: "Draft", value: "draft" },
+                    { label: "Cleared", value: "cleared" },
+                  ]}
+                  value={status}
+                />
+              </Field>
+              <Field
+                label="Clear date"
+                error={state.fieldErrors?.clearDate?.[0]}
+              >
+                <DatePickerField
+                  defaultValue={entry?.clearDate}
+                  name="clearDate"
+                />
+              </Field>
+            </div>
+            <Field
+              label="Receipt / invoice reference"
+              error={state.fieldErrors?.receiptReference?.[0]}
+            >
+              <Input
+                defaultValue={entry?.receiptReference}
+                name="receiptReference"
+                placeholder="Receipt number or file note"
+              />
+            </Field>
 
-        {entryKind === "expense" ? (
-          <section className="rounded-md border border-border bg-muted/45 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold">
-                  Company / owner handling
-                </p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Use this when the company pays cash first and owner billing or
-                  company cost needs tracking.
-                </p>
+            {entryKind === "expense" ? (
+              <div className="space-y-3 border-t border-border pt-3">
+                <Field
+                  label="Cost handling"
+                  error={state.fieldErrors?.economicScope?.[0]}
+                >
+                  <SelectControl
+                    ariaLabel="Company handling"
+                    name="economicScope"
+                    onValueChange={(value) => {
+                      setEconomicScope(value);
+                      setOwnerBillStatus(
+                        value === "company_advance"
+                          ? "billable"
+                          : "not_billable",
+                      );
+                    }}
+                    options={[...pettyCashEconomicScopeOptions]}
+                    value={economicScope}
+                  />
+                </Field>
+                {economicScope === "company_advance" ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field
+                      label="Owner bill status"
+                      error={state.fieldErrors?.ownerBillStatus?.[0]}
+                    >
+                      <SelectControl
+                        ariaLabel="Owner bill status"
+                        name="ownerBillStatus"
+                        onValueChange={setOwnerBillStatus}
+                        options={[...pettyCashOwnerBillStatusOptions]}
+                        value={ownerBillStatus}
+                      />
+                    </Field>
+                    <Field
+                      label="Billable to owner"
+                      error={state.fieldErrors?.ownerReimbursableAmount?.[0]}
+                    >
+                      <NumberInput
+                        defaultValue={
+                          entry
+                            ? String(entry.ownerReimbursableAmount)
+                            : undefined
+                        }
+                        min="0"
+                        name="ownerReimbursableAmount"
+                        placeholder="Defaults to amount"
+                        step="0.01"
+                      />
+                    </Field>
+                    <Field
+                      label="Owner reimbursed"
+                      error={state.fieldErrors?.ownerReimbursedAmount?.[0]}
+                    >
+                      <NumberInput
+                        defaultValue={
+                          entry
+                            ? String(entry.ownerReimbursedAmount)
+                            : undefined
+                        }
+                        min="0"
+                        name="ownerReimbursedAmount"
+                        placeholder="0.00"
+                        step="0.01"
+                      />
+                    </Field>
+                  </div>
+                ) : economicScope === "company_cost" ? (
+                  <Field
+                    label="Company loss"
+                    error={state.fieldErrors?.companyLossAmount?.[0]}
+                  >
+                    <NumberInput
+                      defaultValue={
+                        entry ? String(entry.companyLossAmount) : undefined
+                      }
+                      min="0"
+                      name="companyLossAmount"
+                      placeholder="Defaults to amount"
+                      step="0.01"
+                    />
+                  </Field>
+                ) : null}
               </div>
-              <Badge
-                tone={
-                  economicScope === "company_advance" ? "warning" : "neutral"
-                }
-              >
-                {economicScope === "company_advance"
-                  ? "Owner receivable"
-                  : economicScope === "company_cost"
-                    ? "Company cost"
-                    : "Property expense"}
-              </Badge>
-            </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Field
-                label="Handling"
-                error={state.fieldErrors?.economicScope?.[0]}
-              >
-                <SelectControl
-                  ariaLabel="Company handling"
-                  name="economicScope"
-                  onValueChange={(value) => {
-                    setEconomicScope(value);
-                    setOwnerBillStatus(
-                      value === "company_advance" ? "billable" : "not_billable",
-                    );
-                  }}
-                  options={[...pettyCashEconomicScopeOptions]}
-                  value={economicScope}
-                />
-              </Field>
-              <Field
-                label="Owner bill status"
-                error={state.fieldErrors?.ownerBillStatus?.[0]}
-              >
-                <SelectControl
-                  ariaLabel="Owner bill status"
-                  disabled={economicScope !== "company_advance"}
-                  name="ownerBillStatus"
-                  onValueChange={setOwnerBillStatus}
-                  options={[...pettyCashOwnerBillStatusOptions]}
-                  value={ownerBillStatus}
-                />
-              </Field>
-              <Field
-                label="Billable to owner"
-                error={state.fieldErrors?.ownerReimbursableAmount?.[0]}
-              >
-                <NumberInput
-                  defaultValue={
-                    entry ? String(entry.ownerReimbursableAmount) : undefined
-                  }
-                  disabled={economicScope !== "company_advance"}
-                  min="0"
-                  name="ownerReimbursableAmount"
-                  placeholder="Defaults to amount"
-                  step="0.01"
-                />
-              </Field>
-              <Field
-                label="Owner reimbursed"
-                error={state.fieldErrors?.ownerReimbursedAmount?.[0]}
-              >
-                <NumberInput
-                  defaultValue={
-                    entry ? String(entry.ownerReimbursedAmount) : undefined
-                  }
-                  disabled={economicScope !== "company_advance"}
-                  min="0"
-                  name="ownerReimbursedAmount"
-                  placeholder="0.00"
-                  step="0.01"
-                />
-              </Field>
-              <Field
-                label="Company loss"
-                error={state.fieldErrors?.companyLossAmount?.[0]}
-              >
-                <NumberInput
-                  defaultValue={
-                    entry ? String(entry.companyLossAmount) : undefined
-                  }
-                  disabled={economicScope === "property_expense"}
-                  min="0"
-                  name="companyLossAmount"
-                  placeholder={
-                    economicScope === "company_cost"
-                      ? "Defaults to amount"
-                      : "0.00"
-                  }
-                  step="0.01"
-                />
-              </Field>
-            </div>
-          </section>
-        ) : null}
-        <Field label="Remark" error={state.fieldErrors?.remark?.[0]}>
-          <Textarea
-            defaultValue={entry?.remark}
-            name="remark"
-            placeholder="Clearing note or exception"
-          />
-        </Field>
+            ) : null}
+            <Field label="Remark" error={state.fieldErrors?.remark?.[0]}>
+              <Textarea
+                defaultValue={entry?.remark}
+                name="remark"
+                placeholder="Clearing note or exception"
+              />
+            </Field>
+          </div>
+        </details>
         <FormMessage state={state} />
       </div>
       <DrawerFooter
@@ -1432,7 +1440,8 @@ function PostPettyCashPanel({
     <form action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <ConsequencePanel
+        <OperationSummary
+          ariaLabel="Posting consequence"
           rows={[
             { label: "Expense", value: entry.category },
             {
@@ -1446,13 +1455,8 @@ function PostPettyCashPanel({
               value: formatMoneyDisplay(entry.outAmount, entry.currency)
                 .primary,
             },
-            {
-              label: "Result",
-              value: "Ledger expense and linked timeline event",
-            },
           ]}
-          summary="Creates one ledger expense and its linked timeline event. Cash advances remain reconciliation movements."
-          title="Posting consequence"
+          note="Creates one ledger expense and a linked timeline event."
         />
         <FormMessage state={state} />
       </div>
@@ -1493,7 +1497,8 @@ function VoidPettyCashPanel({
     <form action={action} className="flex h-full flex-col">
       <input name="entryId" type="hidden" value={entry.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <ConsequencePanel
+        <OperationSummary
+          ariaLabel="Void consequence"
           rows={[
             { label: "Row", value: entry.category },
             {
@@ -1505,8 +1510,7 @@ function VoidPettyCashPanel({
             },
             { label: "Register impact", value: "Zero after voiding" },
           ]}
-          summary="Keeps the original cash row and amount visible, records who voided it and why, and removes it from effective balances. This cannot be used after ledger posting."
-          title="Void consequence"
+          note="Keeps the original row visible and removes it from effective balances."
         />
         <Field label="Void reason" error={state.fieldErrors?.voidReason?.[0]}>
           <Textarea
@@ -1556,13 +1560,13 @@ function OpenNextPeriodPanel({
       <input name="accountId" type="hidden" value={account.id} />
       <input name="periodId" type="hidden" value={period.id} />
       <div className="flex-1 space-y-4 px-4 py-5 sm:px-5">
-        <ConsequencePanel
+        <OperationSummary
+          ariaLabel="Reconciliation consequence"
           rows={[
             { label: "Closing month", value: formatDate(period.periodStart) },
             { label: "Carried balance", value: summary.balance.primary },
           ]}
-          summary="Closes the current register month and carries its cash balance into the next month."
-          title="Reconciliation consequence"
+          note="Closes this month and carries its balance into the next month."
         />
         <Field
           label="Next advance amount"
@@ -1575,7 +1579,7 @@ function OpenNextPeriodPanel({
             step="0.01"
           />
         </Field>
-        <p className="rounded-md border border-border bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
+        <p className="text-xs leading-5 text-muted-foreground">
           Leave blank to top up toward the account float of{" "}
           {formatMoneyDisplay(account.floatAmount, account.currency).primary}.
         </p>
@@ -1590,38 +1594,45 @@ function OpenNextPeriodPanel({
   );
 }
 
-function CompactFact({
-  children,
+function InspectorFact({
   label,
+  value,
 }: {
-  children: React.ReactNode;
   label: string;
+  value: React.ReactNode;
 }) {
   return (
-    <div className="min-w-0 rounded-md border border-border px-3 py-2.5">
-      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-1.5 min-w-0 font-medium">{children}</div>
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-3 py-2.5">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right font-medium">{value}</dd>
     </div>
   );
 }
 
-function EntryKindBadge({ entry }: { entry: PettyCashEntry }) {
-  if (entry.entryKind === "expense") {
-    return (
-      <Badge tone="warning">
-        <ArrowDownCircle size={12} />
-        Expense
-      </Badge>
-    );
-  }
-
+function OperationSummary({
+  ariaLabel,
+  note,
+  rows,
+}: {
+  ariaLabel: string;
+  note: string;
+  rows: Array<{ label: string; value: React.ReactNode }>;
+}) {
   return (
-    <Badge tone="success">
-      <ArrowUpCircle size={12} />
-      {entry.entryKind === "advance" ? "Advance" : "Cash in"}
-    </Badge>
+    <section aria-label={ariaLabel} role="region">
+      <dl className="divide-y divide-border border-y border-border">
+        {rows.map((row) => (
+          <div
+            className="flex items-start justify-between gap-3 py-2.5 text-sm"
+            key={row.label}
+          >
+            <dt className="text-muted-foreground">{row.label}</dt>
+            <dd className="min-w-0 text-right font-medium">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">{note}</p>
+    </section>
   );
 }
 
@@ -1730,7 +1741,12 @@ function DrawerFooter({
   return (
     <div className="border-t border-border px-4 py-4 sm:px-5">
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button className="w-full sm:w-auto" onClick={onClose} type="button">
+        <Button
+          className="w-full sm:w-auto"
+          onClick={onClose}
+          type="button"
+          variant="outline"
+        >
           Cancel
         </Button>
         <Button
@@ -1773,24 +1789,24 @@ function getDrawerTitle(drawer: DrawerState) {
 
 function getDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "account") {
-    return "Start the property cash register.";
+    return "Set up a cash register and opening float.";
   }
 
   if (drawer.mode === "post") {
-    return "Create the official ledger expense for this cash-out row.";
+    return "Post this cash expense to the ledger.";
   }
 
   if (drawer.mode === "edit") {
-    return "Correct operational details before this row is posted.";
+    return "Update this unposted cash row.";
   }
 
   if (drawer.mode === "void") {
-    return "Keep the original row visible while removing its balance impact.";
+    return "Reverse this row and preserve its audit trail.";
   }
 
   if (drawer.mode === "rollover") {
-    return "Close this period and carry its cash balance forward.";
+    return "Carry this closing balance into the next month.";
   }
 
-  return "Record the cash movement first; post expenses to the ledger after review.";
+  return "Record a cash movement.";
 }

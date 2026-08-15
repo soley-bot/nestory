@@ -10,6 +10,7 @@ import {
   type PropertySummary,
   type PropertyUnitRecord,
 } from "@/features/properties/data/property-summary";
+import { ACTIVE_UNIT_LEASE_STATUSES } from "@/features/units/data/unit-summary";
 import {
   getAssetPhotosForScope,
   getPropertyPhotoThumbnailUrls,
@@ -17,6 +18,7 @@ import {
 import {
   buildPropertyDetail,
   type PropertyDetailDocumentRecord,
+  type PropertyExpenseEvidenceRecord,
   type PropertyDetailLedgerRecord,
   type PropertyDetailMaintenanceRecord,
   type PropertyOwnerHistoryRecord,
@@ -61,6 +63,10 @@ type PropertyPersonRow = {
 };
 type PropertyUnitSummaryRow = PropertyUnitRecord & { property_id: string };
 type PropertyLedgerSummaryRow = PropertyLedgerRecord & { property_id: string };
+type PropertyCurrentLeaseSummaryRow = {
+  property_id: string;
+  unit_id: string | null;
+};
 
 const propertySelect =
   "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at";
@@ -181,7 +187,13 @@ async function loadPropertySummariesForRows({
     activeOwnerLinks ?? (await getActiveOwnerLinks(organizationId, propertyIds));
 
   const propertyIdList = [...propertyIds];
-  const [unitRows, ledgerRows, imageRows, photoThumbnailUrls] = await Promise.all([
+  const [
+    unitRows,
+    currentLeaseRows,
+    ledgerRows,
+    imageRows,
+    photoThumbnailUrls,
+  ] = await Promise.all([
     queryValueBatches(propertyIdList, async (batch) => {
       const result = await supabase
         .from("units")
@@ -195,6 +207,24 @@ async function loadPropertySummariesForRows({
       }
 
       return (result.data ?? []) as PropertyUnitSummaryRow[];
+    }),
+    queryValueBatches(propertyIdList, async (batch) => {
+      const result = await supabase
+        .from("current_leases")
+        .select("property_id, unit_id")
+        .eq("organization_id", organizationId)
+        .in("property_id", batch)
+        .in("status", [...ACTIVE_UNIT_LEASE_STATUSES])
+        .not("unit_id", "is", null)
+        .is("archived_at", null);
+
+      if (result.error) {
+        throw new Error(
+          `Could not load current property leases: ${result.error.message}`,
+        );
+      }
+
+      return (result.data ?? []) as PropertyCurrentLeaseSummaryRow[];
     }),
     queryValueBatches(propertyIdList, async (batch) => {
       const result = await supabase
@@ -234,6 +264,7 @@ async function loadPropertySummariesForRows({
   ]);
 
   const unitsByProperty = groupByProperty(unitRows);
+  const currentLeasesByProperty = groupByProperty(currentLeaseRows);
   const ledgerByProperty = groupByProperty(ledgerRows);
   const thumbnailUrls = await getPropertyThumbnailUrls({
     imageRows,
@@ -242,10 +273,16 @@ async function loadPropertySummariesForRows({
 
   return properties.map((property): PropertySummary => {
     const units = unitsByProperty.get(property.id) ?? [];
+    const currentLeaseUnitCount = new Set(
+      (currentLeasesByProperty.get(property.id) ?? []).flatMap((lease) =>
+        lease.unit_id ? [lease.unit_id] : [],
+      ),
+    ).size;
     const ledgerEntries = ledgerByProperty.get(property.id) ?? [];
 
     return buildPropertySummary({
       activeOwner: ownerLinks.get(property.id),
+      currentLeaseUnitCount,
       hasActiveOwnerLink: ownerLinks.has(property.id),
       ledgerEntries,
       property,
@@ -546,6 +583,7 @@ export async function getPropertyDetail(
     timelineResult,
     ledgerResult,
     documentsResult,
+    expenseEvidenceResult,
     photos,
     maintenanceResult,
     activityResult,
@@ -619,7 +657,17 @@ export async function getPropertyDetail(
       .eq("property_id", propertyId)
       .is("archived_at", null)
       .order("uploaded_at", { ascending: false })
-      .limit(detailRecordLimit),
+      .limit(50),
+    supabase
+      .from("expense_submissions")
+      .select(
+        "id, supporting_document_id, source_type, source_id, customer_category, vendor_label, internal_cost_amount, currency, status",
+      )
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .not("supporting_document_id", "is", null)
+      .order("submitted_at", { ascending: false })
+      .limit(50),
     getAssetPhotosForScope({
       organizationId,
       propertyId,
@@ -689,6 +737,12 @@ export async function getPropertyDetail(
     );
   }
 
+  if (expenseEvidenceResult.error) {
+    throw new Error(
+      `Could not load property workflow evidence: ${expenseEvidenceResult.error.message}`,
+    );
+  }
+
   if (maintenanceResult.error) {
     throw new Error(
       `Could not load property maintenance cases: ${maintenanceResult.error.message}`,
@@ -738,6 +792,8 @@ export async function getPropertyDetail(
       : null,
     activity,
     documents,
+    expenseEvidence:
+      (expenseEvidenceResult.data ?? []) as PropertyExpenseEvidenceRecord[],
     ledgerEntries,
     maintenanceCases,
     ownerHistory,
