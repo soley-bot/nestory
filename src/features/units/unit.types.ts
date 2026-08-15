@@ -37,6 +37,16 @@ export const UNIT_STATUS_OPTIONS: Array<{
 
 export type UnitOperationalStateValue = "active" | "maintenance" | "inactive";
 
+export type UnitOperationalReadiness = "available" | "maintenance" | "inactive";
+
+export type UnitLeaseReadiness = "none" | "draft" | "occupied";
+
+export type UnitReadiness = {
+  operational: UnitOperationalReadiness;
+  lease: UnitLeaseReadiness;
+  canStartLease: boolean;
+};
+
 export const UNIT_OPERATIONAL_STATE_OPTIONS: Array<{
   label: string;
   value: UnitOperationalStateValue;
@@ -205,6 +215,7 @@ export type UnitViewQuery = {
 };
 
 export type UnitSummary = {
+  draftLease?: UnitLeaseSummary;
   id: string;
   formValues: UnitFormValues;
   floorLabel: string;
@@ -220,6 +231,7 @@ export type UnitSummary = {
   propertyCode: string;
   propertyId: string;
   propertyName: string;
+  readiness: UnitReadiness;
   rentUsd: number;
   rentDisplay?: MoneyDisplayValue;
   rentLabel: string;

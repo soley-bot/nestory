@@ -198,7 +198,9 @@ describe("UnitScreen redesign contract", () => {
     expect(
       quickView.querySelectorAll('[data-slot="unit-preview-fact-card"]'),
     ).toHaveLength(3);
-    expect(within(quickView).getByRole("link", { name: "Add an active lease" })).toBeTruthy();
+    expect(within(quickView).getByRole("link", { name: "Create draft lease" })).toBeTruthy();
+    expect(within(quickView).getByText("Operational readiness")).toBeTruthy();
+    expect(within(quickView).getByText("Lease state")).toBeTruthy();
     expect(within(quickView).getByRole("navigation", { name: "Unit records" })).toBeTruthy();
     expect(within(quickView).getByRole("link", { name: "Lease" })).toBeTruthy();
     expect(within(quickView).getByRole("link", { name: "Ledger" })).toBeTruthy();
@@ -447,6 +449,96 @@ describe("UnitScreen redesign contract", () => {
       within(operationalState).queryByRole("combobox"),
     ).toBeNull();
     expect(within(editDialog).queryByRole("combobox", { name: "Status" })).toBeNull();
+  });
+
+  it("renders operational readiness and Lease state separately in the register", () => {
+    renderUnits();
+
+    const table = screen.getByRole("table");
+    expect(within(table).getByRole("columnheader", { name: "Operational readiness" })).toBeTruthy();
+    expect(within(table).getByRole("columnheader", { name: "Lease state" })).toBeTruthy();
+    const firstRow = within(table).getByRole("row", { name: "Preview unit 1A" });
+    expect(within(firstRow).getByText("Available")).toBeTruthy();
+    expect(within(firstRow).getAllByText("No lease")).toHaveLength(2);
+  });
+
+  it("keeps one canonical vacancy handoff in the inspector", async () => {
+    const user = userEvent.setup();
+    const { container } = renderUnits({
+      viewQuery: { ...defaultViewQuery, status: "vacant" },
+    });
+
+    const headerActions = container.querySelector<HTMLElement>(
+      '[data-slot="page-header-actions"]',
+    );
+    expect(within(headerActions!).queryByRole("link", { name: "Fill vacancy" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Preview unit 1A" }));
+    expect(
+      within(screen.getByRole("dialog", { name: "Unit 1A quick view" })).getByRole(
+        "link",
+        { name: "Create draft lease" },
+      ).getAttribute("href"),
+    ).toBe("/leases?action=create&propertyId=property-1&source=vacancy&unitId=unit-1");
+  });
+
+  it("continues an exact draft in the inspector unless maintenance outranks it", async () => {
+    const user = userEvent.setup();
+    const draftLease = {
+      id: "draft-lease-2",
+      lease_end_date: "2027-07-31",
+      lease_start_date: "2026-08-01",
+      monthly_rent_amount: 900,
+      monthly_rent_currency: "USD" as const,
+      primary_tenant_person_id: "person-2",
+      status: "draft",
+      tenant_name: "Sam Draft",
+      unit_id: "unit-1",
+    };
+    const draftUnit = buildUnitSummary({
+      draftLease,
+      ledgerEntries: [],
+      property: { code: "HOME", id: "property-1", name: "Home Residence" },
+      unit: {
+        archived_at: null,
+        current_rent_amount: 900,
+        current_rent_currency: "USD",
+        floor: "1",
+        id: "unit-1",
+        property_id: "property-1",
+        size_sqm: 48,
+        status: "vacant",
+        unit_number: "1A",
+      },
+    });
+    const draftRender = renderUnits({ units: [draftUnit] });
+    await user.click(screen.getByRole("button", { name: "Preview unit 1A" }));
+    expect(
+      screen.getByRole("link", { name: "Continue draft" }).getAttribute("href"),
+    ).toBe("/leases/draft-lease-2");
+    draftRender.unmount();
+
+    const maintenanceUnit = buildUnitSummary({
+      draftLease,
+      ledgerEntries: [],
+      property: { code: "HOME", id: "property-1", name: "Home Residence" },
+      unit: {
+        ...draftUnit.formValues,
+        archived_at: null,
+        current_rent_amount: 900,
+        current_rent_currency: "USD",
+        floor: "1",
+        id: "unit-1",
+        property_id: "property-1",
+        size_sqm: 48,
+        status: "maintenance",
+        unit_number: "1A",
+      },
+    });
+    renderUnits({ units: [maintenanceUnit] });
+    await user.click(screen.getByRole("button", { name: "Preview unit 1A" }));
+    expect(screen.getByRole("link", { name: "Log maintenance case" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Continue draft" })).toBeNull();
   });
 
   it("does not open an action=create drawer when create is unauthorized", () => {

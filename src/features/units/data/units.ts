@@ -12,6 +12,7 @@ import {
   buildUnitDetail,
   buildUnitSummary,
   selectCurrentLease,
+  selectNewestDraftLease,
   type UnitDocumentRecord,
   type UnitLeaseRecord,
   type UnitMaintenanceRecord,
@@ -418,16 +419,19 @@ async function loadUnitSummariesForRows({
     supabase,
   });
 
-  return unitRows.map((unit) =>
-    buildUnitSummary({
-      activeLease: selectCurrentLease(leasesByUnitId.get(unit.id) ?? []),
+  return unitRows.map((unit) => {
+    const unitLeaseRows = leasesByUnitId.get(unit.id) ?? [];
+
+    return buildUnitSummary({
+      activeLease: selectCurrentLease(unitLeaseRows),
+      draftLease: selectNewestDraftLease(unitLeaseRows),
       latestTimelineEvent: latestTimelineByUnitId.get(unit.id),
       ledgerEntries: ledgerByUnitId.get(unit.id) ?? [],
       property: unitPropertiesById.get(unit.property_id),
       thumbnailUrl: photoThumbnailUrls.get(unit.id) ?? thumbnailUrls.get(unit.id),
       unit,
-    }),
-  );
+    });
+  });
 }
 
 export async function getUnitDetail(organizationId: string, unitId: string) {
@@ -569,6 +573,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
   }
 
   const activeLease = selectCurrentLease(leaseRows);
+  const draftLease = selectNewestDraftLease(leaseRows);
   const maintenanceRows = (maintenanceResult.data ?? []) as UnitMaintenanceRecord[];
   const [activity, documents, people] = await Promise.all([
     resolveRecentChangeTargets({
@@ -594,6 +599,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
     },
     documents,
+    draftLease,
     ledgerEntries: ledgerTotalsResult.data ?? [],
     maintenanceCases: maintenanceRows,
     people,

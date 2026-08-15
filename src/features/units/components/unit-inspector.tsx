@@ -17,6 +17,10 @@ import {
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  formatUnitLeaseReadiness,
+  formatUnitOperationalReadiness,
+} from "@/features/units/data/unit-summary";
 import type { UnitSummary } from "@/features/units/unit.types";
 import { cn } from "@/lib/utils";
 
@@ -103,7 +107,7 @@ export function UnitInspector({
           </FactCard>
           <FactCard label="Lease">
             <span className="line-clamp-2 text-base font-semibold">
-              {unit.hasActiveLease ? unit.leaseLabel : "No active lease"}
+              {unit.leaseLabel}
             </span>
           </FactCard>
         </dl>
@@ -115,6 +119,14 @@ export function UnitInspector({
         >
           <Detail label="Property" value={unit.propertyName} />
           <Detail label="Floor" value={unit.floorLabel} />
+          <Detail
+            label="Operational readiness"
+            value={formatUnitOperationalReadiness(unit.readiness.operational)}
+          />
+          <Detail
+            label="Lease state"
+            value={formatUnitLeaseReadiness(unit.readiness.lease)}
+          />
         </dl>
 
         <nav aria-label="Unit records">
@@ -333,10 +345,26 @@ function PreviewMenuButton({
 }
 
 function getUnitSummaryAction(unit: UnitSummary) {
-  if (!unit.hasActiveLease) {
+  if (unit.readiness.operational !== "available") {
+    return {
+      href: `/maintenance?action=create&propertyId=${unit.propertyId}&unitId=${unit.id}`,
+      label: "Log maintenance case",
+      tone: unit.readiness.operational === "inactive" ? "danger" as const : "warning" as const,
+    };
+  }
+
+  if (unit.readiness.lease === "draft" && unit.draftLease) {
+    return {
+      href: `/leases/${unit.draftLease.id}`,
+      label: "Continue draft",
+      tone: "warning" as const,
+    };
+  }
+
+  if (unit.readiness.canStartLease) {
     return {
       href: getCreateLeaseHref(unit),
-      label: "Add an active lease",
+      label: "Create draft lease",
       tone: "warning" as const,
     };
   }
@@ -360,6 +388,7 @@ function getCreateLeaseHref(unit: UnitSummary) {
   const params = new URLSearchParams({
     action: "create",
     propertyId: unit.propertyId,
+    source: "vacancy",
     unitId: unit.id,
   });
 

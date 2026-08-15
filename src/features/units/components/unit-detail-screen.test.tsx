@@ -28,7 +28,9 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Unit 12A" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "More" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Attach evidence" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Review open issue" })).toBeTruthy();
+    expect(screen.getByText("Operational readiness: Available")).toBeTruthy();
+    expect(screen.getByText("Lease state: Occupied")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
 
     const tablist = screen.getByRole("tablist");

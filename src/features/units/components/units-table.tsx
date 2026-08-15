@@ -7,6 +7,10 @@ import {
   Building2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  formatUnitLeaseReadiness,
+  formatUnitOperationalReadiness,
+} from "@/features/units/data/unit-summary";
 import type {
   UnitArchiveState,
   UnitDisplayMode,
@@ -74,14 +78,15 @@ export function UnitsTable({
           data-slot="register-table-frame"
         >
           <div aria-label="Units table" className="overflow-x-auto" role="region">
-            <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
+            <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
               <colgroup>
-                <col className="w-[28%]" />
-                <col className="w-[10%]" />
+                <col className="w-[24%]" />
+                <col className="w-[8%]" />
                 <col className="w-[12%]" />
-                <col className="w-[14%]" />
-                <col className="w-[14%]" />
-                <col className="w-[22%]" />
+                <col className="w-[11%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[21%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -103,10 +108,13 @@ export function UnitsTable({
                     active={sort === "status_asc"}
                     align="center"
                     direction="ascending"
-                    label="Occupancy"
+                    label="Operational readiness"
                     onClick={() => onSortChange("status_asc")}
-                    sortLabel="Sort units by occupancy"
+                    sortLabel="Sort units by operational readiness"
                   />
+                  <th className="px-1.5 py-2.5 text-center font-semibold">
+                    Lease state
+                  </th>
                   <SortableHeader
                     active={sort === "rent_desc"}
                     align="right"
@@ -131,7 +139,7 @@ export function UnitsTable({
               <tbody>
                 {units.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
                       {getEmptyMessage(archiveState)}
                     </td>
                   </tr>
@@ -187,10 +195,13 @@ export function UnitsTable({
                         {unit.unitNumber}
                       </p>
                     </td>
-                    <td className="px-1.5 py-2">
+                    <td className="px-1.5 py-2 text-center">
                       <div className="flex flex-wrap justify-center gap-1.5">
-                        <Badge className="px-2 text-xs" tone={unit.occupancyTone}>
-                          {unit.occupancyLabel}
+                        <Badge
+                          className="px-2 text-xs"
+                          tone={getOperationalReadinessTone(unit)}
+                        >
+                          {formatUnitOperationalReadiness(unit.readiness.operational)}
                         </Badge>
                         {unit.isArchived ? (
                           <Badge className="px-2 text-xs" tone="warning">
@@ -198,6 +209,14 @@ export function UnitsTable({
                           </Badge>
                         ) : null}
                       </div>
+                    </td>
+                    <td className="px-1.5 py-2 text-center">
+                      <Badge
+                        className="px-2 text-xs"
+                        tone={getLeaseReadinessTone(unit)}
+                      >
+                        {formatUnitLeaseReadiness(unit.readiness.lease)}
+                      </Badge>
                     </td>
                     <td className="px-2 py-2">
                       {unit.rentDisplay ? (
@@ -363,10 +382,39 @@ function SortableHeader({
 function UnitStatusBadges({ unit }: { unit: UnitSummary }) {
   return (
     <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-      <Badge tone={unit.occupancyTone}>{unit.occupancyLabel}</Badge>
+      <Badge tone={getOperationalReadinessTone(unit)}>
+        {formatUnitOperationalReadiness(unit.readiness.operational)}
+      </Badge>
+      <Badge tone={getLeaseReadinessTone(unit)}>
+        {formatUnitLeaseReadiness(unit.readiness.lease)}
+      </Badge>
       {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
     </div>
   );
+}
+
+function getOperationalReadinessTone(unit: UnitSummary) {
+  if (unit.readiness.operational === "maintenance") {
+    return "warning" as const;
+  }
+
+  if (unit.readiness.operational === "inactive") {
+    return "danger" as const;
+  }
+
+  return "success" as const;
+}
+
+function getLeaseReadinessTone(unit: UnitSummary) {
+  if (unit.readiness.lease === "draft") {
+    return "warning" as const;
+  }
+
+  if (unit.readiness.lease === "occupied") {
+    return "success" as const;
+  }
+
+  return "neutral" as const;
 }
 
 function UnitThumbnail({ unit }: { unit: UnitSummary }) {

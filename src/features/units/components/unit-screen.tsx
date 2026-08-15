@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FileText, Plus, ScrollText } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import {
   getInitialRecordId,
@@ -108,11 +108,6 @@ export function UnitScreen({
     records: units,
     selectedRecordId: selectedUnitId,
   });
-  const fillVacancyHref =
-    (isVacantReview || isLeaseReview) && selectedUnit && !selectedUnit.hasActiveLease
-      ? getCreateLeaseHref(selectedUnit)
-      : null;
-  const fillLeaseLabel = isVacantReview ? "Fill vacancy" : "Add lease";
   const openUnitAction = (nextDrawer: DrawerState) => {
     setCompactInspectorOpen(false);
     setStatusMessage(null);
@@ -271,15 +266,6 @@ export function UnitScreen({
     <WorkspacePage
       actions={
         <>
-            {fillVacancyHref ? (
-              <Link
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-warning/30 bg-warning-soft px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-warning-soft/70"
-                href={fillVacancyHref}
-              >
-                <ScrollText size={15} />
-                {fillLeaseLabel}
-              </Link>
-            ) : null}
             {activeReview?.reportHref ? (
               <Link
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
@@ -483,17 +469,6 @@ export function getVacantUnitsReportHref(propertyId: string) {
   }
 
   return `/units?${params.toString()}`;
-}
-
-function getCreateLeaseHref(unit: UnitSummary) {
-  const params = new URLSearchParams({
-    action: "create",
-    propertyId: unit.propertyId,
-    source: "vacancy",
-    unitId: unit.id,
-  });
-
-  return `/leases?${params.toString()}`;
 }
 
 function getSelectedPropertyLabel(
