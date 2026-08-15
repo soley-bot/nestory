@@ -272,9 +272,9 @@ export type OwnerStatementPresentation = {
 };
 
 type OwnerStatementTransaction = {
-  balanceCents: bigint;
-  cashInCents: bigint;
-  cashOutCents: bigint;
+  balanceCents: number;
+  cashInCents: number;
+  cashOutCents: number;
   date: string;
   details: string;
   type: "Expense" | "Payment";
@@ -343,8 +343,8 @@ function renderOwnerStatementPage({
     y -= ownerStatementRowHeight;
     drawOwnerStatementRow(commands, {
       balanceCents: cash.openingCents,
-      cashInCents: 0n,
-      cashOutCents: 0n,
+      cashInCents: 0,
+      cashOutCents: 0,
       date: "",
       details: "Opening balance",
       type: "Payment",
@@ -520,8 +520,8 @@ function drawOwnerStatementRow(
     transaction.date,
     opening ? "" : transaction.type,
     transaction.details,
-    opening || transaction.cashOutCents === 0n ? "-" : formatOwnerStatementMoney(transaction.cashOutCents),
-    opening || transaction.cashInCents === 0n ? "-" : formatOwnerStatementMoney(transaction.cashInCents),
+    opening || transaction.cashOutCents === 0 ? "-" : formatOwnerStatementMoney(transaction.cashOutCents),
+    opening || transaction.cashInCents === 0 ? "-" : formatOwnerStatementMoney(transaction.cashInCents),
     formatOwnerStatementMoney(transaction.balanceCents),
   ];
   let x = ownerStatementMargin;
@@ -581,14 +581,14 @@ function ownerStatementCash(model: OwnerStatementPublicationModel) {
   const openingCents = ownerStatementCents(component.openingAmount);
   const closingCents = ownerStatementCents(component.closingAmount);
   let balanceCents = openingCents;
-  let cashInCents = 0n;
-  let cashOutCents = 0n;
+  let cashInCents = 0;
+  let cashOutCents = 0;
   const transactions = model.lines
     .filter((line) => line.lineKind === "movement" && line.component === "ips_held_owner_cash")
     .map((line) => {
       const signedCents = ownerStatementCents(line.signedAmount);
-      const incoming = signedCents > 0n ? signedCents : 0n;
-      const outgoing = signedCents < 0n ? -signedCents : 0n;
+      const incoming = signedCents > 0 ? signedCents : 0;
+      const outgoing = signedCents < 0 ? -signedCents : 0;
       cashInCents += incoming;
       cashOutCents += outgoing;
       balanceCents += signedCents;
@@ -598,7 +598,7 @@ function ownerStatementCash(model: OwnerStatementPublicationModel) {
         cashOutCents: outgoing,
         date: line.businessDate,
         details: ownerStatementTransactionLabel(line.sources[0]?.sourceType, line.description),
-        type: signedCents < 0n ? "Expense" as const : "Payment" as const,
+        type: signedCents < 0 ? "Expense" as const : "Payment" as const,
       };
     });
   if (balanceCents !== closingCents) {
@@ -630,15 +630,18 @@ function ownerStatementTransactionLabel(sourceType: string | undefined, fallback
 function ownerStatementCents(value: string) {
   const match = /^(-?)(\d+)\.(\d{2})$/.exec(value);
   if (!match) throw new Error("Owner Statement amount is not canonical.");
-  const cents = BigInt(match[2]) * 100n + BigInt(match[3]);
+  const cents = Number(match[2]) * 100 + Number(match[3]);
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error("Owner Statement amount exceeds the supported range.");
+  }
   return match[1] === "-" ? -cents : cents;
 }
 
-function formatOwnerStatementMoney(value: bigint) {
-  const sign = value < 0n ? "-" : "";
-  const absolute = value < 0n ? -value : value;
-  const dollars = (absolute / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${sign}$${dollars}.${(absolute % 100n).toString().padStart(2, "0")}`;
+function formatOwnerStatementMoney(value: number) {
+  const sign = value < 0 ? "-" : "";
+  const absolute = Math.abs(value);
+  const dollars = Math.trunc(absolute / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${sign}$${dollars}.${(absolute % 100).toString().padStart(2, "0")}`;
 }
 
 function ownerStatementPeriod(monthStart: string) {
@@ -2724,9 +2727,11 @@ function createPdfDocument(
 
   for (let objectId = 1; objectId <= maxObjectId; objectId += 1) {
     offsets[objectId] = byteLength;
-    const body = typeof objects[objectId] === "string"
-      ? Buffer.from(objects[objectId], "latin1")
-      : objects[objectId];
+    const source = objects[objectId];
+    if (!source) throw new Error(`PDF object ${objectId} is missing.`);
+    const body = typeof source === "string"
+      ? Buffer.from(source, "latin1")
+      : source;
     const object = Buffer.concat([
       Buffer.from(`${objectId} 0 obj\n`, "latin1"),
       body,

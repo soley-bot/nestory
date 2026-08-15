@@ -3,6 +3,8 @@ import sharp from "sharp";
 import { loadOwnerStatementPresentation } from "@/features/reports/data/owner-statement-presentation";
 import { mapOwnerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report";
 import { ownerStatementPublicationPayload } from "@/features/reports/data/owner-statement-report.test-fixture";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
 
 describe("owner statement presentation", () => {
   it("loads human-readable scope and normalizes the private organization logo", async () => {
@@ -27,7 +29,10 @@ describe("owner statement presentation", () => {
       property: { code: "PEAK", name: "The PEAK #2807" },
     });
 
-    const presentation = await loadOwnerStatementPresentation(client, model);
+    const presentation = await loadOwnerStatementPresentation(
+      client as unknown as SupabaseClient<Database>,
+      model,
+    );
 
     expect(presentation.organizationName).toBe("Independent Property Service");
     expect(presentation.ownerName).toBe("XIA YIXUAN");
@@ -74,7 +79,10 @@ function fakeClient({
       from() {
         return {
           async download() {
-            return { data: new Blob([logo], { type: "image/jpeg" }), error: null };
+            return {
+              data: new Blob([new Uint8Array(logo)], { type: "image/jpeg" }),
+              error: null,
+            };
           },
         };
       },

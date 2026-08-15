@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.generated";
+import type { Database } from "@/types/database";
 import type { OwnerStatementPresentation } from "@/features/reports/data/pdf";
 import type { OwnerStatementPublicationModel } from "@/features/reports/data/owner-statement-report";
 
