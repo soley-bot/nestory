@@ -7,15 +7,23 @@ import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type UnitFieldErrors = {
-  currentRentAmount?: string[];
   document?: string[];
   floor?: string[];
+  operationalState?: string[];
   propertyId?: string[];
   sizeSqm?: string[];
-  status?: string[];
   unitId?: string[];
   unitNumber?: string[];
 };
+
+// PostgreSQL accepts UUID-shaped identifiers regardless of their version nibble.
+// The seeded demo records intentionally use deterministic, non-versioned UUIDs.
+const postgresUuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function postgresUuid(message: string) {
+  return z.string().regex(postgresUuidPattern, message);
+}
 
 export type UnitActionState = {
   fieldErrors?: UnitFieldErrors;
@@ -25,24 +33,17 @@ export type UnitActionState = {
   unitId?: string;
 };
 
-const unitStatusSchema = z.enum([
-  "vacant",
-  "occupied",
-  "reserved",
-  "maintenance",
-  "inactive",
-]);
+const unitOperationalStateSchema = z.enum(["active", "maintenance", "inactive"]);
 
 const unitMutationSchema = z
   .object({
-    currentRentAmount: z.string().trim(),
     floor: z
       .string()
       .trim()
       .max(40, "Keep the floor under 40 characters."),
-    propertyId: z.uuid("Choose a property."),
+    propertyId: postgresUuid("Choose a property."),
     sizeSqm: z.string().trim(),
-    status: unitStatusSchema,
+    operationalState: unitOperationalStateSchema,
     unitNumber: z
       .string()
       .trim()
@@ -62,22 +63,9 @@ const unitMutationSchema = z
       }
     }
 
-    if (data.currentRentAmount.length === 0) {
-      return;
-    }
-
-    const amount = Number(data.currentRentAmount);
-
-    if (!Number.isFinite(amount) || amount < 0) {
-      context.addIssue({
-        code: "custom",
-        message: "Enter a valid non-negative rent amount.",
-        path: ["currentRentAmount"],
-      });
-    }
   });
 
-const unitIdSchema = z.uuid("Choose a unit.");
+const unitIdSchema = postgresUuid("Choose a unit.");
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -143,14 +131,11 @@ export async function createUnitAction(
 
   const supabase = await createSupabaseServerClient();
   const { data: unitId, error } = await supabase.rpc("create_unit", {
-    p_current_rent_amount: nullableNumber(parsed.data.currentRentAmount),
-    p_current_rent_currency:
-      parsed.data.currentRentAmount.length > 0 ? "USD" : null,
     p_floor: nullableString(parsed.data.floor),
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
     p_size_sqm: nullableNumber(parsed.data.sizeSqm),
-    p_status: parsed.data.status,
+    p_status: toStoredUnitStatus(parsed.data.operationalState),
     p_unit_number: parsed.data.unitNumber,
   });
 
@@ -231,14 +216,11 @@ export async function updateUnitAction(
   }
 
   const { error } = await supabase.rpc("update_unit", {
-    p_current_rent_amount: nullableNumber(parsed.data.currentRentAmount),
-    p_current_rent_currency:
-      parsed.data.currentRentAmount.length > 0 ? "USD" : null,
     p_floor: nullableString(parsed.data.floor),
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
     p_size_sqm: nullableNumber(parsed.data.sizeSqm),
-    p_status: parsed.data.status,
+    p_status: toStoredUnitStatus(parsed.data.operationalState),
     p_unit_id: parsedUnitId.data,
     p_unit_number: parsed.data.unitNumber,
   });
@@ -355,13 +337,16 @@ export async function restoreUnitAction(
 
 function readUnitMutationInput(formData: FormData) {
   return {
-    currentRentAmount: readString(formData, "currentRentAmount"),
     floor: readString(formData, "floor"),
     propertyId: readString(formData, "propertyId"),
     sizeSqm: readString(formData, "sizeSqm"),
-    status: readString(formData, "status"),
+    operationalState: readString(formData, "operationalState"),
     unitNumber: readString(formData, "unitNumber"),
   };
+}
+
+function toStoredUnitStatus(operationalState: "active" | "maintenance" | "inactive") {
+  return operationalState === "active" ? "vacant" : operationalState;
 }
 
 async function uploadInlineUnitDocument({

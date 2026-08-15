@@ -9,7 +9,6 @@ import {
   getUnitPhotoThumbnailUrls,
 } from "@/features/photos/data/photos";
 import {
-  ACTIVE_UNIT_LEASE_STATUSES,
   buildUnitDetail,
   buildUnitSummary,
   selectCurrentLease,
@@ -86,17 +85,9 @@ export async function getUnitsScreenData(
   viewQuery: UnitViewQuery = parseUnitSearchParams({}),
 ) {
   const supabase = await createSupabaseServerClient();
-  const activeLeaseUnitIds =
-    viewQuery.leaseStatus === "missing" || viewQuery.occupancy === "unoccupied"
-      ? await getActiveLeaseUnitIds(organizationId)
-      : null;
 
-  if (
-    canUsePagedUnitBaseQuery(viewQuery) &&
-    canApplyUnitLeaseExclusionInUrl(activeLeaseUnitIds)
-  ) {
+  if (canUsePagedUnitBaseQuery(viewQuery)) {
     return getPagedUnitsScreenData({
-      activeLeaseUnitIds,
       organizationId,
       supabase,
       viewQuery,
@@ -104,7 +95,6 @@ export async function getUnitsScreenData(
   }
 
   return getCompleteUnitsScreenData({
-    activeLeaseUnitIds,
     organizationId,
     supabase,
     viewQuery,
@@ -137,6 +127,8 @@ export async function getUnitPropertyOptions(
 function canUsePagedUnitBaseQuery(viewQuery: UnitViewQuery) {
   return (
     viewQuery.query.trim().length === 0 &&
+    viewQuery.occupancy === "all" &&
+    viewQuery.leaseStatus === "all" &&
     (viewQuery.sort === "property_asc" ||
       viewQuery.sort === "unit_asc" ||
       viewQuery.sort === "status_asc")
@@ -144,18 +136,15 @@ function canUsePagedUnitBaseQuery(viewQuery: UnitViewQuery) {
 }
 
 async function getPagedUnitsScreenData({
-  activeLeaseUnitIds,
   organizationId,
   supabase,
   viewQuery,
 }: {
-  activeLeaseUnitIds: ReadonlySet<string> | null;
   organizationId: string;
   supabase: SupabaseServerClient;
   viewQuery: UnitViewQuery;
 }) {
   let rowsResult = await getPagedUnitRows({
-    activeLeaseUnitIds,
     organizationId,
     page: viewQuery.page,
     pageSize: viewQuery.pageSize,
@@ -170,7 +159,6 @@ async function getPagedUnitsScreenData({
 
   if (pagination.page !== viewQuery.page && rowsResult.totalCount > 0) {
     rowsResult = await getPagedUnitRows({
-      activeLeaseUnitIds,
       organizationId,
       page: pagination.page,
       pageSize: viewQuery.pageSize,
@@ -196,14 +184,12 @@ async function getPagedUnitsScreenData({
 }
 
 async function getPagedUnitRows({
-  activeLeaseUnitIds,
   organizationId,
   page,
   pageSize,
   supabase,
   viewQuery,
 }: {
-  activeLeaseUnitIds: ReadonlySet<string> | null;
   organizationId: string;
   page: number;
   pageSize: number;
@@ -213,7 +199,7 @@ async function getPagedUnitRows({
   const range = getRange(page, pageSize);
   let unitsQuery = buildUnitBaseQuery(supabase, organizationId);
 
-  unitsQuery = applyUnitBaseFilters(unitsQuery, viewQuery, activeLeaseUnitIds);
+  unitsQuery = applyUnitBaseFilters(unitsQuery, viewQuery);
   unitsQuery = applyUnitBaseSort(unitsQuery, viewQuery);
 
   const unitsResult = await unitsQuery.range(range.from, range.to);
@@ -236,7 +222,6 @@ async function getPagedUnitRows({
 function applyUnitBaseFilters(
   query: UnitFilterQuery,
   viewQuery: UnitViewQuery,
-  activeLeaseUnitIds: ReadonlySet<string> | null,
 ) {
   let filteredQuery = query;
 
@@ -254,33 +239,7 @@ function applyUnitBaseFilters(
     filteredQuery = filteredQuery.eq("status", viewQuery.status);
   }
 
-  if (viewQuery.occupancy === "unoccupied") {
-    filteredQuery = filteredQuery
-      .neq("status", "occupied")
-      .neq("status", "inactive");
-  }
-
-  if (
-    activeLeaseUnitIds &&
-    activeLeaseUnitIds.size > 0 &&
-    canApplyUnitLeaseExclusionInUrl(activeLeaseUnitIds)
-  ) {
-    filteredQuery = filteredQuery.not(
-      "id",
-      "in",
-      formatPostgrestInFilter(activeLeaseUnitIds),
-    );
-  }
-
   return filteredQuery;
-}
-
-function canApplyUnitLeaseExclusionInUrl(
-  activeLeaseUnitIds: ReadonlySet<string> | null,
-) {
-  return (
-    !activeLeaseUnitIds || activeLeaseUnitIds.size <= unitRelationshipBatchSize
-  );
 }
 
 function applyUnitBaseSort(
@@ -333,12 +292,10 @@ function splitUnitRowsAndProperties(rows: UnitRowWithProperty[]) {
 }
 
 async function getCompleteUnitsScreenData({
-  activeLeaseUnitIds,
   organizationId,
   supabase,
   viewQuery,
 }: {
-  activeLeaseUnitIds: ReadonlySet<string> | null;
   organizationId: string;
   supabase: SupabaseServerClient;
   viewQuery: UnitViewQuery;
@@ -362,24 +319,6 @@ async function getCompleteUnitsScreenData({
 
   if (viewQuery.status !== "all") {
     unitsQuery = unitsQuery.eq("status", viewQuery.status);
-  }
-
-  if (viewQuery.occupancy === "unoccupied") {
-    unitsQuery = unitsQuery
-      .neq("status", "occupied")
-      .neq("status", "inactive");
-  }
-
-  if (
-    activeLeaseUnitIds &&
-    activeLeaseUnitIds.size > 0 &&
-    canApplyUnitLeaseExclusionInUrl(activeLeaseUnitIds)
-  ) {
-    unitsQuery = unitsQuery.not(
-      "id",
-      "in",
-      formatPostgrestInFilter(activeLeaseUnitIds),
-    );
   }
 
   const unitsResult = await unitsQuery;
@@ -849,12 +788,11 @@ export function unitMatchesOccupancyFilter(
   unit: Pick<UnitSummary, "hasActiveLease" | "statusValue">,
   occupancy: UnitOccupancyFilter,
 ) {
-  return (
-    occupancy === "all" ||
-    (!unit.hasActiveLease &&
-      unit.statusValue !== "occupied" &&
-      unit.statusValue !== "inactive")
-  );
+  return occupancy === "all"
+    ? true
+    : occupancy === "occupied"
+      ? unit.hasActiveLease
+      : !unit.hasActiveLease;
 }
 
 function sortUnitSummaries(
@@ -871,7 +809,7 @@ function sortUnitSummaries(
 
     if (sort === "status_asc") {
       return (
-        compareStrings(first.statusLabel, second.statusLabel) ||
+        compareStrings(first.occupancyLabel, second.occupancyLabel) ||
         compareStrings(first.propertyCode, second.propertyCode) ||
         compareStrings(first.unitNumber, second.unitNumber)
       );
@@ -1115,29 +1053,4 @@ function isOverdueMaintenanceTask(task: UnitMaintenanceRecord) {
     Boolean(task.due_date) &&
     task.due_date! < new Date().toISOString().slice(0, 10)
   );
-}
-
-async function getActiveLeaseUnitIds(organizationId: string) {
-  const supabase = await createSupabaseServerClient();
-  const result = await supabase
-    .from("current_leases")
-    .select("unit_id")
-    .eq("organization_id", organizationId)
-    .in("status", [...ACTIVE_UNIT_LEASE_STATUSES])
-    .not("unit_id", "is", null)
-    .is("archived_at", null);
-
-  if (result.error) {
-    throw new Error(`Could not load active unit lease filters: ${result.error.message}`);
-  }
-
-  return new Set(
-    (result.data ?? []).flatMap((lease) =>
-      lease.unit_id ? [lease.unit_id] : [],
-    ),
-  );
-}
-
-function formatPostgrestInFilter(values: ReadonlySet<string>) {
-  return `(${[...values].join(",")})`;
 }

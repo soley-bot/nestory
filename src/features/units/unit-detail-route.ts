@@ -2,24 +2,25 @@ import { buildHref } from "@/lib/url/href";
 
 export type UnitRecordSection =
   | "overview"
-  | "photos"
   | "lease"
   | "finance"
   | "maintenance"
-  | "documents"
-  | "reports"
-  | "timeline";
+  | "files";
 
 const unitRecordSections = new Set<UnitRecordSection>([
   "overview",
-  "photos",
   "lease",
   "finance",
   "maintenance",
-  "documents",
-  "reports",
-  "timeline",
+  "files",
 ]);
+
+const legacyUnitRecordSections: Record<string, UnitRecordSection> = {
+  documents: "files",
+  photos: "files",
+  reports: "finance",
+  timeline: "overview",
+};
 
 export function parseUnitDetailQuery(
   searchParams: Record<string, string | string[] | undefined>,
@@ -31,7 +32,11 @@ export function parseUnitDetailQuery(
   const sourceTaskId = firstValue(searchParams.sourceTaskId);
 
   return {
-    section: isUnitRecordSection(section) ? section : "overview",
+    section: isUnitRecordSection(section)
+      ? section
+      : section
+        ? legacyUnitRecordSections[section] ?? "overview"
+        : "overview",
     ...(sourceTaskId ? { sourceTaskId } : {}),
   };
 }

@@ -72,8 +72,6 @@ describe("buildUnitSummary", () => {
       }),
     ).toMatchObject({
       formValues: {
-        currentRentAmount: 850,
-        currentRentCurrency: "USD",
         floor: "12",
         propertyId: property.id,
         sizeSqm: 55.25,
@@ -89,6 +87,37 @@ describe("buildUnitSummary", () => {
       statusLabel: "Occupied",
       statusTone: "success",
       unitNumber: "12A",
+    });
+  });
+
+  it("uses the active lease as occupancy truth without changing the stored edit value", () => {
+    expect(
+      buildUnitSummary({
+        activeLease: lease,
+        ledgerEntries: [],
+        property,
+        unit: { ...unit, status: "vacant" },
+      }),
+    ).toMatchObject({
+      formValues: { status: "vacant" },
+      occupancyLabel: "Occupied",
+      occupancyTone: "success",
+      statusLabel: "Vacant",
+      statusValue: "vacant",
+    });
+  });
+
+  it("uses the active lease as the displayed rent authority", () => {
+    expect(
+      buildUnitSummary({
+        activeLease: { ...lease, monthly_rent_amount: 900 },
+        ledgerEntries: [],
+        property,
+        unit,
+      }),
+    ).toMatchObject({
+      rentLabel: "USD 900.00",
+      rentUsd: 900,
     });
   });
 });

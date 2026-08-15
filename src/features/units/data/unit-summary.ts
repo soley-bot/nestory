@@ -140,11 +140,10 @@ export function buildUnitSummary({
   unit: UnitRecord;
 }): UnitSummary {
   const statusValue = normalizeUnitStatus(unit.status);
+  const isOccupied = Boolean(activeLease);
 
   return {
     formValues: {
-      currentRentAmount: unit.current_rent_amount,
-      currentRentCurrency: unit.current_rent_currency,
       floor: unit.floor,
       propertyId: unit.property_id,
       sizeSqm: unit.size_sqm,
@@ -164,6 +163,8 @@ export function buildUnitSummary({
     leaseLabel: activeLease
       ? `${activeLease.tenant_name} / ${formatLeaseStatus(activeLease.status)}`
       : "No active lease",
+    occupancyLabel: isOccupied ? "Occupied" : "Vacant",
+    occupancyTone: isOccupied ? "success" : "neutral",
     propertyCode: property?.code ?? "Unknown",
     propertyId: unit.property_id,
     propertyName: property?.name ?? "Unknown property",
@@ -522,19 +523,12 @@ function buildUnitHealthIndicators({
 }): UnitHealthIndicator[] {
   const indicators: UnitHealthIndicator[] = [];
 
-  if (activeLease && statusValue === "occupied") {
+  if (activeLease) {
     indicators.push({
-      description: "The unit is marked occupied and has a current lease.",
+      description: "A current lease establishes this unit as occupied.",
       id: "occupancy",
       label: "Occupancy aligned",
       tone: "success",
-    });
-  } else if (activeLease) {
-    indicators.push({
-      description: "A current lease exists, but the unit status is not occupied.",
-      id: "occupancy",
-      label: "Status needs review",
-      tone: "warning",
     });
   } else if (statusValue === "occupied") {
     indicators.push({
@@ -890,10 +884,6 @@ function toMaintenanceContext(
 }
 
 function formatUnitRent(unit: UnitRecord, activeLease?: UnitLeaseRecord) {
-  if (unit.current_rent_amount !== null && unit.current_rent_currency) {
-    return formatMoney(unit.current_rent_amount, unit.current_rent_currency);
-  }
-
   if (activeLease) {
     return formatMoney(
       activeLease.monthly_rent_amount,
@@ -901,17 +891,14 @@ function formatUnitRent(unit: UnitRecord, activeLease?: UnitLeaseRecord) {
     );
   }
 
+  if (unit.current_rent_amount !== null && unit.current_rent_currency) {
+    return formatMoney(unit.current_rent_amount, unit.current_rent_currency);
+  }
+
   return "No rent recorded";
 }
 
 function formatUnitRentDisplay(unit: UnitRecord, activeLease?: UnitLeaseRecord) {
-  if (unit.current_rent_amount !== null && unit.current_rent_currency) {
-    return formatMoneyDisplay(
-      unit.current_rent_amount,
-      unit.current_rent_currency,
-    );
-  }
-
   if (activeLease) {
     return formatMoneyDisplay(
       activeLease.monthly_rent_amount,
@@ -919,16 +906,23 @@ function formatUnitRentDisplay(unit: UnitRecord, activeLease?: UnitLeaseRecord) 
     );
   }
 
+  if (unit.current_rent_amount !== null && unit.current_rent_currency) {
+    return formatMoneyDisplay(
+      unit.current_rent_amount,
+      unit.current_rent_currency,
+    );
+  }
+
   return undefined;
 }
 
 function calculateRentUsd(unit: UnitRecord, activeLease?: UnitLeaseRecord) {
-  if (unit.current_rent_amount !== null && unit.current_rent_currency) {
-    return unit.current_rent_amount;
-  }
-
   if (activeLease) {
     return activeLease.monthly_rent_amount;
+  }
+
+  if (unit.current_rent_amount !== null && unit.current_rent_currency) {
+    return unit.current_rent_amount;
   }
 
   return 0;

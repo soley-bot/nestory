@@ -186,6 +186,32 @@ describe("UnitScreen redesign contract", () => {
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
 
+  it("uses the approved operational quick-view structure without stacked detail boxes", async () => {
+    const user = userEvent.setup();
+    const { container } = renderUnits();
+
+    await user.click(screen.getByRole("button", { name: "Preview unit 1A" }));
+
+    const quickView = screen.getByRole("dialog", {
+      name: "Unit 1A quick view",
+    });
+    expect(
+      quickView.querySelectorAll('[data-slot="unit-preview-fact-card"]'),
+    ).toHaveLength(3);
+    expect(within(quickView).getByRole("link", { name: "Add an active lease" })).toBeTruthy();
+    expect(within(quickView).getByRole("navigation", { name: "Unit records" })).toBeTruthy();
+    expect(within(quickView).getByRole("link", { name: "Lease" })).toBeTruthy();
+    expect(within(quickView).getByRole("link", { name: "Ledger" })).toBeTruthy();
+    expect(within(quickView).getByRole("link", { name: "Maintenance" })).toBeTruthy();
+    expect(within(quickView).getByRole("link", { name: "Timeline" })).toBeTruthy();
+    expect(
+      within(quickView).getByRole("group", { name: "Unit actions" }),
+    ).toBeTruthy();
+    expect(within(quickView).queryByRole("heading", { name: "At a glance" })).toBeNull();
+    expect(within(quickView).queryByRole("heading", { name: "Related records" })).toBeNull();
+    expect(container.querySelectorAll('[data-slot="unit-preview-detail-card"]')).toHaveLength(0);
+  });
+
   it.each([1024, 390])(
     "uses the same quick-view dialog after card selection at %ipx",
     async (width) => {
@@ -222,7 +248,7 @@ describe("UnitScreen redesign contract", () => {
       width: 390,
     },
   ])(
-    "replaces the quick view with one $drawerName drawer at $width px and returns focus",
+    "replaces the quick view with one $drawerName workflow at $width px and returns focus",
     async ({ actionName, drawerName, openMoreActions, width }) => {
       installMatchMedia(width);
       const user = userEvent.setup();
@@ -241,11 +267,19 @@ describe("UnitScreen redesign contract", () => {
 
       const dialogs = screen.getAllByRole("dialog");
       expect(dialogs).toHaveLength(1);
-      expect(dialogs[0]?.getAttribute("aria-modal")).toBe("true");
+      if (drawerName === "Edit unit") {
+        expect(dialogs[0]?.getAttribute("data-slot")).toBe("dialog-content");
+      } else {
+        expect(dialogs[0]?.getAttribute("aria-modal")).toBe("true");
+      }
       expect(screen.getByRole("dialog", { name: drawerName })).not.toBeNull();
       expect(screen.queryByRole("dialog", { name: "Unit 1A quick view" })).toBeNull();
 
-      await user.click(screen.getByRole("button", { name: "Close drawer" }));
+      await user.click(
+        screen.getByRole("button", {
+          name: drawerName === "Edit unit" ? "Close modal" : "Close drawer",
+        }),
+      );
       expect(document.activeElement).toBe(preview);
     },
   );
@@ -269,8 +303,24 @@ describe("UnitScreen redesign contract", () => {
     expect(screen.getByRole("dialog", { name: "Edit unit" })).not.toBeNull();
     expect(screen.queryByRole("dialog", { name: "Unit 1A quick view" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Close drawer" }));
+    await user.click(screen.getByRole("button", { name: "Close modal" }));
     expect(document.activeElement).toBe(preview);
+  });
+
+  it("keeps rent out of the unit edit workflow", async () => {
+    const user = userEvent.setup();
+    renderUnits();
+
+    await user.click(screen.getByRole("button", { name: "Preview unit 1A" }));
+    await user.click(screen.getByRole("button", { name: "Edit unit 1A" }));
+
+    const editDialog = screen.getByRole("dialog", { name: "Edit unit" });
+    expect(
+      within(editDialog).queryByRole("spinbutton", { name: "Current rent" }),
+    ).toBeNull();
+    expect(
+      within(editDialog).queryByRole("heading", { name: "Rent" }),
+    ).toBeNull();
   });
 
   it("makes cards preview-first, supports Enter and Space, and restores focus", async () => {
@@ -332,6 +382,71 @@ describe("UnitScreen redesign contract", () => {
 
     renderUnits({ canCreate: false, units: [] });
     expect(screen.queryByRole("button", { name: "Add unit" })).toBeNull();
+  });
+
+  it("keeps the create workflow focused on unit fields", async () => {
+    const user = userEvent.setup();
+    renderUnits({ canCreate: true, units: [] });
+
+    await user.click(screen.getAllByRole("button", { name: "Add unit" })[0]!);
+
+    const drawer = screen.getByRole("dialog", { name: "Add unit" });
+    expect(within(drawer).queryByText("Placement effects")).toBeNull();
+    expect(within(drawer).queryByText("Documents and evidence")).toBeNull();
+    expect(within(drawer).queryByText("Supporting file")).toBeNull();
+    expect(
+      within(drawer).queryByText(
+        "Create a unit record under an active property.",
+      ),
+    ).toBeNull();
+  });
+
+  it("shows active-lease occupancy and operational state as read-only context", async () => {
+    const user = userEvent.setup();
+    const leasedUnit = buildUnitSummary({
+      activeLease: {
+        id: "lease-1",
+        lease_end_date: "2027-01-31",
+        lease_start_date: "2026-02-01",
+        monthly_rent_amount: 900,
+        monthly_rent_currency: "USD",
+        primary_tenant_person_id: "person-1",
+        status: "active",
+        tenant_name: "Dara Tenant",
+        unit_id: "unit-1",
+      },
+      ledgerEntries: [],
+      property: { code: "HOME", id: "property-1", name: "Home Residence" },
+      unit: {
+        archived_at: null,
+        current_rent_amount: 900,
+        current_rent_currency: "USD",
+        floor: "1",
+        id: "unit-1",
+        property_id: "property-1",
+        size_sqm: 48,
+        status: "vacant",
+        unit_number: "1A",
+      },
+    });
+    renderUnits({ units: [leasedUnit] });
+
+    await user.click(screen.getByRole("row", { name: "Preview unit 1A" }));
+    const quickView = screen.getByRole("dialog", { name: "Unit 1A quick view" });
+    expect(within(quickView).queryByText(/status conflict/i)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Edit unit 1A" }));
+
+    const editDialog = screen.getByRole("dialog", { name: "Edit unit" });
+    expect(within(editDialog).getByText("Occupancy")).toBeTruthy();
+    expect(within(editDialog).getByText("Occupied")).toBeTruthy();
+    const operationalState = within(editDialog).getByRole("group", {
+      name: /^Operational state/,
+    });
+    expect(operationalState.textContent).toContain("Active");
+    expect(
+      within(operationalState).queryByRole("combobox"),
+    ).toBeNull();
+    expect(within(editDialog).queryByRole("combobox", { name: "Status" })).toBeNull();
   });
 
   it("does not open an action=create drawer when create is unauthorized", () => {

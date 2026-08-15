@@ -35,11 +35,22 @@ export const UNIT_STATUS_OPTIONS: Array<{
   { label: "Inactive", value: "inactive" },
 ];
 
+export type UnitOperationalStateValue = "active" | "maintenance" | "inactive";
+
+export const UNIT_OPERATIONAL_STATE_OPTIONS: Array<{
+  label: string;
+  value: UnitOperationalStateValue;
+}> = [
+  { label: "Active", value: "active" },
+  { label: "Maintenance", value: "maintenance" },
+  { label: "Inactive", value: "inactive" },
+];
+
 export type UnitStatusFilter = UnitStatusValue | "all";
 
 export type UnitLeaseStatusFilter = "missing" | "all";
 
-export type UnitOccupancyFilter = "unoccupied" | "all";
+export type UnitOccupancyFilter = "occupied" | "unoccupied" | "all";
 
 export type UnitPropertyOption = {
   id: string;
@@ -47,8 +58,6 @@ export type UnitPropertyOption = {
 };
 
 export type UnitFormValues = {
-  currentRentAmount?: number | null;
-  currentRentCurrency?: CurrencyCode | null;
   floor?: string | null;
   propertyId: string;
   sizeSqm?: number | null;
@@ -206,6 +215,8 @@ export type UnitSummary = {
   ledgerNetLabel: string;
   latestTimelineEvent?: UnitTimelineContext;
   leaseLabel: string;
+  occupancyLabel: "Occupied" | "Vacant";
+  occupancyTone: UnitBadgeTone;
   propertyCode: string;
   propertyId: string;
   propertyName: string;

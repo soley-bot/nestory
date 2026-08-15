@@ -103,9 +103,9 @@ export function UnitsTable({
                     active={sort === "status_asc"}
                     align="center"
                     direction="ascending"
-                    label="Status"
+                    label="Occupancy"
                     onClick={() => onSortChange("status_asc")}
-                    sortLabel="Sort units by status"
+                    sortLabel="Sort units by occupancy"
                   />
                   <SortableHeader
                     active={sort === "rent_desc"}
@@ -189,8 +189,8 @@ export function UnitsTable({
                     </td>
                     <td className="px-1.5 py-2">
                       <div className="flex flex-wrap justify-center gap-1.5">
-                        <Badge className="px-2 text-xs" tone={unit.statusTone}>
-                          {unit.statusLabel}
+                        <Badge className="px-2 text-xs" tone={unit.occupancyTone}>
+                          {unit.occupancyLabel}
                         </Badge>
                         {unit.isArchived ? (
                           <Badge className="px-2 text-xs" tone="warning">
@@ -363,7 +363,7 @@ function SortableHeader({
 function UnitStatusBadges({ unit }: { unit: UnitSummary }) {
   return (
     <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-      <Badge tone={unit.statusTone}>{unit.statusLabel}</Badge>
+      <Badge tone={unit.occupancyTone}>{unit.occupancyLabel}</Badge>
       {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
     </div>
   );

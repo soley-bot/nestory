@@ -20,7 +20,6 @@ import {
   UNIT_PAGE_SIZE_OPTIONS,
 } from "@/features/units/unit.filters";
 import {
-  UNIT_STATUS_OPTIONS,
   type UnitDisplayMode,
   type UnitPropertyOption,
   type UnitViewQuery,
@@ -162,19 +161,6 @@ export function UnitFilters({
                       />
                     </FilterField>
 
-                    <FilterField label="Status">
-                      <SelectControl
-                      ariaLabel="Filter by status"
-                      className={compactSelectClassName}
-                      onValueChange={(value) => replaceParam("status", value, "all")}
-                      options={[
-                        { label: "All statuses", value: "all" },
-                        ...UNIT_STATUS_OPTIONS,
-                      ]}
-                      value={viewQuery.status}
-                      />
-                    </FilterField>
-
                     <FilterField label="Occupancy">
                       <SelectControl
                       ariaLabel="Filter by occupancy"
@@ -183,25 +169,11 @@ export function UnitFilters({
                         replaceParam("occupancy", value, "all")
                       }
                       options={[
-                        { label: "All occupancy states", value: "all" },
-                        { label: "Not occupied", value: "unoccupied" },
+                        { label: "All units", value: "all" },
+                        { label: "Occupied", value: "occupied" },
+                        { label: "Vacant", value: "unoccupied" },
                       ]}
                       value={viewQuery.occupancy}
-                      />
-                    </FilterField>
-
-                    <FilterField label="Lease link">
-                      <SelectControl
-                      ariaLabel="Filter by lease link"
-                      className={compactSelectClassName}
-                      onValueChange={(value) =>
-                        replaceParam("leaseStatus", value, "all")
-                      }
-                      options={[
-                        { label: "All lease links", value: "all" },
-                        { label: "Missing active lease", value: "missing" },
-                      ]}
-                      value={viewQuery.leaseStatus}
                       />
                     </FilterField>
 
@@ -235,7 +207,7 @@ export function UnitFilters({
                       options={[
                         { label: "Property", value: "property_asc" },
                         { label: "Unit", value: "unit_asc" },
-                        { label: "Status", value: "status_asc" },
+                        { label: "Occupancy", value: "status_asc" },
                         { label: "Rent", value: "rent_desc" },
                         { label: "Ledger net", value: "net_desc" },
                       ]}

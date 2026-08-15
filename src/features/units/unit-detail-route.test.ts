@@ -62,6 +62,21 @@ describe("unit detail route contract", () => {
     });
   });
 
+  it("keeps legacy unit links useful after related sections are consolidated", () => {
+    expect(parseUnitDetailQuery?.({ section: "photos" })).toEqual({
+      section: "files",
+    });
+    expect(parseUnitDetailQuery?.({ section: "documents" })).toEqual({
+      section: "files",
+    });
+    expect(parseUnitDetailQuery?.({ section: "reports" })).toEqual({
+      section: "finance",
+    });
+    expect(parseUnitDetailQuery?.({ section: "timeline" })).toEqual({
+      section: "overview",
+    });
+  });
+
   it("returns to the originating case when task context is present", () => {
     expect(getUnitRecordReturnLink).toBeTypeOf("function");
     expect(getUnitRecordReturnLink?.("task-1")).toEqual({

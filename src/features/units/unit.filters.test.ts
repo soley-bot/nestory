@@ -56,6 +56,15 @@ describe("parseUnitSearchParams", () => {
     });
   });
 
+  it("keeps occupied and vacant lease-derived occupancy filters", () => {
+    expect(parseUnitSearchParams({ occupancy: "occupied" }).occupancy).toBe(
+      "occupied",
+    );
+    expect(parseUnitSearchParams({ occupancy: "unoccupied" }).occupancy).toBe(
+      "unoccupied",
+    );
+  });
+
   it("falls back for unknown lease-link filters", () => {
     expect(
       parseUnitSearchParams({
@@ -74,7 +83,7 @@ describe("parseUnitSearchParams", () => {
 });
 
 describe("unitMatchesOccupancyFilter", () => {
-  it("matches units that are not occupied or actively leased", () => {
+  it("uses the active lease as the only occupancy truth", () => {
     expect(
       unitMatchesOccupancyFilter(
         { hasActiveLease: false, statusValue: "vacant" },
@@ -92,7 +101,7 @@ describe("unitMatchesOccupancyFilter", () => {
         { hasActiveLease: false, statusValue: "occupied" },
         "unoccupied",
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       unitMatchesOccupancyFilter(
         { hasActiveLease: true, statusValue: "vacant" },
@@ -103,6 +112,18 @@ describe("unitMatchesOccupancyFilter", () => {
       unitMatchesOccupancyFilter(
         { hasActiveLease: false, statusValue: "inactive" },
         "unoccupied",
+      ),
+    ).toBe(true);
+    expect(
+      unitMatchesOccupancyFilter(
+        { hasActiveLease: true, statusValue: "vacant" },
+        "occupied",
+      ),
+    ).toBe(true);
+    expect(
+      unitMatchesOccupancyFilter(
+        { hasActiveLease: false, statusValue: "occupied" },
+        "occupied",
       ),
     ).toBe(false);
   });
