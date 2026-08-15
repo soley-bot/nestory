@@ -61,6 +61,12 @@ beforeEach(() => {
     callback(0);
     return 1;
   });
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
 });
 
 afterEach(() => {
@@ -401,6 +407,38 @@ describe("UnitScreen redesign contract", () => {
         "Create a unit record under an active property.",
       ),
     ).toBeNull();
+  });
+
+  it("explains Lease readiness while choosing a new Unit operational state", async () => {
+    const user = userEvent.setup();
+    renderUnits({ canCreate: true, units: [] });
+
+    await user.click(screen.getAllByRole("button", { name: "Add unit" })[0]!);
+
+    const drawer = screen.getByRole("dialog", { name: "Add unit" });
+    const operationalState = within(drawer).getByRole("combobox", {
+      name: /Operational state/,
+    });
+
+    expect(
+      within(drawer).getByText(
+        "Available for leasing after save. A Lease will determine occupancy.",
+      ),
+    ).toBeTruthy();
+
+    await user.click(operationalState);
+    await user.click(screen.getByRole("option", { name: "Maintenance" }));
+    expect(
+      within(drawer).getByText(
+        "Blocked from leasing until maintenance is resolved.",
+      ),
+    ).toBeTruthy();
+
+    await user.click(operationalState);
+    await user.click(screen.getByRole("option", { name: "Inactive" }));
+    expect(
+      within(drawer).getByText("Not available for leasing while inactive."),
+    ).toBeTruthy();
   });
 
   it("shows active-lease occupancy and operational state as read-only context", async () => {
