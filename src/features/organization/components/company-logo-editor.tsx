@@ -75,7 +75,7 @@ export function CompanyLogoEditor({
           </div>
 
           <div className="min-w-0 flex-1 space-y-2">
-            <form action={uploadAction} encType="multipart/form-data">
+            <form action={uploadAction}>
               <div className="flex flex-wrap items-center gap-2">
                 <label
                   className="inline-flex h-8 cursor-pointer items-center rounded-lg border border-input bg-background px-2.5 text-sm font-medium hover:bg-muted"
