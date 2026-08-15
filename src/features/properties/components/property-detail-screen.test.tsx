@@ -109,6 +109,34 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(within(overviewPanel).queryByText("1 current lease links")).toBeNull();
   });
 
+  it("keeps Add lease as the only workflow handoff when it is the canonical next action", () => {
+    renderPropertyDetail({ propertyOverride: propertyWithoutActiveLease });
+
+    const overviewPanel = screen.getByRole("tabpanel", { name: "Overview" });
+    const addLeaseLinks = within(overviewPanel).getAllByRole("link", {
+      name: "Add lease",
+    });
+
+    expect(addLeaseLinks).toHaveLength(1);
+    expect(addLeaseLinks[0]?.getAttribute("href")).toBe(
+      "/leases?action=create&propertyId=property-1",
+    );
+    expect(
+      within(overviewPanel).getByText(
+        "No active leases are linked to this property.",
+      ),
+    ).toBeTruthy();
+    expect(within(overviewPanel).getByRole("link", { name: "Owner" })).toBeTruthy();
+  });
+
+  it("renders the terminal accent next action with the accent treatment", () => {
+    renderPropertyDetail({ propertyOverride: propertyWithAccentNextAction });
+
+    const nextAction = screen.getByRole("link", { name: "Log maintenance case" });
+    expect(nextAction.className).toContain("border-primary");
+    expect(nextAction.className).toContain("bg-primary/10");
+  });
+
   it("opens property-scoped unit creation locally and keeps unit records operational", () => {
     renderPropertyDetail();
 
@@ -495,5 +523,30 @@ const propertyWithWorkflowAttention: PropertyDetail = {
     href: "/maintenance?archiveState=all&taskId=case-overdue",
     label: "Review overdue issue",
     tone: "danger",
+  },
+};
+
+const propertyWithoutActiveLease: PropertyDetail = {
+  ...property,
+  activeLeases: [],
+  counts: {
+    ...property.counts,
+    activeLeases: 0,
+  },
+  nextAction: {
+    description: "Create or review leases so occupancy and rent roll are connected.",
+    href: "/leases?action=create&propertyId=property-1",
+    label: "Add lease",
+    tone: "warning",
+  },
+};
+
+const propertyWithAccentNextAction: PropertyDetail = {
+  ...property,
+  nextAction: {
+    description: "The core record is connected. Review maintenance or add the next case.",
+    href: "/maintenance?action=create&propertyId=property-1",
+    label: "Log maintenance case",
+    tone: "accent",
   },
 };

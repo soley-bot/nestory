@@ -27,6 +27,7 @@ import type {
   PropertyOwnerHistory,
   PropertyWorkflowEvidenceContext,
 } from "@/features/properties/data/property-detail";
+import type { PropertyBadgeTone } from "@/features/properties/property.types";
 import type { RecentChange } from "@/features/activity/activity.types";
 import {
   buildReportBuilderHref,
@@ -55,6 +56,14 @@ const propertyRecordSections: Array<{
   { id: "maintenance", label: "Maintenance" },
   { id: "files", label: "Files" },
 ];
+
+const propertyNextActionToneClass: Record<PropertyBadgeTone, string> = {
+  accent: "border-primary bg-primary/10 hover:bg-primary/15",
+  danger: "border-danger bg-danger-soft/35 hover:bg-danger-soft/55",
+  neutral: "border-border bg-muted/40 hover:bg-muted/60",
+  success: "border-success bg-success-soft/35 hover:bg-success-soft/55",
+  warning: "border-warning bg-warning-soft/35 hover:bg-warning-soft/55",
+};
 
 export function PropertyDetailView({
   initialSection = "overview",
@@ -258,6 +267,7 @@ function getPropertyRecordPanelContent({
   const actionableHealthIndicators = property.healthIndicators.filter(
     (indicator) => indicator.tone === "warning" || indicator.tone === "danger",
   );
+  const duplicatesNextAction = (href?: string) => href === property.nextAction.href;
 
   return (
     <>
@@ -278,12 +288,7 @@ function getPropertyRecordPanelContent({
             aria-label={property.nextAction.label}
             className={cn(
               "flex min-w-0 items-start gap-3 border-l-2 px-3 py-2.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-              property.nextAction.tone === "danger" &&
-                "border-danger bg-danger-soft/35 hover:bg-danger-soft/55",
-              property.nextAction.tone === "warning" &&
-                "border-warning bg-warning-soft/35 hover:bg-warning-soft/55",
-              property.nextAction.tone === "success" &&
-                "border-success bg-success-soft/35 hover:bg-success-soft/55",
+              propertyNextActionToneClass[property.nextAction.tone],
             )}
             href={property.nextAction.href}
             prefetch={false}
@@ -348,7 +353,8 @@ function getPropertyRecordPanelContent({
           <div>
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold">Ownership history</h3>
-              {property.hrefs.ownerPerson ? (
+              {property.hrefs.ownerPerson &&
+              !duplicatesNextAction(property.hrefs.ownerPerson) ? (
                 <ActionLink href={property.hrefs.ownerPerson} icon={<UserRound size={14} />}>
                   Owner
                 </ActionLink>
@@ -357,7 +363,11 @@ function getPropertyRecordPanelContent({
             <div className="mt-3 divide-y divide-border">
               {property.ownerHistory.length === 0 ? (
                 <EmptyBlock
-                  actionHref={property.hrefs.propertiesList}
+                  actionHref={
+                    duplicatesNextAction(property.hrefs.propertiesList)
+                      ? undefined
+                      : property.hrefs.propertiesList
+                  }
                   actionLabel="Review owner"
                   label="No owner/person history is linked yet."
                 />
@@ -370,14 +380,20 @@ function getPropertyRecordPanelContent({
           <div>
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold">Active leases</h3>
-              <ActionLink href={property.hrefs.addLease} icon={<ScrollText size={14} />}>
-                Add lease
-              </ActionLink>
+              {!duplicatesNextAction(property.hrefs.addLease) ? (
+                <ActionLink href={property.hrefs.addLease} icon={<ScrollText size={14} />}>
+                  Add lease
+                </ActionLink>
+              ) : null}
             </div>
             <div className="mt-3 divide-y divide-border">
               {property.activeLeases.length === 0 ? (
                 <EmptyBlock
-                  actionHref={property.hrefs.addLease}
+                  actionHref={
+                    duplicatesNextAction(property.hrefs.addLease)
+                      ? undefined
+                      : property.hrefs.addLease
+                  }
                   actionLabel="Add lease"
                   label="No active leases are linked to this property."
                 />
