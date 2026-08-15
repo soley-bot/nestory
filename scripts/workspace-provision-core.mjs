@@ -58,7 +58,7 @@ export async function provisionWorkspace({ client, input, siteUrl }) {
   }
 
   const provisioned = data[0];
-  const redirectTo = acceptanceConfirmUrl(appUrl, provisioned.invitation_id);
+  const redirectTo = acceptanceCompleteUrl(appUrl, provisioned.invitation_id);
   let authUserId = null;
   let deliveryMethod = "invite";
   let deliveryError = null;
@@ -119,8 +119,8 @@ export async function provisionWorkspace({ client, input, siteUrl }) {
   };
 }
 
-function acceptanceConfirmUrl(siteUrl, invitationId) {
-  const url = new URL("/auth/confirm", siteUrl);
+function acceptanceCompleteUrl(siteUrl, invitationId) {
+  const url = new URL("/auth/complete", siteUrl);
   url.searchParams.set(
     "next",
     `/accept-invite?invitation=${invitationId}`,

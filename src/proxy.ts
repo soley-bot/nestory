@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getAuthCookieOptions } from "@/lib/auth/tenant";
 import { getSupabaseEnv } from "@/lib/db/env";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
 import type { Database } from "@/types/database";
@@ -52,6 +53,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
+    cookieOptions: getAuthCookieOptions(),
     cookies: {
       getAll() {
         return request.cookies.getAll();

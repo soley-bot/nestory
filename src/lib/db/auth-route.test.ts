@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
 const { createServerClient } = vi.hoisted(() => ({
@@ -14,6 +14,16 @@ vi.mock("@/lib/db/env", () => ({
 }));
 
 import { createSupabaseAuthRouteClient } from "@/lib/db/auth-route";
+
+const originalRootDomain = process.env.APP_ROOT_DOMAIN;
+
+afterEach(() => {
+  if (originalRootDomain === undefined) {
+    delete process.env.APP_ROOT_DOMAIN;
+  } else {
+    process.env.APP_ROOT_DOMAIN = originalRootDomain;
+  }
+});
 
 describe("createSupabaseAuthRouteClient", () => {
   it("reads request cookies and writes Auth cookies to the returned response", () => {
@@ -44,5 +54,20 @@ describe("createSupabaseAuthRouteClient", () => {
     ]);
 
     expect(response.cookies.get("sb-session")?.value).toBe("verified");
+  });
+
+  it("shares verified Auth cookies with company subdomains in production", () => {
+    process.env.APP_ROOT_DOMAIN = "nestory-kh.com";
+    const request = new NextRequest("https://www.nestory-kh.com/auth/complete");
+    const response = NextResponse.redirect(
+      new URL("/accept-invite", request.url),
+    );
+
+    const client = createSupabaseAuthRouteClient(
+      request,
+      response,
+    ) as unknown as { cookieOptions?: { domain?: string } };
+
+    expect(client.cookieOptions).toEqual({ domain: ".nestory-kh.com" });
   });
 });

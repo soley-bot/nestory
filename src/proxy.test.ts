@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const getClaims = vi.fn();
+const { createServerClient, getClaims } = vi.hoisted(() => ({
+  createServerClient: vi.fn(),
+  getClaims: vi.fn(),
+}));
 
 vi.mock("@supabase/ssr", () => ({
-  createServerClient: () => ({
-    auth: { getClaims },
-  }),
+  createServerClient,
 }));
 
 vi.mock("@/lib/db/env", () => ({
@@ -21,6 +22,20 @@ import { proxy } from "@/proxy";
 describe("proxy", () => {
   beforeEach(() => {
     getClaims.mockReset();
+    createServerClient.mockReset();
+    createServerClient.mockReturnValue({ auth: { getClaims } });
+  });
+
+  it("keeps refreshed Auth cookies valid on company subdomains", async () => {
+    process.env.APP_ROOT_DOMAIN = "nestory-kh.com";
+    getClaims.mockResolvedValue({ data: { claims: null }, error: null });
+
+    await proxy(new NextRequest("https://www.nestory-kh.com/login"));
+
+    expect(createServerClient.mock.calls[0][2].cookieOptions).toEqual({
+      domain: ".nestory-kh.com",
+    });
+    delete process.env.APP_ROOT_DOMAIN;
   });
 
   it("sends an authenticated login visit through the role-aware workspace entry", async () => {
