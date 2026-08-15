@@ -156,7 +156,7 @@ const leaseMutationSchema = z
     if (!z.uuid().safeParse(data.unitId).success) {
       context.addIssue({
         code: "custom",
-        message: "Choose a unit. Authoritative rent terms require one unit.",
+        message: "Choose a unit for this lease.",
         path: ["unitId"],
       });
     }
@@ -382,7 +382,7 @@ export async function createLeaseAction(
 
   if (!leaseId) {
     return {
-      message: "The Lease was not returned by the checked relationship write.",
+      message: "The lease could not be confirmed after saving.",
       status: "error",
     };
   }
@@ -395,7 +395,7 @@ export async function createLeaseAction(
 
   return {
     leaseId,
-    message: "Lease added.",
+    message: "Draft lease created.",
     status: "success",
   };
 }
@@ -442,7 +442,7 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
     return {
       message: error
         ? leaseActionErrorMessage(error.message)
-        : "The updated occupancy evidence was not returned.",
+        : "The move-in confirmation could not be returned.",
       status: "error",
     };
   }
@@ -450,7 +450,7 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
   revalidateLeasePaths([], [], parsed.data.leaseId);
   return {
     leaseId: parsed.data.leaseId,
-    message: "Occupancy evidence recorded.",
+    message: "Move-in confirmed.",
     status: "success",
   };
 }
@@ -587,7 +587,7 @@ export async function updateLeaseAction(
 
   return {
     leaseId: parsedLeaseId.data,
-    message: "Lease updated.",
+    message: "Draft lease updated.",
     status: "success",
   };
 }
@@ -664,7 +664,7 @@ export async function scheduleFutureRentTermAction(
 
   return {
     leaseId: parsed.data.leaseId,
-    message: "Future rent term scheduled. Prior term history was preserved.",
+    message: "Rent schedule updated. Earlier history was kept.",
     status: "success",
     termId,
   };
@@ -887,15 +887,15 @@ function leaseActionErrorMessage(message: string) {
   }
 
   if (message.includes("lease_lifecycle_reason_required")) {
-    return "Add an evidence note with at least 8 characters.";
+    return "Add a reason or note with at least 8 characters.";
   }
 
   if (message.includes("lease_lifecycle_transition_invalid")) {
-    return "This lifecycle change is not available from the lease's current status.";
+    return "This action is not available for the lease's current status.";
   }
 
   if (message.includes("overlaps existing key")) {
-    return "These dates overlap another authoritative term. End the existing term before scheduling this one.";
+    return "These dates overlap another rent period. End the existing period before scheduling this one.";
   }
 
   if (
@@ -914,7 +914,7 @@ function leaseActionErrorMessage(message: string) {
   }
 
   if (message.includes("Authoritative lease term inputs")) {
-    return "Complete the due day, frequency, dates, amount, and term status.";
+    return "Complete the due day, frequency, dates, amount, and rent period details.";
   }
 
   if (message.includes("violates foreign key")) {
@@ -943,19 +943,19 @@ export async function recordLeaseDepositEventAction(_state: LeaseActionState, fo
   const { error } = await supabase.rpc("record_lease_deposit_event", { p_organization_id: context.organizationId, p_lease_deposit_id: parsed.data.leaseDepositId, p_event_type: parsed.data.eventType, p_event_date: parsed.data.eventDate, p_amount: parsed.data.amount, p_reference: parsed.data.reference });
   if (error) return { message: leaseActionErrorMessage(error.message), status: "error" };
   revalidatePath("/leases"); revalidatePath("/overview");
-  return { message: "Deposit event recorded.", status: "success" };
+  return { message: "Deposit activity saved.", status: "success" };
 }
 
 export async function reverseLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
   const context = await requireLeaseConfigurationContext();
   const eventId = z.uuid().safeParse(readString(formData, "eventId"));
   const eventDate = dateSchema.safeParse(readString(formData, "eventDate"));
-  if (!eventId.success || !eventDate.success) return { message: "Choose a valid event and date.", status: "error" };
+  if (!eventId.success || !eventDate.success) return { message: "Choose valid deposit activity and a date.", status: "error" };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("reverse_lease_deposit_event", { p_organization_id: context.organizationId, p_event_id: eventId.data, p_event_date: eventDate.data, p_reference: readString(formData, "reference") });
   if (error) return { message: leaseActionErrorMessage(error.message), status: "error" };
   revalidatePath("/leases"); revalidatePath("/overview");
-  return { message: "Deposit event reversed.", status: "success" };
+  return { message: "Deposit activity undone.", status: "success" };
 }
 
 export async function createRentPolicyDraftAction(

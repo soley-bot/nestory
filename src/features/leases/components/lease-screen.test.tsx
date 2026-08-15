@@ -1,6 +1,12 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeaseScreen } from "@/features/leases/components/lease-screen";
@@ -109,7 +115,9 @@ describe("LeaseScreen redesign contract", () => {
 
     renderLeases({ leases: [lease] });
 
-    const statusCell = screen.getAllByRole("row")[1]!.querySelectorAll("td")[4]!;
+    const statusCell = screen
+      .getAllByRole("row")[1]!
+      .querySelectorAll("td")[4]!;
     const attention = within(statusCell).getByText(
       "Partially Returned deposit",
     );
@@ -150,20 +158,27 @@ describe("LeaseScreen redesign contract", () => {
   it("keeps the visible page identity and actions while removing page-local summary framing", () => {
     const { container } = renderLeases();
 
-    expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
-    expect(screen.getByRole("heading", { level: 1, name: "Leases" })).not.toBeNull();
     expect(
-      within(container.querySelector('[data-slot="page-header-actions"]')!).getByRole(
-        "button",
-        { name: "Add lease" },
-      ),
+      container.querySelector('[data-slot="workspace-page"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-slot="workspace-split-view"]'),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Leases" }),
+    ).not.toBeNull();
+    expect(
+      within(
+        container.querySelector('[data-slot="page-header-actions"]')!,
+      ).getByRole("button", { name: "Add lease" }),
     ).not.toBeNull();
     expect(screen.queryByRole("region", { name: "Lease summary" })).toBeNull();
     expect(screen.queryByText("This page")).toBeNull();
     expect(screen.queryByRole("button", { name: "Generate rent" })).toBeNull();
     expect(screen.queryByText(/rent is generated automatically/i)).toBeNull();
-    expect(screen.getByRole("toolbar", { name: "Workspace tools" })).not.toBeNull();
+    expect(
+      screen.getByRole("toolbar", { name: "Workspace tools" }),
+    ).not.toBeNull();
 
     const tableFrame = container.querySelector<HTMLElement>(
       '[data-slot="register-table-frame"]',
@@ -175,7 +190,8 @@ describe("LeaseScreen redesign contract", () => {
     const pagination = screen
       .getByText(
         (_content, element) =>
-          element?.tagName === "P" && element.textContent?.includes("Showing") === true,
+          element?.tagName === "P" &&
+          element.textContent?.includes("Showing") === true,
       )
       .closest("div");
     expect(pagination?.classList.contains("border-t")).toBe(true);
@@ -190,9 +206,13 @@ describe("LeaseScreen redesign contract", () => {
     expect(within(table).queryByText("Deposit")).toBeNull();
 
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
     expect(
-      within(rows[0]!).getByRole("link", { name: "Alice Tenant" }).getAttribute("href"),
+      rows.filter((row) => row.getAttribute("aria-selected") === "true"),
+    ).toHaveLength(0);
+    expect(
+      within(rows[0]!)
+        .getByRole("link", { name: "Alice Tenant" })
+        .getAttribute("href"),
     ).toBe("/leases/lease-1");
     // Term is one cell now, not stacked start/end lines.
     expect(rows[0]!.textContent).toContain(leases[0]!.startDateLabel);
@@ -206,13 +226,16 @@ describe("LeaseScreen redesign contract", () => {
       name: "Alice Tenant lease quick view",
     });
     expect(
-      within(firstQuickView).getByText((_, element) =>
-        element?.textContent === "Riverside House / Unit 2A",
+      within(firstQuickView).getByText(
+        (_, element) => element?.textContent === "Riverside House / Unit 2A",
       ),
     ).not.toBeNull();
-    expect(within(firstQuickView).getByText("USD 1,200.00 held")).not.toBeNull();
     expect(
-      within(firstQuickView).getByRole("link", { name: "Open lease record" })
+      within(firstQuickView).getByText("USD 1,200.00 held"),
+    ).not.toBeNull();
+    expect(
+      within(firstQuickView)
+        .getByRole("link", { name: "Open lease record" })
         .getAttribute("href"),
     ).toBe("/leases/lease-1");
     expect(within(firstQuickView).queryByText("Event type")).toBeNull();
@@ -235,7 +258,8 @@ describe("LeaseScreen redesign contract", () => {
     });
     expect(secondQuickView).not.toBeNull();
     expect(
-      within(secondQuickView).getByRole("link", { name: "Open lease record" })
+      within(secondQuickView)
+        .getByRole("link", { name: "Open lease record" })
         .getAttribute("href"),
     ).toBe("/leases/lease-2");
     expect(screen.queryByText(/select a lease row/i)).toBeNull();
@@ -246,7 +270,9 @@ describe("LeaseScreen redesign contract", () => {
     const user = userEvent.setup();
     renderLeases();
 
-    expect(screen.getByRole("textbox", { name: "Search leases" })).not.toBeNull();
+    expect(
+      screen.getByRole("textbox", { name: "Search leases" }),
+    ).not.toBeNull();
     const advancedFilterNames = [
       "Filter leases by property",
       "Filter leases by unit",
@@ -260,7 +286,9 @@ describe("LeaseScreen redesign contract", () => {
     for (const name of advancedFilterNames) {
       expect(screen.queryByRole("combobox", { name })).toBeNull();
     }
-    expect(screen.queryByRole("link", { name: "Reset lease filters" })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Reset lease filters" }),
+    ).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Filters" }));
 
@@ -268,7 +296,9 @@ describe("LeaseScreen redesign contract", () => {
     for (const name of advancedFilterNames) {
       expect(screen.getByRole("combobox", { name })).not.toBeNull();
     }
-    expect(screen.queryByRole("link", { name: "Reset lease filters" })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Reset lease filters" }),
+    ).toBeNull();
   });
 
   it("announces the advanced filter count, enables reset, and preserves URL serialization", async () => {
@@ -315,20 +345,29 @@ describe("LeaseScreen redesign contract", () => {
     expect(review.className).not.toContain("border");
   });
 
-  it.each([1024, 390])("uses one responsive quick-view dialog at %ipx and returns focus", async (width) => {
-    installMatchMedia(width);
-    const user = userEvent.setup();
-    renderLeases();
-    const preview = screen.getByRole("button", { name: "Preview lease for Alice Tenant" });
+  it.each([1024, 390])(
+    "uses one responsive quick-view dialog at %ipx and returns focus",
+    async (width) => {
+      installMatchMedia(width);
+      const user = userEvent.setup();
+      renderLeases();
+      const preview = screen.getByRole("button", {
+        name: "Preview lease for Alice Tenant",
+      });
 
-    expect(screen.queryByRole("dialog")).toBeNull();
-    await user.click(preview);
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("dialog", { name: "Alice Tenant lease quick view" })).not.toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await user.click(preview);
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+      expect(
+        screen.getByRole("dialog", { name: "Alice Tenant lease quick view" }),
+      ).not.toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Close quick view" }));
-    expect(document.activeElement).toBe(preview);
-  });
+      await user.click(
+        screen.getByRole("button", { name: "Close quick view" }),
+      );
+      expect(document.activeElement).toBe(preview);
+    },
+  );
 
   it("keeps Lease creation compact and monthly while lifecycle evidence stays downstream", async () => {
     const user = userEvent.setup();
@@ -337,8 +376,12 @@ describe("LeaseScreen redesign contract", () => {
     await user.click(screen.getByRole("button", { name: "Add lease" }));
 
     const drawer = screen.getByRole("dialog", { name: "Add lease" });
-    expect(within(drawer).getByText("Lease details")).not.toBeNull();
+    expect(within(drawer).getByText("Tenant and unit")).not.toBeNull();
+    expect(within(drawer).getByText("Lease period")).not.toBeNull();
     expect(within(drawer).getByText("Rent and deposit")).not.toBeNull();
+    expect(
+      within(drawer).getByRole("button", { name: "Create draft lease" }),
+    ).not.toBeNull();
     expect(
       within(drawer).getByRole("button", { name: "New tenant" }),
     ).not.toBeNull();
@@ -346,8 +389,7 @@ describe("LeaseScreen redesign contract", () => {
       drawer.querySelector<HTMLInputElement>('input[name="status"]')?.value,
     ).toBe("draft");
     expect(
-      drawer.querySelector<HTMLInputElement>('input[name="termStatus"]')
-        ?.value,
+      drawer.querySelector<HTMLInputElement>('input[name="termStatus"]')?.value,
     ).toBe("draft");
     expect(
       drawer.querySelector<HTMLInputElement>('input[name="paymentFrequency"]')
@@ -363,14 +405,16 @@ describe("LeaseScreen redesign contract", () => {
       within(drawer).getByRole("group", { name: /Security deposit/ }),
     ).not.toBeNull();
     expect(
-      within(drawer).getByRole("textbox", { name: /Rent amount/ }).getAttribute(
-        "min",
-      ),
+      within(drawer)
+        .getByRole("textbox", { name: /Rent amount/ })
+        .getAttribute("min"),
     ).toBe("0.01");
     expect(
-      (within(drawer).getByRole("combobox", {
-        name: /Property/,
-      }) as HTMLButtonElement).disabled,
+      (
+        within(drawer).getByRole("combobox", {
+          name: /Property/,
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
   });
 
@@ -406,7 +450,9 @@ describe("LeaseScreen redesign contract", () => {
     await user.click(screen.getByRole("button", { name: "Add lease" }));
     const drawer = screen.getByRole("dialog", { name: "Add lease" });
     setLeaseDates(drawer, "2026-08-15", "2026-08-31");
-    await user.click(within(drawer).getByRole("combobox", { name: /Property/ }));
+    await user.click(
+      within(drawer).getByRole("combobox", { name: /Property/ }),
+    );
 
     expect(
       screen.queryByRole("option", { name: "Riverside House" }),
@@ -418,9 +464,9 @@ describe("LeaseScreen redesign contract", () => {
     const lease = makeLease("lease-1", "Alice Tenant", "Unit 2A");
     lease.occupancies = [
       {
-      actualLabel: "Not recorded",
-      datesLabel: "Not recorded",
-      evidenceLabel: "Accepted",
+        actualLabel: "Not recorded",
+        datesLabel: "Not recorded",
+        evidenceLabel: "Accepted",
         evidenceState: "accepted",
         id: "occupancy-1",
         residentLabel: "Resident evidence missing",
@@ -441,7 +487,9 @@ describe("LeaseScreen redesign contract", () => {
         name: "Record occupancy evidence",
       }),
     ).toBeNull();
-    expect(within(quickView).queryByText("Resident evidence missing")).toBeNull();
+    expect(
+      within(quickView).queryByText("Resident evidence missing"),
+    ).toBeNull();
   });
 
   it("distinguishes filtered and true empty states and hides unauthorized actions", () => {
@@ -449,9 +497,15 @@ describe("LeaseScreen redesign contract", () => {
       leases: [],
       viewQuery: { ...defaultViewQuery, query: "missing" },
     });
-    const filteredState = screen.getByText("No matching leases").closest("section");
+    const filteredState = screen
+      .getByText("No matching leases")
+      .closest("section");
     expect(filteredState?.getAttribute("data-kind")).toBe("filtered");
-    expect(within(filteredState!).getByRole("link", { name: "Clear filters" }).getAttribute("href")).toBe("/leases");
+    expect(
+      within(filteredState!)
+        .getByRole("link", { name: "Clear filters" })
+        .getAttribute("href"),
+    ).toBe("/leases");
     filtered.unmount();
 
     renderLeases({ canConfigure: false, leases: [] });
@@ -469,7 +523,9 @@ describe("LeaseScreen redesign contract", () => {
     });
 
     expect(within(quickView).getByText("USD 1,200.00 held")).not.toBeNull();
-    expect(within(quickView).queryByRole("button", { name: "Record event" })).toBeNull();
+    expect(
+      within(quickView).queryByRole("button", { name: "Record event" }),
+    ).toBeNull();
     expect(
       within(quickView).queryByRole("button", { name: "Schedule future term" }),
     ).toBeNull();
@@ -479,15 +535,18 @@ describe("LeaseScreen redesign contract", () => {
       }),
     ).toBeNull();
     expect(
-      within(quickView).getByRole("link", { name: "Open lease record" })
+      within(quickView)
+        .getByRole("link", { name: "Open lease record" })
         .getAttribute("href"),
     ).toBe("/leases/lease-1");
     const financeRow = screen.getAllByRole("row")[1]!;
-    expect(within(financeRow).queryByRole("link", { name: "Unit 2A" })).toBeNull();
     expect(
-      within(financeRow).getByRole("link", { name: "Riverside House" }).getAttribute(
-        "href",
-      ),
+      within(financeRow).queryByRole("link", { name: "Unit 2A" }),
+    ).toBeNull();
+    expect(
+      within(financeRow)
+        .getByRole("link", { name: "Riverside House" })
+        .getAttribute("href"),
     ).toBe("/properties/property-1/account");
     expect(within(quickView).getAllByRole("link")).toHaveLength(1);
   });
@@ -550,14 +609,16 @@ function renderLeases({
     <LeaseScreen
       canConfigure={canConfigure}
       leases={nextLeases}
-      pagination={pagination ?? {
+      pagination={
+        pagination ?? {
           from: nextLeases.length > 0 ? 1 : 0,
           page: 1,
           pageSize: 50,
           to: nextLeases.length,
           totalCount: nextLeases.length,
           totalPages: nextLeases.length > 0 ? 1 : 0,
-        }}
+        }
+      }
       propertyOptions={
         propertyOptions ?? [{ id: "property-1", label: "Riverside House" }]
       }

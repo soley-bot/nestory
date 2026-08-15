@@ -412,7 +412,7 @@ function getLeaseDrawerTitle(drawer: DrawerState) {
   }
 
   if (drawer.mode === "edit") {
-    return "Edit lease";
+    return "Edit draft";
   }
 
   if (drawer.mode === "restore") {
@@ -432,7 +432,7 @@ function getLeaseDrawerDescription(drawer: DrawerState) {
   }
 
   if (drawer.mode === "edit") {
-    return "Update authoritative term, policy, and safe Lease metadata. Relationship, occupancy, and lifecycle changes stay locked.";
+    return "Update the draft period, rent, or deposit before activation.";
   }
 
   if (drawer.mode === "restore") {

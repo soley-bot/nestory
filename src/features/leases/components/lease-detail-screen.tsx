@@ -37,10 +37,7 @@ import { getBusinessDateValue } from "@/lib/dates/business-date";
 type LeaseTransition = "activate" | "end" | "give_notice" | "terminate";
 type LeaseTermChange = "renewal" | "rent_change";
 
-type DrawerState =
-  | { mode: "archive" }
-  | { mode: "edit" }
-  | { mode: "restore" };
+type DrawerState = { mode: "archive" } | { mode: "edit" } | { mode: "restore" };
 
 const initialActionState: LeaseActionState = {};
 
@@ -66,10 +63,13 @@ export function LeaseDetailScreen({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const currentOccupancy =
-    lease.occupancies.find((occupancy) => occupancy.evidenceState === "accepted") ??
+    lease.occupancies.find(
+      (occupancy) => occupancy.evidenceState === "accepted",
+    ) ??
     lease.occupancies[0] ??
     null;
-  const activeTerm = lease.terms.find((term) => term.status === "active") ?? null;
+  const activeTerm =
+    lease.terms.find((term) => term.status === "active") ?? null;
 
   const openDrawer = (nextDrawer: DrawerState) => {
     setStatusMessage(null);
@@ -80,23 +80,44 @@ export function LeaseDetailScreen({
     <div className="lg:flex lg:flex-col">
       <PageHeader
         actions={
-          canConfigure ? lease.isArchived ? (
-            <Button onClick={() => openDrawer({ mode: "restore" })} variant="default">
-              <RotateCcw aria-hidden size={15} /> Restore
-            </Button>
-          ) : (
-            <>
-              <Button onClick={() => openDrawer({ mode: "edit" })} variant="default">
-                <Pencil aria-hidden size={15} /> Edit lease
+          canConfigure ? (
+            lease.isArchived ? (
+              <Button
+                onClick={() => openDrawer({ mode: "restore" })}
+                variant="default"
+              >
+                <RotateCcw aria-hidden size={15} /> Restore
               </Button>
-              <Button onClick={() => openDrawer({ mode: "archive" })} variant="outline">
+            ) : lease.statusValue === "draft" ? (
+              <>
+                <Button
+                  onClick={() => openDrawer({ mode: "edit" })}
+                  variant="default"
+                >
+                  <Pencil aria-hidden size={15} /> Edit draft
+                </Button>
+                <Button
+                  onClick={() => openDrawer({ mode: "archive" })}
+                  variant="outline"
+                >
+                  <Archive aria-hidden size={15} /> Archive
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => openDrawer({ mode: "archive" })}
+                variant="outline"
+              >
                 <Archive aria-hidden size={15} /> Archive
               </Button>
-            </>
+            )
           ) : null
         }
         breadcrumb={
-          <PageBreadcrumb current={lease.tenantName} items={[{ href: "/leases", label: "Leases" }]} />
+          <PageBreadcrumb
+            current={lease.tenantName}
+            items={[{ href: "/leases", label: "Leases" }]}
+          />
         }
         className="pb-3"
         context={
@@ -129,7 +150,7 @@ export function LeaseDetailScreen({
           setStatusMessage(null);
           if (!currentOccupancy) {
             setStatusMessage(
-              "Record current occupancy evidence before changing the lease lifecycle.",
+              "Confirm the current resident and move-in before changing the lease.",
             );
             return;
           }
@@ -138,7 +159,9 @@ export function LeaseDetailScreen({
         onScheduleTerm={(mode) => {
           setStatusMessage(null);
           if (!activeTerm) {
-            setStatusMessage("An active rent term is required before scheduling a change.");
+            setStatusMessage(
+              "Add a current rent schedule before changing rent or renewing the lease.",
+            );
             return;
           }
           setTermChange(mode);
@@ -206,7 +229,11 @@ export function LeaseDetailScreen({
       ) : null}
 
       {uploadOpen ? (
-        <Modal onClose={() => setUploadOpen(false)} open title="Upload lease file">
+        <Modal
+          onClose={() => setUploadOpen(false)}
+          open
+          title="Upload lease file"
+        >
           <DocumentForm
             fixedPropertyId={lease.formValues.propertyId}
             fixedUnitId={lease.formValues.unitId ?? undefined}
@@ -253,21 +280,22 @@ function LeaseTermModal({
     () => `lease-term:${lease.id}:${mode}:${crypto.randomUUID()}`,
   );
   const defaults = getTermChangeDefaults(mode, term);
-  const copy = mode === "renewal"
-    ? {
-        endDateLabel: "Renewal end date",
-        startDateLabel: "Renewal start date",
-        submitLabel: "Renew lease",
-        successMessage: "Lease renewal scheduled.",
-        title: "Renew lease",
-      }
-    : {
-        endDateLabel: "Term end date",
-        startDateLabel: "Effective date",
-        submitLabel: "Schedule rent change",
-        successMessage: "Rent change scheduled.",
-        title: "Schedule rent change",
-      };
+  const copy =
+    mode === "renewal"
+      ? {
+          endDateLabel: "Renewal end date",
+          startDateLabel: "Renewal start date",
+          submitLabel: "Renew lease",
+          successMessage: "Lease renewal scheduled.",
+          title: "Renew lease",
+        }
+      : {
+          endDateLabel: "Term end date",
+          startDateLabel: "Effective date",
+          submitLabel: "Change rent",
+          successMessage: "Rent change scheduled.",
+          title: "Change rent",
+        };
 
   useEffect(() => {
     if (state.status !== "success") return;
@@ -303,7 +331,12 @@ function LeaseTermModal({
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             Rent amount
-            <NumberInput defaultValue={term.rentAmount} min="0" name="rentAmount" required />
+            <NumberInput
+              defaultValue={term.rentAmount}
+              min="0"
+              name="rentAmount"
+              required
+            />
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             Rent due day
@@ -335,7 +368,11 @@ function LeaseTermModal({
 
         {state.message ? (
           <p
-            className={state.status === "error" ? "text-sm text-danger" : "text-sm text-muted-foreground"}
+            className={
+              state.status === "error"
+                ? "text-sm text-danger"
+                : "text-sm text-muted-foreground"
+            }
             role="status"
           >
             {state.message}
@@ -343,7 +380,9 @@ function LeaseTermModal({
         ) : null}
 
         <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button onClick={onClose} type="button" variant="ghost">Cancel</Button>
+          <Button onClick={onClose} type="button" variant="ghost">
+            Cancel
+          </Button>
           <Button disabled={pending} type="submit">
             {pending ? "Saving..." : copy.submitLabel}
           </Button>
@@ -356,13 +395,15 @@ function LeaseTermModal({
 function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "archive") return "Archive lease";
   if (drawer.mode === "restore") return "Restore lease";
-  return "Edit lease";
+  return "Edit draft";
 }
 
 function getDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "archive") return "Archive this record without deleting its history.";
-  if (drawer.mode === "restore") return "Review whether this lease can return to active views.";
-  return "Update the lease terms, rent, or deposit.";
+  if (drawer.mode === "archive")
+    return "Archive this record without deleting its history.";
+  if (drawer.mode === "restore")
+    return "Review whether this lease can return to active views.";
+  return "Update the draft period, rent, or deposit before activation.";
 }
 
 function LeaseTransitionModal({
@@ -430,8 +471,9 @@ function LeaseTransitionModal({
         )}
 
         <label className="grid gap-1.5 text-sm font-medium">
-          Evidence note
+          Reason or note
           <textarea
+            aria-label="Reason or note"
             className="min-h-24 resize-y rounded-md border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
             name="reason"
             required
@@ -476,10 +518,10 @@ function getTransitionCopy(transition: LeaseTransition) {
 
   if (transition === "give_notice") {
     return {
-        effectiveDateLabel: "Notice date",
-        submitLabel: "Record notice",
-        successMessage: "Notice recorded.",
-        title: "Record notice",
+      effectiveDateLabel: "Notice date",
+      submitLabel: "Record notice",
+      successMessage: "Notice recorded.",
+      title: "Record notice",
     };
   }
 

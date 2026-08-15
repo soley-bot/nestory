@@ -29,20 +29,48 @@ describe("LeaseDetailScreen", () => {
   it("provides one ordered record with four sections", () => {
     renderDetail("overview");
 
-    const nav = screen.getByRole("navigation", { name: "Lease record sections" });
-    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
+    const nav = screen.getByRole("navigation", {
+      name: "Lease record sections",
+    });
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual([
       "Overview",
       "Rent & deposit",
-      "Occupancy",
+      "Move-in & move-out",
       "Files & history",
     ]);
-    expect(screen.getByRole("heading", { level: 1, name: "Alice Tenant" })).not.toBeNull();
-    expect(screen.getAllByText(/Riverside House \/ Unit 2A/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "Lease lifecycle" })).not.toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Alice Tenant" }),
+    ).not.toBeNull();
+    expect(
+      screen.getAllByText(/Riverside House \/ Unit 2A/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("heading", { name: "Manage lease" }),
+    ).not.toBeNull();
     expect(screen.getByRole("button", { name: "Renew lease" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Give notice" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Complete move-out" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Terminate lease" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Change rent" })).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Record notice" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Complete move-out" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Terminate lease" }),
+    ).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit lease" })).toBeNull();
+  });
+
+  it("keeps database lifecycle fields out of the active lease workflow", () => {
+    renderDetail("overview");
+
+    expect(screen.queryByRole("button", { name: "Edit lease" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Status" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Term status" })).toBeNull();
   });
 
   it("activates a draft through the checked lifecycle dialog", async () => {
@@ -53,6 +81,8 @@ describe("LeaseDetailScreen", () => {
 
     renderDetail("overview", lease);
 
+    expect(screen.getByRole("button", { name: "Edit draft" })).not.toBeNull();
+
     await user.click(screen.getByRole("button", { name: "Activate lease" }));
 
     const dialog = screen.getByRole("dialog", { name: "Activate lease" });
@@ -60,6 +90,34 @@ describe("LeaseDetailScreen", () => {
     expect(
       dialog.querySelector<HTMLInputElement>('input[name="transition"]')?.value,
     ).toBe("activate");
+  });
+
+  it("edits only draft terms without exposing relationship or lifecycle fields", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.statusLabel = "Draft";
+    lease.statusValue = "draft";
+
+    renderDetail("overview", lease);
+    await user.click(screen.getByRole("button", { name: "Edit draft" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Edit draft" });
+    expect(within(dialog).getByRole("form", { name: "Edit draft form" })).not.toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: "Tenant" })).toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: "Property" })).toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: "Unit" })).toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: "Status" })).toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: "Term status" })).toBeNull();
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="tenantPersonId"]')
+        ?.value,
+    ).toBe("person-1");
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="propertyId"]')?.value,
+    ).toBe("property-1");
+    expect(dialog.querySelector<HTMLInputElement>('input[name="unitId"]')?.value).toBe(
+      "unit-1",
+    );
   });
 
   it("starts renewal from the day after the current term", async () => {
@@ -98,16 +156,21 @@ describe("LeaseDetailScreen", () => {
     const user = userEvent.setup();
     renderDetail("overview");
 
-    await user.click(screen.getByRole("button", { name: "Give notice" }));
+    await user.click(screen.getByRole("button", { name: "Record notice" }));
 
     const dialog = screen.getByRole("dialog", { name: "Record notice" });
     expect(within(dialog).getByLabelText("Notice date")).not.toBeNull();
-    expect(within(dialog).getByLabelText("Planned move-out date")).not.toBeNull();
-    expect(within(dialog).getByLabelText("Evidence note")).not.toBeNull();
-    expect(within(dialog).queryByRole("combobox", { name: "Status" })).toBeNull();
     expect(
-      dialog.querySelector<HTMLInputElement>('input[name="expectedOccupancyId"]')
-        ?.value,
+      within(dialog).getByLabelText("Planned move-out date"),
+    ).not.toBeNull();
+    expect(within(dialog).getByLabelText("Reason or note")).not.toBeNull();
+    expect(
+      within(dialog).queryByRole("combobox", { name: "Status" }),
+    ).toBeNull();
+    expect(
+      dialog.querySelector<HTMLInputElement>(
+        'input[name="expectedOccupancyId"]',
+      )?.value,
     ).toBe("occupancy-1");
     expect(
       dialog.querySelector<HTMLInputElement>('input[name="transition"]')?.value,
@@ -115,14 +178,57 @@ describe("LeaseDetailScreen", () => {
   });
 
   it.each([
-    ["rent", "Rent & deposit", "Schedule rent change"],
-    ["occupancy", "Occupancy", "Occupancy evidence"],
+    ["rent", "Rent & deposit", "Change rent"],
+    ["occupancy", "Move-in & move-out", "Move-in confirmation"],
     ["files", "Files & history", "Lease agreement.pdf"],
-  ] as const)("keeps %s workflows in the %s section", (section, heading, content) => {
-    renderDetail(section);
+  ] as const)(
+    "keeps %s workflows in the %s section",
+    (section, heading, content) => {
+      renderDetail(section);
 
-    expect(screen.getByRole("heading", { name: heading })).not.toBeNull();
-    expect(screen.getByText(content)).not.toBeNull();
+      expect(screen.getByRole("heading", { name: heading })).not.toBeNull();
+      expect(screen.getByText(content)).not.toBeNull();
+    },
+  );
+
+  it("describes deposit activity as user actions instead of stored event rows", () => {
+    const lease = makeLease();
+    lease.deposits[0]!.events = [
+      {
+        amountDisplay: lease.deposits[0]!.amountDisplay,
+        eventDate: "2026-07-01",
+        eventType: "received",
+        id: "deposit-event-1",
+        reference: "RCPT-1",
+        reversible: true,
+      },
+    ];
+
+    renderDetail("rent", lease);
+
+    expect(
+      screen.getByRole("heading", { name: "Rent schedule" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Deposit activity" }),
+    ).not.toBeNull();
+    expect(screen.getAllByText(/Deposit received/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Receipt or note/)).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Save deposit activity" }),
+    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Undo entry" })).not.toBeNull();
+    expect(screen.queryByText(/received \/ /)).toBeNull();
+  });
+
+  it("uses move-in and move-out language without exposing evidence state", () => {
+    renderDetail("occupancy");
+
+    expect(screen.getByText("Planned dates")).not.toBeNull();
+    expect(screen.getByText("Confirmed dates")).not.toBeNull();
+    expect(screen.getByText("Confirmation")).not.toBeNull();
+    expect(screen.queryByText("Evidence")).toBeNull();
+    expect(screen.queryByText("Accepted")).toBeNull();
   });
 
   it("uploads a file without leaving the lease record", async () => {
@@ -135,15 +241,15 @@ describe("LeaseDetailScreen", () => {
     const form = within(dialog).getByRole("form", {
       name: "Upload document form",
     });
-    expect(form.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value).toBe(
-      "lease-1",
-    );
+    expect(
+      form.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value,
+    ).toBe("lease-1");
     expect(
       form.querySelector<HTMLInputElement>('input[name="propertyId"]')?.value,
     ).toBe("property-1");
-    expect(form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value).toBe(
-      "unit-1",
-    );
+    expect(
+      form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value,
+    ).toBe("unit-1");
   });
 });
 
@@ -163,7 +269,9 @@ function renderDetail(activeSection: LeaseRecordSection, lease = makeLease()) {
           roles: ["tenant"],
         },
       ]}
-      unitOptions={[{ id: "unit-1", label: "Unit 2A", propertyId: "property-1" }]}
+      unitOptions={[
+        { id: "unit-1", label: "Unit 2A", propertyId: "property-1" },
+      ]}
     />,
   );
 }
