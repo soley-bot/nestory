@@ -208,24 +208,9 @@ async function loadMemberships(
     }));
   }
 
-  const fallback = await supabase
-    .from("organization_members")
-    .select("id, user_id, role, person_id, branch_id")
-    .eq("organization_id", organizationId)
-    .order("created_at", { ascending: true });
-
-  if (fallback.error) {
-    throw new Error(`Could not load memberships: ${fallback.error.message}`);
-  }
-
-  return (fallback.data ?? []).map((member) => ({
-    branchId: member.branch_id,
-    email: null,
-    id: member.id,
-    personId: member.person_id,
-    role: normalizeRole(member.role),
-    userId: member.user_id,
-  }));
+  throw new Error(
+    `Could not load workspace members: ${membersResult.error.message}`,
+  );
 }
 
 async function loadInvitations(
@@ -330,7 +315,7 @@ function mergeStaffOptions(
 
 function normalizeRole(role: string): OrganizationMembership["role"] {
   if (!isWorkspaceRole(role)) {
-    throw new Error(`Unsupported workspace role: ${role}`);
+    throw new Error("Workspace access contains an unsupported role.");
   }
 
   return role;

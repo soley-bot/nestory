@@ -11,6 +11,7 @@ import {
   normalizeHexColor,
   THEME_MODES,
 } from "@/lib/theme/organization-theme";
+import { workspaceRoleSchema } from "@/features/organization/workspace-roles";
 
 export type OrganizationActionState = {
   message?: string;
@@ -43,26 +44,14 @@ const memberSchema = z.object({
   branchId: optionalUuidSchema,
   memberId: uuidShapeSchema,
   personId: optionalUuidSchema,
-  role: z.enum([
-    "super_admin",
-    "finance_manager",
-    "finance_member",
-    "operations_manager",
-    "operations_member",
-  ]),
+  role: workspaceRoleSchema,
 });
 
 const userAccessSchema = z.object({
   branchId: optionalUuidSchema,
   email: z.string().trim().toLowerCase().pipe(z.email()),
   personId: optionalUuidSchema,
-  role: z.enum([
-    "super_admin",
-    "finance_manager",
-    "finance_member",
-    "operations_manager",
-    "operations_member",
-  ]),
+  role: workspaceRoleSchema,
 });
 const invitationIdSchema = z.object({ invitationId: uuidShapeSchema });
 const memberIdSchema = z.object({ memberId: uuidShapeSchema });

@@ -140,6 +140,17 @@ function getExpandedMember(id: string) {
 }
 
 describe("AccessSettingsScreen protected access rows", () => {
+  it("explains the access boundary before showing the register", () => {
+    renderScreen();
+
+    expect(screen.getByRole("heading", { name: "Workspace access" })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Manage who can sign in, what they can do, and which branch they can access.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("exposes the authoritative last-admin protection", () => {
     renderScreen({ people: [adminPerson] });
 
