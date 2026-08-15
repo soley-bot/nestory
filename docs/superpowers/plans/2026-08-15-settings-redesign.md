@@ -164,7 +164,7 @@ npx supabase --version
 npx supabase migration new update_organization_identity
 ```
 
-Define a `SECURITY DEFINER SET search_path = ''` function that validates `auth.uid()`, checks `app_private.is_org_admin`, locks the organization row, updates only `public.organizations.name`, and inserts `public.activity_logs(entity_type='organization', action='updated', old_values, new_values)`. Revoke from `PUBLIC` and `anon`; grant only to `authenticated`.
+Define a `SECURITY DEFINER SET search_path = ''` function that validates `auth.uid()`, checks `app_private.is_org_admin`, locks the organization row, updates only `public.organizations.name`, and inserts `public.activity_logs(entity_type='organization', action='updated', previous_values, new_values)`. Revoke from `PUBLIC` and `anon`; grant only to `authenticated`.
 
 - [ ] **Step 4: Implement the action and identity editor**
 

@@ -10511,6 +10511,10 @@ export type Database = {
         }
         Returns: string
       }
+      update_organization_identity: {
+        Args: { p_name: string; p_organization_id: string }
+        Returns: string
+      }
       update_organization_member_access: {
         Args: {
           p_branch_id: string

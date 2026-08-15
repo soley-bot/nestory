@@ -14,7 +14,10 @@ vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 vi.mock("@/lib/db/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
 vi.mock("@/lib/auth/callback-url", () => ({ getAuthCallbackUrl: vi.fn() }));
 
-import { updateOrganizationAppearanceAction } from "@/features/organization/actions";
+import {
+  updateOrganizationAppearanceAction,
+  updateOrganizationIdentityAction,
+} from "@/features/organization/actions";
 
 beforeEach(() => {
   rpc.mockReset();
@@ -70,5 +73,36 @@ describe("updateOrganizationAppearanceAction", () => {
       "update_organization_appearance",
       expect.objectContaining({ p_accent_seed: null }),
     );
+  });
+});
+
+describe("updateOrganizationIdentityAction", () => {
+  it("trims and persists the workspace display name without accepting a slug", async () => {
+    rpc.mockResolvedValue({ data: "Soley Property Management", error: null });
+    const form = new FormData();
+    form.set("name", "  Soley Property Management  ");
+    form.set("slug", "changed-behind-the-ui");
+
+    await expect(updateOrganizationIdentityAction({}, form)).resolves.toEqual({
+      message: "Workspace name updated.",
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("update_organization_identity", {
+      p_name: "Soley Property Management",
+      p_organization_id: "org-1",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/organization");
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("rejects an invalid workspace name before the RPC", async () => {
+    const form = new FormData();
+    form.set("name", " ");
+
+    await expect(updateOrganizationIdentityAction({}, form)).resolves.toEqual({
+      message: "Enter a workspace name between 2 and 120 characters.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

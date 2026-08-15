@@ -5,13 +5,12 @@ import {
 } from "@/features/organization/components/settings-workspace";
 import { getOrganizationSettingsData } from "@/features/organization/data";
 import { requireSuperAdminContext } from "@/lib/auth/context";
-
-type CanonicalOrganizationSection = Exclude<SettingsSection, "configuration">;
+import { getOrganizationWorkspaceUrl } from "@/lib/auth/tenant";
 
 export async function OrganizationSettingsRoute({
   section,
 }: {
-  section: CanonicalOrganizationSection;
+  section: SettingsSection;
 }) {
   const context = await requireSuperAdminContext();
   const data = await getOrganizationSettingsData(context.organizationId);
@@ -28,6 +27,7 @@ export async function OrganizationSettingsRoute({
         section={section}
         staff={data.staff}
         teams={data.teams}
+        workspaceUrl={getOrganizationWorkspaceUrl(context.organizationSlug, "/")}
       />
     </SettingsShell>
   );

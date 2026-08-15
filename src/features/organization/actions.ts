@@ -71,6 +71,9 @@ const appearanceSchema = z.object({
   accentSeed: z.string().trim(),
   mode: z.enum(THEME_MODES),
 });
+const organizationIdentitySchema = z.object({
+  name: z.string().trim().min(2).max(120),
+});
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -117,6 +120,35 @@ export async function updateOrganizationAppearanceAction(
   revalidateSettings();
   revalidatePath("/", "layout");
   return { message: "Appearance updated.", status: "success" };
+}
+
+export async function updateOrganizationIdentityAction(
+  _state: OrganizationActionState,
+  formData: FormData,
+): Promise<OrganizationActionState> {
+  const context = await requireSuperAdminContext();
+  const parsed = organizationIdentitySchema.safeParse({
+    name: readString(formData, "name"),
+  });
+  if (!parsed.success) {
+    return {
+      message: "Enter a workspace name between 2 and 120 characters.",
+      status: "error",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_organization_identity", {
+    p_name: parsed.data.name,
+    p_organization_id: context.organizationId,
+  });
+  if (error) {
+    return { message: organizationErrorMessage(error.message), status: "error" };
+  }
+
+  revalidatePath("/settings/organization");
+  revalidatePath("/", "layout");
+  return { message: "Workspace name updated.", status: "success" };
 }
 
 export async function createBranchAction(

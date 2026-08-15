@@ -25,6 +25,7 @@ export function OrganizationSettingsScreen({
   section,
   staff,
   teams,
+  workspaceUrl,
 }: {
   appearance?: OrganizationTheme;
   branches: OrganizationBranch[];
@@ -35,6 +36,7 @@ export function OrganizationSettingsScreen({
   section: SettingsSection;
   staff: OrganizationPersonOption[];
   teams: OrganizationTeam[];
+  workspaceUrl?: string;
 }) {
   return (
     <SettingsNavigationGuardProvider>
@@ -48,6 +50,7 @@ export function OrganizationSettingsScreen({
           section={section}
           staff={staff}
           teams={teams}
+          workspaceUrl={workspaceUrl}
         />
       </WorkspacePage>
     </SettingsNavigationGuardProvider>
