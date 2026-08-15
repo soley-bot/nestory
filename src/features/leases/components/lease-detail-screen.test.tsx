@@ -39,10 +39,59 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Alice Tenant" })).not.toBeNull();
     expect(screen.getAllByText(/Riverside House \/ Unit 2A/).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Lease lifecycle" })).not.toBeNull();
-    expect(screen.getByRole("link", { name: "Renew or change rent" }).getAttribute("href"))
-      .toBe("/leases/lease-1?section=rent");
+    expect(screen.getByRole("button", { name: "Renew lease" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Give notice" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Complete move-out" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Terminate lease" })).not.toBeNull();
+  });
+
+  it("activates a draft through the checked lifecycle dialog", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.statusLabel = "Draft";
+    lease.statusValue = "draft";
+
+    renderDetail("overview", lease);
+
+    await user.click(screen.getByRole("button", { name: "Activate lease" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Activate lease" });
+    expect(within(dialog).getByLabelText("Activation date")).not.toBeNull();
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="transition"]')?.value,
+    ).toBe("activate");
+  });
+
+  it("starts renewal from the day after the current term", async () => {
+    const user = userEvent.setup();
+    renderDetail("overview");
+
+    await user.click(screen.getByRole("button", { name: "Renew lease" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Renew lease" });
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="startDate"]')?.value,
+    ).toBe("2027-07-01");
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="endDate"]')?.value,
+    ).toBe("2028-06-30");
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="supersedesTermId"]')
+        ?.value,
+    ).toBe("term-1");
+  });
+
+  it("completes move-out through the checked end transition", async () => {
+    const user = userEvent.setup();
+    renderDetail("overview");
+
+    await user.click(screen.getByRole("button", { name: "Complete move-out" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Complete move-out" });
+    expect(within(dialog).getByLabelText("Move-out date")).not.toBeNull();
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="transition"]')?.value,
+    ).toBe("end");
   });
 
   it("uses the checked lifecycle workflow instead of editing status directly", async () => {
@@ -66,7 +115,7 @@ describe("LeaseDetailScreen", () => {
   });
 
   it.each([
-    ["rent", "Rent & deposit", "Schedule future rent"],
+    ["rent", "Rent & deposit", "Schedule rent change"],
     ["occupancy", "Occupancy", "Occupancy evidence"],
     ["files", "Files & history", "Lease agreement.pdf"],
   ] as const)("keeps %s workflows in the %s section", (section, heading, content) => {
@@ -75,14 +124,35 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByRole("heading", { name: heading })).not.toBeNull();
     expect(screen.getByText(content)).not.toBeNull();
   });
+
+  it("uploads a file without leaving the lease record", async () => {
+    const user = userEvent.setup();
+    renderDetail("files");
+
+    await user.click(screen.getByRole("button", { name: "Attach file" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Upload lease file" });
+    const form = within(dialog).getByRole("form", {
+      name: "Upload document form",
+    });
+    expect(form.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value).toBe(
+      "lease-1",
+    );
+    expect(
+      form.querySelector<HTMLInputElement>('input[name="propertyId"]')?.value,
+    ).toBe("property-1");
+    expect(form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value).toBe(
+      "unit-1",
+    );
+  });
 });
 
-function renderDetail(activeSection: LeaseRecordSection) {
+function renderDetail(activeSection: LeaseRecordSection, lease = makeLease()) {
   render(
     <LeaseDetailScreen
       activeSection={activeSection}
       canConfigure
-      lease={makeLease()}
+      lease={lease}
       propertyOptions={[{ id: "property-1", label: "RIVER - Riverside House" }]}
       tenantOptions={[
         {

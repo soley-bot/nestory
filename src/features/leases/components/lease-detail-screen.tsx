@@ -9,7 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Modal } from "@/components/ui/modal";
+import { NumberInput } from "@/components/ui/number-input";
+import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { DocumentForm } from "@/features/documents/components/document-screen";
 import {
   ArchiveLeasePanel,
   RestoreLeasePanel,
@@ -17,6 +20,7 @@ import {
 import { LeaseDetailView } from "@/features/leases/components/lease-detail-view";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import {
+  scheduleFutureRentTermAction,
   transitionLeaseLifecycleAction,
   type LeaseActionState,
 } from "@/features/leases/actions";
@@ -25,11 +29,13 @@ import type {
   LeasePropertyOption,
   LeaseSummary,
   LeaseTenantOption,
+  LeaseTermContext,
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 
-type LeaseTransition = "give_notice" | "terminate";
+type LeaseTransition = "activate" | "end" | "give_notice" | "terminate";
+type LeaseTermChange = "renewal" | "rent_change";
 
 type DrawerState =
   | { mode: "archive" }
@@ -53,13 +59,17 @@ export function LeaseDetailScreen({
   tenantOptions: LeaseTenantOption[];
   unitOptions: LeaseUnitOption[];
 }) {
+  const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
+  const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const currentOccupancy =
     lease.occupancies.find((occupancy) => occupancy.evidenceState === "accepted") ??
     lease.occupancies[0] ??
     null;
+  const activeTerm = lease.terms.find((term) => term.status === "active") ?? null;
 
   const openDrawer = (nextDrawer: DrawerState) => {
     setStatusMessage(null);
@@ -111,6 +121,10 @@ export function LeaseDetailScreen({
         activeSection={activeSection}
         canConfigure={canConfigure}
         lease={lease}
+        onAttachFile={() => {
+          setStatusMessage(null);
+          setUploadOpen(true);
+        }}
         onLifecycleChange={(nextTransition) => {
           setStatusMessage(null);
           if (!currentOccupancy) {
@@ -120,6 +134,14 @@ export function LeaseDetailScreen({
             return;
           }
           setTransition(nextTransition);
+        }}
+        onScheduleTerm={(mode) => {
+          setStatusMessage(null);
+          if (!activeTerm) {
+            setStatusMessage("An active rent term is required before scheduling a change.");
+            return;
+          }
+          setTermChange(mode);
         }}
       />
 
@@ -169,7 +191,165 @@ export function LeaseDetailScreen({
           transition={transition}
         />
       ) : null}
+
+      {termChange && activeTerm ? (
+        <LeaseTermModal
+          lease={lease}
+          mode={termChange}
+          onClose={() => setTermChange(null)}
+          onSuccess={(message) => {
+            setStatusMessage(message);
+            setTermChange(null);
+          }}
+          term={activeTerm}
+        />
+      ) : null}
+
+      {uploadOpen ? (
+        <Modal onClose={() => setUploadOpen(false)} open title="Upload lease file">
+          <DocumentForm
+            fixedPropertyId={lease.formValues.propertyId}
+            fixedUnitId={lease.formValues.unitId ?? undefined}
+            initialValues={{
+              category: "Lease",
+              leaseId: lease.id,
+              propertyId: lease.formValues.propertyId,
+              unitId: lease.formValues.unitId,
+            }}
+            mode="create"
+            onClose={() => setUploadOpen(false)}
+            onSuccess={(message) => {
+              setStatusMessage(message);
+              router.refresh();
+            }}
+            properties={propertyOptions}
+            units={unitOptions}
+          />
+        </Modal>
+      ) : null}
     </div>
+  );
+}
+
+function LeaseTermModal({
+  lease,
+  mode,
+  onClose,
+  onSuccess,
+  term,
+}: {
+  lease: LeaseSummary;
+  mode: LeaseTermChange;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+  term: LeaseTermContext;
+}) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(
+    scheduleFutureRentTermAction,
+    initialActionState,
+  );
+  const [idempotencyKey] = useState(
+    () => `lease-term:${lease.id}:${mode}:${crypto.randomUUID()}`,
+  );
+  const defaults = getTermChangeDefaults(mode, term);
+  const copy = mode === "renewal"
+    ? {
+        endDateLabel: "Renewal end date",
+        startDateLabel: "Renewal start date",
+        submitLabel: "Renew lease",
+        successMessage: "Lease renewal scheduled.",
+        title: "Renew lease",
+      }
+    : {
+        endDateLabel: "Term end date",
+        startDateLabel: "Effective date",
+        submitLabel: "Schedule rent change",
+        successMessage: "Rent change scheduled.",
+        title: "Schedule rent change",
+      };
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+    onSuccess(state.message ?? copy.successMessage);
+    router.refresh();
+  }, [copy.successMessage, onSuccess, router, state.message, state.status]);
+
+  return (
+    <Modal onClose={onClose} open title={copy.title}>
+      <form action={formAction} className="space-y-4 p-4">
+        <input name="leaseId" type="hidden" value={lease.id} />
+        <input name="supersedesTermId" type="hidden" value={term.id} />
+        <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-sm font-medium">
+            {copy.startDateLabel}
+            <DatePickerField
+              ariaLabel={copy.startDateLabel}
+              defaultValue={defaults.startDate}
+              name="startDate"
+              required
+            />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            {copy.endDateLabel}
+            <DatePickerField
+              ariaLabel={copy.endDateLabel}
+              defaultValue={defaults.endDate}
+              name="endDate"
+              required
+            />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            Rent amount
+            <NumberInput defaultValue={term.rentAmount} min="0" name="rentAmount" required />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            Rent due day
+            <NumberInput
+              defaultValue={term.rentDueDay ?? undefined}
+              max="31"
+              min="1"
+              name="rentDueDay"
+              required
+            />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium sm:col-span-2">
+            Payment frequency
+            <SelectControl
+              ariaLabel="Payment frequency"
+              defaultValue={term.paymentFrequency ?? "monthly"}
+              name="paymentFrequency"
+              options={[
+                { label: "Monthly", value: "monthly" },
+                { label: "Quarterly", value: "quarterly" },
+                { label: "Semi-annual", value: "semi_annual" },
+                { label: "Annual", value: "annual" },
+                { label: "One time", value: "one_time" },
+              ]}
+              required
+            />
+          </label>
+        </div>
+
+        {state.message ? (
+          <p
+            className={state.status === "error" ? "text-sm text-danger" : "text-sm text-muted-foreground"}
+            role="status"
+          >
+            {state.message}
+          </p>
+        ) : null}
+
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <Button onClick={onClose} type="button" variant="ghost">Cancel</Button>
+          <Button disabled={pending} type="submit">
+            {pending ? "Saving..." : copy.submitLabel}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -285,17 +465,61 @@ function FieldError({ errors }: { errors?: string[] }) {
 }
 
 function getTransitionCopy(transition: LeaseTransition) {
-  return transition === "give_notice"
-    ? {
+  if (transition === "activate") {
+    return {
+      effectiveDateLabel: "Activation date",
+      submitLabel: "Activate lease",
+      successMessage: "Lease activated.",
+      title: "Activate lease",
+    };
+  }
+
+  if (transition === "give_notice") {
+    return {
         effectiveDateLabel: "Notice date",
         submitLabel: "Record notice",
         successMessage: "Notice recorded.",
         title: "Record notice",
-      }
-    : {
-        effectiveDateLabel: "Termination date",
-        submitLabel: "Terminate lease",
-        successMessage: "Lease terminated.",
-        title: "Terminate lease",
-      };
+    };
+  }
+
+  if (transition === "end") {
+    return {
+      effectiveDateLabel: "Move-out date",
+      submitLabel: "Complete move-out",
+      successMessage: "Move-out completed.",
+      title: "Complete move-out",
+    };
+  }
+
+  return {
+    effectiveDateLabel: "Termination date",
+    submitLabel: "Terminate lease",
+    successMessage: "Lease terminated.",
+    title: "Terminate lease",
+  };
+}
+
+function getTermChangeDefaults(mode: LeaseTermChange, term: LeaseTermContext) {
+  if (mode === "renewal") {
+    const startDate = addDaysIso(term.endDate, 1);
+    const nextYear = new Date(`${startDate}T00:00:00.000Z`);
+    nextYear.setUTCFullYear(nextYear.getUTCFullYear() + 1);
+
+    return {
+      endDate: addDaysIso(nextYear.toISOString().slice(0, 10), -1),
+      startDate,
+    };
+  }
+
+  return {
+    endDate: term.endDate,
+    startDate: "",
+  };
+}
+
+function addDaysIso(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }

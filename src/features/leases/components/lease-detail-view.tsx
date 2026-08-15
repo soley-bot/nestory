@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState, type ReactNode } from "react";
-import { ArrowRight, FilePlus2 } from "lucide-react";
+import { useActionState, type ReactNode } from "react";
+import { FilePlus2 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
   recordCurrentLeaseOccupancyEvidenceAction,
   recordLeaseDepositEventAction,
   reverseLeaseDepositEventAction,
-  scheduleFutureRentTermAction,
 } from "@/features/leases/actions";
 import {
   buildLeaseRecordHref,
@@ -37,12 +36,18 @@ export function LeaseDetailView({
   activeSection,
   canConfigure,
   lease,
+  onAttachFile,
   onLifecycleChange,
+  onScheduleTerm,
 }: {
   activeSection: LeaseRecordSection;
   canConfigure: boolean;
   lease: LeaseSummary;
-  onLifecycleChange: (transition: "give_notice" | "terminate") => void;
+  onAttachFile: () => void;
+  onLifecycleChange: (
+    transition: "activate" | "end" | "give_notice" | "terminate"
+  ) => void;
+  onScheduleTerm: (mode: "renewal" | "rent_change") => void;
 }) {
   return (
     <div className="workspace-gutter-x flex flex-col gap-5 pb-12">
@@ -54,15 +59,22 @@ export function LeaseDetailView({
             canConfigure={canConfigure}
             lease={lease}
             onLifecycleChange={onLifecycleChange}
+            onScheduleTerm={onScheduleTerm}
           />
         ) : null}
         {activeSection === "rent" ? (
-          <LeaseRentAndDeposit canConfigure={canConfigure} lease={lease} />
+          <LeaseRentAndDeposit
+            canConfigure={canConfigure}
+            lease={lease}
+            onScheduleTerm={onScheduleTerm}
+          />
         ) : null}
         {activeSection === "occupancy" ? (
           <LeaseOccupancy canConfigure={canConfigure} lease={lease} />
         ) : null}
-        {activeSection === "files" ? <LeaseFilesAndHistory lease={lease} /> : null}
+        {activeSection === "files" ? (
+          <LeaseFilesAndHistory lease={lease} onAttachFile={onAttachFile} />
+        ) : null}
       </div>
     </div>
   );
@@ -102,10 +114,14 @@ function LeaseOverview({
   canConfigure,
   lease,
   onLifecycleChange,
+  onScheduleTerm,
 }: {
   canConfigure: boolean;
   lease: LeaseSummary;
-  onLifecycleChange: (transition: "give_notice" | "terminate") => void;
+  onLifecycleChange: (
+    transition: "activate" | "end" | "give_notice" | "terminate"
+  ) => void;
+  onScheduleTerm: (mode: "renewal" | "rent_change") => void;
 }) {
   const primaryParty = lease.parties[0];
 
@@ -149,19 +165,29 @@ function LeaseOverview({
       <section aria-labelledby="lease-lifecycle-heading">
         <SectionHeading id="lease-lifecycle-heading" title="Lease lifecycle" />
         <div className="mt-3 flex flex-wrap items-center gap-2 border-y border-border py-3">
-          <Link
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-            href={buildLeaseRecordHref({ leaseId: lease.id, section: "rent" })}
-          >
-            Renew or change rent
-            <ArrowRight aria-hidden size={14} />
-          </Link>
+          {canConfigure && !lease.isArchived && lease.statusValue === "draft" ? (
+            <Button onClick={() => onLifecycleChange("activate")}>Activate lease</Button>
+          ) : null}
+          {canConfigure && !lease.isArchived && lease.statusValue === "active" ? (
+            <Button onClick={() => onScheduleTerm("renewal")} variant="outline">
+              Renew lease
+            </Button>
+          ) : null}
           {canConfigure && !lease.isArchived && lease.statusValue === "active" ? (
             <Button onClick={() => onLifecycleChange("give_notice")}>
               Give notice
             </Button>
           ) : null}
-          {canConfigure && !lease.isArchived && !["ended", "terminated", "cancelled"].includes(lease.statusValue) ? (
+          {canConfigure &&
+          !lease.isArchived &&
+          ["active", "notice_given"].includes(lease.statusValue) ? (
+            <Button onClick={() => onLifecycleChange("end")} variant="outline">
+              Complete move-out
+            </Button>
+          ) : null}
+          {canConfigure &&
+          !lease.isArchived &&
+          ["active", "notice_given"].includes(lease.statusValue) ? (
             <Button onClick={() => onLifecycleChange("terminate")} variant="outline">
               Terminate lease
             </Button>
@@ -175,14 +201,12 @@ function LeaseOverview({
 function LeaseRentAndDeposit({
   canConfigure,
   lease,
+  onScheduleTerm,
 }: {
   canConfigure: boolean;
   lease: LeaseSummary;
+  onScheduleTerm: (mode: "renewal" | "rent_change") => void;
 }) {
-  const [scheduleState, scheduleFutureTerm, schedulePending] = useActionState(
-    scheduleFutureRentTermAction,
-    {},
-  );
   const [depositState, recordDepositEvent, depositPending] = useActionState(
     recordLeaseDepositEventAction,
     {},
@@ -191,7 +215,6 @@ function LeaseRentAndDeposit({
     reverseLeaseDepositEventAction,
     {},
   );
-  const [idempotencySeed] = useState(() => crypto.randomUUID());
   const activeTerm = lease.terms.find((term) => term.status === "active");
 
   return (
@@ -206,7 +229,14 @@ function LeaseRentAndDeposit({
       </section>
 
       <section aria-labelledby="rent-terms-heading">
-        <SectionHeading id="rent-terms-heading" title="Rent terms" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionHeading id="rent-terms-heading" title="Rent terms" />
+          {canConfigure && activeTerm && !lease.isArchived ? (
+            <Button onClick={() => onScheduleTerm("rent_change")} variant="outline">
+              Schedule rent change
+            </Button>
+          ) : null}
+        </div>
         <div className="mt-3 divide-y divide-border border-y border-border">
           {lease.terms.map((term) => (
             <div className="grid gap-1 py-3 text-sm sm:grid-cols-[minmax(0,1.5fr)_minmax(120px,0.75fr)_minmax(100px,0.5fr)] sm:items-center" key={term.id}>
@@ -220,42 +250,6 @@ function LeaseRentAndDeposit({
           ))}
         </div>
       </section>
-
-      {canConfigure && activeTerm && !lease.isArchived ? (
-        <section aria-labelledby="future-rent-heading">
-          <SectionHeading id="future-rent-heading" title="Schedule future rent" />
-          <form action={scheduleFutureTerm} className="mt-3 grid gap-3 border-y border-border py-4 sm:grid-cols-2 lg:grid-cols-5">
-            <input name="leaseId" type="hidden" value={lease.id} />
-            <input name="supersedesTermId" type="hidden" value={activeTerm.id} />
-            <input name="idempotencyKey" type="hidden" value={`${idempotencySeed}:${lease.id}:${activeTerm.id}`} />
-            <Field label="Effective date"><DatePickerField ariaLabel="Future term effective date" name="startDate" required /></Field>
-            <Field label="Term end"><DatePickerField ariaLabel="Future term end date" name="endDate" required /></Field>
-            <Field label="Rent amount"><NumberInput defaultValue={activeTerm.rentAmount} min="0" name="rentAmount" required /></Field>
-            <Field label="Due day"><NumberInput defaultValue={activeTerm.rentDueDay ?? undefined} max="31" min="1" name="rentDueDay" required /></Field>
-            <Field label="Frequency">
-              <SelectControl
-                ariaLabel="Future term payment frequency"
-                defaultValue={activeTerm.paymentFrequency ?? "monthly"}
-                name="paymentFrequency"
-                options={[
-                  { label: "Monthly", value: "monthly" },
-                  { label: "Quarterly", value: "quarterly" },
-                  { label: "Semi-annual", value: "semi_annual" },
-                  { label: "Annual", value: "annual" },
-                  { label: "One time", value: "one_time" },
-                ]}
-                required
-              />
-            </Field>
-            <div className="flex items-end lg:col-start-5">
-              <Button className="w-full" disabled={schedulePending} type="submit">
-                {schedulePending ? "Scheduling..." : "Schedule future term"}
-              </Button>
-            </div>
-            <ActionMessage className="sm:col-span-2 lg:col-span-5" state={scheduleState} />
-          </form>
-        </section>
-      ) : null}
 
       <section aria-labelledby="deposit-events-heading">
         <SectionHeading id="deposit-events-heading" title="Deposit events" />
@@ -370,15 +364,21 @@ function LeaseOccupancy({
   );
 }
 
-function LeaseFilesAndHistory({ lease }: { lease: LeaseSummary }) {
+function LeaseFilesAndHistory({
+  lease,
+  onAttachFile,
+}: {
+  lease: LeaseSummary;
+  onAttachFile: () => void;
+}) {
   return (
     <div className="space-y-8">
       <section aria-labelledby="files-history-heading">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SectionHeading id="files-history-heading" title="Files & history" />
-          <Link className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" href={lease.hrefs.addDocument}>
+          <Button onClick={onAttachFile} variant="outline">
             <FilePlus2 aria-hidden size={14} /> Attach file
-          </Link>
+          </Button>
         </div>
         <div className="mt-3 divide-y divide-border border-y border-border">
           {lease.documents.length ? lease.documents.map((document) => (
