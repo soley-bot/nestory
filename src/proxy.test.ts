@@ -53,6 +53,20 @@ describe("proxy", () => {
     );
   });
 
+  it("lets an authenticated login form post replace a stale session", async () => {
+    getClaims.mockResolvedValue({
+      data: { claims: { sub: "stale-user" } },
+      error: null,
+    });
+
+    const response = await proxy(
+      new NextRequest("http://localhost:3000/login", { method: "POST" }),
+    );
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
+  });
+
   it("keeps unauthenticated protected routes behind login", async () => {
     getClaims.mockResolvedValue({ data: { claims: null }, error: null });
 

@@ -74,6 +74,8 @@ export async function proxy(request: NextRequest) {
 
   const { data, error } = await supabase.auth.getClaims();
   const isAuthenticated = !error && typeof data?.claims?.sub === "string";
+  const isLoginSubmission =
+    request.method === "POST" && request.nextUrl.pathname === "/login";
 
   if (!isAuthenticated && !isPublicRoute) {
     return redirectToLogin(request);
@@ -81,6 +83,7 @@ export async function proxy(request: NextRequest) {
 
   if (
     isAuthenticated &&
+    !isLoginSubmission &&
     REDIRECT_AUTHENTICATED_ROUTES.has(request.nextUrl.pathname)
   ) {
     return redirectToWorkspace(request);
