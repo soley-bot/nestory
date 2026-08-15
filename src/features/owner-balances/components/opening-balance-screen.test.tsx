@@ -107,6 +107,86 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("OpeningBalanceScreen", () => {
+  it("starts a new owner account at zero with one confirmation", async () => {
+    const user = userEvent.setup();
+    renderScreen({
+      ...superAdminProps(),
+      data: freshOwnerData(),
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Owner account starting point" }),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Start at zero" }));
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Start owner account at zero",
+    });
+    expect(
+      within(dialog).getByText(
+        /all four starting balances will be set to USD 0.00/i,
+      ),
+    ).toBeTruthy();
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Confirm zero starting balances",
+      }),
+    );
+
+    await waitFor(() => expect(mocks.initial).toHaveBeenCalledTimes(4));
+    expect(
+      mocks.initial.mock.calls.map((call) => {
+        const submitted = call[1] as FormData;
+        return [submitted.get("component"), submitted.get("amount")];
+      }),
+    ).toEqual([
+      ["ips_held_owner_cash", "0.00"],
+      ["owner_due_to_ips", "0.00"],
+      ["ips_due_to_owner", "0.00"],
+      ["security_deposit_custody", "0.00"],
+    ]);
+  });
+
+  it("collects existing owner balances in one form", async () => {
+    const user = userEvent.setup();
+    renderScreen({
+      ...superAdminProps(),
+      data: freshOwnerData(),
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Enter existing balances" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Enter existing balances",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Cash held by Nestory"), {
+      target: { value: "120.00" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Owner owes Nestory"), {
+      target: { value: "15.00" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Evidence reference"), {
+      target: { value: "Migration workbook row 12" },
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Submit starting balances" }),
+    );
+
+    await waitFor(() => expect(mocks.initial).toHaveBeenCalledTimes(4));
+    expect(
+      mocks.initial.mock.calls.map((call) => {
+        const submitted = call[1] as FormData;
+        return [submitted.get("component"), submitted.get("amount")];
+      }),
+    ).toEqual([
+      ["ips_held_owner_cash", "120.00"],
+      ["owner_due_to_ips", "15.00"],
+      ["ips_due_to_owner", "0.00"],
+      ["security_deposit_custody", "0.00"],
+    ]);
+  });
+
   it("keeps request history and evidence behind one details action per component", async () => {
     const user = userEvent.setup();
     renderScreen(superAdminProps());
@@ -139,7 +219,7 @@ describe("OpeningBalanceScreen", () => {
     renderScreen(superAdminProps());
 
     expect(
-      screen.getByRole("heading", { name: "Opening balances" }),
+      screen.getByRole("heading", { name: "Owner account starting point" }),
     ).toBeTruthy();
     expect(screen.getAllByText("Unknown").length).toBeGreaterThan(0);
     expect(screen.getByText("Approved zero")).toBeTruthy();
@@ -864,4 +944,17 @@ function authorityData(): OpeningBalanceAuthorityData {
       },
     ],
   };
+}
+
+function freshOwnerData(): OpeningBalanceAuthorityData {
+  const data = authorityData();
+  data.readiness = [];
+  data.groups[0]!.components = data.groups[0]!.components.map((component) => ({
+    ...component,
+    authority: { state: "unknown" },
+    currentAuthorityEntryId: null,
+    entries: [],
+    requests: [],
+  }));
+  return data;
 }

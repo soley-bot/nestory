@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useFormStatus } from "react-dom";
-import { Check, ChevronRight, Eye, Plus, WalletCards } from "lucide-react";
+import { ChevronRight, Eye, Plus, WalletCards } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
@@ -610,9 +610,7 @@ function FinanceWorkView({
       (workFilter === "owner" && item.kind === "owner"),
   );
   const visibleWorkCount =
-    visibleLeases.length +
-    visibleExceptions.length +
-    visiblePaymentWork.length;
+    visibleLeases.length + visibleExceptions.length + visiblePaymentWork.length;
 
   return (
     <div className="workspace-gutter-x mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
@@ -1844,19 +1842,21 @@ function BillingSetupForm({
   peopleOptions: FinanceOperationsData["peopleOptions"];
 }) {
   const idempotencyKey = useStableActionId("billing");
-  const [step, setStep] = useState(1);
   const [state, action] = useActionState(
     saveLeaseBillingAction,
     actionInitialState,
   );
   const [recipientKind, setRecipientKind] = useState<
     "" | "company" | "individual"
-  >(lease.billing?.billingRecipientKind ?? "");
+  >(
+    lease.billing?.billingRecipientKind ??
+      (lease.tenantPersonId ? "individual" : ""),
+  );
   const [recipientId, setRecipientId] = useState(
-    lease.billing?.billingRecipientPersonId ?? "",
+    lease.billing?.billingRecipientPersonId ?? lease.tenantPersonId ?? "",
   );
   const [effectiveFrom, setEffectiveFrom] = useState(
-    lease.billing?.effectiveFrom ?? "",
+    lease.billing?.effectiveFrom ?? lease.startDate,
   );
   const [firstProrata, setFirstProrata] = useState(
     lease.billing?.firstPeriodProratedAmount?.toString() ?? "",
@@ -1865,20 +1865,20 @@ function BillingSetupForm({
     lease.billing?.finalPeriodProratedAmount?.toString() ?? "",
   );
   const [route, setRoute] = useState<"" | "direct_to_owner" | "through_ips">(
-    lease.billing?.collectionRoute ?? "",
+    lease.billing?.collectionRoute ?? "through_ips",
   );
   const [feeMode, setFeeMode] = useState<"" | "flat" | "percentage">(
-    lease.billing?.managementFeeMode ?? "",
+    lease.billing?.managementFeeMode ?? "percentage",
   );
   const [feeValue, setFeeValue] = useState(
-    lease.billing?.managementFeeValue.toString() ?? "",
+    lease.billing?.managementFeeValue.toString() ?? "0",
   );
   const [chargeFee, setChargeFee] = useState<"" | "no" | "yes">(
     lease.billing
       ? lease.billing.chargeManagementFeeWhenActive
         ? "yes"
         : "no"
-      : "",
+      : "no",
   );
   const [fullFeeDuringProration, setFullFeeDuringProration] = useState<
     "" | "no" | "yes"
@@ -1887,20 +1887,15 @@ function BillingSetupForm({
       ? lease.billing.fullManagementFeeDuringProration
         ? "yes"
         : "no"
-      : "",
+      : "no",
   );
+  const recipientOptions =
+    recipientKind === "individual" && lease.tenantPersonId
+      ? [{ id: lease.tenantPersonId, label: lease.tenantLabel }]
+      : peopleOptions;
   useSuccess(state, onSuccess);
   return (
     <form action={action} className="space-y-4 p-4">
-      <StepIndicator
-        current={step}
-        labels={[
-          "Property & owner",
-          "Lease billing",
-          "Collection & fee",
-          "Review",
-        ]}
-      />
       <input name="leaseId" type="hidden" value={lease.id} />
       <input name="effectiveFrom" type="hidden" value={effectiveFrom} />
       <input name="billingRecipientKind" type="hidden" value={recipientKind} />
@@ -1939,53 +1934,89 @@ function BillingSetupForm({
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
 
-      {step === 1 ? (
-        <DefinitionRows
-          rows={[
-            ["Property", lease.propertyLabel],
-            ["Owner", lease.ownerLabel],
-            ["Lease", `${lease.tenantLabel} · ${lease.unitLabel}`],
-            ["Monthly rent", formatMoneyDisplay(lease.monthlyRent).primary],
-          ]}
-        />
-      ) : null}
-      {step === 2 ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Bill to">
+      <DefinitionRows
+        rows={[
+          ["Property", lease.propertyLabel],
+          ["Owner", lease.ownerLabel],
+          ["Lease", `${lease.tenantLabel} · ${lease.unitLabel}`],
+          ["Monthly rent", formatMoneyDisplay(lease.monthlyRent).primary],
+        ]}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Bill to">
+          <SelectControl
+            onValueChange={(value) => {
+              const nextKind = value as "company" | "individual";
+              setRecipientKind(nextKind);
+              setRecipientId(
+                nextKind === "individual" ? (lease.tenantPersonId ?? "") : "",
+              );
+            }}
+            options={[
+              { label: "Individual tenant", value: "individual" },
+              { label: "Company", value: "company" },
+            ]}
+            value={recipientKind}
+          />
+        </Field>
+        <Field label={recipientKind === "company" ? "Company" : "Recipient"}>
+          <SelectControl
+            onValueChange={setRecipientId}
+            options={recipientOptions.map((option) => ({
+              label: option.label,
+              value: option.id,
+            }))}
+            placeholder="Choose a recipient"
+            value={recipientId}
+          />
+        </Field>
+        <Field label="Billing effective date">
+          <Input
+            aria-label="Billing effective date"
+            onChange={(event) => setEffectiveFrom(event.target.value)}
+            required
+            type="date"
+            value={effectiveFrom}
+          />
+        </Field>
+        <Field label="Who collects rent?">
+          <SelectControl
+            onValueChange={(value) => setRoute(value as typeof route)}
+            options={[
+              {
+                label: `Collected by ${organizationName}`,
+                value: "through_ips",
+              },
+              { label: "Collected by owner", value: "direct_to_owner" },
+            ]}
+            value={route}
+          />
+        </Field>
+      </div>
+
+      <details className="border-y border-border py-3">
+        <summary className="cursor-pointer text-sm font-medium text-foreground">
+          Proration and fee options
+        </summary>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label="Management fee">
             <SelectControl
-              onValueChange={(value) =>
-                setRecipientKind(value as "company" | "individual")
-              }
+              onValueChange={(value) => setFeeMode(value as typeof feeMode)}
               options={[
-                { label: "Choose who is billed", value: "" },
-                { label: "Individual tenant", value: "individual" },
-                { label: "Company", value: "company" },
+                { label: "Percentage", value: "percentage" },
+                { label: "Flat amount", value: "flat" },
               ]}
-              placeholder="Choose who is billed"
-              value={recipientKind}
+              value={feeMode}
             />
           </Field>
-          <Field label={recipientKind === "company" ? "Company" : "Recipient"}>
-            <SelectControl
-              onValueChange={setRecipientId}
-              options={[
-                { label: "Choose a recipient", value: "" },
-                ...peopleOptions.map((option) => ({
-                  label: option.label,
-                  value: option.id,
-                })),
-              ]}
-              placeholder="Choose a recipient"
-              value={recipientId}
-            />
-          </Field>
-          <Field label="Billing effective date">
-            <Input
-              aria-label="Billing effective date"
-              onChange={(event) => setEffectiveFrom(event.target.value)}
+          <Field
+            label={feeMode === "percentage" ? "Fee percentage" : "Fee amount"}
+          >
+            <NumberInput
+              onChange={(event) => setFeeValue(event.target.value)}
               required
-              type="date"
-              value={effectiveFrom}
+              value={feeValue}
             />
           </Field>
           <Field label="First month amount (optional)">
@@ -2002,51 +2033,10 @@ function BillingSetupForm({
               value={finalProrata}
             />
           </Field>
-        </div>
-      ) : null}
-      {step === 3 ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Who collects rent?">
-            <SelectControl
-              onValueChange={(value) => setRoute(value as typeof route)}
-              options={[
-                { label: "Choose who collects rent", value: "" },
-                {
-                  label: `Collected by ${organizationName}`,
-                  value: "through_ips",
-                },
-                { label: "Collected by owner", value: "direct_to_owner" },
-              ]}
-              placeholder="Choose who collects rent"
-              value={route}
-            />
-          </Field>
-          <Field label="Management fee">
-            <SelectControl
-              onValueChange={(value) => setFeeMode(value as typeof feeMode)}
-              options={[
-                { label: "Choose fee type", value: "" },
-                { label: "Percentage", value: "percentage" },
-                { label: "Flat amount", value: "flat" },
-              ]}
-              placeholder="Choose fee type"
-              value={feeMode}
-            />
-          </Field>
-          <Field
-            label={feeMode === "percentage" ? "Fee percentage" : "Fee amount"}
-          >
-            <NumberInput
-              onChange={(event) => setFeeValue(event.target.value)}
-              required
-              value={feeValue}
-            />
-          </Field>
           <Field label="Charge fee while lease is active?">
             <SelectControl
               onValueChange={(value) => setChargeFee(value as typeof chargeFee)}
               options={[
-                { label: "Choose yes or no", value: "" },
                 { label: "Yes", value: "yes" },
                 { label: "No", value: "no" },
               ]}
@@ -2061,7 +2051,6 @@ function BillingSetupForm({
                 )
               }
               options={[
-                { label: "Choose yes or no", value: "" },
                 { label: "Yes", value: "yes" },
                 { label: "No", value: "no" },
               ]}
@@ -2069,69 +2058,23 @@ function BillingSetupForm({
             />
           </Field>
         </div>
-      ) : null}
-      {step === 4 ? (
-        <DefinitionRows
-          rows={[
-            [
-              "Bill to",
-              peopleOptions.find((item) => item.id === recipientId)?.label ??
-                "Not selected",
-            ],
-            [
-              "Collection",
-              route === "through_ips"
-                ? `Collected by ${organizationName}`
-                : "Collected by owner",
-            ],
-            [
-              "Management fee",
-              feeMode === "percentage"
-                ? `${feeValue}%`
-                : formatMoneyDisplay(Number(feeValue || 0)).primary,
-            ],
-            [
-              "Pro-rata",
-              firstProrata || finalProrata
-                ? "Manual first/final amount"
-                : "Full monthly rent",
-            ],
-          ]}
-        />
-      ) : null}
+      </details>
       <ActionMessage state={state} />
       <FormFooter>
-        {step > 1 ? (
-          <Button
-            onClick={() => setStep((current) => current - 1)}
-            type="button"
-          >
-            Back
-          </Button>
-        ) : (
-          <span />
-        )}
-        {step < 4 ? (
-          <Button
-            disabled={
-              (step === 2 &&
-                (!recipientKind || !recipientId || !effectiveFrom)) ||
-              (step === 3 &&
-                (!route ||
-                  !feeMode ||
-                  feeValue === "" ||
-                  !chargeFee ||
-                  !fullFeeDuringProration))
-            }
-            onClick={() => setStep((current) => current + 1)}
-            type="button"
-            variant="default"
-          >
-            Continue <ChevronRight size={14} />
-          </Button>
-        ) : (
-          <SubmitButton label="Activate billing" />
-        )}
+        <span />
+        <SubmitButton
+          disabled={
+            !recipientKind ||
+            !recipientId ||
+            !effectiveFrom ||
+            !route ||
+            !feeMode ||
+            feeValue === "" ||
+            !chargeFee ||
+            !fullFeeDuringProration
+          }
+          label="Activate billing"
+        />
       </FormFooter>
     </form>
   );
@@ -3310,45 +3253,5 @@ function DefinitionRows({ rows }: { rows: [string, ReactNode][] }) {
         </div>
       ))}
     </dl>
-  );
-}
-function StepIndicator({
-  current,
-  labels,
-}: {
-  current: number;
-  labels: string[];
-}) {
-  return (
-    <ol className="flex items-center gap-2 border-b border-border pb-3">
-      {labels.map((label, index) => {
-        const number = index + 1;
-        return (
-          <li
-            aria-current={number === current ? "step" : undefined}
-            aria-label={`Step ${number} of ${labels.length}: ${label}`}
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 text-xs",
-              number === current
-                ? "font-semibold text-foreground"
-                : number < current
-                  ? "text-success"
-                  : "text-muted-foreground",
-            )}
-            key={label}
-          >
-            <span
-              className={cn(
-                "grid size-5 shrink-0 place-items-center rounded-full border",
-                number < current && "border-success bg-success-soft",
-              )}
-            >
-              {number < current ? <Check size={12} /> : number}
-            </span>
-            <span className="truncate">{label}</span>
-          </li>
-        );
-      })}
-    </ol>
   );
 }

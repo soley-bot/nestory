@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useTransition,
   type ReactNode,
 } from "react";
 
@@ -24,9 +25,11 @@ import {
   submitOwnerOpeningBalanceCorrectionAction,
 } from "@/features/owner-balances/actions";
 import {
+  OWNER_BALANCE_COMPONENTS,
   OWNER_BALANCE_COMPONENT_LABELS,
   type OpeningBalanceAuthorityData,
   type OwnerBalanceActionState,
+  type OwnerBalanceComponent,
   type OwnerOpeningAuthorityGroup,
   type OwnerOpeningComponentRecord,
   type OwnerOpeningEvidence,
@@ -67,6 +70,12 @@ type DetailsIntent = {
   group: OwnerOpeningAuthorityGroup;
 };
 
+type SetupIntent = {
+  group: OwnerOpeningAuthorityGroup;
+  key: string;
+  mode: "existing" | "zero";
+};
+
 const actionInitialState: OwnerBalanceActionState | Record<string, never> = {};
 
 export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
@@ -77,6 +86,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
     null,
   );
   const [reviewIntent, setReviewIntent] = useState<ReviewIntent | null>(null);
+  const [setupIntent, setSetupIntent] = useState<SetupIntent | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const statusRef = useRef<HTMLDivElement>(null);
   const groups = useMemo(() => groupsForScope(props), [props]);
@@ -102,6 +112,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
   const handleSuccess = useCallback((message: string) => {
     setOpeningIntent(null);
     setReviewIntent(null);
+    setSetupIntent(null);
     setAnnouncement(message);
   }, []);
 
@@ -116,7 +127,7 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
     >
       <div className="border-b px-4 py-3 sm:px-6">
         <h2 className="text-base font-semibold" id="opening-authority-heading">
-          Opening balances
+          Owner account starting point
         </h2>
       </div>
 
@@ -173,55 +184,76 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
         </div>
       ) : null}
 
-      <div
-        aria-label="Opening balance components"
-        className="overflow-x-auto"
-        data-slot="opening-authority-components"
-        role="region"
-        tabIndex={0}
-      >
-        <table className="w-full min-w-[680px] table-fixed border-collapse text-sm">
-          <colgroup>
-            <col className="w-[34%]" />
-            <col className="w-[28%]" />
-            <col className="w-[22%]" />
-            <col className="w-[16%]" />
-          </colgroup>
-          <thead className="bg-[var(--table-header-bg)] text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2 font-medium sm:px-6">
-                Property / owner
-              </th>
-              <th className="px-3 py-2 font-medium">Component</th>
-              <th className="px-3 py-2 font-medium">Balance</th>
-              <th className="px-4 py-2 text-right font-medium sm:px-6">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.flatMap((group) =>
-              group.components.map((component, index) => (
-                <OpeningRow
-                  component={component}
-                  group={group}
-                  key={`${group.propertyId}-${group.ownerPersonId}-${component.component}`}
-                  labels={labels}
-                  onView={(intent) => setDetailsIntent(intent)}
-                  showIdentity={index === 0}
-                />
-              )),
-            )}
-          </tbody>
-        </table>
-        {groups.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-6">
-            {blockers.length > 0
-              ? "Resolve the ownership details before submitting the opening balance."
-              : "No effective property-owner assignments match this month and filter scope."}
-          </div>
-        ) : null}
-      </div>
+      {groups.map((group) => (
+        <OwnerAccountSetupRow
+          canSubmit={props.canSubmitInitial && blockers.length === 0}
+          group={group}
+          key={`${group.propertyId}-${group.ownerPersonId}`}
+          labels={labels}
+          onStart={(mode) =>
+            setSetupIntent({
+              group,
+              key: crypto.randomUUID(),
+              mode,
+            })
+          }
+        />
+      ))}
+
+      <details className="group border-b border-border">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground sm:px-6">
+          Audit details and component history
+        </summary>
+        <div
+          aria-label="Opening balance components"
+          className="overflow-x-auto"
+          data-slot="opening-authority-components"
+          role="region"
+          tabIndex={0}
+        >
+          <table className="w-full min-w-[680px] table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-[34%]" />
+              <col className="w-[28%]" />
+              <col className="w-[22%]" />
+              <col className="w-[16%]" />
+            </colgroup>
+            <thead className="bg-[var(--table-header-bg)] text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 font-medium sm:px-6">
+                  Property / owner
+                </th>
+                <th className="px-3 py-2 font-medium">Component</th>
+                <th className="px-3 py-2 font-medium">Balance</th>
+                <th className="px-4 py-2 text-right font-medium sm:px-6">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.flatMap((group) =>
+                group.components.map((component, index) => (
+                  <OpeningRow
+                    component={component}
+                    group={group}
+                    key={`${group.propertyId}-${group.ownerPersonId}-${component.component}`}
+                    labels={labels}
+                    onView={(intent) => setDetailsIntent(intent)}
+                    showIdentity={index === 0}
+                  />
+                )),
+              )}
+            </tbody>
+          </table>
+          {groups.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-6">
+              {blockers.length > 0
+                ? "Resolve the ownership details before submitting the opening balance."
+                : "No effective property-owner assignments match this month and filter scope."}
+            </div>
+          ) : null}
+        </div>
+      </details>
 
       {detailsIntent ? (
         <OpeningDetailsModal
@@ -262,7 +294,228 @@ export function OpeningBalanceScreen(props: OpeningBalanceScreenProps) {
           onSuccess={handleSuccess}
         />
       ) : null}
+      {setupIntent ? (
+        <OwnerAccountSetupModal
+          intent={setupIntent}
+          labels={labels}
+          onClose={() => setSetupIntent(null)}
+          onSuccess={handleSuccess}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function OwnerAccountSetupRow({
+  canSubmit,
+  group,
+  labels,
+  onStart,
+}: {
+  canSubmit: boolean;
+  group: OwnerOpeningAuthorityGroup;
+  labels: { owners: Map<string, string>; properties: Map<string, string> };
+  onStart: (mode: SetupIntent["mode"]) => void;
+}) {
+  const isFresh = group.components.every(
+    (component) =>
+      component.authority.state === "unknown" &&
+      component.requests.length === 0,
+  );
+  const allKnown = group.components.every(
+    (component) => component.authority.state === "known",
+  );
+  const awaitingReview = group.components.some(
+    (component) => component.requests[0]?.status === "submitted",
+  );
+
+  return (
+    <div className="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="min-w-0">
+        <p className="font-medium">
+          {labels.properties.get(group.propertyId) ?? group.propertyId}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {labels.owners.get(group.ownerPersonId) ?? group.ownerPersonId}
+          {allKnown
+            ? " · Starting balances recorded"
+            : awaitingReview
+              ? " · Starting balances awaiting review"
+              : isFresh
+                ? " · No starting balance recorded"
+                : " · Starting balance setup needs attention"}
+        </p>
+      </div>
+      {isFresh && canSubmit ? (
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => onStart("zero")} variant="outline">
+            Start at zero
+          </Button>
+          <Button onClick={() => onStart("existing")}>
+            Enter existing balances
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OwnerAccountSetupModal({
+  intent,
+  labels,
+  onClose,
+  onSuccess,
+}: {
+  intent: SetupIntent;
+  labels: { owners: Map<string, string>; properties: Map<string, string> };
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState("");
+  const [sourceReference, setSourceReference] = useState("");
+  const [amounts, setAmounts] = useState<Record<OwnerBalanceComponent, string>>(
+    {
+      ips_due_to_owner: "0.00",
+      ips_held_owner_cash: "0.00",
+      owner_due_to_ips: "0.00",
+      security_deposit_custody: "0.00",
+    },
+  );
+  const isZero = intent.mode === "zero";
+
+  return (
+    <Modal
+      description={`${labels.properties.get(intent.group.propertyId) ?? intent.group.propertyId} · ${labels.owners.get(intent.group.ownerPersonId) ?? intent.group.ownerPersonId}`}
+      onClose={onClose}
+      open
+      title={isZero ? "Start owner account at zero" : "Enter existing balances"}
+    >
+      <form
+        className="space-y-5 p-4 sm:p-6"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError("");
+          const evidenceReference = isZero
+            ? "Owner onboarding zero-balance declaration"
+            : sourceReference.trim();
+          startTransition(async () => {
+            const evidenceSha256 = await sha256Hex(
+              new TextEncoder().encode(evidenceReference),
+            );
+            for (const component of OWNER_BALANCE_COMPONENTS) {
+              const formData = new FormData();
+              formData.set("amount", isZero ? "0.00" : amounts[component]);
+              formData.set("component", component);
+              formData.set("currency", intent.group.currency);
+              formData.set("effectiveDate", intent.group.effectiveDate);
+              formData.set("evidenceSha256", evidenceSha256);
+              formData.set(
+                "idempotencyKey",
+                `owner-opening-bundle:${intent.key}:${component}`,
+              );
+              formData.set("ownerPersonId", intent.group.ownerPersonId);
+              formData.set("propertyId", intent.group.propertyId);
+              formData.set(
+                "reason",
+                isZero
+                  ? "New owner account confirmed with no prior balances."
+                  : "Existing owner account balances recorded during onboarding.",
+              );
+              formData.set("resubmissionOfRequestId", "");
+              formData.set("sourceReference", evidenceReference);
+              formData.set("supportingDocumentId", "");
+              const result = await submitOwnerOpeningBalanceAction(
+                {},
+                formData,
+              );
+              if (result.status === "error") {
+                setError(result.message);
+                return;
+              }
+            }
+            router.refresh();
+            onSuccess("Starting balances submitted for review.");
+          });
+        }}
+      >
+        {isZero ? (
+          <p className="text-sm leading-6 text-muted-foreground">
+            Confirm that this owner account has no prior cash, reimbursements,
+            owner debt, or deposit custody. All four starting balances will be
+            set to USD 0.00 and submitted together for review.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Enter only the balances that already existed before Nestory began
+              recording this account. Leave any amount at zero when it does not
+              apply.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {(
+                [
+                  ["ips_held_owner_cash", "Cash held by Nestory"],
+                  ["owner_due_to_ips", "Owner owes Nestory"],
+                  ["ips_due_to_owner", "Nestory owes owner"],
+                  ["security_deposit_custody", "Security deposits held"],
+                ] as const
+              ).map(([component, label]) => (
+                <Field key={component} label={label}>
+                  <Input
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      setAmounts((current) => ({
+                        ...current,
+                        [component]: event.target.value,
+                      }))
+                    }
+                    required
+                    type="text"
+                    value={amounts[component]}
+                  />
+                </Field>
+              ))}
+            </div>
+            <Field label="Evidence reference">
+              <Input
+                maxLength={240}
+                minLength={3}
+                onChange={(event) => setSourceReference(event.target.value)}
+                placeholder="For example: migration workbook row 12"
+                required
+                value={sourceReference}
+              />
+            </Field>
+          </>
+        )}
+
+        {error ? (
+          <p className="text-sm font-medium text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+          <Button
+            disabled={isPending}
+            onClick={onClose}
+            type="button"
+            variant="outline"
+          >
+            Cancel
+          </Button>
+          <Button disabled={isPending} type="submit">
+            {isPending
+              ? "Submitting…"
+              : isZero
+                ? "Confirm zero starting balances"
+                : "Submit starting balances"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

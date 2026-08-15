@@ -339,10 +339,12 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close modal" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Close drawer" })).toBeNull();
-    expect(screen.queryByText(/never fills earlier or later months/i)).toBeNull();
+    expect(
+      screen.queryByText(/never fills earlier or later months/i),
+    ).toBeNull();
   });
 
-  it("starts from a compact finance work queue and opens the four-step lease setup", () => {
+  it("opens lease billing as one compact prefilled form", () => {
     render(
       <FinanceOperationsScreen
         {...data()}
@@ -368,23 +370,21 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.getByRole("dialog", { name: "Set up lease billing" }),
     ).not.toBeNull();
-    expect(screen.getByText("Property & owner")).not.toBeNull();
     expect(screen.getByText("Sokha Owner")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
+    expect(screen.queryByLabelText("Step 1 of 4: Property & owner")).toBeNull();
     expect(
-      screen
-        .getByLabelText("Step 1 of 4: Property & owner")
-        .getAttribute("aria-current"),
-    ).toBe("step");
-
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getAllByText("Choose who is billed").length).toBeGreaterThan(
-      0,
-    );
-    expect(screen.queryByRole("alert")).toBeNull();
+      screen.getByRole("combobox", { name: "Bill to" }).textContent,
+    ).toContain("Individual tenant");
     expect(
-      screen.getByRole("button", { name: "Continue" }).hasAttribute("disabled"),
-    ).toBe(true);
+      screen.getByRole("combobox", { name: "Recipient" }).textContent,
+    ).toContain("Dara Tenant");
+    expect(
+      screen.getByLabelText("Billing effective date").getAttribute("value"),
+    ).toBe("2026-08-01");
+    expect(
+      screen.getByRole("button", { name: "Activate billing" }),
+    ).not.toBeNull();
   });
 
   it("orders outstanding payment work by the oldest due date first", () => {
@@ -490,7 +490,7 @@ describe("FinanceOperationsScreen", () => {
     ]);
   });
 
-  it("does not invent billing choices for a new lease setup", async () => {
+  it("keeps uncommon proration controls collapsed in lease billing", async () => {
     const user = userEvent.setup();
     render(
       <FinanceOperationsScreen
@@ -502,19 +502,18 @@ describe("FinanceOperationsScreen", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Set up" }));
-    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getAllByText("Choose who is billed").length).toBeGreaterThan(
-      0,
-    );
-    expect(screen.getAllByText("Choose a recipient").length).toBeGreaterThan(0);
+    const advanced = screen
+      .getByText("Proration and fee options", {
+        exact: true,
+      })
+      .closest("details");
+    expect(advanced).not.toBeNull();
+    expect(advanced?.hasAttribute("open")).toBe(false);
     expect(
-      screen.getByLabelText("Billing effective date").getAttribute("value"),
-    ).toBe("");
-    expect(
-      screen.getByRole("button", { name: "Continue" }).hasAttribute("disabled"),
-    ).toBe(true);
+      screen.getByRole("button", { name: "Activate billing" }),
+    ).not.toBeNull();
   });
 
   it("opens the exact lease billing repair supplied by setup readiness", () => {
