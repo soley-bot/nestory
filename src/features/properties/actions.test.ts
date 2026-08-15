@@ -21,8 +21,8 @@ import {
 } from "@/features/properties/actions";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
-const ownerPersonId = "00000000-0000-4000-8000-000000000002";
-const propertyId = "00000000-0000-4000-8000-000000000003";
+const ownerPersonId = "80000000-0000-0000-0000-000000000004";
+const propertyId = "10000000-0000-0000-0000-000000000001";
 
 describe("property ownership authority inputs", () => {
   beforeEach(() => {

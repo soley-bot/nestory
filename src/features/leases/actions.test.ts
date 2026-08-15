@@ -14,15 +14,17 @@ vi.mock("@/lib/db/server", () => ({
 
 import {
   createLeaseAction,
+  recordLeaseDepositEventAction,
   recordCurrentLeaseOccupancyEvidenceAction,
+  reverseLeaseDepositEventAction,
   transitionLeaseLifecycleAction,
 } from "@/features/leases/actions";
 
-const leaseId = "00000000-0000-4000-8000-000000000006";
+const leaseId = "30000000-0000-0000-0000-000000000001";
 const organizationId = "00000000-0000-4000-8000-000000000001";
-const propertyId = "00000000-0000-4000-8000-000000000003";
-const tenantPersonId = "00000000-0000-4000-8000-000000000007";
-const unitId = "00000000-0000-4000-8000-000000000008";
+const propertyId = "10000000-0000-0000-0000-000000000001";
+const tenantPersonId = "80000000-0000-0000-0000-000000000001";
+const unitId = "20000000-0000-0000-0000-000000000001";
 
 describe("Lease occupancy evidence input", () => {
   beforeEach(() => {
@@ -93,8 +95,8 @@ describe("Lease occupancy evidence input", () => {
   });
 
   it("records current occupancy through the narrow append-only repair RPC", async () => {
-    const occupancyId = "00000000-0000-4000-8000-000000000009";
-    const repairedOccupancyId = "00000000-0000-4000-8000-000000000010";
+    const occupancyId = "40000000-0000-0000-0000-000000000001";
+    const repairedOccupancyId = "40000000-0000-0000-0000-000000000002";
     rpc.mockResolvedValueOnce({ data: repairedOccupancyId, error: null });
     const formData = new FormData();
     formData.set("actualMoveInDate", "2027-05-03");
@@ -123,8 +125,8 @@ describe("Lease occupancy evidence input", () => {
   });
 
   it("records notice through the checked lifecycle RPC", async () => {
-    const occupancyId = "00000000-0000-4000-8000-000000000009";
-    const successorId = "00000000-0000-4000-8000-000000000010";
+    const occupancyId = "40000000-0000-0000-0000-000000000001";
+    const successorId = "40000000-0000-0000-0000-000000000002";
     rpc.mockResolvedValueOnce({
       data: {
         leaseId,
@@ -162,6 +164,46 @@ describe("Lease occupancy evidence input", () => {
       p_transition: "give_notice",
     });
     expect(revalidatePath).toHaveBeenCalledWith(`/leases/${leaseId}`);
+  });
+
+  it("records deposit activity with a deterministic PostgreSQL fixture identifier", async () => {
+    const leaseDepositId = "50000000-0000-0000-0000-000000000001";
+    const formData = new FormData();
+    formData.set("amount", "500");
+    formData.set("eventDate", "2027-05-03");
+    formData.set("eventType", "received");
+    formData.set("leaseDepositId", leaseDepositId);
+    formData.set("reference", "Receipt 1001");
+
+    await expect(
+      recordLeaseDepositEventAction({}, formData),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(rpc).toHaveBeenCalledWith("record_lease_deposit_event", {
+      p_amount: 500,
+      p_event_date: "2027-05-03",
+      p_event_type: "received",
+      p_lease_deposit_id: leaseDepositId,
+      p_organization_id: organizationId,
+      p_reference: "Receipt 1001",
+    });
+  });
+
+  it("reverses deposit activity with a deterministic PostgreSQL fixture identifier", async () => {
+    const eventId = "60000000-0000-0000-0000-000000000001";
+    const formData = new FormData();
+    formData.set("eventDate", "2027-05-04");
+    formData.set("eventId", eventId);
+    formData.set("reference", "Duplicate receipt");
+
+    await expect(
+      reverseLeaseDepositEventAction({}, formData),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(rpc).toHaveBeenCalledWith("reverse_lease_deposit_event", {
+      p_event_date: "2027-05-04",
+      p_event_id: eventId,
+      p_organization_id: organizationId,
+      p_reference: "Duplicate receipt",
+    });
   });
 });
 

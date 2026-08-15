@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireLeaseConfigurationContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { postgresUuid } from "@/lib/validation/postgres-uuid";
 import {
   getLeaseMutationErrorMessage,
   parseFutureRentTermInput,
@@ -64,7 +65,7 @@ const leaseStatusSchema = z.enum([
 ]);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.");
 const optionalDateSchema = z.union([dateSchema, z.literal("")]);
-const leaseIdSchema = z.uuid("Choose a lease.");
+const leaseIdSchema = postgresUuid("Choose a lease.");
 const paymentFrequencySchema = z.enum([
   "annual",
   "monthly",
@@ -79,12 +80,12 @@ const termStatusSchema = z.enum([
   "terminated",
   "upcoming",
 ]);
-const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "applied", "retained", "refunded"]), leaseDepositId: z.uuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
+const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "applied", "retained", "refunded"]), leaseDepositId: postgresUuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
 const currentOccupancyEvidenceSchema = z
   .object({
     actualMoveInDate: dateSchema,
     leaseId: leaseIdSchema,
-    occupancyId: z.uuid("Choose the occupancy evidence to repair."),
+    occupancyId: postgresUuid("Choose the occupancy evidence to repair."),
     reason: z.string().trim().min(8, "Explain how occupancy was confirmed."),
     scheduledMoveInDate: optionalDateSchema,
     scheduledMoveOutDate: optionalDateSchema,
@@ -106,7 +107,7 @@ const currentOccupancyEvidenceSchema = z
 const leaseLifecycleTransitionSchema = z
   .object({
     effectiveDate: dateSchema,
-    expectedOccupancyId: z.uuid("Choose the current occupancy record."),
+    expectedOccupancyId: postgresUuid("Choose the current occupancy record."),
     expectedStatus: leaseStatusSchema,
     idempotencyKey: z.string().trim().min(1),
     leaseId: leaseIdSchema,
@@ -143,17 +144,17 @@ const leaseMutationSchema = z
     leaseStartDate: dateSchema,
     monthlyRentAmount: z.string().trim(),
     paymentFrequency: paymentFrequencySchema,
-    propertyId: z.uuid("Choose a property."),
+    propertyId: postgresUuid("Choose a property."),
     rentDueDay: z.string().trim(),
     scheduledMoveInDate: optionalDateSchema,
     scheduledMoveOutDate: optionalDateSchema,
     status: leaseStatusSchema,
-    tenantPersonId: z.uuid("Choose a tenant."),
+    tenantPersonId: postgresUuid("Choose a tenant."),
     termStatus: termStatusSchema,
     unitId: z.string().trim(),
   })
   .superRefine((data, context) => {
-    if (!z.uuid().safeParse(data.unitId).success) {
+    if (!postgresUuid("Choose a unit for this lease.").safeParse(data.unitId).success) {
       context.addIssue({
         code: "custom",
         message: "Choose a unit for this lease.",
@@ -948,7 +949,7 @@ export async function recordLeaseDepositEventAction(_state: LeaseActionState, fo
 
 export async function reverseLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
   const context = await requireLeaseConfigurationContext();
-  const eventId = z.uuid().safeParse(readString(formData, "eventId"));
+  const eventId = postgresUuid("Choose deposit activity.").safeParse(readString(formData, "eventId"));
   const eventDate = dateSchema.safeParse(readString(formData, "eventDate"));
   if (!eventId.success || !eventDate.success) return { message: "Choose valid deposit activity and a date.", status: "error" };
   const supabase = await createSupabaseServerClient();
@@ -1025,7 +1026,7 @@ const rentPolicyDraftSchema = z.object({
     "through_move_out",
   ]),
   policyDefaultDueDay: z.string().trim(),
-  policyId: z.uuid(),
+  policyId: postgresUuid("Choose a policy version."),
   rentCalculationTimezone: z.string().trim().min(1).max(100),
   rentFreeSupportState: z.enum(["supported", "unsupported"]),
   shortMonthDueDayRule: z.enum([
@@ -1136,7 +1137,7 @@ export async function approveRentPolicyVersionAction(
   formData: FormData,
 ): Promise<RentPolicyActionState> {
   const context = await requireLeaseConfigurationContext();
-  const policyId = z.uuid().safeParse(readString(formData, "policyId"));
+  const policyId = postgresUuid("Choose a policy version.").safeParse(readString(formData, "policyId"));
   if (!policyId.success) {
     return { message: "Choose a policy version.", status: "error" };
   }

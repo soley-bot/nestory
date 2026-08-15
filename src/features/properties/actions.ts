@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAssetPhotoAction } from "@/features/photos/actions";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 type PropertyFieldErrors = {
   acquisitionDate?: string[];
@@ -34,12 +35,12 @@ const propertyStatusSchema = z.enum([
   "under_renovation",
   "inactive",
 ]);
-const postgresUuidSchema = z.guid();
+const ownerPersonIdSchema = postgresUuid("Choose a valid owner person.");
 const optionalUuidSchema = z
   .string()
   .trim()
   .refine(
-    (value) => value === "" || postgresUuidSchema.safeParse(value).success,
+    (value) => value === "" || ownerPersonIdSchema.safeParse(value).success,
     {
       message: "Choose a valid owner person.",
     },
@@ -117,7 +118,7 @@ const propertyMutationSchema = z
     }
   });
 
-const propertyIdSchema = z.guid("Choose a property.");
+const propertyIdSchema = postgresUuid("Choose a property.");
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);

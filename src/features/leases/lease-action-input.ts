@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 const dateSchema = z
   .string()
@@ -25,12 +26,12 @@ const requiredRentDueDaySchema = z.preprocess(
 const futureRentTermSchema = z
   .object({
     endDate: dateSchema,
-    leaseId: z.uuid("Choose a lease."),
+    leaseId: postgresUuid("Choose a lease."),
     paymentFrequency: paymentFrequencySchema,
     rentAmount: requiredRentAmountSchema,
     rentDueDay: requiredRentDueDaySchema,
     startDate: dateSchema,
-    supersedesTermId: z.uuid("Choose the active term."),
+    supersedesTermId: postgresUuid("Choose the active term."),
   })
   .superRefine((data, context) => {
     if (data.endDate <= data.startDate) {

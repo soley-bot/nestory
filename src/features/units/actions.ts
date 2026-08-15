@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createDocumentAction } from "@/features/documents/actions";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 type UnitFieldErrors = {
   document?: string[];
@@ -15,15 +16,6 @@ type UnitFieldErrors = {
   unitId?: string[];
   unitNumber?: string[];
 };
-
-// PostgreSQL accepts UUID-shaped identifiers regardless of their version nibble.
-// The seeded demo records intentionally use deterministic, non-versioned UUIDs.
-const postgresUuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function postgresUuid(message: string) {
-  return z.string().regex(postgresUuidPattern, message);
-}
 
 export type UnitActionState = {
   fieldErrors?: UnitFieldErrors;
