@@ -13,10 +13,8 @@ import { UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar } from "@/components/ui/draft-action-bar";
@@ -36,6 +34,7 @@ import type {
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import type { SettingsEditorHandle } from "@/features/organization/components/branch-editor";
+import { SettingsSectionHeader } from "@/features/organization/components/settings-section-header";
 
 type TeamDraft = {
   branchId: string;
@@ -118,13 +117,12 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
     <>
       <Card className="min-w-0" data-testid="settings-editor" size="sm">
         <CardHeader className="border-b">
-          <CardTitle className="flex items-center gap-2">
-            <UsersRound aria-hidden="true" size={15} />
-            <h2>Teams</h2>
-          </CardTitle>
-          <CardAction>
-            <Button onClick={() => setDrawerOpen(true)}>Add team</Button>
-          </CardAction>
+          <SettingsSectionHeader
+            action={<Button onClick={() => setDrawerOpen(true)}>Add team</Button>}
+            description="Group staff for clear operating responsibility."
+            icon={UsersRound}
+            title="Teams"
+          />
         </CardHeader>
 
         {teams.length > 0 ? (
@@ -147,8 +145,10 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
             ))}
           </CardContent>
         ) : (
-          <CardContent className="py-6 text-center text-sm text-muted-foreground">
-            No teams yet.
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            <UsersRound aria-hidden="true" className="mx-auto mb-3 size-6 opacity-50" />
+            <p className="font-medium text-foreground">No teams yet</p>
+            <p className="mt-1">Add a team when staff share ongoing responsibility.</p>
           </CardContent>
         )}
       </Card>

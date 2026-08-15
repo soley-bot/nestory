@@ -11,11 +11,12 @@ import {
 import { Building2, Check, Copy, LockKeyhole, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { DraftActionBar, type DraftStatus } from "@/components/ui/draft-action-bar";
+import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import { Input } from "@/components/ui/input";
 import { updateOrganizationIdentityAction } from "@/features/organization/actions";
 import type { SettingsEditorHandle } from "@/features/organization/components/branch-editor";
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
+import { SettingsSaveBar } from "@/features/organization/components/settings-save-bar";
 import { cn } from "@/lib/utils";
 
 type OrganizationIdentityDraft = { name: string };
@@ -181,7 +182,7 @@ export const OrganizationIdentityEditor = forwardRef<
               {draft.resultMessage}
             </p>
           ) : null}
-          <DraftActionBar
+          <SettingsSaveBar
             confirmDiscard={false}
             onDiscard={draft.discard}
             onSave={() => formRef.current?.requestSubmit()}

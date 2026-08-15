@@ -13,10 +13,8 @@ import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { DraftActionBar } from "@/components/ui/draft-action-bar";
@@ -30,6 +28,7 @@ import { createBranchAction } from "@/features/organization/actions";
 import type { OrganizationBranch } from "@/features/organization/data";
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
+import { SettingsSectionHeader } from "@/features/organization/components/settings-section-header";
 
 type BranchDraft = {
   address: string;
@@ -112,13 +111,12 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
     <>
       <Card className="min-w-0" data-testid="settings-editor" size="sm">
         <CardHeader className="border-b">
-          <CardTitle className="flex items-center gap-2">
-            <Building2 aria-hidden="true" size={15} />
-            <h2>Branches</h2>
-          </CardTitle>
-          <CardAction>
-            <Button onClick={() => setDrawerOpen(true)}>Add branch</Button>
-          </CardAction>
+          <SettingsSectionHeader
+            action={<Button onClick={() => setDrawerOpen(true)}>Add branch</Button>}
+            description="Organize properties and Operations access by location."
+            icon={Building2}
+            title="Branches"
+          />
         </CardHeader>
 
         {branches.length > 0 ? (
@@ -142,8 +140,10 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
             ))}
           </CardContent>
         ) : (
-          <CardContent className="py-6 text-center text-sm text-muted-foreground">
-            No branches yet.
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            <Building2 aria-hidden="true" className="mx-auto mb-3 size-6 opacity-50" />
+            <p className="font-medium text-foreground">No branches yet</p>
+            <p className="mt-1">Add a branch to scope Operations work by location.</p>
           </CardContent>
         )}
       </Card>

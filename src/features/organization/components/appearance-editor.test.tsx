@@ -98,7 +98,7 @@ describe("AppearanceEditor", () => {
 
     expect((document.querySelector('input[name="mode"]') as HTMLInputElement).value).toBe("dark");
     expect(screen.getByRole("button", { name: "Forest" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByText("No changes")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Save changes" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.queryByText("No changes")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
   });
 });

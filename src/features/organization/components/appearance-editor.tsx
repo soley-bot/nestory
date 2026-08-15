@@ -15,14 +15,15 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
-import { DraftActionBar, type DraftStatus } from "@/components/ui/draft-action-bar";
+import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
 import { updateOrganizationAppearanceAction } from "@/features/organization/actions";
 import type { SettingsEditorHandle } from "@/features/organization/components/branch-editor";
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
+import { SettingsSaveBar } from "@/features/organization/components/settings-save-bar";
+import { SettingsSectionHeader } from "@/features/organization/components/settings-section-header";
 import {
   ACCENT_PRESET_NAMES,
   ACCENT_PRESETS,
@@ -109,10 +110,11 @@ export const AppearanceEditor = forwardRef<
   return (
     <Card className="min-w-0" data-testid="settings-editor" size="sm">
       <CardHeader className="border-b">
-        <CardTitle className="flex items-center gap-2">
-          <Palette aria-hidden="true" size={15} />
-          <h2>Appearance</h2>
-        </CardTitle>
+        <SettingsSectionHeader
+          description="Set the workspace default theme and accent."
+          icon={Palette}
+          title="Appearance"
+        />
       </CardHeader>
       <CardContent className="p-0">
         <form
@@ -256,7 +258,7 @@ export const AppearanceEditor = forwardRef<
               {draft.resultMessage}
             </p>
           ) : null}
-          <DraftActionBar
+          <SettingsSaveBar
             confirmDiscard={false}
             onDiscard={draft.discard}
             onSave={() => {

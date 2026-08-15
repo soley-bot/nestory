@@ -47,15 +47,13 @@ describe("OrganizationIdentityEditor", () => {
     expect(screen.getByText("spm.nestory-kh.com")).not.toBeNull();
     expect(screen.getByText(/locked after provisioning/i)).not.toBeNull();
     expect(screen.queryByRole("textbox", { name: /workspace address/i })).toBeNull();
-    expect(
-      (screen.getByRole("button", { name: "Save changes" }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
 
     const input = screen.getByRole("textbox", { name: "Workspace name" });
     await user.clear(input);
     await user.type(input, "Soley Residential Management");
     expect(screen.getByText("Unsaved changes")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Save changes" })).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(updateOrganizationIdentityAction).toHaveBeenCalledOnce());

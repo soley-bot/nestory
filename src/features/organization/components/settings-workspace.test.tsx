@@ -88,6 +88,16 @@ describe("SettingsWorkspace navigation and layout", () => {
     },
   );
 
+  it.each([
+    ["appearance", "Set the workspace default theme and accent."],
+    ["branches", "Organize properties and Operations access by location."],
+    ["teams", "Group staff for clear operating responsibility."],
+  ] as const)("explains the purpose of %s settings", (section, description) => {
+    render(<SettingsWorkspace {...defaultProps} section={section} />);
+
+    expect(screen.getByText(description)).not.toBeNull();
+  });
+
   it("gives settings content the full width on the page gutter", () => {
     render(<SettingsWorkspace {...defaultProps} section="organization" />);
 
@@ -119,7 +129,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     const content = screen.getByTestId("settings-current-content");
     expect(within(content).getByText("Branches")).not.toBeNull();
     expect(within(content).getByText("Teams")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Save changes" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
     expect(screen.getByRole("textbox", { name: "Workspace name" })).not.toBeNull();
   });
 
