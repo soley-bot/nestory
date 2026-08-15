@@ -1,75 +1,24 @@
-import { PageHeader } from "@/components/layout/page-header";
-import { SettingsTabs } from "@/components/layout/settings-tabs";
-import { buildAccessByPersonId } from "@/features/organization/access-status";
-import { AccessSettingsScreen } from "@/features/organization/components/access-settings-screen";
-import { getAccessSettingsData } from "@/features/organization/data";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { redirect } from "next/navigation";
 
-type UsersRolesPageProps = {
+type LegacyUsersRolesPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function UsersRolesPage({
-  searchParams,
-}: UsersRolesPageProps) {
-  const context = await requireSuperAdminContext();
-  const params = await searchParams;
-  const data = await getAccessSettingsData(context.organizationId);
-  const requestedPersonId = readUuidParam(params.personId);
-  const requestedMemberId = readUuidParam(params.memberId);
-  const requestedInvitationId = readUuidParam(params.invitationId);
-  const selectedStaff = data.staff.find((person) => person.id === requestedPersonId);
-  const selectedAccess = selectedStaff
-    ? buildAccessByPersonId(
-        [selectedStaff.id],
-        data.members,
-        data.invitations,
-        new Date(),
-        data.branches,
-      )[selectedStaff.id]
-    : undefined;
-  const focusedMemberId = selectedStaff
-    ? selectedAccess?.state === "active_workspace_access"
-      ? selectedAccess.membershipId
-      : undefined
-    : data.members.some((member) => member.id === requestedMemberId)
-      ? requestedMemberId
-      : undefined;
-  const focusedInvitationId = selectedStaff
-    ? selectedAccess && "invitationId" in selectedAccess
-      ? selectedAccess.invitationId
-      : undefined
-    : data.invitations.some((invitation) => invitation.id === requestedInvitationId)
-      ? requestedInvitationId
-      : undefined;
-  const inviteDefaults = selectedStaff && selectedAccess?.state === "no_access"
-    ? {
-        email: selectedStaff.primaryEmail ?? "",
-        personId: selectedStaff.id,
-        staffEmail: selectedStaff.primaryEmail ?? undefined,
-      }
-    : undefined;
+const FOCUS_KEYS = ["personId", "memberId", "invitationId"] as const;
 
-  return (
-    <AccessSettingsScreen
-      branches={data.branches}
-      currentUserId={context.userId}
-      focusedInvitationId={focusedInvitationId}
-      focusedMemberId={focusedMemberId}
-      header={
-        <PageHeader
-          navigation={<SettingsTabs activeHref="/users-roles" />}
-          title="Settings"
-        />
-      }
-      inviteDefaults={inviteDefaults}
-      invitations={data.invitations}
-      members={data.members}
-      people={data.linkedPeople ?? data.staff}
-      requestedStaffId={selectedStaff?.id}
-      staff={data.staff}
-    />
-  );
+export default async function LegacyUsersRolesPage({
+  searchParams,
+}: LegacyUsersRolesPageProps) {
+  const source = await searchParams;
+  const target = new URLSearchParams();
+
+  for (const key of FOCUS_KEYS) {
+    const value = readUuidParam(source[key]);
+    if (value) target.set(key, value);
+  }
+
+  const query = target.toString();
+  redirect(`/settings/access${query ? `?${query}` : ""}`);
 }
 
 function readUuidParam(value: string | string[] | undefined) {

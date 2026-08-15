@@ -98,6 +98,7 @@ export function AccessSettingsScreen({
   people,
   requestedStaffId,
   staff,
+  embedded = false,
 }: {
   branches: OrganizationBranch[];
   currentUserId?: string;
@@ -114,22 +115,29 @@ export function AccessSettingsScreen({
   people: OrganizationStaffOption[];
   requestedStaffId?: string;
   staff?: OrganizationStaffOption[];
+  embedded?: boolean;
 }) {
+  const workspace = (
+    <AccessWorkspace
+      branches={branches}
+      currentUserId={currentUserId}
+      focusedInvitationId={focusedInvitationId}
+      focusedMemberId={focusedMemberId}
+      inviteDefaults={inviteDefaults}
+      invitations={invitations}
+      members={members}
+      people={people}
+      requestedStaffId={requestedStaffId}
+      staff={staff}
+    />
+  );
+
+  if (embedded) return workspace;
+
   return (
     <SettingsNavigationGuardProvider>
-      {header ?? <SettingsTabs activeHref="/users-roles" />}
-      <AccessWorkspace
-        branches={branches}
-        currentUserId={currentUserId}
-        focusedInvitationId={focusedInvitationId}
-        focusedMemberId={focusedMemberId}
-        inviteDefaults={inviteDefaults}
-        invitations={invitations}
-        members={members}
-        people={people}
-        requestedStaffId={requestedStaffId}
-        staff={staff}
-      />
+      {header ?? <SettingsTabs activeHref="/settings/access" />}
+      {workspace}
     </SettingsNavigationGuardProvider>
   );
 }
