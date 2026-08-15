@@ -11,17 +11,14 @@ import { Palette } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
 import { updateOrganizationAppearanceAction } from "@/features/organization/actions";
 import type { SettingsEditorHandle } from "@/features/organization/components/branch-editor";
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
+import { CompanyLogoEditor } from "@/features/organization/components/company-logo-editor";
 import { SettingsSaveBar } from "@/features/organization/components/settings-save-bar";
 import { SettingsSectionHeader } from "@/features/organization/components/settings-section-header";
 import {
@@ -45,14 +42,20 @@ type AppearanceDraft = {
 };
 
 type AppearanceEditorProps = {
+  logoStoragePath: string | null;
+  logoUrl: string | null;
   onDraftStatusChange: (status: DraftStatus) => void;
+  organizationName: string;
   theme: OrganizationTheme;
 };
 
 export const AppearanceEditor = forwardRef<
   SettingsEditorHandle,
   AppearanceEditorProps
->(function AppearanceEditor({ onDraftStatusChange, theme }, controllerRef) {
+>(function AppearanceEditor(
+  { logoStoragePath, logoUrl, onDraftStatusChange, organizationName, theme },
+  controllerRef,
+) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const initialValues = useMemo<AppearanceDraft>(
@@ -76,12 +79,14 @@ export const AppearanceEditor = forwardRef<
   const previewMode = previewTheme.mode === "dark" ? "dark" : "light";
   const acceptThemeValues = draft.acceptValues;
 
-  useImperativeHandle(controllerRef, () => ({ discard: draft.discard }), [draft.discard]);
-  useEffect(() => onDraftStatusChange(draft.status), [draft.status, onDraftStatusChange]);
+  useImperativeHandle(controllerRef, () => ({ discard: draft.discard }), [
+    draft.discard,
+  ]);
   useEffect(
-    () => () => onDraftStatusChange("clean"),
-    [onDraftStatusChange],
+    () => onDraftStatusChange(draft.status),
+    [draft.status, onDraftStatusChange],
   );
+  useEffect(() => () => onDraftStatusChange("clean"), [onDraftStatusChange]);
   useEffect(() => {
     if (draft.status === "saved") router.refresh();
   }, [draft.status, router]);
@@ -95,8 +100,15 @@ export const AppearanceEditor = forwardRef<
       });
     }
 
-    window.addEventListener(ORGANIZATION_THEME_UPDATED_EVENT, handleThemeUpdated);
-    return () => window.removeEventListener(ORGANIZATION_THEME_UPDATED_EVENT, handleThemeUpdated);
+    window.addEventListener(
+      ORGANIZATION_THEME_UPDATED_EVENT,
+      handleThemeUpdated,
+    );
+    return () =>
+      window.removeEventListener(
+        ORGANIZATION_THEME_UPDATED_EVENT,
+        handleThemeUpdated,
+      );
   }, [acceptThemeValues]);
 
   function restoreDefault() {
@@ -108,161 +120,200 @@ export const AppearanceEditor = forwardRef<
   }
 
   return (
-    <Card className="min-w-0" data-testid="settings-editor" size="sm">
-      <CardHeader className="border-b">
-        <SettingsSectionHeader
-          description="Choose the workspace display style."
-          icon={Palette}
-          title="Appearance"
-        />
-      </CardHeader>
-      <CardContent className="p-0">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void draft.submit((field) => {
-              const control = formRef.current?.elements.namedItem(String(field));
-              if (control instanceof HTMLElement) control.focus();
-            });
-          }}
-          ref={formRef}
-        >
-          <div className="space-y-5 p-4 sm:p-5">
-            <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(220px,0.65fr)_minmax(0,1.35fr)]">
-              <div className="space-y-2">
-                <label className="text-sm font-medium" id="theme-mode-label">
-                  Workspace default
-                </label>
-                <SelectControl
-                  ariaLabel="Theme mode"
-                  name="mode"
-                  onValueChange={(value) => draft.setField("mode", value)}
-                  options={[
-                    { label: "System", value: "system" },
-                    { label: "Light", value: "light" },
-                    { label: "Dark", value: "dark" },
-                  ]}
-                  value={draft.values.mode}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Members can override this in their account.
-                </p>
-              </div>
-
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Accent color</legend>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {ACCENT_PRESET_NAMES.map((preset) => {
-                    const selected = draft.values.accentPreset === preset;
-                    const seed =
-                      preset === "neutral"
-                        ? "linear-gradient(135deg,#111 50%,#f5f5f5 50%)"
-                        : preset === "custom"
-                          ? draft.values.accentSeed
-                          : ACCENT_PRESETS[preset].seed!;
-                    return (
-                      <button
-                        aria-pressed={selected}
-                        className={cn(
-                          "flex min-h-10 items-center gap-2 rounded-lg border px-2.5 text-left text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
-                          selected && "border-ring bg-muted",
-                        )}
-                        key={preset}
-                        onClick={() => draft.setField("accentPreset", preset)}
-                        type="button"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="size-4 shrink-0 rounded-full border border-black/15"
-                          style={{ background: seed }}
-                        />
-                        {ACCENT_PRESETS[preset].label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            </div>
-
-            {draft.values.accentPreset === "custom" ? (
-              <div className="max-w-sm space-y-2">
-                <label className="text-sm font-medium" htmlFor="accentSeed">
-                  Custom color
-                </label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    aria-label="Custom color picker"
-                    className="w-11 shrink-0 p-1"
-                    onChange={(event) => draft.setField("accentSeed", event.target.value.toUpperCase())}
-                    type="color"
-                    value={normalizeHexColor(draft.values.accentSeed) ?? "#2563EB"}
-                  />
-                  <Input
-                    aria-describedby={draft.errors.accentSeed ? "accent-seed-error" : undefined}
-                    aria-invalid={Boolean(draft.errors.accentSeed)}
-                    aria-label="Custom hex color"
-                    id="accentSeed"
-                    name="accentSeed"
-                    onChange={(event) => draft.setField("accentSeed", event.target.value)}
-                    placeholder="#2563EB"
-                    value={draft.values.accentSeed}
-                  />
-                </div>
-                {draft.errors.accentSeed ? (
-                  <p className="text-sm text-danger" id="accent-seed-error">
-                    {draft.errors.accentSeed}
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <input name="accentSeed" type="hidden" value="" />
-            )}
-
-            <div
-              aria-label="Appearance sample"
-              className={cn(
-                "flex flex-wrap items-center gap-2 overflow-hidden rounded-lg border bg-card p-3 text-foreground",
-                previewMode === "dark" && "dark",
-              )}
-              data-testid="appearance-preview"
-              role="group"
-              style={getOrganizationThemeStyle(previewTheme, previewMode)}
-            >
-              <div className="rounded-md bg-[var(--org-accent-soft)] px-3 py-2 text-sm font-medium">
-                Selected navigation
-              </div>
-              <Input aria-label="Preview input" className="w-40" placeholder="Focused input" />
-              <Button type="button">Primary action</Button>
-              <a className="text-sm font-medium text-primary underline-offset-4 hover:underline" href="#appearance-preview">
-                Record link
-              </a>
-              <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
-                Active
-              </span>
-            </div>
-
-            <Button className="w-fit" onClick={restoreDefault} type="button" variant="outline">
-              Restore default
-            </Button>
-          </div>
-
-          {draft.resultMessage ? (
-            <p className={cn("px-4 pb-3 text-sm", draft.status === "error" ? "text-danger" : "text-success")}>
-              {draft.resultMessage}
-            </p>
-          ) : null}
-          <SettingsSaveBar
-            confirmDiscard={false}
-            onDiscard={draft.discard}
-            onSave={() => {
-              formRef.current?.requestSubmit();
-            }}
-            status={draft.status}
-            statusMessage={draft.statusMessage}
+    <div className="space-y-4">
+      <CompanyLogoEditor
+        logoStoragePath={logoStoragePath}
+        logoUrl={logoUrl}
+        organizationName={organizationName}
+      />
+      <Card className="min-w-0" data-testid="settings-editor" size="sm">
+        <CardHeader className="border-b">
+          <SettingsSectionHeader
+            description="Choose the workspace display style."
+            icon={Palette}
+            title="Appearance"
           />
-        </form>
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent className="p-0">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void draft.submit((field) => {
+                const control = formRef.current?.elements.namedItem(
+                  String(field),
+                );
+                if (control instanceof HTMLElement) control.focus();
+              });
+            }}
+            ref={formRef}
+          >
+            <div className="space-y-5 p-4 sm:p-5">
+              <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(220px,0.65fr)_minmax(0,1.35fr)]">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" id="theme-mode-label">
+                    Workspace default
+                  </label>
+                  <SelectControl
+                    ariaLabel="Theme mode"
+                    name="mode"
+                    onValueChange={(value) => draft.setField("mode", value)}
+                    options={[
+                      { label: "System", value: "system" },
+                      { label: "Light", value: "light" },
+                      { label: "Dark", value: "dark" },
+                    ]}
+                    value={draft.values.mode}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Members can override this in their account.
+                  </p>
+                </div>
+
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium">Accent color</legend>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {ACCENT_PRESET_NAMES.map((preset) => {
+                      const selected = draft.values.accentPreset === preset;
+                      const seed =
+                        preset === "neutral"
+                          ? "linear-gradient(135deg,#111 50%,#f5f5f5 50%)"
+                          : preset === "custom"
+                            ? draft.values.accentSeed
+                            : ACCENT_PRESETS[preset].seed!;
+                      return (
+                        <button
+                          aria-pressed={selected}
+                          className={cn(
+                            "flex min-h-10 items-center gap-2 rounded-lg border px-2.5 text-left text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                            selected && "border-ring bg-muted",
+                          )}
+                          key={preset}
+                          onClick={() => draft.setField("accentPreset", preset)}
+                          type="button"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="size-4 shrink-0 rounded-full border border-black/15"
+                            style={{ background: seed }}
+                          />
+                          {ACCENT_PRESETS[preset].label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              </div>
+
+              {draft.values.accentPreset === "custom" ? (
+                <div className="max-w-sm space-y-2">
+                  <label className="text-sm font-medium" htmlFor="accentSeed">
+                    Custom color
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      aria-label="Custom color picker"
+                      className="w-11 shrink-0 p-1"
+                      onChange={(event) =>
+                        draft.setField(
+                          "accentSeed",
+                          event.target.value.toUpperCase(),
+                        )
+                      }
+                      type="color"
+                      value={
+                        normalizeHexColor(draft.values.accentSeed) ?? "#2563EB"
+                      }
+                    />
+                    <Input
+                      aria-describedby={
+                        draft.errors.accentSeed
+                          ? "accent-seed-error"
+                          : undefined
+                      }
+                      aria-invalid={Boolean(draft.errors.accentSeed)}
+                      aria-label="Custom hex color"
+                      id="accentSeed"
+                      name="accentSeed"
+                      onChange={(event) =>
+                        draft.setField("accentSeed", event.target.value)
+                      }
+                      placeholder="#2563EB"
+                      value={draft.values.accentSeed}
+                    />
+                  </div>
+                  {draft.errors.accentSeed ? (
+                    <p className="text-sm text-danger" id="accent-seed-error">
+                      {draft.errors.accentSeed}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <input name="accentSeed" type="hidden" value="" />
+              )}
+
+              <div
+                aria-label="Appearance sample"
+                className={cn(
+                  "flex flex-wrap items-center gap-2 overflow-hidden rounded-lg border bg-card p-3 text-foreground",
+                  previewMode === "dark" && "dark",
+                )}
+                data-testid="appearance-preview"
+                role="group"
+                style={getOrganizationThemeStyle(previewTheme, previewMode)}
+              >
+                <div className="rounded-md bg-[var(--org-accent-soft)] px-3 py-2 text-sm font-medium">
+                  Selected navigation
+                </div>
+                <Input
+                  aria-label="Preview input"
+                  className="w-40"
+                  placeholder="Focused input"
+                />
+                <Button type="button">Primary action</Button>
+                <a
+                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  href="#appearance-preview"
+                >
+                  Record link
+                </a>
+                <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
+                  Active
+                </span>
+              </div>
+
+              <Button
+                className="w-fit"
+                onClick={restoreDefault}
+                type="button"
+                variant="outline"
+              >
+                Restore default
+              </Button>
+            </div>
+
+            {draft.resultMessage ? (
+              <p
+                className={cn(
+                  "px-4 pb-3 text-sm",
+                  draft.status === "error" ? "text-danger" : "text-success",
+                )}
+              >
+                {draft.resultMessage}
+              </p>
+            ) : null}
+            <SettingsSaveBar
+              confirmDiscard={false}
+              onDiscard={draft.discard}
+              onSave={() => {
+                formRef.current?.requestSubmit();
+              }}
+              status={draft.status}
+              statusMessage={draft.statusMessage}
+            />
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 });
 
@@ -271,10 +322,15 @@ function validateAppearance(values: AppearanceDraft) {
   if (!(["light", "dark", "system"] as string[]).includes(values.mode)) {
     errors.mode = "Choose a valid theme mode.";
   }
-  if (!(ACCENT_PRESET_NAMES as readonly string[]).includes(values.accentPreset)) {
+  if (
+    !(ACCENT_PRESET_NAMES as readonly string[]).includes(values.accentPreset)
+  ) {
     errors.accentPreset = "Choose a valid accent color.";
   }
-  if (values.accentPreset === "custom" && !normalizeHexColor(values.accentSeed)) {
+  if (
+    values.accentPreset === "custom" &&
+    !normalizeHexColor(values.accentSeed)
+  ) {
     errors.accentSeed = "Enter a six-digit hex color.";
   }
   return errors;

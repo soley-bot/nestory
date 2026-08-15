@@ -22,12 +22,17 @@ export async function OrganizationSettingsRoute({
         appearance={data.appearance}
         branches={data.branches}
         canManageStructure
+        logoStoragePath={data.logoStoragePath}
+        logoUrl={data.logoUrl}
         organizationName={context.organizationName}
         organizationSlug={context.organizationSlug}
         section={section}
         staff={data.staff}
         teams={data.teams}
-        workspaceUrl={getOrganizationWorkspaceUrl(context.organizationSlug, "/")}
+        workspaceUrl={getOrganizationWorkspaceUrl(
+          context.organizationSlug,
+          "/",
+        )}
       />
     </SettingsShell>
   );

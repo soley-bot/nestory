@@ -20,6 +20,8 @@ export function OrganizationSettingsScreen({
   branches,
   canManageStructure = true,
   header,
+  logoStoragePath = null,
+  logoUrl = null,
   organizationName,
   organizationSlug,
   section,
@@ -31,6 +33,8 @@ export function OrganizationSettingsScreen({
   branches: OrganizationBranch[];
   canManageStructure?: boolean;
   header?: ReactNode;
+  logoStoragePath?: string | null;
+  logoUrl?: string | null;
   organizationName: string;
   organizationSlug?: string;
   section: SettingsSection;
@@ -45,6 +49,8 @@ export function OrganizationSettingsScreen({
           appearance={appearance}
           branches={branches}
           canManageStructure={canManageStructure}
+          logoStoragePath={logoStoragePath}
+          logoUrl={logoUrl}
           organizationName={organizationName}
           organizationSlug={organizationSlug}
           section={section}

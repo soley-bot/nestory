@@ -36,6 +36,8 @@ type SettingsWorkspaceProps = {
   appearance?: OrganizationTheme;
   branches: OrganizationBranch[];
   canManageStructure: boolean;
+  logoStoragePath?: string | null;
+  logoUrl?: string | null;
   organizationName: string;
   organizationSlug?: string;
   section: SettingsSection;
@@ -62,6 +64,8 @@ function SettingsWorkspaceContent({
   appearance = DEFAULT_ORGANIZATION_THEME,
   branches,
   canManageStructure,
+  logoStoragePath = null,
+  logoUrl = null,
   organizationName,
   organizationSlug,
   section,
@@ -84,12 +88,8 @@ function SettingsWorkspaceContent({
     return () => guard.registerDraftController(null);
   }, [guard]);
 
-
   return (
-    <div
-      className="min-w-0"
-      data-testid="settings-workspace"
-    >
+    <div className="min-w-0" data-testid="settings-workspace">
       <section
         aria-label={`${currentSectionLabel} settings content`}
         className="min-w-0"
@@ -108,7 +108,10 @@ function SettingsWorkspaceContent({
           />
         ) : section === "appearance" ? (
           <AppearanceEditor
+            logoStoragePath={logoStoragePath}
+            logoUrl={logoUrl}
             onDraftStatusChange={guard?.setDraftStatus ?? (() => undefined)}
+            organizationName={organizationName}
             ref={editorRef}
             theme={appearance}
           />
