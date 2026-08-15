@@ -1,11 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createSupabaseServerClient, revalidatePath, requireSuperAdminContext, rpc } =
+const {
+  createSignedUrl,
+  createSupabaseServerClient,
+  logoSingle,
+  remove,
+  revalidatePath,
+  requireSuperAdminContext,
+  rpc,
+  upload,
+} =
   vi.hoisted(() => ({
+    createSignedUrl: vi.fn(),
     createSupabaseServerClient: vi.fn(),
+    logoSingle: vi.fn(),
+    remove: vi.fn(),
     revalidatePath: vi.fn(),
     requireSuperAdminContext: vi.fn(),
     rpc: vi.fn(),
+    upload: vi.fn(),
   }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
@@ -14,13 +27,36 @@ vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 vi.mock("@/lib/db/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
 vi.mock("@/lib/auth/callback-url", () => ({ getAuthCallbackUrl: vi.fn() }));
 
-import { updateOrganizationAppearanceAction } from "@/features/organization/actions";
+import {
+  removeOrganizationLogoAction,
+  updateOrganizationAppearanceAction,
+  updateOrganizationIdentityAction,
+  uploadOrganizationLogoAction,
+} from "@/features/organization/actions";
 
 beforeEach(() => {
+  createSupabaseServerClient.mockReset();
   rpc.mockReset();
+  upload.mockReset();
+  remove.mockReset();
+  logoSingle.mockReset();
+  createSignedUrl.mockReset();
   revalidatePath.mockReset();
   requireSuperAdminContext.mockResolvedValue({ organizationId: "org-1" });
-  createSupabaseServerClient.mockResolvedValue({ rpc });
+  logoSingle.mockResolvedValue({ data: { logo_storage_path: null }, error: null });
+  upload.mockResolvedValue({ data: {}, error: null });
+  remove.mockResolvedValue({ data: {}, error: null });
+  createSupabaseServerClient.mockResolvedValue({
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({ single: logoSingle })),
+      })),
+    })),
+    rpc,
+    storage: {
+      from: vi.fn(() => ({ createSignedUrl, remove, upload })),
+    },
+  });
 });
 
 describe("updateOrganizationAppearanceAction", () => {
@@ -72,3 +108,112 @@ describe("updateOrganizationAppearanceAction", () => {
     );
   });
 });
+
+describe("updateOrganizationIdentityAction", () => {
+  it("trims and persists the workspace display name without accepting a slug", async () => {
+    rpc.mockResolvedValue({ data: "Soley Property Management", error: null });
+    const form = new FormData();
+    form.set("name", "  Soley Property Management  ");
+    form.set("slug", "changed-behind-the-ui");
+
+    await expect(updateOrganizationIdentityAction({}, form)).resolves.toEqual({
+      message: "Workspace name updated.",
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("update_organization_identity", {
+      p_name: "Soley Property Management",
+      p_organization_id: "org-1",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/organization");
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("rejects an invalid workspace name before the RPC", async () => {
+    const form = new FormData();
+    form.set("name", " ");
+
+    await expect(updateOrganizationIdentityAction({}, form)).resolves.toEqual({
+      message: "Enter a workspace name between 2 and 120 characters.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("organization logo actions", () => {
+  it("uploads a versioned logo, selects it, then removes the previous object", async () => {
+    const previousPath = "org-1/logos/00000000-0000-4000-8000-000000000001.png";
+    logoSingle.mockResolvedValue({ data: { logo_storage_path: previousPath }, error: null });
+    rpc.mockResolvedValue({ data: "selected", error: null });
+    const form = new FormData();
+    form.set("logo", validPngFile());
+
+    await expect(uploadOrganizationLogoAction({}, form)).resolves.toEqual({
+      message: "Company logo updated.",
+      status: "success",
+    });
+
+    const uploadedPath = upload.mock.calls[0][0] as string;
+    expect(uploadedPath).toMatch(/^org-1\/logos\/[0-9a-f-]{36}\.png$/);
+    expect(upload).toHaveBeenCalledWith(uploadedPath, expect.any(File), {
+      cacheControl: "31536000",
+      contentType: "image/png",
+      upsert: false,
+    });
+    expect(rpc).toHaveBeenCalledWith("update_organization_logo", {
+      p_logo_storage_path: uploadedPath,
+      p_organization_id: "org-1",
+    });
+    expect(remove).toHaveBeenCalledWith([previousPath]);
+  });
+
+  it("removes the new object when selecting it fails", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "pointer failed" } });
+    const form = new FormData();
+    form.set("logo", validPngFile());
+
+    await expect(uploadOrganizationLogoAction({}, form)).resolves.toEqual({
+      message: "We could not save the company logo.",
+      status: "error",
+    });
+
+    expect(remove).toHaveBeenCalledWith([upload.mock.calls[0][0]]);
+  });
+
+  it("rejects invalid image content before opening Storage", async () => {
+    const form = new FormData();
+    form.set("logo", new File([new Uint8Array([1, 2, 3])], "fake.png", { type: "image/png" }));
+
+    await expect(uploadOrganizationLogoAction({}, form)).resolves.toEqual({
+      message: "The file content does not match its image type.",
+      status: "error",
+    });
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+
+  it("clears the pointer before deleting the old logo", async () => {
+    const previousPath = "org-1/logos/00000000-0000-4000-8000-000000000001.png";
+    logoSingle.mockResolvedValue({ data: { logo_storage_path: previousPath }, error: null });
+    rpc.mockResolvedValue({ data: null, error: null });
+
+    await expect(removeOrganizationLogoAction({}, new FormData())).resolves.toEqual({
+      message: "Company logo removed.",
+      status: "success",
+    });
+
+    expect(rpc).toHaveBeenCalledWith("update_organization_logo", {
+      p_logo_storage_path: "",
+      p_organization_id: "org-1",
+    });
+    expect(remove).toHaveBeenCalledWith([previousPath]);
+  });
+});
+
+function validPngFile() {
+  const bytes = new Uint8Array(24);
+  bytes.set([137, 80, 78, 71, 13, 10, 26, 10], 0);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(16, 512);
+  view.setUint32(20, 256);
+  return new File([bytes], "company.png", { type: "image/png" });
+}

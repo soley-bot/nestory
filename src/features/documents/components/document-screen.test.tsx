@@ -180,6 +180,21 @@ describe("DocumentScreen workspace contract", () => {
     expect(screen.getByText("lease-agreement.pdf")).not.toBeNull();
   });
 
+  it("uses controlled property-document types for property uploads", () => {
+    navigation.searchParams = new URLSearchParams(
+      "action=create&category=Property+record&propertyId=property-1",
+    );
+
+    renderDocuments(documents, { propertyId: "property-1" });
+
+    const form = screen.getByRole("form", { name: "Upload document form" });
+    const category = within(form).getByRole("combobox", {
+      name: /Category/,
+    });
+    expect(category.textContent).toContain("Property record");
+    expect(within(form).queryByRole("textbox", { name: /Category/ })).toBeNull();
+  });
+
   it("does not invent an unsafe file action when no signed URL is available", () => {
     renderDocuments([makeDocument("document-unavailable", "missing.pdf", { url: undefined })]);
     fireEvent.click(screen.getByRole("button", { name: "Preview missing.pdf" }));

@@ -1,11 +1,6 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
-import {
-  DOCUMENT_FILE_ACCEPT,
-  FileDropzoneField,
-} from "@/components/ui/file-dropzone-field";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -17,7 +12,7 @@ import {
   updateUnitAction,
 } from "@/features/units/actions";
 import {
-  UNIT_STATUS_OPTIONS,
+  UNIT_OPERATIONAL_STATE_OPTIONS,
   type UnitDetail,
   type UnitPropertyOption,
   type UnitSummary,
@@ -52,11 +47,7 @@ export function UnitForm({
   const defaults = getUnitDefaults(unit, initialValues);
   const propertyOptions = ensureSelectedProperty(properties, defaults.propertyId);
   const propertyLabel = getPropertyLabel(propertyOptions, defaults.propertyId);
-  const selectedStatus = defaults.status || "vacant";
-  const normalizedStatusOptions = ensureSelectedStatus(
-    UNIT_STATUS_OPTIONS,
-    selectedStatus,
-  );
+  const operationalStateLocked = Boolean(isEditMode && unit?.hasActiveLease);
 
   useEffect(() => {
     if (
@@ -79,6 +70,7 @@ export function UnitForm({
   return (
     <RecordForm
       action={action}
+      allowSaveWhenClean={!isEditMode}
       ariaLabel={isEditMode ? "Edit unit form" : "Add unit form"}
       hideSaveOnSuccess={!isEditMode}
       onCancel={onClose}
@@ -94,6 +86,7 @@ export function UnitForm({
       <FormSection title="Placement">
         <div className="grid gap-4 sm:grid-cols-2">
           <RecordField
+            className="sm:col-span-2"
             error={state.fieldErrors?.propertyId?.[0]}
             label="Property"
             name="propertyId"
@@ -126,31 +119,41 @@ export function UnitForm({
           </RecordField>
 
           <RecordField
-            error={state.fieldErrors?.status?.[0]}
-            label="Status"
-            name="status"
-            required
+            label="Occupancy"
+            name="occupancy"
           >
-            <SelectControl
-              ariaLabel="Status"
-              defaultValue={selectedStatus}
-              name="status"
-              options={normalizedStatusOptions}
-              required
-            />
+            <ReadOnlyValue>{defaults.occupancy}</ReadOnlyValue>
           </RecordField>
+
+          <RecordField
+            error={state.fieldErrors?.operationalState?.[0]}
+            label="Operational state"
+            name="operationalState"
+            required={!operationalStateLocked}
+          >
+            {operationalStateLocked ? (
+              <ReadOnlyValue>
+                {getOperationalStateLabel(defaults.operationalState)}
+              </ReadOnlyValue>
+            ) : (
+              <SelectControl
+                ariaLabel="Operational state"
+                defaultValue={defaults.operationalState}
+                name="operationalState"
+                options={UNIT_OPERATIONAL_STATE_OPTIONS}
+                required
+              />
+            )}
+          </RecordField>
+          {operationalStateLocked ? (
+            <input
+              name="operationalState"
+              type="hidden"
+              value={defaults.operationalState}
+            />
+          ) : null}
         </div>
 
-        <ConsequencePanel
-          rows={[
-            {
-              label: "Property",
-              value: isEditMode ? "Remains on the current property" : "Fixed after creation",
-            },
-            { label: "Status", value: "Updates vacancy and occupancy views" },
-          ]}
-          title="Placement effects"
-        />
       </FormSection>
 
       <FormSection title="Unit details">
@@ -199,73 +202,19 @@ export function UnitForm({
         </div>
       </FormSection>
 
-      <FormSection title="Rent">
-        <div className="grid gap-4">
-          <RecordField
-            label="Current rent"
-            name="currentRentAmount"
-            error={state.fieldErrors?.currentRentAmount?.[0]}
-          >
-            <NumberInput
-              defaultValue={defaults.currentRentAmount}
-              min="0"
-              name="currentRentAmount"
-              placeholder="0.00"
-              step="0.01"
-            />
-          </RecordField>
-        </div>
-      </FormSection>
-
-      <FormSection title="Documents and evidence">
-        <RecordField
-          error={state.fieldErrors?.document?.[0]}
-          label="Supporting file"
-          name="document"
-        >
-          <InlineDocumentField defaultCategory="Unit evidence" />
-        </RecordField>
-      </FormSection>
     </RecordForm>
   );
 }
 
-function InlineDocumentField({
-  "aria-describedby": ariaDescribedBy,
-  "aria-invalid": ariaInvalid,
-  "aria-labelledby": ariaLabelledBy,
-  "aria-required": ariaRequired,
-  defaultCategory,
-}: {
-  "aria-describedby"?: string;
-  "aria-invalid"?: boolean | "false" | "true";
-  "aria-labelledby"?: string;
-  "aria-required"?: boolean | "false" | "true";
-  defaultCategory: string;
-}) {
+function ReadOnlyValue({
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <section className="rounded-md border border-border bg-muted p-3">
-      <p className="text-xs leading-5 text-muted-foreground">
-        Optional. Upload a supporting file and it will be linked to this unit.
-      </p>
-      <input name="documentCategory" type="hidden" value={defaultCategory} />
-      <FileDropzoneField
-        accept={DOCUMENT_FILE_ACCEPT}
-        aria-describedby={ariaDescribedBy}
-        aria-invalid={ariaInvalid}
-        aria-labelledby={ariaLabelledBy}
-        aria-required={ariaRequired}
-        className="mt-3"
-        description="PDF, JPG, PNG, or WebP up to 10 MB."
-        name="document"
-      />
-    </section>
-  );
-}
-
-function ReadOnlyValue({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-9 items-center rounded-md border border-border bg-muted px-3 text-sm text-muted-foreground">
+    <div
+      {...props}
+      className="flex min-h-9 items-center rounded-md border border-border bg-muted px-3 text-sm text-muted-foreground"
+    >
       {children}
     </div>
   );
@@ -276,21 +225,32 @@ function getUnitDefaults(
   initialValues: Partial<Pick<UnitSummary["formValues"], "propertyId">> = {},
 ) {
   const formValues = unit?.formValues;
-  const parsedRent = parseRentLabel(unit?.rentLabel);
+  const storedStatus =
+    formValues?.status ?? normalizeStoredValue(unit?.statusLabel ?? "");
 
   return {
-    currentRentAmount: toInputNumber(
-      formValues?.currentRentAmount ?? parsedRent.amount,
-    ),
     floor:
       formValues?.floor ??
       (unit?.floorLabel && unit.floorLabel !== "Not set" ? unit.floorLabel : ""),
     propertyId:
       formValues?.propertyId ?? unit?.propertyId ?? initialValues.propertyId ?? "",
     sizeSqm: toInputNumber(formValues?.sizeSqm ?? parseSizeLabel(unit)),
-    status: formValues?.status ?? normalizeStoredValue(unit?.statusLabel ?? ""),
+    occupancy: unit?.occupancyLabel ?? "Vacant",
+    operationalState: getOperationalState(storedStatus),
     unitNumber: formValues?.unitNumber ?? unit?.unitNumber ?? "",
   };
+}
+function getOperationalState(storedStatus: string) {
+  return storedStatus === "maintenance" || storedStatus === "inactive"
+    ? storedStatus
+    : "active";
+}
+
+function getOperationalStateLabel(value: string) {
+  return (
+    UNIT_OPERATIONAL_STATE_OPTIONS.find((option) => option.value === value)?.label ??
+    value
+  );
 }
 
 function toInputNumber(value: number | string | null | undefined) {
@@ -308,18 +268,6 @@ function parseSizeLabel(unit?: UnitDetail | UnitSummary | null) {
 
   const match = unit.sizeLabel.match(/^([\d,.]+)/);
   return match?.[1]?.replace(/,/g, "") ?? "";
-}
-
-function parseRentLabel(label?: string): {
-  amount: string;
-} {
-  if (!label || label === "No rent recorded") {
-    return { amount: "" };
-  }
-
-  const amount = label.replace(/[^\d.-]/g, "");
-
-  return amount ? { amount } : { amount: "" };
 }
 
 function normalizeStoredValue(value: string) {
@@ -350,19 +298,5 @@ function ensureSelectedProperty(
   return [
     ...properties,
     { id: selectedPropertyId, label: "Current property" },
-  ];
-}
-
-function ensureSelectedStatus(
-  options: { label: string; value: string }[],
-  selectedStatus: string,
-) {
-  if (!selectedStatus || options.some((option) => option.value === selectedStatus)) {
-    return options;
-  }
-
-  return [
-    ...options,
-    { label: selectedStatus.replace(/_/g, " "), value: selectedStatus },
   ];
 }

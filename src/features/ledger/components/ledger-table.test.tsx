@@ -1,6 +1,12 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LedgerTable } from "@/features/ledger/components/ledger-table";
 import type { LedgerEntry } from "@/features/ledger/ledger.types";
@@ -28,20 +34,31 @@ describe("LedgerTable", () => {
     expect(scrollOwner?.classList.contains("overflow-x-auto")).toBe(true);
     expect(scrollOwner?.classList.contains("overflow-auto")).toBe(false);
     expect(scrollOwner?.getAttribute("aria-label")).toBe("Ledger table");
-    expect(table.querySelector("thead")?.classList.contains("sticky")).toBe(true);
+    expect(table.querySelector("thead")?.classList.contains("sticky")).toBe(
+      true,
+    );
     expect(row.classList.contains("border-t")).toBe(true);
     expect(row.getAttribute("tabindex")).toBe("0");
     expect(row.getAttribute("aria-selected")).toBe("false");
-    expect(within(row).getByRole("link", { name: "Home" }).getAttribute("href")).toBe(
-      "/properties/property-1/account",
-    );
+    expect(
+      within(row).getByRole("link", { name: "Home" }).getAttribute("href"),
+    ).toBe("/properties/property-1/account");
+    expect(
+      within(table)
+        .getAllByRole("columnheader")
+        .map((header) => header.textContent),
+    ).toEqual(["Date", "Entry", "Property", "Amount", "Preview"]);
+    expect(within(row).queryByText("July rent")).toBeNull();
+    expect(within(row).queryByText("Rent & Income")).toBeNull();
 
     fireEvent.keyDown(row, { key: "Enter" });
     expect(onSelectEntry).toHaveBeenCalledWith(entry.id);
   });
 
   it("keeps the empty ledger state inside semantic table markup", () => {
-    render(<LedgerTable entries={[]} onSelectEntry={vi.fn()} selectedEntryId="" />);
+    render(
+      <LedgerTable entries={[]} onSelectEntry={vi.fn()} selectedEntryId="" />,
+    );
 
     const table = screen.getByRole("table");
     const emptyCell = within(table).getByText(
@@ -49,7 +66,7 @@ describe("LedgerTable", () => {
     );
 
     expect(emptyCell.tagName).toBe("TD");
-    expect(emptyCell.getAttribute("colspan")).toBe("6");
+    expect(emptyCell.getAttribute("colspan")).toBe("5");
     expect(emptyCell.closest("tr")?.classList.contains("border-t")).toBe(true);
   });
 });

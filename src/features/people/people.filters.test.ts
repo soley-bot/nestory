@@ -69,6 +69,10 @@ describe("parsePeopleSearchParams", () => {
       status: "all",
     });
   });
+
+  it("does not expose the unreachable inactive-role state as a People view", () => {
+    expect(parsePeopleSearchParams({ status: "inactive" }).status).toBe("all");
+  });
 });
 
 describe("personMatchesStatusFilter", () => {
@@ -395,7 +399,8 @@ function buildPersonSummary(
       ownerProperties: [],
     },
     nextAction: {
-      description: "Assign tenant, owner, vendor, or staff before linking work.",
+      description:
+        "Assign tenant, owner, vendor, or staff before linking work.",
       href: "/people/person-1",
       label: "Assign role",
       tone: "warning",

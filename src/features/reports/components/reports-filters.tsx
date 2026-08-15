@@ -13,7 +13,6 @@ import type {
 
 type ReportsFiltersProps = {
   action: string;
-  actions?: ReactNode;
   propertyOptions: ReportPropertyOption[];
   unitOptions: ReportUnitOption[];
   viewQuery: ReportsViewQuery;
@@ -21,7 +20,6 @@ type ReportsFiltersProps = {
 
 export function ReportsFilters({
   action,
-  actions,
   propertyOptions,
   unitOptions,
   viewQuery,
@@ -33,6 +31,9 @@ export function ReportsFilters({
       : unitOptions.filter(
           ({ propertyId }) => propertyId === viewQuery.propertyId,
         );
+  const showReset =
+    viewQuery.propertyId !== "all" ||
+    (showUnit && viewQuery.unitId !== "all");
 
   return (
     <section
@@ -49,7 +50,7 @@ export function ReportsFilters({
           <ScopeField label="Property">
             <SelectControl
               ariaLabel="Filter report by property"
-              className="h-8 w-[220px] px-2.5 text-sm"
+              className="h-8 w-[190px] px-2.5 text-sm"
               defaultValue={viewQuery.propertyId}
               name="propertyId"
               options={[
@@ -65,7 +66,7 @@ export function ReportsFilters({
           <ScopeField label="Month">
             <MonthPickerField
               ariaLabel="Report month"
-              className="h-8 w-[160px] px-2.5 text-sm"
+              className="h-8 w-[150px] px-2.5 text-sm"
               defaultValue={viewQuery.month}
               name="month"
             />
@@ -75,7 +76,7 @@ export function ReportsFilters({
             <ScopeField label="Unit">
               <SelectControl
                 ariaLabel="Filter report by unit"
-                className="h-8 w-[220px] px-2.5 text-sm"
+                className="h-8 w-[190px] px-2.5 text-sm"
                 defaultValue={viewQuery.unitId}
                 name="unitId"
                 options={[
@@ -98,17 +99,18 @@ export function ReportsFilters({
             Apply
           </Button>
 
-          <Button asChild className="h-8" variant="outline">
-            <Link
-              aria-label="Reset report filters"
-              href={`/reports/${viewQuery.report}`}
-            >
-              <RotateCcw size={14} />
-              Reset
-            </Link>
-          </Button>
+          {showReset ? (
+            <Button asChild className="h-8" variant="ghost">
+              <Link
+                aria-label="Reset report filters"
+                href={`/reports/${viewQuery.report}`}
+              >
+                <RotateCcw size={14} />
+                Reset
+              </Link>
+            </Button>
+          ) : null}
         </form>
-        {actions ? <div className="ml-auto shrink-0">{actions}</div> : null}
       </div>
     </section>
   );

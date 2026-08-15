@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText, Plus, ScrollText } from "lucide-react";
@@ -15,6 +15,7 @@ import {
 } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import {
@@ -97,6 +98,7 @@ export function UnitScreen({
       (!canCreate || searchParams.get("action") !== "create"),
   );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const previewTriggerRef = useRef<HTMLElement | null>(null);
   const focusedUnit = initialUnitId
     ? units.find((unit) => unit.id === initialUnitId) ?? null
     : null;
@@ -117,8 +119,26 @@ export function UnitScreen({
     setDrawer(nextDrawer);
   };
   const previewUnit = (unitId: string) => {
+    previewTriggerRef.current =
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement !== document.body
+        ? document.activeElement
+        : null;
     setSelectedUnitId(unitId);
     setCompactInspectorOpen(true);
+  };
+  const closeEditModal = () => {
+    const unitNumber = drawer?.mode === "edit" ? drawer.unit.unitNumber : null;
+    const fallbackTarget = unitNumber
+      ? Array.from(document.querySelectorAll<HTMLElement>("[aria-label]")).find(
+          (element) =>
+            element.getAttribute("aria-label") === `Preview unit ${unitNumber}`,
+        ) ?? null
+      : null;
+    const returnTarget = previewTriggerRef.current ?? fallbackTarget;
+
+    setDrawer(null);
+    queueMicrotask(() => returnTarget?.focus());
   };
   const openUnitRecord = (unitId: string) => {
     router.push(`/units/${unitId}`);
@@ -325,7 +345,18 @@ export function UnitScreen({
         </div>
       </div>
 
-      {drawer ? (
+      {drawer?.mode === "edit" ? (
+        <Modal onClose={closeEditModal} open title="Edit unit">
+          <UnitForm
+            key={`edit-${drawer.unit.id}`}
+            mode="edit"
+            onClose={closeEditModal}
+            onSuccess={setStatusMessage}
+            properties={propertyOptions}
+            unit={drawer.unit}
+          />
+        </Modal>
+      ) : drawer ? (
         <SideDrawer
           description={getUnitDrawerDescription(drawer)}
           onClose={() => setDrawer(null)}
@@ -346,15 +377,12 @@ export function UnitScreen({
             />
           ) : (
             <UnitForm
-              key={`${drawer.mode}-${drawer.unit?.id ?? "new"}`}
-              initialValues={
-                drawer.mode === "create" ? drawer.initialValues : undefined
-              }
-              mode={drawer.mode}
+              key="create-new"
+              initialValues={drawer.initialValues}
+              mode="create"
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
               properties={propertyOptions}
-              unit={drawer.unit}
             />
           )}
         </SideDrawer>
@@ -512,12 +540,8 @@ function getUnitDrawerTitle(drawer: DrawerState) {
 }
 
 function getUnitDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "create") {
-    return "Create a unit record under an active property.";
-  }
-
-  if (drawer.mode === "edit") {
-    return "Update the unit profile used by leases, timeline records, and ledger rows.";
+  if (drawer.mode === "create" || drawer.mode === "edit") {
+    return undefined;
   }
 
   if (drawer.mode === "restore") {

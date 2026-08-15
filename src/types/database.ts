@@ -606,8 +606,6 @@ type RpcFunctionOverrides = {
   create_unit: WithArgs<
     "create_unit",
     {
-      p_current_rent_amount: number | null;
-      p_current_rent_currency: CurrencyCode | null;
       p_floor: string | null;
       p_organization_id: string;
       p_property_id: string;
@@ -713,8 +711,6 @@ type RpcFunctionOverrides = {
   update_unit: WithArgs<
     "update_unit",
     {
-      p_current_rent_amount: number | null;
-      p_current_rent_currency: CurrencyCode | null;
       p_floor: string | null;
       p_organization_id: string;
       p_property_id: string;

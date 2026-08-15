@@ -48,11 +48,11 @@ export function LeasesTable({
         <div aria-label="Leases table" className="overflow-x-auto" role="region">
           <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
             <colgroup>
-              <col className="w-[22%]" />
-              <col className="w-[25%]" />
+              <col className="w-[18%]" />
               <col className="w-[24%]" />
-              <col className="w-[13%]" />
-              <col className="w-[16%]" />
+              <col className="w-[24%]" />
+              <col className="w-[10%]" />
+              <col className="w-[24%]" />
             </colgroup>
             <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
@@ -73,6 +73,7 @@ export function LeasesTable({
               ) : null}
               {leases.map((lease) => {
                 const partySummary = getSecondaryParty(lease);
+                const depositAttention = getDepositAttention(lease);
 
                 return (
                 <tr
@@ -125,19 +126,24 @@ export function LeasesTable({
                     <TableMoneyDisplay value={lease.rentDisplay} />
                   </td>
                   <td className="px-1.5 py-2 align-middle">
-                    <div className="flex min-w-0 flex-wrap items-center gap-1">
-                      <Badge className="px-2 text-xs" tone={lease.statusTone}>
-                        {lease.statusLabel}
-                      </Badge>
-                      {lease.isArchived ? (
-                        <Badge className="px-2 text-xs" tone="warning">Archived</Badge>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Badge className="px-2 text-xs" tone={lease.statusTone}>
+                          {lease.statusLabel}
+                        </Badge>
+                        {lease.isArchived ? (
+                          <Badge className="px-2 text-xs" tone="warning">Archived</Badge>
+                        ) : null}
+                      </div>
+                      {depositAttention ? (
+                        <p
+                          className="min-w-0 truncate text-xs text-warning"
+                          title={depositAttention}
+                        >
+                          {depositAttention}
+                        </p>
                       ) : null}
                     </div>
-                    {getDepositAttention(lease) ? (
-                      <p className="mt-1 truncate text-xs text-warning">
-                        {getDepositAttention(lease)}
-                      </p>
-                    ) : null}
                   </td>
                 </tr>
                 );

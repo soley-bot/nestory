@@ -266,7 +266,7 @@ describe("browser acceptance matrix policy", () => {
       { label: "Maintenance board", path: "/maintenance?view=board", source: "maintenance" },
       { label: "Records", manifestRoute: "/timeline" },
       { label: "Settings", manifestRoute: "/settings" },
-      { label: "Workspace Access", manifestRoute: "/users-roles" },
+      { label: "Workspace Access", manifestRoute: "/settings/access" },
       { label: "Account", manifestRoute: "/account" },
       { label: "Finance Operations", manifestRoute: "/finance" },
       { label: "Owner balances", manifestRoute: "/balances" },

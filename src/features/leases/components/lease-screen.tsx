@@ -18,7 +18,6 @@ import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeSearchParams } from "@/lib/url/href";
-import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   ArchiveLeasePanel,
   RestoreLeasePanel,
@@ -60,7 +59,6 @@ type DrawerState =
 
 type LeaseScreenProps = {
   canConfigure?: boolean;
-  canReadFinanceReports?: boolean;
   initialLeaseId?: string;
   leases: LeaseSummary[];
   pagination: LeasePagination;
@@ -72,7 +70,6 @@ type LeaseScreenProps = {
 
 export function LeaseScreen({
   canConfigure = true,
-  canReadFinanceReports = false,
   initialLeaseId,
   leases,
   pagination,
@@ -180,7 +177,7 @@ export function LeaseScreen({
 
   const hasFilters = hasActiveLeaseFilters(viewQuery);
   const leaseList = (
-    <section className="flex min-w-0 flex-col bg-card">
+    <section className="flex min-w-0 flex-col bg-background">
       {leases.length === 0 ? (
         <EmptyState
           action={
@@ -205,18 +202,26 @@ export function LeaseScreen({
           title={hasFilters ? "No matching leases" : "No leases yet"}
         />
       ) : (
-        <>
-          <div className="min-h-0 flex-1 p-3 md:p-0">
-            <LeasesTable
-              archiveState={viewQuery.archiveState}
-              leases={leases}
-              getLeaseHref={getLeaseRecordHref}
-              onSelectLease={previewLease}
-              selectedLeaseId={compactInspectorOpen ? selectedLease?.id ?? "" : ""}
-            />
+        <div
+          className="workspace-gutter-x min-h-0 flex-1 py-3"
+          data-slot="lease-register-gutter"
+        >
+          <div
+            className="bg-background md:overflow-hidden md:rounded-md md:border md:border-border md:bg-card"
+            data-slot="lease-register-surface"
+          >
+            <div className="min-h-0 flex-1 pb-3 md:pb-0">
+              <LeasesTable
+                archiveState={viewQuery.archiveState}
+                leases={leases}
+                getLeaseHref={getLeaseRecordHref}
+                onSelectLease={previewLease}
+                selectedLeaseId={compactInspectorOpen ? selectedLease?.id ?? "" : ""}
+              />
+            </div>
+            <PaginationControls pagination={pagination} />
           </div>
-          <PaginationControls pagination={pagination} />
-        </>
+        </div>
       )}
     </section>
   );
@@ -243,12 +248,6 @@ export function LeaseScreen({
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/leases"
       headerClassName="py-3 lg:py-3"
-      localNav={(
-        <FinanceWorkspaceNavigation
-          activeRoute="/leases"
-          canReadFinanceReports={canReadFinanceReports}
-        />
-      )}
       title="Leases"
     >
       <div className="flex min-w-0 flex-col">

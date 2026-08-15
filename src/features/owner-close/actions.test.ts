@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   buildXlsx: vi.fn(() => new Uint8Array([4, 5])),
   download: vi.fn(),
   from: vi.fn(),
+  loadPresentation: vi.fn(),
   loadPublication: vi.fn(),
   requireClose: vi.fn(),
   requirePublication: vi.fn(),
@@ -38,6 +39,9 @@ vi.mock("@/lib/db/admin", () => ({
 }));
 vi.mock("@/features/reports/data/owner-statement-report", () => ({
   loadOwnerStatementPublication: mocks.loadPublication,
+}));
+vi.mock("@/features/reports/data/owner-statement-presentation", () => ({
+  loadOwnerStatementPresentation: mocks.loadPresentation,
 }));
 vi.mock("@/features/reports/data/pdf", () => ({
   buildOwnerStatementPdf: mocks.buildPdf,
@@ -101,6 +105,11 @@ describe("owner close checked actions", () => {
       artifacts: [],
       publicationId,
       statementNumber: "OS-202608-000000000000",
+    });
+    mocks.loadPresentation.mockResolvedValue({
+      organizationName: "Independent Property Service",
+      ownerName: "Sokha Vannak",
+      propertyLabel: "CTR-RES / Central Residence",
     });
     mocks.rpc.mockResolvedValue({ data: { status: "completed" }, error: null });
   });
@@ -195,6 +204,14 @@ describe("owner close checked actions", () => {
       p_owner_close_revision_id: revisionId,
     });
     expect(mocks.from).toHaveBeenCalledWith("owner-statements");
+    expect(mocks.buildPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ publicationId }),
+      {
+        organizationName: "Independent Property Service",
+        ownerName: "Sokha Vannak",
+        propertyLabel: "CTR-RES / Central Residence",
+      },
+    );
     expect(mocks.upload).toHaveBeenCalledTimes(2);
     expect(mocks.upload.mock.calls[0]?.[2]).toMatchObject({ upsert: false });
     expect(mocks.upload.mock.calls[1]?.[2]).toMatchObject({ upsert: false });

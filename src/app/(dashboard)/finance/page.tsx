@@ -70,7 +70,7 @@ function FinanceRoleWorkspace({ data }: { data: FinanceWorkspaceData }) {
             {data.role === "finance_manager" ? (
               <Button asChild variant="outline">
                 <Link href="/finance?view=transactions" prefetch={false}>
-                  Transaction work
+                  Transactions
                 </Link>
               </Button>
             ) : null}
@@ -84,17 +84,14 @@ function FinanceRoleWorkspace({ data }: { data: FinanceWorkspaceData }) {
           </div>
         ) : undefined
       }
-      context={
-        data.role === "finance_manager"
-          ? `${data.totals.awaitingReview} awaiting review`
-          : `${data.queue.length} submissions`
-      }
+      context={data.role === "finance_manager" ? "Review queue" : "My submissions"}
       contextHref="/finance"
       headerClassName="py-3 lg:py-3"
       localNav={
         <FinanceWorkspaceNavigation
           activeRoute="/finance"
           canReadFinanceReports={data.role === "finance_manager"}
+          role={data.role}
         />
       }
       title="Finance"

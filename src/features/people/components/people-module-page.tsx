@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { PeopleScreen } from "@/features/people/components/people-screen";
 import { PeopleScreenSkeleton } from "@/features/people/components/people-screen-skeleton";
-import { PeopleWorkspaceNavigation } from "@/features/people/components/people-workspace-navigation";
 import { getAccessByPersonId } from "@/features/organization/data";
 import { getPeopleInsightsData } from "@/features/people/data/people-insights";
 import { getPeopleScreenData } from "@/features/people/data/people";
@@ -29,9 +28,7 @@ export function PeopleModulePage({
   searchParams,
 }: PeopleModulePageProps) {
   return (
-    <Suspense
-      fallback={<PeopleScreenSkeleton title={config.title} />}
-    >
+    <Suspense fallback={<PeopleScreenSkeleton title={config.title} />}>
       <PeopleModulePageContent config={config} searchParams={searchParams} />
     </Suspense>
   );
@@ -62,10 +59,7 @@ export async function PeopleModulePageContent({
       : [],
   );
   const accessByPersonId = config.showAccessStatus
-    ? await getAccessByPersonId(
-        context.organizationId,
-        activeStaffIds,
-      )
+    ? await getAccessByPersonId(context.organizationId, activeStaffIds)
     : undefined;
 
   return (
@@ -76,7 +70,6 @@ export async function PeopleModulePageContent({
       initialPersonId={initialPersonId}
       insights={insights}
       key={initialPersonId ?? config.role ?? "people"}
-      localNavigation={<PeopleWorkspaceNavigation activeRole={config.role} />}
       lockedRole={config.role}
       pagination={pagination}
       people={people}

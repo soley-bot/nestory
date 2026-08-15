@@ -116,6 +116,9 @@ describe("finance routes", () => {
       const html = renderToStaticMarkup(await FinancePage());
 
       expect(html).toContain(expectedText);
+      expect(html).toContain(
+        role === "finance_manager" ? "Review queue" : "My submissions",
+      );
       expect(buildFinanceWorkspaceData).toHaveBeenCalledWith({
         data: financeData,
         role,
@@ -163,7 +166,7 @@ describe("finance routes", () => {
     });
 
     const queueHtml = renderToStaticMarkup(await FinancePage());
-    expect(queueHtml).toContain("Transaction work");
+    expect(queueHtml).toContain("Transactions");
     expect(queueHtml).toContain("/finance?view=transactions");
 
     const workHtml = renderToStaticMarkup(

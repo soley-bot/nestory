@@ -1,4 +1,9 @@
 import { UnitDetailScreen } from "@/features/units/components/unit-detail-screen";
+import { getLeasesScreenData } from "@/features/leases/data/leases";
+import { parseLeaseSearchParams } from "@/features/leases/lease.filters";
+import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
+import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
+import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import { getPropertySummaries } from "@/features/properties/data/properties";
 import { getUnitDetail } from "@/features/units/data/units";
 import { parseUnitDetailQuery } from "@/features/units/unit-detail-route";
@@ -25,9 +30,49 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
     return <UnitNotFound />;
   }
 
+  const maintenanceActor = {
+    branchId: context.branchId,
+    personId: context.personId,
+    role: context.role,
+  } as const;
+  const [leaseData, maintenanceData] = await Promise.all([
+    getLeasesScreenData(
+      context.organizationId,
+      parseLeaseSearchParams({
+        pageSize: "10",
+        propertyId: unit.propertyId,
+        unitId: unit.id,
+      }),
+    ),
+    getMaintenanceScreenData(
+      context.organizationId,
+      parseMaintenanceSearchParams({
+        pageSize: "6",
+        propertyId: unit.propertyId,
+        unitId: unit.id,
+      }),
+      maintenanceActor,
+    ),
+  ]);
+
   return (
     <UnitDetailScreen
       activeSection={section}
+      leaseFormOptions={{
+        properties: leaseData.propertyOptions,
+        tenants: leaseData.tenantOptions,
+        units: leaseData.unitOptions,
+      }}
+      maintenanceFormOptions={{
+        actor: maintenanceActor,
+        branches: maintenanceData.branchOptions,
+        canRecordActualCost: getMaintenanceCapabilities(context.role)
+          .canRecordActualCost,
+        properties: maintenanceData.propertyOptions,
+        staff: maintenanceData.staffOptions,
+        units: maintenanceData.unitOptions,
+        vendors: maintenanceData.vendorOptions,
+      }}
       propertyOptions={toPropertyOptions(properties)}
       sourceTaskId={sourceTaskId}
       unit={unit}

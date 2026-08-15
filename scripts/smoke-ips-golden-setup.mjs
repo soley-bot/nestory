@@ -77,7 +77,6 @@ async function createSetupRecords(page, origin) {
   await page.getByRole("button", { name: "Create new unit" }).click();
   dialog = page.getByRole("dialog", { name: "Create unit" });
   await dialog.locator('input[name="unitNumber"]').fill(names.unit);
-  await dialog.locator('input[name="currentRentAmount"]').fill("875");
   await submitCreation(page, dialog, "Add unit", 4, "unitId");
   const unitId = getRequiredSearchParam(page, "unitId");
 

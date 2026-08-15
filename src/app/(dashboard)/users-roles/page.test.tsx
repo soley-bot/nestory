@@ -21,10 +21,21 @@ vi.mock("@/features/organization/components/access-settings-screen", () => ({
     );
   },
 }));
+vi.mock("@/components/layout/settings-shell", () => ({
+  SettingsShell: ({ children }: { children: ReactNode }) => (
+    <div>
+      <header>
+        <h1>Settings</h1>
+        <nav aria-label="Settings sections">Access</nav>
+      </header>
+      {children}
+    </div>
+  ),
+}));
 
-import UsersRolesPage from "@/app/(dashboard)/users-roles/page";
+import AccessSettingsPage from "@/app/(dashboard)/settings/access/page";
 
-describe("UsersRolesPage", () => {
+describe("AccessSettingsPage", () => {
   beforeEach(() => {
     getAccessSettingsData.mockReset();
     requireSuperAdminContext.mockReset();
@@ -39,11 +50,11 @@ describe("UsersRolesPage", () => {
 
   it("loads access data only after admin authorization and identifies the current user", async () => {
     const html = renderToStaticMarkup(
-      await UsersRolesPage({ searchParams: Promise.resolve({ email: "new@example.com" }) }),
+      await AccessSettingsPage({ searchParams: Promise.resolve({ email: "new@example.com" }) }),
     );
 
     expect(html).toContain("Access workspace");
-    expect(html).toContain("Workspace Access");
+    expect(html).toContain("Access");
     expect(requireSuperAdminContext).toHaveBeenCalledOnce();
     expect(getAccessSettingsData).toHaveBeenCalledWith("organization-1");
     expect(screenSpy).toHaveBeenCalledWith(
@@ -52,13 +63,14 @@ describe("UsersRolesPage", () => {
         invitations: [],
         inviteDefaults: undefined,
         staff: [],
+        embedded: true,
       }),
     );
   });
 
   it("renders one Settings heading with access navigation in the same header", async () => {
     const html = renderToStaticMarkup(
-      await UsersRolesPage({ searchParams: Promise.resolve({}) }),
+      await AccessSettingsPage({ searchParams: Promise.resolve({}) }),
     );
 
     expect(html.match(/<h1/g)).toHaveLength(1);
@@ -94,7 +106,7 @@ describe("UsersRolesPage", () => {
     });
 
     renderToStaticMarkup(
-      await UsersRolesPage({
+      await AccessSettingsPage({
         searchParams: Promise.resolve({
           email: "attacker@example.com",
           memberId: unrelatedMemberId,
@@ -143,7 +155,7 @@ describe("UsersRolesPage", () => {
     });
 
     renderToStaticMarkup(
-      await UsersRolesPage({
+      await AccessSettingsPage({
         searchParams: Promise.resolve({
           invitationId: "33333333-3333-4333-8333-333333333333",
           personId,
@@ -175,7 +187,7 @@ describe("UsersRolesPage", () => {
     });
 
     renderToStaticMarkup(
-      await UsersRolesPage({
+      await AccessSettingsPage({
         searchParams: Promise.resolve({
           invitationId: "not-a-uuid",
           memberId,
@@ -219,7 +231,7 @@ describe("UsersRolesPage", () => {
     });
 
     renderToStaticMarkup(
-      await UsersRolesPage({ searchParams: Promise.resolve({}) }),
+      await AccessSettingsPage({ searchParams: Promise.resolve({}) }),
     );
 
     expect(screenSpy).toHaveBeenCalledWith(expect.objectContaining({

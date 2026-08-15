@@ -1,6 +1,12 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PersonDetailScreen } from "@/features/people/components/person-detail-screen";
 import PersonNotFound from "@/app/(dashboard)/people/[personId]/not-found";
@@ -17,27 +23,102 @@ afterEach(() => {
 });
 
 describe("PersonDetailScreen", () => {
-  it("uses the linked-record detail rhythm without repeating identity", () => {
+  it("keeps the person record focused on overview and related work", () => {
     render(<PersonDetailScreen person={person} />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "Dara Tenant" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { level: 2, name: "Dara Tenant" })).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Dara Tenant" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { level: 2, name: "Dara Tenant" }),
+    ).toBeNull();
     expect(screen.getByText("Active", { selector: "span" })).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "Review relationship" }).getAttribute("href"),
-    ).toBe("/leases?leaseId=lease-1");
-    expect(screen.getByRole("link", { name: "Tenants" }).getAttribute("href")).toBe(
-      "/tenants",
-    );
+      screen.queryByRole("link", { name: "Review relationship" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Tenants" }).getAttribute("href"),
+    ).toBe("/tenants");
 
     const navigation = screen.getByRole("navigation", {
       name: "Person record sections",
     });
-    expect(within(navigation).getByRole("tab", { name: "Overview" }).getAttribute("aria-selected")).toBe("true");
-    expect(within(navigation).queryByRole("tab", { name: "Reports" })).toBeNull();
-    fireEvent.click(within(navigation).getByRole("tab", { name: "Links" }));
-    expect(within(navigation).getByRole("tab", { name: "Links" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByRole("heading", { name: "Linked records" })).toBeTruthy();
+    expect(
+      within(navigation)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Overview", "Related"]);
+    expect(
+      within(navigation)
+        .getByRole("tab", { name: "Overview" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(
+      within(navigation).queryByRole("tab", { name: "Photos" }),
+    ).toBeNull();
+    expect(
+      within(navigation).queryByRole("tab", { name: "Documents" }),
+    ).toBeNull();
+    expect(
+      within(navigation).queryByRole("tab", { name: "Timeline" }),
+    ).toBeNull();
+    fireEvent.click(within(navigation).getByRole("tab", { name: "Related" }));
+    expect(
+      within(navigation)
+        .getByRole("tab", { name: "Related" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("heading", { name: "Linked records" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Related evidence" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Recent activity" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps staff-only records focused on contact and workspace access", () => {
+    const staffPerson: PeopleSummary = {
+      ...person,
+      displayName: "Mara Sovan",
+      riskIndicators: [
+        {
+          description:
+            "No related lease, property, or unit documents are attached yet.",
+          id: "documents",
+          label: "Evidence missing",
+          tone: "warning",
+        },
+      ],
+      roleLabel: "Staff",
+      roles: [{ role: "staff", status: "active" }],
+    };
+
+    render(
+      <PersonDetailScreen
+        accessStatus={{ primaryAction: "grant_access", state: "no_access" }}
+        person={staffPerson}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Staff" }).getAttribute("href"),
+    ).toBe("/staff");
+    expect(
+      screen.queryByRole("navigation", { name: "Person record sections" }),
+    ).toBeNull();
+    expect(screen.queryByText("Evidence missing")).toBeNull();
+    expect(screen.queryByText("Linked", { selector: "dt" })).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Workspace Access" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", {
+        name: "Grant workspace access for Mara Sovan",
+      }),
+    ).toBeTruthy();
   });
 
   it("uses uncontained tabs and mounts only the selected panel", () => {
@@ -58,14 +139,14 @@ describe("PersonDetailScreen", () => {
     ).toBe("person-overview");
     expect(
       within(navigation)
-        .getByRole("tab", { name: "Links" })
+        .getByRole("tab", { name: "Related" })
         .getAttribute("aria-controls"),
     ).toBeNull();
 
-    fireEvent.click(within(navigation).getByRole("tab", { name: "Links" }));
+    fireEvent.click(within(navigation).getByRole("tab", { name: "Related" }));
 
     expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
-    expect(screen.getByRole("tabpanel").id).toBe("person-links");
+    expect(screen.getByRole("tabpanel").id).toBe("person-related");
     expect(
       within(navigation)
         .getByRole("tab", { name: "Overview" })
@@ -73,9 +154,9 @@ describe("PersonDetailScreen", () => {
     ).toBeNull();
     expect(
       within(navigation)
-        .getByRole("tab", { name: "Links" })
+        .getByRole("tab", { name: "Related" })
         .getAttribute("aria-controls"),
-    ).toBe("person-links");
+    ).toBe("person-related");
   });
 
   it("flattens linked-record groups and rows while keeping their destinations", () => {
@@ -96,13 +177,15 @@ describe("PersonDetailScreen", () => {
     };
     const { container } = render(<PersonDetailScreen person={linkedPerson} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "Links" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Related" }));
 
     const groups = Array.from(
       container.querySelectorAll<HTMLElement>('[data-slot="linked-group"]'),
     );
     const rows = Array.from(
-      container.querySelectorAll<HTMLElement>('[data-slot="linked-record-row"]'),
+      container.querySelectorAll<HTMLElement>(
+        '[data-slot="linked-record-row"]',
+      ),
     );
     expect(groups).toHaveLength(3);
     expect(rows.length).toBeGreaterThanOrEqual(2);
@@ -123,10 +206,12 @@ describe("PersonDetailScreen", () => {
   it("gives an unknown person ID a safe recovery path", () => {
     render(<PersonNotFound />);
 
-    expect(screen.getByRole("heading", { name: "Person not found" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Back to people" }).getAttribute("href")).toBe(
-      "/people",
-    );
+    expect(
+      screen.getByRole("heading", { name: "Person not found" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Back to people" }).getAttribute("href"),
+    ).toBe("/people");
   });
 
   it("keeps role checkboxes available when editing a single-role person", () => {
@@ -134,26 +219,38 @@ describe("PersonDetailScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 
+    const dialog = screen.getByRole("dialog", { name: "Edit person" });
+    expect(dialog.className).toContain("sm:max-w-2xl");
     expect(
-      screen.getByRole("checkbox", { name: "Tenant" }).getAttribute("data-state"),
+      screen
+        .getByRole("checkbox", { name: "Tenant" })
+        .getAttribute("data-state"),
     ).toBe("checked");
     expect(
-      screen.getByRole("checkbox", { name: "Owner" }).getAttribute("data-state"),
+      screen
+        .getByRole("checkbox", { name: "Owner" })
+        .getAttribute("data-state"),
     ).toBe("unchecked");
     expect(
-      screen.getByRole("checkbox", { name: "Vendor" }).getAttribute("data-state"),
+      screen
+        .getByRole("checkbox", { name: "Vendor" })
+        .getAttribute("data-state"),
     ).toBe("unchecked");
     expect(
-      screen.getByRole("checkbox", { name: "Staff" }).getAttribute("data-state"),
+      screen
+        .getByRole("checkbox", { name: "Staff" })
+        .getAttribute("data-state"),
     ).toBe("unchecked");
   });
 
   it("warns that open Lease roles must be resolved before archive", () => {
     render(<PersonDetailScreen person={person} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
 
-    const drawer = screen.getByRole("dialog", { name: "Archive person" });
+    const drawer = screen.getByRole("dialog", { name: "Archive Dara Tenant?" });
+    expect(drawer.className).toContain("sm:max-w-md");
     expect(
       within(drawer).getByText(
         /open Lease roles must be ended or cancelled through a checked relationship transition first/i,
@@ -161,12 +258,27 @@ describe("PersonDetailScreen", () => {
     ).toBeTruthy();
   });
 
+  it("keeps history secondary in More", () => {
+    render(<PersonDetailScreen person={person} />);
+
+    expect(
+      screen.queryByRole("link", { name: "Review relationship" }),
+    ).toBeNull();
+    fireEvent.pointerDown(screen.getByRole("button", { name: "More" }));
+
+    expect(
+      screen
+        .getByRole("menuitem", { name: "View history" })
+        .getAttribute("href"),
+    ).toBe("/timeline?query=Dara%20Tenant");
+  });
+
   it.each([
     [
       { primaryAction: "grant_access", state: "no_access" },
       "No access",
       "Grant workspace access",
-      "/users-roles?personId=person-1",
+      "/settings/access?personId=person-1",
     ],
     [
       {
@@ -182,7 +294,7 @@ describe("PersonDetailScreen", () => {
       },
       "Pending invitation",
       "Review invitation",
-      "/users-roles?personId=person-1&invitationId=invitation-pending",
+      "/settings/access?personId=person-1&invitationId=invitation-pending",
     ],
     [
       {
@@ -198,7 +310,7 @@ describe("PersonDetailScreen", () => {
       },
       "Invitation failed",
       "Review and resend",
-      "/users-roles?personId=person-1&invitationId=invitation-failed",
+      "/settings/access?personId=person-1&invitationId=invitation-failed",
     ],
     [
       {
@@ -214,7 +326,7 @@ describe("PersonDetailScreen", () => {
       },
       "Invitation expired",
       "Review invitation",
-      "/users-roles?personId=person-1&invitationId=invitation-expired",
+      "/settings/access?personId=person-1&invitationId=invitation-expired",
     ],
     [
       {
@@ -228,9 +340,9 @@ describe("PersonDetailScreen", () => {
       },
       "Active access",
       "Manage workspace access",
-      "/users-roles?personId=person-1&memberId=membership-1",
+      "/settings/access?personId=person-1&memberId=membership-1",
     ],
-  ] as Array<[OrganizationPersonAccessStatus, string, string, string]>) (
+  ] as Array<[OrganizationPersonAccessStatus, string, string, string]>)(
     "shows the %s Staff access state with a safe focus action",
     (accessStatus, stateLabel, actionLabel, href) => {
       const staffPerson = {
@@ -241,9 +353,13 @@ describe("PersonDetailScreen", () => {
           { role: "staff" as const, status: "active" as const },
         ],
       };
-      render(<PersonDetailScreen accessStatus={accessStatus} person={staffPerson} />);
+      render(
+        <PersonDetailScreen accessStatus={accessStatus} person={staffPerson} />,
+      );
 
-      expect(screen.getByRole("heading", { name: "Workspace Access" })).toBeTruthy();
+      expect(
+        screen.getByRole("heading", { name: "Workspace Access" }),
+      ).toBeTruthy();
       expect(
         screen.getByText(
           "Staff records describe operational people. Workspace Access controls who can sign in.",
@@ -262,7 +378,10 @@ describe("PersonDetailScreen", () => {
     ["non-staff", person],
     [
       "inactive staff",
-      { ...person, roles: [{ role: "staff" as const, status: "inactive" as const }] },
+      {
+        ...person,
+        roles: [{ role: "staff" as const, status: "inactive" as const }],
+      },
     ],
     [
       "archived staff",
@@ -280,7 +399,9 @@ describe("PersonDetailScreen", () => {
       />,
     );
 
-    expect(screen.queryByRole("heading", { name: "Workspace Access" })).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Workspace Access" }),
+    ).toBeNull();
   });
 });
 

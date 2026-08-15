@@ -84,7 +84,7 @@ describe("buildFinanceWorkspaceData", () => {
     });
   });
 
-  it("keeps Finance Manager balance work after review and rent exceptions", () => {
+  it("keeps receivables out of the Finance Manager review queue", () => {
     const result = buildFinanceWorkspaceData({
       data: financeData({
         ownerInvoices: [
@@ -134,28 +134,7 @@ describe("buildFinanceWorkspaceData", () => {
       userId: "finance-manager-user",
     });
 
-    expect(result.queue.map((item) => item.kind)).toEqual([
-      "tenant-balance",
-      "owner-balance",
-    ]);
-    expect(result.queue.map((item) => item.href)).toEqual([
-      "/rent-income",
-      "/balances",
-    ]);
-    expect(result.queue).toMatchObject([
-      {
-        amountDisplay: { primary: "USD 125.00" },
-        contextLabel: "Garden Court · Unit G-01",
-        submittedByLabel: null,
-        tone: "warning",
-      },
-      {
-        amountDisplay: { primary: "USD 75.00" },
-        contextLabel: "Garden Court",
-        submittedByLabel: null,
-        tone: "warning",
-      },
-    ]);
+    expect(result.queue).toEqual([]);
   });
 
   it("shows a Finance Member only their rejected, awaiting, and recent approved submissions", () => {

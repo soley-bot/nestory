@@ -44,7 +44,11 @@ function parseLeaseStatus(
 function parseOccupancy(
   value: string | string[] | undefined,
 ): UnitOccupancyFilter {
-  return getFirstSearchParam(value) === "unoccupied" ? "unoccupied" : "all";
+  const candidate = getFirstSearchParam(value);
+
+  return candidate === "occupied" || candidate === "unoccupied"
+    ? candidate
+    : "all";
 }
 
 export function parseUnitArchiveState(

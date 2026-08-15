@@ -98,15 +98,23 @@ export async function getOwnerBalanceData(
     id: property.id,
     label: formatPropertyOptionLabel(property),
   }));
-  const scopedAssignments = (assignmentsResult.data ?? []).filter(
-    (assignment) => !scope.propertyId || assignment.property_id === scope.propertyId,
-  );
+  const assignments = assignmentsResult.data ?? [];
   const explicitOwnerIds = new Set(
-    scopedAssignments.map((assignment) => assignment.person_id),
+    assignments.map((assignment) => assignment.person_id),
   );
+  const ownerPropertyIds = new Map<string, Set<string>>();
+  for (const assignment of assignments) {
+    const propertyIds = ownerPropertyIds.get(assignment.person_id) ?? new Set();
+    propertyIds.add(assignment.property_id);
+    ownerPropertyIds.set(assignment.person_id, propertyIds);
+  }
   const ownerOptions = (peopleResult.data ?? [])
     .filter((person) => explicitOwnerIds.has(person.id))
-    .map((person) => ({ id: person.id, label: person.display_name }));
+    .map((person) => ({
+      id: person.id,
+      label: person.display_name,
+      propertyIds: Array.from(ownerPropertyIds.get(person.id) ?? []).sort(),
+    }));
 
   if (!scope.propertyId || !scope.ownerPersonId) {
     return {

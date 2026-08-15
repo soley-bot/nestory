@@ -12,6 +12,7 @@ import {
   PHOTO_FILE_ACCEPT,
 } from "@/components/ui/file-dropzone-field";
 import { Input } from "@/components/ui/input";
+import { SideDrawer } from "@/components/ui/side-drawer";
 import {
   archiveAssetPhotoAction,
   createAssetPhotoAction,
@@ -34,14 +35,17 @@ export function PhotoGallery({
   propertyId,
   title,
   unitId,
+  uploadLabel = "Add photo",
 }: {
   emptyLabel: string;
   photos: AssetPhoto[];
   propertyId: string;
   title: string;
   unitId?: string;
+  uploadLabel?: string;
 }) {
   const [preview, setPreview] = useState<PhotoPreview | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [dropzoneKey, setDropzoneKey] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
   const openPhotoPickerRef = useRef<(() => void) | null>(null);
@@ -71,6 +75,7 @@ export function PhotoGallery({
     if (nextState.status === "success") {
       clearSelectedPhoto();
       formRef.current?.reset();
+      setUploadOpen(false);
     }
 
     return nextState;
@@ -98,29 +103,51 @@ export function PhotoGallery({
   };
 
   return (
-    <section className="rounded-md border border-border bg-card">
-      <div className="flex flex-col gap-2 border-b border-border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+    <section>
+      <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
         <div className="flex items-center gap-2">
           <ImageIcon className="text-muted-foreground" size={16} />
           <h2 className="text-sm font-semibold">{title}</h2>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {photos.length} {photos.length === 1 ? "photo" : "photos"}
-        </p>
+        <Button onClick={() => setUploadOpen(true)} type="button" variant="outline">
+          <ImageIcon size={14} />
+          {uploadLabel}
+        </Button>
       </div>
 
-      <div className="grid gap-4 p-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      {photos.length === 0 ? (
+        <p className="py-5 text-sm text-muted-foreground">{emptyLabel}</p>
+      ) : (
+        <div className="space-y-5 pt-4">
+          {groupPhotosByScope(photos).map((group) => (
+            <div key={group.label}>
+              {group.showLabel ? (
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                  {group.label}
+                </h3>
+              ) : null}
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                {group.photos.map((photo) => (
+                  <PhotoCard key={photo.id} photo={photo} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {uploadOpen ? (
+        <SideDrawer
+          description="Upload a photo to this property."
+          onClose={() => setUploadOpen(false)}
+          open
+          title={uploadLabel}
+        >
         <form
           action={formAction}
-          className="space-y-3 rounded-md border border-border bg-muted/30 p-3"
+          className="space-y-4 p-5"
           ref={formRef}
         >
-          <div>
-            <h3 className="text-sm font-semibold">Upload photo</h3>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Select a pending photo, then save it to this record.
-            </p>
-          </div>
           <input name="propertyId" type="hidden" value={propertyId} />
           <input name="unitId" type="hidden" value={unitId ?? ""} />
           <input name="isCover" type="hidden" value={photos.length === 0 ? "true" : "false"} />
@@ -150,6 +177,7 @@ export function PhotoGallery({
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
             <Field label="Caption">
               <Input
+                aria-label="Caption"
                 name="caption"
                 placeholder="Exterior, kitchen, lobby..."
                 type="text"
@@ -184,27 +212,8 @@ export function PhotoGallery({
             {pending ? "Uploading..." : "Upload photo"}
           </Button>
         </form>
-
-        <section className="min-w-0 rounded-md border border-border bg-muted/30 p-3">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold">Saved photos</h3>
-            <span className="text-xs text-muted-foreground">
-              {photos.length} {photos.length === 1 ? "saved" : "saved"}
-            </span>
-          </div>
-          {photos.length === 0 ? (
-            <div className="flex min-h-56 items-center justify-center rounded-md border border-dashed border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-              {emptyLabel}
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-              {photos.map((photo) => (
-                <PhotoCard key={photo.id} photo={photo} />
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+        </SideDrawer>
+      ) : null}
     </section>
   );
 }
@@ -339,13 +348,31 @@ function PhotoActionForm({
 
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
-    <label className="block text-sm">
+    <div className="block text-sm">
       <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
         {label}
       </span>
       {children}
-    </label>
+    </div>
   );
+}
+
+function groupPhotosByScope(photos: AssetPhoto[]) {
+  const showLabel = photos.some((photo) => Boolean(photo.scopeLabel));
+  const groups = new Map<string, AssetPhoto[]>();
+
+  for (const photo of photos) {
+    const label = photo.scopeLabel ?? "Photos";
+    const group = groups.get(label) ?? [];
+    group.push(photo);
+    groups.set(label, group);
+  }
+
+  return [...groups].map(([label, groupedPhotos]) => ({
+    label,
+    photos: groupedPhotos,
+    showLabel,
+  }));
 }
 
 function FieldError({ children }: { children: ReactNode }) {

@@ -141,7 +141,7 @@ describe("People route family redesign contract", () => {
     }
   });
 
-  it("keeps the directory focused on role lenses and reveals overview from the header", async () => {
+  it("keeps the directory table-first without duplicating sidebar role navigation", async () => {
     const user = userEvent.setup();
     const { container } = renderPeople();
 
@@ -156,37 +156,14 @@ describe("People route family redesign contract", () => {
       screen.getByRole("heading", { level: 1, name: "People" }),
     ).not.toBeNull();
     expect(screen.queryByRole("region", { name: "People summary" })).toBeNull();
-    const headerActions = container.querySelector<HTMLElement>(
-      '[data-slot="page-header-actions"]',
-    );
-    expect(headerActions).not.toBeNull();
-    const overviewTrigger = within(headerActions!).getByRole("button", {
-      name: "Directory overview: 2 people, all clear",
-    });
     expect(
-      screen.queryByRole("dialog", { name: "People overview" }),
-    ).toBeNull();
-    await user.click(overviewTrigger);
-    const overview = screen.getByRole("dialog", { name: "People overview" });
-    expect(
-      within(overview).queryByRole("link", { name: "Reports" }),
-    ).toBeNull();
-    expect(within(overview).getByText("Needs attention")).not.toBeNull();
-
-    const lenses = screen.getByRole("navigation", { name: "People views" });
-    expect(
-      within(lenses)
-        .getAllByRole("link")
-        .map((link) => link.textContent),
-    ).toEqual(["All", "Owners", "Staff", "Tenants", "Vendors"]);
-    expect(
-      within(lenses).queryByRole("link", { name: "Workspace Access" }),
+      screen.queryByRole("button", { name: /Directory overview/ }),
     ).toBeNull();
     expect(
-      within(lenses)
-        .getByRole("link", { name: "All" })
-        .getAttribute("aria-current"),
-    ).toBe("page");
+      screen.queryByRole("navigation", { name: "People views" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cards" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Table" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Filters" }));
     expect(screen.queryByLabelText("Filter by role")).toBeNull();
@@ -226,47 +203,6 @@ describe("People route family redesign contract", () => {
     expect(screen.queryByRole("complementary")).toBeNull();
   });
 
-  it("updates the selected lens when role history changes and the workspace rerenders", () => {
-    const rendered = renderPeople();
-
-    let lenses = screen.getByRole("navigation", { name: "People views" });
-    expect(
-      within(lenses)
-        .getByRole("link", { name: "All" })
-        .getAttribute("aria-current"),
-    ).toBe("page");
-
-    navigation.searchParams = new URLSearchParams("role=owner&page=2");
-    rendered.rerender(getPeopleScreen());
-
-    lenses = screen.getByRole("navigation", { name: "People views" });
-    expect(
-      within(lenses)
-        .getByRole("link", { name: "Owners" })
-        .getAttribute("aria-current"),
-    ).toBe("page");
-    expect(
-      within(lenses)
-        .getByRole("link", { name: "All" })
-        .getAttribute("aria-current"),
-    ).toBeNull();
-
-    navigation.searchParams = new URLSearchParams();
-    rendered.rerender(getPeopleScreen());
-
-    lenses = screen.getByRole("navigation", { name: "People views" });
-    expect(
-      within(lenses)
-        .getByRole("link", { name: "All" })
-        .getAttribute("aria-current"),
-    ).toBe("page");
-    expect(
-      within(lenses)
-        .getByRole("link", { name: "Owners" })
-        .getAttribute("aria-current"),
-    ).toBeNull();
-  });
-
   it("preserves role and search parameters in pagination links", () => {
     navigation.searchParams = new URLSearchParams(
       "role=owner&query=Alice+Tenant&page=2",
@@ -289,32 +225,6 @@ describe("People route family redesign contract", () => {
       screen.getByRole("link", { name: "Next" }).getAttribute("href"),
     ).toBe("/people?role=owner&query=Alice+Tenant&page=3");
   });
-
-  it.each([
-    ["/people", undefined, "All"],
-    ["/owners", "owner", "Owners"],
-    ["/staff", "staff", "Staff"],
-    ["/tenants", "tenant", "Tenants"],
-    ["/vendors", "vendor", "Vendors"],
-  ] as const)(
-    "marks exactly one local lens current for %s",
-    (pathname, lockedRole, activeLabel) => {
-      navigation.pathname = pathname;
-      renderPeople({ lockedRole });
-
-      const lenses = screen.getByRole("navigation", { name: "People views" });
-      expect(
-        within(lenses)
-          .getAllByRole("link")
-          .filter((link) => link.getAttribute("aria-current") === "page"),
-      ).toHaveLength(1);
-      expect(
-        within(lenses)
-          .getByRole("link", { name: activeLabel })
-          .getAttribute("aria-current"),
-      ).toBe("page");
-    },
-  );
 
   it.each([1024, 390])(
     "uses direct record links instead of preview drawers at %ipx",
@@ -363,6 +273,29 @@ describe("People route family redesign contract", () => {
     expect(screen.queryByRole("dialog", { name: "Add person" })).toBeNull();
   });
 
+  it("opens role creation without repeating a flavor description", () => {
+    renderPeople({ lockedRole: "tenant", people: [] });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Add tenant" })[0]!);
+
+    const dialog = screen.getByRole("dialog", { name: "Add tenant" });
+    expect(
+      within(dialog).queryByText(
+        "Create a tenant record for leases, occupancy, and follow-up.",
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps role registers focused on contact and operating context", () => {
+    renderPeople({ lockedRole: "tenant" });
+
+    const table = screen.getByRole("table");
+    expect(
+      within(table).queryByRole("columnheader", { name: "Next" }),
+    ).toBeNull();
+    expect(within(table).queryByText("Review linked work")).toBeNull();
+  });
+
   it.each([
     [
       "owner",
@@ -377,7 +310,7 @@ describe("People route family redesign contract", () => {
     [
       "staff",
       "Grant Workspace Access",
-      "/users-roles?personId=11111111-1111-4111-8111-111111111111",
+      "/settings/access?personId=11111111-1111-4111-8111-111111111111",
     ],
   ] as const)(
     "shows a transient %s creation handoff without pushing the workspace",
@@ -448,7 +381,7 @@ describe("People route family redesign contract", () => {
     },
   );
 
-  it("uses truthful staff operating context in the table and cards", () => {
+  it("uses truthful staff operating context in the table", () => {
     const staffWithNotes = {
       ...makePerson("staff-1", "Sokha Staff", "staff"),
       notes: "Coordinates maintenance dispatch",
@@ -469,17 +402,9 @@ describe("People route family redesign contract", () => {
     ).not.toBeNull();
     expect(within(table).getByText("No operating context")).not.toBeNull();
     expect(screen.queryByText("Team context")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Cards" }));
-    const cards = screen.getAllByRole("article");
-    expect(within(cards[0]!).getByText("Operating context")).not.toBeNull();
-    expect(
-      within(cards[0]!).getByText("Coordinates maintenance dispatch"),
-    ).not.toBeNull();
-    expect(within(cards[1]!).getByText("No operating context")).not.toBeNull();
   });
 
-  it("shows all Workspace Access states and safe focus actions in staff table and cards", () => {
+  it("shows all Workspace Access states and safe focus actions in the staff table", () => {
     const staff = [
       makePerson("staff-none", "No Access Staff", "staff"),
       makePerson("staff-pending", "Pending Staff", "staff"),
@@ -545,31 +470,31 @@ describe("People route family redesign contract", () => {
         "No Access Staff",
         "No access",
         "Grant workspace access",
-        "/users-roles?personId=staff-none",
+        "/settings/access?personId=staff-none",
       ],
       [
         "Pending Staff",
         "Pending invitation",
         "Review invitation",
-        "/users-roles?personId=staff-pending&invitationId=invitation-pending",
+        "/settings/access?personId=staff-pending&invitationId=invitation-pending",
       ],
       [
         "Failed Staff",
         "Invitation failed",
         "Review and resend",
-        "/users-roles?personId=staff-failed&invitationId=invitation-failed",
+        "/settings/access?personId=staff-failed&invitationId=invitation-failed",
       ],
       [
         "Expired Staff",
         "Invitation expired",
         "Review invitation",
-        "/users-roles?personId=staff-expired&invitationId=invitation-expired",
+        "/settings/access?personId=staff-expired&invitationId=invitation-expired",
       ],
       [
         "Active Staff",
         "Active access",
         "Manage workspace access",
-        "/users-roles?personId=staff-active&memberId=membership-1",
+        "/settings/access?personId=staff-active&memberId=membership-1",
       ],
     ] as const;
 
@@ -591,20 +516,6 @@ describe("People route family redesign contract", () => {
       within(table).getByText(/^failed@example\.com \/ Delivery/),
     ).not.toBeNull();
     expect(within(table).getByText(/Central Office/)).not.toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Cards" }));
-    for (const [name, stateLabel, actionLabel, href] of expectations) {
-      const card = screen
-        .getAllByRole("article")
-        .find((item) => within(item).queryByRole("link", { name }));
-      expect(card).toBeDefined();
-      expect(within(card!).getByText(stateLabel)).not.toBeNull();
-      expect(
-        within(card!)
-          .getByRole("link", { name: `${actionLabel} for ${name}` })
-          .getAttribute("href"),
-      ).toBe(href);
-    }
   });
 
   it("does not infer no-access or offer actions for missing, inactive, or archived Staff status", () => {
@@ -641,19 +552,6 @@ describe("People route family redesign contract", () => {
         within(row!).queryByRole("link", { name: /workspace access/i }),
       ).toBeNull();
     }
-
-    fireEvent.click(screen.getByRole("button", { name: "Cards" }));
-    const missingCard = screen
-      .getAllByRole("article")
-      .find((card) =>
-        within(card).queryByRole("link", { name: "Missing Status Staff" }),
-      );
-    expect(
-      within(missingCard!).getByText("Workspace access unavailable"),
-    ).not.toBeNull();
-    expect(
-      within(missingCard!).queryByRole("link", { name: /workspace access/i }),
-    ).toBeNull();
   });
 });
 

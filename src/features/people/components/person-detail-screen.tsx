@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Archive,
-  ArrowRight,
   CalendarDays,
   FileText,
-  Image as ImageIcon,
+  History,
+  MoreHorizontal,
   Pencil,
   RotateCcw,
   ScrollText,
@@ -18,7 +18,14 @@ import { PageHeader } from "@/components/layout/page-header";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SideDrawer } from "@/components/ui/side-drawer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Modal } from "@/components/ui/modal";
 import { TransientFeedback } from "@/components/ui/transient-feedback";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import {
@@ -37,27 +44,21 @@ import type {
 import { formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 
-type DrawerState =
-  | { mode: "edit"; person: PeopleSummary }
-  | { mode: "archive"; person: PeopleSummary }
-  | { mode: "restore"; person: PeopleSummary };
+type DialogState = { mode: "edit"; person: PeopleSummary };
 
-type PersonRecordSection =
-  | "overview"
-  | "links"
-  | "photos"
-  | "documents"
-  | "timeline";
+type ConfirmationState = {
+  mode: "archive" | "restore";
+  person: PeopleSummary;
+};
+
+type PersonRecordSection = "overview" | "related";
 
 const personRecordSections: Array<{
   id: PersonRecordSection;
   label: string;
 }> = [
   { id: "overview", label: "Overview" },
-  { id: "links", label: "Links" },
-  { id: "photos", label: "Photos" },
-  { id: "documents", label: "Documents" },
-  { id: "timeline", label: "Timeline" },
+  { id: "related", label: "Related" },
 ];
 
 export function PersonDetailScreen({
@@ -69,8 +70,14 @@ export function PersonDetailScreen({
 }) {
   const [activeSection, setActiveSection] =
     useState<PersonRecordSection>("overview");
-  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [confirmation, setConfirmation] = useState<ConfirmationState | null>(
+    null,
+  );
+  const [moreOpen, setMoreOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const confirmationTriggerRef = useRef<HTMLButtonElement>(null);
+  const isStaffOnly = isStaffOnlyPerson(person);
   const showWorkspaceAccess =
     Boolean(accessStatus) &&
     !person.isArchived &&
@@ -81,18 +88,25 @@ export function PersonDetailScreen({
   // unresolved ones reach the record, and they sit beside the title rather
   // than in a rail of prose cards.
   const openRisks = person.riskIndicators.filter(
-    (item) => item.tone !== "success",
+    (item) =>
+      item.tone !== "success" && !(isStaffOnly && item.id === "documents"),
   );
+  const closeConfirmation = () => {
+    setConfirmation(null);
+    window.requestAnimationFrame(() => confirmationTriggerRef.current?.focus());
+  };
 
   return (
     <div className="lg:flex lg:flex-col">
       <PageHeader
+        className="px-4 sm:px-6 2xl:px-8"
         actions={
           person.isArchived ? (
             <Button
+              ref={confirmationTriggerRef}
               onClick={() => {
                 setStatusMessage(null);
-                setDrawer({ mode: "restore", person });
+                setConfirmation({ mode: "restore", person });
               }}
               variant="default"
             >
@@ -101,41 +115,54 @@ export function PersonDetailScreen({
             </Button>
           ) : (
             <>
-              <Link
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-primary px-2.5 text-sm font-medium text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                href={person.nextAction.href}
-                prefetch={false}
-              >
-                {person.nextAction.label}
-                <ArrowRight size={14} />
-              </Link>
               <Button
                 onClick={() => {
                   setStatusMessage(null);
-                  setDrawer({ mode: "edit", person });
+                  setDialog({ mode: "edit", person });
                 }}
               >
                 <Pencil size={15} />
                 Edit
               </Button>
-              <Button
-                onClick={() => {
-                  setStatusMessage(null);
-                  setDrawer({ mode: "archive", person });
-                }}
-              >
-                <Archive size={15} />
-                Archive
-              </Button>
+              <DropdownMenu onOpenChange={setMoreOpen} open={moreOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-label="More"
+                    ref={confirmationTriggerRef}
+                    variant="outline"
+                  >
+                    <MoreHorizontal size={16} />
+                    More
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-44">
+                  <DropdownMenuItem asChild>
+                    <Link href={person.hrefs.timeline} prefetch={false}>
+                      <History size={15} />
+                      View history
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setMoreOpen(false);
+                      setStatusMessage(null);
+                      setConfirmation({ mode: "archive", person });
+                    }}
+                    variant="destructive"
+                  >
+                    <Archive size={15} />
+                    Archive
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )
         }
         breadcrumb={
           <PageBreadcrumb
             current={person.displayName}
-            items={[
-              { href: getBackHref(person), label: getBackLabel(person) },
-            ]}
+            items={[{ href: getBackHref(person), label: getBackLabel(person) }]}
           />
         }
         context={
@@ -160,11 +187,13 @@ export function PersonDetailScreen({
         />
       ) : null}
 
-      <div className="workspace-gutter-x flex flex-col gap-3 py-4 lg:flex-1">
-        <PersonRecordNav
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-        />
+      <div className="workspace-gutter-x flex flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-1 2xl:px-8">
+        {!isStaffOnly ? (
+          <PersonRecordNav
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+          />
+        ) : null}
 
         <div
           aria-label="Person record details"
@@ -183,7 +212,9 @@ export function PersonDetailScreen({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="break-words text-base font-semibold">
-                      Contact and relationships
+                      {isStaffOnly
+                        ? "Contact and role"
+                        : "Contact and relationships"}
                     </h2>
                   </div>
                   <p className="mt-1 break-words text-sm text-muted-foreground">
@@ -204,11 +235,9 @@ export function PersonDetailScreen({
                       tone={person.contact.phone ? undefined : "warning"}
                       value={person.contact.phone ?? "No phone"}
                     />
-                    <Detail label="Linked" value={getLinkedSummary(person)} />
-                    <Detail
-                      label="Documents"
-                      value={String(person.recordCounts.documents)}
-                    />
+                    {!isStaffOnly ? (
+                      <Detail label="Linked" value={getLinkedSummary(person)} />
+                    ) : null}
                     <Detail
                       label="Updated"
                       value={formatDate(person.updatedAt)}
@@ -216,7 +245,7 @@ export function PersonDetailScreen({
                   </dl>
 
                   {person.notes ? (
-                    <div className="mt-4 rounded-md border border-border bg-muted/60 p-3 text-sm">
+                    <div className="mt-4 border-t border-border pt-3 text-sm">
                       <p className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
                         Notes
                       </p>
@@ -238,8 +267,8 @@ export function PersonDetailScreen({
                       Workspace Access
                     </h2>
                     <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                      Staff records describe operational people. Workspace Access
-                      controls who can sign in.
+                      Staff records describe operational people. Workspace
+                      Access controls who can sign in.
                     </p>
                   </div>
                   <WorkspaceAccessStatus
@@ -252,195 +281,157 @@ export function PersonDetailScreen({
               ) : null}
             </PersonRecordPanel>
 
-            <PersonRecordPanel
-              active={activeSection === "links"}
-              ariaLabelledBy="person-tab-links"
-              className="min-w-0"
-              id="person-links"
-            >
-              <SectionTitle
-                description={getLinkedSummary(person)}
-                icon={<ScrollText size={16} />}
-                title="Linked records"
-              />
-              <div className="grid gap-x-6 gap-y-4 py-4 lg:grid-cols-3">
-                <LinkedGroup
-                  emptyActionHref={person.hrefs.addLease}
-                  emptyActionLabel="Add lease"
-                  emptyLabel="No active lease is linked."
-                  isEmpty={person.linked.activeLeases.length === 0}
-                  title="Leases"
-                >
-                  {person.linked.activeLeases.map((lease) => (
-                    <LeaseLinkRow key={lease.id} lease={lease} />
-                  ))}
-                </LinkedGroup>
-                <LinkedGroup
-                  emptyActionHref="/properties"
-                  emptyActionLabel="Review properties"
-                  emptyLabel="No ownership record is linked."
-                  isEmpty={person.linked.ownerProperties.length === 0}
-                  title="Ownership"
-                >
-                  {person.linked.ownerProperties.map((property) => (
-                    <PropertyLinkRow key={property.id} property={property} />
-                  ))}
-                </LinkedGroup>
-                <LinkedGroup
-                  emptyActionHref="/vendors"
-                  emptyActionLabel="Review vendors"
-                  emptyLabel="No vendor profile is linked."
-                  isEmpty={!person.linked.vendorProfile}
-                  title="Vendor"
-                >
-                  {person.linked.vendorProfile ? (
-                    <div
-                      className="py-3 text-sm"
-                      data-slot="linked-record-row"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="break-words font-medium">
-                            {person.linked.vendorProfile.label}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {person.linked.vendorProfile.status}
-                          </p>
-                        </div>
-                        {person.linked.vendorProfile.preferred ? (
-                          <Badge tone="success">Preferred</Badge>
+            {!isStaffOnly ? (
+              <PersonRecordPanel
+                active={activeSection === "related"}
+                ariaLabelledBy="person-tab-related"
+                className="min-w-0"
+                id="person-related"
+              >
+                <div className="divide-y divide-border">
+                  <section>
+                    <SectionTitle
+                      description={getLinkedSummary(person)}
+                      icon={<ScrollText size={16} />}
+                      title="Linked records"
+                    />
+                    <div className="grid gap-x-6 gap-y-4 py-4 lg:grid-cols-3">
+                      <LinkedGroup
+                        emptyActionHref={person.hrefs.addLease}
+                        emptyActionLabel="Add lease"
+                        emptyLabel="No active lease is linked."
+                        isEmpty={person.linked.activeLeases.length === 0}
+                        title="Leases"
+                      >
+                        {person.linked.activeLeases.map((lease) => (
+                          <LeaseLinkRow key={lease.id} lease={lease} />
+                        ))}
+                      </LinkedGroup>
+                      <LinkedGroup
+                        emptyActionHref="/properties"
+                        emptyActionLabel="Review properties"
+                        emptyLabel="No ownership record is linked."
+                        isEmpty={person.linked.ownerProperties.length === 0}
+                        title="Ownership"
+                      >
+                        {person.linked.ownerProperties.map((property) => (
+                          <PropertyLinkRow
+                            key={property.id}
+                            property={property}
+                          />
+                        ))}
+                      </LinkedGroup>
+                      <LinkedGroup
+                        emptyActionHref="/vendors"
+                        emptyActionLabel="Review vendors"
+                        emptyLabel="No vendor profile is linked."
+                        isEmpty={!person.linked.vendorProfile}
+                        title="Vendor"
+                      >
+                        {person.linked.vendorProfile ? (
+                          <div
+                            className="py-3 text-sm"
+                            data-slot="linked-record-row"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="break-words font-medium">
+                                  {person.linked.vendorProfile.label}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {person.linked.vendorProfile.status}
+                                </p>
+                              </div>
+                              {person.linked.vendorProfile.preferred ? (
+                                <Badge tone="success">Preferred</Badge>
+                              ) : null}
+                            </div>
+                          </div>
                         ) : null}
-                      </div>
+                      </LinkedGroup>
                     </div>
-                  ) : null}
-                </LinkedGroup>
-              </div>
-            </PersonRecordPanel>
+                  </section>
 
-            <PersonRecordPanel
-              active={activeSection === "photos"}
-              ariaLabelledBy="person-tab-photos"
-              className="min-w-0"
-              id="person-photos"
-            >
-              <SectionTitle
-                description="Profile media"
-                icon={<ImageIcon size={16} />}
-                title="Photos"
-              />
-              <div className="grid gap-4 p-4 md:grid-cols-[220px_minmax(0,1fr)]">
-                <div className="grid aspect-square place-items-center rounded-md border border-border bg-muted">
-                  <div className="grid h-20 w-20 place-items-center rounded-full border border-border bg-card text-muted-foreground">
-                    <UserRound size={34} />
-                  </div>
-                </div>
-                <div className="rounded-md border border-border bg-muted/60 p-4 text-sm">
-                  <p className="font-semibold">No profile photo yet</p>
-                  <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">
-                    Person photos need a person-scoped storage target. Related
-                    IDs, agreements, and contact evidence can stay in Documents
-                    for this record today.
-                  </p>
-                  <ActionLink
-                    className="mt-4"
-                    href={person.hrefs.documents}
-                    icon={<FileText size={14} />}
-                  >
-                    Documents
-                  </ActionLink>
-                </div>
-              </div>
-            </PersonRecordPanel>
+                  <section>
+                    <SectionTitle
+                      description={`${person.documents.length} linked file${
+                        person.documents.length === 1 ? "" : "s"
+                      }`}
+                      icon={<FileText size={16} />}
+                      title="Related evidence"
+                    />
+                    {person.documents.length === 0 ? (
+                      <PlainEmptyRow label="No related evidence." />
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {person.documents.map((document) => (
+                          <DocumentRow document={document} key={document.id} />
+                        ))}
+                      </div>
+                    )}
+                  </section>
 
-            <PersonRecordPanel
-              active={activeSection === "documents"}
-              ariaLabelledBy="person-tab-documents"
-              className="min-w-0"
-              id="person-documents"
-            >
-              <SectionTitle
-                description={`${person.documents.length} related document${
-                  person.documents.length === 1 ? "" : "s"
-                }`}
-                icon={<FileText size={16} />}
-                title="Documents"
-              />
-              {person.documents.length === 0 ? (
-                <EmptyRow
-                  actionHref={person.hrefs.documents}
-                  actionLabel="Open documents"
-                  label="No related documents are linked yet."
-                />
-              ) : (
-                <div className="divide-y divide-border">
-                  {person.documents.map((document) => (
-                    <DocumentRow document={document} key={document.id} />
-                  ))}
+                  <section>
+                    <SectionTitle
+                      description={`${person.activity.length} recent change${
+                        person.activity.length === 1 ? "" : "s"
+                      }`}
+                      icon={<CalendarDays size={16} />}
+                      title="Recent activity"
+                    />
+                    {person.activity.length === 0 ? (
+                      <PlainEmptyRow label="No recent activity." />
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {person.activity.map((change) => (
+                          <PersonActivityRow change={change} key={change.id} />
+                        ))}
+                      </div>
+                    )}
+                  </section>
                 </div>
-              )}
-            </PersonRecordPanel>
-
-            <PersonRecordPanel
-              active={activeSection === "timeline"}
-              ariaLabelledBy="person-tab-timeline"
-              className="min-w-0"
-              id="person-timeline"
-            >
-              <SectionTitle
-                description={`${person.activity.length} recent change${
-                  person.activity.length === 1 ? "" : "s"
-                }`}
-                icon={<CalendarDays size={16} />}
-                title="Timeline"
-              />
-              {person.activity.length === 0 ? (
-                <EmptyRow
-                  actionHref={person.hrefs.addTimelineEvent}
-                  actionLabel="Add event"
-                  label="No recent activity has been logged for this person."
-                />
-              ) : (
-                <div className="divide-y divide-border">
-                  {person.activity.map((change) => (
-                    <PersonActivityRow change={change} key={change.id} />
-                  ))}
-                </div>
-              )}
-            </PersonRecordPanel>
+              </PersonRecordPanel>
+            ) : null}
           </div>
         </div>
       </div>
 
-      {drawer ? (
-        <SideDrawer
-          description={getDrawerDescription(drawer)}
-          onClose={() => setDrawer(null)}
+      {dialog ? (
+        <Modal onClose={() => setDialog(null)} open title="Edit person">
+          <PersonForm
+            key={`edit-${dialog.person.id}`}
+            mode="edit"
+            onClose={() => setDialog(null)}
+            onSuccess={setStatusMessage}
+            person={dialog.person}
+            roleContext={getSingleActiveRole(dialog.person)}
+          />
+        </Modal>
+      ) : null}
+
+      {confirmation ? (
+        <Modal
+          onClose={closeConfirmation}
           open
-          title={getDrawerTitle(drawer)}
+          size="compact"
+          title={`${confirmation.mode === "archive" ? "Archive" : "Restore"} ${confirmation.person.displayName}?`}
         >
-          {drawer.mode === "archive" ? (
+          {confirmation.mode === "archive" ? (
             <ArchivePersonPanel
-              onClose={() => setDrawer(null)}
+              onClose={closeConfirmation}
               onSuccess={setStatusMessage}
-              person={drawer.person}
-            />
-          ) : drawer.mode === "restore" ? (
-            <RestorePersonPanel
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-              person={drawer.person}
+              person={confirmation.person}
+              presentation="modal"
             />
           ) : (
-            <PersonForm
-              key={`edit-${drawer.person.id}`}
-              mode="edit"
-              onClose={() => setDrawer(null)}
+            <RestorePersonPanel
+              onClose={closeConfirmation}
               onSuccess={setStatusMessage}
-              person={drawer.person}
-              roleContext={getSingleActiveRole(drawer.person)}
+              person={confirmation.person}
+              presentation="modal"
             />
           )}
-        </SideDrawer>
+        </Modal>
       ) : null}
     </div>
   );
@@ -503,8 +494,7 @@ function PersonRecordNav({
             aria-selected={activeSection === section.id}
             className={cn(
               "inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              activeSection === section.id &&
-                "bg-accent text-foreground",
+              activeSection === section.id && "bg-accent text-foreground",
             )}
             id={`person-tab-${section.id}`}
             key={section.id}
@@ -656,7 +646,9 @@ function PropertyLinkRow({ property }: { property: PeoplePropertyLink }) {
       prefetch={false}
     >
       <p className="break-words font-medium">{property.label}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{property.ownershipLabel}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {property.ownershipLabel}
+      </p>
     </Link>
   );
 }
@@ -718,23 +710,8 @@ function EmptyBlock({
   );
 }
 
-function EmptyRow({
-  actionHref,
-  actionLabel,
-  label,
-}: {
-  actionHref: string;
-  actionLabel: string;
-  label: string;
-}) {
-  return (
-    <div className="flex flex-col gap-3 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-muted-foreground">{label}</p>
-      <ActionLink href={actionHref} icon={<FileText size={14} />}>
-        {actionLabel}
-      </ActionLink>
-    </div>
-  );
+function PlainEmptyRow({ label }: { label: string }) {
+  return <p className="px-4 py-5 text-sm text-muted-foreground">{label}</p>;
 }
 
 function ActionLink({
@@ -788,7 +765,20 @@ function getBackHref(person: PeopleSummary) {
 function getBackLabel(person: PeopleSummary) {
   const role = person.roles.find((item) => item.status === "active")?.role;
 
+  if (role === "staff") {
+    return "Staff";
+  }
+
   return role ? `${formatRole(role)}s` : "People";
+}
+
+function isStaffOnlyPerson(person: PeopleSummary) {
+  const activeRoles = person.roles.filter((role) => role.status === "active");
+
+  return (
+    activeRoles.some((role) => role.role === "staff") &&
+    activeRoles.every((role) => role.role === "staff")
+  );
 }
 
 function getLinkedSummary(person: PeopleSummary) {
@@ -807,7 +797,6 @@ function getLinkedSummary(person: PeopleSummary) {
   return parts.join(" / ");
 }
 
-
 function formatFileSize(bytes: number) {
   if (bytes < 1024) {
     return `${bytes} B`;
@@ -818,28 +807,4 @@ function formatFileSize(bytes: number) {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getDrawerTitle(drawer: DrawerState) {
-  if (drawer.mode === "edit") {
-    return "Edit person";
-  }
-
-  if (drawer.mode === "restore") {
-    return "Restore person";
-  }
-
-  return "Archive person";
-}
-
-function getDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "edit") {
-    return "Update the directory profile, contact details, and role assignments.";
-  }
-
-  if (drawer.mode === "restore") {
-    return "Return this person to normal operational views.";
-  }
-
-  return "Hide this person from active operational views without deleting linked history.";
 }

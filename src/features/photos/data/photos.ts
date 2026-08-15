@@ -44,7 +44,9 @@ export async function getAssetPhotosForScope({
     .order("sort_order", { ascending: true })
     .order("uploaded_at", { ascending: false });
 
-  query = unitId ? query.eq("unit_id", unitId) : query.is("unit_id", null);
+  if (unitId) {
+    query = query.eq("unit_id", unitId);
+  }
 
   const result = await query;
 

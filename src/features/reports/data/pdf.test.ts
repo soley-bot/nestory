@@ -37,20 +37,58 @@ describe("trusted report PDF export", () => {
 });
 
 describe("official owner statement PDF", () => {
-  it("is byte-stable and contains numbered body, source appendix, and pages", () => {
+  it("renders a branded cash register with human-readable scope and no internal trace", () => {
     const model = mapOwnerStatementPublicationPayload(
       structuredClone(ownerStatementPublicationPayload),
     );
-    const first = buildOwnerStatementPdf(model);
-    const second = buildOwnerStatementPdf(model);
+    const presentation = {
+      organizationName: "Independent Property Service",
+      ownerName: "XIA YIXUAN",
+      propertyLabel: "The PEAK #2807",
+    };
+    const first = buildOwnerStatementPdf(model, presentation);
+    const second = buildOwnerStatementPdf(model, presentation);
     const text = Buffer.from(first).toString("latin1");
 
     expect(first).toEqual(second);
-    expect(text).toContain("Official Owner Statement");
+    expect(text).toContain("OWNER STATEMENT");
+    expect(text).toContain("Independent Property Service");
+    expect(text).toContain("XIA YIXUAN");
+    expect(text).toContain("The PEAK #2807");
     expect(text).toContain("OS-202608-300000000000");
-    expect(text).toContain("SOURCE TRACE");
-    expect(text).toContain("Page 1 of 2");
-    expect(text).toContain("Page 2 of 2");
+    expect(text).toContain("OPENING BALANCE");
+    expect(text).toContain("CASH IN");
+    expect(text).toContain("CASH OUT");
+    expect(text).toContain("CLOSING BALANCE");
+    expect(text).toContain("Cash out");
+    expect(text).toContain("Cash in");
+    expect(text).toContain("Balance");
+    expect(text).not.toContain(model.organizationId);
+    expect(text).not.toContain(model.ownerPersonId);
+    expect(text).not.toContain(model.propertyId);
+    expect(text).not.toContain("SOURCE TRACE");
+    expect(text).toContain("Page 1 of 1");
+  });
+
+  it("embeds the uploaded company logo as an image in the statement header", () => {
+    const model = mapOwnerStatementPublicationPayload(
+      structuredClone(ownerStatementPublicationPayload),
+    );
+    const pdf = buildOwnerStatementPdf(model, {
+      logo: {
+        bytes: Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]),
+        height: 120,
+        width: 240,
+      },
+      organizationName: "Independent Property Service",
+      ownerName: "XIA YIXUAN",
+      propertyLabel: "The PEAK #2807",
+    });
+    const text = Buffer.from(pdf).toString("latin1");
+
+    expect(text).toContain("/Subtype /Image");
+    expect(text).toContain("/Filter /DCTDecode");
+    expect(text).toContain("/Logo Do");
   });
 });
 

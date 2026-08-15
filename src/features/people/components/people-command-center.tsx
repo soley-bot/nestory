@@ -11,39 +11,23 @@ type PeopleCommandCenterProps = {
 };
 
 export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
-  if (insights.totalCount === 0) {
-    return null;
-  }
-
-  const staff = insights.relationshipStats.find(
-    (stat) => stat.label === "Staff readiness",
+  const actionableQueues = insights.attentionQueues.filter(
+    (queue) => queue.count > 0 && queue.id !== "missing-evidence",
   );
-  const metrics = [
-    ...insights.metrics,
-    ...(staff
-      ? [
-          {
-            href: staff.href,
-            label: "Staff",
-            value: `${staff.readyCount}/${staff.count}`,
-          },
-        ]
-      : []),
-  ];
-  const attentionCount = insights.attentionQueues.reduce(
+  const attentionCount = actionableQueues.reduce(
     (total, queue) => total + queue.count,
     0,
   );
+
+  if (attentionCount === 0) {
+    return null;
+  }
 
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
         <button
-          aria-label={`Directory overview: ${insights.totalCount} people, ${
-            attentionCount > 0
-              ? `${attentionCount} issues to review`
-              : "all clear"
-          }`}
+          aria-label={`${attentionCount} people to review`}
           className="flex h-8 max-w-full items-center gap-2 rounded-md px-2 text-left text-xs outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
           type="button"
         >
@@ -52,13 +36,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
             className="size-4 shrink-0 text-muted-foreground"
           />
           <span className="font-semibold text-foreground">
-            Directory overview
-          </span>
-          <span className="truncate text-muted-foreground">
-            {insights.totalCount} people
-            {attentionCount > 0
-              ? ` · ${attentionCount} to review`
-              : " · All clear"}
+            {attentionCount} to review
           </span>
           <ChevronDown
             aria-hidden="true"
@@ -69,43 +47,13 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
       <Popover.Portal>
         <Popover.Content
           align="start"
-          aria-label="People overview"
-          className="z-50 w-[min(440px,calc(100vw-2rem))] rounded-md border border-border bg-card p-3 shadow-lg outline-none"
+          aria-label="People attention"
+          className="z-50 w-[min(400px,calc(100vw-2rem))] rounded-md border border-border bg-card p-2 shadow-lg outline-none"
           role="dialog"
           sideOffset={6}
         >
-          <div className="border-b border-border pb-2.5">
-            <p className="text-sm font-semibold text-foreground">
-              Directory overview
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Counts and records that need attention.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-3">
-            {metrics.map((metric) => (
-              <Link
-                className="min-w-0 bg-card px-3 py-2.5 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                href={metric.href}
-                key={metric.label}
-                prefetch={false}
-              >
-                <p className="truncate text-xs font-medium text-muted-foreground">
-                  {metric.label}
-                </p>
-                <p className="mt-0.5 truncate text-base font-semibold tabular-nums text-foreground">
-                  {metric.value}
-                </p>
-              </Link>
-            ))}
-          </div>
-
-          <div className="mt-3 space-y-1">
-            <p className="px-1 text-xs font-semibold uppercase text-muted-foreground">
-              Needs attention
-            </p>
-            {insights.attentionQueues.map((queue) => (
+          <div className="space-y-1">
+            {actionableQueues.map((queue) => (
               <Link
                 className="flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-2 text-xs outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={queue.href}
@@ -120,10 +68,7 @@ export function PeopleCommandCenter({ insights }: PeopleCommandCenterProps) {
                     {queue.description}
                   </span>
                 </span>
-                <Badge
-                  className="shrink-0 px-1.5 text-xs"
-                  tone={queue.tone}
-                >
+                <Badge className="shrink-0 px-1.5 text-xs" tone={queue.tone}>
                   {queue.count}
                 </Badge>
               </Link>

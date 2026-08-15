@@ -3,7 +3,8 @@ import { vi } from "vitest";
 
 import { SettingsNavigationGuardProvider } from "@/components/layout/settings-navigation-guard";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
-import { OrganizationSettingsScreen } from "@/features/organization/components/organization-settings-screen";
+import { SettingsSectionNav } from "@/components/layout/settings-section-nav";
+import { SettingsShell } from "@/components/layout/settings-shell";
 import {
   SettingsWorkspace,
   type SettingsSection,
@@ -42,6 +43,7 @@ export const defaultSettingsWorkspaceProps = {
   organizationSlug: "nestory-test",
   staff,
   teams,
+  workspaceUrl: "https://nestory-test.nestory-kh.com/",
 } as const;
 
 export function installSettingsWorkspaceDomStubs() {
@@ -81,7 +83,11 @@ export function cleanupSettingsWorkspaceTest() {
 export function renderSettingsPage(section: SettingsSection) {
   return render(
     <SettingsNavigationGuardProvider>
-      <SettingsTabs activeHref={`/settings?section=${section}`} />
+      <SettingsTabs activeHref={`/settings/${section}`} />
+      <SettingsSectionNav
+        activeHref={`/settings/${section}`}
+        role="super_admin"
+      />
       <SettingsWorkspace
         {...defaultSettingsWorkspaceProps}
         section={section}
@@ -94,9 +100,11 @@ export function renderSettingsScreen(
   section: "organization" | "branches" | "teams",
 ) {
   return render(
-    <OrganizationSettingsScreen
-      {...defaultSettingsWorkspaceProps}
-      section={section}
-    />,
+    <SettingsShell activeHref={`/settings/${section}`} role="super_admin">
+      <SettingsWorkspace
+        {...defaultSettingsWorkspaceProps}
+        section={section}
+      />
+    </SettingsShell>,
   );
 }

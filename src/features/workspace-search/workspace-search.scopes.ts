@@ -81,7 +81,7 @@ const ADMIN_ACTIONS = [
   action("documents", "Documents", "/documents", ["files"]),
   action("import", "Import data", "/import", ["csv", "upload"]),
   action("settings", "Organization settings", "/settings"),
-  action("users-roles", "Workspace Access", "/users-roles", [
+  action("settings-access", "Workspace Access", "/settings/access", [
     "access",
     "permissions",
     "users",

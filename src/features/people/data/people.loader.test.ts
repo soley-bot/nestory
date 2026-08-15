@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { getPeopleScreenData } from "@/features/people/data/people";
+import { parsePeopleSearchParams } from "@/features/people/people.filters";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 vi.mock("@/lib/db/server", () => ({
@@ -90,6 +91,75 @@ describe("getPeopleScreenData", () => {
       id: "lease-1",
       propertyId: "property-1",
     });
+  });
+
+  it("keeps the database search contract through final result matching", async () => {
+    const rows: Record<string, unknown[]> = {
+      people: [
+        {
+          archived_at: null,
+          created_at: "2026-08-01T00:00:00Z",
+          display_name: "Soley Heng",
+          id: "person-1",
+          legal_name: null,
+          notes: null,
+          party_type: "individual",
+          primary_email: "primary@example.com",
+          primary_phone: null,
+          tax_identifier: "KHM-TAX-8842",
+          updated_at: "2026-08-01T00:00:00Z",
+        },
+      ],
+      person_roles: [
+        {
+          archived_at: null,
+          id: "role-1",
+          person_id: "person-1",
+          role: "tenant",
+          status: "active",
+        },
+      ],
+      person_contacts: [
+        {
+          archived_at: null,
+          contact_name: "Billing desk",
+          contact_type: "billing",
+          email: "billing-alt@example.com",
+          id: "contact-1",
+          is_primary: false,
+          person_id: "person-1",
+          phone: null,
+        },
+      ],
+      lease_parties: [],
+      property_owners: [],
+      vendor_profiles: [],
+      current_leases: [],
+      properties: [],
+      units: [],
+      documents: [],
+      activity_log: [],
+    };
+    const client = {
+      from(relation: string) {
+        return createQueryBuilder({
+          count: relation === "people" ? 1 : null,
+          data: rows[relation] ?? [],
+          error: null,
+        });
+      },
+      storage: {
+        from: vi.fn(() => ({ createSignedUrl: vi.fn() })),
+      },
+    } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>;
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(client);
+
+    const result = await getPeopleScreenData(
+      "org-1",
+      parsePeopleSearchParams({ query: "8842 billing-alt" }),
+    );
+
+    expect(result.people.map((person) => person.id)).toEqual(["person-1"]);
   });
 });
 

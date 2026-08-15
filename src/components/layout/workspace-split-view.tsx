@@ -11,6 +11,7 @@ type WorkspaceSplitViewWithInspectorProps = WorkspaceSplitViewBaseProps & {
   inspector: ReactNode;
   inspectorLabel: string;
   inspectorOpen: boolean;
+  inspectorSize?: "default" | "wide";
   onInspectorOpenChange: (open: boolean) => void;
 };
 
@@ -18,6 +19,7 @@ type WorkspaceSplitViewWithoutInspectorProps = WorkspaceSplitViewBaseProps & {
   inspector?: never;
   inspectorLabel?: never;
   inspectorOpen?: never;
+  inspectorSize?: never;
   onInspectorOpenChange?: never;
 };
 
@@ -29,6 +31,7 @@ export function WorkspaceSplitView({
   inspector,
   inspectorLabel,
   inspectorOpen,
+  inspectorSize,
   list,
   onInspectorOpenChange,
 }: WorkspaceSplitViewProps) {
@@ -60,6 +63,7 @@ export function WorkspaceSplitView({
           label={inspectorLabel ?? "Record quick view"}
           onClose={closeInspector}
           open
+          size={inspectorSize}
         >
           {inspector}
         </RecordQuickViewDialog>

@@ -39,6 +39,7 @@ import type {
   OrganizationMembership,
   OrganizationStaffOption,
 } from "@/features/organization/data";
+import { WORKSPACE_ROLE_OPTIONS } from "@/features/organization/workspace-roles";
 import { cn } from "@/lib/utils";
 
 export type AddMemberDefaults = {
@@ -67,14 +68,6 @@ type StaffValues = {
   primaryEmail: string;
   primaryPhone: string;
 };
-
-const roleOptions = [
-  { label: "Super Admin", value: "super_admin" },
-  { label: "Finance Manager", value: "finance_manager" },
-  { label: "Finance Member", value: "finance_member" },
-  { label: "Operations Manager", value: "operations_manager" },
-  { label: "Operations Member", value: "operations_member" },
-];
 
 export function AddMemberDialog({
   branches,
@@ -512,7 +505,7 @@ function AccessStep({
               setAccessField("branchId", branches[0]!.id);
             }
           }}
-          options={roleOptions}
+            options={WORKSPACE_ROLE_OPTIONS}
           value={access.role}
         />
       </Field>

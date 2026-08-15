@@ -9,19 +9,14 @@ import {
   type ReactNode,
 } from "react";
 import { useFormStatus } from "react-dom";
-import {
-  ArrowLeft,
-  Check,
-  ChevronRight,
-  Plus,
-  WalletCards,
-} from "lucide-react";
+import { ChevronRight, Eye, Plus, WalletCards } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { AuditDetails } from "@/components/ui/audit-details";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -53,6 +48,7 @@ import type {
   FinanceOperationsActionState,
   FinanceOperationsData,
   OwnerInvoiceSummary,
+  PropertyAccountEntry,
   PropertyFinancePosition,
   RentGenerationException,
   TenantInvoiceSettlement,
@@ -63,9 +59,9 @@ import {
   expenseStatusPresentation,
   formatEvidenceSize,
   getInvoiceStatusPresentation,
-  getRentGenerationLabel,
   maintenanceStatusLabel,
 } from "@/features/finance-operations/finance-operations-view-model";
+import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
@@ -76,10 +72,24 @@ export type FinanceOperationsView =
 
 type ModalState =
   | {
+      invoice: TenantInvoiceSummary;
+      mode: "invoice-details";
+    }
+  | {
+      mode: "expense-details";
+      submission: ExpenseSubmissionSummary;
+    }
+  | {
+      mode: "owner-balance-details";
+      ownerInvoice?: OwnerInvoiceSummary;
+      position: PropertyFinancePosition;
+    }
+  | {
       canChooseAnother?: boolean;
       invoice?: TenantInvoiceSummary;
       mode: "payment";
     }
+  | { mode: "rent-recovery" }
   | { invoice: OwnerInvoiceSummary; mode: "owner-payment" }
   | {
       decision: "approve" | "reject";
@@ -98,7 +108,6 @@ type ModalState =
 
 type DrawerState =
   | { lease: FinanceLease; mode: "billing" }
-  | { mode: "rent-recovery" }
   | {
       initialInvoiceId?: string;
       initialResponsibility?: "owner" | "tenant";
@@ -142,7 +151,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       ? { lease: initialBillingLease, mode: "billing" }
       : props.initialExpenseIntent && props.canSubmitExpense
         ? { mode: "expense" }
-      : null,
+        : null,
   );
   const [modal, setModal] = useState<ModalState | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -172,9 +181,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
     drawer &&
     (drawer.mode === "billing"
       ? props.canConfigureRent
-      : drawer.mode === "rent-recovery"
-        ? props.canRecoverRent
-        : props.canSubmitExpense)
+      : props.canSubmitExpense)
       ? drawer
       : null;
   const visibleModal =
@@ -185,13 +192,14 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       actions={screen.actions}
       context={screen.context}
       contextHref={screen.contextHref}
-      headerClassName="py-3 lg:py-3"
-      localNav={(
+      header={"header" in screen ? screen.header : undefined}
+      headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"
+      localNav={
         <FinanceWorkspaceNavigation
           activeRoute={screen.activeRoute}
           canReadFinanceReports={props.canReadFinanceReports ?? false}
         />
-      )}
+      }
       title={screen.title}
       toolbar={screen.toolbar}
     >
@@ -207,18 +215,17 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       </div>
 
       {visibleDrawer ? (
-        <SideDrawer onClose={closeDrawer} open title={getDrawerTitle(visibleDrawer)}>
+        <SideDrawer
+          onClose={closeDrawer}
+          open
+          title={getDrawerTitle(visibleDrawer)}
+        >
           {visibleDrawer.mode === "billing" ? (
             <BillingSetupForm
               lease={visibleDrawer.lease}
               onSuccess={onActionSuccess}
               organizationName={organizationName}
               peopleOptions={props.peopleOptions}
-            />
-          ) : visibleDrawer.mode === "rent-recovery" ? (
-            <HistoricalRentRecoveryForm
-              leases={props.leases}
-              onSuccess={onActionSuccess}
             />
           ) : (
             <ExpenseForm
@@ -236,7 +243,78 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
 
       {visibleModal ? (
         <Modal onClose={closeModal} open title={getModalTitle(visibleModal)}>
-          {visibleModal.mode === "payment" ? (
+          {visibleModal.mode === "rent-recovery" ? (
+            <HistoricalRentRecoveryForm
+              leases={props.leases}
+              onSuccess={onActionSuccess}
+            />
+          ) : visibleModal.mode === "invoice-details" ? (
+            <InvoiceDetails
+              canCorrectFinance={props.canCorrectFinance}
+              canRecordPayments={props.canRecordPayments}
+              invoice={visibleModal.invoice}
+              onClose={closeModal}
+              onCorrect={() =>
+                setModal({
+                  invoice: visibleModal.invoice,
+                  mode: "settlement-reversal",
+                })
+              }
+              onRecordPayment={() =>
+                setModal({ invoice: visibleModal.invoice, mode: "payment" })
+              }
+              organizationName={organizationName}
+            />
+          ) : visibleModal.mode === "expense-details" ? (
+            <ExpenseDetails
+              canReview={props.canReviewExpense}
+              canReverse={props.canReverseExpense}
+              onApprove={() =>
+                setModal({
+                  decision: "approve",
+                  mode: "expense-review",
+                  submission: visibleModal.submission,
+                })
+              }
+              onClose={closeModal}
+              onReject={() =>
+                setModal({
+                  decision: "reject",
+                  mode: "expense-review",
+                  submission: visibleModal.submission,
+                })
+              }
+              onReverse={() =>
+                setModal({
+                  mode: "expense-reversal",
+                  submission: visibleModal.submission,
+                })
+              }
+              submission={visibleModal.submission}
+            />
+          ) : visibleModal.mode === "owner-balance-details" ? (
+            <OwnerBalanceDetails
+              canRecordOwnerCash={props.canRecordOwnerCash}
+              onClose={closeModal}
+              onOwnerPayment={
+                visibleModal.ownerInvoice
+                  ? () =>
+                      setModal({
+                        invoice: visibleModal.ownerInvoice!,
+                        mode: "owner-payment",
+                      })
+                  : undefined
+              }
+              onWithdrawal={() =>
+                setModal({
+                  mode: "withdrawal",
+                  position: visibleModal.position,
+                })
+              }
+              organizationName={organizationName}
+              position={visibleModal.position}
+            />
+          ) : visibleModal.mode === "payment" ? (
             visibleModal.invoice ? (
               <SettleInvoiceForm
                 invoice={visibleModal.invoice}
@@ -310,35 +388,36 @@ function getScreen(
       activeRoute: "/rent-income" as const,
       actions:
         props.canRecordPayments || props.canSubmitExpense || canRecoverRent ? (
-        <>
-          {canRecoverRent ? (
-            <Button onClick={() => openDrawer({ mode: "rent-recovery" })}>
-              Recover missed month
-            </Button>
-          ) : null}
-          {props.canRecordPayments ? (
-            <Button
-              onClick={() => openModal({ mode: "payment" })}
-              variant="default"
-            >
-              <WalletCards size={15} /> Record payment
-            </Button>
-          ) : null}
-          {props.canSubmitExpense ? (
-            <Button
-              onClick={() =>
-                openDrawer({ initialResponsibility: "tenant", mode: "expense" })
-              }
-            >
-              <Plus size={15} /> Add charge
-            </Button>
-          ) : null}
-        </>
+          <>
+            {canRecoverRent ? (
+              <Button onClick={() => openModal({ mode: "rent-recovery" })}>
+                Recover missed month
+              </Button>
+            ) : null}
+            {props.canRecordPayments ? (
+              <Button
+                onClick={() => openModal({ mode: "payment" })}
+                variant="default"
+              >
+                <WalletCards size={15} /> Record payment
+              </Button>
+            ) : null}
+            {props.canSubmitExpense ? (
+              <Button
+                onClick={() =>
+                  openDrawer({
+                    initialResponsibility: "tenant",
+                    mode: "expense",
+                  })
+                }
+              >
+                <Plus size={15} /> Add charge
+              </Button>
+            ) : null}
+          </>
         ) : undefined,
       body: (
         <RentView
-          canCorrectFinance={props.canCorrectFinance}
-          canRecordPayments={props.canRecordPayments}
           invoices={invoices}
           openModal={openModal}
           organizationName={props.organizationName}
@@ -346,7 +425,7 @@ function getScreen(
       ),
       context: `${invoices.length} ${invoices.length === 1 ? "invoice" : "invoices"}`,
       contextHref: "/rent-income",
-      title: "Rent",
+      title: "Rent & collections",
       toolbar: undefined,
     };
   }
@@ -365,14 +444,13 @@ function getScreen(
       body: (
         <ExpensesView
           canReview={props.canReviewExpense}
-          canReverse={props.canReverseExpense}
           openModal={openModal}
           submissions={props.expenseSubmissions}
         />
       ),
       context: `${props.expenseSubmissions.length} submissions`,
       contextHref: "/bills-expenses",
-      title: "Paid costs",
+      title: "Expenses",
       toolbar: undefined,
     };
   }
@@ -405,35 +483,43 @@ function getScreen(
       ) ?? null;
     return {
       activeRoute: "/balances" as const,
-      actions:
-        props.canRecordOwnerCash &&
-        position?.ownerPersonId &&
-        position.availableWithdrawal > 0 ? (
-          <Button
-            onClick={() => openModal({ mode: "withdrawal", position })}
-            variant="default"
-          >
-            Record withdrawal
-          </Button>
-        ) : undefined,
+      actions: undefined,
       body: (
         <PropertyAccountView
           entries={props.accountEntries}
+          onRecordWithdrawal={
+            props.canRecordOwnerCash &&
+            position?.ownerPersonId &&
+            position.availableWithdrawal > 0
+              ? () => openModal({ mode: "withdrawal", position })
+              : undefined
+          }
           position={position}
         />
       ),
-      context: (
-        <Link
-          className="inline-flex items-center gap-1 text-sm"
-          href="/balances"
-        >
-          <ArrowLeft size={13} /> Balances
-        </Link>
-      ),
+      context: position?.propertyLabel,
       contextHref: position
         ? `/properties/${position.propertyId}/account`
         : "/balances",
-      title: position?.propertyLabel ?? "Property account",
+      header: position ? (
+        <PageHeader
+          breadcrumb={
+            <PageBreadcrumb
+              current="Account"
+              items={[
+                { href: "/properties", label: "Properties" },
+                {
+                  href: `/properties/${position.propertyId}`,
+                  label: position.propertyLabel,
+                },
+              ]}
+            />
+          }
+          className="px-4 py-3 sm:px-6 2xl:px-8 lg:py-3"
+          title="Property account"
+        />
+      ) : undefined,
+      title: "Property account",
       toolbar: undefined,
     };
   }
@@ -459,9 +545,9 @@ function getScreen(
         tenantInvoices={props.tenantInvoices}
       />
     ),
-    context: "Open work",
+    context: "Work queue",
     contextHref: "/finance",
-    title: "Finance work",
+    title: "Finance",
     toolbar: undefined,
   };
 }
@@ -489,6 +575,9 @@ function FinanceWorkView({
   rentGenerationExceptions: RentGenerationException[];
   tenantInvoices: TenantInvoiceSummary[];
 }) {
+  const [workFilter, setWorkFilter] = useState<
+    "all" | "setup" | "tenant" | "owner"
+  >("all");
   const leasesNeedingSetup = leases.filter(
     (lease) =>
       (lease.status === "active" || lease.status === "notice_given") &&
@@ -497,36 +586,75 @@ function FinanceWorkView({
   const leaseById = new Map(leases.map((lease) => [lease.id, lease]));
   const tenantDue = tenantInvoices.filter((invoice) => invoice.balanceDue > 0);
   const ownerDue = ownerInvoices.filter((invoice) => invoice.balanceDue > 0);
+  const paymentWork = [
+    ...tenantDue.map((invoice) => ({ invoice, kind: "tenant" as const })),
+    ...ownerDue.map((invoice) => ({ invoice, kind: "owner" as const })),
+  ].sort((left, right) =>
+    left.invoice.dueDate.localeCompare(right.invoice.dueDate),
+  );
   const workCount =
     leasesNeedingSetup.length +
     rentGenerationExceptions.length +
     tenantDue.length +
     ownerDue.length;
+  const visibleLeases =
+    workFilter === "all" || workFilter === "setup" ? leasesNeedingSetup : [];
+  const visibleExceptions =
+    workFilter === "all" || workFilter === "setup"
+      ? rentGenerationExceptions
+      : [];
+  const visiblePaymentWork = paymentWork.filter(
+    (item) =>
+      workFilter === "all" ||
+      (workFilter === "tenant" && item.kind === "tenant") ||
+      (workFilter === "owner" && item.kind === "owner"),
+  );
+  const visibleWorkCount =
+    visibleLeases.length + visibleExceptions.length + visiblePaymentWork.length;
 
   return (
-    <div className="workspace-gutter-x flex flex-col gap-4 py-4">
+    <div className="workspace-gutter-x mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
       <CompactTotals
-        variant="cards"
         items={[
-          { label: "Needs setup", value: leasesNeedingSetup.length },
-          { label: "Rent exceptions", value: rentGenerationExceptions.length },
-          { label: "Tenant balances", value: tenantDue.length },
-          { label: "Owner balances", value: ownerDue.length },
+          { label: "Open work", value: workCount },
+          { label: "Tenant payments", value: tenantDue.length },
+          { label: "Owner invoice payments", value: ownerDue.length },
         ]}
       />
-      <Card
-        className="min-h-0 flex-1 gap-0 py-0"
+      <section
+        className="min-h-0 flex-1 border-t border-border"
         data-slot="finance-work-surface"
       >
-        {workCount === 0 ? (
+        <div className="flex items-center justify-between gap-3 border-b border-border py-2">
+          <h2 className="text-sm font-semibold">Finance work</h2>
+          <SelectControl
+            ariaLabel="Filter work queue"
+            className="h-8 w-44"
+            onValueChange={(value) =>
+              setWorkFilter(value as "all" | "setup" | "tenant" | "owner")
+            }
+            options={[
+              { label: "All work", value: "all" },
+              { label: "Setup & exceptions", value: "setup" },
+              { label: "Tenant payments", value: "tenant" },
+              { label: "Owner invoice payments", value: "owner" },
+            ]}
+            value={workFilter}
+          />
+        </div>
+        {visibleWorkCount === 0 ? (
           <EmptyState
-            body="Billing and balances are up to date."
+            body={
+              workCount === 0
+                ? "Billing and balances are up to date."
+                : "Choose another work type to continue."
+            }
             className="flex-1"
-            kind="empty"
-            title="No finance work"
+            kind={workCount === 0 ? "empty" : "filtered"}
+            title={workCount === 0 ? "No finance work" : "No matching work"}
           />
         ) : (
-          <TableFrame>
+          <TableFrame className="p-0">
             <Table className="min-w-[860px]">
               <thead className="bg-[var(--table-header-bg)]">
                 <tr>
@@ -538,7 +666,7 @@ function FinanceWorkView({
                 </tr>
               </thead>
               <tbody>
-                {leasesNeedingSetup.map((lease) => (
+                {visibleLeases.map((lease) => (
                   <tr
                     className="border-b border-border"
                     key={`setup-${lease.id}`}
@@ -567,7 +695,7 @@ function FinanceWorkView({
                     </Td>
                   </tr>
                 ))}
-                {rentGenerationExceptions.map((exception) => (
+                {visibleExceptions.map((exception) => (
                   <RentGenerationExceptionRow
                     canRecover={canRetryCurrentRent}
                     exception={exception}
@@ -575,81 +703,84 @@ function FinanceWorkView({
                     lease={leaseById.get(exception.leaseId) ?? null}
                   />
                 ))}
-                {tenantDue.map((invoice) => (
-                  <tr
-                    className="border-b border-border"
-                    key={`tenant-${invoice.id}`}
-                  >
-                    <Td>
-                      <p className="font-medium">
-                        {invoice.collectionRoute === "through_ips"
-                          ? "Tenant payment"
-                          : "Confirm owner collection"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {invoice.recipientLabel} · {invoice.invoiceNumber}
-                      </p>
-                    </Td>
-                    <Td>{invoice.propertyLabel}</Td>
-                    <Td>
-                      <Money amount={invoice.balanceDue} />
-                    </Td>
-                    <Td>{formatDate(invoice.dueDate)}</Td>
-                    <Td align="right">
-                      {canRecordPayments ? (
-                        <Button
-                          onClick={() => openModal({ invoice, mode: "payment" })}
-                        >
+                {visiblePaymentWork.map(({ invoice, kind }) =>
+                  kind === "tenant" ? (
+                    <tr
+                      className="border-b border-border"
+                      key={`tenant-${invoice.id}`}
+                    >
+                      <Td>
+                        <p className="font-medium">
                           {invoice.collectionRoute === "through_ips"
-                            ? "Record"
-                            : "Confirm"}
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Read only
-                        </span>
-                      )}
-                    </Td>
-                  </tr>
-                ))}
-                {ownerDue.map((invoice) => (
-                  <tr
-                    className="border-b border-border"
-                    key={`owner-${invoice.id}`}
-                  >
-                    <Td>
-                      <p className="font-medium">Owner invoice payment</p>
-                      <p className="text-xs text-muted-foreground">
-                        {invoice.ownerLabel} · {invoice.invoiceNumber}
-                      </p>
-                    </Td>
-                    <Td>{invoice.propertyLabel}</Td>
-                    <Td>
-                      <Money amount={invoice.balanceDue} />
-                    </Td>
-                    <Td>{formatDate(invoice.dueDate)}</Td>
-                    <Td align="right">
-                      {canRecordOwnerCash ? (
-                        <Button
-                          onClick={() =>
-                            openModal({ invoice, mode: "owner-payment" })
-                          }
-                        >
-                          Record
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Read only
-                        </span>
-                      )}
-                    </Td>
-                  </tr>
-                ))}
+                            ? "Tenant payment"
+                            : "Confirm owner collection"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {invoice.recipientLabel} · {invoice.invoiceNumber}
+                        </p>
+                      </Td>
+                      <Td>{invoice.propertyLabel}</Td>
+                      <Td>
+                        <Money amount={invoice.balanceDue} />
+                      </Td>
+                      <Td>{formatDate(invoice.dueDate)}</Td>
+                      <Td align="right">
+                        {canRecordPayments ? (
+                          <Button
+                            onClick={() =>
+                              openModal({ invoice, mode: "payment" })
+                            }
+                          >
+                            {invoice.collectionRoute === "through_ips"
+                              ? "Record"
+                              : "Confirm"}
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Read only
+                          </span>
+                        )}
+                      </Td>
+                    </tr>
+                  ) : (
+                    <tr
+                      className="border-b border-border"
+                      key={`owner-${invoice.id}`}
+                    >
+                      <Td>
+                        <p className="font-medium">Owner invoice payment</p>
+                        <p className="text-xs text-muted-foreground">
+                          {invoice.ownerLabel} · {invoice.invoiceNumber}
+                        </p>
+                      </Td>
+                      <Td>{invoice.propertyLabel}</Td>
+                      <Td>
+                        <Money amount={invoice.balanceDue} />
+                      </Td>
+                      <Td>{formatDate(invoice.dueDate)}</Td>
+                      <Td align="right">
+                        {canRecordOwnerCash ? (
+                          <Button
+                            onClick={() =>
+                              openModal({ invoice, mode: "owner-payment" })
+                            }
+                          >
+                            Record
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Read only
+                          </span>
+                        )}
+                      </Td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </Table>
           </TableFrame>
         )}
-      </Card>
+      </section>
     </div>
   );
 }
@@ -764,11 +895,6 @@ function HistoricalRentRecoveryForm({
 
   return (
     <form action={action} className="space-y-4 p-4">
-      <p className="text-sm text-muted-foreground">
-        Generate one missed completed month, including a month before a lease
-        ended. This never fills earlier or later months automatically. Adjacent
-        gaps remain visible in the attention queue.
-      </p>
       <Field label="Lease">
         <SelectControl
           defaultValue={eligibleLeases[0]?.id}
@@ -800,14 +926,10 @@ function HistoricalRentRecoveryForm({
 }
 
 function RentView({
-  canCorrectFinance,
-  canRecordPayments,
   invoices,
   openModal,
   organizationName,
 }: {
-  canCorrectFinance: boolean;
-  canRecordPayments: boolean;
   invoices: TenantInvoiceSummary[];
   openModal: (modal: ModalState) => void;
   organizationName: string;
@@ -818,17 +940,16 @@ function RentView({
     0,
   );
   return (
-    <div className="workspace-gutter-x flex flex-col gap-4 py-4">
+    <div className="workspace-gutter-x mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
       <CompactTotals
-        variant="cards"
         items={[
           { label: "Collected", value: <Money amount={collected} /> },
           { label: "Outstanding", value: <Money amount={unpaid} /> },
           { label: "Invoices", value: invoices.length },
         ]}
       />
-      <Card
-        className="min-h-0 flex-1 gap-0 py-0"
+      <section
+        className="min-h-0 flex-1 border-t border-border"
         data-slot="rent-invoices-surface"
       >
         {invoices.length === 0 ? (
@@ -839,18 +960,24 @@ function RentView({
             title="No rent invoices"
           />
         ) : (
-          <TableFrame>
-            <Table className="min-w-[980px]">
+          <TableFrame className="p-0">
+            <Table className="table-fixed min-w-[720px]">
+              <colgroup>
+                <col className="w-[22%]" />
+                <col className="w-[34%]" />
+                <col className="w-[12%]" />
+                <col className="w-[14%]" />
+                <col className="w-[12%]" />
+                <col className="w-[6%]" />
+              </colgroup>
               <thead className="bg-[var(--table-header-bg)]">
                 <tr>
                   <Th>Invoice</Th>
-                  <Th>Billed to</Th>
-                  <Th>Property</Th>
-                  <Th>Collection</Th>
-                  <Th>Total</Th>
+                  <Th>Tenant / property</Th>
+                  <Th>Collected by</Th>
                   <Th>Balance</Th>
                   <Th>Status</Th>
-                  <Th align="right">Action</Th>
+                  <Th align="right">Preview</Th>
                 </tr>
               </thead>
               <tbody>
@@ -861,42 +988,32 @@ function RentView({
                       <p className="text-xs text-muted-foreground">
                         Due {formatDate(invoice.dueDate)}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatLeaseMonth(invoice.billingPeriodStart)} lease month
-                      </p>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        <Badge tone="neutral">
-                          {getRentGenerationLabel(invoice.generationSource)}
-                        </Badge>
-                        {invoice.isProrated ? (
-                          <Badge tone="accent">Prorated</Badge>
-                        ) : null}
-                      </div>
                     </Td>
                     <Td>
-                      <p>{invoice.recipientLabel}</p>
-                      {invoice.occupantLabels.length ? (
-                        <p className="text-xs text-muted-foreground">
-                          Occupants: {invoice.occupantLabels.join(", ")}
-                        </p>
-                      ) : null}
-                    </Td>
-                    <Td>
-                      <p>{invoice.propertyLabel}</p>
+                      <p className="font-medium">{invoice.recipientLabel}</p>
                       <p className="text-xs text-muted-foreground">
-                        {invoice.unitLabel}
+                        {invoice.propertyLabel}
                       </p>
                     </Td>
                     <Td>
-                      {invoice.collectionRoute === "through_ips"
-                        ? `Collected by ${organizationName}`
-                        : "Collected by owner"}
-                    </Td>
-                    <Td>
-                      <Money amount={invoice.totalAmount} />
+                      {invoice.collectionRoute === "through_ips" ? (
+                        <span
+                          aria-label={organizationName}
+                          title={organizationName}
+                        >
+                          {getOrganizationShortLabel(organizationName)}
+                        </span>
+                      ) : (
+                        "Owner"
+                      )}
                     </Td>
                     <Td>
                       <Money amount={invoice.balanceDue} />
+                      {invoice.totalAmount !== invoice.balanceDue ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          of {formatMoneyDisplay(invoice.totalAmount).primary}
+                        </p>
+                      ) : null}
                     </Td>
                     <Td>
                       <StatusBadge
@@ -906,52 +1023,17 @@ function RentView({
                       />
                     </Td>
                     <Td align="right">
-                      {canRecordPayments || canCorrectFinance ? (
-                        <div className="flex justify-end gap-2">
-                          {canRecordPayments && invoice.balanceDue > 0 ? (
-                            <Button
-                              onClick={() =>
-                                openModal({ invoice, mode: "payment" })
-                              }
-                            >
-                              {invoice.collectionRoute === "through_ips"
-                                ? "Record payment"
-                                : "Confirm collected"}
-                            </Button>
-                          ) : null}
-                          {canCorrectFinance && invoice.settlements.some(
-                            (settlement) => !settlement.isReversed,
-                          ) ? (
-                            <Button
-                              onClick={() =>
-                                openModal({
-                                  invoice,
-                                  mode: "settlement-reversal",
-                                })
-                              }
-                              variant="outline"
-                            >
-                              Correct
-                            </Button>
-                          ) : null}
-                          {invoice.balanceDue <= 0 &&
-                          !invoice.settlements.some(
-                            (settlement) => !settlement.isReversed,
-                          ) ? (
-                            <span className="self-center text-xs text-muted-foreground">
-                              Done
-                            </span>
-                          ) : null}
-                        </div>
-                      ) : invoice.balanceDue <= 0 ? (
-                        <span className="text-xs text-muted-foreground">
-                          Done
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Read only
-                        </span>
-                      )}
+                      <Button
+                        aria-label={`View invoice ${invoice.invoiceNumber}`}
+                        className="h-8 w-8 px-0"
+                        onClick={() =>
+                          openModal({ invoice, mode: "invoice-details" })
+                        }
+                        title={`View invoice ${invoice.invoiceNumber}`}
+                        variant="ghost"
+                      >
+                        <Eye size={15} />
+                      </Button>
                     </Td>
                   </tr>
                 ))}
@@ -959,25 +1041,22 @@ function RentView({
             </Table>
           </TableFrame>
         )}
-      </Card>
+      </section>
     </div>
   );
 }
 
 function ExpensesView({
   canReview,
-  canReverse,
   openModal,
   submissions,
 }: {
   canReview: boolean;
-  canReverse: boolean;
   openModal: (modal: ModalState) => void;
   submissions: FinanceOperationsData["expenseSubmissions"];
 }) {
-  const [status, setStatus] = useState<ExpenseSubmissionSummary["status"]>(
-    "submitted",
-  );
+  const [status, setStatus] =
+    useState<ExpenseSubmissionSummary["status"]>("submitted");
 
   if (submissions.length === 0) {
     return (
@@ -991,7 +1070,7 @@ function ExpensesView({
   }
 
   return (
-    <div className="space-y-5 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-[1280px] space-y-4 px-4 py-4 sm:px-6 2xl:px-8">
       <Tabs
         onValueChange={(value) =>
           setStatus(value as ExpenseSubmissionSummary["status"])
@@ -999,21 +1078,20 @@ function ExpensesView({
         value={status}
       >
         <TabsList aria-label="Paid cost status">
-          {(
-            ["submitted", "approved", "rejected", "reversed"] as const
-          ).map((value) => (
-            <TabsTrigger key={value} value={value}>
-              {expenseStatusLabel(value)} (
-              {submissions.filter((item) => item.status === value).length})
-            </TabsTrigger>
-          ))}
+          {(["submitted", "approved", "rejected", "reversed"] as const).map(
+            (value) => (
+              <TabsTrigger key={value} value={value}>
+                {expenseStatusLabel(value)} (
+                {submissions.filter((item) => item.status === value).length})
+              </TabsTrigger>
+            ),
+          )}
         </TabsList>
         {(["submitted", "approved", "rejected", "reversed"] as const).map(
           (value) => (
             <TabsContent key={value} value={value}>
               <ExpenseSubmissionTable
                 canReview={canReview}
-                canReverse={canReverse}
                 openModal={openModal}
                 status={value}
                 submissions={submissions.filter(
@@ -1024,20 +1102,17 @@ function ExpensesView({
           ),
         )}
       </Tabs>
-
     </div>
   );
 }
 
 function ExpenseSubmissionTable({
   canReview,
-  canReverse,
   openModal,
   status,
   submissions,
 }: {
   canReview: boolean;
-  canReverse: boolean;
   openModal: (modal: ModalState) => void;
   status: ExpenseSubmissionSummary["status"];
   submissions: ExpenseSubmissionSummary[];
@@ -1055,17 +1130,21 @@ function ExpenseSubmissionTable({
 
   return (
     <TableFrame>
-      <Table className="min-w-[1080px]">
+      <Table className="table-fixed min-w-[720px]">
+        <colgroup>
+          <col className="w-[11%]" />
+          <col className="w-[29%]" />
+          <col className="w-[25%]" />
+          <col className="w-[15%]" />
+          <col className="w-[20%]" />
+        </colgroup>
         <thead className="bg-[var(--table-header-bg)]">
           <tr>
             <Th>Date</Th>
             <Th>Paid cost</Th>
-            <Th>Property</Th>
-            <Th>Charged to</Th>
-            <Th>Paid</Th>
-            <Th>Billed</Th>
+            <Th>Property / charged to</Th>
+            <Th>Amount</Th>
             <Th>Status</Th>
-            <Th>Action</Th>
           </tr>
         </thead>
         <tbody>
@@ -1076,152 +1155,39 @@ function ExpenseSubmissionTable({
                 <p className="font-medium">
                   {categoryLabel(submission.category)}
                 </p>
-                {submission.sourceType === "maintenance_task" ? (
-                  <div className="mt-1 space-y-1">
-                    <Badge tone="neutral">
-                      {submission.adjustsSubmissionId
-                        ? "Maintenance adjustment"
-                        : "Maintenance cost"}
-                    </Badge>
-                    {submission.maintenanceTask ? (
-                      <Link
-                        className="block text-xs font-medium text-primary underline-offset-2 hover:underline"
-                        href={submission.maintenanceTask.href}
-                      >
-                        {submission.maintenanceTask.title}
-                      </Link>
-                    ) : null}
-                  </div>
-                ) : null}
                 <p className="text-xs text-muted-foreground">
                   {submission.vendorLabel}
                 </p>
-                {submission.reference ? (
-                  <p className="text-xs text-muted-foreground">
-                    Ref: {submission.reference}
-                  </p>
-                ) : null}
-                {submission.evidence ? (
-                  <div className="mt-1 space-y-0.5 text-xs">
-                    {submission.evidence.href ? (
-                      <a
-                        className="text-primary underline-offset-2 hover:underline"
-                        href={submission.evidence.href}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        {submission.evidence.fileName}
-                      </a>
-                    ) : (
-                      <p className="text-muted-foreground">
-                        {submission.evidence.fileName} (file unavailable)
-                      </p>
-                    )}
-                    <AuditDetails
-                      entries={[{ label: "Evidence fingerprint", value: submission.evidence.sha256 }]}
-                    />
-                    <p className="text-muted-foreground">
-                      {formatEvidenceSize(submission.evidence.sizeBytes)}
-                    </p>
-                  </div>
-                ) : null}
               </Td>
               <Td>
-                <p>{submission.propertyLabel}</p>
+                <p className="font-medium">{submission.propertyLabel}</p>
                 <p className="text-xs text-muted-foreground">
-                  {submission.unitLabel}
-                </p>
-              </Td>
-              <Td>
-                <Badge
-                  tone={
-                    submission.responsibility === "owner"
-                      ? "accent"
-                      : "neutral"
-                  }
-                >
                   {submission.responsibility === "owner"
                     ? "Property owner"
                     : "Tenant or company"}
-                </Badge>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {submission.fundingSourceLabel}
                 </p>
               </Td>
               <Td>
                 <Money amount={submission.internalCost} />
-                {submission.adjustsSubmissionId &&
-                submission.recordedTotal !== null &&
-                submission.recordedTotal !== undefined ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Recorded total {formatMoneyDisplay(submission.recordedTotal).primary}
-                  </p>
-                ) : null}
               </Td>
               <Td>
-                <Money amount={submission.customerTotal} />
-              </Td>
-              <Td>
-                <Badge tone={expenseStatusTone(submission.status)}>
-                  {expenseStatusLabel(submission.status)}
-                </Badge>
-                {submission.reviewReason || submission.reversalReason ? (
-                  <p className="mt-1 max-w-52 text-xs text-muted-foreground">
-                    {submission.reversalReason ?? submission.reviewReason}
-                  </p>
-                ) : null}
-              </Td>
-              <Td>
-                {submission.status === "submitted" && canReview ? (
-                  <div className="flex gap-2">
-                    <Button
-                      aria-label={`Approve ${submission.vendorLabel}`}
-                      onClick={() =>
-                        openModal({
-                          decision: "approve",
-                          mode: "expense-review",
-                          submission,
-                        })
-                      }
-                      size="sm"
-                      variant="default"
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      aria-label={`Reject ${submission.vendorLabel}`}
-                      onClick={() =>
-                        openModal({
-                          decision: "reject",
-                          mode: "expense-review",
-                          submission,
-                        })
-                      }
-                      size="sm"
-                      variant="outline"
-                    >
-                      Reject
-                    </Button>
-                  </div>
-                ) : submission.status === "approved" && canReverse ? (
+                <div className="flex flex-col items-start gap-2">
+                  <Badge tone={expenseStatusTone(submission.status)}>
+                    {expenseStatusLabel(submission.status)}
+                  </Badge>
                   <Button
-                    aria-label={`Reverse ${submission.vendorLabel}`}
+                    aria-label={`${submission.status === "submitted" && canReview ? "Review" : "View"} ${submission.vendorLabel}`}
                     onClick={() =>
-                      openModal({
-                        mode: "expense-reversal",
-                        submission,
-                      })
+                      openModal({ mode: "expense-details", submission })
                     }
                     size="sm"
                     variant="outline"
                   >
-                    Reverse
+                    {submission.status === "submitted" && canReview
+                      ? "Review"
+                      : "View"}
                   </Button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    Read only
-                  </span>
-                )}
+                </div>
               </Td>
             </tr>
           ))}
@@ -1232,7 +1198,6 @@ function ExpenseSubmissionTable({
 }
 
 function BalancesView({
-  canRecordOwnerCash,
   invoices,
   openingAuthority,
   openModal,
@@ -1268,7 +1233,7 @@ function BalancesView({
   }, [invoices]);
 
   return (
-    <div className="min-w-0 bg-background">
+    <div className="mx-auto min-w-0 w-full max-w-[1280px] bg-background px-4 py-4 sm:px-6 2xl:px-8">
       {openingAuthority ? <div>{openingAuthority}</div> : null}
       <section
         aria-labelledby="current-balance-projection-heading"
@@ -1290,145 +1255,427 @@ function BalancesView({
           onValueChange={(value) => setTab(value as "owners" | "tenants")}
           value={tab}
         >
-      <TabsList
-        className="h-11 w-full shrink-0 justify-start rounded-none border-b px-4 sm:px-6"
-        variant="line"
-      >
-        <TabsTrigger className="flex-none px-3" value="owners">
-          Owners
-        </TabsTrigger>
-        <TabsTrigger className="flex-none px-3" value="tenants">
-          Tenants &amp; companies
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent tabIndex={-1} value="owners">
-        <TableFrame>
-          <Table className="min-w-[1040px]">
-            <thead className="bg-[var(--table-header-bg)]">
-              <tr>
-                <Th>Property</Th>
-                <Th>Owner</Th>
-                <Th>Running balance</Th>
-                <Th>Owner funds held</Th>
-                <Th>Owner amount due</Th>
-                <Th>Available</Th>
-                <Th align="right">Action</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {positions.map((position) => {
-                const ownerInvoice = ownerInvoices.find(
-                  (invoice) =>
-                    invoice.propertyId === position.propertyId &&
-                    invoice.balanceDue > 0,
-                );
-                return (
-                  <tr
-                    className="border-b border-border"
-                    key={position.propertyId}
-                  >
-                    <Td>
-                      <Link
-                        className="font-medium hover:underline"
-                        href={`/properties/${position.propertyId}/account`}
+          <TabsList
+            className="h-11 w-full shrink-0 justify-start rounded-none border-b px-4 sm:px-6"
+            variant="line"
+          >
+            <TabsTrigger className="flex-none px-3" value="owners">
+              Owners
+            </TabsTrigger>
+            <TabsTrigger className="flex-none px-3" value="tenants">
+              Tenants &amp; companies
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent tabIndex={-1} value="owners">
+            <TableFrame>
+              <Table className="table-fixed min-w-[680px]">
+                <colgroup>
+                  <col className="w-[40%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[20%]" />
+                </colgroup>
+                <thead className="bg-[var(--table-header-bg)]">
+                  <tr>
+                    <Th>Property / owner</Th>
+                    <Th>Cash collected</Th>
+                    <Th>Available</Th>
+                    <Th align="right">Action</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {positions.map((position) => {
+                    const ownerInvoice = ownerInvoices.find(
+                      (invoice) =>
+                        invoice.propertyId === position.propertyId &&
+                        invoice.balanceDue > 0,
+                    );
+                    return (
+                      <tr
+                        className="border-b border-border"
+                        key={position.propertyId}
                       >
-                        {position.propertyLabel}
-                      </Link>
-                    </Td>
-                    <Td>{position.ownerLabel}</Td>
-                    <Td>
-                      <Money amount={position.runningBalance} />
-                    </Td>
-                    <Td>
-                      <Money amount={position.cashHeldByIps} />
-                    </Td>
-                    <Td>
-                      <Money amount={position.ownerOwesIps} />
-                    </Td>
-                    <Td>
-                      <Money amount={position.availableWithdrawal} />
-                    </Td>
-                    <Td align="right">
-                      <div className="flex justify-end gap-1">
-                        {canRecordOwnerCash && ownerInvoice ? (
+                        <Td>
+                          <Link
+                            className="font-medium hover:underline"
+                            href={`/properties/${position.propertyId}/account`}
+                          >
+                            {position.propertyLabel}
+                          </Link>
+                          <p className="text-xs text-muted-foreground">
+                            {position.ownerLabel}
+                          </p>
+                        </Td>
+                        <Td>
+                          <Money amount={position.cashHeldByIps} />
+                        </Td>
+                        <Td>
+                          <Money amount={position.availableWithdrawal} />
+                        </Td>
+                        <Td align="right">
                           <Button
+                            aria-label={`View balance for ${position.ownerLabel}`}
                             onClick={() =>
                               openModal({
-                                invoice: ownerInvoice,
-                                mode: "owner-payment",
+                                mode: "owner-balance-details",
+                                ownerInvoice,
+                                position,
                               })
                             }
+                            size="sm"
+                            variant="outline"
                           >
-                            Owner invoice payment
+                            View
                           </Button>
-                        ) : null}
-                        {canRecordOwnerCash &&
-                        position.ownerPersonId &&
-                        position.availableWithdrawal > 0 ? (
-                          <Button
-                            onClick={() =>
-                              openModal({ mode: "withdrawal", position })
-                            }
-                          >
-                            Owner distribution
-                          </Button>
-                        ) : null}
-                      </div>
-                    </Td>
+                        </Td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </TableFrame>
+          </TabsContent>
+          <TabsContent tabIndex={-1} value="tenants">
+            <TableFrame>
+              <Table className="min-w-[720px]">
+                <thead className="bg-[var(--table-header-bg)]">
+                  <tr>
+                    <Th>Customer</Th>
+                    <Th>Invoices</Th>
+                    <Th>Outstanding</Th>
+                    <Th>Status</Th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        </TableFrame>
-      </TabsContent>
-      <TabsContent tabIndex={-1} value="tenants">
-        <TableFrame>
-          <Table className="min-w-[720px]">
-            <thead className="bg-[var(--table-header-bg)]">
-              <tr>
-                <Th>Customer</Th>
-                <Th>Invoices</Th>
-                <Th>Outstanding</Th>
-                <Th>Status</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {tenantBalances.map((balance) => (
-                <tr className="border-b border-border" key={balance.label}>
-                  <Td className="font-medium">{balance.label}</Td>
-                  <Td>{balance.invoices}</Td>
-                  <Td>
-                    <Money amount={balance.total} />
-                  </Td>
-                  <Td>
-                    <StatusBadge
-                      status={
-                        balance.total === 0
-                          ? "paid"
-                          : balance.settled > 0
-                            ? "partly_paid"
-                            : "unpaid"
-                      }
-                    />
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </TableFrame>
-      </TabsContent>
+                </thead>
+                <tbody>
+                  {tenantBalances.map((balance) => (
+                    <tr className="border-b border-border" key={balance.label}>
+                      <Td className="font-medium">{balance.label}</Td>
+                      <Td>{balance.invoices}</Td>
+                      <Td>
+                        <Money amount={balance.total} />
+                      </Td>
+                      <Td>
+                        <StatusBadge
+                          status={
+                            balance.total === 0
+                              ? "paid"
+                              : balance.settled > 0
+                                ? "partly_paid"
+                                : "unpaid"
+                          }
+                        />
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </TableFrame>
+          </TabsContent>
         </Tabs>
       </section>
     </div>
   );
 }
 
+function InvoiceDetails({
+  canCorrectFinance,
+  canRecordPayments,
+  invoice,
+  onClose,
+  onCorrect,
+  onRecordPayment,
+  organizationName,
+}: {
+  canCorrectFinance: boolean;
+  canRecordPayments: boolean;
+  invoice: TenantInvoiceSummary;
+  onClose: () => void;
+  onCorrect: () => void;
+  onRecordPayment: () => void;
+  organizationName: string;
+}) {
+  const canCorrect =
+    canCorrectFinance &&
+    invoice.settlements.some((settlement) => !settlement.isReversed);
+
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="font-semibold">{invoice.invoiceNumber}</p>
+          <p className="text-sm text-muted-foreground">
+            {invoice.recipientLabel} · {invoice.propertyLabel}
+          </p>
+        </div>
+        <StatusBadge
+          dueDate={invoice.dueDate}
+          settlements={invoice.settlements}
+          status={invoice.paymentStatus}
+        />
+      </div>
+      <DefinitionRows
+        rows={[
+          [
+            "Lease month",
+            `${formatLeaseMonth(invoice.billingPeriodStart)} lease month`,
+          ],
+          ["Unit", invoice.unitLabel],
+          ["Occupants", invoice.occupantLabels.join(", ") || "—"],
+          [
+            "Collected by",
+            invoice.collectionRoute === "through_ips"
+              ? organizationName
+              : "Owner",
+          ],
+          ["Issued", formatDate(invoice.issueDate)],
+          ["Due", formatDate(invoice.dueDate)],
+          [
+            "Invoice total",
+            <Money amount={invoice.totalAmount} key="invoice-total" />,
+          ],
+          ["Balance", <Money amount={invoice.balanceDue} key="balance" />],
+        ]}
+      />
+      {invoice.isProrated ? <Badge tone="accent">Prorated</Badge> : null}
+      <FormFooter>
+        <Button onClick={onClose} variant="outline">
+          Close
+        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          {canCorrect ? (
+            <Button onClick={onCorrect} variant="outline">
+              Correct settlement
+            </Button>
+          ) : null}
+          {canRecordPayments && invoice.balanceDue > 0 ? (
+            <Button onClick={onRecordPayment}>
+              {invoice.collectionRoute === "through_ips"
+                ? "Record payment"
+                : "Confirm collected"}
+            </Button>
+          ) : null}
+        </div>
+      </FormFooter>
+    </div>
+  );
+}
+
+function ExpenseDetails({
+  canReview,
+  canReverse,
+  onApprove,
+  onClose,
+  onReject,
+  onReverse,
+  submission,
+}: {
+  canReview: boolean;
+  canReverse: boolean;
+  onApprove: () => void;
+  onClose: () => void;
+  onReject: () => void;
+  onReverse: () => void;
+  submission: ExpenseSubmissionSummary;
+}) {
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="font-semibold">{categoryLabel(submission.category)}</p>
+          <p className="text-sm text-muted-foreground">
+            {submission.vendorLabel} · {submission.propertyLabel}
+          </p>
+        </div>
+        <Badge tone={expenseStatusTone(submission.status)}>
+          {expenseStatusLabel(submission.status)}
+        </Badge>
+      </div>
+      <DefinitionRows
+        rows={[
+          ["Paid date", formatDate(submission.date)],
+          ["Unit", submission.unitLabel],
+          [
+            "Charged to",
+            submission.responsibility === "owner"
+              ? "Property owner"
+              : "Tenant or company",
+          ],
+          ["Paid from", submission.fundingSourceLabel],
+          [
+            "Amount paid",
+            <Money amount={submission.internalCost} key="amount-paid" />,
+          ],
+          ...(submission.customerTotal !== submission.internalCost
+            ? ([
+                [
+                  "Customer total",
+                  <Money
+                    amount={submission.customerTotal}
+                    key="customer-total"
+                  />,
+                ],
+              ] as [string, ReactNode][])
+            : []),
+          ...(submission.reference
+            ? ([["Reference", submission.reference]] as [string, ReactNode][])
+            : []),
+        ]}
+      />
+      {submission.sourceType === "maintenance_task" &&
+      submission.maintenanceTask ? (
+        <div className="border-y border-border py-3 text-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Maintenance source
+          </p>
+          <Link
+            className="mt-1 block font-medium text-primary underline-offset-2 hover:underline"
+            href={submission.maintenanceTask.href}
+          >
+            {submission.maintenanceTask.title}
+          </Link>
+        </div>
+      ) : null}
+      {submission.evidence ? (
+        <div className="text-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Evidence
+          </p>
+          {submission.evidence.href ? (
+            <a
+              className="mt-1 inline-block font-medium text-primary underline-offset-2 hover:underline"
+              href={submission.evidence.href}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {submission.evidence.fileName}
+            </a>
+          ) : (
+            <p className="mt-1 text-muted-foreground">
+              {submission.evidence.fileName} · unavailable
+            </p>
+          )}
+        </div>
+      ) : null}
+      {submission.reviewReason || submission.reversalReason ? (
+        <p className="border-l-2 border-warning pl-3 text-sm text-muted-foreground">
+          {submission.reversalReason ?? submission.reviewReason}
+        </p>
+      ) : null}
+      <FormFooter>
+        <Button onClick={onClose} variant="outline">
+          Close
+        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          {submission.status === "submitted" && canReview ? (
+            <>
+              <Button
+                aria-label={`Reject ${submission.vendorLabel}`}
+                onClick={onReject}
+                variant="outline"
+              >
+                Reject
+              </Button>
+              <Button
+                aria-label={`Approve ${submission.vendorLabel}`}
+                onClick={onApprove}
+              >
+                Approve
+              </Button>
+            </>
+          ) : submission.status === "approved" && canReverse ? (
+            <Button
+              aria-label={`Reverse ${submission.vendorLabel}`}
+              onClick={onReverse}
+              variant="outline"
+            >
+              Reverse
+            </Button>
+          ) : null}
+        </div>
+      </FormFooter>
+    </div>
+  );
+}
+
+function OwnerBalanceDetails({
+  canRecordOwnerCash,
+  onClose,
+  onOwnerPayment,
+  onWithdrawal,
+  organizationName,
+  position,
+}: {
+  canRecordOwnerCash: boolean;
+  onClose: () => void;
+  onOwnerPayment?: () => void;
+  onWithdrawal: () => void;
+  organizationName: string;
+  position: PropertyFinancePosition;
+}) {
+  return (
+    <div className="space-y-4 p-4">
+      <div>
+        <p className="font-semibold">{position.ownerLabel}</p>
+        <p className="text-sm text-muted-foreground">
+          {position.propertyLabel}
+        </p>
+      </div>
+      <DefinitionRows
+        rows={[
+          [
+            `Cash collected by ${getOrganizationShortLabel(organizationName)}`,
+            <Money amount={position.cashHeldByIps} key="cash-collected" />,
+          ],
+          [
+            "Available to distribute",
+            <Money
+              amount={position.availableWithdrawal}
+              key="available-to-distribute"
+            />,
+          ],
+          [
+            "Owner balance",
+            <Money amount={position.runningBalance} key="owner-balance" />,
+          ],
+          [
+            "Owner reimbursement due",
+            <Money amount={position.ownerOwesIps} key="owner-reimbursement" />,
+          ],
+        ]}
+      />
+      <FormFooter>
+        <Button onClick={onClose} variant="outline">
+          Close
+        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/properties/${position.propertyId}/account`}>
+              Open property account
+            </Link>
+          </Button>
+          {canRecordOwnerCash && onOwnerPayment ? (
+            <Button onClick={onOwnerPayment} variant="outline">
+              Owner invoice payment
+            </Button>
+          ) : null}
+          {canRecordOwnerCash &&
+          position.ownerPersonId &&
+          position.availableWithdrawal > 0 ? (
+            <Button onClick={onWithdrawal}>Record owner distribution</Button>
+          ) : null}
+        </div>
+      </FormFooter>
+    </div>
+  );
+}
+
 function PropertyAccountView({
   entries,
+  onRecordWithdrawal,
   position,
 }: {
   entries: FinanceOperationsData["accountEntries"];
+  onRecordWithdrawal?: () => void;
   position: PropertyFinancePosition | null;
 }) {
   if (!position)
@@ -1440,29 +1687,44 @@ function PropertyAccountView({
         title="Account unavailable"
       />
     );
+  const orderedEntries = sortPropertyAccountEntriesNewestFirst(entries);
   return (
-    <div className="flex min-w-0 flex-col bg-card">
-      <CompactTotals
-        items={[
-          {
-            label: "Running balance",
-            value: <Money amount={position.runningBalance} />,
-          },
-          {
-            label: "Owner funds held",
-            value: <Money amount={position.cashHeldByIps} />,
-          },
-          {
-            label: "Owner amount due",
-            value: <Money amount={position.ownerOwesIps} />,
-          },
-          {
-            label: "Available withdrawal",
-            value: <Money amount={position.availableWithdrawal} />,
-          },
-        ]}
-      />
-      {entries.length === 0 ? (
+    <div className="flex min-w-0 flex-col bg-background px-4 pb-6 sm:px-6 2xl:px-8">
+      <section
+        aria-label="Account position"
+        className="grid shrink-0 grid-cols-1 pb-5 sm:grid-cols-2"
+      >
+        <AccountPositionItem
+          description="Income minus owner costs and distributions"
+          label="Owner balance"
+          value={<Money amount={position.runningBalance} />}
+        />
+        <AccountPositionItem
+          action={
+            onRecordWithdrawal ? (
+              <Button onClick={onRecordWithdrawal} size="sm" variant="outline">
+                Record owner distribution
+              </Button>
+            ) : undefined
+          }
+          description="Cash held here and ready to distribute"
+          label="Cash available"
+          value={<Money amount={position.availableWithdrawal} />}
+        />
+      </section>
+      {position.ownerOwesIps > 0 ? (
+        <div
+          aria-label="Owner amount due"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 border-y border-warning/30 bg-warning-soft/20 px-3 py-2 text-sm"
+          role="status"
+        >
+          <span className="font-medium text-warning">Owner amount due</span>
+          <span className="font-semibold tabular-nums text-foreground">
+            <Money amount={position.ownerOwesIps} />
+          </span>
+        </div>
+      ) : null}
+      {orderedEntries.length === 0 ? (
         <EmptyState
           body="Rent, fees, owner costs, and withdrawals will appear here."
           className="flex-1"
@@ -1470,47 +1732,100 @@ function PropertyAccountView({
           title="No account activity"
         />
       ) : (
-        <TableFrame>
+        <TableFrame className="p-0">
           <Table
-            className="min-w-[820px]"
+            className="min-w-[760px]"
             scrollRegionLabel="Property account activity"
           >
             <thead className="bg-[var(--table-header-bg)]">
               <tr>
                 <Th>Date</Th>
-                <Th>Type</Th>
-                <Th>Details</Th>
-                <Th>Amount</Th>
-                <Th>Running balance</Th>
+                <Th>Activity</Th>
+                <Th align="right">Money in</Th>
+                <Th align="right">Money out</Th>
+                <Th align="right">Balance after</Th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                <tr
-                  className="border-b border-border"
-                  key={`${entry.category}-${entry.id}`}
-                >
-                  <Td>{formatDate(entry.date)}</Td>
-                  <Td>{entry.label}</Td>
-                  <Td className="text-muted-foreground">{entry.note ?? "—"}</Td>
-                  <Td>
-                    <Money
-                      amount={
-                        entry.category === "rent_income"
-                          ? entry.amount
-                          : -entry.amount
-                      }
-                    />
-                  </Td>
-                  <Td>
-                    <Money amount={entry.runningBalance} />
-                  </Td>
-                </tr>
-              ))}
+              {orderedEntries.map((entry) => {
+                const balanceEffect = getAccountEntryBalanceEffect(entry);
+                return (
+                  <tr
+                    className="border-b border-border transition-colors hover:bg-muted/35"
+                    key={`${entry.category}-${entry.id}`}
+                  >
+                    <Td className="text-muted-foreground">
+                      {formatDate(entry.date)}
+                    </Td>
+                    <Td>
+                      <p className="font-medium text-foreground">
+                        {entry.label}
+                      </p>
+                      {entry.note ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {entry.note}
+                        </p>
+                      ) : null}
+                    </Td>
+                    <Td align="right">
+                      {balanceEffect > 0 ? (
+                        <Money
+                          amount={balanceEffect}
+                          className="text-success"
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </Td>
+                    <Td align="right">
+                      {balanceEffect < 0 ? (
+                        <Money
+                          amount={Math.abs(balanceEffect)}
+                          className="text-destructive"
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </Td>
+                    <Td align="right">
+                      <Money amount={entry.runningBalance} />
+                    </Td>
+                  </tr>
+                );
+              })}
             </tbody>
           </Table>
         </TableFrame>
       )}
+    </div>
+  );
+}
+
+function getAccountEntryBalanceEffect(entry: PropertyAccountEntry) {
+  return entry.category === "rent_income" ? entry.amount : -entry.amount;
+}
+
+function AccountPositionItem({
+  action,
+  description,
+  label,
+  value,
+}: {
+  action?: ReactNode;
+  description: string;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-4 border-t border-border py-2.5 first:border-t-0 sm:flex sm:border-l sm:border-t-0 sm:px-5 sm:py-0 sm:first:border-l-0 sm:first:pl-0">
+      <div className="min-w-0">
+        <div className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
+          {value}
+        </div>
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        <p className="text-xs leading-4 text-muted-foreground">{description}</p>
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }
@@ -1527,7 +1842,6 @@ function BillingSetupForm({
   peopleOptions: FinanceOperationsData["peopleOptions"];
 }) {
   const idempotencyKey = useStableActionId("billing");
-  const [step, setStep] = useState(1);
   const [state, action] = useActionState(
     saveLeaseBillingAction,
     actionInitialState,
@@ -1535,13 +1849,14 @@ function BillingSetupForm({
   const [recipientKind, setRecipientKind] = useState<
     "" | "company" | "individual"
   >(
-    lease.billing?.billingRecipientKind ?? "",
+    lease.billing?.billingRecipientKind ??
+      (lease.tenantPersonId ? "individual" : ""),
   );
   const [recipientId, setRecipientId] = useState(
-    lease.billing?.billingRecipientPersonId ?? "",
+    lease.billing?.billingRecipientPersonId ?? lease.tenantPersonId ?? "",
   );
   const [effectiveFrom, setEffectiveFrom] = useState(
-    lease.billing?.effectiveFrom ?? "",
+    lease.billing?.effectiveFrom ?? lease.startDate,
   );
   const [firstProrata, setFirstProrata] = useState(
     lease.billing?.firstPeriodProratedAmount?.toString() ?? "",
@@ -1549,23 +1864,21 @@ function BillingSetupForm({
   const [finalProrata, setFinalProrata] = useState(
     lease.billing?.finalPeriodProratedAmount?.toString() ?? "",
   );
-  const [route, setRoute] = useState<
-    "" | "direct_to_owner" | "through_ips"
-  >(
-    lease.billing?.collectionRoute ?? "",
+  const [route, setRoute] = useState<"" | "direct_to_owner" | "through_ips">(
+    lease.billing?.collectionRoute ?? "through_ips",
   );
   const [feeMode, setFeeMode] = useState<"" | "flat" | "percentage">(
-    lease.billing?.managementFeeMode ?? "",
+    lease.billing?.managementFeeMode ?? "percentage",
   );
   const [feeValue, setFeeValue] = useState(
-    lease.billing?.managementFeeValue.toString() ?? "",
+    lease.billing?.managementFeeValue.toString() ?? "0",
   );
   const [chargeFee, setChargeFee] = useState<"" | "no" | "yes">(
     lease.billing
       ? lease.billing.chargeManagementFeeWhenActive
         ? "yes"
         : "no"
-      : "",
+      : "no",
   );
   const [fullFeeDuringProration, setFullFeeDuringProration] = useState<
     "" | "no" | "yes"
@@ -1574,20 +1887,15 @@ function BillingSetupForm({
       ? lease.billing.fullManagementFeeDuringProration
         ? "yes"
         : "no"
-      : "",
+      : "no",
   );
+  const recipientOptions =
+    recipientKind === "individual" && lease.tenantPersonId
+      ? [{ id: lease.tenantPersonId, label: lease.tenantLabel }]
+      : peopleOptions;
   useSuccess(state, onSuccess);
   return (
     <form action={action} className="space-y-4 p-4">
-      <StepIndicator
-        current={step}
-        labels={[
-          "Property & owner",
-          "Lease billing",
-          "Collection & fee",
-          "Review",
-        ]}
-      />
       <input name="leaseId" type="hidden" value={lease.id} />
       <input name="effectiveFrom" type="hidden" value={effectiveFrom} />
       <input name="billingRecipientKind" type="hidden" value={recipientKind} />
@@ -1626,55 +1934,89 @@ function BillingSetupForm({
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
 
-      {step === 1 ? (
-        <DefinitionRows
-          rows={[
-            ["Property", lease.propertyLabel],
-            ["Owner", lease.ownerLabel],
-            ["Lease", `${lease.tenantLabel} · ${lease.unitLabel}`],
-            ["Monthly rent", formatMoneyDisplay(lease.monthlyRent).primary],
-          ]}
-        />
-      ) : null}
-      {step === 2 ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Bill to">
+      <DefinitionRows
+        rows={[
+          ["Property", lease.propertyLabel],
+          ["Owner", lease.ownerLabel],
+          ["Lease", `${lease.tenantLabel} · ${lease.unitLabel}`],
+          ["Monthly rent", formatMoneyDisplay(lease.monthlyRent).primary],
+        ]}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Bill to">
+          <SelectControl
+            onValueChange={(value) => {
+              const nextKind = value as "company" | "individual";
+              setRecipientKind(nextKind);
+              setRecipientId(
+                nextKind === "individual" ? (lease.tenantPersonId ?? "") : "",
+              );
+            }}
+            options={[
+              { label: "Individual tenant", value: "individual" },
+              { label: "Company", value: "company" },
+            ]}
+            value={recipientKind}
+          />
+        </Field>
+        <Field label={recipientKind === "company" ? "Company" : "Recipient"}>
+          <SelectControl
+            onValueChange={setRecipientId}
+            options={recipientOptions.map((option) => ({
+              label: option.label,
+              value: option.id,
+            }))}
+            placeholder="Choose a recipient"
+            value={recipientId}
+          />
+        </Field>
+        <Field label="Billing effective date">
+          <Input
+            aria-label="Billing effective date"
+            onChange={(event) => setEffectiveFrom(event.target.value)}
+            required
+            type="date"
+            value={effectiveFrom}
+          />
+        </Field>
+        <Field label="Who collects rent?">
+          <SelectControl
+            onValueChange={(value) => setRoute(value as typeof route)}
+            options={[
+              {
+                label: `Collected by ${organizationName}`,
+                value: "through_ips",
+              },
+              { label: "Collected by owner", value: "direct_to_owner" },
+            ]}
+            value={route}
+          />
+        </Field>
+      </div>
+
+      <details className="border-y border-border py-3">
+        <summary className="cursor-pointer text-sm font-medium text-foreground">
+          Proration and fee options
+        </summary>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label="Management fee">
             <SelectControl
-              onValueChange={(value) =>
-                setRecipientKind(value as "company" | "individual")
-              }
+              onValueChange={(value) => setFeeMode(value as typeof feeMode)}
               options={[
-                { label: "Choose who is billed", value: "" },
-                { label: "Individual tenant", value: "individual" },
-                { label: "Company", value: "company" },
+                { label: "Percentage", value: "percentage" },
+                { label: "Flat amount", value: "flat" },
               ]}
-              placeholder="Choose who is billed"
-              value={recipientKind}
+              value={feeMode}
             />
           </Field>
           <Field
-            label={recipientKind === "company" ? "Company" : "Recipient"}
+            label={feeMode === "percentage" ? "Fee percentage" : "Fee amount"}
           >
-            <SelectControl
-              onValueChange={setRecipientId}
-              options={[
-                { label: "Choose a recipient", value: "" },
-                ...peopleOptions.map((option) => ({
-                  label: option.label,
-                  value: option.id,
-                })),
-              ]}
-              placeholder="Choose a recipient"
-              value={recipientId}
-            />
-          </Field>
-          <Field label="Billing effective date">
-            <Input
-              aria-label="Billing effective date"
-              onChange={(event) => setEffectiveFrom(event.target.value)}
+            <NumberInput
+              onChange={(event) => setFeeValue(event.target.value)}
               required
-              type="date"
-              value={effectiveFrom}
+              value={feeValue}
             />
           </Field>
           <Field label="First month amount (optional)">
@@ -1691,51 +2033,10 @@ function BillingSetupForm({
               value={finalProrata}
             />
           </Field>
-        </div>
-      ) : null}
-      {step === 3 ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Who collects rent?">
-            <SelectControl
-              onValueChange={(value) => setRoute(value as typeof route)}
-              options={[
-                { label: "Choose who collects rent", value: "" },
-                {
-                  label: `Collected by ${organizationName}`,
-                  value: "through_ips",
-                },
-                { label: "Collected by owner", value: "direct_to_owner" },
-              ]}
-              placeholder="Choose who collects rent"
-              value={route}
-            />
-          </Field>
-          <Field label="Management fee">
-            <SelectControl
-              onValueChange={(value) => setFeeMode(value as typeof feeMode)}
-              options={[
-                { label: "Choose fee type", value: "" },
-                { label: "Percentage", value: "percentage" },
-                { label: "Flat amount", value: "flat" },
-              ]}
-              placeholder="Choose fee type"
-              value={feeMode}
-            />
-          </Field>
-          <Field
-            label={feeMode === "percentage" ? "Fee percentage" : "Fee amount"}
-          >
-            <NumberInput
-              onChange={(event) => setFeeValue(event.target.value)}
-              required
-              value={feeValue}
-            />
-          </Field>
           <Field label="Charge fee while lease is active?">
             <SelectControl
               onValueChange={(value) => setChargeFee(value as typeof chargeFee)}
               options={[
-                { label: "Choose yes or no", value: "" },
                 { label: "Yes", value: "yes" },
                 { label: "No", value: "no" },
               ]}
@@ -1750,7 +2051,6 @@ function BillingSetupForm({
                 )
               }
               options={[
-                { label: "Choose yes or no", value: "" },
                 { label: "Yes", value: "yes" },
                 { label: "No", value: "no" },
               ]}
@@ -1758,68 +2058,23 @@ function BillingSetupForm({
             />
           </Field>
         </div>
-      ) : null}
-      {step === 4 ? (
-        <DefinitionRows
-          rows={[
-            [
-              "Bill to",
-              peopleOptions.find((item) => item.id === recipientId)?.label ??
-                "Not selected",
-            ],
-            [
-              "Collection",
-              route === "through_ips"
-                ? `Collected by ${organizationName}`
-                : "Collected by owner",
-            ],
-            [
-              "Management fee",
-              feeMode === "percentage"
-                ? `${feeValue}%`
-                : formatMoneyDisplay(Number(feeValue || 0)).primary,
-            ],
-            [
-              "Pro-rata",
-              firstProrata || finalProrata
-                ? "Manual first/final amount"
-                : "Full monthly rent",
-            ],
-          ]}
-        />
-      ) : null}
+      </details>
       <ActionMessage state={state} />
       <FormFooter>
-        {step > 1 ? (
-          <Button
-            onClick={() => setStep((current) => current - 1)}
-            type="button"
-          >
-            Back
-          </Button>
-        ) : (
-          <span />
-        )}
-        {step < 4 ? (
-          <Button
-            disabled={
-              (step === 2 && (!recipientKind || !recipientId || !effectiveFrom)) ||
-              (step === 3 &&
-                (!route ||
-                  !feeMode ||
-                  feeValue === "" ||
-                  !chargeFee ||
-                  !fullFeeDuringProration))
-            }
-            onClick={() => setStep((current) => current + 1)}
-            type="button"
-            variant="default"
-          >
-            Continue <ChevronRight size={14} />
-          </Button>
-        ) : (
-          <SubmitButton label="Activate billing" />
-        )}
+        <span />
+        <SubmitButton
+          disabled={
+            !recipientKind ||
+            !recipientId ||
+            !effectiveFrom ||
+            !route ||
+            !feeMode ||
+            feeValue === "" ||
+            !chargeFee ||
+            !fullFeeDuringProration
+          }
+          label="Activate billing"
+        />
       </FormFooter>
     </form>
   );
@@ -2041,8 +2296,7 @@ function ExpenseForm({
       (!unitId || invoice.unitId === unitId),
   );
   const matchingSources = reconciliationSources.filter(
-    (source) =>
-      source.propertyId == null || source.propertyId === propertyId,
+    (source) => source.propertyId == null || source.propertyId === propertyId,
   );
   const effectiveMarkup = effectiveResponsibility === "tenant" ? markup : "0";
   const invoiceTotal = Number(cost || 0) + Number(effectiveMarkup || 0);
@@ -2073,13 +2327,6 @@ function ExpenseForm({
         value={effectiveResponsibility === "tenant" ? tenantInvoiceId : ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
-      <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
-        <p className="font-semibold">Already paid</p>
-        <p className="mt-1 text-muted-foreground">
-          Record the cost and its receipt for review. Submitting does not record
-          a new payment or change balances before approval.
-        </p>
-      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Property">
           <SelectControl
@@ -2159,22 +2406,6 @@ function ExpenseForm({
             value={expenseDate}
           />
         </Field>
-        <Field label="Paid from">
-          <SelectControl
-            ariaLabel="Paid from"
-            onValueChange={setReconciliationSourceId}
-            options={matchingSources.map((source) => ({
-              label: source.label,
-              value: source.id,
-            }))}
-            placeholder={
-              matchingSources.length > 0
-                ? "Choose funding source"
-                : "No funding source"
-            }
-            value={reconciliationSourceId}
-          />
-        </Field>
       </div>
 
       <fieldset className="space-y-2 border-t border-border pt-4">
@@ -2249,26 +2480,47 @@ function ExpenseForm({
         </div>
       ) : null}
 
-      <Field label="Receipt or payment reference">
-        <Input
-          onChange={(event) => setReference(event.target.value)}
-          placeholder="Receipt number, bank transfer, or payment note"
-          required
-          value={reference}
-        />
-      </Field>
-      <Field label="Receipt evidence">
-        <Input
-          accept="application/pdf,image/jpeg,image/png,image/webp"
-          name="evidenceFile"
-          required
-          type="file"
-        />
-      </Field>
-      <p className="text-xs text-muted-foreground">
-        This paid cost stays awaiting approval and does not affect balances
-        until a Finance Manager approves it.
-      </p>
+      <details className="border-t border-border pt-4">
+        <summary className="cursor-pointer text-sm font-semibold">
+          Receipt and reconciliation
+        </summary>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label="Paid from">
+            <SelectControl
+              ariaLabel="Paid from"
+              onValueChange={setReconciliationSourceId}
+              options={matchingSources.map((source) => ({
+                label: source.label,
+                value: source.id,
+              }))}
+              placeholder={
+                matchingSources.length > 0
+                  ? "Choose funding source"
+                  : "No funding source"
+              }
+              value={reconciliationSourceId}
+            />
+          </Field>
+          <Field label="Receipt or payment reference">
+            <Input
+              onChange={(event) => setReference(event.target.value)}
+              placeholder="Receipt number or transfer note"
+              required
+              value={reference}
+            />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Receipt evidence">
+              <Input
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                name="evidenceFile"
+                required
+                type="file"
+              />
+            </Field>
+          </div>
+        </div>
+      </details>
       <ActionMessage state={state} />
       <FormFooter>
         <span />
@@ -2340,7 +2592,8 @@ function ExpenseReviewForm({
                 ],
                 [
                   "Work completed",
-                  submission.maintenanceTask.description ?? "No work note recorded",
+                  submission.maintenanceTask.description ??
+                    "No work note recorded",
                 ],
                 [
                   "Task status",
@@ -2356,7 +2609,8 @@ function ExpenseReviewForm({
             ? ([
                 [
                   "Previously approved",
-                  formatMoneyDisplay(submission.previouslyApproved ?? 0).primary,
+                  formatMoneyDisplay(submission.previouslyApproved ?? 0)
+                    .primary,
                 ],
                 [
                   "Recorded total",
@@ -2389,7 +2643,10 @@ function ExpenseReviewForm({
           ],
           ...(submission.evidence
             ? ([
-                ["Evidence size", formatEvidenceSize(submission.evidence.sizeBytes)],
+                [
+                  "Evidence size",
+                  formatEvidenceSize(submission.evidence.sizeBytes),
+                ],
               ] satisfies [string, ReactNode][])
             : []),
           ["Paid from", submission.fundingSourceLabel],
@@ -2397,7 +2654,12 @@ function ExpenseReviewForm({
       />
       {submission.evidence ? (
         <AuditDetails
-          entries={[{ label: "Evidence fingerprint", value: submission.evidence.sha256 }]}
+          entries={[
+            {
+              label: "Evidence fingerprint",
+              value: submission.evidence.sha256,
+            },
+          ]}
         />
       ) : null}
       {needsFundingSource ? (
@@ -2418,9 +2680,7 @@ function ExpenseReviewForm({
       ) : (
         <input name="reconciliationSourceId" type="hidden" value="" />
       )}
-      <Field
-        label={decision === "reject" ? "Rejection reason" : "Review note"}
-      >
+      <Field label={decision === "reject" ? "Rejection reason" : "Review note"}>
         <Input
           onChange={(event) => setReason(event.target.value)}
           placeholder={decision === "reject" ? "Required" : "Optional"}
@@ -2657,7 +2917,7 @@ function OwnerPaymentForm({
       <ActionMessage state={state} />
       <FormFooter>
         <span />
-          <SubmitButton label="Record owner invoice payment" />
+        <SubmitButton label="Record owner invoice payment" />
       </FormFooter>
     </form>
   );
@@ -2711,19 +2971,27 @@ function WithdrawalForm({
           />
         </Field>
         <Field label="Reference">
-          <Input name="reference" placeholder="Bank transfer or note" required />
+          <Input
+            name="reference"
+            placeholder="Bank transfer or note"
+            required
+          />
         </Field>
       </div>
       <ActionMessage state={state} />
       <FormFooter>
         <span />
-        <SubmitButton label="Record withdrawal" />
+        <SubmitButton label="Record owner distribution" />
       </FormFooter>
     </form>
   );
 }
 
 function getModalTitle(modal: ModalState) {
+  if (modal.mode === "rent-recovery") return "Recover missed rent";
+  if (modal.mode === "invoice-details") return "Invoice details";
+  if (modal.mode === "expense-details") return "Paid cost details";
+  if (modal.mode === "owner-balance-details") return "Owner balance details";
   if (modal.mode === "payment")
     return !modal.invoice || modal.invoice.collectionRoute === "through_ips"
       ? "Record payment"
@@ -2736,7 +3004,7 @@ function getModalTitle(modal: ModalState) {
   }
   if (modal.mode === "expense-reversal") return "Reverse paid cost";
   if (modal.mode === "settlement-reversal") return "Correct settlement";
-  return "Owner distribution";
+  return "Record owner distribution";
 }
 
 function canRenderFinanceModal(
@@ -2746,10 +3014,19 @@ function canRenderFinanceModal(
     | "canCorrectFinance"
     | "canRecordOwnerCash"
     | "canRecordPayments"
+    | "canRecoverRent"
     | "canReviewExpense"
     | "canReverseExpense"
   >,
 ) {
+  if (
+    modal.mode === "invoice-details" ||
+    modal.mode === "expense-details" ||
+    modal.mode === "owner-balance-details"
+  ) {
+    return true;
+  }
+  if (modal.mode === "rent-recovery") return capabilities.canRecoverRent;
   if (modal.mode === "payment") return capabilities.canRecordPayments;
   if (modal.mode === "settlement-reversal") {
     return capabilities.canCorrectFinance;
@@ -2767,7 +3044,6 @@ function canRenderFinanceModal(
 
 function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "billing") return "Set up lease billing";
-  if (drawer.mode === "rent-recovery") return "Recover missed rent";
   return "Record paid cost";
 }
 
@@ -2798,7 +3074,9 @@ function expenseStatusTone(
 
 function formatLeaseMonth(value: string) {
   const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
-  return Number.isNaN(date.getTime()) ? value : leaseMonthFormatter.format(date);
+  return Number.isNaN(date.getTime())
+    ? value
+    : leaseMonthFormatter.format(date);
 }
 
 function getPreviousBusinessMonthValue() {
@@ -2809,54 +3087,48 @@ function getPreviousBusinessMonthValue() {
   return new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
 }
 
+function getOrganizationShortLabel(organizationName: string) {
+  return organizationName.trim().split(/\s+/)[0] || organizationName;
+}
 
 function CompactTotals({
   items,
-  variant = "strip",
 }: {
   items: { label: string; value: ReactNode }[];
-  variant?: "cards" | "strip";
 }) {
-  if (variant === "cards") {
-    return (
-      <div className="grid shrink-0 gap-4 sm:grid-cols-3">
-        {items.map((item) => (
-          <Card className="gap-1 py-3" key={item.label} size="sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {item.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold tabular-nums">
-              {item.value}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
   return (
     <div
-      className="grid shrink-0 divide-x divide-border border-b border-border bg-muted/35"
-      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      aria-label="Finance summary"
+      className={cn(
+        "grid shrink-0 grid-cols-1 divide-y divide-border border-y border-border sm:divide-x sm:divide-y-0",
+        items.length === 4 ? "sm:grid-cols-4" : "sm:grid-cols-3",
+      )}
+      role="region"
     >
       {items.map((item) => (
-        <div className="px-4 py-2.5 sm:px-6" key={item.label}>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="min-w-0 px-3 py-2.5 sm:px-4" key={item.label}>
+          <p className="text-xs font-medium text-muted-foreground">
             {item.label}
           </p>
-          <div className="mt-0.5 text-sm font-semibold">{item.value}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums">
+            {item.value}
+          </div>
         </div>
       ))}
     </div>
   );
 }
-function TableFrame({ children }: { children: ReactNode }) {
+function TableFrame({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <div
       aria-label="Finance records"
-      className="flex-1 overflow-x-auto p-3"
+      className={cn("flex-1 overflow-x-auto p-3", className)}
       data-slot="finance-table-frame"
       role="region"
     >
@@ -2903,8 +3175,14 @@ function Td({
     </TableCell>
   );
 }
-function Money({ amount }: { amount: number }) {
-  return <MoneyDisplay align="right" value={formatMoneyDisplay(amount)} />;
+function Money({ amount, className }: { amount: number; className?: string }) {
+  return (
+    <MoneyDisplay
+      align="right"
+      className={className}
+      value={formatMoneyDisplay(amount)}
+    />
+  );
 }
 function StatusBadge({
   dueDate,
@@ -2921,9 +3199,7 @@ function StatusBadge({
     settlements,
     status,
   });
-  return (
-    <Badge tone={presentation.tone}>{presentation.label}</Badge>
-  );
+  return <Badge tone={presentation.tone}>{presentation.label}</Badge>;
 }
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
@@ -2977,45 +3253,5 @@ function DefinitionRows({ rows }: { rows: [string, ReactNode][] }) {
         </div>
       ))}
     </dl>
-  );
-}
-function StepIndicator({
-  current,
-  labels,
-}: {
-  current: number;
-  labels: string[];
-}) {
-  return (
-    <ol className="flex items-center gap-2 border-b border-border pb-3">
-      {labels.map((label, index) => {
-        const number = index + 1;
-        return (
-          <li
-            aria-current={number === current ? "step" : undefined}
-            aria-label={`Step ${number} of ${labels.length}: ${label}`}
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 text-xs",
-              number === current
-                ? "font-semibold text-foreground"
-                : number < current
-                  ? "text-success"
-                  : "text-muted-foreground",
-            )}
-            key={label}
-          >
-            <span
-              className={cn(
-                "grid size-5 shrink-0 place-items-center rounded-full border",
-                number < current && "border-success bg-success-soft",
-              )}
-            >
-              {number < current ? <Check size={12} /> : number}
-            </span>
-            <span className="truncate">{label}</span>
-          </li>
-        );
-      })}
-    </ol>
   );
 }

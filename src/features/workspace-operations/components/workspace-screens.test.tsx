@@ -151,7 +151,7 @@ describe("Finance Manager workspace", () => {
 
 describe("Finance Member workspace", () => {
   it("renders its own queue with no review controls", () => {
-    render(<FinanceMemberWorkspace data={memberData} />);
+    const { container } = render(<FinanceMemberWorkspace data={memberData} />);
 
     const queue = screen.getByRole("table", { name: "Submission queue" });
 
@@ -159,6 +159,14 @@ describe("Finance Member workspace", () => {
     expect(within(queue).getByText("Evidence photo was unreadable")).toBeTruthy();
     expect(within(queue).queryByRole("link", { name: "Review" })).toBeNull();
     expect(within(queue).queryByText("Submitted by")).toBeNull();
+    expect(
+      container.querySelector('[data-slot="workspace-queue-table"]')?.className,
+    ).toContain("overflow-hidden");
+    expect(
+      container.querySelector('[data-slot="table-container"]')?.getAttribute(
+        "aria-label",
+      ),
+    ).toBe("Submission queue table");
   });
 
   it("uses property and unit context when the row is not rejected", () => {

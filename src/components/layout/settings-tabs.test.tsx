@@ -9,15 +9,14 @@ afterEach(cleanup);
 
 describe("SettingsTabs", () => {
   it.each([
-    "/settings?section=organization",
-    "/settings?section=appearance",
-    "/settings?section=configuration",
-    "/settings?section=branches",
-    "/settings?section=teams",
-    "/users-roles",
+    "/settings/organization",
+    "/settings/appearance",
+    "/settings/branches",
+    "/settings/teams",
     "/settings/rent-policy",
+    "/settings/access",
   ])("keeps exactly one current section for %s", (activeHref) => {
-    render(<SettingsTabs activeHref={activeHref} />);
+    render(<SettingsTabs activeHref={activeHref} role="super_admin" />);
 
     const navigation = screen.getByRole("navigation", {
       name: "Settings sections",
@@ -27,19 +26,16 @@ describe("SettingsTabs", () => {
       (link) => link.getAttribute("aria-current") === "page",
     );
 
-    // Every settings destination lives in this one row; the workspace no
-    // longer carries a second segmented rail of its own.
     expect(links.map((link) => link.textContent)).toEqual([
-      "Organization",
-      "Appearance",
-      "Configuration",
-      "Branches",
-      "Teams",
-      "Workspace Access",
-      "Rent Policy",
+      "Workspace",
+      "Access",
     ]);
     expect(current).toHaveLength(1);
-    expect(current[0]?.getAttribute("href")).toBe(activeHref);
+    expect(current[0]?.getAttribute("href")).toBe(
+      activeHref === "/settings/access"
+        ? "/settings/access"
+        : "/settings/organization",
+    );
     expect(
       links.every((link) =>
         link.className.includes("focus-visible:ring-ring/50"),
@@ -47,10 +43,34 @@ describe("SettingsTabs", () => {
     ).toBe(true);
   });
 
+  it("shows Finance Manager only the Workspace group", () => {
+    render(
+      <SettingsTabs
+        activeHref="/settings/rent-policy"
+        role="finance_manager"
+      />,
+    );
+
+    const navigation = screen.getByRole("navigation", {
+      name: "Settings sections",
+    });
+    expect(within(navigation).getAllByRole("link")).toHaveLength(1);
+    expect(
+      within(navigation)
+        .getByRole("link", { name: "Workspace" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+  });
+
   it("shares the page header row without recreating a full-width tab band", () => {
     render(
       <PageHeader
-        navigation={<SettingsTabs activeHref="/settings?section=organization" />}
+        navigation={
+          <SettingsTabs
+            activeHref="/settings/organization"
+            role="super_admin"
+          />
+        }
         title="Settings"
       />,
     );

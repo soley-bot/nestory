@@ -221,7 +221,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(image?.className).toContain("object-contain");
     expect(image?.className).not.toContain("object-cover");
   });
-  it("keeps one page title in the content header without a shell breadcrumb", () => {
+  it("keeps one page title and places the workspace breadcrumb in the shell", () => {
     const pageTools = document.createElement("div");
     pageTools.id = "workspace-page-tools";
     document.body.append(pageTools);
@@ -233,7 +233,15 @@ describe("PropertyScreen redesign contract", () => {
     ).toHaveLength(1);
 
     expect(within(pageTools).queryByRole("heading", { name: "Properties" })).toBeNull();
-    expect(within(pageTools).queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    const breadcrumb = within(pageTools).getByRole("navigation", {
+      name: "Breadcrumb",
+    });
+    expect(within(breadcrumb).getByRole("link", { name: "Workspace" }).getAttribute("href")).toBe(
+      "/overview",
+    );
+    expect(within(breadcrumb).getByText("Properties").getAttribute("aria-current")).toBe(
+      "page",
+    );
     expect(within(pageTools).queryByText("2 records")).toBeNull();
 
     const headerActions = container.querySelector<HTMLElement>(
@@ -244,6 +252,49 @@ describe("PropertyScreen redesign contract", () => {
       within(headerActions!).getByRole("button", { name: "Add property" }),
     ).toBeTruthy();
     expect(within(headerActions!).queryByRole("link", { name: "Set up property" })).toBeNull();
+  });
+
+  it("shows three concise portfolio facts without adding a stack of stat cards", () => {
+    const { container } = renderProperties({
+      portfolioSummary: {
+        activeProperties: 17,
+        totalUnits: 62,
+        unitsWithoutCurrentLease: 9,
+      },
+    });
+
+    const summary = screen.getByRole("navigation", { name: "Portfolio summary" });
+    expect(within(summary).getByRole("link", { name: /17\s*Active properties/ }).getAttribute("href")).toBe(
+      "/properties?status=active",
+    );
+    expect(within(summary).getByRole("link", { name: /62\s*Units/ }).getAttribute("href")).toBe(
+      "/units",
+    );
+    expect(
+      within(summary).getByRole("link", { name: /9\s*Without current lease/ }).getAttribute("href"),
+    ).toBe("/units?leaseStatus=missing");
+
+    expect(container.querySelectorAll('[data-slot="portfolio-summary-item"]')).toHaveLength(3);
+    expect(container.querySelector('[data-slot="portfolio-summary-card"]')).toBeNull();
+    expect(screen.queryByText(/Track|Manage|Review your/i)).toBeNull();
+  });
+
+  it("keeps every property workspace band inside the same responsive page inset", () => {
+    const { container } = renderProperties();
+    const pageInsetClasses = ["px-4", "sm:px-6", "2xl:px-8"];
+    const bands = [
+      container.querySelector<HTMLElement>("header"),
+      screen.getByRole("navigation", { name: "Portfolio summary" }),
+      container.querySelector<HTMLElement>('[data-slot="property-list-toolbar"]'),
+      container.querySelector<HTMLElement>('[data-slot="register-table-frame"]'),
+    ];
+
+    for (const band of bands) {
+      expect(band).not.toBeNull();
+      for (const className of pageInsetClasses) {
+        expect(band!.className.split(" ")).toContain(className);
+      }
+    }
   });
 
   it("keeps search visible and discloses the existing advanced filters", () => {
@@ -340,6 +391,66 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
 
+  it("matches the selected property quick-view layout", () => {
+    const property = makeProperty("property-compact", "CTR", "Central Residence");
+    property.address = "Street 360, Boeung Keng Kang 1, Phnom Penh";
+    property.owner = "Sokha Vannak";
+    property.occupiedUnits = 2;
+    property.units = 3;
+    renderProperties({ properties: [property] });
+
+    fireEvent.click(within(screen.getByRole("table")).getAllByRole("row")[1]!);
+
+    const quickView = screen.getByRole("dialog", {
+      name: "Central Residence quick view",
+    });
+    expect(quickView.className).toContain("max-w-[760px]");
+    const summary = within(quickView).getByRole("group", {
+      name: "Property summary",
+    });
+    const details = within(quickView).getByRole("group", {
+      name: "Property details",
+    });
+    const records = within(quickView).getByRole("navigation", {
+      name: "Property records",
+    });
+    const actions = within(quickView).getByRole("group", {
+      name: "Property actions",
+    });
+    const vacancyAction = within(quickView).getByRole("link", {
+      name: "1 vacant unit — review against leases",
+    });
+
+    expect(
+      within(summary).getByText((_, node) => node?.tagName === "DD" && node.textContent === "2/3"),
+    ).toBeTruthy();
+    expect(within(summary).getByText("USD 1,200.00")).toBeTruthy();
+    expect(within(summary).getByText("3")).toBeTruthy();
+    expect(within(summary).getByText("2 leases active")).toBeTruthy();
+    expect(within(summary).getByText("Positive this period")).toBeTruthy();
+    expect(within(summary).getByRole("progressbar", { name: "Occupancy 2 of 3 units" })).toBeTruthy();
+    expect(within(details).getByText("Sokha Vannak")).toBeTruthy();
+    expect(within(details).getByText("Street 360, Boeung Keng Kang 1, Phnom Penh")).toBeTruthy();
+    expect(vacancyAction.getAttribute("href")).toBe(
+      "/units?propertyId=property-compact&leaseStatus=missing",
+    );
+    expect(
+      vacancyAction.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(records).getByRole("link", { name: "Units 3" })).toBeTruthy();
+    expect(within(records).getByRole("link", { name: "Leases 2" })).toBeTruthy();
+    expect(within(records).getByRole("link", { name: "Ledger" })).toBeTruthy();
+    expect(within(records).getByRole("link", { name: "Timeline" })).toBeTruthy();
+    expect(within(actions).getByRole("button", { name: "More actions for Central Residence" })).toBeTruthy();
+    expect(within(actions).getByRole("button", { name: "Edit Central Residence" })).toBeTruthy();
+    expect(within(actions).getByRole("link", { name: "Open Central Residence" })).toBeTruthy();
+    expect(within(quickView).queryByText("At a glance")).toBeNull();
+    expect(within(quickView).queryByText("Next action")).toBeNull();
+    expect(within(quickView).queryByText("Related records")).toBeNull();
+    expect(quickView.querySelectorAll('[data-slot="property-preview-fact-card"]')).toHaveLength(3);
+    expect(quickView.querySelectorAll('[data-slot="property-preview-record-pill"]')).toHaveLength(4);
+  });
+
   it.each([1440, 1024, 390])(
     "keeps the property list inspector-free at %ipx",
     (width) => {
@@ -419,15 +530,19 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByText("Page 1 of 1")).toBeNull();
   });
 
-  it("centers the Open column like Status", () => {
-    renderProperties();
+  it("keeps occupancy gaps in Occupancy and omits the redundant review column", () => {
+    const property = makeProperty("property-gap", "GAP", "Gap property");
+    property.occupiedUnits = 0;
+    property.units = 3;
+    renderProperties({ properties: [property] });
 
     const table = screen.getByRole("table");
-    const openHeader = within(table).getByRole("columnheader", { name: "Open" });
-    const openCell = within(table).getAllByRole("row")[1]!.children[4];
+    const row = within(table).getAllByRole("row")[1]!;
+    const occupancyCell = row.children[2]!;
 
-    expect(openHeader.className).toContain("text-center");
-    expect(openCell.className).toContain("text-center");
+    expect(within(occupancyCell as HTMLElement).getByText("3 open")).toBeTruthy();
+    expect(within(table).queryByRole("columnheader", { name: "Review" })).toBeNull();
+    expect(row.children).toHaveLength(5);
   });
 
   it("keeps the create form concise without redundant helper copy", () => {
@@ -567,30 +682,41 @@ describe("PropertyScreen redesign contract", () => {
 function renderProperties({
   canCreate = true,
   ownerOptions = [],
+  portfolioSummary = {
+    activeProperties: 2,
+    totalUnits: 2,
+    unitsWithoutCurrentLease: 0,
+  },
   properties: nextProperties = properties,
   viewQuery = defaultViewQuery,
 }: {
   canCreate?: boolean;
   ownerOptions?: React.ComponentProps<typeof PropertyScreen>["ownerOptions"];
+  portfolioSummary?: {
+    activeProperties: number;
+    totalUnits: number;
+    unitsWithoutCurrentLease: number;
+  };
   properties?: typeof properties;
   viewQuery?: PropertyViewQuery;
 } = {}) {
-  return render(
-    <PropertyScreen
-      canCreate={canCreate}
-      ownerOptions={ownerOptions}
-      pagination={{
-        from: nextProperties.length > 0 ? 1 : 0,
-        page: 1,
-        pageSize: 50,
-        to: nextProperties.length,
-        totalCount: nextProperties.length,
-        totalPages: nextProperties.length > 0 ? 1 : 0,
-      }}
-      properties={nextProperties}
-      viewQuery={viewQuery}
-    />,
-  );
+  const props = {
+    canCreate,
+    ownerOptions,
+    pagination: {
+      from: nextProperties.length > 0 ? 1 : 0,
+      page: 1,
+      pageSize: 50,
+      to: nextProperties.length,
+      totalCount: nextProperties.length,
+      totalPages: nextProperties.length > 0 ? 1 : 0,
+    },
+    portfolioSummary,
+    properties: nextProperties,
+    viewQuery,
+  };
+
+  return render(<PropertyScreen {...props} />);
 }
 
 function makeProperty(id: string, code: string, name: string) {

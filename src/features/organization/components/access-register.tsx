@@ -23,6 +23,7 @@ import type {
   OrganizationMembership,
   OrganizationStaffOption,
 } from "@/features/organization/data";
+import { WORKSPACE_ROLE_OPTIONS } from "@/features/organization/workspace-roles";
 
 import {
   filterAccessRegister,
@@ -44,11 +45,7 @@ type AccessRegisterProps = {
 
 const roleOptions = [
   { label: "All access levels", value: "all" },
-  { label: "Super Admin", value: "super_admin" },
-  { label: "Finance Manager", value: "finance_manager" },
-  { label: "Finance Member", value: "finance_member" },
-  { label: "Operations Manager", value: "operations_manager" },
-  { label: "Operations Member", value: "operations_member" },
+  ...WORKSPACE_ROLE_OPTIONS,
 ];
 
 export function AccessRegister({

@@ -51,47 +51,6 @@ function buildManagerWorkspace(
         propertyLabelById.get(exception.propertyId) ?? "Rent generation exception",
       tone: "danger" as const,
     })),
-    ...data.tenantInvoices
-      .filter((invoice) => invoice.balanceDue > 0)
-      .map((invoice) => ({
-        actionLabel:
-          invoice.collectionRoute === "through_ips"
-            ? "Record payment"
-            : "Confirm collection",
-        amountDisplay: formatMoneyDisplay(invoice.balanceDue),
-        contextLabel: financeContextLabel(
-          invoice.propertyLabel,
-          invoice.unitId,
-          invoice.unitLabel,
-        ),
-        detail: `${invoice.propertyLabel} · ${invoice.invoiceNumber}`,
-        href: "/rent-income",
-        id: invoice.id,
-        kind: "tenant-balance" as const,
-        priority: 50,
-        statusLabel: "Payment due",
-        submittedByLabel: null,
-        submittedAt: invoice.dueDate,
-        title: invoice.recipientLabel,
-        tone: "warning" as const,
-      })),
-    ...data.ownerInvoices
-      .filter((invoice) => invoice.balanceDue > 0)
-      .map((invoice) => ({
-        actionLabel: "Record owner invoice payment",
-        amountDisplay: formatMoneyDisplay(invoice.balanceDue),
-        contextLabel: invoice.propertyLabel,
-        detail: `${invoice.propertyLabel} · ${invoice.invoiceNumber}`,
-        href: "/balances",
-        id: invoice.id,
-        kind: "owner-balance" as const,
-        priority: 60,
-        statusLabel: "Payment due",
-        submittedByLabel: null,
-        submittedAt: invoice.dueDate,
-        title: invoice.ownerLabel,
-        tone: "warning" as const,
-      })),
   ].sort(compareManagerItems);
 
   return {

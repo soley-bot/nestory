@@ -36,16 +36,22 @@ describe("quick-view supporting copy", () => {
       />,
     );
 
-    const related = screen
-      .getByRole("heading", { name: "Related records" })
-      .closest("section");
+    const related = screen.getByRole("navigation", {
+      name: "Property records",
+    });
 
-    expect(related).not.toBeNull();
-    expect(within(related!).getByText("2 total")).toBeTruthy();
-    expect(within(related!).getByText("1 occupied · 1 open")).toBeTruthy();
-    expect(within(related!).queryByText("Review occupancy")).toBeNull();
-    expect(within(related!).queryByText("View financial activity")).toBeNull();
-    expect(within(related!).queryByText("Recent history")).toBeNull();
+    expect(
+      within(related).getByRole("link", { name: "Units 2" }).getAttribute("href"),
+    ).toBe("/units?propertyId=property-1");
+    expect(
+      within(related).getByRole("link", { name: "Leases 1" }).getAttribute("href"),
+    ).toBe("/leases?propertyId=property-1");
+    expect(within(related).getByRole("link", { name: "Ledger" })).toBeTruthy();
+    expect(within(related).getByRole("link", { name: "Timeline" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Related records" })).toBeNull();
+    expect(within(related).queryByText("Review occupancy")).toBeNull();
+    expect(within(related).queryByText("View financial activity")).toBeNull();
+    expect(within(related).queryByText("Recent history")).toBeNull();
   });
 
   it("renders Unit record destinations without explanatory filler", () => {
@@ -80,18 +86,17 @@ describe("quick-view supporting copy", () => {
       />,
     );
 
-    const related = screen
-      .getByRole("heading", { name: "Related records" })
-      .closest("section");
+    const related = screen.getByRole("navigation", { name: "Unit records" });
 
     expect(related).not.toBeNull();
     expect(
-      within(related!).getByRole("link", { name: "Timeline" }).getAttribute("href"),
+      within(related).getByRole("link", { name: "Timeline" }).getAttribute("href"),
     ).toBe("/timeline?unitId=unit-1");
     expect(
-      within(related!).getByRole("link", { name: "Ledger" }).getAttribute("href"),
-    ).toBe("/ledger?propertyId=property-1&query=1A");
-    expect(within(related!).queryByText("Recent history")).toBeNull();
-    expect(within(related!).queryByText("Financial activity")).toBeNull();
+      within(related).getByRole("link", { name: "Ledger" }).getAttribute("href"),
+    ).toBe("/ledger?propertyId=property-1&unitId=unit-1");
+    expect(screen.queryByRole("heading", { name: "Related records" })).toBeNull();
+    expect(within(related).queryByText("Recent history")).toBeNull();
+    expect(within(related).queryByText("Financial activity")).toBeNull();
   });
 });

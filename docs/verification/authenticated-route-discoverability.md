@@ -1,8 +1,8 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:70ef1b3de96bd1c761cb9dddbca7eb47b46a554da3bf730011c990c627179bd7 -->
+<!-- contract-sha256:1e7777367dac246a3f617f24c0837a7d510251a970949b54d57baf0ac5f13e6f -->
 
-This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 39 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
+This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 44 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 
 Classifications are `global`, `context`, `profile`, or `intentionally inaccessible`. An authorized page is incomplete unless its visible entry and browser journey from the current shell or contextual origin both exist.
 
@@ -65,7 +65,17 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 <!-- authenticated-route:/reports -->
 | `/reports` | `requireFinanceReportContext` / `canReadFinanceReports` | global via shell-reports; pending sa:reports | global via shell-reports; pending fm:reports | Intentionally inaccessible — Requires canReadFinanceReports. | Intentionally inaccessible — Requires canReadFinanceReports. | Intentionally inaccessible — Requires canReadFinanceReports. | none |
 <!-- authenticated-route:/settings -->
-| `/settings` | `requireSuperAdminContext` / `canManageAccess` | global via shell-settings; pending sa:settings | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
+| `/settings` | `requireWorkspaceContext` / `settingsEntry` | global via shell-settings; pending sa:settings | context via settings-rent-policy; pending fm:settings-entry | Intentionally inaccessible — No configurable Settings destination. | Intentionally inaccessible — No configurable Settings destination. | Intentionally inaccessible — No configurable Settings destination. | none |
+<!-- authenticated-route:/settings/organization -->
+| `/settings/organization` | `requireSuperAdminContext` / `canManageAccess` | context via settings-organization; pending sa:settings-organization | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
+<!-- authenticated-route:/settings/appearance -->
+| `/settings/appearance` | `requireSuperAdminContext` / `canManageAccess` | context via settings-appearance; pending sa:settings-appearance | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
+<!-- authenticated-route:/settings/branches -->
+| `/settings/branches` | `requireSuperAdminContext` / `canManageAccess` | context via settings-branches; pending sa:settings-branches | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
+<!-- authenticated-route:/settings/teams -->
+| `/settings/teams` | `requireSuperAdminContext` / `canManageAccess` | context via settings-teams; pending sa:settings-teams | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
+<!-- authenticated-route:/settings/access -->
+| `/settings/access` | `requireSuperAdminContext` / `canManageAccess` | context via settings-access; pending sa:settings-access | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/settings/rent-policy -->
 | `/settings/rent-policy` | `requireLeaseConfigurationContext` / `canConfigureLeases` | context via settings-rent-policy; pending sa:rent-policy | global via shell-rent-policy; pending fm:rent-policy | Intentionally inaccessible — Requires canConfigureLeases. | Intentionally inaccessible — Requires canConfigureLeases. | Intentionally inaccessible — Requires canConfigureLeases. | none |
 <!-- authenticated-route:/staff -->
@@ -81,7 +91,7 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 <!-- authenticated-route:/units -->
 | `/units` | `requireSuperAdminContext` / `canManageAccess` | context via units-list; pending sa:units | Intentionally inaccessible — Requires canManageAccess; finance screens keep unit identity as trace text. | Intentionally inaccessible — Requires canManageAccess; finance screens keep unit identity as trace text. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/users-roles -->
-| `/users-roles` | `requireSuperAdminContext` / `canManageAccess` | context via settings-access; pending sa:users-roles | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
+| `/users-roles` | `redirect` / `canManageAccess` | context via settings-access; pending sa:users-roles-redirect | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/vendors -->
 | `/vendors` | `requireSuperAdminContext` / `canManageAccess` | context via people-vendors; pending sa:vendors | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/work-orders -->

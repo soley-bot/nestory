@@ -35,6 +35,33 @@ describe("buildPropertySummary", () => {
     });
   });
 
+  it("uses current leases instead of stale unit status for occupancy", () => {
+    expect(
+      buildPropertySummary({
+        currentLeaseUnitCount: 2,
+        ledgerEntries: [],
+        property: {
+          address: "Street 360",
+          code: "CTR",
+          id: "property-1",
+          name: "Central Residence",
+          owner: "Sokha Vannak",
+          property_type: "Residential apartment",
+          status: "active",
+        },
+        units: [
+          { status: "vacant" },
+          { status: "vacant" },
+          { status: "vacant" },
+        ],
+      }),
+    ).toMatchObject({
+      occupiedUnits: 2,
+      unitSummary: "2/3 occupied",
+      units: 3,
+    });
+  });
+
   it("uses the active owner link for display and edit defaults", () => {
     expect(
       buildPropertySummary({

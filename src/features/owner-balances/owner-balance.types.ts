@@ -205,6 +205,7 @@ export type OwnerBalanceSourceRecord = {
 export type OwnerBalanceOption = {
   id: string;
   label: string;
+  propertyIds?: string[];
 };
 
 export type OwnerWithdrawalCapacity = {

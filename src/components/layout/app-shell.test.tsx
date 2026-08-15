@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "@/components/layout/app-shell";
 
@@ -65,13 +65,12 @@ describe("AppShell Shadcn dashboard block", () => {
     }
 
     for (const label of [
-      "Finance work",
-      "Rent",
+      "Work queue",
+      "Rent & collections",
       "Expenses",
-      "Owner balances",
-      "Leases",
-      "Ledger",
+      "Owner accounts",
       "Petty cash",
+      "Ledger",
       "Cases",
       "My work",
       "Recurring work",
@@ -86,26 +85,85 @@ describe("AppShell Shadcn dashboard block", () => {
     ]) {
       expect(screen.getByRole("link", { name: label })).toBeTruthy();
     }
+
+    const financePages = screen.getByRole("list", { name: "Finance pages" });
+    expect(
+      within(financePages)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual([
+      "Work queue",
+      "Rent & collections",
+      "Expenses",
+      "Owner accounts",
+      "Petty cash",
+      "Ledger",
+    ]);
   });
 
-  it.each([
-    ["finance_manager", "Review queue"],
-    ["finance_member", "My finance work"],
-  ] as const)(
-    "composes %s navigation around its own finance responsibility",
-    (role, homeLabel) => {
-      navigation.pathname = "/finance";
-      render(<AppShell role={role}><div>Workspace content</div></AppShell>);
+  it("groups the Properties and People registers without repeating their domain labels", () => {
+    navigation.pathname = "/overview";
+    render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
 
-      expect(screen.getByRole("link", { name: homeLabel })).toBeTruthy();
-      expect(screen.getByRole("link", { name: "Ledger" })).toBeTruthy();
-      expect(Boolean(screen.queryByRole("link", { name: "Rent policy" }))).toBe(
-        role === "finance_manager",
+    for (const domain of ["Properties", "People"]) {
+      fireEvent.click(
+        screen.getByRole("button", { name: `Expand ${domain} navigation` }),
       );
-      expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
-      expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();
-    },
-  );
+    }
+
+    for (const label of [
+      "Register",
+      "Units",
+      "Leases",
+      "Directory",
+      "Tenants",
+      "Owners",
+      "Vendors",
+      "Staff",
+    ]) {
+      expect(screen.getByRole("link", { name: label })).toBeTruthy();
+    }
+
+    expect(screen.getAllByRole("link", { name: "Properties" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "People" })).toHaveLength(1);
+  });
+
+  it("shows one selected state when the current page is inside an expanded domain", () => {
+    navigation.pathname = "/properties";
+    render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
+
+    const properties = screen.getByRole("link", { name: "Properties" });
+    const register = screen.getByRole("link", { name: "Register" });
+
+    expect(properties.closest('[data-active="true"]')).toBeNull();
+    expect(properties.getAttribute("aria-current")).toBeNull();
+    expect(register.closest('[data-active="true"]')).not.toBeNull();
+    expect(register.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("gives Finance Manager a review-first finance navigation", () => {
+    navigation.pathname = "/finance";
+    render(<AppShell role="finance_manager"><div>Workspace content</div></AppShell>);
+
+    expect(screen.getByRole("link", { name: "Review queue" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Ledger" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Petty cash" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Rent policy" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();
+  });
+
+  it("limits Finance Member navigation to submission work", () => {
+    navigation.pathname = "/finance";
+    render(<AppShell role="finance_member"><div>Workspace content</div></AppShell>);
+
+    expect(screen.getByRole("link", { name: "My submissions" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Expenses" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Petty cash" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Ledger" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Leases" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Rent policy" })).toBeNull();
+  });
 
   it("makes Reports discoverable only to the Finance Manager among non-admin roles", () => {
     const { rerender } = render(
@@ -180,12 +238,29 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(screen.getByRole("button", { name: "Display theme" })).toBeTruthy();
   });
 
-  it("marks the matching destination active", () => {
+  it("marks the matching child active without duplicating the group selected state", () => {
     navigation.pathname = "/people/person-1";
     render(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
-    const activeLink = screen.getByRole("link", { name: "People" });
-    expect(activeLink.closest('[data-active="true"]')).not.toBeNull();
-    expect(activeLink.getAttribute("aria-current")).toBe("page");
+    const people = screen.getByRole("link", { name: "People" });
+    const directory = screen.getByRole("link", { name: "Directory" });
+
+    expect(people.closest('[data-active="true"]')).toBeNull();
+    expect(people.getAttribute("aria-current")).toBeNull();
+    expect(directory.closest('[data-active="true"]')).not.toBeNull();
+    expect(directory.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("owns canonical Settings routes without treating Account as Settings", () => {
+    navigation.pathname = "/settings/access";
+    const { rerender } = render(
+      <AppShell role="super_admin"><div>Workspace content</div></AppShell>,
+    );
+    const settingsLink = screen.getByRole("link", { name: "Settings" });
+    expect(settingsLink.closest('[data-active="true"]')).not.toBeNull();
+
+    navigation.pathname = "/account";
+    rerender(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
+    expect(settingsLink.closest('[data-active="true"]')).toBeNull();
   });
 
   it("keeps non-admin users out of admin destinations", () => {
