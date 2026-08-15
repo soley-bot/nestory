@@ -199,18 +199,6 @@ function AccessWorkspace({
     undefined,
   );
 
-  useEffect(() => {
-    setMemberDialogState((current) =>
-      current.deepLinkPersonId === deepLinkInvitePersonId
-        ? current
-        : {
-            deepLinkPersonId: deepLinkInvitePersonId,
-            defaults: inviteDefaults,
-            open: Boolean(deepLinkInvitePersonId),
-          },
-    );
-  }, [deepLinkInvitePersonId, inviteDefaults]);
-
   const reviewDuplicate = useCallback(
     (target: DuplicateAccessTarget) => {
       duplicateFocusTarget.current = target;
@@ -288,7 +276,7 @@ function AccessWorkspace({
         the top. Needs access and Pending are exception states — they take up
         the page only when they have something in them.
       */}
-      <div className="flex min-w-0 items-start justify-between gap-4 rounded-xl border bg-card px-4 py-4 shadow-xs sm:px-5">
+      <div className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card px-4 py-4 shadow-xs sm:flex-row sm:items-start sm:justify-between sm:px-5">
         <div className="flex min-w-0 items-start gap-3">
           <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <ShieldCheck aria-hidden="true" className="size-4.5" />
@@ -303,7 +291,7 @@ function AccessWorkspace({
           </div>
         </div>
         <Button
-          className="mt-0.5"
+          className="w-full sm:mt-0.5 sm:w-auto"
           onClick={() =>
             setMemberDialogState({ defaults: undefined, open: true })
           }

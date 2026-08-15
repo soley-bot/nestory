@@ -171,11 +171,11 @@ describe("AccessSettingsScreen redesigned orchestration", () => {
     await user.type(screen.getByLabelText("Invitation email"), "draft@example.com");
 
     fireEvent.click(
-      screen.getByRole("link", { hidden: true, name: "Organization" }),
+      screen.getByRole("link", { hidden: true, name: "Workspace" }),
     );
 
     expect(
-      screen.getByRole("dialog", { hidden: true, name: "Open Organization?" }),
+      screen.getByRole("dialog", { hidden: true, name: "Open Workspace?" }),
     ).toBeTruthy();
     expect(screen.getByRole("dialog", { name: "Add member" })).toBeTruthy();
   });
