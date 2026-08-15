@@ -341,6 +341,42 @@ describe("buildUnitDetail", () => {
       ],
     });
   });
+
+  it("distinguishes missing, draft, and occupied Lease health", () => {
+    const getOccupancyHealth = ({
+      activeLease,
+      selectedDraftLease,
+    }: {
+      activeLease?: typeof lease;
+      selectedDraftLease?: typeof draftLease;
+    }) =>
+      buildUnitDetail({
+        activeLease,
+        counts: { documents: 0, ledgerEntries: 0, timelineEvents: 0 },
+        documents: [],
+        draftLease: selectedDraftLease,
+        ledgerEntries: [],
+        people: [],
+        property,
+        recentLedgerEntries: [],
+        recentTimelineEvents: [],
+        unit: { ...unit, status: "vacant" },
+      }).healthIndicators.find((indicator) => indicator.id === "occupancy");
+
+    expect(getOccupancyHealth({})).toMatchObject({
+      label: "Vacancy or setup needed",
+      tone: "warning",
+    });
+    expect(getOccupancyHealth({ selectedDraftLease: draftLease })).toMatchObject({
+      description: "A draft Lease is in progress and does not establish occupancy yet.",
+      label: "Draft lease in progress",
+      tone: "warning",
+    });
+    expect(getOccupancyHealth({ activeLease: lease })).toMatchObject({
+      label: "Occupancy aligned",
+      tone: "success",
+    });
+  });
 });
 
 describe("buildUnitDetail next action", () => {

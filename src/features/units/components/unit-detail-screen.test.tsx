@@ -164,15 +164,44 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(within(drawer).getByRole("link", { name: "Open full lease" })).toBeTruthy();
   });
 
-  it("creates a lease for a vacant unit without leaving its record", () => {
-    renderUnitDetail({ initialSection: "lease", unit: vacantUnitDetail });
+  it("relies on the canonical action for an available unit without a Lease", () => {
+    renderUnitDetail({ initialSection: "lease", unit: availableUnitDetail });
 
     const panel = screen.getByRole("tabpanel", { name: "Lease" });
     expect(within(panel).queryByRole("link", { name: "Add lease" })).toBeNull();
-    fireEvent.click(within(panel).getByRole("button", { name: "Add lease" }));
+    expect(within(panel).queryByRole("button", { name: "Add lease" })).toBeNull();
+    expect(within(panel).getByText(/no current or draft lease/i)).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Create draft lease" }).getAttribute("href"),
+    ).toBe(
+      "/leases?action=create&propertyId=property-1&source=vacancy&unitId=unit-1",
+    );
+    expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
+  });
 
-    const drawer = screen.getByRole("dialog", { name: "Add lease" });
-    expect(within(drawer).getByRole("form", { name: "Add lease form" })).toBeTruthy();
+  it("blocks the local Lease handoff while the unit is in maintenance", () => {
+    renderUnitDetail({ initialSection: "lease", unit: maintenanceUnitDetail });
+
+    const panel = screen.getByRole("tabpanel", { name: "Lease" });
+    expect(within(panel).queryByRole("button", { name: "Add lease" })).toBeNull();
+    expect(within(panel).getByText(/maintenance.*before leasing/i)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Log maintenance case" })).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
+  });
+
+  it("shows draft Lease facts and relies on the exact Continue draft action", () => {
+    renderUnitDetail({ initialSection: "lease", unit: draftUnitDetail });
+
+    const panel = screen.getByRole("tabpanel", { name: "Lease" });
+    expect(within(panel).queryByRole("button", { name: "Add lease" })).toBeNull();
+    expect(within(panel).getByText("Sam Draft")).toBeTruthy();
+    expect(within(panel).getByText("Draft")).toBeTruthy();
+    expect(within(panel).getByText("Lease dates")).toBeTruthy();
+    expect(within(panel).getByText("Monthly rent")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Continue draft" }).getAttribute("href"),
+    ).toBe("/leases/draft-lease-1");
+    expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
   });
 
   it("edits only unit-owned fields while an active lease controls occupancy", async () => {
@@ -236,19 +265,6 @@ function renderUnitDetail({
   return render(
     <UnitDetailScreen
       activeSection={initialSection}
-      leaseFormOptions={{
-        properties: [{ id: "property-1", label: "CTR / Central Residence" }],
-        tenants: [
-          {
-            archived: false,
-            description: "Tenant · dara@example.com",
-            id: "person-1",
-            label: "Dara Tenant",
-            roles: ["tenant"],
-          },
-        ],
-        units: [{ id: "unit-1", label: "Unit 12A", propertyId: "property-1" }],
-      }}
       maintenanceFormOptions={{
         actor: { role: "super_admin" },
         branches: [],
@@ -345,11 +361,57 @@ const unitDetail = buildUnitDetail({
   },
 });
 
-const vacantUnitDetail: typeof unitDetail = {
-  ...unitDetail,
-  activeLease: undefined,
-  tenantLinks: [],
+const draftLease = {
+  id: "draft-lease-1",
+  lease_end_date: "2027-07-31",
+  lease_start_date: "2026-08-01",
+  monthly_rent_amount: 900,
+  monthly_rent_currency: "USD" as const,
+  primary_tenant_person_id: "person-2",
+  status: "draft",
+  tenant_name: "Sam Draft",
+  unit_id: "unit-1",
 };
+
+const availableUnitDetail = buildLeasePanelUnitDetail("vacant");
+const maintenanceUnitDetail = buildLeasePanelUnitDetail("maintenance");
+const draftUnitDetail = buildLeasePanelUnitDetail("vacant", draftLease);
+
+function buildLeasePanelUnitDetail(
+  status: "maintenance" | "vacant",
+  selectedDraftLease?: typeof draftLease,
+) {
+  return buildUnitDetail({
+    counts: {
+      documents: 0,
+      ledgerEntries: 0,
+      maintenanceCases: 0,
+      openMaintenanceCases: 0,
+      overdueMaintenanceCases: 0,
+      photos: 0,
+      timelineEvents: 0,
+    },
+    documents: [],
+    draftLease: selectedDraftLease,
+    ledgerEntries: [],
+    maintenanceCases: [],
+    people: [],
+    property: { code: "CTR", id: "property-1", name: "Central Residence" },
+    recentLedgerEntries: [],
+    recentTimelineEvents: [],
+    unit: {
+      archived_at: null,
+      current_rent_amount: 900,
+      current_rent_currency: "USD",
+      floor: "12",
+      id: "unit-1",
+      property_id: "property-1",
+      size_sqm: 55,
+      status,
+      unit_number: "12A",
+    },
+  });
+}
 
 class ResizeObserverStub {
   disconnect() {}

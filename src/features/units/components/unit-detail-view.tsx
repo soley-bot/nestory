@@ -38,7 +38,6 @@ const unitRecordSections: Array<{
 export function UnitDetailView({
   initialSection = "overview",
   onAddDocument,
-  onAddLease,
   onNewMaintenanceCase,
   onOpenLease,
   onOpenLedgerEntry,
@@ -48,7 +47,6 @@ export function UnitDetailView({
 }: {
   initialSection?: UnitRecordSection;
   onAddDocument: () => void;
-  onAddLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
@@ -76,7 +74,6 @@ export function UnitDetailView({
         <UnitRecordPanel
           activeSection={activeSection}
           onAddDocument={onAddDocument}
-          onAddLease={onAddLease}
           onNewMaintenanceCase={onNewMaintenanceCase}
           onOpenLease={onOpenLease}
           onOpenLedgerEntry={onOpenLedgerEntry}
@@ -91,7 +88,6 @@ export function UnitDetailView({
 function UnitRecordPanel({
   activeSection,
   onAddDocument,
-  onAddLease,
   onNewMaintenanceCase,
   onOpenLease,
   onOpenLedgerEntry,
@@ -100,7 +96,6 @@ function UnitRecordPanel({
 }: {
   activeSection: UnitRecordSection;
   onAddDocument: () => void;
-  onAddLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
@@ -117,7 +112,6 @@ function UnitRecordPanel({
       {getUnitRecordPanelContent({
         activeSection,
         onAddDocument,
-        onAddLease,
         onNewMaintenanceCase,
         onOpenLease,
         onOpenLedgerEntry,
@@ -131,7 +125,6 @@ function UnitRecordPanel({
 function getUnitRecordPanelContent({
   activeSection,
   onAddDocument,
-  onAddLease,
   onNewMaintenanceCase,
   onOpenLease,
   onOpenLedgerEntry,
@@ -140,7 +133,6 @@ function getUnitRecordPanelContent({
 }: {
   activeSection: UnitRecordSection;
   onAddDocument: () => void;
-  onAddLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
@@ -148,13 +140,7 @@ function getUnitRecordPanelContent({
   unit: UnitDetail;
 }) {
   if (activeSection === "lease") {
-    return (
-      <UnitLeasePanel
-        onAddLease={onAddLease}
-        onOpenLease={onOpenLease}
-        unit={unit}
-      />
-    );
+    return <UnitLeasePanel onOpenLease={onOpenLease} unit={unit} />;
   }
 
   if (activeSection === "finance") {
@@ -270,26 +256,49 @@ function UnitOverviewPanel({ unit }: { unit: UnitDetail }) {
 }
 
 function UnitLeasePanel({
-  onAddLease,
   onOpenLease,
   unit,
 }: {
-  onAddLease: () => void;
   onOpenLease: () => void;
   unit: UnitDetail;
 }) {
   if (!unit.activeLease) {
+    if (unit.draftLease) {
+      return (
+        <section id="unit-lease">
+          <SectionTitle title="Lease" />
+          <p className="py-3 text-sm text-muted-foreground">
+            This draft does not establish occupancy. Use the Continue draft action above.
+          </p>
+          <dl className="grid grid-cols-1 divide-y divide-border border-y border-border py-3 text-sm sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+            <Detail label="Tenant" value={unit.draftLease.tenantName} />
+            <Detail label="Status" value={unit.draftLease.statusLabel} />
+            <Detail
+              label="Lease dates"
+              value={`${formatDate(unit.draftLease.startDate)} – ${formatDate(
+                unit.draftLease.endDate,
+              )}`}
+            />
+            <Detail
+              label="Monthly rent"
+              moneyValue={unit.draftLease.monthlyRentDisplay}
+            />
+          </dl>
+        </section>
+      );
+    }
+
+    const explanation =
+      unit.readiness.operational === "maintenance"
+        ? "This Unit is in maintenance. Complete the operational work before leasing."
+        : unit.readiness.operational === "inactive"
+          ? "This Unit is inactive. Return it to an available operational state before leasing."
+          : "No current or draft Lease is linked. Use the Create draft lease action above.";
+
     return (
       <section id="unit-lease">
-        <SectionTitle
-          actions={
-            <ActionButton icon={<Plus size={14} />} onClick={onAddLease}>
-              Add lease
-            </ActionButton>
-          }
-          title="Lease"
-        />
-        <p className="py-6 text-sm text-muted-foreground">No active lease.</p>
+        <SectionTitle title="Lease" />
+        <p className="py-6 text-sm text-muted-foreground">{explanation}</p>
       </section>
     );
   }

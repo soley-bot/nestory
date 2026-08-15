@@ -17,12 +17,6 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { DocumentForm } from "@/features/documents/components/document-screen";
-import { LeaseForm } from "@/features/leases/components/lease-form";
-import type {
-  LeasePropertyOption,
-  LeaseTenantOption,
-  LeaseUnitOption,
-} from "@/features/leases/lease.types";
 import { MaintenanceForm } from "@/features/maintenance/components/maintenance-screen";
 import type {
   MaintenanceActor,
@@ -59,7 +53,6 @@ import type {
 type DrawerState =
   | { mode: "edit"; unit: UnitDetail }
   | { mode: "create-document"; unit: UnitDetail }
-  | { mode: "create-lease"; unit: UnitDetail }
   | { mode: "create-maintenance"; unit: UnitDetail }
   | { mode: "lease-detail"; unit: UnitDetail }
   | { entry: UnitDetail["recentLedgerEntries"][number]; mode: "ledger-detail" }
@@ -75,11 +68,6 @@ type ConfirmationState = {
 
 type UnitDetailScreenProps = {
   activeSection: UnitRecordSection;
-  leaseFormOptions: {
-    properties: LeasePropertyOption[];
-    tenants: LeaseTenantOption[];
-    units: LeaseUnitOption[];
-  };
   maintenanceFormOptions: {
     actor: MaintenanceActor;
     branches: MaintenanceBranchOption[];
@@ -96,7 +84,6 @@ type UnitDetailScreenProps = {
 
 export function UnitDetailScreen({
   activeSection,
-  leaseFormOptions,
   maintenanceFormOptions,
   propertyOptions,
   sourceTaskId,
@@ -237,10 +224,6 @@ export function UnitDetailScreen({
           setStatusMessage(null);
           setDrawer({ mode: "create-document", unit });
         }}
-        onAddLease={() => {
-          setStatusMessage(null);
-          setDrawer({ mode: "create-lease", unit });
-        }}
         onNewMaintenanceCase={() => {
           setStatusMessage(null);
           setDrawer({ mode: "create-maintenance", unit });
@@ -323,19 +306,6 @@ export function UnitDetailScreen({
               units={maintenanceFormOptions.units}
               vendors={maintenanceFormOptions.vendors}
             />
-          ) : drawer.mode === "create-lease" ? (
-            <LeaseForm
-              initialValues={{
-                propertyId: drawer.unit.propertyId,
-                unitId: drawer.unit.id,
-              }}
-              mode="create"
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-              properties={leaseFormOptions.properties}
-              tenants={leaseFormOptions.tenants}
-              units={leaseFormOptions.units}
-            />
           ) : drawer.mode === "lease-detail" && drawer.unit.activeLease && drawer.unit.hrefs.lease ? (
             <UnitLeaseDetailsPanel
               fullRecordHref={drawer.unit.hrefs.lease}
@@ -385,10 +355,6 @@ function getUnitDrawerTitle(drawer: Exclude<DrawerState, { mode: "edit" }>) {
 
   if (drawer.mode === "create-maintenance") {
     return "New maintenance case";
-  }
-
-  if (drawer.mode === "create-lease") {
-    return "Add lease";
   }
 
   if (drawer.mode === "lease-detail") {

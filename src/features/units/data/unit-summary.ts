@@ -262,6 +262,7 @@ export function buildUnitDetail({
       counts,
       financialSummary,
       maintenanceCases,
+      readiness: summary.readiness,
       rentUsd: summary.rentUsd,
       statusValue: summary.statusValue,
       tenantLinks,
@@ -545,6 +546,7 @@ function buildUnitHealthIndicators({
   counts,
   financialSummary,
   maintenanceCases,
+  readiness,
   rentUsd,
   statusValue,
   tenantLinks,
@@ -553,18 +555,26 @@ function buildUnitHealthIndicators({
   counts: UnitRecordCounts;
   financialSummary: UnitFinancialSummary;
   maintenanceCases: UnitMaintenanceRecord[];
+  readiness: UnitReadiness;
   rentUsd: number;
   statusValue: UnitStatusValue;
   tenantLinks: UnitPersonLink[];
 }): UnitHealthIndicator[] {
   const indicators: UnitHealthIndicator[] = [];
 
-  if (activeLease) {
+  if (readiness.lease === "occupied") {
     indicators.push({
       description: "A current lease establishes this unit as occupied.",
       id: "occupancy",
       label: "Occupancy aligned",
       tone: "success",
+    });
+  } else if (readiness.lease === "draft") {
+    indicators.push({
+      description: "A draft Lease is in progress and does not establish occupancy yet.",
+      id: "occupancy",
+      label: "Draft lease in progress",
+      tone: "warning",
     });
   } else if (statusValue === "occupied") {
     indicators.push({

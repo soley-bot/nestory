@@ -1,6 +1,4 @@
 import { UnitDetailScreen } from "@/features/units/components/unit-detail-screen";
-import { getLeasesScreenData } from "@/features/leases/data/leases";
-import { parseLeaseSearchParams } from "@/features/leases/lease.filters";
 import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenance";
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
@@ -35,34 +33,19 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
     personId: context.personId,
     role: context.role,
   } as const;
-  const [leaseData, maintenanceData] = await Promise.all([
-    getLeasesScreenData(
-      context.organizationId,
-      parseLeaseSearchParams({
-        pageSize: "10",
-        propertyId: unit.propertyId,
-        unitId: unit.id,
-      }),
-    ),
-    getMaintenanceScreenData(
-      context.organizationId,
-      parseMaintenanceSearchParams({
-        pageSize: "6",
-        propertyId: unit.propertyId,
-        unitId: unit.id,
-      }),
-      maintenanceActor,
-    ),
-  ]);
+  const maintenanceData = await getMaintenanceScreenData(
+    context.organizationId,
+    parseMaintenanceSearchParams({
+      pageSize: "6",
+      propertyId: unit.propertyId,
+      unitId: unit.id,
+    }),
+    maintenanceActor,
+  );
 
   return (
     <UnitDetailScreen
       activeSection={section}
-      leaseFormOptions={{
-        properties: leaseData.propertyOptions,
-        tenants: leaseData.tenantOptions,
-        units: leaseData.unitOptions,
-      }}
       maintenanceFormOptions={{
         actor: maintenanceActor,
         branches: maintenanceData.branchOptions,
