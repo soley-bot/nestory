@@ -3,13 +3,15 @@
 import {
   Children,
   cloneElement,
+  createContext,
   isValidElement,
+  startTransition,
+  useContext,
   useEffect,
   useId,
   useMemo,
   useRef,
   useState,
-  type FormHTMLAttributes,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -30,7 +32,7 @@ export type RecordFormActionState = {
 };
 
 type RecordFormProps = {
-  action: FormHTMLAttributes<HTMLFormElement>["action"];
+  action: (formData: FormData) => void;
   allowSaveWhenClean?: boolean;
   ariaLabel: string;
   children: ReactNode;
@@ -44,6 +46,10 @@ type RecordFormProps = {
   savingLabel?: string;
   state: RecordFormActionState;
 };
+
+const RecordFormEditedFieldsContext = createContext<ReadonlySet<string>>(
+  new Set(),
+);
 
 function serializeForm(form: HTMLFormElement) {
   return JSON.stringify(
@@ -75,7 +81,11 @@ export function RecordForm({
   const feedbackRef = useRef<HTMLParagraphElement>(null);
   const baselineRef = useRef<string | null>(null);
   const responseSnapshotRef = useRef<string | null>(null);
+  const submitLockedRef = useRef(false);
   const [dirty, setDirty] = useState(false);
+  const [editedFieldNames, setEditedFieldNames] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const [responseEdited, setResponseEdited] = useState(false);
   const responseKey = JSON.stringify([
     state.status ?? null,
@@ -99,6 +109,7 @@ export function RecordForm({
 
     if (responseFresh) {
       setResponseEdited(false);
+      setEditedFieldNames(new Set());
     }
   }
 
@@ -119,6 +130,12 @@ export function RecordForm({
   );
   useDrawerDraftGuard(guard);
   const requestClose = useDrawerCloseRequest(onCancel);
+
+  useEffect(() => {
+    if (!pending) {
+      submitLockedRef.current = false;
+    }
+  }, [pending]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -185,62 +202,98 @@ export function RecordForm({
     });
   }
 
-  return (
-    <form
-      action={action}
-      aria-busy={pending ? "true" : "false"}
-      aria-label={ariaLabel}
-      className={cn("flex h-full flex-col", className)}
-      onChangeCapture={updateDirty}
-      onClickCapture={updateDirty}
-      onInputCapture={updateDirty}
-      onSubmit={(event) => {
-        if (!onSave) return;
-        event.preventDefault();
-        onSave(event.currentTarget);
-      }}
-      ref={formRef}
-    >
-      <fieldset
-        className="min-h-0 flex-1 overflow-y-auto border-0 p-0"
-        disabled={pending || completed}
-      >
-        <div className={cn("space-y-5 px-4 py-5 sm:px-5", contentClassName)}>
-          {state.message ? (
-            <p
-              className="rounded-md border border-border bg-muted px-3 py-2 text-sm outline-none"
-              ref={feedbackRef}
-              role={state.status === "error" ? "alert" : "status"}
-              tabIndex={-1}
-            >
-              {state.message}
-            </p>
-          ) : null}
-          {children}
-        </div>
-      </fieldset>
+  function recordEditedField(target: EventTarget) {
+    const fieldName = (target as HTMLInputElement).name;
 
-      <DraftActionBar
-        allowDiscardWhenClean
-        allowSaveWhenClean={allowSaveWhenClean}
-        confirmDiscard={false}
-        discardLabel={hideSaveOnSuccess && status === "saved" ? "Close" : "Cancel"}
-        onDiscard={requestClose}
-        onSave={() => {
-          const form = formRef.current;
-          if (!form) return;
+    if (!fieldName) {
+      return;
+    }
+
+    setEditedFieldNames((current) => {
+      if (current.has(fieldName)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.add(fieldName);
+      return next;
+    });
+  }
+
+  return (
+    <RecordFormEditedFieldsContext.Provider value={editedFieldNames}>
+      <form
+        aria-busy={pending ? "true" : "false"}
+        aria-label={ariaLabel}
+        className={cn("flex h-full flex-col", className)}
+        onChangeCapture={(event) => {
+          recordEditedField(event.target);
+          updateDirty();
+        }}
+        onClickCapture={updateDirty}
+        onInputCapture={(event) => {
+          recordEditedField(event.target);
+          updateDirty();
+        }}
+        onSubmit={(event) => {
+          event.preventDefault();
+
           if (onSave) {
-            onSave(form);
+            onSave(event.currentTarget);
             return;
           }
-          form.requestSubmit();
+
+          if (pending || submitLockedRef.current) {
+            return;
+          }
+
+          submitLockedRef.current = true;
+          const formData = new FormData(event.currentTarget);
+          startTransition(() => action(formData));
         }}
-        saveLabel={saveLabel}
-        showSave={!(hideSaveOnSuccess && status === "saved")}
-        status={status}
-        statusMessage={pending ? savingLabel : undefined}
-      />
-    </form>
+        ref={formRef}
+      >
+        <fieldset
+          className="min-h-0 flex-1 overflow-y-auto border-0 p-0"
+          disabled={pending || completed}
+        >
+          <div className={cn("space-y-5 px-4 py-5 sm:px-5", contentClassName)}>
+            {state.message ? (
+              <p
+                className="rounded-md border border-border bg-muted px-3 py-2 text-sm outline-none"
+                ref={feedbackRef}
+                role={state.status === "error" ? "alert" : "status"}
+                tabIndex={-1}
+              >
+                {state.message}
+              </p>
+            ) : null}
+            {children}
+          </div>
+        </fieldset>
+
+        <DraftActionBar
+          allowDiscardWhenClean
+          allowSaveWhenClean={allowSaveWhenClean}
+          confirmDiscard={false}
+          discardLabel={hideSaveOnSuccess && status === "saved" ? "Close" : "Cancel"}
+          onDiscard={requestClose}
+          onSave={() => {
+            const form = formRef.current;
+            if (!form) return;
+            if (onSave) {
+              onSave(form);
+              return;
+            }
+            form.requestSubmit();
+          }}
+          saveLabel={saveLabel}
+          showSave={!(hideSaveOnSuccess && status === "saved")}
+          status={status}
+          statusMessage={pending ? savingLabel : undefined}
+        />
+      </form>
+    </RecordFormEditedFieldsContext.Provider>
   );
 }
 
@@ -263,6 +316,8 @@ export function RecordField({
   name,
   required = false,
 }: RecordFieldProps) {
+  const editedFieldNames = useContext(RecordFormEditedFieldsContext);
+  const visibleError = editedFieldNames.has(name) ? undefined : error;
   const errorId = useId();
   const labelId = useId();
   const childArray = Children.toArray(children);
@@ -273,13 +328,13 @@ export function RecordField({
     }
 
     const control = child as ReactElement<Record<string, unknown>>;
-    const describedBy = [control.props["aria-describedby"], error ? errorId : null]
+    const describedBy = [control.props["aria-describedby"], visibleError ? errorId : null]
       .filter(Boolean)
       .join(" ");
 
     return cloneElement(control, {
       "aria-describedby": describedBy || undefined,
-      "aria-invalid": error ? "true" : undefined,
+      "aria-invalid": visibleError ? "true" : undefined,
       "aria-labelledby": [control.props["aria-labelledby"], labelId]
         .filter(Boolean)
         .join(" "),
@@ -289,7 +344,7 @@ export function RecordField({
 
   return (
     <div
-      aria-describedby={error ? errorId : undefined}
+      aria-describedby={visibleError ? errorId : undefined}
       aria-labelledby={labelId}
       className={cn("block min-w-0 text-sm font-medium", className)}
       data-record-field={name}
@@ -308,9 +363,9 @@ export function RecordField({
       </span>
       {hint}
       <div className="mt-2">{decoratedChildren}</div>
-      {error ? (
+      {visibleError ? (
         <p className="mt-1 text-xs text-danger" id={errorId}>
-          {error}
+          {visibleError}
         </p>
       ) : null}
     </div>

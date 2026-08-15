@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PersonSelect } from "@/features/people/components/person-select";
 
@@ -23,7 +24,41 @@ const options = [
 
 afterEach(cleanup);
 
+function InputEventHarness() {
+  const [lastInput, setLastInput] = useState("No input event");
+
+  return (
+    <form
+      onInput={(event) => {
+        const target = event.target as HTMLInputElement;
+        setLastInput(`${target.name}:${target.value}`);
+      }}
+    >
+      <PersonSelect
+        context="Property owner"
+        name="ownerPersonId"
+        options={options}
+        roles={["owner"]}
+      />
+      <output>{lastInput}</output>
+    </form>
+  );
+}
+
 describe("PersonSelect", () => {
+  it("emits a bubbling input event from its relationship input", async () => {
+    render(<InputEventHarness />);
+
+    fireEvent.focus(
+      screen.getByRole("combobox", { name: "Property owner" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: /Dara Owner/ }));
+
+    expect(
+      await screen.findByText("ownerPersonId:person-2"),
+    ).not.toBeNull();
+  });
+
   it("tracks a stable active option ID and selects it with the keyboard", () => {
     const onValueChange = vi.fn();
     const { container } = render(

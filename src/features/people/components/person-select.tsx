@@ -64,11 +64,13 @@ export function PersonSelect({
 }: PersonSelectProps) {
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const hiddenInputRef = useRef<HTMLInputElement>(null);
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const selectedValue = value ?? internalValue;
+  const previousValueRef = useRef(selectedValue);
   const normalizedOptions = useMemo(() => {
     const next = options.filter((option) => includeArchived || !option.archived);
     if (
@@ -129,6 +131,17 @@ export function PersonSelect({
       : undefined;
 
   useEffect(() => {
+    if (previousValueRef.current === selectedValue) {
+      return;
+    }
+
+    previousValueRef.current = selectedValue;
+    hiddenInputRef.current?.dispatchEvent(
+      new Event("input", { bubbles: true }),
+    );
+  }, [selectedValue]);
+
+  useEffect(() => {
     function onPointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
@@ -172,6 +185,7 @@ export function PersonSelect({
     <div className={cn("relative", className)} ref={rootRef}>
       <input
         name={name}
+        ref={hiddenInputRef}
         type="hidden"
         value={selectedValue === externalValue ? "" : selectedValue}
       />
