@@ -18,13 +18,24 @@ describe("RentPolicyScreen", () => {
     render(<RentPolicyScreen versions={[makeDraft()]} />);
 
     expect(screen.getByText("Draft unresolved")).not.toBeNull();
-    expect(screen.getAllByText("Resolve this rule").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Choose a rule").length).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: "Approve immutable version" }),
+      screen.getByRole("heading", { name: "Billing schedule" }),
     ).not.toBeNull();
     expect(
-      screen.getByText(/corrections require a later version/i),
+      screen.getByRole("heading", { name: "Lease changes" }),
     ).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Exceptions" })).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Approve and apply policy" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByText(/may create missing current-month rent/i),
+    ).not.toBeNull();
+    expect(
+      screen.getByText(/saving this draft does not affect leases/i),
+    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Save draft" })).not.toBeNull();
   });
 
   it("creates an empty effective-dated draft when no policy exists", () => {
@@ -32,14 +43,12 @@ describe("RentPolicyScreen", () => {
 
     expect(screen.getByText("No approved policy")).not.toBeNull();
     expect(screen.getByLabelText("Policy effective date")).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Create draft" }),
-    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Create draft" })).not.toBeNull();
     expect(screen.getByText(/does not invent a due day/i)).not.toBeNull();
     expect(
-      screen.getByLabelText("Rent policy version history").getAttribute(
-        "tabindex",
-      ),
+      screen
+        .getByLabelText("Rent policy version history")
+        .getAttribute("tabindex"),
     ).toBe("0");
   });
 
@@ -61,11 +70,9 @@ describe("RentPolicyScreen", () => {
     expect(screen.getByText("Approved version available")).not.toBeNull();
     expect(screen.getByText("monthly, quarterly")).not.toBeNull();
     expect(screen.getAllByText("Unresolved")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Create draft" })).not.toBeNull();
     expect(
-      screen.getByRole("button", { name: "Create draft" }),
-    ).not.toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Approve immutable version" }),
+      screen.queryByRole("button", { name: "Approve and apply policy" }),
     ).toBeNull();
   });
 

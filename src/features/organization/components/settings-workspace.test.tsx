@@ -10,19 +10,31 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createBranchAction, createTeamAction, navigation, updateOrganizationAppearanceAction, updateOrganizationIdentityAction } = vi.hoisted(() => ({
+const {
+  createBranchAction,
+  createTeamAction,
+  navigation,
+  removeOrganizationLogoAction,
+  updateOrganizationAppearanceAction,
+  updateOrganizationIdentityAction,
+  uploadOrganizationLogoAction,
+} = vi.hoisted(() => ({
   createBranchAction: vi.fn(),
   createTeamAction: vi.fn(),
   navigation: { push: vi.fn() },
+  removeOrganizationLogoAction: vi.fn(),
   updateOrganizationAppearanceAction: vi.fn(),
   updateOrganizationIdentityAction: vi.fn(),
+  uploadOrganizationLogoAction: vi.fn(),
 }));
 
 vi.mock("@/features/organization/actions", () => ({
   createBranchAction,
   createTeamAction,
+  removeOrganizationLogoAction,
   updateOrganizationAppearanceAction,
   updateOrganizationIdentityAction,
+  uploadOrganizationLogoAction,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -55,16 +67,19 @@ describe("SettingsWorkspace navigation and layout", () => {
     ["appearance", "Appearance"],
     ["branches", "Branches"],
     ["teams", "Teams"],
-  ] as const)("renders %s content without a second navigation", (section, label) => {
-    render(<SettingsWorkspace {...defaultProps} section={section} />);
+  ] as const)(
+    "renders %s content without a second navigation",
+    (section, label) => {
+      render(<SettingsWorkspace {...defaultProps} section={section} />);
 
-    // Settings destinations now live in one row owned by SettingsTabs, so the
-    // workspace itself carries no navigation of its own.
-    expect(screen.queryAllByRole("navigation")).toHaveLength(0);
-    expect(
-      screen.getByRole("region", { name: `${label} settings content` }),
-    ).not.toBeNull();
-  });
+      // Settings destinations now live in one row owned by SettingsTabs, so the
+      // workspace itself carries no navigation of its own.
+      expect(screen.queryAllByRole("navigation")).toHaveLength(0);
+      expect(
+        screen.getByRole("region", { name: `${label} settings content` }),
+      ).not.toBeNull();
+    },
+  );
 
   it.each([
     ["organization", "Organization"],
@@ -89,9 +104,9 @@ describe("SettingsWorkspace navigation and layout", () => {
   );
 
   it.each([
-    ["appearance", "Set the workspace default theme and accent."],
+    ["appearance", "Choose the workspace display style."],
     ["branches", "Organize properties and Operations access by location."],
-    ["teams", "Group staff for clear operating responsibility."],
+    ["teams", "Name operating groups and choose a manager from People."],
   ] as const)("explains the purpose of %s settings", (section, description) => {
     render(<SettingsWorkspace {...defaultProps} section={section} />);
 
@@ -122,15 +137,46 @@ describe("SettingsWorkspace navigation and layout", () => {
       screen.getByRole("heading", { name: "Organization" }),
     ).not.toBeNull();
     expect(
-      (screen.getByRole("textbox", { name: "Workspace name" }) as HTMLInputElement)
-        .value,
+      (
+        screen.getByRole("textbox", {
+          name: "Workspace name",
+        }) as HTMLInputElement
+      ).value,
     ).toBe("Nestory Test");
     expect(screen.getByText("nestory-test.nestory-kh.com")).not.toBeNull();
     const content = screen.getByTestId("settings-current-content");
     expect(within(content).getByText("Branches")).not.toBeNull();
     expect(within(content).getByText("Teams")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Workspace name" })).not.toBeNull();
+    expect(
+      screen.getByRole("textbox", { name: "Workspace name" }),
+    ).not.toBeNull();
+  });
+
+  it("explains how teams relate to People and access", () => {
+    render(<SettingsWorkspace {...defaultProps} section="teams" />);
+
+    expect(
+      screen.getByText(
+        "Teams do not assign members or change workspace access.",
+      ),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Open People" }).getAttribute("href"),
+    ).toBe("/people");
+    expect(screen.getByText("Team")).not.toBeNull();
+    expect(screen.getByText("Scope")).not.toBeNull();
+    expect(screen.getByText("Manager")).not.toBeNull();
+  });
+
+  it("uses an actionable empty state for teams", () => {
+    render(<SettingsWorkspace {...defaultProps} section="teams" teams={[]} />);
+
+    expect(
+      screen.getByText(
+        "Create a team to name an operating group and choose its manager.",
+      ),
+    ).not.toBeNull();
   });
 
   it.each([
@@ -298,9 +344,7 @@ describe("SettingsWorkspace navigation and layout", () => {
   it("keeps a clean Access tab as a native Link", async () => {
     renderSettingsScreen("branches");
 
-    fireEvent.click(
-      screen.getByRole("link", { hidden: true, name: "Access" }),
-    );
+    fireEvent.click(screen.getByRole("link", { hidden: true, name: "Access" }));
 
     expect(
       screen.queryByRole("dialog", {
@@ -321,9 +365,7 @@ describe("SettingsWorkspace navigation and layout", () => {
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Phuket");
     await user.type(screen.getByRole("textbox", { name: "Code" }), "HKT");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    fireEvent.click(
-      screen.getByRole("link", { hidden: true, name: "Access" }),
-    );
+    fireEvent.click(screen.getByRole("link", { hidden: true, name: "Access" }));
 
     expect(
       screen.getByText(
@@ -428,7 +470,6 @@ function deferred<T>() {
 
   return { promise, resolve };
 }
-
 
 async function openBranchDrawer(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Add branch" }));
