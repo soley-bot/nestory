@@ -9,10 +9,7 @@ export default async function ReportsPage() {
   await requireFinanceReportContext();
 
   return (
-    <WorkspacePage
-      context="Choose a monthly operational report"
-      title="Reports"
-    >
+    <WorkspacePage title="Reports">
       <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6">
         {reportCatalog.map((report) => (
           <Link

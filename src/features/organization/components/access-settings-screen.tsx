@@ -10,7 +10,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { ChevronDown, UserPlus } from "lucide-react";
+import { ChevronDown, ShieldCheck, UserPlus } from "lucide-react";
 import {
   AddMemberDialog,
   type AddMemberDefaults,
@@ -63,6 +63,7 @@ import type {
   OrganizationMembership,
   OrganizationStaffOption,
 } from "@/features/organization/data";
+import { WORKSPACE_ROLE_OPTIONS } from "@/features/organization/workspace-roles";
 
 type AccessDraftController = {
   discard: () => void;
@@ -73,14 +74,6 @@ type DuplicateAccessTarget = {
   id: string;
   kind: "invitation" | "member";
 };
-
-const roleOptions = [
-  { label: "Super Admin", value: "super_admin" },
-  { label: "Finance Manager", value: "finance_manager" },
-  { label: "Finance Member", value: "finance_member" },
-  { label: "Operations Manager", value: "operations_manager" },
-  { label: "Operations Member", value: "operations_member" },
-];
 
 function isOperationsRole(role: string) {
   return role === "operations_manager" || role === "operations_member";
@@ -98,6 +91,7 @@ export function AccessSettingsScreen({
   people,
   requestedStaffId,
   staff,
+  embedded = false,
 }: {
   branches: OrganizationBranch[];
   currentUserId?: string;
@@ -114,22 +108,29 @@ export function AccessSettingsScreen({
   people: OrganizationStaffOption[];
   requestedStaffId?: string;
   staff?: OrganizationStaffOption[];
+  embedded?: boolean;
 }) {
+  const workspace = (
+    <AccessWorkspace
+      branches={branches}
+      currentUserId={currentUserId}
+      focusedInvitationId={focusedInvitationId}
+      focusedMemberId={focusedMemberId}
+      inviteDefaults={inviteDefaults}
+      invitations={invitations}
+      members={members}
+      people={people}
+      requestedStaffId={requestedStaffId}
+      staff={staff}
+    />
+  );
+
+  if (embedded) return workspace;
+
   return (
     <SettingsNavigationGuardProvider>
-      {header ?? <SettingsTabs activeHref="/users-roles" />}
-      <AccessWorkspace
-        branches={branches}
-        currentUserId={currentUserId}
-        focusedInvitationId={focusedInvitationId}
-        focusedMemberId={focusedMemberId}
-        inviteDefaults={inviteDefaults}
-        invitations={invitations}
-        members={members}
-        people={people}
-        requestedStaffId={requestedStaffId}
-        staff={staff}
-      />
+      {header ?? <SettingsTabs activeHref="/settings/access" />}
+      {workspace}
     </SettingsNavigationGuardProvider>
   );
 }
@@ -197,14 +198,6 @@ function AccessWorkspace({
   const duplicateFocusTarget = useRef<DuplicateAccessTarget | undefined>(
     undefined,
   );
-
-  if (memberDialogState.deepLinkPersonId !== deepLinkInvitePersonId) {
-    setMemberDialogState({
-      deepLinkPersonId: deepLinkInvitePersonId,
-      defaults: inviteDefaults,
-      open: Boolean(deepLinkInvitePersonId),
-    });
-  }
 
   const reviewDuplicate = useCallback(
     (target: DuplicateAccessTarget) => {
@@ -283,11 +276,22 @@ function AccessWorkspace({
         the top. Needs access and Pending are exception states — they take up
         the page only when they have something in them.
       */}
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <h2 className="font-heading text-lg font-semibold tracking-tight">
-          Workspace access
-        </h2>
+      <div className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card px-4 py-4 shadow-xs sm:flex-row sm:items-start sm:justify-between sm:px-5">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <ShieldCheck aria-hidden="true" className="size-4.5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-heading text-lg font-semibold tracking-tight">
+              Workspace access
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">
+              Manage who can sign in, what they can do, and which branch they can access.
+            </p>
+          </div>
+        </div>
         <Button
+          className="w-full sm:mt-0.5 sm:w-auto"
           onClick={() =>
             setMemberDialogState({ defaults: undefined, open: true })
           }
@@ -580,7 +584,7 @@ export function InviteUserForm({
                 }
               }
             }}
-            options={roleOptions}
+            options={WORKSPACE_ROLE_OPTIONS}
             value={draft.values.role}
           />
           <AccessSelect
@@ -1201,7 +1205,7 @@ function MemberAccessForm({
                       }
                     }
                   }}
-                  options={roleOptions}
+                  options={WORKSPACE_ROLE_OPTIONS}
                   value={draft.values.role}
                 />
                 <AccessSelect

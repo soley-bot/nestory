@@ -20,21 +20,27 @@ export function OrganizationSettingsScreen({
   branches,
   canManageStructure = true,
   header,
+  logoStoragePath = null,
+  logoUrl = null,
   organizationName,
   organizationSlug,
   section,
   staff,
   teams,
+  workspaceUrl,
 }: {
   appearance?: OrganizationTheme;
   branches: OrganizationBranch[];
   canManageStructure?: boolean;
   header?: ReactNode;
+  logoStoragePath?: string | null;
+  logoUrl?: string | null;
   organizationName: string;
   organizationSlug?: string;
   section: SettingsSection;
   staff: OrganizationPersonOption[];
   teams: OrganizationTeam[];
+  workspaceUrl?: string;
 }) {
   return (
     <SettingsNavigationGuardProvider>
@@ -43,11 +49,14 @@ export function OrganizationSettingsScreen({
           appearance={appearance}
           branches={branches}
           canManageStructure={canManageStructure}
+          logoStoragePath={logoStoragePath}
+          logoUrl={logoUrl}
           organizationName={organizationName}
           organizationSlug={organizationSlug}
           section={section}
           staff={staff}
           teams={teams}
+          workspaceUrl={workspaceUrl}
         />
       </WorkspacePage>
     </SettingsNavigationGuardProvider>

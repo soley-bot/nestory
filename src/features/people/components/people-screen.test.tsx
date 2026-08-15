@@ -310,7 +310,7 @@ describe("People route family redesign contract", () => {
     [
       "staff",
       "Grant Workspace Access",
-      "/users-roles?personId=11111111-1111-4111-8111-111111111111",
+      "/settings/access?personId=11111111-1111-4111-8111-111111111111",
     ],
   ] as const)(
     "shows a transient %s creation handoff without pushing the workspace",
@@ -470,31 +470,31 @@ describe("People route family redesign contract", () => {
         "No Access Staff",
         "No access",
         "Grant workspace access",
-        "/users-roles?personId=staff-none",
+        "/settings/access?personId=staff-none",
       ],
       [
         "Pending Staff",
         "Pending invitation",
         "Review invitation",
-        "/users-roles?personId=staff-pending&invitationId=invitation-pending",
+        "/settings/access?personId=staff-pending&invitationId=invitation-pending",
       ],
       [
         "Failed Staff",
         "Invitation failed",
         "Review and resend",
-        "/users-roles?personId=staff-failed&invitationId=invitation-failed",
+        "/settings/access?personId=staff-failed&invitationId=invitation-failed",
       ],
       [
         "Expired Staff",
         "Invitation expired",
         "Review invitation",
-        "/users-roles?personId=staff-expired&invitationId=invitation-expired",
+        "/settings/access?personId=staff-expired&invitationId=invitation-expired",
       ],
       [
         "Active Staff",
         "Active access",
         "Manage workspace access",
-        "/users-roles?personId=staff-active&memberId=membership-1",
+        "/settings/access?personId=staff-active&memberId=membership-1",
       ],
     ] as const;
 

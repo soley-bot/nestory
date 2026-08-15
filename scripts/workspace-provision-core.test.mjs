@@ -75,7 +75,10 @@ describe("workspace provisioning core", () => {
     });
 
     expect(rpc.mock.calls[0][0]).toBe("provision_client_workspace");
-    expect(inviteUserByEmail).toHaveBeenCalledOnce();
+    expect(inviteUserByEmail).toHaveBeenCalledWith("admin@example.com", {
+      redirectTo:
+        "http://localhost:3000/auth/complete?next=%2Faccept-invite%3Finvitation%3D11111111-1111-4111-8111-111111111111",
+    });
     expect(rpc.mock.calls[1]).toEqual([
       "mark_organization_invitation_sent",
       {

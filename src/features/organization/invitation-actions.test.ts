@@ -325,7 +325,7 @@ describe("organization invitation actions", () => {
       status: "error",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/settings");
-    expect(revalidatePath).toHaveBeenCalledWith("/users-roles");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/access");
     expect(revalidatePath).toHaveBeenCalledWith("/staff");
     expect(revalidatePath).toHaveBeenCalledWith("/people");
     expect(revalidatePath).toHaveBeenCalledWith("/people/[personId]", "page");

@@ -303,7 +303,7 @@ function getPeopleFeedback(
           }
         : handoffRole === "staff"
           ? {
-              href: `/users-roles?personId=${personId}`,
+              href: `/settings/access?personId=${personId}`,
               label: "Grant Workspace Access",
             }
           : undefined;

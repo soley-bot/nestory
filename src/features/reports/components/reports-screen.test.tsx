@@ -25,16 +25,10 @@ class ResizeObserverStub {
 }
 
 describe("minimal Reports workspace", () => {
-  it("keeps only the two useful reports in the primary flow", () => {
+  it("keeps drill-down navigation focused on filters and report output", () => {
     renderReport();
 
-    const navigation = screen.getByRole("navigation", { name: "Reports" });
-    const links = within(navigation).getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual([
-      "Owner activity",
-      "Unit P&L",
-    ]);
-    expect(links[1]?.getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByRole("navigation", { name: "Reports" })).toBeNull();
 
     const filters = screen.getByRole("region", { name: "Report filters" });
     expect(
@@ -70,14 +64,15 @@ describe("minimal Reports workspace", () => {
     expect(screen.queryByText("Print / PDF")).toBeNull();
   });
 
-  it("keeps totals and rows while removing report-builder clutter", () => {
+  it("shows three decision totals and moves source records into row details", async () => {
+    const user = userEvent.setup();
     const { container } = renderReport();
 
     const totals = screen.getByRole("region", { name: "Report totals" });
     expect(within(totals).getByText("USD 500.00")).toBeTruthy();
     expect(within(totals).getByText("USD 380.00")).toBeTruthy();
-    expect(totals.className).toContain("rounded-md");
-    expect(totals.className).toMatch(/(?:^|\s)border(?:\s|$)/);
+    expect(within(totals).queryByText("Units")).toBeNull();
+    expect(totals.className).not.toContain("rounded-md");
 
     const table = screen.getByRole("table", {
       name: "Monthly Unit Profit & Loss",
@@ -86,23 +81,27 @@ describe("minimal Reports workspace", () => {
       '[data-slot="report-table-frame"]',
     );
     expect(tableFrame).not.toBeNull();
-    expect(tableFrame?.className).toContain("rounded-md");
-    expect(tableFrame?.className).toMatch(/(?:^|\s)border(?:\s|$)/);
+    expect(tableFrame?.className).not.toContain("rounded-md");
     expect(tableFrame?.querySelector("thead > tr")?.className).toContain(
       "border-b",
     );
     expect(within(table).getByText("P1 - Property One")).toBeTruthy();
     expect(within(table).getByText("Unit A1")).toBeTruthy();
+    expect(within(table).queryByRole("columnheader", { name: "Records" })).toBeNull();
+    expect(within(table).getByRole("columnheader", { name: "Property / unit" })).toBeTruthy();
+    expect(within(table).queryByRole("link", { name: "Rent ledger" })).toBeNull();
+
+    await user.click(within(table).getByRole("button", { name: "View details for P1 / Unit A1" }));
     expect(
-      within(table)
-        .getByRole("link", { name: "Rent ledger" })
-        .getAttribute("href"),
+      screen.getByRole("link", { name: "Rent ledger" }).getAttribute("href"),
     ).toBe("/ledger?archiveState=all&entryId=ledger-income");
     expect(
-      within(table)
-        .getByRole("link", { name: "Rent ledger" })
-        .getAttribute("title"),
-    ).toBeNull();
+      screen
+        .getByRole("link", { name: "Export this unit as PDF" })
+        .getAttribute("href"),
+    ).toBe(
+      "/api/reports/pdf?report=unit-profit-loss&month=2026-07&unitId=unit-1",
+    );
     expect(screen.queryByText("Report library")).toBeNull();
     expect(screen.queryByText("Report families")).toBeNull();
     expect(screen.queryByText("Report packets")).toBeNull();
@@ -119,7 +118,7 @@ describe("minimal Reports workspace", () => {
       name: "Monthly Unit Profit & Loss",
     });
     const heading = title.parentElement;
-    const rowCount = within(heading!).getByText("1 row");
+    const rowCount = within(heading!).getByText("1 unit");
 
     expect(heading).not.toBeNull();
     expect(heading?.className).toContain("flex");
@@ -159,7 +158,8 @@ describe("minimal Reports workspace", () => {
     }
   });
 
-  it("discloses when the bounded Sources cell omits additional source links", () => {
+  it("discloses omitted source links inside row details", async () => {
+    const user = userEvent.setup();
     const report = unitProfitLossReport();
     report.rows[0]!.sourceLinks = Array.from({ length: 7 }, (_, index) => ({
       href: `/ledger?entryId=ledger-${index + 1}`,
@@ -172,6 +172,9 @@ describe("minimal Reports workspace", () => {
 
     renderReport({ report: prepareTrustedReportForScreen(report) });
 
+    await user.click(
+      screen.getByRole("button", { name: "View details for P1 / Unit A1" }),
+    );
     expect(screen.getByText("+2 more")).toBeTruthy();
     expect(
       screen.getByLabelText(
@@ -180,7 +183,35 @@ describe("minimal Reports workspace", () => {
     ).toBeTruthy();
   });
 
-  it("keeps Finance Manager report records on finance-safe routes", () => {
+  it("hides zero-activity units until the user asks to include them", async () => {
+    const user = userEvent.setup();
+    const report = unitProfitLossReport();
+    report.rows.push({
+      ...report.rows[0]!,
+      cells: {
+        expenses: "USD 0.00",
+        income: "USD 0.00",
+        netIncome: "USD 0.00",
+        property: "P2 - Property Two",
+        unit: "Unit B1",
+      },
+      href: "/units/unit-2",
+      id: "unit-2",
+      sourceCount: 2,
+      sourceLinks: [],
+      sourceSummary: "Property and unit records",
+      title: "P2 / Unit B1",
+    });
+
+    renderReport({ report });
+
+    expect(screen.queryByText("P2 - Property Two")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show 1 unit with no activity" }));
+    expect(screen.getByText("P2 - Property Two")).toBeTruthy();
+  });
+
+  it("keeps Finance Manager report records on finance-safe routes", async () => {
+    const user = userEvent.setup();
     const report = unitProfitLossReport();
     report.rows[0]!.sourceLinks.push(
       {
@@ -203,6 +234,9 @@ describe("minimal Reports workspace", () => {
     renderReport({ report: financeSafe });
 
     expect(screen.queryByRole("link", { name: "P1 - Property One" })).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "View details for P1 / Unit A1" }),
+    );
     expect(screen.getByRole("link", { name: "P1" }).getAttribute("href")).toBe(
       "/properties/property-1/account",
     );

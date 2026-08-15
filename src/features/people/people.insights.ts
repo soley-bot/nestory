@@ -549,7 +549,7 @@ function getReportAction(
   }
 
   return {
-    href: `/users-roles?${params.toString()}`,
+    href: `/settings/access?${params.toString()}`,
     label:
       access?.state === "delivery_failed"
         ? "Retry invitation"

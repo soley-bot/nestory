@@ -14,6 +14,7 @@ import { createSupabaseAdminClient } from "@/lib/db/admin";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { buildOwnerStatementXlsx } from "@/features/reports/data/excel";
 import { buildOwnerStatementPdf } from "@/features/reports/data/pdf";
+import { loadOwnerStatementPresentation } from "@/features/reports/data/owner-statement-presentation";
 import { loadOwnerStatementPublication } from "@/features/reports/data/owner-statement-report";
 
 const uuid = z.string().regex(
@@ -182,10 +183,11 @@ async function completeOwnerStatementPublication(
   if (model.statementNumber !== statementNumber || model.publicationId !== publicationId) {
     throw new Error("Owner Statement publication identity changed during rendering.");
   }
+  const presentation = await loadOwnerStatementPresentation(supabase, model);
 
   const artifacts = [
     {
-      bytes: buildOwnerStatementPdf(model),
+      bytes: buildOwnerStatementPdf(model, presentation),
       contentType: "application/pdf",
       format: "pdf" as const,
     },

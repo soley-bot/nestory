@@ -21,6 +21,7 @@ describe("getOrganizationSettingsData", () => {
         data: {
           accent_preset: "custom",
           accent_seed: "#2563EB",
+          logo_storage_path: "organization-1/logos/logo.png",
           theme_mode: "dark",
         },
         error: null,
@@ -31,6 +32,10 @@ describe("getOrganizationSettingsData", () => {
     const branches = chainQuery({ data: [], error: null }, "order");
     const teams = chainQuery({ data: [], error: null }, "order");
     const roles = chainQuery({ data: [], error: null }, "is");
+    const createSignedUrl = vi.fn().mockResolvedValue({
+      data: { signedUrl: "https://storage.test/company-logo" },
+      error: null,
+    });
     createSupabaseServerClient.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "organizations") return appearanceQuery;
@@ -39,6 +44,7 @@ describe("getOrganizationSettingsData", () => {
         if (table === "person_roles") return roles;
         throw new Error(`Unexpected table ${table}`);
       }),
+      storage: { from: vi.fn(() => ({ createSignedUrl })) },
     });
 
     await expect(getOrganizationSettingsData("organization-1")).resolves.toEqual({
@@ -48,9 +54,15 @@ describe("getOrganizationSettingsData", () => {
         mode: "dark",
       },
       branches: [],
+      logoStoragePath: "organization-1/logos/logo.png",
+      logoUrl: "https://storage.test/company-logo",
       staff: [],
       teams: [],
     });
+    expect(createSignedUrl).toHaveBeenCalledWith(
+      "organization-1/logos/logo.png",
+      3600,
+    );
   });
 });
 
@@ -255,6 +267,56 @@ describe("getAccessByPersonId", () => {
   it("does not initialize a database client for an empty request", async () => {
     await expect(getAccessByPersonId("organization-1", [])).resolves.toEqual({});
     expect(createSupabaseServerClient).not.toHaveBeenCalled();
+  });
+
+  it("fails clearly when the authoritative workspace member read fails", async () => {
+    const branchQuery = chainQuery({ data: [], error: null }, "order");
+    const invitationQuery = chainQuery({ data: [], error: null }, "order");
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "organization_branches") return branchQuery;
+        if (table === "organization_invitations") return invitationQuery;
+        throw new Error(`Unexpected direct table read: ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: "permission denied" },
+      }),
+    };
+    createSupabaseServerClient.mockResolvedValue(supabase);
+
+    await expect(
+      getAccessByPersonId("organization-1", ["person-1"]),
+    ).rejects.toThrow("Could not load workspace members: permission denied");
+    expect(supabase.from).not.toHaveBeenCalledWith("organization_members");
+  });
+
+  it("reports invalid persisted workspace roles as an integrity error", async () => {
+    const branchQuery = chainQuery({ data: [], error: null }, "order");
+    const invitationQuery = chainQuery({ data: [], error: null }, "order");
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "organization_branches") return branchQuery;
+        if (table === "organization_invitations") return invitationQuery;
+        throw new Error(`Unexpected table ${table}`);
+      }),
+      rpc: vi.fn().mockResolvedValue({
+        data: [{
+          branch_id: null,
+          email: "member@example.com",
+          id: "membership-1",
+          person_id: "person-1",
+          role: "legacy_admin",
+          user_id: "auth-user-1",
+        }],
+        error: null,
+      }),
+    };
+    createSupabaseServerClient.mockResolvedValue(supabase);
+
+    await expect(
+      getAccessByPersonId("organization-1", ["person-1"]),
+    ).rejects.toThrow("Workspace access contains an unsupported role.");
   });
 
   it("returns active Staff selector options with authoritative primary email context", async () => {

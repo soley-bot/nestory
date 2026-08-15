@@ -165,7 +165,7 @@ describe("people insights", () => {
 
       if (kind === "staff-access") {
         expect(report.rows[0]).toMatchObject({
-          nextActionHref: `/users-roles?personId=${staff.id}`,
+          nextActionHref: `/settings/access?personId=${staff.id}`,
         });
         expect(report.rows[0]?.cells.linked).toBe("No workspace access");
       }
@@ -264,7 +264,7 @@ describe("people insights", () => {
     const activeRow = report.rows.find((row) => row.id === active.id)!;
 
     expect(noAccessRow).toMatchObject({
-      nextActionHref: `/users-roles?personId=${noAccess.id}`,
+      nextActionHref: `/settings/access?personId=${noAccess.id}`,
       sourceCount: 1,
       sourceSummary: "1 linked source",
     });
@@ -305,7 +305,7 @@ describe("people insights", () => {
       ]),
     );
     expect(activeRow.nextActionHref).toBe(
-      `/users-roles?personId=${active.id}&memberId=${membershipId}`,
+      `/settings/access?personId=${active.id}&memberId=${membershipId}`,
     );
     expect(activeRow.sourceCount).toBe(2);
 

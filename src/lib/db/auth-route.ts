@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import type { NextRequest, NextResponse } from "next/server";
+import { getAuthCookieOptions } from "@/lib/auth/tenant";
 import { getSupabaseEnv } from "@/lib/db/env";
 import type { Database } from "@/types/database";
 
@@ -10,6 +11,7 @@ export function createSupabaseAuthRouteClient(
   const { supabaseKey, supabaseUrl } = getSupabaseEnv();
 
   return createServerClient<Database>(supabaseUrl, supabaseKey, {
+    cookieOptions: getAuthCookieOptions(),
     cookies: {
       getAll() {
         return request.cookies.getAll();

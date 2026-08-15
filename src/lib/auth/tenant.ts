@@ -1,5 +1,6 @@
 const LOCAL_HOSTS = new Set(["0.0.0.0", "127.0.0.1", "::1", "localhost"]);
 const DEFAULT_RESERVED_SUBDOMAINS = new Set(["api", "app", "www"]);
+const WORKSPACE_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/;
 
 function normalizeHostname(host: string | null | undefined) {
   const value = host?.trim().toLowerCase();
@@ -42,4 +43,35 @@ export function getOrganizationSlugFromHost(host: string | null | undefined) {
   }
 
   return subdomain;
+}
+
+export function getAuthCookieOptions() {
+  const rootDomain = normalizeHostname(process.env.APP_ROOT_DOMAIN);
+
+  if (!rootDomain || LOCAL_HOSTS.has(rootDomain) || !rootDomain.includes(".")) {
+    return undefined;
+  }
+
+  return { domain: `.${rootDomain}` };
+}
+
+export function getOrganizationWorkspaceUrl(slug: string | undefined, path: string) {
+  const normalizedSlug = slug?.trim().toLowerCase();
+  const rootDomain = normalizeHostname(process.env.APP_ROOT_DOMAIN);
+
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    throw new Error("Workspace destination must be an internal path.");
+  }
+
+  if (
+    !normalizedSlug ||
+    !WORKSPACE_SLUG_PATTERN.test(normalizedSlug) ||
+    !rootDomain ||
+    LOCAL_HOSTS.has(rootDomain) ||
+    !rootDomain.includes(".")
+  ) {
+    return path;
+  }
+
+  return new URL(path, `https://${normalizedSlug}.${rootDomain}`).toString();
 }

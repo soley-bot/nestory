@@ -11,10 +11,7 @@
       "operations_manager",
       "operations_member"
     ],
-    "states": [
-      "redirected",
-      "permission-blocked"
-    ],
+    "states": ["redirected", "permission-blocked"],
     "evidence": {
       "redirected": [
         "src/app/workspace/page.tsx",
@@ -49,9 +46,7 @@
     "source": "src/app/(dashboard)/properties/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -68,9 +63,7 @@
         "src/app/(dashboard)/properties/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/properties/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/properties/page.tsx"],
       "empty": [
         "src/app/(dashboard)/properties/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -127,9 +120,7 @@
     "source": "src/app/(dashboard)/properties/setup/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -211,9 +202,7 @@
     "source": "src/app/(dashboard)/units/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -230,9 +219,7 @@
         "src/app/(dashboard)/units/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/units/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/units/page.tsx"],
       "empty": [
         "src/app/(dashboard)/units/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -289,24 +276,14 @@
     "source": "src/app/(dashboard)/people/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
-    "states": [
-      "loading",
-      "populated",
-      "empty",
-      "error",
-      "permission-blocked"
-    ],
+    "roles": ["super_admin"],
+    "states": ["loading", "populated", "empty", "error", "permission-blocked"],
     "evidence": {
       "loading": [
         "src/app/(dashboard)/people/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/people/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/people/page.tsx"],
       "empty": [
         "src/app/(dashboard)/people/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -346,9 +323,7 @@
     "source": "src/app/(dashboard)/owners/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -365,9 +340,7 @@
         "src/app/(dashboard)/owners/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/owners/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/owners/page.tsx"],
       "empty": [
         "src/app/(dashboard)/owners/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -424,9 +397,7 @@
     "source": "src/app/(dashboard)/staff/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -443,9 +414,7 @@
         "src/app/(dashboard)/staff/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/staff/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/staff/page.tsx"],
       "empty": [
         "src/app/(dashboard)/staff/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -502,9 +471,7 @@
     "source": "src/app/(dashboard)/tenants/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -521,9 +488,7 @@
         "src/app/(dashboard)/tenants/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/tenants/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/tenants/page.tsx"],
       "empty": [
         "src/app/(dashboard)/tenants/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -580,9 +545,7 @@
     "source": "src/app/(dashboard)/vendors/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -599,9 +562,7 @@
         "src/app/(dashboard)/vendors/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/vendors/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/vendors/page.tsx"],
       "empty": [
         "src/app/(dashboard)/vendors/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -658,11 +619,7 @@
     "source": "src/app/(dashboard)/leases/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "finance_manager",
-      "finance_member"
-    ],
+    "roles": ["super_admin", "finance_manager", "finance_member"],
     "states": [
       "loading",
       "populated",
@@ -679,9 +636,7 @@
         "src/app/(dashboard)/leases/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/leases/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/leases/page.tsx"],
       "empty": [
         "src/app/(dashboard)/leases/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -738,11 +693,7 @@
     "source": "src/app/(dashboard)/leases/[leaseId]/page.tsx",
     "phase": 5,
     "surface": "detail",
-    "roles": [
-      "super_admin",
-      "finance_manager",
-      "finance_member"
-    ],
+    "roles": ["super_admin", "finance_manager", "finance_member"],
     "states": [
       "loading",
       "populated",
@@ -810,11 +761,7 @@
     "source": "src/app/(dashboard)/rent-income/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "finance_manager",
-      "finance_member"
-    ],
+    "roles": ["super_admin", "finance_manager", "finance_member"],
     "states": [
       "loading",
       "populated",
@@ -831,9 +778,7 @@
         "src/app/(dashboard)/rent-income/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/rent-income/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/rent-income/page.tsx"],
       "empty": [
         "src/app/(dashboard)/rent-income/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -890,11 +835,7 @@
     "source": "src/app/(dashboard)/bills-expenses/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "finance_manager",
-      "finance_member"
-    ],
+    "roles": ["super_admin", "finance_manager", "finance_member"],
     "states": [
       "loading",
       "populated",
@@ -911,9 +852,7 @@
         "src/app/(dashboard)/bills-expenses/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/bills-expenses/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/bills-expenses/page.tsx"],
       "empty": [
         "src/app/(dashboard)/bills-expenses/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -970,11 +909,7 @@
     "source": "src/app/(dashboard)/ledger/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "finance_manager",
-      "finance_member"
-    ],
+    "roles": ["super_admin", "finance_manager", "finance_member"],
     "states": [
       "loading",
       "populated",
@@ -991,9 +926,7 @@
         "src/app/(dashboard)/ledger/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/ledger/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/ledger/page.tsx"],
       "empty": [
         "src/app/(dashboard)/ledger/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1050,11 +983,7 @@
     "source": "src/app/(dashboard)/petty-cash/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "finance_manager",
-      "finance_member"
-    ],
+    "roles": ["super_admin", "finance_manager", "finance_member"],
     "states": [
       "loading",
       "populated",
@@ -1071,9 +1000,7 @@
         "src/app/(dashboard)/petty-cash/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/petty-cash/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/petty-cash/page.tsx"],
       "empty": [
         "src/app/(dashboard)/petty-cash/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1130,10 +1057,7 @@
     "source": "src/app/(dashboard)/maintenance/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "operations_manager"
-    ],
+    "roles": ["super_admin", "operations_manager"],
     "states": [
       "loading",
       "populated",
@@ -1150,9 +1074,7 @@
         "src/app/(dashboard)/maintenance/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/maintenance/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/maintenance/page.tsx"],
       "empty": [
         "src/app/(dashboard)/maintenance/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1209,11 +1131,7 @@
     "source": "src/app/(dashboard)/tasks/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "operations_manager",
-      "operations_member"
-    ],
+    "roles": ["super_admin", "operations_manager", "operations_member"],
     "states": [
       "loading",
       "populated",
@@ -1230,9 +1148,7 @@
         "src/app/(dashboard)/tasks/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/tasks/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/tasks/page.tsx"],
       "empty": [
         "src/app/(dashboard)/tasks/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1289,10 +1205,7 @@
     "source": "src/app/(dashboard)/recurring-tasks/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "operations_manager"
-    ],
+    "roles": ["super_admin", "operations_manager"],
     "states": [
       "loading",
       "populated",
@@ -1309,9 +1222,7 @@
         "src/app/(dashboard)/recurring-tasks/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/recurring-tasks/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/recurring-tasks/page.tsx"],
       "empty": [
         "src/app/(dashboard)/recurring-tasks/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1368,10 +1279,7 @@
     "source": "src/app/(dashboard)/inspections/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "operations_manager"
-    ],
+    "roles": ["super_admin", "operations_manager"],
     "states": [
       "loading",
       "populated",
@@ -1388,9 +1296,7 @@
         "src/app/(dashboard)/inspections/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/inspections/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/inspections/page.tsx"],
       "empty": [
         "src/app/(dashboard)/inspections/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1447,10 +1353,7 @@
     "source": "src/app/(dashboard)/work-orders/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "operations_manager"
-    ],
+    "roles": ["super_admin", "operations_manager"],
     "states": [
       "loading",
       "populated",
@@ -1467,9 +1370,7 @@
         "src/app/(dashboard)/work-orders/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/work-orders/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/work-orders/page.tsx"],
       "empty": [
         "src/app/(dashboard)/work-orders/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1526,9 +1427,7 @@
     "source": "src/app/(dashboard)/timeline/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -1545,9 +1444,7 @@
         "src/app/(dashboard)/timeline/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/timeline/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/timeline/page.tsx"],
       "empty": [
         "src/app/(dashboard)/timeline/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1604,9 +1501,7 @@
     "source": "src/app/(dashboard)/financial-timeline/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -1623,9 +1518,7 @@
         "src/app/(dashboard)/financial-timeline/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/financial-timeline/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/financial-timeline/page.tsx"],
       "empty": [
         "src/app/(dashboard)/financial-timeline/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1682,9 +1575,7 @@
     "source": "src/app/(dashboard)/maintenance-timeline/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -1701,9 +1592,7 @@
         "src/app/(dashboard)/maintenance-timeline/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/maintenance-timeline/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/maintenance-timeline/page.tsx"],
       "empty": [
         "src/app/(dashboard)/maintenance-timeline/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1760,9 +1649,7 @@
     "source": "src/app/(dashboard)/property-timeline/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -1779,9 +1666,7 @@
         "src/app/(dashboard)/property-timeline/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/property-timeline/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/property-timeline/page.tsx"],
       "empty": [
         "src/app/(dashboard)/property-timeline/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1838,9 +1723,7 @@
     "source": "src/app/(dashboard)/documents/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -1857,9 +1740,7 @@
         "src/app/(dashboard)/documents/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/documents/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/documents/page.tsx"],
       "empty": [
         "src/app/(dashboard)/documents/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -1916,18 +1797,10 @@
     "source": "src/app/(dashboard)/reports/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "finance_manager"
-    ],
-    "states": [
-      "populated",
-      "permission-blocked"
-    ],
+    "roles": ["super_admin", "finance_manager"],
+    "states": ["populated", "permission-blocked"],
     "evidence": {
-      "populated": [
-        "src/app/(dashboard)/reports/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/reports/page.tsx"],
       "permission-blocked": [
         "src/app/(dashboard)/reports/page.tsx",
         "src/components/ui/status-notice.tsx"
@@ -1956,10 +1829,7 @@
     "source": "src/app/(dashboard)/reports/[reportKind]/page.tsx",
     "phase": 3,
     "surface": "detail",
-    "roles": [
-      "super_admin",
-      "finance_manager"
-    ],
+    "roles": ["super_admin", "finance_manager"],
     "states": [
       "loading",
       "populated",
@@ -1973,9 +1843,7 @@
         "src/app/(dashboard)/reports/[reportKind]/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/reports/[reportKind]/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/reports/[reportKind]/page.tsx"],
       "empty": [
         "src/app/(dashboard)/reports/[reportKind]/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -2019,9 +1887,7 @@
     "source": "src/app/(dashboard)/settings/page.tsx",
     "phase": 4,
     "surface": "settings",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin", "finance_manager"],
     "states": [
       "loading",
       "populated",
@@ -2037,9 +1903,7 @@
         "src/app/(dashboard)/settings/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/settings/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/settings/page.tsx"],
       "empty": [
         "src/app/(dashboard)/settings/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -2069,13 +1933,13 @@
       "path": "/settings",
       "expectedAccess": {
         "super_admin": "accessible",
-        "finance_manager": "permission-blocked",
+        "finance_manager": "accessible",
         "finance_member": "permission-blocked",
         "operations_manager": "permission-blocked",
         "operations_member": "permission-blocked",
         "anonymous": "login-required"
       },
-      "queryContract": "not-applicable",
+      "queryContract": "redirect-normalized",
       "workflowEvidence": [
         "src/app/(dashboard)/settings/page.tsx",
         "src/components/layout/module-loading.tsx",
@@ -2088,14 +1952,345 @@
     }
   },
   {
+    "route": "/settings/organization",
+    "source": "src/app/(dashboard)/settings/organization/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": ["super_admin"],
+    "states": [
+      "populated",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/(dashboard)/settings/organization/page.tsx",
+        "src/features/organization/components/organization-identity-editor.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/organization/page.tsx",
+        "src/features/organization/components/organization-identity-editor.test.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/organization/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/organization/page.tsx",
+        "src/features/organization/components/organization-identity-editor.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/organization/page.tsx",
+        "src/features/organization/components/settings-save-bar.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/organization/page.tsx",
+        "src/features/organization/components/organization-identity-editor.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/settings/organization",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/organization/page.tsx",
+        "src/features/organization/components/organization-identity-editor.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/settings/appearance",
+    "source": "src/app/(dashboard)/settings/appearance/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": ["super_admin"],
+    "states": [
+      "populated",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/(dashboard)/settings/appearance/page.tsx",
+        "src/features/organization/components/appearance-editor.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/appearance/page.tsx",
+        "src/features/organization/components/appearance-editor.test.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/appearance/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/appearance/page.tsx",
+        "src/features/organization/components/appearance-editor.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/appearance/page.tsx",
+        "src/features/organization/components/settings-save-bar.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/appearance/page.tsx",
+        "src/features/organization/components/appearance-editor.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/settings/appearance",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/appearance/page.tsx",
+        "src/features/organization/components/appearance-editor.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/settings/branches",
+    "source": "src/app/(dashboard)/settings/branches/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": ["super_admin"],
+    "states": [
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/(dashboard)/settings/branches/page.tsx",
+        "src/features/organization/components/branch-editor.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/settings/branches/page.tsx",
+        "src/features/organization/components/settings-workspace.test.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/branches/page.tsx",
+        "src/features/organization/components/settings-workspace-drafts.test.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/branches/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/branches/page.tsx",
+        "src/features/organization/components/settings-workspace-drafts.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/branches/page.tsx",
+        "src/features/organization/components/settings-save-bar.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/branches/page.tsx",
+        "src/features/organization/components/settings-workspace-drafts.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/settings/branches",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/branches/page.tsx",
+        "src/features/organization/components/settings-workspace-drafts.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/settings/teams",
+    "source": "src/app/(dashboard)/settings/teams/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": ["super_admin"],
+    "states": [
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "populated": [
+        "src/app/(dashboard)/settings/teams/page.tsx",
+        "src/features/organization/components/team-editor.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/settings/teams/page.tsx",
+        "src/features/organization/components/settings-workspace.test.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/teams/page.tsx",
+        "src/features/organization/components/settings-workspace-drafts.test.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/teams/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/teams/page.tsx",
+        "src/features/organization/components/settings-workspace-drafts.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/teams/page.tsx",
+        "src/features/organization/components/settings-save-bar.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/teams/page.tsx",
+        "src/features/organization/components/settings-workspace-drafts.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/settings/teams",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/teams/page.tsx",
+        "src/features/organization/components/settings-workspace-drafts.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/settings/access",
+    "source": "src/app/(dashboard)/settings/access/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": ["super_admin"],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/settings/access/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/settings/access/page.tsx",
+        "src/features/organization/components/access-settings-screen.test.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/settings/access/page.tsx",
+        "src/features/organization/components/access-register.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/access/page.tsx",
+        "src/features/organization/data.test.ts",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/access/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/access/page.tsx",
+        "src/features/organization/components/access-settings-screen.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/access/page.tsx",
+        "src/features/organization/components/access-settings-screen.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/access/page.tsx",
+        "src/features/organization/components/access-settings-screen.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/settings/access",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/access/page.tsx",
+        "src/features/organization/components/access-settings-screen.test.tsx",
+        "src/features/organization/data.test.ts"
+      ],
+      "limitations": []
+    }
+  },
+  {
     "route": "/settings/rent-policy",
     "source": "src/app/(dashboard)/settings/rent-policy/page.tsx",
     "phase": 4,
     "surface": "settings",
-    "roles": [
-      "super_admin",
-      "finance_manager"
-    ],
+    "roles": ["super_admin", "finance_manager"],
     "states": [
       "populated",
       "empty",
@@ -2167,9 +2362,7 @@
     "source": "src/app/(dashboard)/users-roles/page.tsx",
     "phase": 4,
     "surface": "settings",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -2251,20 +2444,13 @@
       "operations_manager",
       "operations_member"
     ],
-    "states": [
-      "loading",
-      "populated",
-      "error",
-      "permission-blocked"
-    ],
+    "states": ["loading", "populated", "error", "permission-blocked"],
     "evidence": {
       "loading": [
         "src/app/(dashboard)/account/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/account/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/account/page.tsx"],
       "error": [
         "src/app/(dashboard)/account/page.tsx",
         "src/components/ui/error-state.tsx"
@@ -2299,9 +2485,7 @@
     "source": "src/app/(dashboard)/import/page.tsx",
     "phase": 4,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -2318,9 +2502,7 @@
         "src/app/(dashboard)/import/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/import/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/import/page.tsx"],
       "empty": [
         "src/app/(dashboard)/import/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -2377,9 +2559,7 @@
     "source": "src/app/(dashboard)/overview/page.tsx",
     "phase": 5,
     "surface": "workspace",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -2393,9 +2573,7 @@
         "src/app/(dashboard)/overview/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/overview/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/overview/page.tsx"],
       "empty": [
         "src/app/(dashboard)/overview/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -2439,23 +2617,14 @@
     "source": "src/app/(dashboard)/overview/[view]/page.tsx",
     "phase": 5,
     "surface": "detail",
-    "roles": [
-      "super_admin"
-    ],
-    "states": [
-      "loading",
-      "populated",
-      "error",
-      "permission-blocked"
-    ],
+    "roles": ["super_admin"],
+    "states": ["loading", "populated", "error", "permission-blocked"],
     "evidence": {
       "loading": [
         "src/app/(dashboard)/overview/[view]/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/overview/[view]/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/overview/[view]/page.tsx"],
       "error": [
         "src/app/(dashboard)/overview/[view]/page.tsx",
         "src/components/ui/error-state.tsx"
@@ -2490,9 +2659,7 @@
     "source": "src/app/(dashboard)/properties/[propertyId]/page.tsx",
     "phase": 5,
     "surface": "detail",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -2509,9 +2676,7 @@
         "src/app/(dashboard)/properties/[propertyId]/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/properties/[propertyId]/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/properties/[propertyId]/page.tsx"],
       "empty": [
         "src/app/(dashboard)/properties/[propertyId]/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -2568,9 +2733,7 @@
     "source": "src/app/(dashboard)/units/[unitId]/page.tsx",
     "phase": 5,
     "surface": "detail",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -2587,9 +2750,7 @@
         "src/app/(dashboard)/units/[unitId]/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/units/[unitId]/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/units/[unitId]/page.tsx"],
       "empty": [
         "src/app/(dashboard)/units/[unitId]/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -2646,9 +2807,7 @@
     "source": "src/app/(dashboard)/people/[personId]/page.tsx",
     "phase": 5,
     "surface": "detail",
-    "roles": [
-      "super_admin"
-    ],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -2665,9 +2824,7 @@
         "src/app/(dashboard)/people/[personId]/page.tsx",
         "src/components/layout/module-loading.tsx"
       ],
-      "populated": [
-        "src/app/(dashboard)/people/[personId]/page.tsx"
-      ],
+      "populated": ["src/app/(dashboard)/people/[personId]/page.tsx"],
       "empty": [
         "src/app/(dashboard)/people/[personId]/page.tsx",
         "src/components/ui/empty-state.tsx"
@@ -2724,16 +2881,10 @@
     "source": "src/app/page.tsx",
     "phase": 6,
     "surface": "public",
-    "roles": [
-      "public"
-    ],
-    "states": [
-      "populated"
-    ],
+    "roles": ["public"],
+    "states": ["populated"],
     "evidence": {
-      "populated": [
-        "src/app/page.tsx"
-      ]
+      "populated": ["src/app/page.tsx"]
     },
     "smoke": {
       "path": "/",
@@ -2746,9 +2897,7 @@
         "anonymous": "accessible"
       },
       "queryContract": "not-applicable",
-      "workflowEvidence": [
-        "src/app/page.tsx"
-      ],
+      "workflowEvidence": ["src/app/page.tsx"],
       "limitations": []
     }
   },
@@ -2757,15 +2906,8 @@
     "source": "src/app/request/page.tsx",
     "phase": 6,
     "surface": "public",
-    "roles": [
-      "public"
-    ],
-    "states": [
-      "draft",
-      "saving",
-      "error",
-      "success"
-    ],
+    "roles": ["public"],
+    "states": ["draft", "saving", "error", "success"],
     "evidence": {
       "draft": [
         "src/app/request/page.tsx",
@@ -2816,15 +2958,8 @@
     "source": "src/app/(auth)/login/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": [
-      "public"
-    ],
-    "states": [
-      "draft",
-      "saving",
-      "error",
-      "success"
-    ],
+    "roles": ["public"],
+    "states": ["draft", "saving", "error", "success"],
     "evidence": {
       "draft": [
         "src/app/(auth)/login/page.tsx",
@@ -2868,15 +3003,8 @@
     "source": "src/app/(auth)/forgot-password/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": [
-      "public"
-    ],
-    "states": [
-      "draft",
-      "saving",
-      "success",
-      "error"
-    ],
+    "roles": ["public"],
+    "states": ["draft", "saving", "success", "error"],
     "evidence": {
       "draft": [
         "src/app/(auth)/forgot-password/page.tsx",
@@ -2919,15 +3047,8 @@
     "source": "src/app/(auth)/update-password/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": [
-      "public"
-    ],
-    "states": [
-      "draft",
-      "saving",
-      "success",
-      "error"
-    ],
+    "roles": ["public"],
+    "states": ["draft", "saving", "success", "error"],
     "evidence": {
       "draft": [
         "src/app/(auth)/update-password/page.tsx",
@@ -2972,13 +3093,8 @@
     "source": "src/app/auth/complete/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": [
-      "public"
-    ],
-    "states": [
-      "loading",
-      "error"
-    ],
+    "roles": ["public"],
+    "states": ["loading", "error"],
     "evidence": {
       "loading": [
         "src/app/auth/complete/page.tsx",
@@ -3019,16 +3135,8 @@
     "source": "src/app/accept-invite/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": [
-      "public"
-    ],
-    "states": [
-      "draft",
-      "saving",
-      "success",
-      "error",
-      "permission-blocked"
-    ],
+    "roles": ["public"],
+    "states": ["draft", "saving", "success", "error", "permission-blocked"],
     "evidence": {
       "draft": [
         "src/app/accept-invite/page.tsx",
@@ -3076,12 +3184,8 @@
     "source": "src/app/no-access/page.tsx",
     "phase": 6,
     "surface": "auth",
-    "roles": [
-      "unlinked"
-    ],
-    "states": [
-      "permission-blocked"
-    ],
+    "roles": ["unlinked"],
+    "states": ["permission-blocked"],
     "evidence": {
       "permission-blocked": [
         "src/app/no-access/page.tsx",
@@ -3113,11 +3217,7 @@
     "source": "src/app/(dashboard)/finance/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "finance_manager",
-      "finance_member"
-    ],
+    "roles": ["super_admin", "finance_manager", "finance_member"],
     "states": [
       "loading",
       "populated",
@@ -3185,11 +3285,7 @@
     "source": "src/app/(dashboard)/balances/page.tsx",
     "phase": 3,
     "surface": "workspace",
-    "roles": [
-      "super_admin",
-      "finance_manager",
-      "finance_member"
-    ],
+    "roles": ["super_admin", "finance_manager", "finance_member"],
     "states": [
       "loading",
       "populated",
@@ -3257,11 +3353,7 @@
     "source": "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
     "phase": 5,
     "surface": "detail",
-    "roles": [
-      "super_admin",
-      "finance_manager",
-      "finance_member"
-    ],
+    "roles": ["super_admin", "finance_manager", "finance_member"],
     "states": [
       "loading",
       "populated",

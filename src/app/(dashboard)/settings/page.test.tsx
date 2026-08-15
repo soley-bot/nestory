@@ -1,94 +1,52 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  getOrganizationSettingsData,
-  requireSuperAdminContext,
-  requireWorkspaceContext,
-} = vi.hoisted(() => ({
-  getOrganizationSettingsData: vi.fn(),
-  requireSuperAdminContext: vi.fn(),
+const { redirect, requireWorkspaceContext } = vi.hoisted(() => ({
+  redirect: vi.fn((href: string) => {
+    throw new Error(`redirect:${href}`);
+  }),
   requireWorkspaceContext: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/context", () => ({
-  requireSuperAdminContext,
-  requireWorkspaceContext,
-}));
-
-vi.mock("@/features/organization/data", () => ({
-  getOrganizationSettingsData,
-}));
-
-vi.mock("@/features/organization/components/organization-settings-screen", () => ({
-  OrganizationSettingsScreen: ({
-    header,
-    section,
-  }: {
-    header?: ReactNode;
-    section: string;
-  }) => (
-    <div>
-      {header}
-      <div>Organization settings: {section}</div>
-    </div>
-  ),
-}));
+vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("@/lib/auth/context", () => ({ requireWorkspaceContext }));
 
 import SettingsPage from "@/app/(dashboard)/settings/page";
 
 describe("SettingsPage", () => {
   beforeEach(() => {
-    getOrganizationSettingsData.mockReset();
-    requireSuperAdminContext.mockReset();
+    redirect.mockClear();
     requireWorkspaceContext.mockReset();
-
-    const context = {
-      organizationId: "organization-1",
-      organizationName: "Nestory Test",
-      role: "super_admin",
-      userId: "user-1",
-    };
-    requireSuperAdminContext.mockResolvedValue(context);
-    requireWorkspaceContext.mockResolvedValue(context);
-    getOrganizationSettingsData.mockResolvedValue({
-      branches: [],
-      staff: [],
-      teams: [],
-    });
   });
 
   it.each([
-    ["organization", "organization"],
-    ["appearance", "appearance"],
-    ["configuration", "configuration"],
-    ["branches", "branches"],
-    ["teams", "teams"],
-    ["future", "organization"],
-  ])("requires admin context and normalizes section %s", async (section, expected) => {
-    const html = renderToStaticMarkup(
-      await SettingsPage({
-        searchParams: Promise.resolve({ section }),
-      }),
-    );
+    ["organization", "/settings/organization"],
+    ["appearance", "/settings/appearance"],
+    ["branches", "/settings/branches"],
+    ["teams", "/settings/teams"],
+    ["configuration", "/settings/organization"],
+    ["future", "/settings/organization"],
+  ])("redirects legacy Super Admin section %s to %s", async (section, href) => {
+    requireWorkspaceContext.mockResolvedValue({ role: "super_admin" });
 
-    expect(html).toContain(`Organization settings: ${expected}`);
-    expect(requireSuperAdminContext).toHaveBeenCalledOnce();
-    expect(requireWorkspaceContext).not.toHaveBeenCalled();
+    await expect(
+      SettingsPage({ searchParams: Promise.resolve({ section }) }),
+    ).rejects.toThrow(`redirect:${href}`);
+    expect(redirect).toHaveBeenCalledWith(href);
   });
 
-  it("renders one Settings heading with section navigation in the same header", async () => {
-    const html = renderToStaticMarkup(
-      await SettingsPage({ searchParams: Promise.resolve({}) }),
-    );
+  it("sends Finance Manager to their only allowed Settings destination", async () => {
+    requireWorkspaceContext.mockResolvedValue({ role: "finance_manager" });
 
-    expect(html.match(/<h1/g)).toHaveLength(1);
-    expect(html).toContain("<h1");
-    expect(html).toContain("Settings</h1>");
-    expect(html).toMatch(
-      /<header[^>]*>[\s\S]*aria-label="Settings sections"[\s\S]*<\/header>/,
-    );
-    expect(requireSuperAdminContext).toHaveBeenCalledOnce();
+    await expect(
+      SettingsPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow("redirect:/settings/rent-policy");
+  });
+
+  it("sends roles without Settings capability to no access", async () => {
+    requireWorkspaceContext.mockResolvedValue({ role: "operations_manager" });
+
+    await expect(
+      SettingsPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow("redirect:/no-access");
   });
 });

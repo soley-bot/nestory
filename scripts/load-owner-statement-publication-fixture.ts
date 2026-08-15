@@ -6,6 +6,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { buildOwnerStatementXlsx } from "../src/features/reports/data/excel";
 import { buildOwnerStatementPdf } from "../src/features/reports/data/pdf";
+import { loadOwnerStatementPresentation } from "../src/features/reports/data/owner-statement-presentation";
 import { loadOwnerStatementPublication } from "../src/features/reports/data/owner-statement-report";
 import type { Database } from "../src/types/database";
 
@@ -53,9 +54,10 @@ async function main() {
   const statementNumber = required(published.data, "statement_number");
   fixturePhase = "canonical model";
   const model = await loadOwnerStatementPublication(client, organizationId, publicationId);
+  const presentation = await loadOwnerStatementPresentation(client, model);
 
   for (const artifact of [
-    { bytes: buildOwnerStatementPdf(model), contentType: "application/pdf", format: "pdf" as const },
+    { bytes: buildOwnerStatementPdf(model, presentation), contentType: "application/pdf", format: "pdf" as const },
     {
       bytes: buildOwnerStatementXlsx(model),
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

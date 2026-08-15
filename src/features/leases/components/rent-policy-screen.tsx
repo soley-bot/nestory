@@ -41,12 +41,12 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
           <div>
             <h2 className="text-base font-semibold">Rent policy</h2>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              Drafts may remain unresolved. Approval is blocked until every
-              due-day, proration, notice, frequency, concession, rent-free,
-              and waiver rule is explicit.
+              Controls how rent is scheduled and adjusted.
             </p>
           </div>
-          <Badge tone={draft ? "warning" : approved.length ? "success" : "danger"}>
+          <Badge
+            tone={draft ? "warning" : approved.length ? "success" : "danger"}
+          >
             {draft
               ? "Draft unresolved"
               : approved.length
@@ -70,7 +70,7 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
               <tr>
                 <th className="py-2 pr-4">Version</th>
                 <th className="py-2 pr-4">Effective</th>
-              <th className="py-2 pr-4">Status</th>
+                <th className="py-2 pr-4">Status</th>
                 <th className="py-2 pr-4">Frequencies</th>
                 <th className="py-2">Timezone</th>
               </tr>
@@ -90,12 +90,15 @@ export function RentPolicyScreen({ versions }: RentPolicyScreenProps) {
                             : "neutral"
                       }
                     >
-                      {version.lifecycle === "approved" ? "Approved" : version.lifecycle === "draft" ? "Draft" : "Archived"}
+                      {version.lifecycle === "approved"
+                        ? "Approved"
+                        : version.lifecycle === "draft"
+                          ? "Draft"
+                          : "Archived"}
                     </Badge>
                   </td>
                   <td className="py-2 pr-4">
-                    {version.supported_frequencies?.join(", ") ??
-                      "Unresolved"}
+                    {version.supported_frequencies?.join(", ") ?? "Unresolved"}
                   </td>
                   <td className="py-2">
                     {version.rent_calculation_timezone ?? "Unresolved"}
@@ -131,8 +134,8 @@ function CreateDraftForm() {
     >
       <h2 className="text-sm font-semibold">Create policy draft</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        This creates an empty version. It does not invent a due day or
-        proration rule.
+        This creates an empty version. It does not invent a due day or proration
+        rule.
       </p>
       <input
         name="idempotencyKey"
@@ -157,9 +160,7 @@ function CreateDraftForm() {
 }
 
 function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
-  const [dueDaySource, setDueDaySource] = useState(
-    draft.due_day_source ?? "",
-  );
+  const [dueDaySource, setDueDaySource] = useState(draft.due_day_source ?? "");
   const [updateState, updateAction, updatePending] = useActionState(
     updateRentPolicyDraftAction,
     initialState,
@@ -183,29 +184,27 @@ function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
         <Badge tone="warning">Not approved</Badge>
       </div>
 
-      <form action={updateAction} className="mt-4 space-y-5">
+      <form action={updateAction} className="mt-4 space-y-4">
         <input name="policyId" type="hidden" value={draft.id} />
-
-        <fieldset>
-          <legend className="text-sm font-medium">
-            Supported frequencies
-          </legend>
-          <div className="mt-2 flex flex-wrap gap-3">
-            {frequencyOptions.map(([value, label]) => (
-              <label className="flex items-center gap-2 text-sm" key={value}>
-                <input
-                  defaultChecked={draft.supported_frequencies?.includes(value)}
-                  name="supportedFrequencies"
-                  type="checkbox"
-                  value={value}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <div className="grid gap-4 md:grid-cols-2">
+        <PolicyGroup title="Billing schedule">
+          <fieldset className="md:col-span-2">
+            <legend className="text-sm font-medium">Frequencies</legend>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+              {frequencyOptions.map(([value, label]) => (
+                <label className="flex items-center gap-2 text-sm" key={value}>
+                  <input
+                    defaultChecked={draft.supported_frequencies?.includes(
+                      value,
+                    )}
+                    name="supportedFrequencies"
+                    type="checkbox"
+                    value={value}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <PolicyField label="Calculation timezone">
             <Input
               defaultValue={draft.rent_calculation_timezone ?? ""}
@@ -216,16 +215,16 @@ function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
           </PolicyField>
           <PolicySelect
             defaultValue={draft.due_day_source}
-            label="Due-day source"
+            label="Due day from"
             name="dueDaySource"
             onValueChange={setDueDaySource}
             options={[
-              ["term", "Lease term"],
-              ["policy_default", "Policy default"],
+              ["term", "Each lease"],
+              ["policy_default", "Workspace default"],
             ]}
           />
           {dueDaySource === "policy_default" ? (
-            <PolicyField label="Policy default due day">
+            <PolicyField label="Default due day">
               <NumberInput
                 defaultValue={draft.policy_default_due_day ?? ""}
                 max="31"
@@ -237,37 +236,40 @@ function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
           ) : null}
           <PolicySelect
             defaultValue={draft.short_month_due_day_rule}
-            label="Short-month due day"
+            label="If the month is shorter"
             name="shortMonthDueDayRule"
             options={[
-              ["last_calendar_day", "Use last calendar day"],
-              ["next_calendar_month", "Move to next calendar month"],
+              ["last_calendar_day", "Use the month's last day"],
+              ["next_calendar_month", "Move to next month"],
             ]}
           />
+        </PolicyGroup>
+
+        <PolicyGroup title="Lease changes">
           <PolicySelect
             defaultValue={draft.lease_start_proration_rule}
-            label="Lease-start proration"
+            label="Lease starts mid-period"
             name="leaseStartProrationRule"
             options={[
-              ["actual_days", "Actual days"],
-              ["thirty_day", "30-day basis"],
-              ["no_proration", "No proration"],
+              ["actual_days", "Prorate by actual days"],
+              ["thirty_day", "Prorate on a 30-day basis"],
+              ["no_proration", "Charge a full period"],
             ]}
           />
           <PolicySelect
             defaultValue={draft.lease_end_proration_rule}
-            label="Lease-end proration"
+            label="Lease ends mid-period"
             name="leaseEndProrationRule"
             options={[
-              ["actual_days", "Actual days"],
-              ["thirty_day", "30-day basis"],
-              ["no_proration", "No proration"],
+              ["actual_days", "Prorate by actual days"],
+              ["thirty_day", "Prorate on a 30-day basis"],
+              ["no_proration", "Charge a full period"],
               ["through_move_out", "Charge through move-out"],
             ]}
           />
           <PolicySelect
             defaultValue={draft.notice_period_charging_rule}
-            label="Notice-period charging"
+            label="After notice is given"
             name="noticePeriodChargingRule"
             options={[
               ["through_lease_end", "Charge through lease end"],
@@ -277,14 +279,17 @@ function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
           />
           <PolicySelect
             defaultValue={draft.mid_period_rent_change_rule}
-            label="Mid-period rent change"
+            label="Rent changes mid-period"
             name="midPeriodRentChangeRule"
             options={[
-              ["prorate_actual_days", "Prorate actual days"],
-              ["prorate_thirty_day", "Prorate on 30-day basis"],
+              ["prorate_actual_days", "Prorate by actual days"],
+              ["prorate_thirty_day", "Prorate on a 30-day basis"],
               ["next_full_period", "Apply next full period"],
             ]}
           />
+        </PolicyGroup>
+
+        <PolicyGroup title="Exceptions">
           <SupportSelect
             defaultValue={draft.concessions_support_state}
             label="Concessions"
@@ -300,25 +305,59 @@ function DraftPolicyForm({ draft }: { draft: RentPolicyVersion }) {
             label="Waivers"
             name="waiversSupportState"
           />
-        </div>
+        </PolicyGroup>
 
-        <Button disabled={updatePending} type="submit">
-          {updatePending ? "Saving..." : "Save explicit rules"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button disabled={updatePending} type="submit">
+            {updatePending ? "Saving..." : "Save draft"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Saving this draft does not affect leases.
+          </p>
+        </div>
         <ActionMessage state={updateState} />
       </form>
 
-      <form action={approveAction} className="mt-5 border-t border-border pt-4">
+      <form
+        action={approveAction}
+        className="mt-5 rounded-lg border border-warning/30 bg-warning-soft p-4"
+        onSubmit={(event) => {
+          if (
+            !window.confirm(
+              "Approve and apply this rent policy? Approved policies cannot be edited.",
+            )
+          ) {
+            event.preventDefault();
+          }
+        }}
+      >
         <input name="policyId" type="hidden" value={draft.id} />
-        <p className="text-xs text-muted-foreground">
-          Approval makes these economic rules immutable. Corrections require a
-          later version.
+        <p className="text-sm font-medium">Apply this policy</p>
+        <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
+          Applies from {draft.effective_from}. Approval may create missing
+          current-month rent for active and notice-given leases. Approved
+          policies cannot be edited.
         </p>
         <Button className="mt-3" disabled={approvePending} type="submit">
-          {approvePending ? "Approving..." : "Approve immutable version"}
+          {approvePending ? "Approving..." : "Approve and apply policy"}
         </Button>
         <ActionMessage state={approveState} />
       </form>
+    </section>
+  );
+}
+
+function PolicyGroup({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="rounded-lg border bg-muted/20 p-4">
+      <h3 className="mb-3 text-sm font-semibold">{title}</h3>
+      <div className="grid gap-4 md:grid-cols-2">{children}</div>
     </section>
   );
 }
@@ -359,7 +398,7 @@ function PolicySelect({
         name={name}
         onValueChange={onValueChange}
         options={[
-          { label: "Resolve this rule", value: "" },
+          { label: "Choose a rule", value: "" },
           ...options.map(([value, optionLabel]) => ({
             label: optionLabel,
             value,

@@ -68,10 +68,7 @@ describe("password recovery actions", () => {
 
     const result = await requestPasswordRecoveryAction({}, formData);
 
-    expect(resetPasswordForEmail).toHaveBeenCalledWith("missing@example.com", {
-      redirectTo:
-        "http://localhost:3000/auth/complete?next=%2Fupdate-password",
-    });
+    expect(resetPasswordForEmail).toHaveBeenCalledWith("missing@example.com");
     expect(result).toEqual({
       message: "If that account exists, a password reset link has been sent.",
       status: "success",
