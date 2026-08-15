@@ -111,7 +111,7 @@ export const AppearanceEditor = forwardRef<
     <Card className="min-w-0" data-testid="settings-editor" size="sm">
       <CardHeader className="border-b">
         <SettingsSectionHeader
-          description="Set the workspace default theme and accent."
+          description="Choose the workspace display style."
           icon={Palette}
           title="Appearance"
         />
@@ -127,11 +127,11 @@ export const AppearanceEditor = forwardRef<
           }}
           ref={formRef}
         >
-          <div className="grid gap-6 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
-            <div className="min-w-0 space-y-5">
+          <div className="space-y-5 p-4 sm:p-5">
+            <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(220px,0.65fr)_minmax(0,1.35fr)]">
               <div className="space-y-2">
                 <label className="text-sm font-medium" id="theme-mode-label">
-                  Theme mode
+                  Workspace default
                 </label>
                 <SelectControl
                   ariaLabel="Theme mode"
@@ -145,7 +145,7 @@ export const AppearanceEditor = forwardRef<
                   value={draft.values.mode}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Sets the organization default. Each member can choose a personal display mode.
+                  Members can override this in their account.
                 </p>
               </div>
 
@@ -181,76 +181,69 @@ export const AppearanceEditor = forwardRef<
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Shared across the organization for actions, links, focus, and selection.
-                </p>
               </fieldset>
-
-              {draft.values.accentPreset === "custom" ? (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="accentSeed">
-                    Custom hex color
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      aria-label="Custom color picker"
-                      className="w-11 shrink-0 p-1"
-                      onChange={(event) => draft.setField("accentSeed", event.target.value.toUpperCase())}
-                      type="color"
-                      value={normalizeHexColor(draft.values.accentSeed) ?? "#2563EB"}
-                    />
-                    <Input
-                      aria-describedby={draft.errors.accentSeed ? "accent-seed-error" : undefined}
-                      aria-invalid={Boolean(draft.errors.accentSeed)}
-                      id="accentSeed"
-                      name="accentSeed"
-                      onChange={(event) => draft.setField("accentSeed", event.target.value)}
-                      placeholder="#2563EB"
-                      value={draft.values.accentSeed}
-                    />
-                  </div>
-                  {draft.errors.accentSeed ? (
-                    <p className="text-sm text-danger" id="accent-seed-error">
-                      {draft.errors.accentSeed}
-                    </p>
-                  ) : null}
-                </div>
-              ) : (
-                <input name="accentSeed" type="hidden" value="" />
-              )}
-
-              <Button onClick={restoreDefault} type="button" variant="outline">
-                Restore Nestory default
-              </Button>
             </div>
 
+            {draft.values.accentPreset === "custom" ? (
+              <div className="max-w-sm space-y-2">
+                <label className="text-sm font-medium" htmlFor="accentSeed">
+                  Custom color
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    aria-label="Custom color picker"
+                    className="w-11 shrink-0 p-1"
+                    onChange={(event) => draft.setField("accentSeed", event.target.value.toUpperCase())}
+                    type="color"
+                    value={normalizeHexColor(draft.values.accentSeed) ?? "#2563EB"}
+                  />
+                  <Input
+                    aria-describedby={draft.errors.accentSeed ? "accent-seed-error" : undefined}
+                    aria-invalid={Boolean(draft.errors.accentSeed)}
+                    aria-label="Custom hex color"
+                    id="accentSeed"
+                    name="accentSeed"
+                    onChange={(event) => draft.setField("accentSeed", event.target.value)}
+                    placeholder="#2563EB"
+                    value={draft.values.accentSeed}
+                  />
+                </div>
+                {draft.errors.accentSeed ? (
+                  <p className="text-sm text-danger" id="accent-seed-error">
+                    {draft.errors.accentSeed}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <input name="accentSeed" type="hidden" value="" />
+            )}
+
             <div
+              aria-label="Appearance sample"
               className={cn(
-                "overflow-hidden rounded-xl border bg-background text-foreground",
+                "flex flex-wrap items-center gap-2 overflow-hidden rounded-lg border bg-card p-3 text-foreground",
                 previewMode === "dark" && "dark",
               )}
               data-testid="appearance-preview"
+              role="group"
               style={getOrganizationThemeStyle(previewTheme, previewMode)}
             >
-              <div className="border-b bg-background px-4 py-3 text-sm font-semibold">
-                Workspace preview
+              <div className="rounded-md bg-[var(--org-accent-soft)] px-3 py-2 text-sm font-medium">
+                Selected navigation
               </div>
-              <div className="space-y-3 bg-card p-4">
-                <div className="rounded-lg bg-[var(--org-accent-soft)] px-3 py-2 text-sm font-medium">
-                  Selected navigation
-                </div>
-                <Input aria-label="Preview input" placeholder="Focused input" />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button">Primary action</Button>
-                  <a className="text-sm font-medium text-primary underline-offset-4 hover:underline" href="#appearance-preview">
-                    Record link
-                  </a>
-                  <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
-                    Active
-                  </span>
-                </div>
-              </div>
+              <Input aria-label="Preview input" className="w-40" placeholder="Focused input" />
+              <Button type="button">Primary action</Button>
+              <a className="text-sm font-medium text-primary underline-offset-4 hover:underline" href="#appearance-preview">
+                Record link
+              </a>
+              <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
+                Active
+              </span>
             </div>
+
+            <Button className="w-fit" onClick={restoreDefault} type="button" variant="outline">
+              Restore default
+            </Button>
           </div>
 
           {draft.resultMessage ? (

@@ -43,4 +43,18 @@ describe("SettingsSectionNav", () => {
     ).toBe("page");
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
+
+  it("uses the organization accent semantics for the active section", () => {
+    render(
+      <SettingsSectionNav
+        activeHref="/settings/appearance"
+        role="super_admin"
+      />,
+    );
+
+    const active = screen.getByRole("link", { name: "Appearance" });
+    expect(active.className).toContain("bg-[var(--org-accent-soft)]");
+    expect(active.className).toContain("text-foreground");
+    expect(active.className).not.toContain("bg-foreground");
+  });
 });

@@ -20,7 +20,7 @@ import { ORGANIZATION_THEME_UPDATED_EVENT } from "@/lib/theme/organization-theme
 afterEach(cleanup);
 
 describe("AppearanceEditor", () => {
-  it("distinguishes the shared organization default from personal display mode", () => {
+  it("explains the personal display override once without repeated helper copy", () => {
     render(
       <AppearanceEditor
         onDraftStatusChange={vi.fn()}
@@ -28,9 +28,8 @@ describe("AppearanceEditor", () => {
       />,
     );
 
-    expect(screen.getByText(/Sets the organization default/)).toBeTruthy();
-    expect(screen.getByText(/Each member can choose a personal display mode/)).toBeTruthy();
-    expect(screen.getByText(/Shared across the organization/)).toBeTruthy();
+    expect(screen.getByText("Members can override this in their account.")).toBeTruthy();
+    expect(screen.queryByText(/Shared across the organization/)).toBeNull();
   });
 
   it("previews presets without mutating the document theme", () => {
@@ -44,6 +43,7 @@ describe("AppearanceEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ocean" }));
 
     expect(screen.getByRole("button", { name: "Ocean" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("group", { name: "Appearance sample" })).toBeTruthy();
     expect(screen.getByTestId("appearance-preview").getAttribute("style")).toContain("--org-accent-seed");
     expect(document.documentElement.dataset.accent).toBeUndefined();
   });
@@ -72,7 +72,7 @@ describe("AppearanceEditor", () => {
         theme={{ accentPreset: "plum", accentSeed: null, mode: "dark" }}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Restore Nestory default" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore default" }));
 
     expect(screen.getByRole("button", { name: "Neutral" }).getAttribute("aria-pressed")).toBe("true");
     expect(

@@ -50,7 +50,7 @@ export function SettingsSectionNav({
                 "group flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium outline-none transition-colors",
                 "focus-visible:ring-2 focus-visible:ring-ring/50",
                 active
-                  ? "bg-foreground text-background"
+                  ? "bg-[var(--org-accent-soft)] text-foreground ring-1 ring-primary/20 [&_svg]:text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
               href={destination.href}
