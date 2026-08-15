@@ -12,6 +12,10 @@ import {
   THEME_MODES,
 } from "@/lib/theme/organization-theme";
 import { workspaceRoleSchema } from "@/features/organization/workspace-roles";
+import {
+  getCompanyLogoStoragePath,
+  validateCompanyLogo,
+} from "@/features/organization/company-logo";
 
 export type OrganizationActionState = {
   message?: string;
@@ -138,6 +142,82 @@ export async function updateOrganizationIdentityAction(
   revalidatePath("/settings/organization");
   revalidatePath("/", "layout");
   return { message: "Workspace name updated.", status: "success" };
+}
+
+export async function uploadOrganizationLogoAction(
+  _state: OrganizationActionState,
+  formData: FormData,
+): Promise<OrganizationActionState> {
+  const context = await requireSuperAdminContext();
+  const file = formData.get("logo");
+  if (!(file instanceof File)) {
+    return { message: "Choose a company logo.", status: "error" };
+  }
+
+  const validation = await validateCompanyLogo(file);
+  if ("error" in validation) {
+    return { message: validation.error, status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const previousPath = await getCurrentLogoPath(
+    supabase,
+    context.organizationId,
+  );
+  const storagePath = getCompanyLogoStoragePath(
+    context.organizationId,
+    validation.extension,
+  );
+  const contentType = validation.extension === "png" ? "image/png" : "image/jpeg";
+  const bucket = supabase.storage.from("organization-assets");
+  const { error: uploadError } = await bucket.upload(storagePath, file, {
+    cacheControl: "31536000",
+    contentType,
+    upsert: false,
+  });
+  if (uploadError) {
+    return { message: "We could not upload the company logo.", status: "error" };
+  }
+
+  const { error } = await supabase.rpc("update_organization_logo", {
+    p_logo_storage_path: storagePath,
+    p_organization_id: context.organizationId,
+  });
+  if (error) {
+    await bucket.remove([storagePath]);
+    return { message: "We could not save the company logo.", status: "error" };
+  }
+
+  if (previousPath && previousPath !== storagePath) {
+    await bucket.remove([previousPath]);
+  }
+  revalidateBranding();
+  return { message: "Company logo updated.", status: "success" };
+}
+
+export async function removeOrganizationLogoAction(
+  _state: OrganizationActionState,
+  _formData: FormData,
+): Promise<OrganizationActionState> {
+  const context = await requireSuperAdminContext();
+  const supabase = await createSupabaseServerClient();
+  const previousPath = await getCurrentLogoPath(
+    supabase,
+    context.organizationId,
+  );
+  const { error } = await supabase.rpc("update_organization_logo", {
+    p_logo_storage_path: "",
+    p_organization_id: context.organizationId,
+  });
+  if (error) {
+    return { message: "We could not remove the company logo.", status: "error" };
+  }
+
+  if (previousPath) {
+    await supabase.storage.from("organization-assets").remove([previousPath]);
+  }
+  revalidateBranding();
+  return { message: "Company logo removed.", status: "success" };
 }
 
 export async function createBranchAction(
@@ -441,6 +521,24 @@ function revalidateSettings(personId?: string | null) {
   revalidatePath("/maintenance");
   revalidatePath("/tasks");
   if (personId) revalidatePath(`/people/${personId}`);
+}
+
+function revalidateBranding() {
+  revalidatePath("/settings/appearance");
+  revalidatePath("/", "layout");
+}
+
+async function getCurrentLogoPath(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+) {
+  const { data, error } = await supabase
+    .from("organizations")
+    .select("logo_storage_path")
+    .eq("id", organizationId)
+    .single();
+  if (error) return null;
+  return data?.logo_storage_path ?? null;
 }
 
 function organizationErrorMessage(message: string) {

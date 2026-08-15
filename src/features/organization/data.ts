@@ -65,33 +65,47 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient
 export async function getOrganizationSettingsData(organizationId: string) {
   const supabase = await createSupabaseServerClient();
 
-  const [appearance, branches, teams, staff] = await Promise.all([
+  const [branding, branches, teams, staff] = await Promise.all([
     loadOrganizationAppearance(supabase, organizationId),
     loadBranches(supabase, organizationId),
     loadTeams(supabase, organizationId),
     loadStaffForOrganization(supabase, organizationId),
   ]);
 
-  return { appearance, branches, staff, teams };
+  return { ...branding, branches, staff, teams };
 }
 
 async function loadOrganizationAppearance(
   supabase: SupabaseServerClient,
   organizationId: string,
-): Promise<OrganizationTheme> {
+): Promise<{
+  appearance: OrganizationTheme;
+  logoStoragePath: string | null;
+  logoUrl: string | null;
+}> {
   const { data, error } = await supabase
     .from("organizations")
-    .select("theme_mode, accent_preset, accent_seed")
+    .select("theme_mode, accent_preset, accent_seed, logo_storage_path")
     .eq("id", organizationId)
     .single();
   if (error || !data) {
     throw new Error(`Could not load organization appearance: ${error?.message ?? "Organization not found"}`);
   }
-  return normalizeOrganizationTheme({
-    accentPreset: data.accent_preset,
-    accentSeed: data.accent_seed,
-    mode: data.theme_mode,
-  });
+  const logoStoragePath = data.logo_storage_path;
+  const signedLogo = logoStoragePath
+    ? await supabase.storage
+        .from("organization-assets")
+        .createSignedUrl(logoStoragePath, 3600)
+    : null;
+  return {
+    appearance: normalizeOrganizationTheme({
+      accentPreset: data.accent_preset,
+      accentSeed: data.accent_seed,
+      mode: data.theme_mode,
+    }),
+    logoStoragePath,
+    logoUrl: signedLogo?.error ? null : signedLogo?.data.signedUrl ?? null,
+  };
 }
 
 export async function getAccessSettingsData(organizationId: string) {

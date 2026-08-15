@@ -21,6 +21,7 @@ describe("getOrganizationSettingsData", () => {
         data: {
           accent_preset: "custom",
           accent_seed: "#2563EB",
+          logo_storage_path: "organization-1/logos/logo.png",
           theme_mode: "dark",
         },
         error: null,
@@ -31,6 +32,10 @@ describe("getOrganizationSettingsData", () => {
     const branches = chainQuery({ data: [], error: null }, "order");
     const teams = chainQuery({ data: [], error: null }, "order");
     const roles = chainQuery({ data: [], error: null }, "is");
+    const createSignedUrl = vi.fn().mockResolvedValue({
+      data: { signedUrl: "https://storage.test/company-logo" },
+      error: null,
+    });
     createSupabaseServerClient.mockResolvedValue({
       from: vi.fn((table: string) => {
         if (table === "organizations") return appearanceQuery;
@@ -39,6 +44,7 @@ describe("getOrganizationSettingsData", () => {
         if (table === "person_roles") return roles;
         throw new Error(`Unexpected table ${table}`);
       }),
+      storage: { from: vi.fn(() => ({ createSignedUrl })) },
     });
 
     await expect(getOrganizationSettingsData("organization-1")).resolves.toEqual({
@@ -48,9 +54,15 @@ describe("getOrganizationSettingsData", () => {
         mode: "dark",
       },
       branches: [],
+      logoStoragePath: "organization-1/logos/logo.png",
+      logoUrl: "https://storage.test/company-logo",
       staff: [],
       teams: [],
     });
+    expect(createSignedUrl).toHaveBeenCalledWith(
+      "organization-1/logos/logo.png",
+      3600,
+    );
   });
 });
 
