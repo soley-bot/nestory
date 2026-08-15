@@ -126,7 +126,7 @@ export function AccountScreen({
           <div className="mt-3">
             <Link
               className="font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              href="/users-roles"
+              href="/settings/access"
             >
               Workspace Access
             </Link>

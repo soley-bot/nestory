@@ -101,9 +101,10 @@ function SettingsWorkspaceContent({
             branchCount={branches.length}
             onDraftStatusChange={guard?.setDraftStatus ?? (() => undefined)}
             organizationName={organizationName}
+            organizationSlug={organizationSlug}
             ref={editorRef}
             teamCount={teams.length}
-            workspaceUrl={workspaceUrl ?? organizationSlug}
+            workspaceUrl={workspaceUrl}
           />
         ) : section === "appearance" ? (
           <AppearanceEditor

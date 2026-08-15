@@ -166,7 +166,7 @@ describe("PersonDetailScreen", () => {
       { primaryAction: "grant_access", state: "no_access" },
       "No access",
       "Grant workspace access",
-      "/users-roles?personId=person-1",
+      "/settings/access?personId=person-1",
     ],
     [
       {
@@ -182,7 +182,7 @@ describe("PersonDetailScreen", () => {
       },
       "Pending invitation",
       "Review invitation",
-      "/users-roles?personId=person-1&invitationId=invitation-pending",
+      "/settings/access?personId=person-1&invitationId=invitation-pending",
     ],
     [
       {
@@ -198,7 +198,7 @@ describe("PersonDetailScreen", () => {
       },
       "Invitation failed",
       "Review and resend",
-      "/users-roles?personId=person-1&invitationId=invitation-failed",
+      "/settings/access?personId=person-1&invitationId=invitation-failed",
     ],
     [
       {
@@ -214,7 +214,7 @@ describe("PersonDetailScreen", () => {
       },
       "Invitation expired",
       "Review invitation",
-      "/users-roles?personId=person-1&invitationId=invitation-expired",
+      "/settings/access?personId=person-1&invitationId=invitation-expired",
     ],
     [
       {
@@ -228,7 +228,7 @@ describe("PersonDetailScreen", () => {
       },
       "Active access",
       "Manage workspace access",
-      "/users-roles?personId=person-1&memberId=membership-1",
+      "/settings/access?personId=person-1&memberId=membership-1",
     ],
   ] as Array<[OrganizationPersonAccessStatus, string, string, string]>) (
     "shows the %s Staff access state with a safe focus action",

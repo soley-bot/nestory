@@ -281,8 +281,11 @@ Authenticated Nestory is quiet, neutral, dense operating software:
 - Use shared drawers for focused create, edit, archive, restore, and upload work.
 - Keep one global `Search or jump` surface. Results stay server-scoped and raw
   UUIDs remain out of ordinary operator labels.
-- Settings uses header-level Workspace and Workspace Access navigation followed
-  by a compact muted section rail and one labelled content region.
+- Settings uses capability-aware, path-based Workspace and Access navigation.
+  Super Admins can manage Organization, Appearance, Branches, Teams, Rent
+  policy, and Access; Finance Managers see only Rent policy. The provisioned
+  workspace address is immutable in Settings, while the display name remains
+  editable through the checked organization boundary.
 - Organization accent and the default display mode are Super-Admin-managed and
   default to a neutral black-and-white theme. Every workspace member may choose
   a personal Light, System, or Dark display mode stored locally per organization;

@@ -76,7 +76,7 @@ describe("AccountScreen", () => {
     const hrefs = Array.from(html.matchAll(/href="([^"]+)"/g), (match) => match[1]);
     const forms = findElements(screen, (element) => element.type === "form");
 
-    expect(hrefs).toEqual(["/forgot-password", "/users-roles"]);
+    expect(hrefs).toEqual(["/forgot-password", "/settings/access"]);
     expect(forms).toHaveLength(1);
     expect((forms[0].props as { action?: unknown }).action).toBe(signOutAction);
     expect(html.match(/<button\b/g)).toHaveLength(1);
@@ -133,7 +133,7 @@ describe("AccountScreen", () => {
       />,
     );
 
-    expect(html).toContain('href="/users-roles"');
+    expect(html).toContain('href="/settings/access"');
     expect(html).toContain("Organization-wide");
     expect(html).toContain("Workspace Access");
     expect(html).toContain("Admin");

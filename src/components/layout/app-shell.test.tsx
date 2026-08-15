@@ -188,6 +188,19 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(activeLink.getAttribute("aria-current")).toBe("page");
   });
 
+  it("owns canonical Settings routes without treating Account as Settings", () => {
+    navigation.pathname = "/settings/access";
+    const { rerender } = render(
+      <AppShell role="super_admin"><div>Workspace content</div></AppShell>,
+    );
+    const settingsLink = screen.getByRole("link", { name: "Settings" });
+    expect(settingsLink.closest('[data-active="true"]')).not.toBeNull();
+
+    navigation.pathname = "/account";
+    rerender(<AppShell role="super_admin"><div>Workspace content</div></AppShell>);
+    expect(settingsLink.closest('[data-active="true"]')).toBeNull();
+  });
+
   it("keeps non-admin users out of admin destinations", () => {
     render(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
     expect(screen.queryByRole("link", { name: /Settings/ })).toBeNull();

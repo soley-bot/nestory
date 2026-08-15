@@ -202,7 +202,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
     href: "/settings",
     icon: Settings,
     label: "Settings",
-    routes: ["/settings", "/users-roles", "/account"],
+    routes: ["/settings"],
   },
 ] satisfies readonly GlobalDestination[];
 

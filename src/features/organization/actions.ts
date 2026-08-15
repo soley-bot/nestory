@@ -434,7 +434,7 @@ export async function removeMemberAccessAction(
 
 function revalidateSettings(personId?: string | null) {
   revalidatePath("/settings");
-  revalidatePath("/users-roles");
+  revalidatePath("/settings/access");
   revalidatePath("/staff");
   revalidatePath("/people");
   revalidatePath("/people/[personId]", "page");

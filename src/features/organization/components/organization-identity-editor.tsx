@@ -27,6 +27,7 @@ export const OrganizationIdentityEditor = forwardRef<
     branchCount: number;
     onDraftStatusChange: (status: DraftStatus) => void;
     organizationName: string;
+    organizationSlug?: string;
     teamCount: number;
     workspaceUrl?: string;
   }
@@ -35,6 +36,7 @@ export const OrganizationIdentityEditor = forwardRef<
     branchCount,
     onDraftStatusChange,
     organizationName,
+    organizationSlug,
     teamCount,
     workspaceUrl,
   },
@@ -61,14 +63,17 @@ export const OrganizationIdentityEditor = forwardRef<
   useEffect(() => onDraftStatusChange(draft.status), [draft.status, onDraftStatusChange]);
   useEffect(() => () => onDraftStatusChange("clean"), [onDraftStatusChange]);
 
-  const address = workspaceUrl
-    ? workspaceUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")
-    : "Address unavailable";
+  const copyableWorkspaceUrl = workspaceUrl?.startsWith("https://")
+    ? workspaceUrl
+    : undefined;
+  const address = copyableWorkspaceUrl
+    ? copyableWorkspaceUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")
+    : organizationSlug?.trim() || "Address unavailable";
 
   async function copyAddress() {
-    if (!workspaceUrl) return;
+    if (!copyableWorkspaceUrl) return;
     try {
-      await navigator.clipboard.writeText(workspaceUrl);
+      await navigator.clipboard.writeText(copyableWorkspaceUrl);
       setCopyState("copied");
     } catch {
       setCopyState("error");
@@ -134,7 +139,7 @@ export const OrganizationIdentityEditor = forwardRef<
                   </p>
                 </div>
                 <Button
-                  disabled={!workspaceUrl}
+                  disabled={!copyableWorkspaceUrl}
                   onClick={() => void copyAddress()}
                   type="button"
                   variant="outline"

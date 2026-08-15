@@ -267,14 +267,14 @@ const entityTargets: Record<ActivityEntityType, EntityTargetDefinition> = {
     entityLabel: "Organization access",
     fallbackRecordLabel: "Organization invitation",
     getHref: ({ entityId }) =>
-      buildHref("/users-roles", { invitationId: entityId }),
+      buildHref("/settings/access", { invitationId: entityId }),
     mode: "module",
   },
   organization_membership: {
     actionLabel: "Open access settings",
     entityLabel: "Organization access",
     fallbackRecordLabel: "Organization membership",
-    getHref: ({ entityId }) => buildHref("/users-roles", { memberId: entityId }),
+    getHref: ({ entityId }) => buildHref("/settings/access", { memberId: entityId }),
     mode: "module",
   },
 };

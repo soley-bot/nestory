@@ -281,12 +281,12 @@ describe("resolveActivityEntityTarget", () => {
     [
       "organization_invitation",
       "Organization access",
-      `/users-roles?invitationId=${id}`,
+      `/settings/access?invitationId=${id}`,
     ],
     [
       "organization_membership",
       "Organization access",
-      `/users-roles?memberId=${id}`,
+      `/settings/access?memberId=${id}`,
     ],
   ])("uses a safe module target for %s", (entityType, entityLabel, href) => {
     expect(

@@ -60,7 +60,7 @@ export function getWorkspaceAccessPresentation(
       return {
         actionLabel: "Manage workspace access",
         detail: `${formatWorkspaceAccessRole(status.role)} / ${status.scopeLabel}`,
-        href: `/users-roles?${params.toString()}`,
+        href: `/settings/access?${params.toString()}`,
         stateLabel: "Active access",
         tone: "success",
       };
@@ -69,7 +69,7 @@ export function getWorkspaceAccessPresentation(
       return {
         actionLabel: "Review and resend",
         detail: `${status.email} / Delivery needs attention.`,
-        href: `/users-roles?${params.toString()}`,
+        href: `/settings/access?${params.toString()}`,
         stateLabel: "Invitation failed",
         tone: "danger",
       };
@@ -78,7 +78,7 @@ export function getWorkspaceAccessPresentation(
       return {
         actionLabel: "Review invitation",
         detail: `Expired ${formatDate(status.expiresAt)}`,
-        href: `/users-roles?${params.toString()}`,
+        href: `/settings/access?${params.toString()}`,
         stateLabel: "Invitation expired",
         tone: "warning",
       };
@@ -89,7 +89,7 @@ export function getWorkspaceAccessPresentation(
         detail: status.lastSentAt
           ? `${status.email} / Last sent ${formatDate(status.lastSentAt)}`
           : `${status.email} / Awaiting acceptance.`,
-        href: `/users-roles?${params.toString()}`,
+        href: `/settings/access?${params.toString()}`,
         stateLabel: "Pending invitation",
         tone: "accent",
       };
@@ -97,7 +97,7 @@ export function getWorkspaceAccessPresentation(
       return {
         actionLabel: "Grant workspace access",
         detail: "Operational Staff record only.",
-        href: `/users-roles?${params.toString()}`,
+        href: `/settings/access?${params.toString()}`,
         stateLabel: "No access",
         tone: "neutral",
       };

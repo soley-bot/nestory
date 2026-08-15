@@ -83,4 +83,23 @@ describe("OrganizationIdentityEditor", () => {
     expect(writeText).toHaveBeenCalledWith("https://nestory-test.nestory-kh.com/");
     expect(await screen.findByText("Workspace address copied.")).not.toBeNull();
   });
+
+  it("shows the immutable slug when a root domain is unavailable", () => {
+    render(
+      <OrganizationIdentityEditor
+        branchCount={0}
+        onDraftStatusChange={() => undefined}
+        organizationName="Soley Property Management"
+        organizationSlug="spm"
+        teamCount={0}
+        workspaceUrl="/"
+      />,
+    );
+
+    expect(screen.getByText("spm")).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "Copy workspace address" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
 });
