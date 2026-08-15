@@ -489,6 +489,33 @@ describe("LeaseScreen redesign contract", () => {
     expect(getLeaseFormValue(drawer, "unitId")).toBe("unit-1");
   });
 
+  it("keeps preserved Property and Unit labels visible when the term becomes incomplete", async () => {
+    const user = userEvent.setup();
+    renderLeases();
+
+    await user.click(screen.getByRole("button", { name: "Add lease" }));
+    const drawer = screen.getByRole("dialog", { name: "Add lease" });
+    setLeaseDates(drawer, "2026-09-01", "2026-09-30");
+    await selectLeasePlacement(user, drawer, "Riverside House", "Unit 2A");
+
+    fireEvent.input(
+      drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
+      { target: { value: "" } },
+    );
+
+    const property = within(drawer).getByRole("combobox", {
+      name: /Property/,
+    });
+    const unit = within(drawer).getByRole("combobox", { name: /Unit/ });
+
+    expect(property.textContent).toContain("Riverside House");
+    expect(unit.textContent).toContain("Unit 2A");
+    expect((property as HTMLButtonElement).disabled).toBe(true);
+    expect((unit as HTMLButtonElement).disabled).toBe(true);
+    expect(getLeaseFormValue(drawer, "propertyId")).toBe("property-1");
+    expect(getLeaseFormValue(drawer, "unitId")).toBe("unit-1");
+  });
+
   it("clears only an ineligible Unit when its Property still has an eligible Unit", async () => {
     const user = userEvent.setup();
     renderLeases({

@@ -133,7 +133,15 @@ export function LeaseForm({
         : [],
     [availablePropertyIds, hasValidLeaseDates, properties],
   );
-  const propertyOptions = availableProperties;
+  const propertyOptions = useMemo(
+    () =>
+      ensureSelectedProperty(
+        availableProperties,
+        properties,
+        selectedPropertyId,
+      ),
+    [availableProperties, properties, selectedPropertyId],
+  );
   const unitOptions = useMemo(
     () =>
       ensureSelectedUnit(
@@ -581,6 +589,27 @@ function ensureSelectedUnit(
   const selectedUnit = allUnits.find((unit) => unit.id === selectedUnitId);
 
   return selectedUnit ? [...scopedUnits, selectedUnit] : scopedUnits;
+}
+
+function ensureSelectedProperty(
+  scopedProperties: LeasePropertyOption[],
+  allProperties: LeasePropertyOption[],
+  selectedPropertyId: string,
+) {
+  if (
+    !selectedPropertyId ||
+    scopedProperties.some((property) => property.id === selectedPropertyId)
+  ) {
+    return scopedProperties;
+  }
+
+  const selectedProperty = allProperties.find(
+    (property) => property.id === selectedPropertyId,
+  );
+
+  return selectedProperty
+    ? [...scopedProperties, selectedProperty]
+    : scopedProperties;
 }
 
 function ensureSelectedTenant(
