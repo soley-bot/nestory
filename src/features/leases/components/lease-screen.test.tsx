@@ -86,6 +86,67 @@ afterEach(() => {
 });
 
 describe("LeaseScreen redesign contract", () => {
+  it("gives status more register width than rent", () => {
+    renderLeases();
+
+    const columns = Array.from(
+      screen.getByRole("table").querySelectorAll("col"),
+      (column) => column.className,
+    );
+
+    expect(columns).toEqual([
+      "w-[18%]",
+      "w-[24%]",
+      "w-[24%]",
+      "w-[10%]",
+      "w-[24%]",
+    ]);
+  });
+
+  it("keeps deposit attention beside the status badge on desktop", () => {
+    const lease = makeLease("lease-1", "Alice Tenant", "Unit 2A");
+    lease.deposits[0]!.statusLabel = "Partially Returned";
+
+    renderLeases({ leases: [lease] });
+
+    const statusCell = screen.getAllByRole("row")[1]!.querySelectorAll("td")[4]!;
+    const attention = within(statusCell).getByText(
+      "Partially Returned deposit",
+    );
+
+    expect(attention.parentElement?.className).toContain("items-center");
+    expect(attention.className).toContain("truncate");
+    expect(attention.className).not.toContain("mt-1");
+  });
+
+  it("aligns the register surface with the page gutter on desktop", () => {
+    const { container } = renderLeases();
+
+    const registerGutter = container.querySelector<HTMLElement>(
+      '[data-slot="lease-register-gutter"]',
+    );
+    const registerSurface = container.querySelector<HTMLElement>(
+      '[data-slot="lease-register-surface"]',
+    );
+
+    expect(registerGutter).not.toBeNull();
+    expect(registerGutter!.className).toContain("workspace-gutter-x");
+    expect(registerSurface).not.toBeNull();
+    expect(registerSurface!.className).toContain("border");
+    expect(registerSurface!.className).toContain("rounded-md");
+    expect(registerSurface!.className).toContain("overflow-hidden");
+    expect(registerSurface!.contains(screen.getByRole("table"))).toBe(true);
+    expect(
+      registerSurface!.contains(
+        screen.getByText(
+          (_content, element) =>
+            element?.tagName === "P" &&
+            element.textContent?.includes("Showing") === true,
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it("keeps the visible page identity and actions while removing page-local summary framing", () => {
     const { container } = renderLeases();
 

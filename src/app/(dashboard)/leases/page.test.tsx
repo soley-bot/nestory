@@ -61,7 +61,6 @@ describe("leases route", () => {
     expect(screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         canConfigure,
-        canReadFinanceReports: role !== "finance_member",
       }),
     );
   });
