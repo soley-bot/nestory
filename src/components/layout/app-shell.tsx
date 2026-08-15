@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   LogOut,
   PlusCircle,
-  ScrollText,
   Settings,
   UserRound,
   UsersRound,
@@ -108,13 +107,15 @@ const FINANCE_CHILDREN = [
   { href: "/ledger", label: "Ledger", routes: ["/ledger"] },
 ] satisfies readonly GlobalDestinationChild[];
 
-const LEASE_DESTINATION = {
-  id: "leases",
-  href: "/leases",
-  icon: ScrollText,
-  label: "Leases",
-  routes: ["/leases"],
-} satisfies GlobalDestination;
+const FINANCE_MANAGER_CHILDREN = [
+  { href: "/finance", label: "Review queue", routes: ["/finance"] },
+  ...FINANCE_CHILDREN.slice(1),
+] satisfies readonly GlobalDestinationChild[];
+
+const FINANCE_MEMBER_CHILDREN = [
+  { href: "/finance", label: "My submissions", routes: ["/finance"] },
+  { href: "/bills-expenses", label: "Expenses", routes: ["/bills-expenses"] },
+] satisfies readonly GlobalDestinationChild[];
 
 const MAINTENANCE_CHILDREN = [
   { href: "/maintenance", label: "Cases", routes: ["/maintenance"] },
@@ -231,7 +232,7 @@ const ADMIN_GLOBAL_DESTINATIONS = [
 const FINANCE_MANAGER_GLOBAL_DESTINATIONS = [
   {
     children: [
-      ...FINANCE_CHILDREN,
+      ...FINANCE_MANAGER_CHILDREN,
       {
         href: "/settings/rent-policy",
         label: "Rent policy",
@@ -243,11 +244,10 @@ const FINANCE_MANAGER_GLOBAL_DESTINATIONS = [
     icon: Landmark,
     label: "Finance",
     routes: [
-      ...FINANCE_CHILDREN.flatMap((destination) => destination.routes),
+      ...FINANCE_MANAGER_CHILDREN.flatMap((destination) => destination.routes),
       "/settings/rent-policy",
     ],
   },
-  LEASE_DESTINATION,
   {
     id: "reports",
     href: "/reports",
@@ -259,14 +259,13 @@ const FINANCE_MANAGER_GLOBAL_DESTINATIONS = [
 
 const FINANCE_MEMBER_GLOBAL_DESTINATIONS = [
   {
-    children: FINANCE_CHILDREN,
+    children: FINANCE_MEMBER_CHILDREN,
     id: "finance",
     href: "/finance",
     icon: Landmark,
     label: "Finance",
-    routes: FINANCE_CHILDREN.flatMap((destination) => destination.routes),
+    routes: FINANCE_MEMBER_CHILDREN.flatMap((destination) => destination.routes),
   },
-  LEASE_DESTINATION,
 ] satisfies readonly GlobalDestination[];
 
 const OPERATIONS_MANAGER_GLOBAL_DESTINATIONS = [

@@ -19,6 +19,16 @@ const financeDestinations = [
   { href: "/ledger", label: "Ledger", route: "/ledger" },
 ] as const;
 
+const financeManagerDestinations = [
+  { href: "/finance", label: "Review queue", route: "/finance" },
+  ...financeDestinations.slice(1),
+] as const;
+
+const financeMemberDestinations = [
+  { href: "/finance", label: "My submissions", route: "/finance" },
+  { href: "/bills-expenses", label: "Expenses", route: "/bills-expenses" },
+] as const;
+
 export type FinanceWorkspaceRoute =
   | (typeof financeDestinations)[number]["route"]
   | "/reports";
@@ -26,16 +36,24 @@ export type FinanceWorkspaceRoute =
 export function FinanceWorkspaceNavigation({
   activeRoute,
   canReadFinanceReports = false,
+  role = "super_admin",
 }: {
   activeRoute: FinanceWorkspaceRoute;
   canReadFinanceReports?: boolean;
+  role?: "super_admin" | "finance_manager" | "finance_member";
 }) {
+  const roleDestinations =
+    role === "finance_member"
+      ? financeMemberDestinations
+      : role === "finance_manager"
+        ? financeManagerDestinations
+        : financeDestinations;
   const destinations = canReadFinanceReports
     ? [
-        ...financeDestinations,
+        ...roleDestinations,
         { href: "/reports", label: "Reports", route: "/reports" } as const,
       ]
-    : financeDestinations;
+    : roleDestinations;
 
   return (
     <LocalWorkspaceNav

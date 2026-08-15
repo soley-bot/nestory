@@ -63,4 +63,23 @@ describe("FinanceWorkspaceNavigation", () => {
     );
     expect(within(navigation).queryByRole("link", { name: "Reports" })).toBeNull();
   });
+
+  it("keeps the Finance Member mobile fallback focused on submissions", () => {
+    render(
+      <FinanceWorkspaceNavigation
+        activeRoute="/finance"
+        role="finance_member"
+      />,
+    );
+
+    const navigation = screen.getByRole("navigation", {
+      name: "Finance workspace",
+    });
+    expect(
+      within(navigation)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["My submissions", "Expenses"]);
+    expect(within(navigation).queryByRole("link", { name: "Petty cash" })).toBeNull();
+  });
 });

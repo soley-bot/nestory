@@ -141,21 +141,29 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(register.getAttribute("aria-current")).toBe("page");
   });
 
-  it.each(["finance_manager", "finance_member"] as const)(
-    "composes %s navigation around its own finance responsibility",
-    (role) => {
-      navigation.pathname = "/finance";
-      render(<AppShell role={role}><div>Workspace content</div></AppShell>);
+  it("gives Finance Manager a review-first finance navigation", () => {
+    navigation.pathname = "/finance";
+    render(<AppShell role="finance_manager"><div>Workspace content</div></AppShell>);
 
-      expect(screen.getByRole("link", { name: "Work queue" })).toBeTruthy();
-      expect(screen.getByRole("link", { name: "Ledger" })).toBeTruthy();
-      expect(Boolean(screen.queryByRole("link", { name: "Rent policy" }))).toBe(
-        role === "finance_manager",
-      );
-      expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
-      expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();
-    },
-  );
+    expect(screen.getByRole("link", { name: "Review queue" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Ledger" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Petty cash" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Rent policy" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();
+  });
+
+  it("limits Finance Member navigation to submission work", () => {
+    navigation.pathname = "/finance";
+    render(<AppShell role="finance_member"><div>Workspace content</div></AppShell>);
+
+    expect(screen.getByRole("link", { name: "My submissions" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Expenses" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Petty cash" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Ledger" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Leases" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Rent policy" })).toBeNull();
+  });
 
   it("makes Reports discoverable only to the Finance Manager among non-admin roles", () => {
     const { rerender } = render(

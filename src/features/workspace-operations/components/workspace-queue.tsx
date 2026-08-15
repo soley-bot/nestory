@@ -149,8 +149,11 @@ export function WorkspaceQueue({
 }) {
   return (
     <>
-      <div className="hidden md:block" data-slot="workspace-queue-table">
-        <Table aria-label={label}>
+      <div
+        className="hidden min-w-0 max-w-full overflow-hidden md:block"
+        data-slot="workspace-queue-table"
+      >
+        <Table aria-label={label} scrollRegionLabel={`${label} table`}>
           <TableHeader sticky>
             <TableRow>
               {columns.map((column, index) => (
