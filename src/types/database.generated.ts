@@ -4194,6 +4194,7 @@ export type Database = {
           created_at: string
           id: string
           khr_per_usd: number
+          logo_storage_path: string | null
           name: string
           operational_timezone: string
           preferred_currency: Database["public"]["Enums"]["currency_code"]
@@ -4207,6 +4208,7 @@ export type Database = {
           created_at?: string
           id?: string
           khr_per_usd?: number
+          logo_storage_path?: string | null
           name: string
           operational_timezone?: string
           preferred_currency?: Database["public"]["Enums"]["currency_code"]
@@ -4220,6 +4222,7 @@ export type Database = {
           created_at?: string
           id?: string
           khr_per_usd?: number
+          logo_storage_path?: string | null
           name?: string
           operational_timezone?: string
           preferred_currency?: Database["public"]["Enums"]["currency_code"]
@@ -10513,6 +10516,10 @@ export type Database = {
       }
       update_organization_identity: {
         Args: { p_name: string; p_organization_id: string }
+        Returns: string
+      }
+      update_organization_logo: {
+        Args: { p_logo_storage_path: string; p_organization_id: string }
         Returns: string
       }
       update_organization_member_access: {
