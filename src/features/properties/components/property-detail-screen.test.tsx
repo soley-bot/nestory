@@ -352,6 +352,9 @@ const propertyWithMaintenance = buildPropertyDetail({
     property_type: "Serviced Apartment",
     status: "active",
   },
+  recordCounts: {
+    overdueMaintenanceCases: 0,
+  },
   units: [
     {
       archived_at: null,

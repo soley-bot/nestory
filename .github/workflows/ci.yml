@@ -13,6 +13,7 @@ concurrency:
 
 permissions:
   contents: read
+  statuses: write
 
 jobs:
   application:
@@ -110,3 +111,49 @@ jobs:
       - name: Stop local Supabase
         if: always()
         run: npm run supabase:stop
+
+  application_gate:
+    name: Report Application deployment gate
+    needs: application
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Report Application deployment gate
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const state = "${{ needs.application.result }}" === "success" ? "success" : "failure";
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state,
+              context: "Vercel - nestory: Application",
+              description: `Application CI ${state === "success" ? "passed" : "failed"}`,
+              target_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            });
+
+  database_gate:
+    name: Report Database deployment gate
+    needs: database
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Report Database deployment gate
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const state = "${{ needs.database.result }}" === "success" ? "success" : "failure";
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state,
+              context: "Vercel - nestory: Database",
+              description: `Database CI ${state === "success" ? "passed" : "failed"}`,
+              target_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            });
