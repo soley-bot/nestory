@@ -203,6 +203,12 @@ describe("FinanceOperationsScreen", () => {
     const dialog = screen.getByRole("dialog", { name: "Invoice details" });
     expect(within(dialog).getByText("Aug 2026 lease month")).not.toBeNull();
     expect(within(dialog).getByText("Prorated")).not.toBeNull();
+    expect(
+      within(dialog).getByRole("link", { name: "Open Property finance" }).getAttribute("href"),
+    ).toBe("/properties/property-1/finance?view=rent");
+    expect(
+      within(dialog).getByRole("link", { name: "Open Unit finance" }).getAttribute("href"),
+    ).toBe("/units/unit-1/finance?view=rent");
     expect(screen.queryByText(/journal|month close|uuid/i)).toBeNull();
   });
 
@@ -233,6 +239,31 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.getAllByText("1 invoice", { exact: true }).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("adds a simple manual charge from the focused Lease context", async () => {
+    const user = userEvent.setup();
+    const input = data();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        initialRentLeaseId="lease-1"
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add charge" }));
+    const dialog = screen.getByRole("dialog", { name: "Add charge" });
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value,
+    ).toBe("lease-1");
+    expect(within(dialog).getByRole("combobox", { name: "Charge type" })).not.toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Billing month" })).not.toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Due date" })).not.toBeNull();
+    expect(within(dialog).getByLabelText("Amount")).not.toBeNull();
   });
 
   it("distinguishes overdue rent from a payment completed after its due date", () => {
@@ -359,7 +390,7 @@ describe("FinanceOperationsScreen", () => {
     });
     expect(
       within(navigation)
-        .getByRole("link", { name: "Work queue" })
+        .getByRole("link", { name: "Portfolio review" })
         .getAttribute("aria-current"),
     ).toBe("page");
     expect(screen.getByText("Set up lease billing")).not.toBeNull();

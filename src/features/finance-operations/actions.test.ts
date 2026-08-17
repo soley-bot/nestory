@@ -55,6 +55,7 @@ vi.mock("@/lib/db/admin", () => ({
 
 import {
   confirmOwnerCollectionAction,
+  createManualTenantChargeAction,
   recordOwnerPaymentAction,
   recordTenantInvoicePaymentAction,
   recordWithdrawalAction,
@@ -99,6 +100,37 @@ describe("rent generation recovery action", () => {
     requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
+  });
+
+  it("adds a manual tenant charge through the canonical checked invoice RPC", async () => {
+    requireLeaseConfigurationContext.mockResolvedValue({ organizationId });
+    rpc.mockResolvedValueOnce({
+      data: { invoiceId: sourceId, leaseId, lineId: submissionId },
+      error: null,
+    });
+    const formData = new FormData();
+    formData.set("amount", "75.50");
+    formData.set("billingPeriod", "2026-08");
+    formData.set("chargeType", "utilities");
+    formData.set("description", "Water bill");
+    formData.set("dueDate", "2026-08-20");
+    formData.set("idempotencyKey", "manual-charge-v1");
+    formData.set("leaseId", leaseId);
+
+    await expect(createManualTenantChargeAction({}, formData)).resolves.toMatchObject({
+      message: "Charge added.",
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("create_manual_tenant_charge", {
+      p_amount: 75.5,
+      p_billing_period_start: "2026-08-01",
+      p_charge_type: "utilities",
+      p_description: "Water bill",
+      p_due_date: "2026-08-20",
+      p_idempotency_key: "manual-charge-v1",
+      p_lease_id: leaseId,
+      p_organization_id: organizationId,
+    });
   });
 
   it("uses the current-rent retry context and retries only the selected exception", async () => {

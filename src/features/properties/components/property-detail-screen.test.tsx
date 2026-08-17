@@ -7,12 +7,17 @@ import {
   screen,
   within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PropertyDetailScreen } from "@/features/properties/components/property-detail-screen";
 import {
   buildPropertyDetail,
   type PropertyDetail,
 } from "@/features/properties/data/property-detail";
+
+vi.mock("@/features/leases/actions", () => ({
+  createLeaseAction: async () => ({}),
+  updateLeaseAction: async () => ({}),
+}));
 
 afterEach(() => {
   cleanup();
@@ -84,9 +89,27 @@ describe("PropertyDetailScreen task-first detail contract", () => {
       units: [],
     });
     rerender(
-      <PropertyDetailScreen ownerOptions={[]} property={wholeProperty} />,
+      <PropertyDetailScreen
+        ownerOptions={[]}
+        property={wholeProperty}
+        tenantOptions={tenantOptions}
+      />,
     );
-    expect(screen.getByRole("link", { name: "Create lease" })).toBeTruthy();
+    const createLease = screen.getByRole("button", { name: "Create lease" });
+    fireEvent.click(createLease);
+
+    const drawer = screen.getByRole("dialog", { name: "Create lease" });
+    const form = within(drawer).getByRole("form", { name: "Add lease form" });
+    expect(within(drawer).getByText("Riverside House")).toBeTruthy();
+    expect(within(drawer).getByText("Whole property")).toBeTruthy();
+    expect(within(drawer).queryByRole("combobox", { name: /Property/ })).toBeNull();
+    expect(within(drawer).queryByRole("combobox", { name: /Unit/ })).toBeNull();
+    expect(
+      form.querySelector<HTMLInputElement>('input[name="propertyId"]')?.value,
+    ).toBe("property-whole");
+    expect(
+      form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value,
+    ).toBe("");
     expect(screen.queryByRole("button", { name: "Add first unit" })).toBeNull();
   });
 
@@ -110,14 +133,14 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     ).toEqual([
       "Overview",
       "Units",
-      "Account",
+      "Finance",
       "Maintenance",
       "Files",
     ]);
 
     expect(
-      within(tablist).getByRole("tab", { name: "Account" }).getAttribute("href"),
-    ).toBe("/properties/property-1/account");
+      within(tablist).getByRole("tab", { name: "Finance" }).getAttribute("href"),
+    ).toBe("/properties/property-1/finance");
 
     const tabNavigation = tablist.closest("nav");
     expect(tabNavigation?.className.split(" ")).not.toContain("rounded-md");
@@ -263,6 +286,7 @@ describe("PropertyDetailScreen task-first detail contract", () => {
         initialSection="maintenance"
         ownerOptions={[]}
         property={property}
+        tenantOptions={tenantOptions}
       />,
     );
 
@@ -399,9 +423,20 @@ function renderPropertyDetail({
       initialSection={initialSection}
       ownerOptions={[]}
       property={propertyOverride}
+      tenantOptions={tenantOptions}
     />,
   );
 }
+
+const tenantOptions = [
+  {
+    archived: false,
+    description: "Tenant",
+    id: "tenant-1",
+    label: "Dara Tenant",
+    roles: ["tenant" as const],
+  },
+];
 
 const propertyWithMaintenance = buildPropertyDetail({
   activeLeases: [

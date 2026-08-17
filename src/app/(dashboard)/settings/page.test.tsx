@@ -34,12 +34,12 @@ describe("SettingsPage", () => {
     expect(redirect).toHaveBeenCalledWith(href);
   });
 
-  it("sends Finance Manager to their only allowed Settings destination", async () => {
+  it("sends Finance Manager without ordinary Settings to no access", async () => {
     requireWorkspaceContext.mockResolvedValue({ role: "finance_manager" });
 
     await expect(
       SettingsPage({ searchParams: Promise.resolve({}) }),
-    ).rejects.toThrow("redirect:/settings/rent-policy");
+    ).rejects.toThrow("redirect:/no-access");
   });
 
   it("sends roles without Settings capability to no access", async () => {

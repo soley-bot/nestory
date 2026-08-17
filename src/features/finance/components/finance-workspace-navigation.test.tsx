@@ -8,7 +8,7 @@ afterEach(cleanup);
 
 describe("FinanceWorkspaceNavigation", () => {
   it("remains a complete mobile fallback and stays hidden on desktop", () => {
-    render(<FinanceWorkspaceNavigation activeRoute="/ledger" />);
+    render(<FinanceWorkspaceNavigation activeRoute="/finance/advanced" />);
 
     const navigation = screen.getByRole("navigation", {
       name: "Finance workspace",
@@ -16,12 +16,11 @@ describe("FinanceWorkspaceNavigation", () => {
     expect(navigation.className).toContain("md:hidden");
 
     for (const label of [
-      "Work queue",
+      "Portfolio review",
       "Rent & collections",
       "Expenses",
       "Owner accounts",
-      "Petty cash",
-      "Ledger",
+      "Advanced",
     ]) {
       expect(within(navigation).getByRole("link", { name: label })).toBeTruthy();
     }
@@ -31,15 +30,14 @@ describe("FinanceWorkspaceNavigation", () => {
         .getAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual([
-      "Work queue",
+      "Portfolio review",
       "Rent & collections",
       "Expenses",
       "Owner accounts",
-      "Petty cash",
-      "Ledger",
+      "Advanced",
     ]);
     expect(
-      within(navigation).getByRole("link", { name: "Ledger" }).getAttribute(
+      within(navigation).getByRole("link", { name: "Advanced" }).getAttribute(
         "aria-current",
       ),
     ).toBe("page");

@@ -19,27 +19,13 @@ const SUPER_ADMIN_SETTINGS: SettingsDestination[] = [
   },
   { group: "workspace", href: "/settings/branches", label: "Branches" },
   { group: "workspace", href: "/settings/teams", label: "Teams" },
-  {
-    group: "workspace",
-    href: "/settings/rent-policy",
-    label: "Rent policy",
-  },
   { group: "access", href: "/settings/access", label: "Access" },
-];
-
-const RENT_POLICY_SETTINGS: SettingsDestination[] = [
-  {
-    group: "workspace",
-    href: "/settings/rent-policy",
-    label: "Rent policy",
-  },
 ];
 
 export function getSettingsDestinations(
   role: WorkspaceRole,
 ): SettingsDestination[] {
   if (role === "super_admin") return SUPER_ADMIN_SETTINGS;
-  if (role === "finance_manager") return RENT_POLICY_SETTINGS;
   return [];
 }
 

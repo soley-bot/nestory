@@ -17,6 +17,7 @@ import {
   recordLeaseDepositEventAction,
   recordCurrentLeaseOccupancyEvidenceAction,
   reverseLeaseDepositEventAction,
+  scheduleLeaseActivationAction,
   transitionLeaseLifecycleAction,
 } from "@/features/leases/actions";
 
@@ -46,7 +47,7 @@ describe("Lease occupancy evidence input", () => {
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "create_lease_with_relationships",
+      "create_simplified_unit_lease",
       expect.objectContaining({
         p_relationship_payload: expect.objectContaining({
           occupancy: expect.objectContaining({
@@ -91,6 +92,34 @@ describe("Lease occupancy evidence input", () => {
         unitId: ["This unit is already reserved for those dates."],
       },
       status: "error",
+    });
+  });
+
+  it("uses the checked Property-only mutation when the fixed context has no Unit", async () => {
+    const formData = leaseForm();
+    formData.set("status", "draft");
+    formData.set("termStatus", "draft");
+    formData.set("unitId", "");
+
+    await expect(createLeaseAction({}, formData)).resolves.toMatchObject({
+      leaseId,
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("create_property_lease", {
+      p_deposit_amount: 500,
+      p_deposit_currency: "USD",
+      p_idempotency_key: "lease-occupancy-evidence-1",
+      p_lease_end_date: "2028-04-30",
+      p_lease_start_date: "2027-05-01",
+      p_lease_status: "draft",
+      p_organization_id: organizationId,
+      p_payment_frequency: "monthly",
+      p_primary_tenant_person_id: tenantPersonId,
+      p_property_id: propertyId,
+      p_rent_amount: 900,
+      p_rent_currency: "USD",
+      p_rent_due_day: 1,
+      p_term_status: "draft",
     });
   });
 
@@ -164,6 +193,34 @@ describe("Lease occupancy evidence input", () => {
       p_transition: "give_notice",
     });
     expect(revalidatePath).toHaveBeenCalledWith(`/leases/${leaseId}`);
+  });
+
+  it("requests simple Lease activation without an operator explanation", async () => {
+    const occupancyId = "40000000-0000-0000-0000-000000000001";
+    const formData = new FormData();
+    formData.set("activationDate", "2027-05-01");
+    formData.set("expectedOccupancyId", occupancyId);
+    formData.set("expectedStatus", "draft");
+    formData.set("idempotencyKey", "lease-activation-v1");
+    formData.set("leaseId", leaseId);
+    rpc.mockResolvedValueOnce({
+      data: { leaseId, status: "scheduled" },
+      error: null,
+    });
+
+    await expect(scheduleLeaseActivationAction({}, formData)).resolves.toMatchObject({
+      leaseId,
+      message: "Lease activation scheduled for 2027-05-01.",
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("request_lease_activation", {
+      p_activation_date: "2027-05-01",
+      p_expected_occupancy_id: occupancyId,
+      p_expected_status: "draft",
+      p_idempotency_key: "lease-activation-v1",
+      p_lease_id: leaseId,
+      p_organization_id: organizationId,
+    });
   });
 
   it("records deposit activity with a deterministic PostgreSQL fixture identifier", async () => {

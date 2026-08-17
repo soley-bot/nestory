@@ -180,7 +180,7 @@ describe("PropertyAccountPage", () => {
     });
     expect(within(propertyTabs).getAllByRole("tab")).toHaveLength(5);
     expect(
-      within(propertyTabs).getByRole("tab", { name: "Account" }).getAttribute(
+      within(propertyTabs).getByRole("tab", { name: "Finance" }).getAttribute(
         "aria-selected",
       ),
     ).toBe("true");

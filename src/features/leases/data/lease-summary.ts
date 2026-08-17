@@ -148,6 +148,7 @@ export type LeaseTimelineRow = {
 };
 
 type BuildLeaseSummaryInput = {
+  activationSchedule?: LeaseSummary["activationSchedule"];
   activity?: RecentChange[];
   documents?: LeaseDocumentRow[];
   ledgerEntryCount?: number;
@@ -163,6 +164,7 @@ type BuildLeaseSummaryInput = {
 };
 
 export function buildLeaseSummary({
+  activationSchedule,
   activity = [],
   documents = [],
   ledgerEntryCount = 0,
@@ -251,6 +253,7 @@ export function buildLeaseSummary({
   const endRisk = getLeaseEndRisk(displayEndDate);
 
   return {
+    activationSchedule,
     activity,
     depositDisplay: hasDeposit
       ? formatMoneyDisplay(depositAmount, depositCurrency)

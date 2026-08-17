@@ -61,6 +61,13 @@ export type LeaseUnitReservation = {
 
 export type LeaseTenantOption = PersonSelectOption;
 
+export type LeaseCreateContext = {
+  propertyId: string;
+  propertyLabel: string;
+  unitId: string | null;
+  unitLabel: string | null;
+};
+
 export type LeaseFormValues = {
   depositAmount?: number | null;
   depositCurrency?: CurrencyCode | null;
@@ -211,6 +218,12 @@ export type LeaseDetailHrefs = {
 };
 
 export type LeaseSummary = {
+  activationSchedule?: {
+    activationDate: string;
+    failureMessage: string | null;
+    id: string;
+    status: "cancelled" | "failed" | "pending" | "processed";
+  };
   activity: RecentChange[];
   depositDisplay?: MoneyDisplayValue;
   depositLabel: string;

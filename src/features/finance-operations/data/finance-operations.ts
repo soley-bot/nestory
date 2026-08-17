@@ -579,6 +579,54 @@ export async function getFinanceOperationsData(
   };
 }
 
+export function scopeFinanceOperationsData(
+  data: FinanceOperationsData,
+  scope: { propertyId: string; unitId?: string | null },
+): FinanceOperationsData {
+  const inScope = (propertyId: string, unitId?: string | null) =>
+    propertyId === scope.propertyId &&
+    (!scope.unitId || unitId === scope.unitId);
+
+  return {
+    accountEntries: data.accountEntries.filter(
+      (entry) => entry.propertyId === scope.propertyId,
+    ),
+    expenseSubmissions: data.expenseSubmissions.filter((submission) =>
+      inScope(submission.propertyId, submission.unitId),
+    ),
+    leases: data.leases.filter((lease) =>
+      inScope(lease.propertyId, lease.unitId),
+    ),
+    ownerInvoices: data.ownerInvoices.filter(
+      (invoice) => invoice.propertyId === scope.propertyId,
+    ),
+    peopleOptions: data.peopleOptions,
+    positions: data.positions.filter(
+      (position) => position.propertyId === scope.propertyId,
+    ),
+    propertyOptions: data.propertyOptions.filter(
+      (property) => property.id === scope.propertyId,
+    ),
+    reconciliationSources: data.reconciliationSources.filter(
+      (source) => !source.propertyId || source.propertyId === scope.propertyId,
+    ),
+    rentGenerationExceptions: data.rentGenerationExceptions.filter(
+      (exception) => exception.propertyId === scope.propertyId &&
+        (!scope.unitId || data.leases.some(
+          (lease) => lease.id === exception.leaseId && lease.unitId === scope.unitId,
+        )),
+    ),
+    tenantInvoices: data.tenantInvoices.filter((invoice) =>
+      inScope(invoice.propertyId, invoice.unitId),
+    ),
+    unitOptions: data.unitOptions.filter(
+      (unit) =>
+        unit.propertyId === scope.propertyId &&
+        (!scope.unitId || unit.id === scope.unitId),
+    ),
+  };
+}
+
 async function getTenantInvoiceSettlementRows(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
@@ -885,10 +933,15 @@ function toBilling(
 ): LeaseBillingSummary {
   return {
     billingRecipientKind: row.billing_recipient_kind as
-      "company" | "individual",
+      | "company"
+      | "individual"
+      | null,
     billingRecipientPersonId: row.billing_recipient_person_id,
     chargeManagementFeeWhenActive: row.charge_management_fee_when_active,
-    collectionRoute: row.collection_route as "direct_to_owner" | "through_ips",
+    collectionRoute: row.collection_route as
+      | "direct_to_owner"
+      | "through_ips"
+      | null,
     effectiveFrom: row.effective_from,
     finalPeriodProratedAmount:
       row.final_period_prorated_amount === null
@@ -900,8 +953,14 @@ function toBilling(
         : Number(row.first_period_prorated_amount),
     fullManagementFeeDuringProration: row.full_management_fee_during_proration,
     id: row.id,
-    managementFeeMode: row.management_fee_mode as "flat" | "percentage",
-    managementFeeValue: Number(row.management_fee_value),
+    managementFeeMode: row.management_fee_mode as
+      | "flat"
+      | "percentage"
+      | null,
+    managementFeeValue:
+      row.management_fee_value === null
+        ? null
+        : Number(row.management_fee_value),
   };
 }
 

@@ -130,26 +130,15 @@ try {
   if (await page.getByText("Saved uppercase and used across imports").count()) {
     throw new Error("Property code helper text should stay out of the drawer.");
   }
-  if (await page.getByText("Fallback owner label").count()) {
-    throw new Error("Fallback owner label should not be visible in the drawer.");
+  await page.getByRole("textbox", { name: /Property name/ }).waitFor();
+  await page.getByRole("textbox", { name: /Property type/ }).waitFor();
+  await page.getByRole("button", { name: "Registered date" }).waitFor();
+  if (await page.getByRole("combobox", { name: "Property owner" }).count()) {
+    throw new Error("New Property setup should defer owner details to the record.");
   }
-  await page.getByRole("link", { name: /create owner/i }).waitFor();
-  const createOwnerHref = await page
-    .getByRole("link", { name: /create owner/i })
-    .getAttribute("href");
-  if (createOwnerHref !== "/owners?action=create") {
-    throw new Error(`Expected create owner href, got ${createOwnerHref}`);
+  if (await page.getByText("Acquisition date", { exact: true }).count()) {
+    throw new Error("New Property setup should defer acquisition details to the record.");
   }
-  await page
-    .getByRole("combobox", { name: "Property owner" })
-    .click();
-  const ownerMenuText = await page
-    .getByRole("listbox", { name: "Property owner person options" })
-    .innerText();
-  if (/BrightLine Electrical|CoolAir Service Cambodia/i.test(ownerMenuText)) {
-    throw new Error("Owner dropdown should not include vendor records.");
-  }
-  await page.keyboard.press("Enter");
   await page.getByText("Property photo", { exact: true }).waitFor();
   const photoInputAccept = await page
     .locator('input[name="photo"]')

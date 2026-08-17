@@ -13,6 +13,7 @@ import {
 import { buildNewLeaseRelationshipPayload } from "@/features/leases/lease-relationship-input";
 
 type LeaseFieldErrors = {
+  activationDate?: string[];
   actualMoveInDate?: string[];
   actualMoveOutDate?: string[];
   amount?: string[];
@@ -34,6 +35,7 @@ type LeaseFieldErrors = {
   reason?: string[];
   scheduledMoveInDate?: string[];
   scheduledMoveOutDate?: string[];
+  scheduleId?: string[];
   status?: string[];
   tenantPersonId?: string[];
   termStatus?: string[];
@@ -135,6 +137,18 @@ const leaseLifecycleTransitionSchema = z
     }
   });
 
+const leaseActivationSchema = z.object({
+  activationDate: dateSchema,
+  expectedOccupancyId: postgresUuid("Choose the current occupancy record."),
+  expectedStatus: z.literal("draft"),
+  idempotencyKey: z.string().trim().min(1),
+  leaseId: leaseIdSchema,
+});
+const cancelLeaseActivationSchema = z.object({
+  leaseId: leaseIdSchema,
+  scheduleId: postgresUuid("Choose the scheduled activation."),
+});
+
 const leaseMutationSchema = z
   .object({
     actualMoveInDate: optionalDateSchema,
@@ -154,7 +168,10 @@ const leaseMutationSchema = z
     unitId: z.string().trim(),
   })
   .superRefine((data, context) => {
-    if (!postgresUuid("Choose a unit for this lease.").safeParse(data.unitId).success) {
+    if (
+      data.unitId &&
+      !postgresUuid("Choose a unit for this lease.").safeParse(data.unitId).success
+    ) {
       context.addIssue({
         code: "custom",
         message: "Choose a unit for this lease.",
@@ -336,25 +353,41 @@ export async function createLeaseAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: relationshipResult, error } = await supabase.rpc(
-    "create_lease_with_relationships",
-    {
-      ...leaseAuthorityRpcPayload(
-        context.organizationId,
-        parsed.data,
-        idempotencyKey,
-      ),
-      p_relationship_payload: buildNewLeaseRelationshipPayload({
-        actualMoveInDate: parsed.data.actualMoveInDate || undefined,
-        actualMoveOutDate: parsed.data.actualMoveOutDate || undefined,
-        leaseStatus: parsed.data.status,
-        recordSource: "operator_confirmed",
-        scheduledMoveInDate: parsed.data.scheduledMoveInDate || undefined,
-        scheduledMoveOutDate: parsed.data.scheduledMoveOutDate || undefined,
-        tenantPersonId: parsed.data.tenantPersonId,
-      }),
-    },
+  const authorityPayload = leaseAuthorityRpcPayload(
+    context.organizationId,
+    parsed.data,
+    idempotencyKey,
   );
+  const { data: relationshipResult, error } = parsed.data.unitId
+    ? await supabase.rpc("create_simplified_unit_lease", {
+        ...authorityPayload,
+        p_relationship_payload: buildNewLeaseRelationshipPayload({
+          actualMoveInDate: parsed.data.actualMoveInDate || undefined,
+          actualMoveOutDate: parsed.data.actualMoveOutDate || undefined,
+          leaseStatus: parsed.data.status,
+          recordSource: "operator_confirmed",
+          scheduledMoveInDate: parsed.data.scheduledMoveInDate || undefined,
+          scheduledMoveOutDate: parsed.data.scheduledMoveOutDate || undefined,
+          tenantPersonId: parsed.data.tenantPersonId,
+        }),
+      })
+    : await supabase.rpc("create_property_lease", {
+        p_deposit_amount: authorityPayload.p_deposit_amount,
+        p_deposit_currency: authorityPayload.p_deposit_currency,
+        p_idempotency_key: authorityPayload.p_idempotency_key,
+        p_lease_end_date: authorityPayload.p_lease_end_date,
+        p_lease_start_date: authorityPayload.p_lease_start_date,
+        p_lease_status: authorityPayload.p_lease_status,
+        p_organization_id: authorityPayload.p_organization_id,
+        p_payment_frequency: authorityPayload.p_payment_frequency,
+        p_primary_tenant_person_id:
+          authorityPayload.p_primary_tenant_person_id,
+        p_property_id: authorityPayload.p_property_id,
+        p_rent_amount: authorityPayload.p_rent_amount,
+        p_rent_currency: authorityPayload.p_rent_currency,
+        p_rent_due_day: authorityPayload.p_rent_due_day,
+        p_term_status: authorityPayload.p_term_status,
+      });
 
   if (error) {
     if (isLeaseUnitTermConflict(error.message)) {
@@ -390,7 +423,7 @@ export async function createLeaseAction(
 
   revalidateLeasePaths(
     [parsed.data.propertyId],
-    [parsed.data.unitId],
+    parsed.data.unitId ? [parsed.data.unitId] : [],
     leaseId,
   );
 
@@ -516,6 +549,98 @@ export async function transitionLeaseLifecycleAction(
   return {
     leaseId: returnedLeaseId,
     message: getLeaseLifecycleSuccessMessage(parsed.data.transition),
+    status: "success",
+  };
+}
+
+export async function scheduleLeaseActivationAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requireLeaseConfigurationContext();
+  const parsed = leaseActivationSchema.safeParse({
+    activationDate: readString(formData, "activationDate"),
+    expectedOccupancyId: readString(formData, "expectedOccupancyId"),
+    expectedStatus: readString(formData, "expectedStatus"),
+    idempotencyKey: readString(formData, "idempotencyKey"),
+    leaseId: readString(formData, "leaseId"),
+  });
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: result, error } = await supabase.rpc(
+    "request_lease_activation",
+    {
+      p_activation_date: parsed.data.activationDate,
+      p_expected_occupancy_id: parsed.data.expectedOccupancyId,
+      p_expected_status: parsed.data.expectedStatus,
+      p_idempotency_key: parsed.data.idempotencyKey,
+      p_lease_id: parsed.data.leaseId,
+      p_organization_id: context.organizationId,
+    },
+  );
+
+  const returnedLeaseId =
+    result &&
+    typeof result === "object" &&
+    !Array.isArray(result) &&
+    typeof result.leaseId === "string"
+      ? result.leaseId
+      : null;
+  const activationStatus =
+    result &&
+    typeof result === "object" &&
+    !Array.isArray(result) &&
+    typeof result.status === "string"
+      ? result.status
+      : null;
+
+  if (error || !returnedLeaseId) {
+    return {
+      message: error
+        ? leaseActionErrorMessage(error.message)
+        : "The Lease activation request was not returned.",
+      status: "error",
+    };
+  }
+
+  revalidateLeasePaths([], [], returnedLeaseId);
+  return {
+    leaseId: returnedLeaseId,
+    message:
+      activationStatus === "scheduled"
+        ? `Lease activation scheduled for ${parsed.data.activationDate}.`
+        : "Lease activated.",
+    status: "success",
+  };
+}
+
+export async function cancelLeaseActivationAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requireLeaseConfigurationContext();
+  const parsed = cancelLeaseActivationSchema.safeParse({
+    leaseId: readString(formData, "leaseId"),
+    scheduleId: readString(formData, "scheduleId"),
+  });
+  if (!parsed.success) return invalidFormState(parsed.error);
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("cancel_lease_activation", {
+    p_organization_id: context.organizationId,
+    p_schedule_id: parsed.data.scheduleId,
+  });
+  if (error) {
+    return { message: leaseActionErrorMessage(error.message), status: "error" };
+  }
+  revalidateLeasePaths([], [], parsed.data.leaseId);
+  return {
+    leaseId: parsed.data.leaseId,
+    message: "Scheduled activation cancelled.",
     status: "success",
   };
 }

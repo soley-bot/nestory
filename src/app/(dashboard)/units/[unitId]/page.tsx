@@ -8,6 +8,7 @@ import { parseUnitDetailQuery } from "@/features/units/unit-detail-route";
 import type { UnitPropertyOption } from "@/features/units/unit.types";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
+import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import UnitNotFound from "./not-found";
 
 type UnitPageProps = {
@@ -19,9 +20,13 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
   const [{ unitId }, rawSearchParams] = await Promise.all([params, searchParams]);
   const { section, sourceTaskId } = parseUnitDetailQuery(rawSearchParams);
   const context = await requireSuperAdminContext();
-  const [unit, properties] = await Promise.all([
+  const [unit, properties, tenantOptions] = await Promise.all([
     getUnitDetail(context.organizationId, unitId),
     getPropertySummaries(context.organizationId),
+    getPersonSelectOptions({
+      organizationId: context.organizationId,
+      roles: ["tenant"],
+    }),
   ]);
 
   if (!unit) {
@@ -58,6 +63,7 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
       }}
       propertyOptions={toPropertyOptions(properties)}
       sourceTaskId={sourceTaskId}
+      tenantOptions={tenantOptions}
       unit={unit}
     />
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useId, useMemo, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
@@ -20,6 +20,7 @@ import {
 } from "@/features/leases/actions";
 import type {
   LeaseFormValues,
+  LeaseCreateContext,
   LeasePaymentFrequency,
   LeasePropertyOption,
   LeaseStatusValue,
@@ -42,6 +43,7 @@ const paymentFrequencyOptions: {
   { label: "One time", value: "one_time" },
 ];
 type LeaseFormProps = {
+  createContext?: LeaseCreateContext;
   initialValues?: LeaseFormInitialValues;
   initialStatus?: LeaseStatusValue;
   initialTermStatus?: LeaseTermStatus;
@@ -59,6 +61,7 @@ type LeaseFormInitialValues = Partial<
 >;
 
 export function LeaseForm({
+  createContext,
   initialValues,
   initialStatus,
   initialTermStatus,
@@ -66,9 +69,7 @@ export function LeaseForm({
   mode = "create",
   onClose,
   onSuccess,
-  properties,
   tenants,
-  units,
 }: LeaseFormProps) {
   const isEditMode = mode === "edit";
   const [state, action, pending] = useActionState(
@@ -82,84 +83,22 @@ export function LeaseForm({
     initialTermStatus,
   );
   const [idempotencyKey] = useState(() => crypto.randomUUID());
-  const [selectedPropertyId, setSelectedPropertyId] = useState(
-    defaults.propertyId,
-  );
+  const selectedPropertyId = createContext?.propertyId ?? defaults.propertyId;
   const [selectedPaymentFrequency, setSelectedPaymentFrequency] = useState(
     defaults.paymentFrequency,
   );
   const [selectedTenantId, setSelectedTenantId] = useState(
     defaults.tenantPersonId,
   );
-  const [selectedUnitId, setSelectedUnitId] = useState(defaults.unitId);
-  const [leaseStartDate, setLeaseStartDate] = useState(defaults.leaseStartDate);
-  const [leaseEndDate, setLeaseEndDate] = useState(defaults.leaseEndDate);
+  const selectedUnitId = createContext?.unitId ?? defaults.unitId;
   const [availableTenantOptions, setAvailableTenantOptions] = useState(tenants);
   const [createTenantOpen, setCreateTenantOpen] = useState(false);
-  const placementPrerequisiteId = useId();
-  const hasValidLeaseDates = hasCompleteLeaseTerm(
-    leaseStartDate,
-    leaseEndDate,
-  );
-  const availableUnits = useMemo(
-    () =>
-      hasValidLeaseDates
-        ? units.filter((unit) =>
-            isUnitAvailableForLease(
-              unit,
-              leaseStartDate,
-              leaseEndDate,
-              isEditMode ? lease?.id : undefined,
-            ),
-          )
-        : [],
-    [
-      hasValidLeaseDates,
-      isEditMode,
-      lease?.id,
-      leaseEndDate,
-      leaseStartDate,
-      units,
-    ],
-  );
-  const availablePropertyIds = useMemo(
-    () => new Set(availableUnits.map((unit) => unit.propertyId)),
-    [availableUnits],
-  );
-  const availableProperties = useMemo(
-    () =>
-      hasValidLeaseDates
-        ? properties.filter((property) => availablePropertyIds.has(property.id))
-        : [],
-    [availablePropertyIds, hasValidLeaseDates, properties],
-  );
-  const propertyOptions = useMemo(
-    () =>
-      ensureSelectedProperty(
-        availableProperties,
-        properties,
-        selectedPropertyId,
-      ),
-    [availableProperties, properties, selectedPropertyId],
-  );
-  const unitOptions = useMemo(
-    () =>
-      ensureSelectedUnit(
-        availableUnits.filter((unit) => unit.propertyId === selectedPropertyId),
-        units,
-        selectedUnitId,
-      ),
-    [availableUnits, selectedPropertyId, selectedUnitId, units],
-  );
   const tenantOptions = ensureSelectedTenant(
     availableTenantOptions,
     selectedTenantId,
     defaults.tenantName,
   );
-  const formUnitId =
-    selectedUnitId && unitOptions.some((unit) => unit.id === selectedUnitId)
-      ? selectedUnitId
-      : "";
+  const formUnitId = selectedUnitId ?? "";
 
   useEffect(() => {
     if (state.status === "success") {
@@ -189,47 +128,6 @@ export function LeaseForm({
     ]);
     setSelectedTenantId(personId);
     setCreateTenantOpen(false);
-  }
-
-  function handleLeaseStartDateChange(value: string) {
-    setLeaseStartDate(value);
-    reconcileCreatePlacement(value, leaseEndDate);
-  }
-
-  function handleLeaseEndDateChange(value: string) {
-    setLeaseEndDate(value);
-
-    reconcileCreatePlacement(leaseStartDate, value);
-  }
-
-  function reconcileCreatePlacement(startDate: string, endDate: string) {
-    if (isEditMode || !hasCompleteLeaseTerm(startDate, endDate)) {
-      return;
-    }
-
-    const eligibleUnits = units.filter((unit) =>
-      isUnitAvailableForLease(unit, startDate, endDate),
-    );
-    const selectedUnitRemainsEligible = eligibleUnits.some(
-      (unit) =>
-        unit.id === selectedUnitId && unit.propertyId === selectedPropertyId,
-    );
-
-    if (selectedUnitRemainsEligible) {
-      return;
-    }
-
-    const selectedPropertyHasEligibleUnit = eligibleUnits.some(
-      (unit) => unit.propertyId === selectedPropertyId,
-    );
-
-    if (selectedPropertyHasEligibleUnit) {
-      setSelectedUnitId("");
-      return;
-    }
-
-    setSelectedPropertyId("");
-    setSelectedUnitId("");
   }
 
   return (
@@ -291,6 +189,8 @@ export function LeaseForm({
           </>
         ) : (
           <>
+            <input name="propertyId" type="hidden" value={selectedPropertyId} />
+            <input name="unitId" type="hidden" value={formUnitId} />
             <input name="status" type="hidden" value="draft" />
             <input name="termStatus" type="hidden" value="draft" />
             <input name="paymentFrequency" type="hidden" value="monthly" />
@@ -300,6 +200,46 @@ export function LeaseForm({
             <input name="actualMoveOutDate" type="hidden" value="" />
           </>
         )}
+
+        {!isEditMode ? (
+          <FormSection title="Tenant">
+            {createContext ? (
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                <p className="font-medium text-foreground">{createContext.propertyLabel}</p>
+                <p className="text-muted-foreground">
+                  {createContext.unitLabel ?? "Whole property"}
+                </p>
+              </div>
+            ) : null}
+            <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <RecordField
+                error={state.fieldErrors?.tenantPersonId?.[0]}
+                label="Tenant"
+                name="tenantPersonId"
+                required
+              >
+                <PersonSelect
+                  context="Lease tenant"
+                  name="tenantPersonId"
+                  onValueChange={setSelectedTenantId}
+                  options={tenantOptions}
+                  placeholder="Select tenant"
+                  roles={["tenant"]}
+                  value={selectedTenantId}
+                />
+              </RecordField>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => setCreateTenantOpen(true)}
+                type="button"
+                variant="outline"
+              >
+                <Plus aria-hidden size={15} />
+                New tenant
+              </Button>
+            </div>
+          </FormSection>
+        ) : null}
 
         <FormSection title="Lease period">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -313,7 +253,6 @@ export function LeaseForm({
                 ariaLabel="Lease start date"
                 defaultValue={defaults.leaseStartDate}
                 name="leaseStartDate"
-                onValueChange={handleLeaseStartDateChange}
                 required
               />
             </RecordField>
@@ -328,124 +267,12 @@ export function LeaseForm({
                 ariaLabel="Lease end date"
                 defaultValue={defaults.leaseEndDate}
                 name="leaseEndDate"
-                onValueChange={handleLeaseEndDateChange}
                 required
               />
             </RecordField>
           </div>
 
         </FormSection>
-
-        {!isEditMode ? (
-          <FormSection title="Tenant and unit">
-            <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <RecordField
-                error={state.fieldErrors?.tenantPersonId?.[0]}
-                label="Tenant"
-                name="tenantPersonId"
-                required
-              >
-                <PersonSelect
-                  context="Lease tenant"
-                  name="tenantPersonId"
-                  onValueChange={setSelectedTenantId}
-                  options={tenantOptions}
-                  placeholder="Select tenant"
-                  preservedOption={
-                    selectedTenantId && defaults.tenantName
-                      ? {
-                          archived: true,
-                          description: "Historical lease tenant",
-                          id: selectedTenantId,
-                          label: defaults.tenantName,
-                          roles: ["tenant"] as const,
-                        }
-                      : undefined
-                  }
-                  roles={["tenant"]}
-                  value={selectedTenantId}
-                />
-              </RecordField>
-
-              <Button
-                className="w-full sm:w-auto"
-                onClick={() => setCreateTenantOpen(true)}
-                type="button"
-                variant="outline"
-              >
-                <Plus aria-hidden size={15} />
-                New tenant
-              </Button>
-            </div>
-
-            {!hasValidLeaseDates ? (
-              <p
-                className="text-xs leading-5 text-muted-foreground"
-                id={placementPrerequisiteId}
-              >
-                Enter a valid start and end date to check Property and Unit
-                availability.
-              </p>
-            ) : null}
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <RecordField
-                error={state.fieldErrors?.propertyId?.[0]}
-                label="Property"
-                name="propertyId"
-                required
-              >
-                <SelectControl
-                  aria-describedby={
-                    hasValidLeaseDates ? undefined : placementPrerequisiteId
-                  }
-                  ariaLabel="Property"
-                  disabled={!hasValidLeaseDates}
-                  name="propertyId"
-                  onValueChange={(value) => {
-                    setSelectedPropertyId(value);
-                    setSelectedUnitId("");
-                  }}
-                  options={[
-                    { label: "Select property", value: "" },
-                    ...propertyOptions.map((property) => ({
-                      label: property.label,
-                      value: property.id,
-                    })),
-                  ]}
-                  required
-                  value={selectedPropertyId}
-                />
-              </RecordField>
-
-              <RecordField
-                error={state.fieldErrors?.unitId?.[0]}
-                label="Unit"
-                name="unitId"
-                required
-              >
-                <SelectControl
-                  aria-describedby={
-                    hasValidLeaseDates ? undefined : placementPrerequisiteId
-                  }
-                  ariaLabel="Unit"
-                  disabled={!hasValidLeaseDates || !selectedPropertyId}
-                  name="unitId"
-                  onValueChange={setSelectedUnitId}
-                  options={[
-                    { label: "Select unit", value: "" },
-                    ...unitOptions.map((unit) => ({
-                      label: formatUnitSelectLabel(unit.label),
-                      value: unit.id,
-                    })),
-                  ]}
-                  required
-                  value={formUnitId}
-                />
-              </RecordField>
-            </div>
-          </FormSection>
-        ) : null}
 
         <FormSection title="Rent and deposit">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -574,44 +401,6 @@ function toInputNumber(value: number | string | null | undefined) {
   return String(value);
 }
 
-function ensureSelectedUnit(
-  scopedUnits: LeaseUnitOption[],
-  allUnits: LeaseUnitOption[],
-  selectedUnitId: string,
-) {
-  if (
-    !selectedUnitId ||
-    scopedUnits.some((unit) => unit.id === selectedUnitId)
-  ) {
-    return scopedUnits;
-  }
-
-  const selectedUnit = allUnits.find((unit) => unit.id === selectedUnitId);
-
-  return selectedUnit ? [...scopedUnits, selectedUnit] : scopedUnits;
-}
-
-function ensureSelectedProperty(
-  scopedProperties: LeasePropertyOption[],
-  allProperties: LeasePropertyOption[],
-  selectedPropertyId: string,
-) {
-  if (
-    !selectedPropertyId ||
-    scopedProperties.some((property) => property.id === selectedPropertyId)
-  ) {
-    return scopedProperties;
-  }
-
-  const selectedProperty = allProperties.find(
-    (property) => property.id === selectedPropertyId,
-  );
-
-  return selectedProperty
-    ? [...scopedProperties, selectedProperty]
-    : scopedProperties;
-}
-
 function ensureSelectedTenant(
   tenants: LeaseTenantOption[],
   selectedTenantId: string,
@@ -634,26 +423,4 @@ function ensureSelectedTenant(
       roles: ["tenant"],
     },
   ];
-}
-
-function formatUnitSelectLabel(label: string) {
-  return label.includes(" / ") ? (label.split(" / ").at(-1) ?? label) : label;
-}
-
-function hasCompleteLeaseTerm(startDate: string, endDate: string) {
-  return Boolean(startDate && endDate) && endDate > startDate;
-}
-
-function isUnitAvailableForLease(
-  unit: LeaseUnitOption,
-  startDate: string,
-  endDate: string,
-  currentLeaseId?: string,
-) {
-  return !(unit.reservations ?? []).some(
-    (reservation) =>
-      reservation.leaseId !== currentLeaseId &&
-      reservation.startDate <= endDate &&
-      reservation.endDate >= startDate,
-  );
 }

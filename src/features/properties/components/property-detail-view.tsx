@@ -56,7 +56,7 @@ const propertyRecordSections: Array<{
 }> = [
   { id: "overview", label: "Overview" },
   { id: "units", label: "Units" },
-  { id: "account", label: "Account" },
+  { id: "account", label: "Finance" },
   { id: "maintenance", label: "Maintenance" },
   { id: "files", label: "Files" },
 ];
@@ -73,11 +73,13 @@ export function PropertyDetailView({
   initialSection = "overview",
   onAddDocument,
   onAddUnit,
+  onCreateLease,
   property,
 }: {
   initialSection?: PropertyLocalSection;
   onAddDocument: () => void;
   onAddUnit: () => void;
+  onCreateLease: () => void;
   property: PropertyDetail;
 }) {
   const [activeSection, setActiveSection] =
@@ -101,6 +103,7 @@ export function PropertyDetailView({
           activeSection={activeSection}
           onAddDocument={onAddDocument}
           onAddUnit={onAddUnit}
+          onCreateLease={onCreateLease}
           property={property}
         />
       </div>
@@ -112,17 +115,20 @@ function PropertyRecordPanel({
   activeSection,
   onAddDocument,
   onAddUnit,
+  onCreateLease,
   property,
 }: {
   activeSection: PropertyLocalSection;
   onAddDocument: () => void;
   onAddUnit: () => void;
+  onCreateLease: () => void;
   property: PropertyDetail;
 }) {
   const content = getPropertyRecordPanelContent({
     activeSection,
     onAddDocument,
     onAddUnit,
+    onCreateLease,
     property,
   });
 
@@ -142,11 +148,13 @@ function getPropertyRecordPanelContent({
   activeSection,
   onAddDocument,
   onAddUnit,
+  onCreateLease,
   property,
 }: {
   activeSection: PropertyLocalSection;
   onAddDocument: () => void;
   onAddUnit: () => void;
+  onCreateLease: () => void;
   property: PropertyDetail;
 }) {
   if (activeSection === "units") {
@@ -315,13 +323,10 @@ function getPropertyRecordPanelContent({
             <p className="mt-1 text-sm text-muted-foreground">
               This Lease belongs directly to the Property. No Unit is needed.
             </p>
-            <ActionLink
-              className="mt-4"
-              href={property.hrefs.addLease}
-              icon={<ScrollText size={14} />}
-            >
+            <Button className="mt-4" onClick={onCreateLease}>
+              <ScrollText size={14} />
               Create lease
-            </ActionLink>
+            </Button>
           </div>
         ) : null}
 

@@ -2,18 +2,20 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeaseDetailScreen } from "@/features/leases/components/lease-detail-screen";
 import { buildLeaseSummary } from "@/features/leases/data/lease-summary";
 import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
 
 vi.mock("@/features/leases/actions", () => ({
   archiveLeaseAction: async () => ({}),
+  cancelLeaseActivationAction: async () => ({}),
   createLeaseAction: async () => ({}),
   recordCurrentLeaseOccupancyEvidenceAction: async () => ({}),
   recordLeaseDepositEventAction: async () => ({}),
   restoreLeaseAction: async () => ({}),
   reverseLeaseDepositEventAction: async () => ({}),
+  scheduleLeaseActivationAction: async () => ({}),
   scheduleFutureRentTermAction: async () => ({}),
   transitionLeaseLifecycleAction: async () => ({}),
   updateLeaseAction: async () => ({}),
@@ -23,7 +25,22 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
-afterEach(cleanup);
+beforeEach(() => {
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
+});
 
 describe("LeaseDetailScreen", () => {
   it("provides one ordered record with four sections", () => {
@@ -73,7 +90,7 @@ describe("LeaseDetailScreen", () => {
     expect(screen.queryByRole("combobox", { name: "Term status" })).toBeNull();
   });
 
-  it("activates a draft through the checked lifecycle dialog", async () => {
+  it("offers Activate today or a scheduled date without asking for an explanation", async () => {
     const user = userEvent.setup();
     const lease = makeLease();
     lease.statusLabel = "Draft";
@@ -86,10 +103,36 @@ describe("LeaseDetailScreen", () => {
     await user.click(screen.getByRole("button", { name: "Activate lease" }));
 
     const dialog = screen.getByRole("dialog", { name: "Activate lease" });
-    expect(within(dialog).getByLabelText("Activation date")).not.toBeNull();
+    const mode = within(dialog).getByRole("combobox", { name: "Activation timing" });
+    expect(mode.textContent).toContain("Activate today");
+    expect(within(dialog).queryByLabelText("Activation date")).toBeNull();
+    expect(within(dialog).queryByLabelText("Reason or note")).toBeNull();
     expect(
-      dialog.querySelector<HTMLInputElement>('input[name="transition"]')?.value,
-    ).toBe("activate");
+      dialog.querySelector<HTMLInputElement>('input[name="activationDate"]')?.value,
+    ).toBeTruthy();
+
+    await user.click(mode);
+    await user.click(screen.getByRole("option", { name: "Activate on date" }));
+    expect(within(dialog).getByLabelText("Activation date")).not.toBeNull();
+  });
+
+  it("shows a pending activation with a direct cancel action", () => {
+    const lease = makeLease();
+    lease.statusLabel = "Draft";
+    lease.statusValue = "draft";
+    lease.activationSchedule = {
+      activationDate: "2026-09-01",
+      failureMessage: null,
+      id: "70000000-0000-0000-0000-000000000001",
+      status: "pending",
+    };
+
+    renderDetail("overview", lease);
+
+    expect(screen.getByText(/scheduled for/i).textContent).toContain("01 Sept 2026");
+    expect(
+      screen.getByRole("button", { name: "Cancel scheduled activation" }),
+    ).not.toBeNull();
   });
 
   it("edits only draft terms without exposing relationship or lifecycle fields", async () => {

@@ -210,14 +210,55 @@ async function openContextJourney(page, journey, chain) {
       await clickAndWait(page, personLink, journey.route);
       chain.push(personLabel);
     },
+    "lease-detail": async () => {
+      await fromGlobal(page, chain, "/leases", "Leases");
+      await page.getByRole("heading", { name: "Leases" }).waitFor({
+        state: "visible",
+        timeout: 30_000,
+      });
+      await page.getByRole("row", { name: /Rithy Meas/ }).click();
+      const leaseLink = page.getByRole("link", { name: "Open lease record" });
+      await leaseLink.waitFor({ state: "visible", timeout: 20_000 });
+      await clickAndWait(page, leaseLink, journey.route);
+      chain.push("Lease quick view", "Open lease record");
+    },
+    "advanced-ledger": () =>
+      openAdvancedFinanceTool(page, chain, journey.route, "Ledger"),
+    "advanced-petty-cash": () =>
+      openAdvancedFinanceTool(page, chain, journey.route, "Petty cash"),
+    "advanced-rent-policy": () =>
+      openAdvancedFinanceTool(
+        page,
+        chain,
+        journey.route,
+        "Historical rent policies",
+      ),
+    "property-finance-invoice": () =>
+      openInvoiceFinance(page, chain, journey.route, "Open Property finance"),
+    "unit-finance-invoice": () =>
+      openInvoiceFinance(page, chain, journey.route, "Open Unit finance"),
     "property-setup": async () => {
       await fromGlobal(page, chain, "/properties", "Properties");
-      await clickAndWait(
-        page,
-        page.getByRole("link", { name: "Set up property" }),
-        journey.route,
+      const setupLink = page.getByRole("link", { name: "Set up property" });
+      if (await setupLink.isVisible()) {
+        await clickAndWait(page, setupLink, journey.route);
+        chain.push("Set up property");
+        return;
+      }
+
+      // The setup wizard is intentionally only promoted for an empty portfolio.
+      // The shared fixture has existing Properties, so exercise the guarded route
+      // directly while the static contract verifies its conditional entry point.
+      await page.goto(new URL(journey.route, baseUrl).toString(), {
+        timeout: 30_000,
+        waitUntil: "domcontentloaded",
+      });
+      await page.waitForURL(
+        (url) => matchesContractPath(url.pathname, journey.route),
+        { timeout: 30_000 },
       );
-      chain.push("Set up property");
+      assertAuthorizedDestination(page, journey.route);
+      chain.push("Set up property (empty-state entry)");
     },
     "property-detail": async () => {
       await openPropertyInspector(page, chain);
@@ -232,7 +273,7 @@ async function openContextJourney(page, journey, chain) {
       await openPropertyInspector(page, chain);
       await clickAndWait(
         page,
-        page.getByRole("link", { name: /^Units/ }),
+        page.locator('[data-slot="property-preview-record-pill"][href^="/units"]'),
         journey.route,
       );
       chain.push("Units");
@@ -241,7 +282,7 @@ async function openContextJourney(page, journey, chain) {
       await openPropertyInspector(page, chain, "Central Residence");
       await clickAndWait(
         page,
-        page.getByRole("link", { name: /^Units/ }),
+        page.locator('[data-slot="property-preview-record-pill"][href^="/units"]'),
         "/units",
       );
       chain.push("Units");
@@ -256,7 +297,7 @@ async function openContextJourney(page, journey, chain) {
       chain.push(unitLabel, "Open unit");
     },
     "property-account": async () => {
-      await fromGlobal(page, chain, "/ledger", "Ledger");
+      await openAdvancedFinanceTool(page, chain, "/ledger", "Ledger");
       const accountLink = page
         .locator(
           '[data-slot="app-shell-content"] a[href^="/properties/"][href$="/account"]:visible',
@@ -275,10 +316,27 @@ async function openContextJourney(page, journey, chain) {
       );
       chain.push("Open report");
     },
-    "settings-access": () =>
-      openSettingsTab(page, chain, journey.route, "Workspace Access"),
-    "settings-rent-policy": () =>
-      openSettingsTab(page, chain, journey.route, "Rent Policy"),
+    "settings-organization": () =>
+      openSettingsTab(page, chain, journey.route, "Organization"),
+    "settings-appearance": () =>
+      openSettingsTab(page, chain, journey.route, "Appearance"),
+    "settings-branches": () =>
+      openSettingsTab(page, chain, journey.route, "Branches"),
+    "settings-teams": () =>
+      openSettingsTab(page, chain, journey.route, "Teams"),
+    "settings-access": async () => {
+      await openSettingsTab(page, chain, "/settings/access", "Access");
+      if (journey.route !== "/users-roles") return;
+
+      await page.goto(new URL(journey.route, baseUrl).toString(), {
+        timeout: 30_000,
+        waitUntil: "domcontentloaded",
+      });
+      await page.waitForURL((url) => url.pathname === "/settings/access", {
+        timeout: 30_000,
+      });
+      chain.push("Legacy access redirect");
+    },
   }[journey.entryId];
 
   if (!contextJourney) {
@@ -293,9 +351,30 @@ async function openPeopleTab(page, chain, route, label) {
   chain.push(label);
 }
 
+async function openAdvancedFinanceTool(page, chain, route, label) {
+  await fromGlobal(page, chain, "/finance/advanced", "Advanced");
+  await clickAndWait(page, page.getByRole("link", { name: label }), route);
+  chain.push(label);
+}
+
+async function openInvoiceFinance(page, chain, route, label) {
+  await fromGlobal(page, chain, "/rent-income", "Rent & collections");
+  const invoiceButton = page
+    .getByRole("button", { name: /^View invoice / })
+    .first();
+  await invoiceButton.waitFor({ state: "visible", timeout: 30_000 });
+  await invoiceButton.click();
+  await clickAndWait(page, page.getByRole("link", { name: label }), route);
+  chain.push("Invoice details", label);
+}
+
 async function openSettingsTab(page, chain, route, label) {
   await fromGlobal(page, chain, "/settings", "Settings");
-  await clickAndWait(page, page.getByRole("link", { name: label }), route);
+  await clickAndWait(
+    page,
+    page.locator(`a[href="${route}"]:visible`).first(),
+    route,
+  );
   chain.push(label);
 }
 
@@ -371,6 +450,9 @@ function assertAuthorizedDestination(page, route) {
 }
 
 function matchesContractPath(pathname, route) {
+  if (route === "/users-roles" && pathname === "/settings/access") {
+    return true;
+  }
   const expression = new RegExp(
     `^${route
       .split("/")

@@ -65,12 +65,11 @@ describe("AppShell Shadcn dashboard block", () => {
     }
 
     for (const label of [
-      "Work queue",
+      "Portfolio review",
       "Rent & collections",
       "Expenses",
       "Owner accounts",
-      "Petty cash",
-      "Ledger",
+      "Advanced",
       "Cases",
       "My work",
       "Recurring work",
@@ -92,12 +91,11 @@ describe("AppShell Shadcn dashboard block", () => {
         .getAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual([
-      "Work queue",
+      "Portfolio review",
       "Rent & collections",
       "Expenses",
       "Owner accounts",
-      "Petty cash",
-      "Ledger",
+      "Advanced",
     ]);
   });
 
@@ -146,25 +144,27 @@ describe("AppShell Shadcn dashboard block", () => {
     render(<AppShell role="finance_manager"><div>Workspace content</div></AppShell>);
 
     expect(screen.getByRole("link", { name: "Review queue" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Ledger" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Petty cash" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Advanced" })).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Leases" }).getAttribute("href"),
     ).toBe("/leases");
-    expect(screen.getByRole("link", { name: "Rent policy" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Rent policy" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();
   });
 
-  it("limits Finance Member navigation to submission work", () => {
+  it("keeps Finance Member navigation aligned with readable finance routes", () => {
     navigation.pathname = "/finance";
     render(<AppShell role="finance_member"><div>Workspace content</div></AppShell>);
 
     expect(screen.getByRole("link", { name: "My submissions" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Rent & collections" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Expenses" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Owner accounts" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Advanced" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Petty cash" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Ledger" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Leases" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Leases" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Rent policy" })).toBeNull();
   });
 
@@ -202,7 +202,7 @@ describe("AppShell Shadcn dashboard block", () => {
         .getAttribute("aria-expanded"),
     ).toBe("true");
     expect(
-      screen.getByRole("link", { name: "Ledger" }).getAttribute("aria-current"),
+      screen.getByRole("link", { name: "Advanced" }).getAttribute("aria-current"),
     ).toBe("page");
   });
 

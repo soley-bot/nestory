@@ -17,6 +17,8 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { DocumentForm } from "@/features/documents/components/document-screen";
+import { LeaseForm } from "@/features/leases/components/lease-form";
+import type { LeaseTenantOption } from "@/features/leases/lease.types";
 import { MaintenanceForm } from "@/features/maintenance/components/maintenance-screen";
 import type {
   MaintenanceActor,
@@ -54,6 +56,7 @@ type DrawerState =
   | { mode: "edit"; unit: UnitDetail }
   | { mode: "create-document"; unit: UnitDetail }
   | { mode: "create-maintenance"; unit: UnitDetail }
+  | { mode: "create-lease"; unit: UnitDetail }
   | { mode: "lease-detail"; unit: UnitDetail }
   | { entry: UnitDetail["recentLedgerEntries"][number]; mode: "ledger-detail" }
   | {
@@ -78,6 +81,7 @@ type UnitDetailScreenProps = {
     vendors: MaintenanceVendorOption[];
   };
   propertyOptions: UnitPropertyOption[];
+  tenantOptions: LeaseTenantOption[];
   sourceTaskId?: string;
   unit: UnitDetail;
 };
@@ -87,6 +91,7 @@ export function UnitDetailScreen({
   maintenanceFormOptions,
   propertyOptions,
   sourceTaskId,
+  tenantOptions,
   unit,
 }: UnitDetailScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
@@ -196,13 +201,26 @@ export function UnitDetailScreen({
               {unit.repairAction.description}
             </p>
           </div>
-          <Link
-            className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-            href={unit.repairAction.href}
-          >
-            {unit.repairAction.label}
-            <ArrowRight size={14} />
-          </Link>
+          {unit.repairAction.label === "Create draft lease" ? (
+            <Button
+              onClick={() => {
+                setStatusMessage(null);
+                setDrawer({ mode: "create-lease", unit });
+              }}
+              variant="outline"
+            >
+              {unit.repairAction.label}
+              <ArrowRight size={14} />
+            </Button>
+          ) : (
+            <Link
+              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              href={unit.repairAction.href}
+            >
+              {unit.repairAction.label}
+              <ArrowRight size={14} />
+            </Link>
+          )}
         </div>
       </section>
 
@@ -289,6 +307,31 @@ export function UnitDetailScreen({
                 },
               ]}
             />
+          ) : drawer.mode === "create-lease" ? (
+            <LeaseForm
+              createContext={{
+                propertyId: drawer.unit.propertyId,
+                propertyLabel: drawer.unit.propertyName,
+                unitId: drawer.unit.id,
+                unitLabel: `Unit ${drawer.unit.unitNumber}`,
+              }}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+              properties={[
+                {
+                  id: drawer.unit.propertyId,
+                  label: drawer.unit.propertyName,
+                },
+              ]}
+              tenants={tenantOptions}
+              units={[
+                {
+                  id: drawer.unit.id,
+                  label: `Unit ${drawer.unit.unitNumber}`,
+                  propertyId: drawer.unit.propertyId,
+                },
+              ]}
+            />
           ) : drawer.mode === "create-maintenance" ? (
             <MaintenanceForm
               actor={maintenanceFormOptions.actor}
@@ -355,6 +398,10 @@ function getUnitDrawerTitle(drawer: Exclude<DrawerState, { mode: "edit" }>) {
 
   if (drawer.mode === "create-maintenance") {
     return "New maintenance case";
+  }
+
+  if (drawer.mode === "create-lease") {
+    return "Create lease";
   }
 
   if (drawer.mode === "lease-detail") {

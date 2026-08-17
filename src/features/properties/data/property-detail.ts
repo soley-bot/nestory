@@ -456,7 +456,7 @@ export function buildPropertyDetailHrefs({
   propertyId: string;
 }): PropertyDetailHrefs {
   return {
-    account: `/properties/${propertyId}/account`,
+    account: `/properties/${propertyId}/finance`,
     addDocument: buildHref("/documents", {
       action: "create",
       category: "Property record",

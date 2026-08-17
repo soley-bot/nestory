@@ -43,7 +43,7 @@ describe("SettingsTabs", () => {
     ).toBe(true);
   });
 
-  it("shows Finance Manager only the Workspace group", () => {
+  it("does not expose an empty Settings group to Finance Manager", () => {
     render(
       <SettingsTabs
         activeHref="/settings/rent-policy"
@@ -54,12 +54,7 @@ describe("SettingsTabs", () => {
     const navigation = screen.getByRole("navigation", {
       name: "Settings sections",
     });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(1);
-    expect(
-      within(navigation)
-        .getByRole("link", { name: "Workspace" })
-        .getAttribute("aria-current"),
-    ).toBe("page");
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(0);
   });
 
   it("shares the page header row without recreating a full-width tab band", () => {

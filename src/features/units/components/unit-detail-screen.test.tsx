@@ -12,6 +12,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { UnitDetailScreen } from "@/features/units/components/unit-detail-screen";
 import { buildUnitDetail } from "@/features/units/data/unit-summary";
 
+vi.mock("@/features/leases/actions", () => ({
+  createLeaseAction: async () => ({}),
+  updateLeaseAction: async () => ({}),
+}));
+
 afterEach(() => {
   cleanup();
   window.history.replaceState({}, "", "/");
@@ -28,7 +33,7 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Unit 12A" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "More" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Review open issue" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Review overdue issue" })).toBeTruthy();
     expect(screen.getByText("Operational readiness: Available")).toBeTruthy();
     expect(screen.getByText("Lease state: Occupied")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
@@ -164,19 +169,26 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(within(drawer).getByRole("link", { name: "Open full lease" })).toBeTruthy();
   });
 
-  it("relies on the canonical action for an available unit without a Lease", () => {
+  it("creates a Lease inside the available Unit without reselecting placement", () => {
     renderUnitDetail({ initialSection: "lease", unit: availableUnitDetail });
 
     const panel = screen.getByRole("tabpanel", { name: "Lease" });
     expect(within(panel).queryByRole("link", { name: "Add lease" })).toBeNull();
-    expect(within(panel).queryByRole("button", { name: "Add lease" })).toBeNull();
     expect(within(panel).getByText(/no current or draft lease/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create draft lease" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Create lease" });
+    const form = within(drawer).getByRole("form", { name: "Add lease form" });
+    expect(within(drawer).getByText("Central Residence")).toBeTruthy();
+    expect(within(drawer).getByText("Unit 12A")).toBeTruthy();
+    expect(within(drawer).queryByRole("combobox", { name: /Property/ })).toBeNull();
+    expect(within(drawer).queryByRole("combobox", { name: /Unit/ })).toBeNull();
     expect(
-      screen.getByRole("link", { name: "Create draft lease" }).getAttribute("href"),
-    ).toBe(
-      "/leases?action=create&propertyId=property-1&source=vacancy&unitId=unit-1",
-    );
-    expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
+      form.querySelector<HTMLInputElement>('input[name="propertyId"]')?.value,
+    ).toBe("property-1");
+    expect(
+      form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value,
+    ).toBe("unit-1");
   });
 
   it("blocks the local Lease handoff while the unit is in maintenance", () => {
@@ -275,6 +287,15 @@ function renderUnitDetail({
         vendors: [],
       }}
       propertyOptions={[{ id: "property-1", label: "CTR / Central Residence" }]}
+      tenantOptions={[
+        {
+          archived: false,
+          description: "Tenant",
+          id: "person-tenant",
+          label: "Dara Tenant",
+          roles: ["tenant"],
+        },
+      ]}
       unit={unit}
     />,
   );

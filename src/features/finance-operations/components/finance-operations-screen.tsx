@@ -14,6 +14,7 @@ import { MoneyDisplay } from "@/components/data/money-display";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
+import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { AuditDetails } from "@/components/ui/audit-details";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import {
   confirmOwnerCollectionAction,
+  createManualTenantChargeAction,
   recordOwnerPaymentAction,
   recordTenantInvoicePaymentAction,
   recordWithdrawalAction,
@@ -62,7 +64,10 @@ import {
   maintenanceStatusLabel,
 } from "@/features/finance-operations/finance-operations-view-model";
 import { sortPropertyAccountEntriesNewestFirst } from "@/features/finance-operations/property-account";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
+import {
+  getBusinessDateValue,
+  getBusinessMonthValue,
+} from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { formatMoneyDisplay } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
@@ -71,6 +76,7 @@ export type FinanceOperationsView =
   "account" | "balances" | "expenses" | "rent" | "work";
 
 type ModalState =
+  | { lease?: FinanceLease; mode: "manual-charge" }
   | {
       invoice: TenantInvoiceSummary;
       mode: "invoice-details";
@@ -131,6 +137,13 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   openingAuthority?: ReactNode;
   organizationName: string;
   selectedPropertyId?: string | null;
+  scope?: {
+    id: string;
+    kind: "property" | "unit";
+    label: string;
+    propertyId: string;
+    propertyLabel: string;
+  };
   view: FinanceOperationsView;
 };
 
@@ -192,15 +205,56 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       actions={screen.actions}
       context={screen.context}
       contextHref={screen.contextHref}
-      header={"header" in screen ? screen.header : undefined}
+      header={
+        props.scope ? (
+          <PageHeader
+            actions={screen.actions}
+            breadcrumb={
+              <PageBreadcrumb
+                current="Finance"
+                items={
+                  props.scope.kind === "property"
+                    ? [
+                        { href: "/properties", label: "Properties" },
+                        {
+                          href: `/properties/${props.scope.id}`,
+                          label: props.scope.label,
+                        },
+                      ]
+                    : [
+                        { href: "/properties", label: "Properties" },
+                        {
+                          href: `/properties/${props.scope.propertyId}`,
+                          label: props.scope.propertyLabel,
+                        },
+                        { href: `/units/${props.scope.id}`, label: props.scope.label },
+                      ]
+                }
+              />
+            }
+            className="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"
+            context={screen.title}
+            description={
+              props.scope.kind === "unit"
+                ? props.scope.propertyLabel
+                : "Property workspace"
+            }
+            title={`${props.scope.label} finance`}
+          />
+        ) : "header" in screen ? screen.header : undefined
+      }
       headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"
       localNav={
-        <FinanceWorkspaceNavigation
-          activeRoute={screen.activeRoute}
-          canReadFinanceReports={props.canReadFinanceReports ?? false}
-        />
+        props.scope ? (
+          <ScopedFinanceNavigation scope={props.scope} view={props.view} />
+        ) : (
+          <FinanceWorkspaceNavigation
+            activeRoute={screen.activeRoute}
+            canReadFinanceReports={props.canReadFinanceReports ?? false}
+          />
+        )
       }
-      title={screen.title}
+      title={props.scope ? undefined : screen.title}
       toolbar={screen.toolbar}
     >
       <div className="flex min-w-0 flex-col">
@@ -243,7 +297,13 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
 
       {visibleModal ? (
         <Modal onClose={closeModal} open title={getModalTitle(visibleModal)}>
-          {visibleModal.mode === "rent-recovery" ? (
+          {visibleModal.mode === "manual-charge" ? (
+            <ManualTenantChargeForm
+              fixedLease={visibleModal.lease}
+              leases={props.leases}
+              onSuccess={onActionSuccess}
+            />
+          ) : visibleModal.mode === "rent-recovery" ? (
             <HistoricalRentRecoveryForm
               leases={props.leases}
               onSuccess={onActionSuccess}
@@ -370,6 +430,38 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
   );
 }
 
+function ScopedFinanceNavigation({
+  scope,
+  view,
+}: {
+  scope: NonNullable<FinanceOperationsScreenProps["scope"]>;
+  view: FinanceOperationsView;
+}) {
+  const base =
+    scope.kind === "property"
+      ? `/properties/${scope.id}/finance`
+      : `/units/${scope.id}/finance`;
+  const items = [
+    { active: view === "rent", href: `${base}?view=rent`, label: "Rent & charges" },
+    { active: view === "expenses", href: `${base}?view=expenses`, label: "Expenses" },
+    scope.kind === "property"
+      ? { active: view === "account", href: `${base}?view=owner`, label: "Owner account" }
+      : {
+          active: false,
+          href: `/properties/${scope.propertyId}/finance?view=owner`,
+          label: "Owner account (Property)",
+        },
+  ];
+
+  return (
+    <LocalWorkspaceNav
+      className="workspace-gutter-x py-1"
+      items={items}
+      label={`${scope.kind === "property" ? "Property" : "Unit"} finance`}
+    />
+  );
+}
+
 function getScreen(
   props: FinanceOperationsScreenProps,
   openModal: (modal: ModalState) => void,
@@ -387,7 +479,7 @@ function getScreen(
     return {
       activeRoute: "/rent-income" as const,
       actions:
-        props.canRecordPayments || props.canSubmitExpense || canRecoverRent ? (
+        props.canRecordPayments || canConfigureRent || canRecoverRent ? (
           <>
             {canRecoverRent ? (
               <Button onClick={() => openModal({ mode: "rent-recovery" })}>
@@ -402,14 +494,14 @@ function getScreen(
                 <WalletCards size={15} /> Record payment
               </Button>
             ) : null}
-            {props.canSubmitExpense ? (
+            {canConfigureRent ? (
               <Button
-                onClick={() =>
-                  openDrawer({
-                    initialResponsibility: "tenant",
-                    mode: "expense",
-                  })
-                }
+                onClick={() => openModal({
+                  lease: props.initialRentLeaseId
+                    ? props.leases.find((lease) => lease.id === props.initialRentLeaseId)
+                    : undefined,
+                  mode: "manual-charge",
+                })}
               >
                 <Plus size={15} /> Add charge
               </Button>
@@ -545,7 +637,7 @@ function getScreen(
         tenantInvoices={props.tenantInvoices}
       />
     ),
-    context: "Work queue",
+    context: "Portfolio review",
     contextHref: "/finance",
     title: "Finance",
     toolbar: undefined,
@@ -954,7 +1046,7 @@ function RentView({
       >
         {invoices.length === 0 ? (
           <EmptyState
-            body="Rent invoices are generated automatically when the lease, billing, and rent policy setup is ready."
+            body="Rent charges are generated automatically from each active Lease."
             className="flex-1"
             kind="empty"
             title="No rent invoices"
@@ -1442,6 +1534,18 @@ function InvoiceDetails({
           Close
         </Button>
         <div className="flex flex-wrap justify-end gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/properties/${invoice.propertyId}/finance?view=rent`}>
+              Open Property finance
+            </Link>
+          </Button>
+          {invoice.unitId ? (
+            <Button asChild variant="outline">
+              <Link href={`/units/${invoice.unitId}/finance?view=rent`}>
+                Open Unit finance
+              </Link>
+            </Button>
+          ) : null}
           {canCorrect ? (
             <Button onClick={onCorrect} variant="outline">
               Correct settlement
@@ -1871,7 +1975,7 @@ function BillingSetupForm({
     lease.billing?.managementFeeMode ?? "percentage",
   );
   const [feeValue, setFeeValue] = useState(
-    lease.billing?.managementFeeValue.toString() ?? "0",
+    lease.billing?.managementFeeValue?.toString() ?? "0",
   );
   const [chargeFee, setChargeFee] = useState<"" | "no" | "yes">(
     lease.billing
@@ -2987,7 +3091,111 @@ function WithdrawalForm({
   );
 }
 
+function ManualTenantChargeForm({
+  fixedLease,
+  leases,
+  onSuccess,
+}: {
+  fixedLease?: FinanceLease;
+  leases: FinanceLease[];
+  onSuccess: (message: string) => void;
+}) {
+  const availableLeases = leases.filter(
+    (lease) => lease.status === "active" || lease.status === "notice_given",
+  );
+  const [chargeType, setChargeType] = useState("utilities");
+  const idempotencyKey = useStableActionId("manual-tenant-charge");
+  const [state, action] = useActionState(
+    createManualTenantChargeAction,
+    actionInitialState,
+  );
+  useSuccess(state, onSuccess);
+
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      {fixedLease ? (
+        <>
+          <input name="leaseId" type="hidden" value={fixedLease.id} />
+          <DefinitionRows
+            rows={[
+              ["Tenant", fixedLease.tenantLabel],
+              ["Property", fixedLease.propertyLabel],
+              ["Unit", fixedLease.unitLabel],
+            ]}
+          />
+        </>
+      ) : (
+        <Field label="Lease">
+          <SelectControl
+            ariaLabel="Lease"
+            name="leaseId"
+            options={availableLeases.map((lease) => ({
+              label: `${lease.tenantLabel} · ${lease.propertyLabel} · ${lease.unitLabel}`,
+              value: lease.id,
+            }))}
+            placeholder="Choose Lease"
+            required
+          />
+        </Field>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Charge type">
+          <SelectControl
+            ariaLabel="Charge type"
+            name="chargeType"
+            onValueChange={setChargeType}
+            options={[
+              { label: "Manual rent", value: "manual_rent" },
+              { label: "Utilities", value: "utilities" },
+              { label: "Cleaning", value: "cleaning" },
+              { label: "Repairs and maintenance", value: "repairs_maintenance" },
+              { label: "Other", value: "other" },
+            ]}
+            value={chargeType}
+          />
+        </Field>
+        <Field label="Billing month">
+          <MonthPickerField
+            ariaLabel="Billing month"
+            defaultValue={getBusinessMonthValue()}
+            name="billingPeriod"
+            required
+          />
+        </Field>
+        <Field label="Due date">
+          <DatePickerField
+            ariaLabel="Due date"
+            defaultValue={getBusinessDateValue()}
+            name="dueDate"
+            required
+          />
+        </Field>
+        <Field label="Amount">
+          <NumberInput aria-label="Amount" min={0.01} name="amount" required step="0.01" />
+        </Field>
+      </div>
+
+      <Field label={chargeType === "other" ? "Description" : "Description (optional)"}>
+        <Input
+          aria-label="Description"
+          name="description"
+          placeholder={chargeType === "other" ? "What is this charge for?" : "Optional note"}
+          required={chargeType === "other"}
+        />
+      </Field>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <span />
+        <SubmitButton label="Add charge" />
+      </FormFooter>
+    </form>
+  );
+}
+
 function getModalTitle(modal: ModalState) {
+  if (modal.mode === "manual-charge") return "Add charge";
   if (modal.mode === "rent-recovery") return "Recover missed rent";
   if (modal.mode === "invoice-details") return "Invoice details";
   if (modal.mode === "expense-details") return "Paid cost details";
@@ -3012,6 +3220,7 @@ function canRenderFinanceModal(
   capabilities: Pick<
     FinanceOperationsScreenProps,
     | "canCorrectFinance"
+    | "canConfigureRent"
     | "canRecordOwnerCash"
     | "canRecordPayments"
     | "canRecoverRent"
@@ -3027,6 +3236,7 @@ function canRenderFinanceModal(
     return true;
   }
   if (modal.mode === "rent-recovery") return capabilities.canRecoverRent;
+  if (modal.mode === "manual-charge") return capabilities.canConfigureRent;
   if (modal.mode === "payment") return capabilities.canRecordPayments;
   if (modal.mode === "settlement-reversal") {
     return capabilities.canCorrectFinance;

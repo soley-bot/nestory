@@ -27,7 +27,7 @@ const roles = [
 ];
 const capabilityRoles = {
   workspace: roles,
-  settingsEntry: ["super_admin", "finance_manager"],
+  settingsEntry: ["super_admin"],
   canManageAccess: ["super_admin"],
   canConfigureLeases: ["super_admin", "finance_manager"],
   canReadFinance: ["super_admin", "finance_manager", "finance_member"],

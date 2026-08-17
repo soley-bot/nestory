@@ -357,6 +357,29 @@ function UnitFinancePanel({
 
   return (
     <>
+      <nav
+        aria-label="Unit finance workspace"
+        className="flex flex-wrap gap-2 border-b border-border pb-3"
+      >
+        <Link
+          className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+          href={`/units/${unit.id}/finance?view=rent`}
+        >
+          Rent & charges
+        </Link>
+        <Link
+          className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted"
+          href={`/units/${unit.id}/finance?view=expenses`}
+        >
+          Expenses
+        </Link>
+        <Link
+          className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted"
+          href={`/properties/${unit.propertyId}/finance?view=owner`}
+        >
+          Owner account (Property)
+        </Link>
+      </nav>
       <section id="unit-finance">
         <SectionTitle
           actions={

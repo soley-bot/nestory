@@ -20,6 +20,8 @@ import {
 import { LeaseDetailView } from "@/features/leases/components/lease-detail-view";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import {
+  cancelLeaseActivationAction,
+  scheduleLeaseActivationAction,
   scheduleFutureRentTermAction,
   transitionLeaseLifecycleAction,
   type LeaseActionState,
@@ -33,6 +35,7 @@ import type {
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { formatDate } from "@/lib/dates/format";
 
 type LeaseTransition = "activate" | "end" | "give_notice" | "terminate";
 type LeaseTermChange = "renewal" | "rent_change";
@@ -138,6 +141,13 @@ export function LeaseDetailScreen({
         </div>
       ) : null}
 
+      {lease.activationSchedule ? (
+        <ScheduledActivationNotice
+          lease={lease}
+          onSuccess={setStatusMessage}
+        />
+      ) : null}
+
       <LeaseDetailView
         activeSection={activeSection}
         canConfigure={canConfigure}
@@ -203,7 +213,18 @@ export function LeaseDetailScreen({
       ) : null}
 
       {transition && currentOccupancy ? (
-        <LeaseTransitionModal
+        transition === "activate" ? (
+          <LeaseActivationModal
+            lease={lease}
+            occupancyId={currentOccupancy.id}
+            onClose={() => setTransition(null)}
+            onSuccess={(message) => {
+              setStatusMessage(message);
+              setTransition(null);
+            }}
+          />
+        ) : (
+          <LeaseTransitionModal
           lease={lease}
           occupancyId={currentOccupancy.id}
           onClose={() => setTransition(null)}
@@ -212,7 +233,8 @@ export function LeaseDetailScreen({
             setTransition(null);
           }}
           transition={transition}
-        />
+          />
+        )
       ) : null}
 
       {termChange && activeTerm ? (
@@ -493,6 +515,144 @@ function LeaseTransitionModal({
           </Button>
           <Button disabled={pending} type="submit">
             {pending ? "Saving..." : copy.submitLabel}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ScheduledActivationNotice({
+  lease,
+  onSuccess,
+}: {
+  lease: LeaseSummary;
+  onSuccess: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    cancelLeaseActivationAction,
+    initialActionState,
+  );
+  const schedule = lease.activationSchedule;
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+    onSuccess(state.message ?? "Scheduled activation cancelled.");
+    router.refresh();
+  }, [onSuccess, router, state.message, state.status]);
+
+  if (!schedule) return null;
+  return (
+    <div className="workspace-gutter-x pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3">
+        <div>
+          <p className="text-sm font-medium">
+            {schedule.status === "pending"
+              ? `Activation scheduled for ${formatDate(schedule.activationDate)}`
+              : "Scheduled activation needs attention"}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {schedule.status === "pending"
+              ? "The Lease stays Draft until that date."
+              : schedule.failureMessage ?? "Review the Lease and activate it again."}
+          </p>
+        </div>
+        {schedule.status === "pending" ? (
+          <form action={action}>
+            <input name="leaseId" type="hidden" value={lease.id} />
+            <input name="scheduleId" type="hidden" value={schedule.id} />
+            <Button disabled={pending} type="submit" variant="outline">
+              {pending ? "Cancelling..." : "Cancel scheduled activation"}
+            </Button>
+          </form>
+        ) : null}
+      </div>
+      {state.status === "error" && state.message ? (
+        <p className="mt-2 text-sm text-danger" role="alert">
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function LeaseActivationModal({
+  lease,
+  occupancyId,
+  onClose,
+  onSuccess,
+}: {
+  lease: LeaseSummary;
+  occupancyId: string;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(
+    scheduleLeaseActivationAction,
+    initialActionState,
+  );
+  const today = getBusinessDateValue();
+  const [activationMode, setActivationMode] = useState("today");
+  const [idempotencyKey] = useState(
+    () => `lease-activation:${lease.id}:${crypto.randomUUID()}`,
+  );
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+    onSuccess(state.message ?? "Lease activation saved.");
+    router.refresh();
+  }, [onSuccess, router, state.message, state.status]);
+
+  return (
+    <Modal onClose={onClose} open title="Activate lease">
+      <form action={formAction} className="space-y-4 p-4">
+        <input name="leaseId" type="hidden" value={lease.id} />
+        <input name="expectedStatus" type="hidden" value="draft" />
+        <input name="expectedOccupancyId" type="hidden" value={occupancyId} />
+        <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+
+        <label className="grid gap-1.5 text-sm font-medium">
+          Activation timing
+          <SelectControl
+            ariaLabel="Activation timing"
+            onValueChange={setActivationMode}
+            options={[
+              { label: "Activate today", value: "today" },
+              { label: "Activate on date", value: "scheduled" },
+            ]}
+            value={activationMode}
+          />
+        </label>
+
+        {activationMode === "scheduled" ? (
+          <div className="grid gap-1.5 text-sm font-medium">
+            <span>Activation date</span>
+            <DatePickerField
+              ariaLabel="Activation date"
+              defaultValue={today}
+              name="activationDate"
+              required
+            />
+            <FieldError errors={state.fieldErrors?.activationDate} />
+          </div>
+        ) : (
+          <input name="activationDate" type="hidden" value={today} />
+        )}
+
+        {state.status === "error" && state.message ? (
+          <p className="text-sm text-danger" role="alert">
+            {state.message}
+          </p>
+        ) : null}
+
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <Button onClick={onClose} type="button" variant="ghost">
+            Cancel
+          </Button>
+          <Button disabled={pending} type="submit">
+            {pending ? "Saving..." : "Activate lease"}
           </Button>
         </div>
       </form>

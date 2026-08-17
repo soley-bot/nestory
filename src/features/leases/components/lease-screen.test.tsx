@@ -161,7 +161,7 @@ describe("LeaseScreen redesign contract", () => {
     ).toBe(true);
   });
 
-  it("keeps the visible page identity and actions while removing page-local summary framing", () => {
+  it("keeps the global Lease register secondary and read-only for creation", () => {
     const { container } = renderLeases();
 
     expect(
@@ -173,10 +173,9 @@ describe("LeaseScreen redesign contract", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Leases" }),
     ).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Add lease" })).toBeNull();
     expect(
-      within(
-        container.querySelector('[data-slot="page-header-actions"]')!,
-      ).getByRole("button", { name: "Add lease" }),
+      screen.getByText("Create leases from a Property or Unit record."),
     ).not.toBeNull();
     expect(screen.queryByRole("region", { name: "Lease summary" })).toBeNull();
     expect(screen.queryByText("This page")).toBeNull();
@@ -375,253 +374,18 @@ describe("LeaseScreen redesign contract", () => {
     },
   );
 
-  it("keeps Lease creation compact and monthly while lifecycle evidence stays downstream", async () => {
-    const user = userEvent.setup();
+  it("redirects stale global create intents to the Property workspace", () => {
+    navigation.searchParams = new URLSearchParams(
+      "action=create&propertyId=property-1&unitId=unit-1",
+    );
+
     renderLeases();
 
-    await user.click(screen.getByRole("button", { name: "Add lease" }));
-
-    const drawer = screen.getByRole("dialog", { name: "Add lease" });
-    expect(within(drawer).getByText("Tenant and unit")).not.toBeNull();
-    expect(within(drawer).getByText("Lease period")).not.toBeNull();
-    expect(within(drawer).getByText("Rent and deposit")).not.toBeNull();
-    expect(
-      within(drawer).getByRole("button", { name: "Create draft lease" }),
-    ).not.toBeNull();
-    expect(
-      within(drawer).getByRole("button", { name: "New tenant" }),
-    ).not.toBeNull();
-    expect(
-      drawer.querySelector<HTMLInputElement>('input[name="status"]')?.value,
-    ).toBe("draft");
-    expect(
-      drawer.querySelector<HTMLInputElement>('input[name="termStatus"]')?.value,
-    ).toBe("draft");
-    expect(
-      drawer.querySelector<HTMLInputElement>('input[name="paymentFrequency"]')
-        ?.value,
-    ).toBe("monthly");
-    expect(
-      within(drawer).queryByRole("group", { name: /Scheduled move-in/ }),
-    ).toBeNull();
-    expect(
-      within(drawer).queryByRole("group", { name: /Payment frequency/ }),
-    ).toBeNull();
-    expect(
-      within(drawer).getByRole("group", { name: /Security deposit/ }),
-    ).not.toBeNull();
-    expect(
-      within(drawer)
-        .getByRole("textbox", { name: /Rent amount/ })
-        .getAttribute("min"),
-    ).toBe("0.01");
-    expect(
-      (
-        within(drawer).getByRole("combobox", {
-          name: /Property/,
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
-    expect(
-      within(drawer).getByText(
-        /valid start and end date.*property and unit availability/i,
-      ),
-    ).not.toBeNull();
-  });
-
-  it("shows only units and properties available for the inclusive Lease dates", async () => {
-    const user = userEvent.setup();
-    renderLeases({
-      propertyOptions: [
-        { id: "property-1", label: "Riverside House" },
-        { id: "property-2", label: "Garden House" },
-      ],
-      unitOptions: [
-        {
-          id: "unit-1",
-          label: "Unit 2A",
-          propertyId: "property-1",
-          reservations: [
-            {
-              endDate: "2026-08-31",
-              leaseId: "lease-existing",
-              startDate: "2026-08-01",
-            },
-          ],
-        },
-        {
-          id: "unit-2",
-          label: "Unit 1A",
-          propertyId: "property-2",
-          reservations: [],
-        },
-      ],
-    });
-
-    await user.click(screen.getByRole("button", { name: "Add lease" }));
-    const drawer = screen.getByRole("dialog", { name: "Add lease" });
-    setLeaseDates(drawer, "2026-08-15", "2026-08-31");
-    await user.click(
-      within(drawer).getByRole("combobox", { name: /Property/ }),
+    expect(navigation.replace).toHaveBeenCalledWith(
+      "/properties?notice=choose-lease-context",
+      { scroll: false },
     );
-
-    expect(
-      screen.queryByRole("option", { name: "Riverside House" }),
-    ).toBeNull();
-    expect(screen.getByRole("option", { name: "Garden House" })).not.toBeNull();
-  });
-
-  it("preserves the selected Property and Unit when both remain eligible after a date change", async () => {
-    const user = userEvent.setup();
-    renderLeases();
-
-    await user.click(screen.getByRole("button", { name: "Add lease" }));
-    const drawer = screen.getByRole("dialog", { name: "Add lease" });
-    setLeaseDates(drawer, "2026-09-01", "2026-09-30");
-    await selectLeasePlacement(user, drawer, "Riverside House", "Unit 2A");
-
-    fireEvent.input(
-      drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
-      { target: { value: "2026-10-31" } },
-    );
-
-    expect(getLeaseFormValue(drawer, "propertyId")).toBe("property-1");
-    expect(getLeaseFormValue(drawer, "unitId")).toBe("unit-1");
-  });
-
-  it("keeps preserved Property and Unit labels visible when the term becomes incomplete", async () => {
-    const user = userEvent.setup();
-    renderLeases();
-
-    await user.click(screen.getByRole("button", { name: "Add lease" }));
-    const drawer = screen.getByRole("dialog", { name: "Add lease" });
-    setLeaseDates(drawer, "2026-09-01", "2026-09-30");
-    await selectLeasePlacement(user, drawer, "Riverside House", "Unit 2A");
-
-    fireEvent.input(
-      drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
-      { target: { value: "" } },
-    );
-
-    const property = within(drawer).getByRole("combobox", {
-      name: /Property/,
-    });
-    const unit = within(drawer).getByRole("combobox", { name: /Unit/ });
-
-    expect(property.textContent).toContain("Riverside House");
-    expect(unit.textContent).toContain("Unit 2A");
-    expect((property as HTMLButtonElement).disabled).toBe(true);
-    expect((unit as HTMLButtonElement).disabled).toBe(true);
-    expect(getLeaseFormValue(drawer, "propertyId")).toBe("property-1");
-    expect(getLeaseFormValue(drawer, "unitId")).toBe("unit-1");
-  });
-
-  it("clears only an ineligible Unit when its Property still has an eligible Unit", async () => {
-    const user = userEvent.setup();
-    renderLeases({
-      unitOptions: [
-        {
-          id: "unit-1",
-          label: "Unit 2A",
-          propertyId: "property-1",
-          reservations: [
-            {
-              endDate: "2026-10-31",
-              leaseId: "lease-existing",
-              startDate: "2026-10-01",
-            },
-          ],
-        },
-        {
-          id: "unit-2",
-          label: "Unit 3B",
-          propertyId: "property-1",
-          reservations: [],
-        },
-      ],
-    });
-
-    await user.click(screen.getByRole("button", { name: "Add lease" }));
-    const drawer = screen.getByRole("dialog", { name: "Add lease" });
-    setLeaseDates(drawer, "2026-09-01", "2026-09-30");
-    await selectLeasePlacement(user, drawer, "Riverside House", "Unit 2A");
-
-    fireEvent.input(
-      drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
-      { target: { value: "2026-10-15" } },
-    );
-
-    expect(getLeaseFormValue(drawer, "propertyId")).toBe("property-1");
-    expect(getLeaseFormValue(drawer, "unitId")).toBe("");
-  });
-
-  it("clears Property and Unit only when the selected Property has no eligible Unit", async () => {
-    const user = userEvent.setup();
-    renderLeases({
-      propertyOptions: [
-        { id: "property-1", label: "Riverside House" },
-        { id: "property-2", label: "Garden House" },
-      ],
-      unitOptions: [
-        {
-          id: "unit-1",
-          label: "Unit 2A",
-          propertyId: "property-1",
-          reservations: [
-            {
-              endDate: "2026-10-31",
-              leaseId: "lease-existing",
-              startDate: "2026-10-01",
-            },
-          ],
-        },
-        {
-          id: "unit-2",
-          label: "Unit 1A",
-          propertyId: "property-2",
-          reservations: [],
-        },
-      ],
-    });
-
-    await user.click(screen.getByRole("button", { name: "Add lease" }));
-    const drawer = screen.getByRole("dialog", { name: "Add lease" });
-    setLeaseDates(drawer, "2026-09-01", "2026-09-30");
-    await selectLeasePlacement(user, drawer, "Riverside House", "Unit 2A");
-
-    fireEvent.input(
-      drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
-      { target: { value: "2026-10-15" } },
-    );
-
-    expect(getLeaseFormValue(drawer, "propertyId")).toBe("");
-    expect(getLeaseFormValue(drawer, "unitId")).toBe("");
-  });
-
-  it("keeps a successful creation visibly saved with an Open draft handoff", async () => {
-    leaseActions.createLeaseAction.mockResolvedValue({
-      leaseId: "lease-new",
-      message: "Draft lease created.",
-      status: "success",
-    });
-    const user = userEvent.setup();
-    renderLeases();
-
-    await user.click(screen.getByRole("button", { name: "Add lease" }));
-    const drawer = screen.getByRole("dialog", { name: "Add lease" });
-    fireEvent.submit(
-      within(drawer).getByRole("form", { name: "Add lease form" }),
-    );
-
-    const openDraft = await within(drawer).findByRole("link", {
-      name: "Open draft",
-    });
-    expect(openDraft.getAttribute("href")).toBe("/leases/lease-new");
-    expect(within(drawer).getByText("Draft lease created.")).not.toBeNull();
-    expect(within(drawer).getByText("Changes saved")).not.toBeNull();
-    expect(
-      within(drawer).queryByRole("button", { name: "Create draft lease" }),
-    ).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
   });
 
   it("links the inspector next action and related Property and Unit destinations", () => {
@@ -840,39 +604,6 @@ function renderLeases({
       viewQuery={viewQuery}
     />,
   );
-}
-
-function setLeaseDates(
-  drawer: HTMLElement,
-  startDate: string,
-  endDate: string,
-) {
-  fireEvent.input(
-    drawer.querySelector<HTMLInputElement>('input[name="leaseStartDate"]')!,
-    { target: { value: startDate } },
-  );
-  fireEvent.input(
-    drawer.querySelector<HTMLInputElement>('input[name="leaseEndDate"]')!,
-    { target: { value: endDate } },
-  );
-}
-
-async function selectLeasePlacement(
-  user: ReturnType<typeof userEvent.setup>,
-  drawer: HTMLElement,
-  propertyLabel: string,
-  unitLabel: string,
-) {
-  await user.click(
-    within(drawer).getByRole("combobox", { name: /Property/ }),
-  );
-  await user.click(screen.getByRole("option", { name: propertyLabel }));
-  await user.click(within(drawer).getByRole("combobox", { name: /Unit/ }));
-  await user.click(screen.getByRole("option", { name: unitLabel }));
-}
-
-function getLeaseFormValue(drawer: HTMLElement, name: string) {
-  return drawer.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value;
 }
 
 function makeLease(

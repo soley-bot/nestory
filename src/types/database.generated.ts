@@ -2283,14 +2283,98 @@ export type Database = {
           },
         ]
       }
+      lease_activation_schedules: {
+        Row: {
+          activation_date: string
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          expected_occupancy_id: string
+          failure_code: string | null
+          failure_message: string | null
+          id: string
+          idempotency_key: string
+          lease_id: string
+          organization_id: string
+          processed_at: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          activation_date: string
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          expected_occupancy_id: string
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: string
+          idempotency_key: string
+          lease_id: string
+          organization_id: string
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          activation_date?: string
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          expected_occupancy_id?: string
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: string
+          idempotency_key?: string
+          lease_id?: string
+          organization_id?: string
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_activation_schedules_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "current_leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_activation_schedules_lease_fkey"
+            columns: ["organization_id", "lease_id"]
+            isOneToOne: false
+            referencedRelation: "leases"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_activation_schedules_occupancy_fkey"
+            columns: ["organization_id", "expected_occupancy_id"]
+            isOneToOne: false
+            referencedRelation: "lease_occupancies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lease_activation_schedules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lease_billing_terms: {
         Row: {
           archived_at: string | null
           archived_by: string | null
-          billing_recipient_kind: string
-          billing_recipient_person_id: string
+          billing_recipient_kind: string | null
+          billing_recipient_person_id: string | null
           charge_management_fee_when_active: boolean
-          collection_route: string
+          charge_through_lease_end: boolean
+          collection_route: string | null
           confirmed_at: string
           confirmed_by: string
           created_at: string
@@ -2302,11 +2386,17 @@ export type Database = {
           first_period_prorated_amount: number | null
           full_management_fee_during_proration: boolean
           id: string
+          lease_end_proration_rule: string
           lease_id: string
-          management_fee_mode: string
-          management_fee_value: number
+          lease_start_proration_rule: string
+          management_fee_mode: string | null
+          management_fee_value: number | null
+          mid_period_rent_change_rule: string
           organization_id: string
           property_id: string
+          rent_calculation_timezone: string
+          rule_source: string
+          short_month_due_day_rule: string
           superseded_at: string | null
           superseded_by: string | null
           supersedes_billing_term_id: string | null
@@ -2316,10 +2406,11 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           archived_by?: string | null
-          billing_recipient_kind: string
-          billing_recipient_person_id: string
+          billing_recipient_kind?: string | null
+          billing_recipient_person_id?: string | null
           charge_management_fee_when_active?: boolean
-          collection_route: string
+          charge_through_lease_end?: boolean
+          collection_route?: string | null
           confirmed_at?: string
           confirmed_by: string
           created_at?: string
@@ -2331,11 +2422,17 @@ export type Database = {
           first_period_prorated_amount?: number | null
           full_management_fee_during_proration?: boolean
           id?: string
+          lease_end_proration_rule?: string
           lease_id: string
-          management_fee_mode: string
-          management_fee_value: number
+          lease_start_proration_rule?: string
+          management_fee_mode?: string | null
+          management_fee_value?: number | null
+          mid_period_rent_change_rule?: string
           organization_id: string
           property_id: string
+          rent_calculation_timezone?: string
+          rule_source?: string
+          short_month_due_day_rule?: string
           superseded_at?: string | null
           superseded_by?: string | null
           supersedes_billing_term_id?: string | null
@@ -2345,10 +2442,11 @@ export type Database = {
         Update: {
           archived_at?: string | null
           archived_by?: string | null
-          billing_recipient_kind?: string
-          billing_recipient_person_id?: string
+          billing_recipient_kind?: string | null
+          billing_recipient_person_id?: string | null
           charge_management_fee_when_active?: boolean
-          collection_route?: string
+          charge_through_lease_end?: boolean
+          collection_route?: string | null
           confirmed_at?: string
           confirmed_by?: string
           created_at?: string
@@ -2360,11 +2458,17 @@ export type Database = {
           first_period_prorated_amount?: number | null
           full_management_fee_during_proration?: boolean
           id?: string
+          lease_end_proration_rule?: string
           lease_id?: string
-          management_fee_mode?: string
-          management_fee_value?: number
+          lease_start_proration_rule?: string
+          management_fee_mode?: string | null
+          management_fee_value?: number | null
+          mid_period_rent_change_rule?: string
           organization_id?: string
           property_id?: string
+          rent_calculation_timezone?: string
+          rule_source?: string
+          short_month_due_day_rule?: string
           superseded_at?: string | null
           superseded_by?: string | null
           supersedes_billing_term_id?: string | null
@@ -8947,6 +9051,10 @@ export type Database = {
         Args: { p_organization_id: string; p_storage_path: string }
         Returns: boolean
       }
+      cancel_lease_activation: {
+        Args: { p_organization_id: string; p_schedule_id: string }
+        Returns: Json
+      }
       close_owner_month: {
         Args: {
           p_close_reason: string
@@ -9132,6 +9240,19 @@ export type Database = {
         }
         Returns: string
       }
+      create_manual_tenant_charge: {
+        Args: {
+          p_amount: number
+          p_billing_period_start: string
+          p_charge_type: string
+          p_description: string
+          p_due_date: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       create_organization_branch: {
         Args: {
           p_address: string
@@ -9228,6 +9349,25 @@ export type Database = {
         }
         Returns: string
       }
+      create_property_lease: {
+        Args: {
+          p_deposit_amount: number
+          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
+          p_idempotency_key: string
+          p_lease_end_date: string
+          p_lease_start_date: string
+          p_lease_status: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_term_status: string
+        }
+        Returns: Json
+      }
       create_property_minimal: {
         Args: {
           p_address: string
@@ -9247,6 +9387,27 @@ export type Database = {
           p_organization_id: string
         }
         Returns: string
+      }
+      create_simplified_unit_lease: {
+        Args: {
+          p_deposit_amount: number
+          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
+          p_idempotency_key: string
+          p_lease_end_date: string
+          p_lease_start_date: string
+          p_lease_status: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_relationship_payload: Json
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_term_status: string
+          p_unit_id: string
+        }
+        Returns: Json
       }
       create_timeline_event: {
         Args: {
@@ -9780,6 +9941,14 @@ export type Database = {
         Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
       }
+      process_due_lease_activations: {
+        Args: {
+          p_limit?: number
+          p_organization_id: string
+          p_through_date?: string
+        }
+        Returns: Json
+      }
       provision_client_workspace: {
         Args: { p_admin_email: string; p_name: string; p_slug: string }
         Returns: {
@@ -10026,6 +10195,17 @@ export type Database = {
         }
         Returns: string
       }
+      request_lease_activation: {
+        Args: {
+          p_activation_date: string
+          p_expected_occupancy_id: string
+          p_expected_status: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       resolve_authoritative_lease_term: {
         Args: {
           p_effective_date: string
@@ -10059,10 +10239,11 @@ export type Database = {
         Returns: {
           archived_at: string | null
           archived_by: string | null
-          billing_recipient_kind: string
-          billing_recipient_person_id: string
+          billing_recipient_kind: string | null
+          billing_recipient_person_id: string | null
           charge_management_fee_when_active: boolean
-          collection_route: string
+          charge_through_lease_end: boolean
+          collection_route: string | null
           confirmed_at: string
           confirmed_by: string
           created_at: string
@@ -10074,11 +10255,17 @@ export type Database = {
           first_period_prorated_amount: number | null
           full_management_fee_during_proration: boolean
           id: string
+          lease_end_proration_rule: string
           lease_id: string
-          management_fee_mode: string
-          management_fee_value: number
+          lease_start_proration_rule: string
+          management_fee_mode: string | null
+          management_fee_value: number | null
+          mid_period_rent_change_rule: string
           organization_id: string
           property_id: string
+          rent_calculation_timezone: string
+          rule_source: string
+          short_month_due_day_rule: string
           superseded_at: string | null
           superseded_by: string | null
           supersedes_billing_term_id: string | null
