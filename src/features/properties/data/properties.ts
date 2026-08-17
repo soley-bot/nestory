@@ -30,6 +30,7 @@ import {
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import type {
   PropertyArchiveState,
+  PropertyLeaseStatusFilter,
   PropertyNetStatusFilter,
   PropertyOwnerOption,
   PropertyOwnerStatusFilter,
@@ -215,7 +216,6 @@ async function loadPropertySummariesForRows({
         .eq("organization_id", organizationId)
         .in("property_id", batch)
         .in("status", [...ACTIVE_UNIT_LEASE_STATUSES])
-        .not("unit_id", "is", null)
         .is("archived_at", null);
 
       if (result.error) {
@@ -273,8 +273,9 @@ async function loadPropertySummariesForRows({
 
   return properties.map((property): PropertySummary => {
     const units = unitsByProperty.get(property.id) ?? [];
+    const currentLeases = currentLeasesByProperty.get(property.id) ?? [];
     const currentLeaseUnitCount = new Set(
-      (currentLeasesByProperty.get(property.id) ?? []).flatMap((lease) =>
+      currentLeases.flatMap((lease) =>
         lease.unit_id ? [lease.unit_id] : [],
       ),
     ).size;
@@ -282,6 +283,7 @@ async function loadPropertySummariesForRows({
 
     return buildPropertySummary({
       activeOwner: ownerLinks.get(property.id),
+      currentLeaseCount: currentLeases.length,
       currentLeaseUnitCount,
       hasActiveOwnerLink: ownerLinks.has(property.id),
       ledgerEntries,
@@ -363,6 +365,7 @@ export async function getPropertiesScreenData(
 function canUsePagedPropertyBaseQuery(viewQuery: PropertyViewQuery) {
   return (
     viewQuery.query.trim().length === 0 &&
+    viewQuery.leaseStatus === "all" &&
     viewQuery.netStatus === "all" &&
     viewQuery.review === "all" &&
     (viewQuery.sort === "code_asc" ||
@@ -872,6 +875,10 @@ function filterPropertySummaries(
       property,
       viewQuery.netStatus,
     );
+    const matchesLeaseStatus = propertyMatchesLeaseStatusFilter(
+      property,
+      viewQuery.leaseStatus,
+    );
     const matchesReview = propertyMatchesReviewFilter(property, viewQuery.review);
     const haystack = [
       property.name,
@@ -890,6 +897,7 @@ function filterPropertySummaries(
       matchesStatus &&
       matchesOwnerStatus &&
       matchesNetStatus &&
+      matchesLeaseStatus &&
       matchesReview &&
       matchesQuery
     );
@@ -908,6 +916,28 @@ export function propertyMatchesNetStatusFilter(
   netStatus: PropertyNetStatusFilter,
 ) {
   return netStatus === "all" || property.netIncomeUsd < 0;
+}
+
+export function propertyMatchesLeaseStatusFilter(
+  property: Pick<
+    PropertySummary,
+    "currentLeaseCount" | "units" | "unitsWithoutCurrentLease"
+  >,
+  leaseStatus: PropertyLeaseStatusFilter,
+) {
+  if (leaseStatus === "missing") {
+    return property.units > 0
+      ? property.unitsWithoutCurrentLease > 0
+      : property.currentLeaseCount === 0;
+  }
+
+  if (leaseStatus === "current") {
+    return property.units > 0
+      ? property.unitsWithoutCurrentLease === 0
+      : property.currentLeaseCount > 0;
+  }
+
+  return true;
 }
 
 export function propertyMatchesReviewFilter(

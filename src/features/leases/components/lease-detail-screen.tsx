@@ -119,7 +119,21 @@ export function LeaseDetailScreen({
         breadcrumb={
           <PageBreadcrumb
             current={lease.tenantName}
-            items={[{ href: "/leases", label: "Leases" }]}
+            items={[
+              { href: "/properties", label: "Properties" },
+              {
+                href: lease.hrefs.property,
+                label: `${lease.propertyCode} — ${lease.propertyName}`,
+              },
+              ...(lease.unitId && lease.hrefs.unit
+                ? [
+                    {
+                      href: lease.hrefs.unit,
+                      label: lease.unitLabel.split(" / ")[0] ?? lease.unitLabel,
+                    },
+                  ]
+                : []),
+            ]}
           />
         }
         className="pb-3"

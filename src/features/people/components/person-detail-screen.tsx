@@ -34,7 +34,6 @@ import {
 } from "@/features/people/components/person-drawer-panels";
 import { PersonForm } from "@/features/people/components/person-form";
 import { WorkspaceAccessStatus } from "@/features/people/components/workspace-access-status";
-import { formatRole } from "@/features/people/people.labels";
 import type {
   PeopleBadgeTone,
   PeopleLeaseLink,
@@ -162,7 +161,7 @@ export function PersonDetailScreen({
         breadcrumb={
           <PageBreadcrumb
             current={person.displayName}
-            items={[{ href: getBackHref(person), label: getBackLabel(person) }]}
+            items={[{ href: "/people", label: "People" }]}
           />
         }
         context={
@@ -738,38 +737,6 @@ function ActionLink({
       <span className="truncate">{children}</span>
     </Link>
   );
-}
-
-function getBackHref(person: PeopleSummary) {
-  const role = person.roles.find((item) => item.status === "active")?.role;
-
-  if (role === "tenant") {
-    return "/tenants";
-  }
-
-  if (role === "owner") {
-    return "/owners";
-  }
-
-  if (role === "vendor") {
-    return "/vendors";
-  }
-
-  if (role === "staff") {
-    return "/staff";
-  }
-
-  return "/people";
-}
-
-function getBackLabel(person: PeopleSummary) {
-  const role = person.roles.find((item) => item.status === "active")?.role;
-
-  if (role === "staff") {
-    return "Staff";
-  }
-
-  return role ? `${formatRole(role)}s` : "People";
 }
 
 function isStaffOnlyPerson(person: PeopleSummary) {

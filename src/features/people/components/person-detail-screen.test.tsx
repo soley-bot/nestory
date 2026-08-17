@@ -37,8 +37,8 @@ describe("PersonDetailScreen", () => {
       screen.queryByRole("link", { name: "Review relationship" }),
     ).toBeNull();
     expect(
-      screen.getByRole("link", { name: "Tenants" }).getAttribute("href"),
-    ).toBe("/tenants");
+      screen.getByRole("link", { name: "People" }).getAttribute("href"),
+    ).toBe("/people");
 
     const navigation = screen.getByRole("navigation", {
       name: "Person record sections",
@@ -104,8 +104,8 @@ describe("PersonDetailScreen", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "Staff" }).getAttribute("href"),
-    ).toBe("/staff");
+      screen.getByRole("link", { name: "People" }).getAttribute("href"),
+    ).toBe("/people");
     expect(
       screen.queryByRole("navigation", { name: "Person record sections" }),
     ).toBeNull();

@@ -196,6 +196,9 @@ export function PeopleScreen({
           ) : null}
         </>
       }
+      breadcrumbItems={
+        lockedRole ? [{ href: "/people", label: "People" }] : undefined
+      }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref={pathname}
       headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"

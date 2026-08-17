@@ -56,6 +56,7 @@ export function PropertyDetailScreen({
 }: PropertyDetailScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
+  const [ownerAssignmentOpen, setOwnerAssignmentOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const confirmationTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -164,6 +165,10 @@ export function PropertyDetailScreen({
           setStatusMessage(null);
           setDrawer({ mode: "create-unit", property });
         }}
+        onAssignOwner={() => {
+          setStatusMessage(null);
+          setOwnerAssignmentOpen(true);
+        }}
         onCreateLease={() => {
           setStatusMessage(null);
           setDrawer({ mode: "create-lease", property });
@@ -236,6 +241,23 @@ export function PropertyDetailScreen({
             />
           )}
         </SideDrawer>
+      ) : null}
+
+      {ownerAssignmentOpen ? (
+        <Modal
+          onClose={() => setOwnerAssignmentOpen(false)}
+          open
+          title="Assign owner"
+        >
+          <PropertyForm
+            mode="edit"
+            onClose={() => setOwnerAssignmentOpen(false)}
+            onSuccess={setStatusMessage}
+            ownerOptions={ownerOptions}
+            property={property}
+            scope="owner"
+          />
+        </Modal>
       ) : null}
 
       {confirmation ? (

@@ -24,6 +24,7 @@ type SearchComboProps = {
   query: string;
   scopeOptions?: SelectControlOption[];
   scopeValue?: string;
+  showSubmitButton?: boolean;
   submitLabel: string;
   suggestions?: SearchComboSuggestion[];
 };
@@ -40,6 +41,7 @@ export function SearchCombo({
   query,
   scopeOptions = [],
   scopeValue = "all",
+  showSubmitButton = true,
   submitLabel,
   suggestions = [],
 }: SearchComboProps) {
@@ -116,15 +118,17 @@ export function SearchCombo({
           </div>
         ) : null}
       </div>
-      <Button
-        aria-label={submitLabel}
-        className="h-8 w-8 shrink-0 px-0"
-        disabled={disabled}
-        title={submitLabel}
-        type="submit"
-      >
-        <Search size={14} />
-      </Button>
+      {showSubmitButton ? (
+        <Button
+          aria-label={submitLabel}
+          className="h-8 w-8 shrink-0 px-0"
+          disabled={disabled}
+          title={submitLabel}
+          type="submit"
+        >
+          <Search size={14} />
+        </Button>
+      ) : null}
     </form>
   );
 }

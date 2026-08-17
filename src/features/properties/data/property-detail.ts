@@ -256,6 +256,7 @@ export type PropertyHealthIndicator = {
 };
 
 export type PropertyNextAction = {
+  intent?: "assign-owner";
   description: string;
   href: string;
   label: string;
@@ -332,6 +333,8 @@ export function buildPropertyDetail({
   ).length;
   const summary = buildPropertySummary({
     activeOwner,
+    currentLeaseCount: activeLeases.length,
+    currentLeaseUnitCount: activeLeaseByUnitId.size,
     hasActiveOwnerLink: Boolean(activeOwner),
     ledgerEntries,
     property,
@@ -409,7 +412,7 @@ export function buildPropertyDetail({
     nextAction: buildPropertyNextAction({
       activeLeases,
       activeUnitCount: activeUnits.length,
-      counts,
+      activeUnits,
       financialSummary,
       hasActiveOwnerLink: Boolean(activeOwner),
       hrefs,
@@ -993,7 +996,7 @@ function buildPropertyHealthIndicators({
 function buildPropertyNextAction({
   activeLeases,
   activeUnitCount,
-  counts,
+  activeUnits,
   financialSummary,
   hasActiveOwnerLink,
   hrefs,
@@ -1001,7 +1004,7 @@ function buildPropertyNextAction({
 }: {
   activeLeases: PropertyDetailLeaseRecord[];
   activeUnitCount: number;
-  counts: PropertyDetailCounts;
+  activeUnits: PropertyDetailUnitRecord[];
   financialSummary: PropertyFinancialSummary;
   hasActiveOwnerLink: boolean;
   hrefs: PropertyDetailHrefs;
@@ -1011,6 +1014,7 @@ function buildPropertyNextAction({
     return {
       description: "Assign a current owner/person link before relying on owner reports.",
       href: hrefs.propertiesList,
+      intent: "assign-owner",
       label: "Assign owner",
       tone: "danger",
     };
@@ -1026,10 +1030,23 @@ function buildPropertyNextAction({
   }
 
   if (activeLeases.length === 0) {
+    const onlyUnit = activeUnits.length === 1 ? activeUnits[0] : null;
+
     return {
-      description: "Create or review leases so occupancy and rent roll are connected.",
-      href: hrefs.addLease,
-      label: "Add lease",
+      description: onlyUnit
+        ? "Continue lease setup inside this unit."
+        : "Choose the unit that needs a lease.",
+      href: onlyUnit ? `/units/${onlyUnit.id}` : hrefs.units,
+      label: onlyUnit ? `Open Unit ${onlyUnit.unit_number}` : "Review units",
+      tone: "warning",
+    };
+  }
+
+  if (financialSummary.incomeUsd <= 0) {
+    return {
+      description: "Review the rent account because the active lease has no recent income.",
+      href: hrefs.account,
+      label: "Review rent",
       tone: "warning",
     };
   }
@@ -1067,15 +1084,6 @@ function buildPropertyNextAction({
         taskId: openCase.id,
       }),
       label: "Review open issue",
-      tone: "warning",
-    };
-  }
-
-  if (counts.documents === 0) {
-    return {
-      description: "Attach ownership, lease, receipt, or inspection evidence to the record.",
-      href: hrefs.addDocument,
-      label: "Attach evidence",
       tone: "warning",
     };
   }

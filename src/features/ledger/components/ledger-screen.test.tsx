@@ -54,7 +54,12 @@ describe("LedgerScreen finance workspace contract", () => {
     const { container } = renderLedger();
 
     expect(screen.getByRole("heading", { name: "Ledger" })).toBeTruthy();
-    expect(screen.getAllByText("All properties · 2 records")).toHaveLength(2);
+    expect(screen.getAllByText("All properties · 2 records")).toHaveLength(1);
+    expect(
+      within(screen.getByRole("navigation", { name: "Breadcrumb" })).queryByText(
+        "All properties · 2 records",
+      ),
+    ).toBeNull();
 
     expect(
       container.querySelector('[data-slot="workspace-page"]'),

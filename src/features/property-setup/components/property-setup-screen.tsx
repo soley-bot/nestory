@@ -124,6 +124,7 @@ export function PropertySetupScreen({
           Properties
         </Link>
       }
+      breadcrumbItems={[{ href: "/properties", label: "Properties" }]}
       context={`Step ${step} of 5`}
       contextHref="/properties/setup"
       title="Set up property"
@@ -627,15 +628,20 @@ function CreateRecordModal({
 }) {
   if (!modal) return null;
   const title = `Create ${modal}`;
+  const description =
+    modal === "owner"
+      ? "The new owner will be selected so you can continue to the property or unit."
+      : "Save this record and continue setup.";
   return (
     <Modal
-      description="Save this source record to carry its authoritative ID into setup."
+      description={description}
       onClose={onClose}
       open
       title={title}
     >
       {modal === "owner" ? (
         <PersonForm
+          createSaveLabel="Create and continue"
           initialRoles={["owner"]}
           onClose={onClose}
           onSuccess={(_message, id) => onOwnerCreated(id)}

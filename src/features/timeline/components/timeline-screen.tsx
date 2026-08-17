@@ -229,6 +229,12 @@ export function TimelineScreen({
           </Button>
         </>
       }
+      breadcrumbCurrent={pathname === "/timeline" ? "Records" : title}
+      breadcrumbItems={
+        pathname === "/timeline"
+          ? undefined
+          : [{ href: "/timeline", label: "Records" }]
+      }
       context={<span>{getTimelineScopeLabel(scope)}</span>}
       contextHref={pathname}
       title={title}

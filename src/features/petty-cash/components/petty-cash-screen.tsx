@@ -353,6 +353,10 @@ export function PettyCashScreen({
           </div>
         )
       }
+      breadcrumbItems={[
+        { href: "/finance", label: "Finance" },
+        { href: "/finance/advanced", label: "Advanced finance" },
+      ]}
       context={
         selectedAccount
           ? `${selectedAccount.accountNumber} / ${selectedAccount.name}`

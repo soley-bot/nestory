@@ -26,6 +26,7 @@ export default async function AdvancedFinancePage() {
   const context = await requireFinanceContext();
   return (
     <WorkspacePage
+      breadcrumbItems={[{ href: "/finance", label: "Finance" }]}
       context="Specialized and historical tools"
       contextHref="/finance/advanced"
       localNav={

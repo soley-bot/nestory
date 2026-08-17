@@ -13,6 +13,8 @@ export type PropertyOwnerStatusFilter = "missing" | "all";
 
 export type PropertyNetStatusFilter = "negative" | "all";
 
+export type PropertyLeaseStatusFilter = "missing" | "current" | "all";
+
 export type PropertyReviewFilter =
   | "all"
   | "missing_address"
@@ -56,6 +58,7 @@ export type PropertyPagination = {
 
 export type PropertyViewQuery = {
   archiveState: PropertyArchiveState;
+  leaseStatus: PropertyLeaseStatusFilter;
   netStatus: PropertyNetStatusFilter;
   page: number;
   pageSize: number;

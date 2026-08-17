@@ -25,6 +25,8 @@ describe("buildPropertySummary", () => {
       }),
     ).toMatchObject({
       address: "No address recorded",
+      currentLeaseCount: 1,
+      currentLeaseUnitCount: 1,
       netIncome: {
         primary: "USD 875.00",
       },
@@ -32,6 +34,7 @@ describe("buildPropertySummary", () => {
       owner: "Unassigned",
       status: "Under Renovation",
       units: 2,
+      unitsWithoutCurrentLease: 1,
     });
   });
 
@@ -56,9 +59,12 @@ describe("buildPropertySummary", () => {
         ],
       }),
     ).toMatchObject({
+      currentLeaseCount: 2,
+      currentLeaseUnitCount: 2,
       occupiedUnits: 2,
       unitSummary: "2/3 occupied",
       units: 3,
+      unitsWithoutCurrentLease: 1,
     });
   });
 

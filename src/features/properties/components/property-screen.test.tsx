@@ -44,6 +44,7 @@ vi.mock("next/navigation", () => ({
 
 const defaultViewQuery: PropertyViewQuery = {
   archiveState: "active",
+  leaseStatus: "all",
   netStatus: "all",
   ownerStatus: "all",
   page: 1,
@@ -119,7 +120,19 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.getByRole("textbox", { name: /Property name/ })).toBeTruthy();
     const code = screen.getByRole("textbox", { name: /Code/ }) as HTMLInputElement;
     expect(code.required).toBe(false);
-    expect(screen.getByRole("textbox", { name: /Property type/ })).toBeTruthy();
+    const propertyType = screen.getByRole("combobox", { name: /Property type/ });
+    expect(propertyType).toBeTruthy();
+    fireEvent.click(propertyType);
+    expect(screen.getByRole("option", { name: "Residential apartment" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Residential house" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Mixed use" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Serviced Apartment" })).toBeTruthy();
+    const condo = screen.getByRole("option", { name: "Condo" });
+    expect(condo).toBeTruthy();
+    fireEvent.click(condo);
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="propertyType"]')?.value,
+    ).toBe("Condo");
     expect(screen.getByRole("textbox", { name: /Address/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Registered date" })).toBeTruthy();
     expect(document.querySelector('input[name="photo"]')).not.toBeNull();
@@ -318,7 +331,7 @@ describe("PropertyScreen redesign contract", () => {
     );
     expect(
       within(summary).getByRole("link", { name: /9\s*Without current lease/ }).getAttribute("href"),
-    ).toBe("/units?leaseStatus=missing");
+    ).toBe("/properties?leaseStatus=missing");
 
     expect(container.querySelectorAll('[data-slot="portfolio-summary-item"]')).toHaveLength(3);
     expect(container.querySelector('[data-slot="portfolio-summary-card"]')).toBeNull();
@@ -360,6 +373,9 @@ describe("PropertyScreen redesign contract", () => {
     expect(
       screen.getByRole("combobox", { name: "Filter by owner link" }),
     ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by lease health" }),
+    ).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Rows per page" })).toBeTruthy();
   });
 
@@ -392,40 +408,23 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByText(/Showing/)).toBeNull();
   });
 
-  it("uses one predictable row action, opens details only from preview, and preserves URL-backed sorting", async () => {
+  it("uses one predictable row action, opens the property directly, and preserves URL-backed sorting", () => {
     const { container } = renderProperties();
 
     expect(container.querySelector('[data-slot="workspace-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="workspace-split-view"]')).not.toBeNull();
 
     const table = screen.getByRole("table");
-    expect(table.className).toContain("text-sm");
-    expect(table.querySelector("thead")?.className).toContain("text-xs");
+    expect(table.className).toContain("text-[13px]");
+    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
 
     const rows = within(table).getAllByRole("row").slice(1);
     expect(within(rows[0]!).queryByRole("link", { name: "Home Residence" })).toBeNull();
 
     fireEvent.click(rows[1]!);
-    await waitFor(() => {
-      expect(
-        screen.getByRole("dialog", { name: "Riverside House quick view" }),
-      ).toBeTruthy();
-    });
-    expect(navigation.push).not.toHaveBeenCalled();
+    expect(navigation.push).toHaveBeenCalledWith("/properties/property-2");
     expect(screen.queryByRole("complementary")).toBeNull();
-
-    const quickView = screen.getByRole("dialog", {
-      name: "Riverside House quick view",
-    });
-    expect(
-      within(quickView).getByRole("link", { name: "Open Riverside House" }).getAttribute(
-        "href",
-      ),
-    ).toBe("/properties/property-2");
-
-    fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
-    fireEvent.doubleClick(rows[1]!);
-    expect(navigation.push).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Sort properties by net" }));
     expect(navigation.replace).toHaveBeenLastCalledWith(
@@ -437,7 +436,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
 
-  it("matches the selected property quick-view layout", () => {
+  it("keeps the selected property facts readable in the register", () => {
     const property = makeProperty("property-compact", "CTR", "Central Residence");
     property.address = "Street 360, Boeung Keng Kang 1, Phnom Penh";
     property.owner = "Sokha Vannak";
@@ -445,57 +444,14 @@ describe("PropertyScreen redesign contract", () => {
     property.units = 3;
     renderProperties({ properties: [property] });
 
-    fireEvent.click(within(screen.getByRole("table")).getAllByRole("row")[1]!);
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1]!;
 
-    const quickView = screen.getByRole("dialog", {
-      name: "Central Residence quick view",
-    });
-    expect(quickView.className).toContain("max-w-[760px]");
-    const summary = within(quickView).getByRole("group", {
-      name: "Property summary",
-    });
-    const details = within(quickView).getByRole("group", {
-      name: "Property details",
-    });
-    const records = within(quickView).getByRole("navigation", {
-      name: "Property records",
-    });
-    const actions = within(quickView).getByRole("group", {
-      name: "Property actions",
-    });
-    const vacancyAction = within(quickView).getByRole("link", {
-      name: "1 vacant unit — review against leases",
-    });
-
-    expect(
-      within(summary).getByText((_, node) => node?.tagName === "DD" && node.textContent === "2/3"),
-    ).toBeTruthy();
-    expect(within(summary).getByText("USD 1,200.00")).toBeTruthy();
-    expect(within(summary).getByText("Ledger net (all time)")).toBeTruthy();
-    expect(within(summary).getByText("3")).toBeTruthy();
-    expect(within(summary).getByText("2 leases active")).toBeTruthy();
-    expect(within(summary).queryByText("Positive this period")).toBeNull();
-    expect(within(summary).getByRole("progressbar", { name: "Occupancy 2 of 3 units" })).toBeTruthy();
-    expect(within(details).getByText("Sokha Vannak")).toBeTruthy();
-    expect(within(details).getByText("Street 360, Boeung Keng Kang 1, Phnom Penh")).toBeTruthy();
-    expect(vacancyAction.getAttribute("href")).toBe(
-      "/units?propertyId=property-compact&leaseStatus=missing",
-    );
-    expect(
-      vacancyAction.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(within(records).getByRole("link", { name: "Units 3" })).toBeTruthy();
-    expect(within(records).getByRole("link", { name: "Leases 2" })).toBeTruthy();
-    expect(within(records).getByRole("link", { name: "Ledger" })).toBeTruthy();
-    expect(within(records).getByRole("link", { name: "Timeline" })).toBeTruthy();
-    expect(within(actions).getByRole("button", { name: "More actions for Central Residence" })).toBeTruthy();
-    expect(within(actions).getByRole("button", { name: "Edit Central Residence" })).toBeTruthy();
-    expect(within(actions).getByRole("link", { name: "Open Central Residence" })).toBeTruthy();
-    expect(within(quickView).queryByText("At a glance")).toBeNull();
-    expect(within(quickView).queryByText("Next action")).toBeNull();
-    expect(within(quickView).queryByText("Related records")).toBeNull();
-    expect(quickView.querySelectorAll('[data-slot="property-preview-fact-card"]')).toHaveLength(3);
-    expect(quickView.querySelectorAll('[data-slot="property-preview-record-pill"]')).toHaveLength(4);
+    expect(within(row).getByText("Central Residence")).toBeTruthy();
+    expect(within(row).getByText("Sokha Vannak")).toBeTruthy();
+    expect(within(row).getByText("1 open")).toBeTruthy();
+    expect(within(row).getByText("1 active lease")).toBeTruthy();
+    expect(within(row).getByText("$1,200.00")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it.each([1440, 1024, 390])(
@@ -509,35 +465,28 @@ describe("PropertyScreen redesign contract", () => {
     },
   );
 
-  it("opens card quick views instead of bypassing preview", () => {
+  it("opens card records directly", () => {
     installMatchMedia(1024);
     renderProperties();
 
-    fireEvent.click(screen.getByRole("button", { name: "Preview Riverside House" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Riverside House" }));
 
-    expect(
-      screen.getByRole("dialog", { name: "Riverside House quick view" }),
-    ).toBeTruthy();
-    expect(navigation.push).not.toHaveBeenCalled();
+    expect(navigation.push).toHaveBeenCalledWith("/properties/property-2");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("supports Enter and Space for table-row quick views", () => {
+  it("supports Enter and Space for opening table rows", () => {
     renderProperties();
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
 
     rows[1]!.focus();
     fireEvent.keyDown(rows[1]!, { key: "Enter" });
-    expect(
-      screen.getByRole("dialog", { name: "Riverside House quick view" }),
-    ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
+    expect(navigation.push).toHaveBeenCalledWith("/properties/property-2");
 
     rows[0]!.focus();
     fireEvent.keyDown(rows[0]!, { key: " " });
-    expect(
-      screen.getByRole("dialog", { name: "Home Residence quick view" }),
-    ).toBeTruthy();
-    expect(navigation.push).not.toHaveBeenCalled();
+    expect(navigation.push).toHaveBeenCalledWith("/properties/property-1");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("offers Clear filters for a filtered empty result", () => {
@@ -589,7 +538,7 @@ describe("PropertyScreen redesign contract", () => {
 
     expect(within(occupancyCell as HTMLElement).getByText("3 open")).toBeTruthy();
     expect(within(table).queryByRole("columnheader", { name: "Review" })).toBeNull();
-    expect(row.children).toHaveLength(5);
+    expect(row.children).toHaveLength(7);
   });
 
   it("keeps the create form concise without redundant helper copy", () => {
@@ -665,7 +614,7 @@ describe("PropertyScreen redesign contract", () => {
       "New Owner",
     );
     await user.click(
-      within(ownerDialog).getByRole("button", { name: "Add owner" }),
+      within(ownerDialog).getByRole("button", { name: "Create and select" }),
     );
 
     await waitFor(() => {

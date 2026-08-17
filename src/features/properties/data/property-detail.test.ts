@@ -342,7 +342,47 @@ describe("buildPropertyDetail", () => {
     ]);
   });
 
-  it("opens scoped upload when property evidence is missing", () => {
+  it("prioritizes rent review when an active lease has no recent income", () => {
+    const detail = buildPropertyDetail({
+      activeLeases: [
+        {
+          id: "lease-rent-review",
+          lease_end_date: "2027-05-31",
+          lease_start_date: "2026-06-01",
+          monthly_rent_amount: 1200,
+          monthly_rent_currency: "USD",
+          status: "active",
+          tenant_name: "Dara Tenant",
+          unit_id: "unit-rent-review",
+        },
+      ],
+      activeOwner: {
+        label: "Jane Owner",
+        personId: "person-owner",
+      },
+      ledgerEntries: [],
+      property,
+      units: [
+        {
+          archived_at: null,
+          current_rent_amount: 1200,
+          current_rent_currency: "USD",
+          floor: "4",
+          id: "unit-rent-review",
+          status: "occupied",
+          unit_number: "04-01",
+        },
+      ],
+    });
+
+    expect(detail.nextAction).toMatchObject({
+      href: "/properties/property-1/finance",
+      label: "Review rent",
+      tone: "warning",
+    });
+  });
+
+  it("does not make optional evidence the primary property action", () => {
     const detail = buildPropertyDetail({
       activeLeases: [
         {
@@ -388,9 +428,9 @@ describe("buildPropertyDetail", () => {
     });
 
     expect(detail.nextAction).toMatchObject({
-      href: "/documents?action=create&category=Property+record&propertyId=property-1",
-      label: "Attach evidence",
-      tone: "warning",
+      href: "/maintenance?action=create&propertyId=property-1",
+      label: "Log maintenance case",
+      tone: "accent",
     });
   });
 });

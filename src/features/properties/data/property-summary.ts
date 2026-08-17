@@ -38,6 +38,8 @@ export type PropertyLedgerRecord = {
 export type PropertySummary = {
   address: string;
   code: string;
+  currentLeaseCount: number;
+  currentLeaseUnitCount: number;
   formValues: PropertyFormValues;
   hasActiveOwnerLink: boolean;
   id: string;
@@ -54,6 +56,7 @@ export type PropertySummary = {
   type: string;
   unitSummary: string;
   units: number;
+  unitsWithoutCurrentLease: number;
 };
 
 export type ActivePropertyOwnerLink = {
@@ -65,6 +68,7 @@ export type ActivePropertyOwnerLink = {
 
 export function buildPropertySummary({
   activeOwner,
+  currentLeaseCount,
   currentLeaseUnitCount,
   ledgerEntries,
   property,
@@ -73,6 +77,7 @@ export function buildPropertySummary({
   thumbnailUrl,
 }: {
   activeOwner?: ActivePropertyOwnerLink | null;
+  currentLeaseCount?: number;
   currentLeaseUnitCount?: number;
   hasActiveOwnerLink?: boolean;
   ledgerEntries: PropertyLedgerRecord[];
@@ -87,11 +92,19 @@ export function buildPropertySummary({
     currentLeaseUnitCount ??
       units.filter((unit) => unit.status === "occupied").length,
   );
+  const resolvedCurrentLeaseUnitCount = Math.min(
+    units.length,
+    currentLeaseUnitCount ?? occupiedUnits,
+  );
+  const resolvedCurrentLeaseCount =
+    currentLeaseCount ?? currentLeaseUnitCount ?? occupiedUnits;
 
   return {
     address: property.address ?? "No address recorded",
     id: property.id,
     code: property.code,
+    currentLeaseCount: resolvedCurrentLeaseCount,
+    currentLeaseUnitCount: resolvedCurrentLeaseUnitCount,
     formValues: {
       acquisitionDate: property.acquisition_date ?? "",
       address: property.address ?? "",
@@ -124,6 +137,10 @@ export function buildPropertySummary({
     unitSummary:
       units.length === 0 ? "Property-only" : `${occupiedUnits}/${units.length} occupied`,
     units: units.length,
+    unitsWithoutCurrentLease: Math.max(
+      0,
+      units.length - resolvedCurrentLeaseUnitCount,
+    ),
   };
 }
 

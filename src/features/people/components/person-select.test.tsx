@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { OverlayPortalContainerProvider } from "@/components/ui/overlay-portal-container";
 import { PersonSelect } from "@/features/people/components/person-select";
 
 const options = [
@@ -22,7 +23,12 @@ const options = [
   },
 ];
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document
+    .querySelectorAll('[data-testid="person-select-portal"]')
+    .forEach((node) => node.remove());
+});
 
 function InputEventHarness() {
   const [lastInput, setLastInput] = useState("No input event");
@@ -46,6 +52,42 @@ function InputEventHarness() {
 }
 
 describe("PersonSelect", () => {
+  it("renders its options outside an overlay's scrolling form", () => {
+    const portalContainer = document.createElement("div");
+    portalContainer.dataset.testid = "person-select-portal";
+    document.body.append(portalContainer);
+
+    const { container } = render(
+      <OverlayPortalContainerProvider value={portalContainer}>
+        <div data-testid="scrolling-form">
+          <PersonSelect
+            context="Property owner"
+            name="ownerPersonId"
+            options={options}
+            roles={["owner"]}
+          />
+        </div>
+      </OverlayPortalContainerProvider>,
+    );
+
+    fireEvent.focus(
+      screen.getByRole("combobox", { name: "Property owner" }),
+    );
+
+    const listbox = screen.getByRole("listbox", {
+      name: "Property owner person options",
+    });
+    expect(portalContainer.contains(listbox)).toBe(true);
+    expect(screen.getByTestId("scrolling-form").contains(listbox)).toBe(false);
+
+    fireEvent.click(screen.getByRole("option", { name: /Dara Owner/ }));
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="ownerPersonId"]')
+        ?.value,
+    ).toBe("person-2");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
   it("emits a bubbling input event from its relationship input", async () => {
     render(<InputEventHarness />);
 

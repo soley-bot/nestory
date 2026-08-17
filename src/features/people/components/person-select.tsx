@@ -1,14 +1,18 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronsUpDown, Search, X } from "lucide-react";
+import { useDrawerPortalContainer } from "@/components/ui/side-drawer";
 import type { PersonSelectOption } from "@/features/people/person-select";
 import type { PersonRoleValue } from "@/features/people/people.types";
 import { cn } from "@/lib/utils";
@@ -64,7 +68,9 @@ export function PersonSelect({
 }: PersonSelectProps) {
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const listboxRef = useRef<HTMLDivElement>(null);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
+  const portalContainer = useDrawerPortalContainer();
   const [internalValue, setInternalValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -130,6 +136,33 @@ export function PersonSelect({
       ? getOptionId(listboxId, activeOption.id)
       : undefined;
 
+  const updateFloatingPosition = useCallback(() => {
+    if (!portalContainer || !rootRef.current || !listboxRef.current) {
+      return;
+    }
+
+    const anchorRect = rootRef.current.getBoundingClientRect();
+    const containingBlock = portalContainer.parentElement ?? portalContainer;
+    const containingBlockRect = containingBlock.getBoundingClientRect();
+    const viewportPadding = 16;
+    const listboxGap = 4;
+    const spaceBelow = window.innerHeight - anchorRect.bottom - viewportPadding;
+    const spaceAbove = anchorRect.top - viewportPadding;
+    const placeAbove = spaceBelow < 180 && spaceAbove > spaceBelow;
+    const availableSpace = placeAbove ? spaceAbove : spaceBelow;
+    const maxHeight = Math.max(96, Math.min(280, availableSpace));
+
+    const listbox = listboxRef.current;
+    listbox.style.left = `${anchorRect.left - containingBlockRect.left}px`;
+    listbox.style.maxHeight = `${maxHeight}px`;
+    listbox.style.top = `${
+      placeAbove
+        ? anchorRect.top - containingBlockRect.top - maxHeight - listboxGap
+        : anchorRect.bottom - containingBlockRect.top + listboxGap
+    }px`;
+    listbox.style.width = `${anchorRect.width}px`;
+  }, [portalContainer]);
+
   useEffect(() => {
     if (previousValueRef.current === selectedValue) {
       return;
@@ -143,7 +176,11 @@ export function PersonSelect({
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !listboxRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     }
@@ -151,6 +188,21 @@ export function PersonSelect({
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!open || !portalContainer) {
+      return;
+    }
+
+    updateFloatingPosition();
+    window.addEventListener("resize", updateFloatingPosition);
+    document.addEventListener("scroll", updateFloatingPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updateFloatingPosition);
+      document.removeEventListener("scroll", updateFloatingPosition, true);
+    };
+  }, [open, portalContainer, updateFloatingPosition]);
 
   function choose(nextValue: string) {
     if (value === undefined) {
@@ -180,6 +232,59 @@ export function PersonSelect({
       setOpen(false);
     }
   }
+
+  const listbox = open ? (
+    <div
+      aria-label={
+        context
+          ? `${context} person options`
+          : `${roles.join(" or ")} person options`
+      }
+      className={cn(
+        "z-[80] max-h-[280px] overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg",
+        portalContainer
+          ? "absolute"
+          : "absolute left-0 right-0 top-[calc(100%+4px)]",
+      )}
+      id={listboxId}
+      ref={listboxRef}
+      role="listbox"
+    >
+      {visibleOptions.length === 0 ? (
+        <p className="px-3 py-3 text-sm text-muted-foreground">
+          No matching people.
+        </p>
+      ) : (
+        visibleOptions.map((option, index) => (
+          <button
+            aria-selected={option.id === selectedValue}
+            className={cn(
+              "flex min-h-11 w-full min-w-0 items-center gap-3 rounded px-2.5 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted",
+              option.id === activeOption?.id && "bg-muted",
+            )}
+            id={getOptionId(listboxId, option.id)}
+            key={option.id}
+            onClick={() => choose(option.id)}
+            onMouseEnter={() => setActiveIndex(index)}
+            role="option"
+            type="button"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-foreground">
+                {option.label}
+              </span>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                {option.description}
+              </span>
+            </span>
+            {option.id === selectedValue ? (
+              <Check className="shrink-0 text-primary" size={15} />
+            ) : null}
+          </button>
+        ))
+      )}
+    </div>
+  ) : null;
 
   return (
     <div className={cn("relative", className)} ref={rootRef}>
@@ -252,50 +357,7 @@ export function PersonSelect({
           </span>
         </div>
       ) : null}
-      {open ? (
-        <div
-          aria-label={
-            context
-              ? `${context} person options`
-              : `${roles.join(" or ")} person options`
-          }
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-64 overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg"
-          id={listboxId}
-          role="listbox"
-        >
-          {visibleOptions.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-muted-foreground">No matching people.</p>
-          ) : (
-            visibleOptions.map((option, index) => (
-              <button
-                aria-selected={option.id === selectedValue}
-                className={cn(
-                  "flex min-h-11 w-full min-w-0 items-center gap-3 rounded px-2.5 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:bg-muted",
-                  option.id === activeOption?.id && "bg-muted",
-                )}
-                id={getOptionId(listboxId, option.id)}
-                key={option.id}
-                onClick={() => choose(option.id)}
-                onMouseEnter={() => setActiveIndex(index)}
-                role="option"
-                type="button"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-foreground">
-                    {option.label}
-                  </span>
-                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    {option.description}
-                  </span>
-                </span>
-                {option.id === selectedValue ? (
-                  <Check className="shrink-0 text-primary" size={15} />
-                ) : null}
-              </button>
-            ))
-          )}
-        </div>
-      ) : null}
+      {portalContainer ? createPortal(listbox, portalContainer) : listbox}
     </div>
   );
 }

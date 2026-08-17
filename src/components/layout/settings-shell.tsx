@@ -1,11 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { SettingsNavigationGuardProvider } from "@/components/layout/settings-navigation-guard";
 import { SettingsSectionNav } from "@/components/layout/settings-section-nav";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { WorkspacePage } from "@/components/layout/workspace-page";
+import { getSettingsDestinations } from "@/features/organization/settings-navigation";
 import type { WorkspaceRole } from "@/lib/auth/capabilities";
 
 export function SettingsShell({
@@ -18,12 +20,21 @@ export function SettingsShell({
   role: WorkspaceRole;
 }) {
   const accessView = activeHref === "/settings/access";
+  const currentSection =
+    getSettingsDestinations(role).find((destination) => destination.href === activeHref)
+      ?.label ?? formatSettingsSection(activeHref);
 
   return (
     <SettingsNavigationGuardProvider>
       <WorkspacePage
         header={
           <PageHeader
+            breadcrumb={
+              <PageBreadcrumb
+                current={currentSection}
+                items={[{ href: "/settings/organization", label: "Settings" }]}
+              />
+            }
             description="Workspace identity, structure, access, and operating rules."
             navigation={<SettingsTabs activeHref={activeHref} role={role} />}
             title="Settings"
@@ -54,4 +65,13 @@ export function SettingsShell({
       </WorkspacePage>
     </SettingsNavigationGuardProvider>
   );
+}
+
+function formatSettingsSection(activeHref: string) {
+  const section = activeHref.split("/").filter(Boolean).at(-1) ?? "Settings";
+
+  return section
+    .split("-")
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(" ");
 }

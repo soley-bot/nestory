@@ -42,6 +42,7 @@ export function ReportBuilderScreen({
   return (
     <WorkspacePage
       actions={validation ? undefined : <ExportMenu viewQuery={viewQuery} />}
+      breadcrumbItems={[{ href: "/reports", label: "Reports" }]}
       title={selectedReport.title}
     >
       <div className="flex min-w-0 flex-col bg-background">

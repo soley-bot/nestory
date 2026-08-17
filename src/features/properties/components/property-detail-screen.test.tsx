@@ -149,7 +149,7 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
   });
 
-  it("shows one primary next action, actionable alerts, and period-specific NOI", () => {
+  it("shows the operational workspace, one primary next action, and period-specific NOI", () => {
     const { container } = renderPropertyDetail({
       propertyOverride: propertyWithWorkflowAttention,
     });
@@ -165,15 +165,16 @@ describe("PropertyDetailScreen task-first detail contract", () => {
       'dl[aria-label="Property summary"]',
     );
     expect(propertySummary).not.toBeNull();
-    expect(within(propertySummary!).getAllByRole("term")).toHaveLength(3);
+    expect(within(propertySummary!).getAllByRole("term")).toHaveLength(4);
     expect(within(propertySummary!).getByText("Occupancy")).toBeTruthy();
-    expect(within(propertySummary!).getByText("Active leases")).toBeTruthy();
+    expect(within(propertySummary!).getByText("Active lease")).toBeTruthy();
+    expect(within(propertySummary!).getByText("Monthly rent")).toBeTruthy();
     expect(
       within(propertySummary!).getByText("NOI / Trailing 12 months"),
     ).toBeTruthy();
     expect(within(propertySummary!).getByText("USD 1,100.00")).toBeTruthy();
-    expect(within(overviewPanel).getByText("District 1")).toBeTruthy();
-    expect(within(overviewPanel).getByText("Jane Owner")).toBeTruthy();
+    expect(within(overviewPanel).getAllByText("District 1").length).toBeGreaterThan(0);
+    expect(within(overviewPanel).getAllByText("Jane Owner").length).toBeGreaterThan(0);
 
     const nextActions = within(overviewPanel).getAllByRole("link", {
       name: "Review overdue issue",
@@ -182,24 +183,82 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(nextActions[0]?.getAttribute("href")).toBe(
       "/maintenance?archiveState=all&taskId=case-overdue",
     );
-    expect(
-      within(nextActions[0]!).getByText(
-        "Annual inspection is overdue under this property.",
-      ),
-    ).toBeTruthy();
-
-    const alerts = within(overviewPanel).getByRole("list", {
-      name: "Property alerts",
-    });
-    expect(within(alerts).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(alerts).getByText("Evidence missing")).toBeTruthy();
-    expect(within(alerts).getByText("Maintenance overdue")).toBeTruthy();
-    expect(within(alerts).queryByText("Owner linked")).toBeNull();
-    expect(within(alerts).queryByText("NOI positive")).toBeNull();
+    expect(within(overviewPanel).getByRole("heading", { name: "Units and leases" })).toBeTruthy();
+    const propertyCard = within(overviewPanel).getByLabelText("Property details");
+    expect(within(propertyCard).getByText("Maintenance overdue")).toBeTruthy();
+    expect(within(propertyCard).queryByText("Evidence missing")).toBeNull();
+    expect(within(propertyCard).getByText("Nestory Residence")).toBeTruthy();
     expect(
       within(overviewPanel).queryByRole("heading", { name: "Property context" }),
     ).toBeNull();
     expect(within(overviewPanel).queryByText("1 current lease links")).toBeNull();
+  });
+
+  it("opens the focused owner modal instead of linking back to the register", () => {
+    const propertyMissingOwner = buildPropertyDetail({
+      activeLeases: [
+        {
+          id: "lease-owner-setup",
+          lease_end_date: "2027-05-31",
+          lease_start_date: "2026-06-01",
+          monthly_rent_amount: 900,
+          monthly_rent_currency: "USD",
+          status: "active",
+          tenant_name: "Dara Tenant",
+          unit_id: "unit-owner-setup",
+        },
+      ],
+      ledgerEntries: [],
+      property: {
+        address: "10 Riverside Road",
+        code: "OWNER",
+        id: "property-owner-setup",
+        name: "Owner Setup Property",
+        owner: null,
+        property_type: "Condo",
+        rental_structure: "multi_unit",
+        status: "active",
+      },
+      units: [
+        {
+          archived_at: null,
+          current_rent_amount: 900,
+          current_rent_currency: "USD",
+          floor: null,
+          id: "unit-owner-setup",
+          status: "occupied",
+          unit_number: "01",
+        },
+      ],
+    });
+
+    render(
+      <PropertyDetailScreen
+        ownerOptions={[
+          {
+            archived: false,
+            description: "Owner",
+            id: "person-owner-option",
+            label: "Sokha Owner",
+            roles: ["owner"],
+          },
+        ]}
+        property={propertyMissingOwner}
+        tenantOptions={tenantOptions}
+      />,
+    );
+
+    expect(screen.queryByText("Assign a current owner/person link before relying on owner reports.")).toBeNull();
+    const assignOwner = screen.getByRole("button", { name: "Assign owner" });
+    fireEvent.click(assignOwner);
+
+    const modal = screen.getByRole("dialog", { name: "Assign owner" });
+    expect(modal.className).toContain("max-w-2xl");
+    expect(modal.className).not.toContain("max-w-md");
+    expect(within(modal).getByRole("form", { name: "Assign owner form" })).toBeTruthy();
+    expect(within(modal).getByRole("combobox", { name: "Property owner" })).toBeTruthy();
+    expect(within(modal).queryByRole("textbox", { name: "Property name" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Assign owner" })).toBeNull();
   });
 
   it("keeps Add lease as the only workflow handoff when it is the canonical next action", () => {
@@ -214,12 +273,10 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(addLeaseLinks[0]?.getAttribute("href")).toBe(
       "/leases?action=create&propertyId=property-1",
     );
+    expect(within(overviewPanel).getByText("No active lease")).toBeTruthy();
     expect(
-      within(overviewPanel).getByText(
-        "No active leases are linked to this property.",
-      ),
+      within(overviewPanel).getByRole("link", { name: /Jane Owner Primary owner/ }),
     ).toBeTruthy();
-    expect(within(overviewPanel).getByRole("link", { name: "Owner" })).toBeTruthy();
   });
 
   it("renders the terminal accent next action with the accent treatment", () => {

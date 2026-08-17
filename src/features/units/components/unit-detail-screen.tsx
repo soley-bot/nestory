@@ -43,10 +43,7 @@ import {
   UnitLedgerEntryPanel,
   UnitMaintenanceCasePanel,
 } from "@/features/units/components/unit-related-record-panels";
-import {
-  getUnitRecordReturnLink,
-  type UnitRecordSection,
-} from "@/features/units/unit-detail-route";
+import type { UnitRecordSection } from "@/features/units/unit-detail-route";
 import type {
   UnitDetail,
   UnitPropertyOption,
@@ -98,7 +95,6 @@ export function UnitDetailScreen({
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const confirmationTriggerRef = useRef<HTMLButtonElement>(null);
-  const returnLink = getUnitRecordReturnLink(sourceTaskId);
 
   const closeConfirmation = () => {
     setConfirmation(null);
@@ -170,7 +166,13 @@ export function UnitDetailScreen({
         breadcrumb={
           <PageBreadcrumb
             current={`Unit ${unit.unitNumber}`}
-            items={[{ href: returnLink.href, label: returnLink.label }]}
+            items={[
+              { href: "/properties", label: "Properties" },
+              {
+                href: unit.hrefs.property,
+                label: `${unit.propertyCode} — ${unit.propertyName}`,
+              },
+            ]}
           />
         }
         context={

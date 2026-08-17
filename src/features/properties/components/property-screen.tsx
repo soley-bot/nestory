@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, ListChecks, Plus } from "lucide-react";
+import { Building2, CheckCircle2, Circle, CircleAlert, ListChecks, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
@@ -19,7 +19,6 @@ import {
 } from "@/features/properties/components/property-drawer-panels";
 import { PropertyFilters } from "@/features/properties/components/property-filters";
 import { PropertyForm } from "@/features/properties/components/property-form";
-import { PropertyInspector } from "@/features/properties/components/property-inspector";
 import { PropertiesTable } from "@/features/properties/components/properties-table";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type { PropertyPortfolioSummary } from "@/features/properties/data/property-portfolio-summary";
@@ -45,7 +44,6 @@ type DrawerState =
 
 type PropertyScreenProps = {
   canCreate: boolean;
-  initialPropertyId?: string;
   ownerOptions: PropertyOwnerOption[];
   pagination: PropertyPagination;
   portfolioSummary: PropertyPortfolioSummary;
@@ -55,7 +53,6 @@ type PropertyScreenProps = {
 
 export function PropertyScreen({
   canCreate,
-  initialPropertyId,
   ownerOptions,
   pagination,
   portfolioSummary,
@@ -77,24 +74,11 @@ export function PropertyScreen({
   const [displayMode, setDisplayMode] = useState<PropertyDisplayMode>(() =>
     searchParams.get("view") === "cards" ? "cards" : "table",
   );
-  const [selectedPropertyId, setSelectedPropertyId] = useState(
-    initialPropertyId ?? properties[0]?.id ?? "",
-  );
-  const [quickViewOpen, setQuickViewOpen] = useState(Boolean(initialPropertyId));
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const selectedProperty =
-    properties.find((property) => property.id === selectedPropertyId) ??
-    properties[0] ??
-    null;
   const reviewContext = getPropertyReviewContext(viewQuery);
   const openPropertyAction = (nextDrawer: DrawerState) => {
     setStatusMessage(null);
-    setQuickViewOpen(false);
     setDrawer(nextDrawer);
-  };
-  const previewProperty = (propertyId: string) => {
-    setSelectedPropertyId(propertyId);
-    setQuickViewOpen(true);
   };
   const openPropertyRecord = (propertyId: string) => {
     router.push(`/properties/${propertyId}`);
@@ -231,7 +215,6 @@ export function PropertyScreen({
             <PropertiesTable
               displayMode={displayMode}
               onOpenProperty={openPropertyRecord}
-              onPreviewProperty={previewProperty}
               onSortChange={changeSort}
               properties={properties}
               sort={viewQuery.sort}
@@ -261,8 +244,7 @@ export function PropertyScreen({
       }
     >
       <div className="flex min-w-0 flex-col">
-
-      <PropertyPortfolioSummaryNav summary={portfolioSummary} />
+        <PropertyPortfolioSummaryNav summary={portfolioSummary} />
 
       {statusMessage ? (
         <div className="shrink-0 px-4 py-2 sm:px-6">
@@ -285,29 +267,7 @@ export function PropertyScreen({
 
         <div className="min-h-0 min-w-0 flex-1">
           <WorkspaceSplitView
-            inspector={
-              <PropertyInspector
-                onArchiveProperty={(property) =>
-                  openPropertyAction({ mode: "archive", property })
-                }
-                onEditProperty={(property) =>
-                  openPropertyAction({ mode: "edit", property })
-                }
-                onRestoreProperty={(property) =>
-                  openPropertyAction({ mode: "restore", property })
-                }
-                property={selectedProperty}
-              />
-            }
-            inspectorLabel={
-              selectedProperty
-                ? `${selectedProperty.name} quick view`
-                : "Property quick view"
-            }
-            inspectorOpen={quickViewOpen && selectedProperty !== null}
-            inspectorSize="wide"
             list={propertyList}
-            onInspectorOpenChange={setQuickViewOpen}
           />
         </div>
       </div>
@@ -369,38 +329,53 @@ function PropertyPortfolioSummaryNav({
   const items = [
     {
       href: "/properties?status=active",
+      icon: Circle,
       label: "Active properties",
+      tone: "text-success",
       value: summary.activeProperties,
     },
-    { href: "/units", label: "Units", value: summary.totalUnits },
     {
-      href: "/units?leaseStatus=missing",
+      href: "/units",
+      icon: Building2,
+      label: "Units",
+      tone: "text-muted-foreground",
+      value: summary.totalUnits,
+    },
+    {
+      href: "/properties?leaseStatus=missing",
+      icon: CircleAlert,
       label: "Without current lease",
+      tone: "text-warning",
       value: summary.unitsWithoutCurrentLease,
     },
-  ] as const;
+  ];
 
   return (
     <nav
       aria-label="Portfolio summary"
-      className="workspace-gutter-x grid shrink-0 grid-cols-1 px-4 pb-5 sm:grid-cols-3 sm:px-6 2xl:px-8"
+      className="workspace-gutter-x grid shrink-0 grid-cols-1 border-b border-border px-4 pb-4 sm:grid-cols-3 sm:px-6 2xl:px-8"
     >
-      {items.map((item) => (
+      {items.map((item) => {
+        const Icon = item.icon;
+
+        return (
         <Link
-          className="group flex min-w-0 items-baseline justify-between gap-4 border-t border-border py-2.5 first:border-t-0 sm:block sm:border-l sm:border-t-0 sm:px-5 sm:py-0 sm:first:border-l-0 sm:first:pl-0"
+          className="group flex min-w-0 items-center gap-2 border-t border-border py-2.5 first:border-t-0 sm:border-l sm:border-t-0 sm:px-5 sm:py-0 sm:first:border-l-0 sm:first:pl-0"
           data-slot="portfolio-summary-item"
           href={item.href}
           key={item.href}
           prefetch={false}
         >
-          <span className="block text-2xl font-semibold tabular-nums tracking-tight text-foreground transition-colors group-hover:text-primary">
-            {item.value}
-          </span>
-          <span className="block truncate text-xs font-medium text-muted-foreground">
-            {item.label}
+          <Icon aria-hidden="true" className={item.tone} size={14} />
+          <span className="min-w-0 text-sm font-medium text-foreground">
+            <span className="font-semibold tabular-nums">{item.value}</span>{" "}
+            <span className="text-muted-foreground transition-colors group-hover:text-foreground">
+              {item.label}
+            </span>
           </span>
         </Link>
-      ))}
+        );
+      })}
     </nav>
   );
 }
@@ -509,6 +484,7 @@ function getPropertyReviewContext(
 function hasActivePropertyFilters(viewQuery: PropertyViewQuery) {
   return (
     viewQuery.archiveState !== "active" ||
+    viewQuery.leaseStatus !== "all" ||
     viewQuery.netStatus !== "all" ||
     viewQuery.ownerStatus !== "all" ||
     viewQuery.query.trim().length > 0 ||

@@ -544,6 +544,7 @@ export function MaintenanceScreen({
           ) : null}
         </>
       }
+      breadcrumbCurrent={pathname === "/maintenance" ? "Maintenance" : title}
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref={pathname}
       controlsClassName="bg-card"

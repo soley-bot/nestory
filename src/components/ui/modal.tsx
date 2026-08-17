@@ -42,7 +42,7 @@ export function Modal({
       <OverlayPortalContainerProvider value={portalContainer}>
         <DialogContent
           className={cn(
-            "max-h-[min(82vh,680px)] gap-0 overflow-hidden p-0",
+            "max-h-[min(82vh,680px)] gap-0 overflow-visible p-0",
             size === "compact"
               ? "max-w-md sm:max-w-md"
               : "max-w-2xl sm:max-w-2xl",

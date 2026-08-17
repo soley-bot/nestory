@@ -1404,7 +1404,7 @@ describe("FinanceOperationsScreen", () => {
         .getByRole("link", { name: "HOME — Riverside Home" })
         .getAttribute("href"),
     ).toBe("/properties/property-1");
-    expect(within(breadcrumb).getByText("Account")).not.toBeNull();
+    expect(within(breadcrumb).getByText("Owner account")).not.toBeNull();
 
     const summary = screen.getByRole("region", { name: "Account position" });
     expect(within(summary).getByText("Owner balance")).not.toBeNull();
