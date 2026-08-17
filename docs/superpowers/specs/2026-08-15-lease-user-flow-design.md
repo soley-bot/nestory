@@ -1,5 +1,12 @@
 # Lease User Flow Design
 
+> **Superseded in part on 2026-08-17.** The user-facing vocabulary and
+> task-specific lifecycle actions remain accepted. The no-database-change,
+> globally selectable create flow, and mandatory global Rent policy assumptions
+> are replaced by the Property Workspace, Lease, and Finance Simplification
+> design: Property or Unit owns creation context, whole-property leases use a
+> null Unit, and each Lease owns its rent-generation rules.
+
 ## Goal
 
 Make the Lease frontend describe and support the work a property operator performs, while leaving the existing Supabase schema, checked RPCs, lifecycle rules, and historical authority unchanged.

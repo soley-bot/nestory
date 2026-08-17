@@ -1,5 +1,11 @@
 # Lease User Flow Implementation Plan
 
+> **Superseded in part on 2026-08-17.** Completed task-first vocabulary and
+> lifecycle work remains valid. Constraints that prohibit schema changes,
+> retain a competing global Lease create flow, or require a global Rent policy
+> are replaced by the Property Workspace, Lease, and Finance Simplification
+> implementation plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace database-oriented Lease controls and vocabulary with task-specific operator workflows without changing database authority.
