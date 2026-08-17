@@ -333,6 +333,7 @@ export function PropertyScreen({
             />
           ) : (
             <PropertyForm
+              closeOnCreateSuccess={drawer.mode === "create"}
               initialValues={
                 drawer.mode === "create" ? drawer.initialValues : undefined
               }
@@ -343,7 +344,13 @@ export function PropertyScreen({
               }
               mode={drawer.mode}
               onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
+              onSuccess={(message, propertyId) => {
+                if (drawer.mode === "create" && propertyId) {
+                  router.push(`/properties/${propertyId}`);
+                  return;
+                }
+                setStatusMessage(message);
+              }}
               ownerOptions={ownerOptions}
               property={drawer.property}
             />

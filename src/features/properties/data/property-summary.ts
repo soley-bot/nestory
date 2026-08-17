@@ -5,6 +5,10 @@ import type {
   PropertyFormValues,
   PropertyStatusValue,
 } from "@/features/properties/property.types";
+import {
+  normalizePropertyRentalStructure,
+  type PropertyRentalStructure,
+} from "@/features/properties/property-rental-structure";
 
 export type PropertyRecord = {
   address: string | null;
@@ -16,6 +20,8 @@ export type PropertyRecord = {
   notes?: string | null;
   owner: string | null;
   property_type: string;
+  registered_date?: string | null;
+  rental_structure?: string;
   status: string;
 };
 
@@ -41,6 +47,7 @@ export type PropertySummary = {
   netIncomeUsd: number;
   occupiedUnits: number;
   owner: string;
+  rentalStructure: PropertyRentalStructure;
   status: string;
   statusTone: PropertyBadgeTone;
   thumbnailUrl?: string;
@@ -96,6 +103,7 @@ export function buildPropertySummary({
       ownerStartedOn: activeOwner?.startedOn ?? "",
       ownershipPercent: activeOwner?.ownershipPercent ?? "",
       propertyType: property.property_type,
+      registeredDate: property.registered_date ?? "",
       status,
     },
     hasActiveOwnerLink: hasActiveOwnerLink || Boolean(activeOwner),
@@ -105,6 +113,10 @@ export function buildPropertySummary({
     netIncomeUsd,
     occupiedUnits,
     owner: activeOwner?.label ?? property.owner ?? "Unassigned",
+    rentalStructure: normalizePropertyRentalStructure(
+      property.rental_structure,
+      units.length,
+    ),
     status: formatPropertyStatus(property.status),
     statusTone: getPropertyStatusTone(status),
     thumbnailUrl,

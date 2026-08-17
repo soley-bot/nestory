@@ -20,6 +20,76 @@ afterEach(() => {
 });
 
 describe("PropertyDetailScreen task-first detail contract", () => {
+  it("asks the rental placement question before exposing Lease or Unit setup", () => {
+    const undecidedProperty = buildPropertyDetail({
+      ledgerEntries: [],
+      property: {
+        address: "10 Riverside Road",
+        code: "RIVER",
+        id: "property-undecided",
+        name: "Riverside House",
+        owner: null,
+        property_type: "House",
+        rental_structure: "undecided",
+        status: "active",
+      },
+      units: [],
+    });
+
+    renderPropertyDetail({ propertyOverride: undecidedProperty });
+
+    const overview = screen.getByRole("tabpanel", { name: "Overview" });
+    expect(
+      within(overview).getByRole("heading", { name: "How is this property rented?" }),
+    ).toBeTruthy();
+    expect(
+      within(overview).getByRole("button", { name: "The whole property" }),
+    ).toBeTruthy();
+    expect(
+      within(overview).getByRole("button", { name: "Separate units" }),
+    ).toBeTruthy();
+    expect(within(overview).queryByRole("link", { name: "Add lease" })).toBeNull();
+  });
+
+  it("continues chronologically to the first Unit or whole-property Lease", () => {
+    const multiUnitProperty = buildPropertyDetail({
+      ledgerEntries: [],
+      property: {
+        address: "20 Riverside Road",
+        code: "BUILDING",
+        id: "property-multi-empty",
+        name: "Riverside Building",
+        owner: null,
+        property_type: "Apartment building",
+        rental_structure: "multi_unit",
+        status: "active",
+      },
+      units: [],
+    });
+    const { rerender } = renderPropertyDetail({ propertyOverride: multiUnitProperty });
+    expect(screen.getByRole("button", { name: "Add first unit" })).toBeTruthy();
+
+    const wholeProperty = buildPropertyDetail({
+      ledgerEntries: [],
+      property: {
+        address: "10 Riverside Road",
+        code: "HOUSE",
+        id: "property-whole",
+        name: "Riverside House",
+        owner: null,
+        property_type: "House",
+        rental_structure: "single_space",
+        status: "active",
+      },
+      units: [],
+    });
+    rerender(
+      <PropertyDetailScreen ownerOptions={[]} property={wholeProperty} />,
+    );
+    expect(screen.getByRole("link", { name: "Create lease" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add first unit" })).toBeNull();
+  });
+
   it("keeps the property heading and edit action beside five focused record tabs", () => {
     const { container } = renderPropertyDetail();
 

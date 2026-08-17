@@ -17,6 +17,7 @@ vi.mock("@/lib/db/server", () => ({
 
 import {
   createPropertyAction,
+  setPropertyRentalStructureAction,
   updatePropertyAction,
 } from "@/features/properties/actions";
 
@@ -34,11 +35,54 @@ describe("property ownership authority inputs", () => {
     rpc.mockResolvedValue({ data: propertyId, error: null });
   });
 
+  it("creates basic property identity without requiring owner or status setup", async () => {
+    const formData = new FormData();
+    formData.set("address", "10 Riverside Road");
+    formData.set("code", "");
+    formData.set("idempotencyKey", "property-create-0001");
+    formData.set("name", "Riverside House");
+    formData.set("propertyType", "House");
+    formData.set("registeredDate", "2026-08-17");
+
+    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+      propertyId,
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("create_property_minimal", {
+      p_address: "10 Riverside Road",
+      p_code: null,
+      p_idempotency_key: "property-create-0001",
+      p_name: "Riverside House",
+      p_organization_id: organizationId,
+      p_property_type: "House",
+      p_registered_date: "2026-08-17",
+    });
+  });
+
+  it("persists the explicit rental placement choice through the checked RPC", async () => {
+    const formData = new FormData();
+    formData.set("propertyId", propertyId);
+    formData.set("rentalStructure", "single_space");
+
+    await expect(
+      setPropertyRentalStructureAction({}, formData),
+    ).resolves.toMatchObject({
+      message: "Whole-property leasing is ready.",
+      propertyId,
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("set_property_rental_structure", {
+      p_organization_id: organizationId,
+      p_property_id: propertyId,
+      p_rental_structure: "single_space",
+    });
+  });
+
   it("rejects an owner selection without an explicit effective start and share", async () => {
     const formData = propertyForm();
     formData.set("ownerPersonId", ownerPersonId);
 
-    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+    await expect(updatePropertyAction({}, formData)).resolves.toMatchObject({
       fieldErrors: {
         ownerStartedOn: ["Enter the ownership start date."],
         ownershipPercent: ["Enter the ownership share."],
@@ -48,17 +92,17 @@ describe("property ownership authority inputs", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("passes actor-entered sole-owner authority without inventing a date or 100 percent", async () => {
+  it("passes actor-entered sole-owner authority from Property details without inventing facts", async () => {
     const formData = propertyForm();
     formData.set("ownerPersonId", ownerPersonId);
     formData.set("ownerStartedOn", "2026-08-01");
     formData.set("ownershipPercent", "100.000");
 
-    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+    await expect(updatePropertyAction({}, formData)).resolves.toMatchObject({
       propertyId,
       status: "success",
     });
-    expect(rpc).toHaveBeenCalledWith("create_property", {
+    expect(rpc).toHaveBeenCalledWith("update_property_details", {
       p_acquisition_date: null,
       p_address: null,
       p_code: "CTR",
@@ -69,7 +113,9 @@ describe("property ownership authority inputs", () => {
       p_owner_ownership_percent: "100.000",
       p_owner_person_id: ownerPersonId,
       p_owner_started_on: "2026-08-01",
+      p_property_id: propertyId,
       p_property_type: "Apartment",
+      p_registered_date: null,
       p_status: "active",
     });
   });
@@ -82,7 +128,7 @@ describe("property ownership authority inputs", () => {
       formData.set("ownerStartedOn", "2026-08-01");
       formData.set("ownershipPercent", share);
 
-      await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+      await expect(updatePropertyAction({}, formData)).resolves.toMatchObject({
         fieldErrors: { ownershipPercent: expect.any(Array) },
         status: "error",
       });
@@ -96,11 +142,11 @@ describe("property ownership authority inputs", () => {
     formData.set("ownerStartedOn", "2026-08-01");
     formData.set("ownershipPercent", "60.000");
 
-    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+    await expect(updatePropertyAction({}, formData)).resolves.toMatchObject({
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "create_property",
+      "update_property_details",
       expect.objectContaining({ p_owner_ownership_percent: "60.000" }),
     );
   });
@@ -110,7 +156,7 @@ describe("property ownership authority inputs", () => {
     formData.set("ownerStartedOn", "2026-08-01");
     formData.set("ownershipPercent", "100.000");
 
-    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+    await expect(updatePropertyAction({}, formData)).resolves.toMatchObject({
       fieldErrors: { ownerPersonId: ["Choose an owner for these ownership details."] },
       status: "error",
     });
@@ -149,6 +195,8 @@ function propertyForm() {
   formData.set("ownerStartedOn", "");
   formData.set("ownershipPercent", "");
   formData.set("propertyType", "Apartment");
+  formData.set("propertyId", propertyId);
+  formData.set("registeredDate", "");
   formData.set("status", "active");
   return formData;
 }

@@ -39,6 +39,7 @@ export type PropertyFormValues = {
   ownerStartedOn?: string | null;
   ownershipPercent?: string | null;
   propertyType: string;
+  registeredDate?: string | null;
   status: PropertyStatusValue;
 };
 

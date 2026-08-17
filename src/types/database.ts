@@ -589,6 +589,18 @@ type RpcFunctionOverrides = {
       p_status: string;
     }
   >;
+  create_property_minimal: WithArgs<
+    "create_property_minimal",
+    {
+      p_address: string | null;
+      p_code: string | null;
+      p_idempotency_key: string;
+      p_name: string;
+      p_organization_id: string;
+      p_property_type: string;
+      p_registered_date: string | null;
+    }
+  >;
   create_timeline_event: WithArgs<
     "create_timeline_event",
     {
@@ -690,6 +702,33 @@ type RpcFunctionOverrides = {
       p_owner_started_on: string | null;
       p_property_id: string;
       p_property_type: string;
+      p_status: string;
+    }
+  >;
+  set_property_rental_structure: WithArgs<
+    "set_property_rental_structure",
+    {
+      p_organization_id: string;
+      p_property_id: string;
+      p_rental_structure: string;
+    }
+  >;
+  update_property_details: WithArgs<
+    "update_property_details",
+    {
+      p_acquisition_date: string | null;
+      p_address: string | null;
+      p_code: string;
+      p_name: string;
+      p_notes: string | null;
+      p_organization_id: string;
+      p_owner: string | null;
+      p_owner_ownership_percent: string | null;
+      p_owner_person_id: string | null;
+      p_owner_started_on: string | null;
+      p_property_id: string;
+      p_property_type: string;
+      p_registered_date: string | null;
       p_status: string;
     }
   >;

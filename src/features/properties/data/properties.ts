@@ -69,7 +69,7 @@ type PropertyCurrentLeaseSummaryRow = {
 };
 
 const propertySelect =
-  "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at";
+  "id, name, code, property_type, owner, address, status, registered_date, rental_structure, acquisition_date, notes, archived_at";
 const propertyImageMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const propertyRelationshipBatchSize = 75;
 
@@ -591,7 +591,7 @@ export async function getPropertyDetail(
     supabase
       .from("properties")
       .select(
-        "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at",
+        "id, name, code, property_type, owner, address, status, registered_date, rental_structure, acquisition_date, notes, archived_at",
       )
       .eq("organization_id", organizationId)
       .eq("id", propertyId)

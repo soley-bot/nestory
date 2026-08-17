@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
@@ -19,6 +19,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PhotoGallery } from "@/features/photos/components/photo-gallery";
 import { PropertyUnitsTable } from "@/features/properties/components/property-units-table";
+import {
+  setPropertyRentalStructureAction,
+  type PropertyActionState,
+} from "@/features/properties/actions";
 import type {
   PropertyDetail,
   PropertyDetailLease,
@@ -268,6 +272,11 @@ function getPropertyRecordPanelContent({
     (indicator) => indicator.tone === "warning" || indicator.tone === "danger",
   );
   const duplicatesNextAction = (href?: string) => href === property.nextAction.href;
+  const needsFirstUnit =
+    property.rentalStructure === "multi_unit" && property.activeUnitCount === 0;
+  const needsWholePropertyLease =
+    property.rentalStructure === "single_space" && property.activeLeases.length === 0;
+  const hasStructureNextStep = needsFirstUnit || needsWholePropertyLease;
 
   return (
     <>
@@ -283,6 +292,40 @@ function getPropertyRecordPanelContent({
           </p>
         </div>
 
+        {property.rentalStructure === "undecided" ? (
+          <PropertyRentalStructureSetup propertyId={property.id} />
+        ) : null}
+
+        {needsFirstUnit ? (
+          <div className="mt-5 border-y border-border py-5">
+            <h2 className="text-base font-semibold">Add the first unit</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Each Lease in this property will stay inside a Unit record.
+            </p>
+            <Button className="mt-4" onClick={onAddUnit}>
+              <Building2 size={14} />
+              Add first unit
+            </Button>
+          </div>
+        ) : null}
+
+        {needsWholePropertyLease ? (
+          <div className="mt-5 border-y border-border py-5">
+            <h2 className="text-base font-semibold">Create the property Lease</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This Lease belongs directly to the Property. No Unit is needed.
+            </p>
+            <ActionLink
+              className="mt-4"
+              href={property.hrefs.addLease}
+              icon={<ScrollText size={14} />}
+            >
+              Create lease
+            </ActionLink>
+          </div>
+        ) : null}
+
+        {property.rentalStructure !== "undecided" && !hasStructureNextStep ? (
         <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-start">
           <Link
             aria-label={property.nextAction.label}
@@ -330,6 +373,7 @@ function getPropertyRecordPanelContent({
             </ul>
           ) : null}
         </div>
+        ) : null}
 
         <dl
           aria-label="Property summary"
@@ -344,6 +388,7 @@ function getPropertyRecordPanelContent({
         </dl>
       </section>
 
+      {property.rentalStructure !== "undecided" && !hasStructureNextStep ? (
       <section id="property-ownership">
         <SectionTitle
           icon={<ScrollText size={16} />}
@@ -404,6 +449,7 @@ function getPropertyRecordPanelContent({
           </div>
         </div>
       </section>
+      ) : null}
 
       {property.activity.length > 0 ? (
         <section id="property-activity">
@@ -420,6 +466,59 @@ function getPropertyRecordPanelContent({
         </section>
       ) : null}
     </>
+  );
+}
+
+const initialRentalStructureState: PropertyActionState = {};
+
+function PropertyRentalStructureSetup({ propertyId }: { propertyId: string }) {
+  const [state, action, pending] = useActionState(
+    setPropertyRentalStructureAction,
+    initialRentalStructureState,
+  );
+
+  return (
+    <form
+      action={action}
+      className="mt-5 border-y border-border py-5"
+    >
+      <input name="propertyId" type="hidden" value={propertyId} />
+      <h2 className="text-base font-semibold">How is this property rented?</h2>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+        Choose the real operating structure. A whole-property rental has no
+        Unit record; separate units each keep their own Lease.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          disabled={pending}
+          name="rentalStructure"
+          type="submit"
+          value="single_space"
+        >
+          The whole property
+        </Button>
+        <Button
+          disabled={pending}
+          name="rentalStructure"
+          type="submit"
+          value="multi_unit"
+          variant="outline"
+        >
+          Separate units
+        </Button>
+      </div>
+      {state.message ? (
+        <p
+          className={cn(
+            "mt-3 text-sm",
+            state.status === "error" ? "text-danger" : "text-success",
+          )}
+          role={state.status === "error" ? "alert" : "status"}
+        >
+          {state.message}
+        </p>
+      ) : null}
+    </form>
   );
 }
 

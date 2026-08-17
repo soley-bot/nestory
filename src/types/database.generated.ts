@@ -6943,6 +6943,8 @@ export type Database = {
           organization_id: string
           owner: string | null
           property_type: string
+          registered_date: string | null
+          rental_structure: string
           status: string
           updated_at: string
           updated_by: string | null
@@ -6961,6 +6963,8 @@ export type Database = {
           organization_id: string
           owner?: string | null
           property_type: string
+          registered_date?: string | null
+          rental_structure?: string
           status?: string
           updated_at?: string
           updated_by?: string | null
@@ -6979,6 +6983,8 @@ export type Database = {
           organization_id?: string
           owner?: string | null
           property_type?: string
+          registered_date?: string | null
+          rental_structure?: string
           status?: string
           updated_at?: string
           updated_by?: string | null
@@ -9222,6 +9228,18 @@ export type Database = {
         }
         Returns: string
       }
+      create_property_minimal: {
+        Args: {
+          p_address: string
+          p_code: string
+          p_idempotency_key: string
+          p_name: string
+          p_organization_id: string
+          p_property_type: string
+          p_registered_date: string
+        }
+        Returns: string
+      }
       create_rent_policy_draft: {
         Args: {
           p_effective_from: string
@@ -10278,6 +10296,14 @@ export type Database = {
         }
         Returns: string
       }
+      set_property_rental_structure: {
+        Args: {
+          p_organization_id: string
+          p_property_id: string
+          p_rental_structure: string
+        }
+        Returns: string
+      }
       stage_import_run_v1: {
         Args: {
           p_headers: Json
@@ -10586,6 +10612,25 @@ export type Database = {
           p_owner_started_on: string
           p_property_id: string
           p_property_type: string
+          p_status: string
+        }
+        Returns: string
+      }
+      update_property_details: {
+        Args: {
+          p_acquisition_date: string
+          p_address: string
+          p_code: string
+          p_name: string
+          p_notes: string
+          p_organization_id: string
+          p_owner: string
+          p_owner_ownership_percent: number
+          p_owner_person_id: string
+          p_owner_started_on: string
+          p_property_id: string
+          p_property_type: string
+          p_registered_date: string
           p_status: string
         }
         Returns: string

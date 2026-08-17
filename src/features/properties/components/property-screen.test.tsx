@@ -111,6 +111,43 @@ afterEach(() => {
 });
 
 describe("PropertyScreen redesign contract", () => {
+  it("asks only for basic identity during creation and leaves detailed setup on the record", () => {
+    render(
+      <PropertyForm mode="create" onClose={vi.fn()} ownerOptions={[]} />,
+    );
+
+    expect(screen.getByRole("textbox", { name: /Property name/ })).toBeTruthy();
+    const code = screen.getByRole("textbox", { name: /Code/ }) as HTMLInputElement;
+    expect(code.required).toBe(false);
+    expect(screen.getByRole("textbox", { name: /Property type/ })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /Address/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Registered date" })).toBeTruthy();
+    expect(document.querySelector('input[name="photo"]')).not.toBeNull();
+
+    expect(screen.queryByRole("combobox", { name: "Status" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Property owner" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Acquisition date" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /Ownership share/ })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Notes" })).toBeNull();
+  });
+
+  it("keeps detailed property facts available when editing the created record", () => {
+    render(
+      <PropertyForm
+        mode="edit"
+        onClose={vi.fn()}
+        ownerOptions={[]}
+        property={makeProperty("property-edit-details", "EDIT", "Edit details")}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: /Status/ })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: /Property owner/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Acquisition date/ })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /Ownership share/ })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Notes" })).toBeTruthy();
+  });
+
   it("preserves ownership facts for the same owner and defaults a replacement owner to full ownership", () => {
     const currentOwnerId = "11111111-1111-4111-8111-111111111111";
     const replacementOwnerId = "22222222-2222-4222-8222-222222222222";
@@ -147,12 +184,18 @@ describe("PropertyScreen redesign contract", () => {
 
   it("keeps ownership share blank without an owner and explains the full-ownership default", async () => {
     const user = userEvent.setup();
+    const property = makeProperty("property-no-owner", "NONE", "No owner");
+    property.formValues.owner = "";
+    property.formValues.ownerPersonId = "";
+    property.formValues.ownerStartedOn = "";
+    property.formValues.ownershipPercent = "";
 
     render(
       <PropertyForm
-        mode="create"
+        mode="edit"
         onClose={vi.fn()}
         ownerOptions={[]}
+        property={property}
       />,
     );
 
@@ -170,11 +213,13 @@ describe("PropertyScreen redesign contract", () => {
 
   it("shows ownership values with a percent suffix without changing the numeric form value", () => {
     const ownerId = "11111111-1111-4111-8111-111111111111";
+    const property = makeProperty("property-owner", "OWNER", "Owner property");
+    property.formValues.ownerPersonId = ownerId;
+    property.formValues.ownershipPercent = "100";
 
     render(
       <PropertyForm
-        initialValues={{ ownerPersonId: ownerId }}
-        mode="create"
+        mode="edit"
         onClose={vi.fn()}
         ownerOptions={[
           {
@@ -185,6 +230,7 @@ describe("PropertyScreen redesign contract", () => {
             roles: ["owner"],
           },
         ]}
+        property={property}
       />,
     );
 
@@ -575,35 +621,36 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByPlaceholderText("CTR")).toBeNull();
     expect(screen.queryByPlaceholderText("Serviced apartment")).toBeNull();
     expect(screen.queryByPlaceholderText("Internal operating notes")).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Notes" })).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Notes" })).toBeNull();
     expect(
       screen.getByRole("heading", { name: "Property Information" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Property Owner & Location" }),
-    ).toBeTruthy();
+      screen.queryByRole("heading", { name: /Property Owner/ }),
+    ).toBeNull();
     expect(screen.queryByRole("heading", { name: "Identity" })).toBeNull();
     expect(screen.queryByText("Ownership and location")).toBeNull();
-    expect(screen.getByRole("button", { name: "Create owner" }).className).toContain(
-      "text-primary",
-    );
+    expect(screen.queryByRole("button", { name: "Create owner" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Create owner" })).toBeNull();
   });
 
-  it("creates and selects an owner without leaving the property draft", async () => {
+  it("creates and selects an owner from detailed Property setup", async () => {
     const user = userEvent.setup();
-    renderProperties();
-
-    await user.click(screen.getByRole("button", { name: "Add property" }));
-    const propertyDrawer = screen.getByRole("dialog", { name: "Add property" });
-    await user.type(
-      within(propertyDrawer).getByRole("textbox", { name: /Property name/ }),
-      "Draft Property",
+    const property = makeProperty("property-owner-setup", "SETUP", "Draft Property");
+    property.formValues.owner = "";
+    property.formValues.ownerPersonId = "";
+    property.formValues.ownerStartedOn = "";
+    property.formValues.ownershipPercent = "";
+    render(
+      <PropertyForm
+        mode="edit"
+        onClose={vi.fn()}
+        ownerOptions={[]}
+        property={property}
+      />,
     );
 
-    await user.click(
-      within(propertyDrawer).getByRole("button", { name: "Create owner" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Create owner" }));
     const ownerDialog = screen.getByRole("dialog", { name: "Create owner" });
     await user.click(
       within(ownerDialog).getByRole("combobox", { name: /Party type/ }),
@@ -625,9 +672,9 @@ describe("PropertyScreen redesign contract", () => {
       expect(screen.queryByRole("dialog", { name: "Create owner" })).toBeNull();
     });
     expect(screen.getByDisplayValue("Draft Property")).toBeTruthy();
-    expect(within(propertyDrawer).getByText("New Owner")).toBeTruthy();
+    expect(screen.getByText("New Owner")).toBeTruthy();
     expect(
-      propertyDrawer.querySelector<HTMLInputElement>(
+      document.querySelector<HTMLInputElement>(
         'input[name="ownerPersonId"]',
       )?.value,
     ).toBe("33333333-3333-4333-8333-333333333333");
@@ -641,7 +688,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByRole("dialog", { name: "Add property" })).toBeNull();
   });
 
-  it("prefills a trusted Owner handoff and removes the consumed query intent", () => {
+  it("keeps an Owner handoff out of basic Property creation", () => {
     const ownerId = "11111111-1111-4111-8111-111111111111";
     navigation.searchParams = new URLSearchParams(
       `action=create&ownerPersonId=${ownerId}`,
@@ -658,25 +705,12 @@ describe("PropertyScreen redesign contract", () => {
       ],
     });
 
-    const ownerField = screen.getByRole("group", { name: "Property owner" });
-    expect(within(ownerField).getByText("Nora Owner")).toBeTruthy();
-    expect(
-      ownerField.querySelector<HTMLInputElement>('input[name="ownerPersonId"]')
-        ?.value,
-    ).toBe(ownerId);
+    expect(screen.queryByRole("group", { name: "Property owner" })).toBeNull();
     expect(navigation.replace).toHaveBeenCalledWith("/properties", {
       scroll: false,
     });
-    const startInput = document.querySelector<HTMLInputElement>(
-      'input[name="ownerStartedOn"]',
-    );
-    const shareInput = screen.getByRole("textbox", {
-      name: /^Ownership share/,
-    });
-    expect(startInput?.value).toBe("");
-    expect(startInput?.required).toBe(true);
-    expect(shareInput.getAttribute("required")).not.toBeNull();
-    expect(shareInput.getAttribute("value")).toBe("100");
+    expect(document.querySelector('input[name="ownerStartedOn"]')).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /^Ownership share/ })).toBeNull();
   });
 });
 
