@@ -12,6 +12,7 @@ import {
 import { EmptyState, type EmptyStateKind } from "@/components/ui/empty-state";
 import { FormSection } from "@/components/ui/form-section";
 import { SideDrawer } from "@/components/ui/side-drawer";
+import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 
 beforeEach(() => {
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
@@ -347,6 +348,22 @@ describe("DraftActionBar", () => {
   });
 });
 
+describe("WorkflowStageStrip", () => {
+  it("shows one shared property-to-finance sequence and marks the current stage", () => {
+    render(<WorkflowStageStrip current="unit" />);
+
+    const progress = screen.getByRole("navigation", { name: "Setup progress" });
+    expect(within(progress).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Property",
+      "Owner",
+      "Unit",
+      "Lease",
+      "Finance",
+    ]);
+    expect(within(progress).getByText("Unit").getAttribute("aria-current")).toBe("step");
+  });
+});
+
 describe("workflow presentation primitives", () => {
   it("renders inline consequences without nested card framing", () => {
     render(
@@ -416,6 +433,7 @@ describe("workflow presentation primitives", () => {
     render(
       <FormSection
         description="Used on tenant-facing notices."
+        step="02"
         title="Contact details"
       >
         <label>
@@ -428,6 +446,7 @@ describe("workflow presentation primitives", () => {
     const section = screen.getByRole("group", { name: "Contact details" });
     const description = within(section).getByText("Used on tenant-facing notices.");
     expect(section.getAttribute("aria-describedby")).toBe(description.id);
+    expect(within(section).getByText("02").getAttribute("aria-hidden")).toBe("true");
     expect(within(section).getByRole("textbox", { name: "Email" })).not.toBeNull();
   });
 });

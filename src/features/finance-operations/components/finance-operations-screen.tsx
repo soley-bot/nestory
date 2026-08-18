@@ -15,6 +15,7 @@ import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
+import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 import { AuditDetails } from "@/components/ui/audit-details";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -246,7 +247,13 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"
       localNav={
         props.scope ? (
-          <ScopedFinanceNavigation scope={props.scope} view={props.view} />
+          <div className="border-b border-border">
+            <WorkflowStageStrip
+              className="workspace-gutter-x border-y-0 px-4 sm:px-6 2xl:px-8"
+              current="finance"
+            />
+            <ScopedFinanceNavigation scope={props.scope} view={props.view} />
+          </div>
         ) : (
           <FinanceWorkspaceNavigation
             activeRoute={screen.activeRoute}

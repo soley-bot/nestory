@@ -11,6 +11,7 @@ import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
+import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { DocumentForm } from "@/features/documents/components/document-screen";
 import {
@@ -341,10 +342,19 @@ function LeaseTermModal({
 
   return (
     <Modal onClose={onClose} open title={copy.title}>
-      <form action={formAction} className="space-y-4 p-4">
+      <form action={formAction} className="space-y-5 p-4">
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="supersedesTermId" type="hidden" value={term.id} />
         <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+
+        <WorkflowStageStrip current="lease" />
+
+        <div className="border-l-2 border-foreground pl-3">
+          <p className="font-medium text-foreground">{lease.tenantName}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {lease.propertyName} / {lease.unitLabel}
+          </p>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1.5 text-sm font-medium">
@@ -621,11 +631,20 @@ function LeaseActivationModal({
 
   return (
     <Modal onClose={onClose} open title="Activate lease">
-      <form action={formAction} className="space-y-4 p-4">
+      <form action={formAction} className="space-y-5 p-4">
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="expectedStatus" type="hidden" value="draft" />
         <input name="expectedOccupancyId" type="hidden" value={occupancyId} />
         <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+
+        <WorkflowStageStrip current="lease" />
+
+        <div className="border-l-2 border-foreground pl-3">
+          <p className="font-medium text-foreground">{lease.tenantName}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {lease.propertyName} / {lease.unitLabel}
+          </p>
+        </div>
 
         <label className="grid gap-1.5 text-sm font-medium">
           Activation timing

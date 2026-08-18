@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
+import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
 import type { PersonRoleValue } from "@/features/people/people.types";
@@ -145,6 +146,7 @@ export function LeaseForm({
           fieldErrors: state.fieldErrors ? { ...state.fieldErrors } : undefined,
         }}
       >
+        <WorkflowStageStrip current="lease" />
         {isEditMode && lease ? (
           <input name="leaseId" type="hidden" value={lease.id} />
         ) : null}
@@ -200,7 +202,7 @@ export function LeaseForm({
         )}
 
         {!isEditMode ? (
-          <FormSection title="Tenant">
+          <FormSection step="01" title="Tenant">
             {createContext ? (
               <div className="flex flex-wrap items-center gap-1.5 border-b border-border/70 pb-3 text-sm">
                 <span className="font-medium text-foreground">{createContext.propertyLabel}</span>
@@ -238,7 +240,7 @@ export function LeaseForm({
           </FormSection>
         ) : null}
 
-        <FormSection title="Lease period">
+        <FormSection step={isEditMode ? "01" : "02"} title="Lease period">
           <div className="grid gap-4 sm:grid-cols-2">
             <RecordField
               label="Start date"
@@ -271,7 +273,7 @@ export function LeaseForm({
 
         </FormSection>
 
-        <FormSection title="Rent and deposit">
+        <FormSection step={isEditMode ? "02" : "03"} title="Rent and deposit">
           <div className="grid gap-4 sm:grid-cols-2">
             <RecordField
               label="Rent amount"

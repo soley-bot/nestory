@@ -398,6 +398,11 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
+    const progress = screen.getByRole("navigation", { name: "Setup progress" });
+    expect(within(progress).getByText("Finance").getAttribute("aria-current")).toBe(
+      "step",
+    );
+
     await user.click(screen.getByRole("button", { name: "Add charge" }));
     const dialog = screen.getByRole("dialog", { name: "Add charge" });
     expect(dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value).toBe(

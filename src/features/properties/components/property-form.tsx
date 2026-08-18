@@ -16,6 +16,7 @@ import { Modal } from "@/components/ui/modal";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
+import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 import {
   Tooltip,
   TooltipContent,
@@ -198,6 +199,7 @@ export function PropertyForm({
         }
         state={state}
       >
+      <WorkflowStageStrip current={isOwnerScope ? "owner" : "property"} />
       {state.status === "success" && !isEditMode && state.propertyId ? (
         <CreateSuccessActions propertyId={state.propertyId} />
       ) : null}
@@ -237,7 +239,7 @@ export function PropertyForm({
       ) : null}
 
       {!isOwnerScope ? (
-      <FormSection title="Property">
+      <FormSection step="01" title="Property details">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_132px]">
           <RecordField
             error={state.fieldErrors?.name?.[0]}
@@ -333,7 +335,7 @@ export function PropertyForm({
       ) : null}
 
       {isEditMode ? (
-      <FormSection title="Ownership">
+      <FormSection step="02" title="Ownership">
         <div className="grid gap-4">
           <RecordField
             label="Property owner"
@@ -444,7 +446,7 @@ export function PropertyForm({
       ) : null}
 
       {!isOwnerScope ? (
-      <FormSection title="Photo">
+      <FormSection step={isEditMode ? "03" : "02"} title="Photo">
         <RecordField
           error={state.fieldErrors?.photo?.[0]}
           label="Property photo"
@@ -463,7 +465,7 @@ export function PropertyForm({
       ) : null}
 
       {isEditMode && !isOwnerScope ? (
-      <FormSection title="Notes">
+      <FormSection step="04" title="Notes">
         <RecordField
           className="[&>div]:mt-0 [&>span:first-child]:sr-only"
           error={state.fieldErrors?.notes?.[0]}
