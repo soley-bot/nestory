@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect } from "react";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -49,9 +49,6 @@ export function UnitForm({
   const propertyOptions = ensureSelectedProperty(properties, defaults.propertyId);
   const propertyLabel = getPropertyLabel(propertyOptions, defaults.propertyId);
   const operationalStateLocked = Boolean(isEditMode && unit?.hasActiveLease);
-  const [selectedOperationalState, setSelectedOperationalState] = useState(
-    defaults.operationalState,
-  );
 
   useEffect(() => {
     if (
@@ -144,9 +141,6 @@ export function UnitForm({
                 ariaLabel="Operational state"
                 defaultValue={defaults.operationalState}
                 name="operationalState"
-                onValueChange={(value) =>
-                  setSelectedOperationalState(value as UnitOperationalStateValue)
-                }
                 options={UNIT_OPERATIONAL_STATE_OPTIONS}
                 required
               />
@@ -160,15 +154,6 @@ export function UnitForm({
             />
           ) : null}
         </div>
-
-        {!isEditMode ? (
-          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-            <p className="text-xs font-medium text-foreground">Lease readiness</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-              {getNewUnitReadinessCopy(selectedOperationalState)}
-            </p>
-          </div>
-        ) : null}
 
       </FormSection>
 
@@ -260,17 +245,6 @@ function getOperationalState(storedStatus: string): UnitOperationalStateValue {
   return storedStatus === "maintenance" || storedStatus === "inactive"
     ? storedStatus
     : "active";
-}
-
-function getNewUnitReadinessCopy(value: UnitOperationalStateValue) {
-  switch (value) {
-    case "maintenance":
-      return "Blocked from leasing until maintenance is resolved.";
-    case "inactive":
-      return "Not available for leasing while inactive.";
-    case "active":
-      return "Available for leasing after save. A Lease will determine occupancy.";
-  }
 }
 
 function getOperationalStateLabel(value: string) {

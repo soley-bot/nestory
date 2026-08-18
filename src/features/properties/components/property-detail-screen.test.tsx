@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 describe("PropertyDetailScreen task-first detail contract", () => {
-  it("asks the rental placement question before exposing Lease or Unit setup", () => {
+  it("uses a concise rental-structure control before exposing Lease or Unit setup", () => {
     const undecidedProperty = buildPropertyDetail({
       ledgerEntries: [],
       property: {
@@ -45,8 +45,9 @@ describe("PropertyDetailScreen task-first detail contract", () => {
 
     const overview = screen.getByRole("tabpanel", { name: "Overview" });
     expect(
-      within(overview).getByRole("heading", { name: "How is this property rented?" }),
+      within(overview).getByRole("heading", { name: "Rental structure" }),
     ).toBeTruthy();
+    expect(within(overview).queryByText(/Choose the real operating structure/)).toBeNull();
     expect(
       within(overview).getByRole("button", { name: "The whole property" }),
     ).toBeTruthy();

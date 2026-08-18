@@ -21,7 +21,10 @@ export function FormSection({
     <section
       aria-describedby={description ? descriptionId : undefined}
       aria-labelledby={titleId}
-      className={cn("space-y-3", className)}
+      className={cn(
+        "space-y-3 border-b border-border/70 pb-5 last:border-b-0 last:pb-0",
+        className,
+      )}
       role="group"
     >
       <div>

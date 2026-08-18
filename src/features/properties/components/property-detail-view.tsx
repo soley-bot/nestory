@@ -318,9 +318,6 @@ function getPropertyRecordPanelContent({
         {needsFirstUnit ? (
           <div className="mt-5 border-y border-border py-5">
             <h2 className="text-base font-semibold">Add the first unit</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Each Lease in this property will stay inside a Unit record.
-            </p>
             <Button className="mt-4" onClick={onAddUnit}>
               <Building2 size={14} />
               Add first unit
@@ -881,12 +878,8 @@ function PropertyRentalStructureSetup({ propertyId }: { propertyId: string }) {
       className="mt-5 border-y border-border py-5"
     >
       <input name="propertyId" type="hidden" value={propertyId} />
-      <h2 className="text-base font-semibold">How is this property rented?</h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Choose the real operating structure. A whole-property rental has no
-        Unit record; separate units each keep their own Lease.
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <h2 className="text-base font-semibold">Rental structure</h2>
+      <div className="mt-3 flex flex-wrap gap-2">
         <Button
           disabled={pending}
           name="rentalStructure"

@@ -156,12 +156,10 @@ export function LeaseForm({
         />
 
         {!isEditMode && state.status === "success" && state.leaseId ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm">
-            <p className="font-medium text-foreground">
-              Draft saved and ready for review.
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-y border-success/30 py-2 text-sm">
+            <p className="font-medium text-foreground">Draft created</p>
             <Link
-              className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 font-medium text-accent outline-none transition-colors hover:bg-background/70 focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex h-8 items-center gap-1.5 font-medium text-accent outline-none transition-colors hover:text-accent/75 focus-visible:ring-2 focus-visible:ring-ring"
               href={`/leases/${state.leaseId}`}
               prefetch={false}
             >
@@ -204,11 +202,10 @@ export function LeaseForm({
         {!isEditMode ? (
           <FormSection title="Tenant">
             {createContext ? (
-              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-                <p className="font-medium text-foreground">{createContext.propertyLabel}</p>
-                <p className="text-muted-foreground">
-                  {createContext.unitLabel ?? "Whole property"}
-                </p>
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-border/70 pb-3 text-sm">
+                <span className="font-medium text-foreground">{createContext.propertyLabel}</span>
+                <span aria-hidden className="text-muted-foreground">/</span>
+                <span className="text-muted-foreground">{createContext.unitLabel ?? "Whole property"}</span>
               </div>
             ) : null}
             <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">

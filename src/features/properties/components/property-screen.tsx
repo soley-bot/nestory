@@ -514,9 +514,7 @@ function getPropertyDrawerDescription(drawer: DrawerState) {
     return undefined;
   }
 
-  if (drawer.mode === "edit") {
-    return "Update the property profile used across units, timeline, and ledger records.";
-  }
+  if (drawer.mode === "edit") return undefined;
 
   if (drawer.mode === "restore") {
     return "Return this property to normal operational views.";

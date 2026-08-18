@@ -199,9 +199,6 @@ export function UnitDetailScreen({
             <p className="text-sm font-semibold text-foreground">
               {unit.repairAction.label}
             </p>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {unit.repairAction.description}
-            </p>
           </div>
           {unit.repairAction.label === "Create draft lease" ? (
             <Button

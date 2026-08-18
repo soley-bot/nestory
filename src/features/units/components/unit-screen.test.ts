@@ -409,7 +409,7 @@ describe("UnitScreen redesign contract", () => {
     ).toBeNull();
   });
 
-  it("explains Lease readiness while choosing a new Unit operational state", async () => {
+  it("keeps operational-state selection concise without a readiness explainer", async () => {
     const user = userEvent.setup();
     renderUnits({ canCreate: true, units: [] });
 
@@ -420,25 +420,16 @@ describe("UnitScreen redesign contract", () => {
       name: /Operational state/,
     });
 
-    expect(
-      within(drawer).getByText(
-        "Available for leasing after save. A Lease will determine occupancy.",
-      ),
-    ).toBeTruthy();
+    expect(within(drawer).queryByText("Lease readiness")).toBeNull();
+    expect(within(drawer).queryByText(/Available for leasing after save/)).toBeNull();
 
     await user.click(operationalState);
     await user.click(screen.getByRole("option", { name: "Maintenance" }));
-    expect(
-      within(drawer).getByText(
-        "Blocked from leasing until maintenance is resolved.",
-      ),
-    ).toBeTruthy();
+    expect(within(drawer).queryByText(/Blocked from leasing/)).toBeNull();
 
     await user.click(operationalState);
     await user.click(screen.getByRole("option", { name: "Inactive" }));
-    expect(
-      within(drawer).getByText("Not available for leasing while inactive."),
-    ).toBeTruthy();
+    expect(within(drawer).queryByText(/Not available for leasing/)).toBeNull();
   });
 
   it("shows active-lease occupancy and operational state as read-only context", async () => {

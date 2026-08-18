@@ -219,6 +219,9 @@ export function PropertyForm({
       {isEditMode ? (
         <input name="owner" type="hidden" value={defaults.owner ?? ""} />
       ) : null}
+      {isEditMode && !isOwnerScope ? (
+        <input name="acquisitionDate" type="hidden" value={defaults.acquisitionDate ?? ""} />
+      ) : null}
 
       {isOwnerScope ? (
         <>
@@ -234,7 +237,7 @@ export function PropertyForm({
       ) : null}
 
       {!isOwnerScope ? (
-      <FormSection title="Property Information">
+      <FormSection title="Property">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_132px]">
           <RecordField
             error={state.fieldErrors?.name?.[0]}
@@ -330,8 +333,8 @@ export function PropertyForm({
       ) : null}
 
       {isEditMode ? (
-      <FormSection title={isOwnerScope ? "Ownership" : "Property Owner & Acquisition"}>
-        <div className={isOwnerScope ? "grid gap-4" : "grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]"}>
+      <FormSection title="Ownership">
+        <div className="grid gap-4">
           <RecordField
             label="Property owner"
             name="ownerPersonId"
@@ -358,12 +361,7 @@ export function PropertyForm({
               roles={["owner"]}
               value={selectedOwnerPersonId}
             />
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>
-                {availableOwnerOptions.length === 0
-                  ? "No owner records are available yet."
-                  : "Need a different owner?"}
-              </span>
+            <div className="mt-1 flex justify-end text-xs">
               <button
                 className="font-medium text-primary underline-offset-4 transition-colors hover:underline"
                 onClick={() => setCreateOwnerOpen(true)}
@@ -374,19 +372,6 @@ export function PropertyForm({
             </div>
           </RecordField>
 
-          {!isOwnerScope ? (
-          <RecordField
-            label="Acquisition date"
-            name="acquisitionDate"
-            error={state.fieldErrors?.acquisitionDate?.[0]}
-          >
-            <DatePickerField
-              ariaLabel="Acquisition date"
-              defaultValue={defaults.acquisitionDate ?? ""}
-              name="acquisitionDate"
-            />
-          </RecordField>
-          ) : null}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

@@ -178,7 +178,6 @@ export function PropertyDetailScreen({
 
       {drawer ? (
         <SideDrawer
-          description={getPropertyDrawerDescription(drawer)}
           onClose={() => setDrawer(null)}
           open
           title={getPropertyDrawerTitle(drawer)}
@@ -287,7 +286,6 @@ export function PropertyDetailScreen({
     </div>
   );
 }
-
 function getPropertyDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "create-unit") {
     return "Add unit";
@@ -298,18 +296,4 @@ function getPropertyDrawerTitle(drawer: DrawerState) {
   }
 
   return drawer.mode === "create-document" ? "Upload document" : "Edit property";
-}
-
-function getPropertyDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "create-unit") {
-    return `Add a unit to ${drawer.property.name}.`;
-  }
-
-  if (drawer.mode === "create-lease") {
-    return `Create a draft lease for ${drawer.property.name}.`;
-  }
-
-  return drawer.mode === "create-document"
-    ? undefined
-    : "Update the property profile used by units, owners, timeline, and ledger rows.";
 }

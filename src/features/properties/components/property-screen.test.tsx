@@ -144,19 +144,26 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByRole("textbox", { name: "Notes" })).toBeNull();
   });
 
-  it("keeps detailed property facts available when editing the created record", () => {
+  it("uses one ownership date when editing and preserves acquisition data invisibly", () => {
+    const property = makeProperty("property-edit-details", "EDIT", "Edit details");
+    property.formValues.acquisitionDate = "2025-06-15";
+
     render(
       <PropertyForm
         mode="edit"
         onClose={vi.fn()}
         ownerOptions={[]}
-        property={makeProperty("property-edit-details", "EDIT", "Edit details")}
+        property={property}
       />,
     );
 
     expect(screen.getByRole("combobox", { name: /Status/ })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: /Property owner/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Acquisition date/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Acquisition date/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Ownership start date/ })).toBeTruthy();
+    expect(
+      document.querySelector<HTMLInputElement>('input[name="acquisitionDate"]')?.value,
+    ).toBe("2025-06-15");
     expect(screen.getByRole("textbox", { name: /Ownership share/ })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Notes" })).toBeTruthy();
   });
@@ -572,7 +579,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByPlaceholderText("Internal operating notes")).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Notes" })).toBeNull();
     expect(
-      screen.getByRole("heading", { name: "Property Information" }),
+      screen.getByRole("heading", { name: "Property" }),
     ).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: /Property Owner/ }),
