@@ -113,6 +113,47 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(screen.queryByRole("button", { name: "Add first unit" })).toBeNull();
   });
 
+  it("continues an existing whole-property draft instead of offering another lease", () => {
+    const wholePropertyDraft = buildPropertyDetail({
+      activeLeases: [
+        {
+          id: "draft-lease-whole-property",
+          lease_end_date: "2027-01-31",
+          lease_start_date: "2026-02-01",
+          monthly_rent_amount: 850,
+          monthly_rent_currency: "USD",
+          status: "draft",
+          tenant_name: "Dara Tenant",
+          unit_id: null,
+        },
+      ],
+      ledgerEntries: [],
+      property: {
+        address: "10 Riverside Road",
+        code: "HOUSE-DRAFT",
+        id: "property-whole-draft",
+        name: "Riverside House",
+        owner: null,
+        property_type: "House",
+        rental_structure: "single_space",
+        status: "active",
+      },
+      units: [],
+    });
+
+    renderPropertyDetail({ propertyOverride: wholePropertyDraft });
+
+    const overview = screen.getByRole("tabpanel", { name: "Overview" });
+    const continueDraft = within(overview).getByRole("link", {
+      name: "Continue draft lease",
+    });
+    expect(continueDraft.getAttribute("href")).toBe(
+      "/leases/draft-lease-whole-property",
+    );
+    expect(within(overview).queryByRole("button", { name: "Create lease" })).toBeNull();
+    expect(within(overview).queryByRole("link", { name: "Add lease" })).toBeNull();
+  });
+
   it("keeps the property heading and edit action beside five focused record tabs", () => {
     const { container } = renderPropertyDetail();
 

@@ -32,7 +32,7 @@ import {
 } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 
-const propertySelect = "id, code, name, archived_at";
+const propertySelect = "id, code, name, rental_structure, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
 type SupabaseServerClient = Awaited<
   ReturnType<typeof createSupabaseServerClient>

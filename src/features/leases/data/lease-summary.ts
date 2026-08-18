@@ -47,7 +47,9 @@ export type LeaseRow = {
 export type LeasePropertyRow = Pick<
   Database["public"]["Tables"]["properties"]["Row"],
   "code" | "id" | "name"
->;
+> & {
+  rental_structure?: string | null;
+};
 
 export type LeaseUnitRow = Pick<
   Database["public"]["Tables"]["units"]["Row"],
@@ -182,9 +184,13 @@ export function buildLeaseSummary({
   const statusLabel = formatLeaseStatus(statusValue);
   const propertyCode = property?.code ?? "No code";
   const propertyName = property?.name ?? "Property not found";
+  const isWholePropertyLease =
+    !lease.unit_id && property?.rental_structure === "single_space";
   const unitLabel = unit
     ? `Unit ${unit.unit_number}${unit.floor ? ` / Floor ${unit.floor}` : ""}`
-    : "No unit assigned";
+    : isWholePropertyLease
+      ? "Whole property"
+      : "No unit assigned";
   const resolvedTerm = readiness?.term_id
     ? (terms.find(
         (term) =>
@@ -273,16 +279,16 @@ export function buildLeaseSummary({
     leaseLabel: `${lease.tenant_name} / ${statusLabel}`,
     nextAction: buildLeaseNextAction({
       endRisk,
-      hasUnit: Boolean(lease.unit_id),
+      hasPlacement: Boolean(lease.unit_id) || isWholePropertyLease,
       hrefs,
       recordCounts,
       statusValue,
     }),
     occupancies: occupancies
       .filter((occupancy) => !occupancy.archived_at)
-      .map((occupancy) => toOccupancyContext(occupancy, unit))
+      .map((occupancy) => toOccupancyContext(occupancy, unit, isWholePropertyLease))
       .sort(compareOccupancyEvidence),
-    occupancyLabel: getOccupancyLabel(statusValue, unit),
+    occupancyLabel: getOccupancyLabel(statusValue, unit, isWholePropertyLease),
     parties: activeParties.map(toPartyContext),
     partySummary: formatPartySummary(activeParties, lease.tenant_name),
     propertyCode,
@@ -298,7 +304,11 @@ export function buildLeaseSummary({
       hasDeposit,
       hasDocuments: recordCounts.documents > 0,
       hasParties: activeParties.length > 0,
-      hasUnit: Boolean(lease.unit_id),
+      placement: isWholePropertyLease
+        ? "whole_property"
+        : lease.unit_id
+          ? "unit"
+          : "missing",
       statusValue,
     }),
     startDateLabel: formatDate(displayStartDate),
@@ -556,6 +566,7 @@ function isLeaseTermContextStatus(
 function toOccupancyContext(
   occupancy: LeaseOccupancyRow,
   unit?: LeaseUnitRow,
+  isWholePropertyLease = false,
 ): LeaseOccupancyContext {
   const actualLabel = formatOccupancyEvidenceRange({
     endDate: occupancy.actual_move_out_date,
@@ -587,7 +598,11 @@ function toOccupancyContext(
     scheduledLabel,
     statusLabel: formatStoredLabel(occupancy.status),
     unitHref: occupancy.unit_id ? `/units/${occupancy.unit_id}` : undefined,
-    unitLabel: unit ? `Unit ${unit.unit_number}` : "No unit assigned",
+    unitLabel: unit
+      ? `Unit ${unit.unit_number}`
+      : isWholePropertyLease
+        ? "Whole property"
+        : "No unit assigned",
   };
 }
 
@@ -673,14 +688,14 @@ function buildLeaseRiskIndicators({
   hasDeposit,
   hasDocuments,
   hasParties,
-  hasUnit,
+  placement,
   statusValue,
 }: {
   endRisk: ReturnType<typeof getLeaseEndRisk>;
   hasDeposit: boolean;
   hasDocuments: boolean;
   hasParties: boolean;
-  hasUnit: boolean;
+  placement: "missing" | "unit" | "whole_property";
   statusValue: LeaseStatusValue;
 }): LeaseRiskIndicator[] {
   return [
@@ -693,12 +708,20 @@ function buildLeaseRiskIndicators({
       tone: hasParties ? "success" : "warning",
     },
     {
-      description: hasUnit
-        ? "The lease is attached to a unit operating record."
-        : "No unit is assigned, so occupancy and unit reports are incomplete.",
+      description:
+        placement === "unit"
+          ? "The lease is attached to a unit operating record."
+          : placement === "whole_property"
+            ? "This lease applies directly to the whole property."
+            : "No unit is assigned, so occupancy and unit reports are incomplete.",
       id: "unit",
-      label: hasUnit ? "Unit linked" : "Unit missing",
-      tone: hasUnit ? "success" : "danger",
+      label:
+        placement === "unit"
+          ? "Unit linked"
+          : placement === "whole_property"
+            ? "Whole property"
+            : "Unit missing",
+      tone: placement === "missing" ? "danger" : "success",
     },
     {
       description: getEndRiskDescription(endRisk, statusValue),
@@ -727,18 +750,18 @@ function buildLeaseRiskIndicators({
 
 function buildLeaseNextAction({
   endRisk,
-  hasUnit,
+  hasPlacement,
   hrefs,
   recordCounts,
   statusValue,
 }: {
   endRisk: ReturnType<typeof getLeaseEndRisk>;
-  hasUnit: boolean;
+  hasPlacement: boolean;
   hrefs: LeaseDetailHrefs;
   recordCounts: LeaseRecordCounts;
   statusValue: LeaseStatusValue;
 }): LeaseNextAction {
-  if (!hasUnit) {
+  if (!hasPlacement) {
     return {
       description: "Assign this lease to a unit before relying on occupancy reports.",
       href: hrefs.unit ?? hrefs.property,
@@ -848,9 +871,13 @@ function formatStoredLabel(value: string) {
     .join(" ");
 }
 
-function getOccupancyLabel(status: LeaseStatusValue, unit?: LeaseUnitRow) {
+function getOccupancyLabel(
+  status: LeaseStatusValue,
+  unit?: LeaseUnitRow,
+  isWholePropertyLease = false,
+) {
   if (!unit) {
-    return "No unit assigned";
+    return isWholePropertyLease ? "Whole property" : "No unit assigned";
   }
 
   if (status === "active") {

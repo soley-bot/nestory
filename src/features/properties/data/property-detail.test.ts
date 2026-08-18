@@ -15,6 +15,38 @@ const property = {
 };
 
 describe("buildPropertyDetail", () => {
+  it("keeps a whole-property draft lease separate from active lease and occupancy data", () => {
+    const detail = buildPropertyDetail({
+      activeLeases: [
+        {
+          id: "lease-draft-whole-property",
+          lease_end_date: "2027-01-31",
+          lease_start_date: "2026-02-01",
+          monthly_rent_amount: 850,
+          monthly_rent_currency: "USD",
+          status: "draft",
+          tenant_name: "Dara Tenant",
+          unit_id: null,
+        },
+      ],
+      ledgerEntries: [],
+      property: {
+        ...property,
+        rental_structure: "single_space",
+      },
+      units: [],
+    });
+
+    expect(detail.activeLeases).toEqual([]);
+    expect(detail.counts.activeLeases).toBe(0);
+    expect(detail.occupiedUnits).toBe(0);
+    expect(detail.propertyDraftLease).toMatchObject({
+      href: "/leases/lease-draft-whole-property",
+      id: "lease-draft-whole-property",
+      tenantName: "Dara Tenant",
+    });
+  });
+
   it("keeps a property useful when no unit children exist", () => {
     const detail = buildPropertyDetail({
       ledgerEntries: [],

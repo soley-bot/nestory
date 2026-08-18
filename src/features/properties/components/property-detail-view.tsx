@@ -290,8 +290,11 @@ function getPropertyRecordPanelContent({
   const needsFirstUnit =
     property.rentalStructure === "multi_unit" && property.activeUnitCount === 0;
   const needsWholePropertyLease =
-    property.rentalStructure === "single_space" && property.activeLeases.length === 0;
-  const hasStructureNextStep = needsFirstUnit || needsWholePropertyLease;
+    property.rentalStructure === "single_space" &&
+    property.activeLeases.length === 0 &&
+    !property.propertyDraftLease;
+  const hasStructureNextStep =
+    needsFirstUnit || needsWholePropertyLease || Boolean(property.propertyDraftLease);
 
   return (
     <>
@@ -334,6 +337,21 @@ function getPropertyRecordPanelContent({
             <Button className="mt-4" onClick={onCreateLease}>
               <ScrollText size={14} />
               Create lease
+            </Button>
+          </div>
+        ) : null}
+
+        {property.propertyDraftLease ? (
+          <div className="mt-5 border-y border-border py-5">
+            <h2 className="text-base font-semibold">Continue the property Lease</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A whole-property draft Lease already exists for {property.propertyDraftLease.tenantName}.
+            </p>
+            <Button asChild className="mt-4">
+              <Link href={property.propertyDraftLease.href} prefetch={false}>
+                <ScrollText size={14} />
+                Continue draft lease
+              </Link>
             </Button>
           </div>
         ) : null}

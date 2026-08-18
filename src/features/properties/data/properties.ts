@@ -583,6 +583,7 @@ export async function getPropertyDetail(
     unitsResult,
     ownerRowsResult,
     activeLeasesResult,
+    propertyDraftLeaseResult,
     timelineResult,
     ledgerResult,
     documentsResult,
@@ -627,6 +628,18 @@ export async function getPropertyDetail(
       .is("archived_at", null)
       .order("lease_end_date", { ascending: true })
       .limit(detailRecordLimit),
+    supabase
+      .from("current_leases")
+      .select(
+        "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, archived_at",
+      )
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .eq("status", "draft")
+      .is("unit_id", null)
+      .is("archived_at", null)
+      .order("lease_start_date", { ascending: false })
+      .limit(1),
     supabase
       .from("timeline_events")
       .select(
@@ -724,6 +737,12 @@ export async function getPropertyDetail(
     );
   }
 
+  if (propertyDraftLeaseResult.error) {
+    throw new Error(
+      `Could not load property draft lease: ${propertyDraftLeaseResult.error.message}`,
+    );
+  }
+
   if (timelineResult.error) {
     throw new Error(
       `Could not load property timeline: ${timelineResult.error.message}`,
@@ -786,7 +805,10 @@ export async function getPropertyDetail(
   });
 
   return buildPropertyDetail({
-    activeLeases: activeLeasesResult.data ?? [],
+    activeLeases: [
+      ...(activeLeasesResult.data ?? []),
+      ...(propertyDraftLeaseResult.data ?? []),
+    ],
     activeOwner: activeOwner
       ? {
           label: activeOwner.person_name,

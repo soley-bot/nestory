@@ -32,6 +32,55 @@ const lease = {
 };
 
 describe("buildLeaseSummary", () => {
+  it("treats an unassigned single-space lease as whole-property placement", () => {
+    const summary = buildLeaseSummary({
+      lease: {
+        ...lease,
+        status: "draft",
+        unit_id: null,
+      },
+      property: {
+        ...property,
+        rental_structure: "single_space",
+      },
+    });
+
+    expect(summary.unitLabel).toBe("Whole property");
+    expect(summary.occupancyLabel).toBe("Whole property");
+    expect(summary.riskIndicators.find((risk) => risk.id === "unit")).toMatchObject({
+      label: "Whole property",
+      tone: "success",
+    });
+    expect(summary.nextAction).toMatchObject({
+      href: "/documents?action=create&category=Lease&leaseId=lease-1&propertyId=property-1",
+      label: "Attach evidence",
+    });
+  });
+
+  it.each(["multi_unit", "undecided"] as const)(
+    "keeps missing-unit repair guidance for an unassigned %s property",
+    (rentalStructure) => {
+      const summary = buildLeaseSummary({
+        lease: {
+          ...lease,
+          status: "draft",
+          unit_id: null,
+        },
+        property: {
+          ...property,
+          rental_structure: rentalStructure,
+        },
+      });
+
+      expect(summary.unitLabel).toBe("No unit assigned");
+      expect(summary.riskIndicators.find((risk) => risk.id === "unit")).toMatchObject({
+        label: "Unit missing",
+        tone: "danger",
+      });
+      expect(summary.nextAction).toMatchObject({ label: "Assign unit", tone: "danger" });
+    },
+  );
+
   it("uses the projected tenant name and formats operational labels", () => {
     const summary = buildLeaseSummary({
       lease,
