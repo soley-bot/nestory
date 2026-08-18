@@ -46,7 +46,14 @@ export function LeasesTable({
         data-slot="register-table-frame"
       >
         <div aria-label="Leases table" className="overflow-x-auto" role="region">
-          <table className="w-full min-w-[860px] max-w-[1000px] table-auto border-collapse text-left text-sm">
+          <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-sm">
+            <colgroup>
+              <col className="w-[22%]" />
+              <col className="w-[25%]" />
+              <col className="w-[22%]" />
+              <col className="w-[14%]" />
+              <col className="w-[17%]" />
+            </colgroup>
             <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
                 <th className="px-2.5 py-2.5 font-semibold">Tenant</th>
@@ -157,7 +164,7 @@ function RecordContextLinks({ lease }: { lease: LeaseSummary }) {
       </span>
       <Link
         className="mt-0.5 block truncate rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        href={`/properties/${lease.propertyId}`}
+        href={`/properties/${lease.propertyId}/account`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
         title={lease.propertyName}

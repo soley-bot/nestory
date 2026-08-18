@@ -18,6 +18,29 @@ export function findOpenLeaseForUnit(
   );
 }
 
+export function getSelectableSetupTenants(
+  leases: PropertySetupData["leases"],
+  tenants: PropertySetupData["tenants"],
+  selection: PropertySetupSelection,
+) {
+  return tenants.filter((tenant) =>
+    leases.every(
+      (lease) =>
+        lease.tenantPersonId !== tenant.id ||
+        (lease.propertyId === selection.propertyId &&
+          lease.unitId === selection.unitId),
+    ),
+  );
+}
+
+export function getSetupUnitStatusLabel(
+  unitId: string,
+  fallback: string,
+  leases: PropertySetupData["leases"],
+) {
+  return leases.some((lease) => lease.unitId === unitId) ? "open lease" : fallback;
+}
+
 /** A `single_space` property is leased whole, with `leases.unit_id` null. */
 export function propertySetupRequiresUnit(
   properties: PropertySetupData["properties"],

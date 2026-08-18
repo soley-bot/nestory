@@ -23,8 +23,8 @@ vi.mock("@/lib/db/server", () => ({
 
 import {
   activateSetupLeaseAction,
-  initialActivateSetupLeaseState,
 } from "@/features/property-setup/actions";
+import { initialActivateSetupLeaseState } from "@/features/property-setup/property-setup-state";
 
 const leaseId = "20000000-0000-0000-0000-000000000001";
 const expectedOccupancyId = "30000000-0000-0000-0000-000000000001";

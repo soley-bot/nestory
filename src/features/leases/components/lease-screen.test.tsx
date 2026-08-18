@@ -98,13 +98,17 @@ afterEach(() => {
 });
 
 describe("LeaseScreen redesign contract", () => {
-  it("lets the browser size register columns from their content", () => {
+  it("uses a stable register column budget", () => {
     renderLeases();
 
     const table = screen.getByRole("table");
 
-    expect(table.className).toContain("table-auto");
-    expect(table.querySelector("colgroup")).toBeNull();
+    expect(table.className).toContain("table-fixed");
+    expect(
+      Array.from(table.querySelectorAll("colgroup col"), (column) =>
+        column.getAttribute("class"),
+      ),
+    ).toEqual(["w-[22%]", "w-[25%]", "w-[22%]", "w-[14%]", "w-[17%]"]);
   });
 
   it("keeps deposit attention beside the status badge on desktop", () => {
@@ -142,6 +146,11 @@ describe("LeaseScreen redesign contract", () => {
     expect(registerSurface!.className).toContain("rounded-md");
     expect(registerSurface!.className).toContain("overflow-hidden");
     expect(registerSurface!.contains(screen.getByRole("table"))).toBe(true);
+    const table = screen.getByRole("table");
+    expect(table.className).toContain("table-fixed");
+    expect(table.className).toContain("min-w-[900px]");
+    expect(table.className).not.toContain("max-w-");
+    expect(table.querySelectorAll("colgroup col")).toHaveLength(5);
     expect(
       registerSurface!.contains(
         screen.getByText(
@@ -496,7 +505,7 @@ describe("LeaseScreen redesign contract", () => {
       within(financeRow)
         .getByRole("link", { name: "Riverside House" })
         .getAttribute("href"),
-    ).toBe("/properties/property-1");
+    ).toBe("/properties/property-1/account");
     expect(within(quickView).getAllByRole("link")).toHaveLength(4);
   });
 

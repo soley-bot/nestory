@@ -377,8 +377,8 @@ SET immediate_lease_result = public.create_property_lease(
   state.organization_id,
   state.immediate_property_id,
   state.tenant_id,
-  current_date,
-  current_date + 364,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 364,
   1000,
   'USD',
   1,
@@ -401,7 +401,7 @@ SET immediate_activation_result = public.request_lease_activation(
     WHERE occupancy.lease_id = (state.immediate_lease_result ->> 'leaseId')::uuid
       AND occupancy.evidence_state = 'accepted'
   ),
-  current_date,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
   'immediate-property-lease-activation'
 );
 
@@ -442,7 +442,7 @@ SELECT is(
       public.resolve_lease_rent_readiness(
         state.organization_id,
         (state.immediate_lease_result ->> 'leaseId')::uuid,
-        current_date
+        (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date
       ) AS readiness
   ),
   'ready',
@@ -475,18 +475,23 @@ SELECT is(
     WHERE invoice.lease_id = (state.immediate_lease_result ->> 'leaseId')::uuid
       AND line.line_type = 'rent'
   ),
-  round(1000 * ((date_trunc('month', current_date) + interval '1 month - 1 day')::date - current_date + 1)
-    / extract(day FROM (date_trunc('month', current_date) + interval '1 month - 1 day'))::numeric, 2),
+  round(1000 * ((date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+    + interval '1 month - 1 day')::date
+    - (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 1)
+    / extract(day FROM (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+      + interval '1 month - 1 day'))::numeric, 2),
   'the first rent charge uses the Lease actual-days proration rule'
 );
 
 SELECT lives_ok(
   (
     SELECT format(
-      'SELECT public.create_manual_tenant_charge(%L,%L,%L,date_trunc(''month'',current_date)::date,current_date,75,%L,%L)',
+      'SELECT public.create_manual_tenant_charge(%L,%L,%L,date_trunc(''month'',%L::date)::date,%L::date,75,%L,%L)',
       organization_id,
       (immediate_lease_result ->> 'leaseId')::uuid,
       'utilities',
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
       'Water bill',
       'manual-utilities-charge'
     )
@@ -512,10 +517,12 @@ SELECT is(
 SELECT lives_ok(
   (
     SELECT format(
-      'SELECT public.create_manual_tenant_charge(%L,%L,%L,date_trunc(''month'',current_date)::date,current_date,75,%L,%L)',
+      'SELECT public.create_manual_tenant_charge(%L,%L,%L,date_trunc(''month'',%L::date)::date,%L::date,75,%L,%L)',
       organization_id,
       (immediate_lease_result ->> 'leaseId')::uuid,
       'utilities',
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
       'Water bill',
       'manual-utilities-charge'
     )
@@ -541,10 +548,12 @@ SELECT is(
 SELECT is(
   (
     SELECT pg_temp.capture_error(format(
-      'SELECT public.create_manual_tenant_charge(%L,%L,%L,date_trunc(''month'',current_date)::date,current_date,1000,%L,%L)',
+      'SELECT public.create_manual_tenant_charge(%L,%L,%L,date_trunc(''month'',%L::date)::date,%L::date,1000,%L,%L)',
       organization_id,
       (immediate_lease_result ->> 'leaseId')::uuid,
       'manual_rent',
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
       'Duplicate rent',
       'duplicate-manual-rent'
     )) ->> 'detail'
@@ -557,10 +566,12 @@ SELECT is(
 SELECT is(
   (
     SELECT pg_temp.capture_error(format(
-      'SELECT public.create_manual_tenant_charge(%L,%L,%L,date_trunc(''month'',current_date)::date,current_date,25,NULL,%L)',
+      'SELECT public.create_manual_tenant_charge(%L,%L,%L,date_trunc(''month'',%L::date)::date,%L::date,25,NULL,%L)',
       organization_id,
       (immediate_lease_result ->> 'leaseId')::uuid,
       'other',
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
       'manual-other-without-description'
     )) ->> 'detail'
     FROM property_only_lease_state

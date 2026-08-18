@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   clearPropertySetupSelectionAfter,
   findOpenLeaseForUnit,
+  getSelectableSetupTenants,
+  getSetupUnitStatusLabel,
   getHighestPropertySetupStep,
   normalizePropertySetupStep,
   propertySetupRequiresUnit,
@@ -134,6 +136,56 @@ describe("property setup progression", () => {
         unitId: "unit-2",
       }),
     ).toBeUndefined();
+  });
+
+  it("keeps unavailable tenants out of new lease creation", () => {
+    const leases = [
+      {
+        endDate: "2027-06-30",
+        id: "lease-1",
+        label: "Existing tenant",
+        monthlyRentAmount: 900,
+        propertyId: "property-1",
+        startDate: "2026-07-01",
+        status: "active",
+        tenantPersonId: "tenant-1",
+        unitId: "unit-1",
+      },
+    ];
+    const tenants = [person("tenant-1", ["tenant"]), person("tenant-2", ["tenant"])];
+
+    expect(
+      getSelectableSetupTenants(leases, tenants, {
+        ...completeSelection,
+        leaseId: null,
+        tenantId: null,
+        unitId: "unit-2",
+      }).map((tenant) => tenant.id),
+    ).toEqual(["tenant-2"]);
+    expect(
+      getSelectableSetupTenants(leases, tenants, {
+        ...completeSelection,
+        leaseId: null,
+        tenantId: null,
+      }).map((tenant) => tenant.id),
+    ).toEqual(["tenant-1", "tenant-2"]);
+  });
+
+  it("labels a unit with an open lease from the lease authority", () => {
+    const lease = {
+      endDate: "2027-06-30",
+      id: "lease-1",
+      label: "Existing tenant",
+      monthlyRentAmount: 900,
+      propertyId: "property-1",
+      startDate: "2026-07-01",
+      status: "active",
+      tenantPersonId: "tenant-1",
+      unitId: "unit-1",
+    };
+
+    expect(getSetupUnitStatusLabel("unit-1", "vacant", [lease])).toBe("open lease");
+    expect(getSetupUnitStatusLabel("unit-2", "vacant", [lease])).toBe("vacant");
   });
 });
 

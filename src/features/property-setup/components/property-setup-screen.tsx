@@ -23,15 +23,15 @@ import { PersonSelect } from "@/features/people/components/person-select";
 import { PropertyForm } from "@/features/properties/components/property-form";
 import { UnitForm } from "@/features/units/components/unit-form";
 import { LeaseForm } from "@/features/leases/components/lease-form";
-import {
-  activateSetupLeaseAction,
-  initialActivateSetupLeaseState,
-} from "@/features/property-setup/actions";
+import { activateSetupLeaseAction } from "@/features/property-setup/actions";
+import { initialActivateSetupLeaseState } from "@/features/property-setup/property-setup-state";
 import {
   buildPropertySetupQuery,
   clearPropertySetupSelectionAfter,
   findOpenLeaseForUnit,
   getHighestPropertySetupStep,
+  getSelectableSetupTenants,
+  getSetupUnitStatusLabel,
   propertySetupRequiresUnit,
 } from "@/features/property-setup/property-setup";
 import type {
@@ -96,6 +96,11 @@ export function PropertySetupScreen({
       option.tenantPersonId === selection.tenantId,
   );
   const openLeaseForUnit = findOpenLeaseForUnit(data.leases, selection);
+  const tenantOptions = getSelectableSetupTenants(
+    data.leases,
+    data.tenants,
+    selection,
+  );
 
   function navigate(nextSelection: PropertySetupSelection, nextStep = step) {
     const nextParams = buildPropertySetupQuery({
@@ -194,7 +199,7 @@ export function PropertySetupScreen({
                         onCreate={() => setCreateModal("unit")}
                         onSelect={(id) => changeSelection("unitId", id || null)}
                         options={unitOptions.map((option) => ({
-                          label: `${option.label} · ${option.statusLabel}`,
+                          label: `${option.label} · ${getSetupUnitStatusLabel(option.id, option.statusLabel, data.leases)}`,
                           value: option.id,
                         }))}
                         placeholder="Choose rental space"
@@ -208,7 +213,6 @@ export function PropertySetupScreen({
               ) : null}
               {step === 3 ? (
                 <TenantLeaseStep
-                  data={data}
                   matchingLeases={matchingLeases}
                   onCreateLease={() => setCreateModal("lease")}
                   onCreateTenant={() => setCreateModal("tenant")}
@@ -229,6 +233,7 @@ export function PropertySetupScreen({
                   }}
                   openLeaseForUnit={openLeaseForUnit}
                   selection={selection}
+                  tenantOptions={tenantOptions}
                 />
               ) : null}
               {step === 4 && owner && property && tenant && lease ? (
@@ -438,7 +443,6 @@ function WholePropertyStep({ propertyLabel }: { propertyLabel: string }) {
 }
 
 function TenantLeaseStep({
-  data,
   matchingLeases,
   onCreateLease,
   onCreateTenant,
@@ -447,8 +451,8 @@ function TenantLeaseStep({
   onUseExistingLease,
   openLeaseForUnit,
   selection,
+  tenantOptions,
 }: {
-  data: PropertySetupData;
   matchingLeases: PropertySetupData["leases"];
   onCreateLease: () => void;
   onCreateTenant: () => void;
@@ -457,6 +461,7 @@ function TenantLeaseStep({
   onUseExistingLease: () => void;
   openLeaseForUnit?: PropertySetupData["leases"][number];
   selection: PropertySetupSelection;
+  tenantOptions: PropertySetupData["tenants"];
 }) {
   return (
     <div className="space-y-5">
@@ -466,7 +471,7 @@ function TenantLeaseStep({
           context="Property setup tenant"
           name="tenantId"
           onValueChange={onTenantSelect}
-          options={data.tenants}
+          options={tenantOptions}
           placeholder="Search tenants"
           roles={["tenant"]}
           value={selection.tenantId ?? ""}

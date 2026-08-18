@@ -410,7 +410,12 @@ describe("PropertyScreen redesign contract", () => {
     expect(frame!.className).toContain("workspace-gutter-x");
     expect(frame!.className).not.toMatch(/(?:^|\s)rounded(?:-|\s|$)/);
     expect(frame!.className).not.toMatch(/(?:^|\s)border(?:-|\s|$)/);
-    expect(within(frame!).getByRole("table")).toBeTruthy();
+    const table = within(frame!).getByRole("table");
+    expect(table).toBeTruthy();
+    expect(table.className).toContain("table-fixed");
+    expect(table.className).toContain("min-w-[900px]");
+    expect(table.className).not.toContain("max-w-");
+    expect(table.querySelectorAll("colgroup col")).toHaveLength(7);
 
     expect(screen.queryByText(/Showing/)).toBeNull();
   });

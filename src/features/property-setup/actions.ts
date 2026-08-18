@@ -6,20 +6,11 @@ import { requireLeaseConfigurationContext } from "@/lib/auth/context";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
+import type { ActivateSetupLeaseState } from "@/features/property-setup/property-setup-state";
 
 const activateSetupLeaseSchema = z.object({
   leaseId: postgresUuid("Choose a lease."),
 });
-
-export type ActivateSetupLeaseState = {
-  message: string;
-  status: "idle" | "error" | "success";
-};
-
-export const initialActivateSetupLeaseState: ActivateSetupLeaseState = {
-  message: "",
-  status: "idle",
-};
 
 export async function activateSetupLeaseAction(
   _previousState: ActivateSetupLeaseState,

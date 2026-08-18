@@ -59,7 +59,16 @@ export function PropertiesTable({
           data-slot="register-table-frame"
         >
           <div aria-label="Properties table" className="overflow-x-auto" role="region">
-            <table className="w-full min-w-[820px] max-w-[1100px] table-auto border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-[13px]">
+              <colgroup>
+                <col className="w-[26%]" />
+                <col className="w-[18%]" />
+                <col className="w-[13%]" />
+                <col className="w-[15%]" />
+                <col className="w-[13%]" />
+                <col className="w-[12%]" />
+                <col className="w-[3%]" />
+              </colgroup>
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0.04em] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
