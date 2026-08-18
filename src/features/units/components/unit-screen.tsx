@@ -174,7 +174,7 @@ export function UnitScreen({
               units={units}
             />
           </div>
-          <div className="mx-3 max-w-[1100px]">
+          <div className="mx-3">
             <PaginationControls pagination={pagination} />
           </div>
         </>
@@ -204,7 +204,7 @@ export function UnitScreen({
       }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/units"
-      headerClassName="w-full max-w-[1124px] lg:!px-3"
+      headerClassName="w-full lg:!px-3"
       title="Units"
       toolbar={
         <UnitFilters

@@ -69,7 +69,16 @@ export function UnitsTable({
           data-slot="register-table-frame"
         >
           <div aria-label="Units table" className="overflow-x-auto" role="region">
-            <table className="w-full min-w-[980px] max-w-[1100px] table-auto border-collapse text-left text-sm">
+            <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
+              <colgroup>
+                <col className="w-[20%]" />
+                <col className="w-[15%]" />
+                <col className="w-[12%]" />
+                <col className="w-[15%]" />
+                <col className="w-[10%]" />
+                <col className="w-[15%]" />
+                <col className="w-[13%]" />
+              </colgroup>
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
