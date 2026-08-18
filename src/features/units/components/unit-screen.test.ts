@@ -328,7 +328,8 @@ describe("UnitScreen redesign contract", () => {
     expect(within(firstRow).getByText("—")).toBeTruthy();
   });
 
-  it("groups consecutive units under one property cell", () => {
+  it("groups consecutive units under a non-interactive property cell", async () => {
+    const user = userEvent.setup();
     const groupedUnits = [
       makeUnit("unit-a", "A-01", "property-1", "HOME", "Home Residence"),
       makeUnit("unit-b", "A-02", "property-1", "HOME", "Home Residence"),
@@ -342,6 +343,12 @@ describe("UnitScreen redesign contract", () => {
     expect(propertyNames).toHaveLength(1);
     expect(propertyNames[0]?.closest("td")?.rowSpan).toBe(2);
     expect(within(table).getByText("Riverside House").closest("td")?.rowSpan).toBe(1);
+
+    await user.click(propertyNames[0]!);
+    expect(navigation.push).not.toHaveBeenCalled();
+
+    await user.click(within(table).getByRole("button", { name: "View unit A-01 details" }));
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-a");
   });
 
   it("does not open an action=create drawer when create is unauthorized", () => {

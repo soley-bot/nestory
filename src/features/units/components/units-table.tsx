@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Building2,
+  ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -153,8 +154,10 @@ export function UnitsTable({
                   >
                     {startsPropertyGroup ? (
                       <td
-                        className="w-px whitespace-nowrap bg-card px-2.5 py-1.5 align-top"
+                        className="cursor-default whitespace-nowrap bg-card px-3.5 py-2.5 align-top"
+                        onClick={(event) => event.stopPropagation()}
                         rowSpan={propertyGroupSize}
+                        title="Property group"
                       >
                         <div className="min-w-0 max-w-[18rem] leading-4">
                           <p className="truncate font-medium" title={unit.propertyName}>
@@ -166,15 +169,25 @@ export function UnitsTable({
                         </div>
                       </td>
                     ) : null}
-                    <td className="w-px whitespace-nowrap px-1.5 py-1.5">
-                      <p
-                        className="truncate font-medium text-foreground"
+                    <td className="whitespace-nowrap px-2 py-2.5">
+                      <button
+                        aria-label={`View unit ${unit.unitNumber} details`}
+                        className="group/unit inline-flex items-center gap-1 rounded-sm font-semibold text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelectUnit(unit.id);
+                        }}
                         title={`Unit ${unit.unitNumber}`}
+                        type="button"
                       >
                         {unit.unitNumber}
-                      </p>
+                        <ChevronRight
+                          aria-hidden="true"
+                          className="size-3.5 text-muted-foreground transition-transform group-hover/unit:translate-x-0.5 group-hover/unit:text-primary"
+                        />
+                      </button>
                     </td>
-                    <td className="w-px whitespace-nowrap px-1.5 py-1.5 text-center">
+                    <td className="w-px whitespace-nowrap px-1.5 py-2.5 text-center">
                       <div className="flex flex-wrap justify-center gap-1.5">
                         <Badge
                           className="px-2 text-xs"
@@ -189,17 +202,17 @@ export function UnitsTable({
                         ) : null}
                       </div>
                     </td>
-                    <td className="w-px whitespace-nowrap px-1.5 py-1.5">
+                    <td className="whitespace-nowrap px-1.5 py-2.5">
                       <p className="truncate whitespace-nowrap" title={unit.leaseStatusLabel}>
                         {unit.leaseStatusLabel}
                       </p>
                     </td>
-                    <td className="w-px whitespace-nowrap px-1.5 py-1.5">
-                      <p className="max-w-[14rem] truncate whitespace-nowrap" title={unit.tenantName}>
+                    <td className="w-px whitespace-nowrap px-1.5 py-2.5">
+                      <p className="max-w-[10rem] truncate whitespace-nowrap" title={unit.tenantName}>
                         {unit.tenantName}
                       </p>
                     </td>
-                    <td className="w-px whitespace-nowrap px-2 py-1.5">
+                    <td className="w-px whitespace-nowrap px-2 py-2.5">
                       {unit.rentDisplay ? (
                         <TableMoneyDisplay value={unit.rentDisplay} />
                       ) : (
@@ -208,7 +221,7 @@ export function UnitsTable({
                         </span>
                       )}
                     </td>
-                    <td className="w-px whitespace-nowrap px-2 py-1.5">
+                    <td className="w-px whitespace-nowrap px-2 py-2.5">
                       <TableMoneyDisplay value={unit.ledgerNetDisplay} />
                     </td>
                   </tr>
