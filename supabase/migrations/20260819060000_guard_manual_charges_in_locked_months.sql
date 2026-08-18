@@ -38,6 +38,11 @@ BEGIN
       USING ERRCODE = '55000', DETAIL = 'manual_charge_financial_month_locked';
   END IF;
 
+  PERFORM app_private.lock_open_financial_month(
+    p_organization_id,
+    p_billing_period_start
+  );
+
   RETURN app_private.create_manual_tenant_charge_before_month_lock(
     p_organization_id,
     p_lease_id,

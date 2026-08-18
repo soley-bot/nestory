@@ -23,7 +23,7 @@ const completeSelection = {
 };
 
 describe("property setup progression", () => {
-  it("keeps finance migration and deposit custody out of the rent-start gate", () => {
+  it("keeps finance migration out while preserving the owner readiness result", () => {
     const readiness = normalizeRentalSetupReadiness({
       effectiveDate: "2026-08-18",
       items: [
@@ -40,8 +40,8 @@ describe("property setup progression", () => {
     });
 
     expect(readiness?.items.map((item) => item.code)).toEqual(["owner_roster", "lease"]);
-    expect(readiness?.items[0]).toMatchObject({ label: "Property owner", ready: true });
-    expect(readiness?.ready).toBe(true);
+    expect(readiness?.items[0]).toMatchObject({ label: "Property owner", ready: false });
+    expect(readiness?.ready).toBe(false);
   });
 
   it("prevents forward navigation until each authoritative relationship exists", () => {

@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(36);
+SELECT plan(39);
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_error(p_sql text)
 RETURNS jsonb
@@ -63,16 +63,21 @@ CREATE TEMP TABLE property_only_lease_state (
   organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   scheduled_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  changed_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   single_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   multi_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   undecided_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   immediate_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  changed_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
   simple_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
   property_lease_result jsonb,
   activation_result jsonb,
   immediate_lease_result jsonb,
   immediate_activation_result jsonb,
+  changed_lease_result jsonb,
+  changed_activation_result jsonb,
+  changed_term_id uuid,
   unit_lease_result jsonb
 ) ON COMMIT DROP;
 
@@ -116,6 +121,9 @@ SELECT undecided_property_id, organization_id, 'Undecided property', 'DECIDE', '
 FROM property_only_lease_state
 UNION ALL
 SELECT immediate_property_id, organization_id, 'Immediate house', 'NOW', 'house', 'active', 'single_space'
+FROM property_only_lease_state
+UNION ALL
+SELECT changed_property_id, organization_id, 'Rent change house', 'CHANGE', 'house', 'active', 'single_space'
 FROM property_only_lease_state;
 
 INSERT INTO public.units(
@@ -133,6 +141,9 @@ SELECT tenant_id, organization_id, 'Property Tenant', 'individual'
 FROM property_only_lease_state
 UNION ALL
 SELECT scheduled_tenant_id, organization_id, 'Scheduled Property Tenant', 'individual'
+FROM property_only_lease_state
+UNION ALL
+SELECT changed_tenant_id, organization_id, 'Rent Change Tenant', 'individual'
 FROM property_only_lease_state;
 
 INSERT INTO public.person_roles(organization_id, person_id, role)
@@ -140,6 +151,9 @@ SELECT organization_id, tenant_id, 'tenant'
 FROM property_only_lease_state
 UNION ALL
 SELECT organization_id, scheduled_tenant_id, 'tenant'
+FROM property_only_lease_state
+UNION ALL
+SELECT organization_id, changed_tenant_id, 'tenant'
 FROM property_only_lease_state;
 
 SELECT set_config(
@@ -551,6 +565,131 @@ SELECT is(
     / extract(day FROM (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
       + interval '1 month - 1 day'))::numeric, 2),
   'the first rent charge uses the Lease actual-days proration rule'
+);
+
+UPDATE property_only_lease_state AS state
+SET changed_lease_result = public.create_property_lease(
+  state.organization_id,
+  state.changed_property_id,
+  state.changed_tenant_id,
+  date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)::date,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 500,
+  1100,
+  'USD',
+  1,
+  'monthly',
+  'draft',
+  NULL,
+  NULL,
+  'draft',
+  'rent-change-lease-create'
+);
+
+UPDATE property_only_lease_state AS state
+SET changed_activation_result = public.request_lease_activation(
+  state.organization_id,
+  (state.changed_lease_result ->> 'leaseId')::uuid,
+  'draft',
+  (
+    SELECT occupancy.id
+    FROM public.lease_occupancies AS occupancy
+    WHERE occupancy.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
+      AND occupancy.evidence_state = 'accepted'
+  ),
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  'rent-change-lease-activation'
+);
+
+UPDATE property_only_lease_state AS state
+SET changed_term_id = public.schedule_authoritative_lease_term(
+  state.organization_id,
+  (state.changed_lease_result ->> 'leaseId')::uuid,
+  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+    + interval '1 month 14 days')::date,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 500,
+  1300,
+  'USD',
+  1,
+  'monthly',
+  (
+    SELECT term.id
+    FROM public.lease_terms AS term
+    WHERE term.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
+      AND term.authority_kind = 'authoritative'
+      AND term.status = 'active'
+  ),
+  'rent-change-next-full-month'
+);
+
+RESET ROLE;
+SELECT app_private.generate_simple_lease_rent_invoice(
+  organization_id,
+  (changed_lease_result ->> 'leaseId')::uuid,
+  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+    + interval '1 month')::date,
+  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+    + interval '1 month')::date,
+  'scheduled',
+  admin_id
+)
+FROM property_only_lease_state;
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM property_only_lease_state),
+  true
+);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
+
+SELECT is(
+  (
+    SELECT invoice.total_amount
+    FROM public.tenant_invoices AS invoice,
+      property_only_lease_state AS state
+    WHERE invoice.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
+      AND invoice.billing_period_start = (
+        date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+        + interval '1 month'
+      )::date
+  ),
+  1100::numeric,
+  'a next-full-month rent change keeps the opening rent for the changed month'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.tenant_invoice_rent_segments AS segment
+    JOIN public.tenant_invoices AS invoice ON invoice.id = segment.invoice_id,
+      property_only_lease_state AS state
+    WHERE invoice.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
+      AND invoice.billing_period_start = (
+        date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+        + interval '1 month'
+      )::date
+  ),
+  2,
+  'the changed month records both authoritative rent segments'
+);
+
+SELECT results_eq(
+  $$
+    SELECT segment.amount, segment.proration_rule
+    FROM public.tenant_invoice_rent_segments AS segment
+    JOIN public.tenant_invoices AS invoice ON invoice.id = segment.invoice_id,
+      property_only_lease_state AS state
+    WHERE invoice.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
+      AND invoice.billing_period_start = (
+        date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+        + interval '1 month'
+      )::date
+    ORDER BY segment.segment_order
+  $$,
+  $$ VALUES
+    (1100::numeric, 'next_full_period'::text),
+    (0::numeric, 'next_full_period'::text)
+  $$,
+  'the opening segment bills and the replacement segment starts next month'
 );
 
 SELECT lives_ok(

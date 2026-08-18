@@ -147,7 +147,7 @@ export function normalizeRentalSetupReadiness(
     .filter((item) => !["opening_balance", "deposit"].includes(item.code))
     .map((item) =>
       item.code === "owner_roster"
-        ? { ...item, label: "Property owner", ready: true }
+        ? { ...item, label: "Property owner" }
         : item,
     );
 
