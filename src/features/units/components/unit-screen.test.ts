@@ -312,8 +312,9 @@ describe("UnitScreen redesign contract", () => {
 
     const table = screen.getByRole("table");
     expect(within(table).getByRole("columnheader", { name: "Status" })).toBeTruthy();
-    expect(within(table).queryByRole("columnheader", { name: "Lease state" })).toBeNull();
-    expect(within(table).getByRole("columnheader", { name: "Lease / tenant" })).toBeTruthy();
+    expect(within(table).getByRole("columnheader", { name: "Lease" })).toBeTruthy();
+    expect(within(table).getByRole("columnheader", { name: "Tenant" })).toBeTruthy();
+    expect(within(table).queryByRole("columnheader", { name: "Lease / tenant" })).toBeNull();
     const firstRow = within(table).getByRole("row", { name: "Open unit 1A" });
     expect(within(firstRow).getByText("Home Residence")).toBeTruthy();
     expect(within(firstRow).getByText("No owner")).toBeTruthy();
@@ -321,6 +322,7 @@ describe("UnitScreen redesign contract", () => {
     expect(within(firstRow).getByText("In service")).toBeTruthy();
     expect(within(firstRow).queryByText("Available")).toBeNull();
     expect(within(firstRow).getAllByText("No lease")).toHaveLength(1);
+    expect(within(firstRow).getByText("—")).toBeTruthy();
   });
 
   it("does not open an action=create drawer when create is unauthorized", () => {

@@ -226,6 +226,7 @@ export type UnitSummary = {
   ledgerNetLabel: string;
   latestTimelineEvent?: UnitTimelineContext;
   leaseLabel: string;
+  leaseStatusLabel: string;
   occupancyLabel: "Occupied" | "Vacant";
   occupancyTone: UnitBadgeTone;
   propertyCode: string;
@@ -239,6 +240,7 @@ export type UnitSummary = {
   statusValue: UnitStatusValue;
   statusLabel: string;
   statusTone: UnitBadgeTone;
+  tenantName: string;
   thumbnailUrl?: string;
   unitNumber: string;
 };

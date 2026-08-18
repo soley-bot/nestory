@@ -70,12 +70,13 @@ export function UnitsTable({
           <div aria-label="Units table" className="overflow-x-auto" role="region">
             <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
               <colgroup>
-                <col className="w-[30%]" />
+                <col className="w-[23%]" />
+                <col className="w-[8%]" />
+                <col className="w-[11%]" />
                 <col className="w-[10%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
-                <col className="w-[24%]" />
+                <col className="w-[15%]" />
+                <col className="w-[16.5%]" />
+                <col className="w-[16.5%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -101,6 +102,8 @@ export function UnitsTable({
                     onClick={() => onSortChange("status_asc")}
                     sortLabel="Sort units by status"
                   />
+                  <th className="px-1.5 py-2.5 font-semibold">Lease</th>
+                  <th className="px-1.5 py-2.5 font-semibold">Tenant</th>
                   <SortableHeader
                     active={sort === "rent_desc"}
                     align="right"
@@ -117,15 +120,12 @@ export function UnitsTable({
                     onClick={() => onSortChange("net_desc")}
                     sortLabel="Sort units by net"
                   />
-                  <th className="px-1.5 py-2.5 font-semibold">
-                    Lease / tenant
-                  </th>
                 </tr>
               </thead>
               <tbody>
                 {units.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
                       {getEmptyMessage(archiveState)}
                     </td>
                   </tr>
@@ -185,6 +185,16 @@ export function UnitsTable({
                         ) : null}
                       </div>
                     </td>
+                    <td className="px-1.5 py-1.5">
+                      <p className="truncate whitespace-nowrap" title={unit.leaseStatusLabel}>
+                        {unit.leaseStatusLabel}
+                      </p>
+                    </td>
+                    <td className="px-1.5 py-1.5">
+                      <p className="truncate whitespace-nowrap" title={unit.tenantName}>
+                        {unit.tenantName}
+                      </p>
+                    </td>
                     <td className="px-2 py-1.5">
                       {unit.rentDisplay ? (
                         <TableMoneyDisplay value={unit.rentDisplay} />
@@ -196,11 +206,6 @@ export function UnitsTable({
                     </td>
                     <td className="px-2 py-1.5">
                       <TableMoneyDisplay value={unit.ledgerNetDisplay} />
-                    </td>
-                    <td className="px-1.5 py-1.5">
-                      <p className="truncate whitespace-nowrap" title={unit.leaseLabel}>
-                        {unit.leaseLabel}
-                      </p>
                     </td>
                   </tr>
                 ))}

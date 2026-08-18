@@ -15,6 +15,7 @@ type WorkspacePageProps = {
   headerClassName?: string;
   localNav?: ReactNode;
   toolbar?: ReactNode;
+  toolbarClassName?: string;
   context?: ReactNode;
   contextHref?: string;
   title?: string;
@@ -33,6 +34,7 @@ export function WorkspacePage({
   localNav,
   title,
   toolbar,
+  toolbarClassName,
 }: WorkspacePageProps) {
   const breadcrumb = title ? (
     <PageBreadcrumb
@@ -72,7 +74,7 @@ export function WorkspacePage({
           {toolbar ? (
             <div
               aria-label="Workspace tools"
-              className="workspace-gutter-x min-w-0 py-2 text-sm lg:ml-auto lg:pl-0"
+              className={`workspace-gutter-x min-w-0 py-2 text-sm lg:ml-auto lg:pl-0 ${toolbarClassName ?? ""}`}
               data-slot="workspace-toolbar"
               role="toolbar"
             >

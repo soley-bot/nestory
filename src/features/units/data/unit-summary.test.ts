@@ -90,11 +90,13 @@ describe("buildUnitSummary", () => {
       isArchived: false,
       ledgerNetLabel: "USD 875.00",
       leaseLabel: "Dara Tenant / Active",
+      leaseStatusLabel: "Active",
       propertyCode: "CTR",
       propertyOwnerName: "No owner",
       rentLabel: "USD 850.00",
       statusLabel: "Occupied",
       statusTone: "success",
+      tenantName: "Dara Tenant",
       unitNumber: "12A",
     });
   });

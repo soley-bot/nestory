@@ -149,6 +149,7 @@ export function buildUnitSummary({
   const statusValue = normalizeUnitStatus(unit.status);
   const isOccupied = Boolean(activeLease);
   const readiness = buildUnitReadiness({ activeLease, draftLease, statusValue });
+  const relevantLease = activeLease ?? draftLease;
 
   return {
     draftLease: draftLease ? toLeaseSummary(draftLease) : undefined,
@@ -174,6 +175,9 @@ export function buildUnitSummary({
       : draftLease
         ? `${draftLease.tenant_name} / ${formatLeaseStatus(draftLease.status)}`
         : "No lease",
+    leaseStatusLabel: relevantLease
+      ? formatLeaseStatus(relevantLease.status)
+      : "No lease",
     occupancyLabel: isOccupied ? "Occupied" : "Vacant",
     occupancyTone: isOccupied ? "success" : "neutral",
     propertyCode: property?.code ?? "Unknown",
@@ -187,6 +191,7 @@ export function buildUnitSummary({
     statusValue,
     statusLabel: formatUnitStatus(unit.status),
     statusTone: getUnitStatusTone(unit.status),
+    tenantName: relevantLease?.tenant_name ?? "—",
     thumbnailUrl,
     unitNumber: unit.unit_number,
   };

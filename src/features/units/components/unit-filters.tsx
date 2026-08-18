@@ -88,7 +88,7 @@ export function UnitFilters({
   }
 
   return (
-    <div className="w-full min-w-0 lg:w-[min(72vw,800px)]">
+    <div className="w-full min-w-0">
       <div>
         <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
