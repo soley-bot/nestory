@@ -63,6 +63,9 @@ describe("FinanceOperationsScreen", () => {
     expect(workLayout?.className).toContain("gap-3");
     const summary = screen.getByRole("region", { name: "Finance summary" });
     expect(summary.firstElementChild?.className).toContain("py-2.5");
+    expect(summary.className).toContain("rounded-xl");
+    expect(summary.className).toContain("bg-card");
+    expect(summary.className).toContain("shadow-sm");
 
     rerender(
       <FinanceOperationsScreen
@@ -775,6 +778,8 @@ describe("FinanceOperationsScreen", () => {
     expect(within(form).queryByText("No changes")).not.toBeNull();
     for (const section of form.querySelectorAll('[data-slot="form-section"]')) {
       expect(section.lastElementChild?.className).not.toContain("sm:pl-10");
+      expect(section.className).toContain("rounded-xl");
+      expect(section.className).toContain("bg-card");
     }
   });
 
@@ -1269,7 +1274,7 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
-  it("keeps the dominant finance table unframed while retaining row separators", () => {
+  it("separates finance records from the page with a raised operating surface", () => {
     const { container } = render(
       <FinanceOperationsScreen
         {...data()}
@@ -1284,9 +1289,10 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(tableFrame).not.toBeNull();
-    expect(tableFrame?.className).not.toMatch(
-      /(?:^|\s)(?:rounded-md|rounded-lg|border)(?:\s|$)/,
-    );
+    expect(tableFrame?.className).toContain("rounded-xl");
+    expect(tableFrame?.className).toContain("border");
+    expect(tableFrame?.className).toContain("bg-card");
+    expect(tableFrame?.className).toContain("shadow-sm");
     expect(within(tableFrame!).getByRole("table")).not.toBeNull();
     expect(
       within(tableFrame!).getByRole("row", { name: /Riverside Home/ })
@@ -1570,6 +1576,9 @@ describe("FinanceOperationsScreen", () => {
 
     const summary = screen.getByRole("region", { name: "Account position" });
     expect(summary.className).toContain("pt-5");
+    expect(summary.className).toContain("rounded-xl");
+    expect(summary.className).toContain("bg-card");
+    expect(summary.className).toContain("shadow-sm");
     expect(within(summary).getByText("Owner balance")).not.toBeNull();
     expect(
       within(summary).getByText("Income minus owner costs and distributions"),

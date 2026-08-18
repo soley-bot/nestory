@@ -1060,14 +1060,11 @@ function RentView({
           { label: "Invoices", value: invoices.length },
         ]}
       />
-      <section
-        className="min-h-0 flex-1 border-t border-border"
-        data-slot="rent-invoices-surface"
-      >
+      <section className="min-h-0 flex-1" data-slot="rent-invoices-surface">
         {invoices.length === 0 ? (
           <EmptyState
             body="Rent charges are generated automatically from each active Lease."
-            className="flex-1"
+            className="flex-1 rounded-xl border border-border/80 bg-card shadow-sm"
             kind="empty"
             title="No rent invoices"
           />
@@ -1176,24 +1173,30 @@ function ExpensesView({
 
   if (submissions.length === 0) {
     return (
-      <EmptyState
-        body="Record an expense to start Finance review."
-        className="min-h-64"
-        kind="empty"
-        title="No expenses"
-      />
+      <div className="mx-auto w-full max-w-[1280px] px-4 py-4 sm:px-6 2xl:px-8">
+        <EmptyState
+          body="Record an expense to start Finance review."
+          className="min-h-64 rounded-xl border border-border/80 bg-card shadow-sm"
+          kind="empty"
+          title="No expenses"
+        />
+      </div>
     );
   }
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-4 px-4 py-4 sm:px-6 2xl:px-8">
       <Tabs
+        className="space-y-3"
         onValueChange={(value) =>
           setStatus(value as ExpenseSubmissionSummary["status"])
         }
         value={status}
       >
-        <TabsList aria-label="Paid cost status">
+        <TabsList
+          aria-label="Paid cost status"
+          className="rounded-xl border border-border/80 bg-card p-1 shadow-sm"
+        >
           {(["submitted", "approved", "rejected", "reversed"] as const).map(
             (value) => (
               <TabsTrigger key={value} value={value}>
@@ -1237,7 +1240,7 @@ function ExpenseSubmissionTable({
     return (
       <EmptyState
         body="There are no paid costs in this status."
-        className="min-h-56"
+        className="min-h-56 rounded-xl border border-border/80 bg-card shadow-sm"
         kind="empty"
         title={`No ${expenseStatusLabel(status).toLowerCase()} paid costs`}
       />
@@ -1833,10 +1836,10 @@ function PropertyAccountView({
     );
   const orderedEntries = sortPropertyAccountEntriesNewestFirst(entries);
   return (
-    <div className="flex min-w-0 flex-col bg-background px-4 pb-6 sm:px-6 2xl:px-8">
+    <div className="flex min-w-0 flex-col gap-4 bg-background px-4 pb-6 pt-4 sm:px-6 2xl:px-8">
       <section
         aria-label="Account position"
-        className="grid shrink-0 grid-cols-1 pb-5 pt-5 sm:grid-cols-2"
+        className="grid shrink-0 grid-cols-1 overflow-hidden rounded-xl border border-border/80 bg-card pb-5 pt-5 shadow-sm sm:grid-cols-2"
       >
         <AccountPositionItem
           description="Income minus owner costs and distributions"
@@ -1871,7 +1874,7 @@ function PropertyAccountView({
       {orderedEntries.length === 0 ? (
         <EmptyState
           body="Rent, fees, owner costs, and withdrawals will appear here."
-          className="flex-1"
+          className="flex-1 rounded-xl border border-border/80 bg-card shadow-sm"
           kind="empty"
           title="No account activity"
         />
@@ -1961,7 +1964,7 @@ function AccountPositionItem({
   value: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-4 border-t border-border py-2.5 first:border-t-0 sm:flex sm:border-l sm:border-t-0 sm:px-5 sm:py-0 sm:first:border-l-0 sm:first:pl-0">
+    <div className="flex min-w-0 items-center justify-between gap-4 border-t border-border px-4 py-3 first:border-t-0 sm:flex sm:border-l sm:border-t-0 sm:px-5 sm:py-1 sm:first:border-l-0">
       <div className="min-w-0">
         <div className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">
           {value}
@@ -2487,7 +2490,12 @@ function ExpenseForm({
         value={effectiveResponsibility === "tenant" ? tenantInvoiceId : ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
-      <FormSection indentContent={false} step="01" title="Cost record">
+      <FormSection
+        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
+        indentContent={false}
+        step="01"
+        title="Cost record"
+      >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Property">
           {fixedScope ? (
@@ -2568,7 +2576,12 @@ function ExpenseForm({
       </div>
       </FormSection>
 
-      <FormSection indentContent={false} step="02" title="Payment">
+      <FormSection
+        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
+        indentContent={false}
+        step="02"
+        title="Payment"
+      >
         <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount paid">
           <NumberInput
@@ -2587,7 +2600,12 @@ function ExpenseForm({
       </div>
       </FormSection>
 
-      <FormSection indentContent={false} step="03" title="Responsibility">
+      <FormSection
+        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
+        indentContent={false}
+        step="03"
+        title="Responsibility"
+      >
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Charge this to</legend>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -2661,7 +2679,12 @@ function ExpenseForm({
       ) : null}
       </FormSection>
 
-      <FormSection indentContent={false} step="04" title="Receipt and reconciliation">
+      <FormSection
+        className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
+        indentContent={false}
+        step="04"
+        title="Receipt and reconciliation"
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Paid from">
             <SelectControl
@@ -3103,7 +3126,7 @@ function WithdrawalForm({
   );
   useSuccess(state, onSuccess);
   return (
-    <form action={action} className="space-y-4 p-4">
+    <form action={action} className="space-y-4 bg-muted/15 p-4">
       <WorkflowStageStrip current="finance" />
       <DefinitionRows
         rows={[
@@ -3184,19 +3207,21 @@ function ManualTenantChargeForm({
       {fixedLease ? (
         <>
           <input name="leaseId" type="hidden" value={fixedLease.id} />
-          <DefinitionRows
-            rows={
-              scope?.kind === "unit"
-                ? [["Tenant", fixedLease.tenantLabel]]
-                : scope?.kind === "property"
-                  ? [["Tenant", `${fixedLease.tenantLabel} · ${fixedLease.unitLabel}`]]
-                  : [
-                      ["Tenant", fixedLease.tenantLabel],
-                      ["Property", fixedLease.propertyLabel],
-                      ["Unit", fixedLease.unitLabel],
-                    ]
-            }
-          />
+          <div className="rounded-xl bg-card shadow-sm">
+            <DefinitionRows
+              rows={
+                scope?.kind === "unit"
+                  ? [["Tenant", fixedLease.tenantLabel]]
+                  : scope?.kind === "property"
+                    ? [["Tenant", `${fixedLease.tenantLabel} · ${fixedLease.unitLabel}`]]
+                    : [
+                        ["Tenant", fixedLease.tenantLabel],
+                        ["Property", fixedLease.propertyLabel],
+                        ["Unit", fixedLease.unitLabel],
+                      ]
+              }
+            />
+          </div>
         </>
       ) : (
         <Field label="Lease">
@@ -3391,7 +3416,7 @@ function CompactTotals({
     <div
       aria-label="Finance summary"
       className={cn(
-        "grid shrink-0 grid-cols-1 divide-y divide-border border-y border-border sm:divide-x sm:divide-y-0",
+        "grid shrink-0 grid-cols-1 divide-y divide-border overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm sm:divide-x sm:divide-y-0",
         items.length === 4 ? "sm:grid-cols-4" : "sm:grid-cols-3",
       )}
       role="region"
@@ -3419,7 +3444,10 @@ function TableFrame({
   return (
     <div
       aria-label="Finance records"
-      className={cn("flex-1 overflow-x-auto p-3", className)}
+      className={cn(
+        "flex-1 overflow-x-auto rounded-xl border border-border/80 bg-card p-3 shadow-sm",
+        className,
+      )}
       data-slot="finance-table-frame"
       role="region"
     >
