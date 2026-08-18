@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(35);
+SELECT plan(36);
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_error(p_sql text)
 RETURNS jsonb
@@ -648,6 +648,32 @@ SELECT is(
   ),
   'manual_charge_other_description_required',
   'Other requires a user description'
+);
+
+SELECT public.set_financial_month_lock(
+  organization_id,
+  date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)::date,
+  true,
+  'Close the month for the manual-charge regression'
+)
+FROM property_only_lease_state;
+
+SELECT is(
+  (
+    SELECT pg_temp.capture_error(format(
+      'SELECT public.create_manual_tenant_charge(%L,%L,%L,date_trunc(''month'',%L::date)::date,%L::date,25,%L,%L)',
+      organization_id,
+      (immediate_lease_result ->> 'leaseId')::uuid,
+      'utilities',
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      'Locked month charge',
+      'locked-month-charge'
+    )) ->> 'sqlstate'
+    FROM property_only_lease_state
+  ),
+  '55000',
+  'manual charges cannot mutate a locked financial month'
 );
 
 SELECT is(

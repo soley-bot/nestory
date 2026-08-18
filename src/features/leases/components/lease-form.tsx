@@ -103,6 +103,11 @@ export function LeaseForm({
     defaults.tenantName,
   );
   const formUnitId = selectedUnitId ?? "";
+  const createAsActive = shouldCreateSetupLeaseAsActive(
+    setupMode,
+    moveInTiming,
+    formUnitId,
+  );
 
   useEffect(() => {
     if (state.status === "success") {
@@ -193,12 +198,12 @@ export function LeaseForm({
           <>
             <input name="propertyId" type="hidden" value={selectedPropertyId} />
             <input name="unitId" type="hidden" value={formUnitId} />
-            <input name="status" type="hidden" value={setupMode && moveInTiming === "moved_in" ? "active" : "draft"} />
-            <input name="termStatus" type="hidden" value={setupMode && moveInTiming === "moved_in" ? "active" : "draft"} />
+            <input name="status" type="hidden" value={createAsActive ? "active" : "draft"} />
+            <input name="termStatus" type="hidden" value={createAsActive ? "active" : "draft"} />
             <input name="paymentFrequency" type="hidden" value="monthly" />
             <input name="scheduledMoveInDate" type="hidden" value={setupMode ? leaseStartDate : ""} />
             <input name="scheduledMoveOutDate" type="hidden" value="" />
-            <input name="actualMoveInDate" type="hidden" value={setupMode && moveInTiming === "moved_in" ? leaseStartDate : ""} />
+            <input name="actualMoveInDate" type="hidden" value={createAsActive ? leaseStartDate : ""} />
             <input name="actualMoveOutDate" type="hidden" value="" />
           </>
         )}
@@ -383,6 +388,14 @@ export function LeaseForm({
       </Modal>
     </>
   );
+}
+
+export function shouldCreateSetupLeaseAsActive(
+  setupMode: boolean,
+  moveInTiming: "moved_in" | "later",
+  unitId: string,
+): boolean {
+  return setupMode && moveInTiming === "moved_in" && unitId.length > 0;
 }
 
 function getLeaseDefaults(
