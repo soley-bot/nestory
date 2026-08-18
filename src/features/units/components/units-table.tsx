@@ -121,11 +121,19 @@ export function UnitsTable({
                     </td>
                   </tr>
                 ) : null}
-                {units.map((unit) => (
+                {units.map((unit, index) => {
+                  const startsPropertyGroup =
+                    index === 0 || units[index - 1]?.propertyId !== unit.propertyId;
+                  const propertyGroupSize = startsPropertyGroup
+                    ? getConsecutivePropertyCount(units, index)
+                    : 0;
+
+                  return (
                   <tr
                     aria-label={`Open unit ${unit.unitNumber}`}
                     className={cn(
                       unitRowClassName,
+                      startsPropertyGroup && index > 0 && "border-t-2 border-border",
                       unit.isArchived && "text-muted-foreground",
                     )}
                     key={unit.id}
@@ -143,16 +151,21 @@ export function UnitsTable({
                     tabIndex={0}
                     title={`Open unit ${unit.unitNumber}`}
                   >
-                    <td className="w-px whitespace-nowrap px-2.5 py-1.5">
-                      <div className="min-w-0 max-w-[18rem] leading-4">
-                        <p className="truncate font-medium" title={unit.propertyName}>
-                          {unit.propertyName}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground" title={unit.propertyOwnerName}>
-                          {unit.propertyOwnerName}
-                        </p>
-                      </div>
-                    </td>
+                    {startsPropertyGroup ? (
+                      <td
+                        className="w-px whitespace-nowrap bg-card px-2.5 py-1.5 align-top"
+                        rowSpan={propertyGroupSize}
+                      >
+                        <div className="min-w-0 max-w-[18rem] leading-4">
+                          <p className="truncate font-medium" title={unit.propertyName}>
+                            {unit.propertyName}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground" title={unit.propertyOwnerName}>
+                            {unit.propertyOwnerName}
+                          </p>
+                        </div>
+                      </td>
+                    ) : null}
                     <td className="w-px whitespace-nowrap px-1.5 py-1.5">
                       <p
                         className="truncate font-medium text-foreground"
@@ -199,7 +212,8 @@ export function UnitsTable({
                       <TableMoneyDisplay value={unit.ledgerNetDisplay} />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -361,6 +375,21 @@ function getOperationalReadinessTone(unit: UnitSummary) {
   }
 
   return "success" as const;
+}
+
+function getConsecutivePropertyCount(units: UnitSummary[], startIndex: number) {
+  const propertyId = units[startIndex]?.propertyId;
+  let count = 0;
+
+  for (let index = startIndex; index < units.length; index += 1) {
+    if (units[index]?.propertyId !== propertyId) {
+      break;
+    }
+
+    count += 1;
+  }
+
+  return count;
 }
 
 function getLeaseReadinessTone(unit: UnitSummary) {

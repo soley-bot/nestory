@@ -328,6 +328,22 @@ describe("UnitScreen redesign contract", () => {
     expect(within(firstRow).getByText("—")).toBeTruthy();
   });
 
+  it("groups consecutive units under one property cell", () => {
+    const groupedUnits = [
+      makeUnit("unit-a", "A-01", "property-1", "HOME", "Home Residence"),
+      makeUnit("unit-b", "A-02", "property-1", "HOME", "Home Residence"),
+      makeUnit("unit-c", "B-01", "property-2", "RIVER", "Riverside House"),
+    ];
+
+    renderUnits({ units: groupedUnits });
+
+    const table = screen.getByRole("table");
+    const propertyNames = within(table).getAllByText("Home Residence");
+    expect(propertyNames).toHaveLength(1);
+    expect(propertyNames[0]?.closest("td")?.rowSpan).toBe(2);
+    expect(within(table).getByText("Riverside House").closest("td")?.rowSpan).toBe(1);
+  });
+
   it("does not open an action=create drawer when create is unauthorized", () => {
     navigation.searchParams = new URLSearchParams("action=create");
     renderUnits({ canCreate: false, units: [] });
