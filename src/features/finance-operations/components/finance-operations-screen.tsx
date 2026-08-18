@@ -202,6 +202,9 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       : null;
   const visibleModal =
     modal && canRenderFinanceModal(modal, props) ? modal : null;
+  const visibleDetailDrawer =
+    visibleModal && isFinanceDetailSurface(visibleModal) ? visibleModal : null;
+  const visibleActionModal = visibleDetailDrawer ? null : visibleModal;
 
   return (
     <WorkspacePage
@@ -305,39 +308,33 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
         </SideDrawer>
       ) : null}
 
-      {visibleModal ? (
-        <Modal onClose={closeModal} open title={getModalTitle(visibleModal)}>
-          {visibleModal.mode === "manual-charge" ? (
-            <ManualTenantChargeForm
-              fixedLease={visibleModal.lease}
-              invoices={props.tenantInvoices}
-              leases={props.leases}
-              onSuccess={onActionSuccess}
-              scope={props.scope}
-            />
-          ) : visibleModal.mode === "rent-recovery" ? (
-            <HistoricalRentRecoveryForm
-              leases={props.leases}
-              onSuccess={onActionSuccess}
-            />
-          ) : visibleModal.mode === "invoice-details" ? (
+      {visibleDetailDrawer ? (
+        <SideDrawer
+          onClose={closeModal}
+          open
+          title={getModalTitle(visibleDetailDrawer)}
+        >
+          {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
               canCorrectFinance={props.canCorrectFinance}
               canRecordPayments={props.canRecordPayments}
-              invoice={visibleModal.invoice}
+              invoice={visibleDetailDrawer.invoice}
               onClose={closeModal}
               onCorrect={() =>
                 setModal({
-                  invoice: visibleModal.invoice,
+                  invoice: visibleDetailDrawer.invoice,
                   mode: "settlement-reversal",
                 })
               }
               onRecordPayment={() =>
-                setModal({ invoice: visibleModal.invoice, mode: "payment" })
+                setModal({
+                  invoice: visibleDetailDrawer.invoice,
+                  mode: "payment",
+                })
               }
               organizationName={organizationName}
             />
-          ) : visibleModal.mode === "expense-details" ? (
+          ) : visibleDetailDrawer.mode === "expense-details" ? (
             <ExpenseDetails
               canReview={props.canReviewExpense}
               canReverse={props.canReverseExpense}
@@ -345,7 +342,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
                 setModal({
                   decision: "approve",
                   mode: "expense-review",
-                  submission: visibleModal.submission,
+                  submission: visibleDetailDrawer.submission,
                 })
               }
               onClose={closeModal}
@@ -353,26 +350,26 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
                 setModal({
                   decision: "reject",
                   mode: "expense-review",
-                  submission: visibleModal.submission,
+                  submission: visibleDetailDrawer.submission,
                 })
               }
               onReverse={() =>
                 setModal({
                   mode: "expense-reversal",
-                  submission: visibleModal.submission,
+                  submission: visibleDetailDrawer.submission,
                 })
               }
-              submission={visibleModal.submission}
+              submission={visibleDetailDrawer.submission}
             />
-          ) : visibleModal.mode === "owner-balance-details" ? (
+          ) : (
             <OwnerBalanceDetails
               canRecordOwnerCash={props.canRecordOwnerCash}
               onClose={closeModal}
               onOwnerPayment={
-                visibleModal.ownerInvoice
+                visibleDetailDrawer.ownerInvoice
                   ? () =>
                       setModal({
-                        invoice: visibleModal.ownerInvoice!,
+                        invoice: visibleDetailDrawer.ownerInvoice!,
                         mode: "owner-payment",
                       })
                   : undefined
@@ -380,18 +377,41 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
               onWithdrawal={() =>
                 setModal({
                   mode: "withdrawal",
-                  position: visibleModal.position,
+                  position: visibleDetailDrawer.position,
                 })
               }
               organizationName={organizationName}
-              position={visibleModal.position}
+              position={visibleDetailDrawer.position}
             />
-          ) : visibleModal.mode === "payment" ? (
-            visibleModal.invoice ? (
+          )}
+        </SideDrawer>
+      ) : null}
+
+      {visibleActionModal ? (
+        <Modal
+          onClose={closeModal}
+          open
+          title={getModalTitle(visibleActionModal)}
+        >
+          {visibleActionModal.mode === "manual-charge" ? (
+            <ManualTenantChargeForm
+              fixedLease={visibleActionModal.lease}
+              invoices={props.tenantInvoices}
+              leases={props.leases}
+              onSuccess={onActionSuccess}
+              scope={props.scope}
+            />
+          ) : visibleActionModal.mode === "rent-recovery" ? (
+            <HistoricalRentRecoveryForm
+              leases={props.leases}
+              onSuccess={onActionSuccess}
+            />
+          ) : visibleActionModal.mode === "payment" ? (
+            visibleActionModal.invoice ? (
               <SettleInvoiceForm
-                invoice={visibleModal.invoice}
+                invoice={visibleActionModal.invoice}
                 onChooseAnother={
-                  visibleModal.canChooseAnother
+                  visibleActionModal.canChooseAnother
                     ? () => setModal({ mode: "payment" })
                     : undefined
                 }
@@ -408,35 +428,35 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
                 }
               />
             )
-          ) : visibleModal.mode === "owner-payment" ? (
+          ) : visibleActionModal.mode === "owner-payment" ? (
             <OwnerPaymentForm
-              invoice={visibleModal.invoice}
+              invoice={visibleActionModal.invoice}
               onSuccess={onActionSuccess}
             />
-          ) : visibleModal.mode === "expense-review" ? (
+          ) : visibleActionModal.mode === "expense-review" ? (
             <ExpenseReviewForm
-              decision={visibleModal.decision}
+              decision={visibleActionModal.decision}
               onSuccess={onActionSuccess}
               reconciliationSources={props.reconciliationSources}
-              submission={visibleModal.submission}
+              submission={visibleActionModal.submission}
             />
-          ) : visibleModal.mode === "expense-reversal" ? (
+          ) : visibleActionModal.mode === "expense-reversal" ? (
             <ExpenseReversalForm
               onSuccess={onActionSuccess}
-              submission={visibleModal.submission}
+              submission={visibleActionModal.submission}
             />
-          ) : visibleModal.mode === "settlement-reversal" ? (
+          ) : visibleActionModal.mode === "settlement-reversal" ? (
             <SettlementReversalForm
-              invoice={visibleModal.invoice}
+              invoice={visibleActionModal.invoice}
               onSuccess={onActionSuccess}
             />
-          ) : (
+          ) : visibleActionModal.mode === "withdrawal" ? (
             <WithdrawalForm
               onClose={closeModal}
               onSuccess={onActionSuccess}
-              position={visibleModal.position}
+              position={visibleActionModal.position}
             />
-          )}
+          ) : null}
         </Modal>
       ) : null}
     </WorkspacePage>
@@ -3428,6 +3448,19 @@ function getModalTitle(modal: ModalState) {
   if (modal.mode === "expense-reversal") return "Reverse paid cost";
   if (modal.mode === "settlement-reversal") return "Correct settlement";
   return "Record owner distribution";
+}
+
+function isFinanceDetailSurface(modal: ModalState): modal is Extract<
+  ModalState,
+  {
+    mode: "expense-details" | "invoice-details" | "owner-balance-details";
+  }
+> {
+  return (
+    modal.mode === "invoice-details" ||
+    modal.mode === "expense-details" ||
+    modal.mode === "owner-balance-details"
+  );
 }
 
 function canRenderFinanceModal(

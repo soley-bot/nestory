@@ -15,7 +15,6 @@ import {
 } from "@/components/layout/workspace-split-view";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { removeActionSearchParam as getHrefWithoutActionParam } from "@/lib/url/href";
 import {
@@ -332,7 +331,7 @@ export function UnitScreen({
       </div>
 
       {drawer?.mode === "edit" ? (
-        <Modal onClose={closeEditModal} open title="Edit unit">
+        <SideDrawer onClose={closeEditModal} open title="Edit unit">
           <UnitForm
             key={`edit-${drawer.unit.id}`}
             mode="edit"
@@ -341,7 +340,7 @@ export function UnitScreen({
             properties={propertyOptions}
             unit={drawer.unit}
           />
-        </Modal>
+        </SideDrawer>
       ) : drawer ? (
         <SideDrawer
           description={getUnitDrawerDescription(drawer)}

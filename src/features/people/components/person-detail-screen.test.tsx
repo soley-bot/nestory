@@ -220,7 +220,7 @@ describe("PersonDetailScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 
     const dialog = screen.getByRole("dialog", { name: "Edit person" });
-    expect(dialog.className).toContain("sm:max-w-2xl");
+    expect(dialog.style.width).toBe("720px");
     expect(
       screen
         .getByRole("checkbox", { name: "Tenant" })

@@ -228,11 +228,7 @@ export function UnitDetailScreen({
       />
 
       {drawer?.mode === "edit" ? (
-        <Modal
-          onClose={() => setDrawer(null)}
-          open
-          title="Edit unit"
-        >
+        <SideDrawer onClose={() => setDrawer(null)} open title="Edit unit">
           <UnitForm
             key={`edit-${drawer.unit.id}`}
             mode="edit"
@@ -241,7 +237,7 @@ export function UnitDetailScreen({
             properties={propertyOptions}
             unit={drawer.unit}
           />
-        </Modal>
+        </SideDrawer>
       ) : drawer ? (
         <SideDrawer
           onClose={() => setDrawer(null)}
@@ -314,12 +310,22 @@ export function UnitDetailScreen({
               units={maintenanceFormOptions.units}
               vendors={maintenanceFormOptions.vendors}
             />
-          ) : drawer.mode === "lease-detail" && drawer.unit.activeLease && drawer.unit.hrefs.lease ? (
-            <UnitLeaseDetailsPanel
-              fullRecordHref={drawer.unit.hrefs.lease}
-              lease={drawer.unit.activeLease}
-              people={drawer.unit.tenantLinks}
-            />
+          ) : drawer.mode === "lease-detail" ? (
+            drawer.unit.activeLease && drawer.unit.hrefs.lease ? (
+              <UnitLeaseDetailsPanel
+                fullRecordHref={drawer.unit.hrefs.lease}
+                lease={drawer.unit.activeLease}
+                people={drawer.unit.tenantLinks}
+              />
+            ) : (
+              <div className="space-y-2 p-5">
+                <h3 className="font-semibold text-foreground">No current lease</h3>
+                <p className="text-sm text-muted-foreground">
+                  This unit does not have an active lease to preview. Close this drawer and
+                  create a lease from the Lease section.
+                </p>
+              </div>
+            )
           ) : drawer.mode === "ledger-detail" ? (
             <UnitLedgerEntryPanel entry={drawer.entry} />
           ) : drawer.mode === "maintenance-detail" ? (

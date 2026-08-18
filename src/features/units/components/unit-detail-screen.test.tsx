@@ -225,7 +225,7 @@ describe("UnitDetailScreen focused operating record", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 
     const dialog = screen.getByRole("dialog", { name: "Edit unit" });
-    expect(dialog.className).toContain("sm:max-w-2xl");
+    expect(dialog.style.width).toBe("720px");
     expect(within(dialog).queryByText("Update the unit profile.")).toBeNull();
     expect(within(dialog).getByText("Occupancy")).toBeTruthy();
     expect(within(dialog).getByText("Occupied")).toBeTruthy();
@@ -241,7 +241,7 @@ describe("UnitDetailScreen focused operating record", () => {
     ).toBeNull();
     expect(within(dialog).queryByRole("combobox", { name: "Status" })).toBeNull();
     expect(within(dialog).queryByText("Occupied", { selector: "[role=option]" })).toBeNull();
-    expect(within(dialog).getByRole("button", { name: "Close modal" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Close drawer" })).toBeTruthy();
 
     const save = within(dialog).getByRole<HTMLButtonElement>("button", {
       name: "Save changes",

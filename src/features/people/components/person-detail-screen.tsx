@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
+import { SideDrawer } from "@/components/ui/side-drawer";
 import { TransientFeedback } from "@/components/ui/transient-feedback";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import {
@@ -396,7 +397,7 @@ export function PersonDetailScreen({
       </div>
 
       {dialog ? (
-        <Modal onClose={() => setDialog(null)} open title="Edit person">
+        <SideDrawer onClose={() => setDialog(null)} open title="Edit person">
           <PersonForm
             key={`edit-${dialog.person.id}`}
             mode="edit"
@@ -405,7 +406,7 @@ export function PersonDetailScreen({
             person={dialog.person}
             roleContext={getSingleActiveRole(dialog.person)}
           />
-        </Modal>
+        </SideDrawer>
       ) : null}
 
       {confirmation ? (

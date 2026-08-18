@@ -304,18 +304,13 @@ describe("UnitScreen redesign contract", () => {
 
       const dialogs = screen.getAllByRole("dialog");
       expect(dialogs).toHaveLength(1);
-      if (drawerName === "Edit unit") {
-        expect(dialogs[0]?.getAttribute("data-slot")).toBe("dialog-content");
-      } else {
-        expect(dialogs[0]?.getAttribute("aria-modal")).toBe("true");
-      }
+      expect(dialogs[0]?.getAttribute("data-slot")).toBe("sheet-content");
+      expect(dialogs[0]?.getAttribute("aria-modal")).toBe("true");
       expect(screen.getByRole("dialog", { name: drawerName })).not.toBeNull();
       expect(screen.queryByRole("dialog", { name: "Unit 1A quick view" })).toBeNull();
 
       await user.click(
-        screen.getByRole("button", {
-          name: drawerName === "Edit unit" ? "Close modal" : "Close drawer",
-        }),
+        screen.getByRole("button", { name: "Close drawer" }),
       );
       expect(document.activeElement).toBe(preview);
     },
@@ -340,7 +335,7 @@ describe("UnitScreen redesign contract", () => {
     expect(screen.getByRole("dialog", { name: "Edit unit" })).not.toBeNull();
     expect(screen.queryByRole("dialog", { name: "Unit 1A quick view" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Close modal" }));
+    await user.click(screen.getByRole("button", { name: "Close drawer" }));
     expect(document.activeElement).toBe(preview);
   });
 
