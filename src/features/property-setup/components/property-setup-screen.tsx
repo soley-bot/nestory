@@ -221,7 +221,7 @@ export function PropertySetupScreen({
                   selection={selection}
                 />
               ) : null}
-              {step === 5 && owner && property && unit && tenant && lease ? (
+              {step === 5 && owner && property && tenant && lease ? (
                 <ReviewStep
                   lease={lease}
                   owner={owner}
@@ -508,7 +508,7 @@ function ReviewStep({
   property: PropertySetupData["properties"][number];
   readiness: PropertySetupData["readiness"];
   tenant: PropertySetupData["tenants"][number];
-  unit: PropertySetupData["units"][number];
+  unit?: PropertySetupData["units"][number];
 }) {
   const firstBlocker = readiness?.items.find((item) => !item.ready);
   const ready = readiness?.ready === true;
@@ -519,7 +519,10 @@ function ReviewStep({
         rows={[
           { label: "Owner", value: owner.label },
           { label: "Property", value: property.label },
-          { label: "Unit", value: unit.label },
+          {
+            label: "Rental space",
+            value: unit?.label ?? "Whole property",
+          },
           { label: "Tenant", value: tenant.label },
           {
             label: "Lease rent",
@@ -528,7 +531,7 @@ function ReviewStep({
         ]}
         summary={
           ready
-            ? "The owner, unit, lease, occupancy, billing, policy, opening-balance, and deposit checks are ready for rent operations."
+            ? "The owner, rental space, lease, occupancy, billing, opening-balance, and deposit checks are ready for rent operations."
             : "The core records are linked, but rent operations stay blocked until every required check below is complete."
         }
         title={ready ? "Rent ready" : "Setup needs attention"}
@@ -578,7 +581,9 @@ function ReviewStep({
       <div className="grid gap-2 sm:grid-cols-2">
         <SummaryLink href={`/people/${owner.id}`} label="Owner" value={owner.label} />
         <SummaryLink href={`/properties/${property.id}`} label="Property" value={property.label} />
-        <SummaryLink href={`/units/${unit.id}`} label="Unit" value={unit.label} />
+        {unit ? (
+          <SummaryLink href={`/units/${unit.id}`} label="Unit" value={unit.label} />
+        ) : null}
         <SummaryLink href={`/people/${tenant.id}`} label="Tenant" value={tenant.label} />
         <SummaryLink href={`/leases?leaseId=${lease.id}`} label="Lease" value={lease.label} />
       </div>

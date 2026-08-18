@@ -102,6 +102,47 @@ describe("PropertySetupScreen", () => {
       screen.getByRole("link", { name: "Complete Billing terms" }).getAttribute("href"),
     ).toBe("/rent-income?leaseId=lease-1&action=billing");
   });
+
+  it("renders the final review for a whole-property lease without requiring a unit", () => {
+    render(
+      <PropertySetupScreen
+        data={{
+          ...data,
+          leases: [
+            {
+              ...data.leases[0]!,
+              unitId: null,
+            },
+          ],
+          properties: [
+            {
+              ...data.properties[0]!,
+              rentalStructure: "single_space",
+            },
+          ],
+          readiness: null,
+          selection: {
+            leaseId: "lease-1",
+            ownerId: "owner-1",
+            propertyId: "property-1",
+            tenantId: "tenant-1",
+            unitId: null,
+          },
+          units: [],
+        }}
+        step={5}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Review the linked setup" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Whole property")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Unit" })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Open rent workspace" }).getAttribute("href"),
+    ).toBe("/rent-income?leaseId=lease-1");
+  });
 });
 
 const data: PropertySetupData = {
