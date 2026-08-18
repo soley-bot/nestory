@@ -504,7 +504,7 @@ describe("LeaseScreen redesign contract", () => {
       within(financeRow)
         .getByRole("link", { name: "Riverside House" })
         .getAttribute("href"),
-    ).toBe("/properties/property-1/account");
+    ).toBe("/properties/property-1");
     expect(within(quickView).getAllByRole("link")).toHaveLength(4);
   });
 

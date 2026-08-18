@@ -164,7 +164,7 @@ function RecordContextLinks({ lease }: { lease: LeaseSummary }) {
       </span>
       <Link
         className="mt-0.5 block truncate rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        href={`/properties/${lease.propertyId}/account`}
+        href={`/properties/${lease.propertyId}`}
         onClick={(event) => event.stopPropagation()}
         prefetch={false}
         title={lease.propertyName}
