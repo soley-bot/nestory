@@ -183,9 +183,14 @@ describe("People route family redesign contract", () => {
       within(listSurface!).getByRole("textbox", { name: "Search people" }),
     ).not.toBeNull();
     expect(tableFrame).not.toBeNull();
+    expect(tableFrame?.className).toContain("workspace-gutter-x");
     expect(tableFrame?.className).not.toContain("rounded-lg");
     expect(tableFrame?.className.split(" ")).not.toContain("border");
     expect(table.className).toContain("text-sm");
+    expect(table.className).toContain("table-fixed");
+    expect(table.className).toContain("min-w-[900px]");
+    expect(table.className).not.toContain("max-w-");
+    expect(table.querySelectorAll("colgroup col")).toHaveLength(6);
     expect(table.querySelector("thead")?.className).toContain("text-xs");
     const rows = within(table).getAllByRole("row").slice(1);
     expect(

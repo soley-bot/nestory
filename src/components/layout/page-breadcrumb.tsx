@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
-type BreadcrumbItem = {
+export type BreadcrumbItem = {
   href: string;
   label: string;
 };
@@ -19,7 +19,7 @@ export function PageBreadcrumb({
       {items.map((item) => (
         <span className="contents" key={`${item.href}:${item.label}`}>
           <Link
-            className="truncate text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            className="inline-flex min-h-6 items-center truncate text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             href={item.href}
           >
             {item.label}

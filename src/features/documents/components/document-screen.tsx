@@ -245,6 +245,7 @@ export function DocumentScreen({
           Upload document
         </Button>
       }
+      breadcrumbItems={[{ href: "/timeline", label: "Records" }]}
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "document" : "documents"}`}
       contextHref="/documents"
       title="Documents"

@@ -109,9 +109,14 @@ describe("TimelineScreen workspace contract", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Records" })).not.toBeNull();
     expect(
       within(screen.getByRole("navigation", { name: "Breadcrumb" }))
-        .getByRole("link", { name: "Records" })
+        .getByRole("link", { name: "Workspace" })
         .getAttribute("href"),
-    ).toBe("/timeline");
+    ).toBe("/overview");
+    expect(
+      within(screen.getByRole("navigation", { name: "Breadcrumb" }))
+        .getByText("Records")
+        .getAttribute("aria-current"),
+    ).toBe("page");
     expect(screen.queryAllByText("2 events")).toHaveLength(0);
     expect(
       screen.getAllByText(

@@ -106,7 +106,7 @@ export function LeaseFilters({ properties, units, viewQuery }: LeaseFiltersProps
         <FilterPopover
           activeCount={advancedFilterCount}
           contentClassName="w-[min(760px,calc(100vw-2rem))]"
-          description="Narrow leases by property, unit, lifecycle, record state, sort, or page size."
+          description="Narrow leases by property, unit, lease status, record state, sort, or page size."
           id="lease-advanced-search"
           title="Filter leases"
         >

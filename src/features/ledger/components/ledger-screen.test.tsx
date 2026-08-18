@@ -54,7 +54,12 @@ describe("LedgerScreen finance workspace contract", () => {
     const { container } = renderLedger();
 
     expect(screen.getByRole("heading", { name: "Ledger" })).toBeTruthy();
-    expect(screen.getAllByText("All properties · 2 records")).toHaveLength(2);
+    expect(screen.getAllByText("All properties · 2 records")).toHaveLength(1);
+    expect(
+      within(screen.getByRole("navigation", { name: "Breadcrumb" })).queryByText(
+        "All properties · 2 records",
+      ),
+    ).toBeNull();
 
     expect(
       container.querySelector('[data-slot="workspace-page"]'),
@@ -232,10 +237,9 @@ describe("LedgerScreen finance workspace contract", () => {
     const financeNav = screen.getByRole("navigation", {
       name: "Finance workspace",
     });
-    expect(within(financeNav).getByRole("link", { name: "Ledger" })).not.toBeNull();
     expect(
-      within(financeNav).getByRole("link", { name: "Petty cash" }),
-    ).not.toBeNull();
+      within(financeNav).getByRole("link", { name: "Advanced" }).getAttribute("href"),
+    ).toBe("/finance/advanced");
 
     await user.click(screen.getByRole("button", { name: "Preview Rent" }));
     const inspector = screen.getByRole("dialog", {

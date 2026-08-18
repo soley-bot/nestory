@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DayPicker } from "@daypicker/react";
 import * as Popover from "@radix-ui/react-popover";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
@@ -17,6 +23,8 @@ type DatePickerFieldProps = {
   ariaLabel?: string;
   className?: string;
   defaultValue?: string;
+  /** Earliest selectable day, as `YYYY-MM-DD`. */
+  minValue?: string;
   name: string;
   onValueChange?: (value: string) => void;
   required?: boolean;
@@ -31,10 +39,12 @@ export function DatePickerField(props: DatePickerFieldProps) {
   ariaLabel,
   className,
   defaultValue = "",
+  minValue,
   name,
   onValueChange,
   required = false,
   } = props;
+  const minDate = useMemo(() => parseDateValue(minValue ?? ""), [minValue]);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(defaultValue);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
@@ -94,11 +104,23 @@ export function DatePickerField(props: DatePickerFieldProps) {
         <Popover.Portal container={portalContainer ?? undefined}>
           <Popover.Content
             align="start"
-            className="z-[80] w-[312px] rounded-md border border-border bg-card p-3 shadow-lg"
+            avoidCollisions
+            className="z-[80] max-h-[var(--radix-popover-content-available-height)] w-[312px] overflow-y-auto rounded-md border border-border bg-card p-3 shadow-lg"
+            collisionPadding={8}
             onEscapeKeyDown={(event) => event.stopPropagation()}
             sideOffset={4}
           >
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-1">
+              <button
+                aria-label="Previous year"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() =>
+                  setVisibleMonth((current) => addMonths(current, -12))
+                }
+                type="button"
+              >
+                <ChevronsLeft size={15} />
+              </button>
               <button
                 aria-label="Previous month"
                 className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
@@ -122,6 +144,16 @@ export function DatePickerField(props: DatePickerFieldProps) {
               >
                 <ChevronRight size={15} />
               </button>
+              <button
+                aria-label="Next year"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() =>
+                  setVisibleMonth((current) => addMonths(current, 12))
+                }
+                type="button"
+              >
+                <ChevronsRight size={15} />
+              </button>
             </div>
 
             <DayPicker
@@ -141,6 +173,7 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 today: "[&>button]:border [&>button]:border-accent",
                 weekday: "h-7 text-center text-xs font-medium text-muted-foreground",
               }}
+              disabled={minDate ? { before: minDate } : undefined}
               fixedWeeks
               hideNavigation
               mode="single"
@@ -157,7 +190,6 @@ export function DatePickerField(props: DatePickerFieldProps) {
                 setOpen(false);
               }}
               selected={selectedDate ?? undefined}
-              showOutsideDays
             />
 
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">

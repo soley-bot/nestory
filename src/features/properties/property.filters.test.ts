@@ -5,6 +5,7 @@ import {
   parsePropertySearchParams,
 } from "@/features/properties/property.filters";
 import {
+  propertyMatchesLeaseStatusFilter,
   propertyMatchesNetStatusFilter,
   propertyMatchesOwnerStatusFilter,
   propertyMatchesReviewFilter,
@@ -14,6 +15,7 @@ describe("parsePropertySearchParams", () => {
   it("normalizes default property filters", () => {
     expect(parsePropertySearchParams({})).toEqual({
       archiveState: "active",
+      leaseStatus: "all",
       netStatus: "all",
       ownerStatus: "all",
       page: 1,
@@ -29,6 +31,7 @@ describe("parsePropertySearchParams", () => {
     expect(
       parsePropertySearchParams({
         ownerStatus: "missing",
+        leaseStatus: "missing",
         netStatus: "negative",
         page: "2",
         query: "  central  ",
@@ -38,6 +41,7 @@ describe("parsePropertySearchParams", () => {
       }),
     ).toMatchObject({
       netStatus: "negative",
+      leaseStatus: "missing",
       ownerStatus: "missing",
       page: 2,
       query: "central",
@@ -76,6 +80,23 @@ describe("propertyMatchesNetStatusFilter", () => {
     ).toBe(false);
     expect(
       propertyMatchesNetStatusFilter({ netIncomeUsd: 125 }, "all"),
+    ).toBe(true);
+  });
+});
+
+describe("propertyMatchesLeaseStatusFilter", () => {
+  it("supports both unit-level and property-level leases", () => {
+    expect(
+      propertyMatchesLeaseStatusFilter(
+        { currentLeaseCount: 1, units: 2, unitsWithoutCurrentLease: 1 },
+        "missing",
+      ),
+    ).toBe(true);
+    expect(
+      propertyMatchesLeaseStatusFilter(
+        { currentLeaseCount: 1, units: 0, unitsWithoutCurrentLease: 0 },
+        "current",
+      ),
     ).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireLeaseConfigurationContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { postgresUuid } from "@/lib/validation/postgres-uuid";
 import {
   getLeaseMutationErrorMessage,
   parseFutureRentTermInput,
@@ -12,6 +13,7 @@ import {
 import { buildNewLeaseRelationshipPayload } from "@/features/leases/lease-relationship-input";
 
 type LeaseFieldErrors = {
+  activationDate?: string[];
   actualMoveInDate?: string[];
   actualMoveOutDate?: string[];
   amount?: string[];
@@ -33,6 +35,7 @@ type LeaseFieldErrors = {
   reason?: string[];
   scheduledMoveInDate?: string[];
   scheduledMoveOutDate?: string[];
+  scheduleId?: string[];
   status?: string[];
   tenantPersonId?: string[];
   termStatus?: string[];
@@ -48,12 +51,6 @@ export type LeaseActionState = {
   termId?: string;
 };
 
-export type RentPolicyActionState = {
-  message?: string;
-  policyId?: string;
-  status?: "error" | "success";
-};
-
 const leaseStatusSchema = z.enum([
   "active",
   "cancelled",
@@ -64,7 +61,7 @@ const leaseStatusSchema = z.enum([
 ]);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date.");
 const optionalDateSchema = z.union([dateSchema, z.literal("")]);
-const leaseIdSchema = z.uuid("Choose a lease.");
+const leaseIdSchema = postgresUuid("Choose a lease.");
 const paymentFrequencySchema = z.enum([
   "annual",
   "monthly",
@@ -79,12 +76,12 @@ const termStatusSchema = z.enum([
   "terminated",
   "upcoming",
 ]);
-const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "applied", "retained", "refunded"]), leaseDepositId: z.uuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
+const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "applied", "retained", "refunded"]), leaseDepositId: postgresUuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
 const currentOccupancyEvidenceSchema = z
   .object({
     actualMoveInDate: dateSchema,
     leaseId: leaseIdSchema,
-    occupancyId: z.uuid("Choose the occupancy evidence to repair."),
+    occupancyId: postgresUuid("Choose the occupancy evidence to repair."),
     reason: z.string().trim().min(8, "Explain how occupancy was confirmed."),
     scheduledMoveInDate: optionalDateSchema,
     scheduledMoveOutDate: optionalDateSchema,
@@ -106,7 +103,7 @@ const currentOccupancyEvidenceSchema = z
 const leaseLifecycleTransitionSchema = z
   .object({
     effectiveDate: dateSchema,
-    expectedOccupancyId: z.uuid("Choose the current occupancy record."),
+    expectedOccupancyId: postgresUuid("Choose the current occupancy record."),
     expectedStatus: leaseStatusSchema,
     idempotencyKey: z.string().trim().min(1),
     leaseId: leaseIdSchema,
@@ -134,6 +131,18 @@ const leaseLifecycleTransitionSchema = z
     }
   });
 
+const leaseActivationSchema = z.object({
+  activationDate: dateSchema,
+  expectedOccupancyId: postgresUuid("Choose the current occupancy record."),
+  expectedStatus: z.literal("draft"),
+  idempotencyKey: z.string().trim().min(1),
+  leaseId: leaseIdSchema,
+});
+const cancelLeaseActivationSchema = z.object({
+  leaseId: leaseIdSchema,
+  scheduleId: postgresUuid("Choose the scheduled activation."),
+});
+
 const leaseMutationSchema = z
   .object({
     actualMoveInDate: optionalDateSchema,
@@ -143,20 +152,23 @@ const leaseMutationSchema = z
     leaseStartDate: dateSchema,
     monthlyRentAmount: z.string().trim(),
     paymentFrequency: paymentFrequencySchema,
-    propertyId: z.uuid("Choose a property."),
+    propertyId: postgresUuid("Choose a property."),
     rentDueDay: z.string().trim(),
     scheduledMoveInDate: optionalDateSchema,
     scheduledMoveOutDate: optionalDateSchema,
     status: leaseStatusSchema,
-    tenantPersonId: z.uuid("Choose a tenant."),
+    tenantPersonId: postgresUuid("Choose a tenant."),
     termStatus: termStatusSchema,
     unitId: z.string().trim(),
   })
   .superRefine((data, context) => {
-    if (!z.uuid().safeParse(data.unitId).success) {
+    if (
+      data.unitId &&
+      !postgresUuid("Choose a unit for this lease.").safeParse(data.unitId).success
+    ) {
       context.addIssue({
         code: "custom",
-        message: "Choose a unit. Authoritative rent terms require one unit.",
+        message: "Choose a unit for this lease.",
         path: ["unitId"],
       });
     }
@@ -335,25 +347,41 @@ export async function createLeaseAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: relationshipResult, error } = await supabase.rpc(
-    "create_lease_with_relationships",
-    {
-      ...leaseAuthorityRpcPayload(
-        context.organizationId,
-        parsed.data,
-        idempotencyKey,
-      ),
-      p_relationship_payload: buildNewLeaseRelationshipPayload({
-        actualMoveInDate: parsed.data.actualMoveInDate || undefined,
-        actualMoveOutDate: parsed.data.actualMoveOutDate || undefined,
-        leaseStatus: parsed.data.status,
-        recordSource: "operator_confirmed",
-        scheduledMoveInDate: parsed.data.scheduledMoveInDate || undefined,
-        scheduledMoveOutDate: parsed.data.scheduledMoveOutDate || undefined,
-        tenantPersonId: parsed.data.tenantPersonId,
-      }),
-    },
+  const authorityPayload = leaseAuthorityRpcPayload(
+    context.organizationId,
+    parsed.data,
+    idempotencyKey,
   );
+  const { data: relationshipResult, error } = parsed.data.unitId
+    ? await supabase.rpc("create_simplified_unit_lease", {
+        ...authorityPayload,
+        p_relationship_payload: buildNewLeaseRelationshipPayload({
+          actualMoveInDate: parsed.data.actualMoveInDate || undefined,
+          actualMoveOutDate: parsed.data.actualMoveOutDate || undefined,
+          leaseStatus: parsed.data.status,
+          recordSource: "operator_confirmed",
+          scheduledMoveInDate: parsed.data.scheduledMoveInDate || undefined,
+          scheduledMoveOutDate: parsed.data.scheduledMoveOutDate || undefined,
+          tenantPersonId: parsed.data.tenantPersonId,
+        }),
+      })
+    : await supabase.rpc("create_property_lease", {
+        p_deposit_amount: authorityPayload.p_deposit_amount,
+        p_deposit_currency: authorityPayload.p_deposit_currency,
+        p_idempotency_key: authorityPayload.p_idempotency_key,
+        p_lease_end_date: authorityPayload.p_lease_end_date,
+        p_lease_start_date: authorityPayload.p_lease_start_date,
+        p_lease_status: authorityPayload.p_lease_status,
+        p_organization_id: authorityPayload.p_organization_id,
+        p_payment_frequency: authorityPayload.p_payment_frequency,
+        p_primary_tenant_person_id:
+          authorityPayload.p_primary_tenant_person_id,
+        p_property_id: authorityPayload.p_property_id,
+        p_rent_amount: authorityPayload.p_rent_amount,
+        p_rent_currency: authorityPayload.p_rent_currency,
+        p_rent_due_day: authorityPayload.p_rent_due_day,
+        p_term_status: authorityPayload.p_term_status,
+      });
 
   if (error) {
     if (isLeaseUnitTermConflict(error.message)) {
@@ -382,20 +410,20 @@ export async function createLeaseAction(
 
   if (!leaseId) {
     return {
-      message: "The Lease was not returned by the checked relationship write.",
+      message: "The lease could not be confirmed after saving.",
       status: "error",
     };
   }
 
   revalidateLeasePaths(
     [parsed.data.propertyId],
-    [parsed.data.unitId],
+    parsed.data.unitId ? [parsed.data.unitId] : [],
     leaseId,
   );
 
   return {
     leaseId,
-    message: "Lease added.",
+    message: parsed.data.status === "active" ? "Lease created and activated." : "Draft lease created.",
     status: "success",
   };
 }
@@ -442,7 +470,7 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
     return {
       message: error
         ? leaseActionErrorMessage(error.message)
-        : "The updated occupancy evidence was not returned.",
+        : "The move-in confirmation could not be returned.",
       status: "error",
     };
   }
@@ -450,7 +478,7 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
   revalidateLeasePaths([], [], parsed.data.leaseId);
   return {
     leaseId: parsed.data.leaseId,
-    message: "Occupancy evidence recorded.",
+    message: "Move-in confirmed.",
     status: "success",
   };
 }
@@ -515,6 +543,98 @@ export async function transitionLeaseLifecycleAction(
   return {
     leaseId: returnedLeaseId,
     message: getLeaseLifecycleSuccessMessage(parsed.data.transition),
+    status: "success",
+  };
+}
+
+export async function scheduleLeaseActivationAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requireLeaseConfigurationContext();
+  const parsed = leaseActivationSchema.safeParse({
+    activationDate: readString(formData, "activationDate"),
+    expectedOccupancyId: readString(formData, "expectedOccupancyId"),
+    expectedStatus: readString(formData, "expectedStatus"),
+    idempotencyKey: readString(formData, "idempotencyKey"),
+    leaseId: readString(formData, "leaseId"),
+  });
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: result, error } = await supabase.rpc(
+    "request_lease_activation",
+    {
+      p_activation_date: parsed.data.activationDate,
+      p_expected_occupancy_id: parsed.data.expectedOccupancyId,
+      p_expected_status: parsed.data.expectedStatus,
+      p_idempotency_key: parsed.data.idempotencyKey,
+      p_lease_id: parsed.data.leaseId,
+      p_organization_id: context.organizationId,
+    },
+  );
+
+  const returnedLeaseId =
+    result &&
+    typeof result === "object" &&
+    !Array.isArray(result) &&
+    typeof result.leaseId === "string"
+      ? result.leaseId
+      : null;
+  const activationStatus =
+    result &&
+    typeof result === "object" &&
+    !Array.isArray(result) &&
+    typeof result.status === "string"
+      ? result.status
+      : null;
+
+  if (error || !returnedLeaseId) {
+    return {
+      message: error
+        ? leaseActionErrorMessage(error.message)
+        : "The Lease activation request was not returned.",
+      status: "error",
+    };
+  }
+
+  revalidateLeasePaths([], [], returnedLeaseId);
+  return {
+    leaseId: returnedLeaseId,
+    message:
+      activationStatus === "scheduled"
+        ? `Lease activation scheduled for ${parsed.data.activationDate}.`
+        : "Lease activated.",
+    status: "success",
+  };
+}
+
+export async function cancelLeaseActivationAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requireLeaseConfigurationContext();
+  const parsed = cancelLeaseActivationSchema.safeParse({
+    leaseId: readString(formData, "leaseId"),
+    scheduleId: readString(formData, "scheduleId"),
+  });
+  if (!parsed.success) return invalidFormState(parsed.error);
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("cancel_lease_activation", {
+    p_organization_id: context.organizationId,
+    p_schedule_id: parsed.data.scheduleId,
+  });
+  if (error) {
+    return { message: leaseActionErrorMessage(error.message), status: "error" };
+  }
+  revalidateLeasePaths([], [], parsed.data.leaseId);
+  return {
+    leaseId: parsed.data.leaseId,
+    message: "Scheduled activation cancelled.",
     status: "success",
   };
 }
@@ -587,7 +707,7 @@ export async function updateLeaseAction(
 
   return {
     leaseId: parsedLeaseId.data,
-    message: "Lease updated.",
+    message: "Draft lease updated.",
     status: "success",
   };
 }
@@ -664,7 +784,7 @@ export async function scheduleFutureRentTermAction(
 
   return {
     leaseId: parsed.data.leaseId,
-    message: "Future rent term scheduled. Prior term history was preserved.",
+    message: "Rent schedule updated. Earlier history was kept.",
     status: "success",
     termId,
   };
@@ -887,15 +1007,15 @@ function leaseActionErrorMessage(message: string) {
   }
 
   if (message.includes("lease_lifecycle_reason_required")) {
-    return "Add an evidence note with at least 8 characters.";
+    return "Add a reason or note with at least 8 characters.";
   }
 
   if (message.includes("lease_lifecycle_transition_invalid")) {
-    return "This lifecycle change is not available from the lease's current status.";
+    return "This action is not available for the lease's current status.";
   }
 
   if (message.includes("overlaps existing key")) {
-    return "These dates overlap another authoritative term. End the existing term before scheduling this one.";
+    return "These dates overlap another rent period. End the existing period before scheduling this one.";
   }
 
   if (
@@ -914,7 +1034,7 @@ function leaseActionErrorMessage(message: string) {
   }
 
   if (message.includes("Authoritative lease term inputs")) {
-    return "Complete the due day, frequency, dates, amount, and term status.";
+    return "Complete the due day, frequency, dates, amount, and rent period details.";
   }
 
   if (message.includes("violates foreign key")) {
@@ -943,224 +1063,17 @@ export async function recordLeaseDepositEventAction(_state: LeaseActionState, fo
   const { error } = await supabase.rpc("record_lease_deposit_event", { p_organization_id: context.organizationId, p_lease_deposit_id: parsed.data.leaseDepositId, p_event_type: parsed.data.eventType, p_event_date: parsed.data.eventDate, p_amount: parsed.data.amount, p_reference: parsed.data.reference });
   if (error) return { message: leaseActionErrorMessage(error.message), status: "error" };
   revalidatePath("/leases"); revalidatePath("/overview");
-  return { message: "Deposit event recorded.", status: "success" };
+  return { message: "Deposit activity saved.", status: "success" };
 }
 
 export async function reverseLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
   const context = await requireLeaseConfigurationContext();
-  const eventId = z.uuid().safeParse(readString(formData, "eventId"));
+  const eventId = postgresUuid("Choose deposit activity.").safeParse(readString(formData, "eventId"));
   const eventDate = dateSchema.safeParse(readString(formData, "eventDate"));
-  if (!eventId.success || !eventDate.success) return { message: "Choose a valid event and date.", status: "error" };
+  if (!eventId.success || !eventDate.success) return { message: "Choose valid deposit activity and a date.", status: "error" };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("reverse_lease_deposit_event", { p_organization_id: context.organizationId, p_event_id: eventId.data, p_event_date: eventDate.data, p_reference: readString(formData, "reference") });
   if (error) return { message: leaseActionErrorMessage(error.message), status: "error" };
   revalidatePath("/leases"); revalidatePath("/overview");
-  return { message: "Deposit event reversed.", status: "success" };
-}
-
-export async function createRentPolicyDraftAction(
-  _state: RentPolicyActionState,
-  formData: FormData,
-): Promise<RentPolicyActionState> {
-  const context = await requireLeaseConfigurationContext();
-  const effectiveFrom = dateSchema.safeParse(
-    readString(formData, "effectiveFrom"),
-  );
-
-  if (!effectiveFrom.success) {
-    return { message: "Choose an effective date.", status: "error" };
-  }
-
-  const idempotencyKey = readIdempotencyKey(formData);
-
-  if (!idempotencyKey) {
-    return { message: "Refresh the form and try again.", status: "error" };
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const { data: policyId, error } = await supabase.rpc(
-    "create_rent_policy_draft",
-    {
-      p_effective_from: effectiveFrom.data,
-      p_idempotency_key: idempotencyKey,
-      p_organization_id: context.organizationId,
-    },
-  );
-
-  if (error) {
-    return { message: leaseActionErrorMessage(error.message), status: "error" };
-  }
-
-  revalidatePath("/settings/rent-policy");
-  revalidatePath("/leases");
-  return {
-    message: "Rent-policy draft created. Unresolved rules remain blocked.",
-    policyId,
-    status: "success",
-  };
-}
-
-const rentPolicyDraftSchema = z.object({
-  concessionsSupportState: z.enum(["supported", "unsupported"]),
-  dueDaySource: z.enum(["policy_default", "term"]),
-  leaseEndProrationRule: z.enum([
-    "actual_days",
-    "no_proration",
-    "thirty_day",
-    "through_move_out",
-  ]),
-  leaseStartProrationRule: z.enum([
-    "actual_days",
-    "no_proration",
-    "thirty_day",
-  ]),
-  midPeriodRentChangeRule: z.enum([
-    "next_full_period",
-    "prorate_actual_days",
-    "prorate_thirty_day",
-  ]),
-  noticePeriodChargingRule: z.enum([
-    "stop_on_notice",
-    "through_lease_end",
-    "through_move_out",
-  ]),
-  policyDefaultDueDay: z.string().trim(),
-  policyId: z.uuid(),
-  rentCalculationTimezone: z.string().trim().min(1).max(100),
-  rentFreeSupportState: z.enum(["supported", "unsupported"]),
-  shortMonthDueDayRule: z.enum([
-    "last_calendar_day",
-    "next_calendar_month",
-  ]),
-  supportedFrequencies: z.array(paymentFrequencySchema).min(1),
-  waiversSupportState: z.enum(["supported", "unsupported"]),
-});
-
-export async function updateRentPolicyDraftAction(
-  _state: RentPolicyActionState,
-  formData: FormData,
-): Promise<RentPolicyActionState> {
-  const context = await requireLeaseConfigurationContext();
-  const parsed = rentPolicyDraftSchema.safeParse({
-    concessionsSupportState: readString(formData, "concessionsSupportState"),
-    dueDaySource: readString(formData, "dueDaySource"),
-    leaseEndProrationRule: readString(formData, "leaseEndProrationRule"),
-    leaseStartProrationRule: readString(formData, "leaseStartProrationRule"),
-    midPeriodRentChangeRule: readString(formData, "midPeriodRentChangeRule"),
-    noticePeriodChargingRule: readString(
-      formData,
-      "noticePeriodChargingRule",
-    ),
-    policyDefaultDueDay: readString(formData, "policyDefaultDueDay"),
-    policyId: readString(formData, "policyId"),
-    rentCalculationTimezone: readString(
-      formData,
-      "rentCalculationTimezone",
-    ),
-    rentFreeSupportState: readString(formData, "rentFreeSupportState"),
-    shortMonthDueDayRule: readString(formData, "shortMonthDueDayRule"),
-    supportedFrequencies: formData
-      .getAll("supportedFrequencies")
-      .filter((value): value is string => typeof value === "string"),
-    waiversSupportState: readString(formData, "waiversSupportState"),
-  });
-
-  if (!parsed.success) {
-    return {
-      message: "Resolve every policy field before saving.",
-      status: "error",
-    };
-  }
-
-  let defaultDueDay =
-    parsed.data.policyDefaultDueDay.length === 0
-      ? null
-      : Number(parsed.data.policyDefaultDueDay);
-  if (parsed.data.dueDaySource === "term") {
-    defaultDueDay = null;
-  }
-  if (
-    parsed.data.dueDaySource === "policy_default" &&
-    defaultDueDay === null
-  ) {
-    return {
-      message: "Policy default due day must be from 1 to 31.",
-      status: "error",
-    };
-  }
-  if (
-    defaultDueDay !== null &&
-    (!Number.isInteger(defaultDueDay) ||
-      defaultDueDay < 1 ||
-      defaultDueDay > 31)
-  ) {
-    return {
-      message: "Policy default due day must be from 1 to 31.",
-      status: "error",
-    };
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("update_rent_policy_draft", {
-    p_concessions_support_state: parsed.data.concessionsSupportState,
-    p_due_day_source: parsed.data.dueDaySource,
-    p_lease_end_proration_rule: parsed.data.leaseEndProrationRule,
-    p_lease_start_proration_rule: parsed.data.leaseStartProrationRule,
-    p_mid_period_rent_change_rule: parsed.data.midPeriodRentChangeRule,
-    p_notice_period_charging_rule: parsed.data.noticePeriodChargingRule,
-    p_organization_id: context.organizationId,
-    p_policy_default_due_day: defaultDueDay as number,
-    p_policy_id: parsed.data.policyId,
-    p_rent_calculation_timezone: parsed.data.rentCalculationTimezone,
-    p_rent_free_support_state: parsed.data.rentFreeSupportState,
-    p_short_month_due_day_rule: parsed.data.shortMonthDueDayRule,
-    p_supported_frequencies: parsed.data.supportedFrequencies,
-    p_waivers_support_state: parsed.data.waiversSupportState,
-  });
-
-  if (error) {
-    return { message: leaseActionErrorMessage(error.message), status: "error" };
-  }
-
-  revalidatePath("/settings/rent-policy");
-  revalidatePath("/leases");
-  return {
-    message: "Rent-policy draft saved. Approval is still required.",
-    policyId: parsed.data.policyId,
-    status: "success",
-  };
-}
-
-export async function approveRentPolicyVersionAction(
-  _state: RentPolicyActionState,
-  formData: FormData,
-): Promise<RentPolicyActionState> {
-  const context = await requireLeaseConfigurationContext();
-  const policyId = z.uuid().safeParse(readString(formData, "policyId"));
-  if (!policyId.success) {
-    return { message: "Choose a policy version.", status: "error" };
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("approve_rent_policy_version", {
-    p_organization_id: context.organizationId,
-    p_policy_id: policyId.data,
-  });
-
-  if (error) {
-    return {
-      message: error.message.includes("incomplete")
-        ? "Resolve every policy rule before approval."
-        : leaseActionErrorMessage(error.message),
-      status: "error",
-    };
-  }
-
-  revalidatePath("/settings/rent-policy");
-  revalidatePath("/leases");
-  return {
-    message: "Rent-policy version approved.",
-    policyId: policyId.data,
-    status: "success",
-  };
+  return { message: "Deposit activity undone.", status: "success" };
 }

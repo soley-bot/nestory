@@ -5,17 +5,17 @@ export type FinanceOption = {
 };
 
 export type LeaseBillingSummary = {
-  billingRecipientKind: "company" | "individual";
-  billingRecipientPersonId: string;
+  billingRecipientKind: "company" | "individual" | null;
+  billingRecipientPersonId: string | null;
   chargeManagementFeeWhenActive: boolean;
-  collectionRoute: "direct_to_owner" | "through_ips";
+  collectionRoute: "direct_to_owner" | "through_ips" | null;
   effectiveFrom: string;
   finalPeriodProratedAmount: number | null;
   firstPeriodProratedAmount: number | null;
   fullManagementFeeDuringProration: boolean;
   id: string;
-  managementFeeMode: "flat" | "percentage";
-  managementFeeValue: number;
+  managementFeeMode: "flat" | "percentage" | null;
+  managementFeeValue: number | null;
 };
 
 export type FinanceLease = {

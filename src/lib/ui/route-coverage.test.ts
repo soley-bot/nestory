@@ -161,6 +161,7 @@ describe("UI route coverage contract", () => {
   it("records the fixed-role access matrix for Finance and Operations routes", () => {
     for (const route of [
       "/finance",
+      "/finance/advanced",
       "/rent-income",
       "/bills-expenses",
       "/balances",
@@ -168,6 +169,8 @@ describe("UI route coverage contract", () => {
       "/ledger",
       "/petty-cash",
       "/properties/[propertyId]/account",
+      "/properties/[propertyId]/finance",
+      "/units/[unitId]/finance",
     ]) {
       expect(getUiRouteContract(route)?.roles, route).toEqual([
         "super_admin",

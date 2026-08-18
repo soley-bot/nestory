@@ -38,7 +38,7 @@ const unitRecordSections: Array<{
 export function UnitDetailView({
   initialSection = "overview",
   onAddDocument,
-  onAddLease,
+  onCreateLease,
   onNewMaintenanceCase,
   onOpenLease,
   onOpenLedgerEntry,
@@ -48,7 +48,7 @@ export function UnitDetailView({
 }: {
   initialSection?: UnitRecordSection;
   onAddDocument: () => void;
-  onAddLease: () => void;
+  onCreateLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
@@ -76,7 +76,7 @@ export function UnitDetailView({
         <UnitRecordPanel
           activeSection={activeSection}
           onAddDocument={onAddDocument}
-          onAddLease={onAddLease}
+          onCreateLease={onCreateLease}
           onNewMaintenanceCase={onNewMaintenanceCase}
           onOpenLease={onOpenLease}
           onOpenLedgerEntry={onOpenLedgerEntry}
@@ -91,7 +91,7 @@ export function UnitDetailView({
 function UnitRecordPanel({
   activeSection,
   onAddDocument,
-  onAddLease,
+  onCreateLease,
   onNewMaintenanceCase,
   onOpenLease,
   onOpenLedgerEntry,
@@ -100,7 +100,7 @@ function UnitRecordPanel({
 }: {
   activeSection: UnitRecordSection;
   onAddDocument: () => void;
-  onAddLease: () => void;
+  onCreateLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
@@ -117,7 +117,7 @@ function UnitRecordPanel({
       {getUnitRecordPanelContent({
         activeSection,
         onAddDocument,
-        onAddLease,
+        onCreateLease,
         onNewMaintenanceCase,
         onOpenLease,
         onOpenLedgerEntry,
@@ -131,7 +131,7 @@ function UnitRecordPanel({
 function getUnitRecordPanelContent({
   activeSection,
   onAddDocument,
-  onAddLease,
+  onCreateLease,
   onNewMaintenanceCase,
   onOpenLease,
   onOpenLedgerEntry,
@@ -140,7 +140,7 @@ function getUnitRecordPanelContent({
 }: {
   activeSection: UnitRecordSection;
   onAddDocument: () => void;
-  onAddLease: () => void;
+  onCreateLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
@@ -148,13 +148,7 @@ function getUnitRecordPanelContent({
   unit: UnitDetail;
 }) {
   if (activeSection === "lease") {
-    return (
-      <UnitLeasePanel
-        onAddLease={onAddLease}
-        onOpenLease={onOpenLease}
-        unit={unit}
-      />
-    );
+    return <UnitLeasePanel onCreateLease={onCreateLease} onOpenLease={onOpenLease} unit={unit} />;
   }
 
   if (activeSection === "finance") {
@@ -175,10 +169,16 @@ function getUnitRecordPanelContent({
     return <UnitFilesPanel onAddDocument={onAddDocument} unit={unit} />;
   }
 
-  return <UnitOverviewPanel unit={unit} />;
+  return <UnitOverviewPanel onCreateLease={onCreateLease} unit={unit} />;
 }
 
-function UnitOverviewPanel({ unit }: { unit: UnitDetail }) {
+function UnitOverviewPanel({
+  onCreateLease,
+  unit,
+}: {
+  onCreateLease: () => void;
+  unit: UnitDetail;
+}) {
   const openChecks = unit.healthIndicators.filter(
     (indicator) => indicator.tone !== "success",
   );
@@ -230,9 +230,18 @@ function UnitOverviewPanel({ unit }: { unit: UnitDetail }) {
         <section aria-label="Unit attention" id="unit-attention">
           <SectionTitle
             actions={
-              <span className="text-xs text-muted-foreground">
-                {openChecks.length} {openChecks.length === 1 ? "item" : "items"}
-              </span>
+              unit.repairAction.label === "Create draft lease" ? (
+                <Button onClick={onCreateLease} size="sm" variant="outline">
+                  {unit.repairAction.label}
+                </Button>
+              ) : (
+                <Link
+                  className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  href={unit.repairAction.href}
+                >
+                  {unit.repairAction.label}
+                </Link>
+              )
             }
             title="Attention"
           />
@@ -270,26 +279,60 @@ function UnitOverviewPanel({ unit }: { unit: UnitDetail }) {
 }
 
 function UnitLeasePanel({
-  onAddLease,
+  onCreateLease,
   onOpenLease,
   unit,
 }: {
-  onAddLease: () => void;
+  onCreateLease: () => void;
   onOpenLease: () => void;
   unit: UnitDetail;
 }) {
+  const setupAction =
+    unit.repairAction.label === "Create draft lease" ? (
+      <Button onClick={onCreateLease} size="sm">Create draft lease</Button>
+    ) : (
+      <Link
+        className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        href={unit.repairAction.href}
+      >
+        {unit.repairAction.label}
+      </Link>
+    );
+
   if (!unit.activeLease) {
+    if (unit.draftLease) {
+      return (
+        <section id="unit-lease">
+          <SectionTitle actions={setupAction} title="Lease" />
+          <dl className="grid grid-cols-1 divide-y divide-border border-y border-border py-3 text-sm sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+            <Detail label="Tenant" value={unit.draftLease.tenantName} />
+            <Detail label="Status" value={unit.draftLease.statusLabel} />
+            <Detail
+              label="Lease dates"
+              value={`${formatDate(unit.draftLease.startDate)} – ${formatDate(
+                unit.draftLease.endDate,
+              )}`}
+            />
+            <Detail
+              label="Monthly rent"
+              moneyValue={unit.draftLease.monthlyRentDisplay}
+            />
+          </dl>
+        </section>
+      );
+    }
+
+    const explanation =
+      unit.readiness.operational === "maintenance"
+        ? "Unavailable while this unit is in maintenance."
+        : unit.readiness.operational === "inactive"
+          ? "Unavailable while this unit is inactive."
+          : "No current lease.";
+
     return (
       <section id="unit-lease">
-        <SectionTitle
-          actions={
-            <ActionButton icon={<Plus size={14} />} onClick={onAddLease}>
-              Add lease
-            </ActionButton>
-          }
-          title="Lease"
-        />
-        <p className="py-6 text-sm text-muted-foreground">No active lease.</p>
+        <SectionTitle actions={setupAction} title="Lease" />
+        <p className="py-6 text-sm text-muted-foreground">{explanation}</p>
       </section>
     );
   }
@@ -348,6 +391,29 @@ function UnitFinancePanel({
 
   return (
     <>
+      <nav
+        aria-label="Unit finance workspace"
+        className="flex flex-wrap gap-2 border-b border-border pb-3"
+      >
+        <Link
+          className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+          href={`/units/${unit.id}/finance?view=rent`}
+        >
+          Rent & charges
+        </Link>
+        <Link
+          className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted"
+          href={`/units/${unit.id}/finance?view=expenses`}
+        >
+          Expenses
+        </Link>
+        <Link
+          className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted"
+          href={`/properties/${unit.propertyId}/finance?view=owner`}
+        >
+          Owner account (Property)
+        </Link>
+      </nav>
       <section id="unit-finance">
         <SectionTitle
           actions={

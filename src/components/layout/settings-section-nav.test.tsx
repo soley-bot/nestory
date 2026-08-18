@@ -25,23 +25,19 @@ describe("SettingsSectionNav", () => {
       "Appearance",
       "Branches",
       "Teams",
-      "Rent policy",
     ]);
     expect(screen.queryByText("Configuration")).toBeNull();
   });
 
-  it("renders only Rent policy for Finance Manager", () => {
+  it("keeps Finance Manager Settings empty after policy retirement", () => {
     render(
       <SettingsSectionNav
-        activeHref="/settings/rent-policy"
+        activeHref="/settings/organization"
         role="finance_manager"
       />,
     );
 
-    expect(
-      screen.getByRole("link", { name: "Rent policy" }).getAttribute("aria-current"),
-    ).toBe("page");
-    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 
   it("uses the organization accent semantics for the active section", () => {

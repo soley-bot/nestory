@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
@@ -15,8 +15,7 @@ const propertyRowClassName =
 
 type PropertiesTableProps = {
   displayMode: PropertyDisplayMode;
-  onOpenProperty?: (id: string) => void;
-  onPreviewProperty: (id: string) => void;
+  onOpenProperty: (id: string) => void;
   onSortChange: (sort: PropertySortKey) => void;
   properties: PropertySummary[];
   sort: PropertySortKey;
@@ -24,7 +23,7 @@ type PropertiesTableProps = {
 
 export function PropertiesTable({
   displayMode,
-  onPreviewProperty,
+  onOpenProperty,
   onSortChange,
   properties,
   sort,
@@ -48,7 +47,7 @@ export function PropertiesTable({
         {properties.map((property) => (
           <PropertyCard
             key={property.id}
-            onPreviewProperty={onPreviewProperty}
+            onOpenProperty={onOpenProperty}
             property={property}
           />
         ))}
@@ -60,15 +59,17 @@ export function PropertiesTable({
           data-slot="register-table-frame"
         >
           <div aria-label="Properties table" className="overflow-x-auto" role="region">
-            <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-sm">
+            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-[13px]">
               <colgroup>
-                <col className="w-[32%]" />
-                <col className="w-[21%]" />
-                <col className="w-[23%]" />
+                <col className="w-[26%]" />
+                <col className="w-[18%]" />
+                <col className="w-[13%]" />
                 <col className="w-[15%]" />
-                <col className="w-[9%]" />
+                <col className="w-[13%]" />
+                <col className="w-[12%]" />
+                <col className="w-[3%]" />
               </colgroup>
-              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0.04em] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
                     active={sort === "code_asc"}
@@ -79,6 +80,7 @@ export function PropertiesTable({
                   />
                   <th className="px-1.5 py-2.5 font-semibold">Owner</th>
                   <th className="px-1.5 py-2.5 font-semibold">Occupancy</th>
+                  <th className="px-1.5 py-2.5 font-semibold">Lease health</th>
                   <SortableHeader
                     active={sort === "net_asc" || sort === "net_desc"}
                     align="right"
@@ -97,25 +99,26 @@ export function PropertiesTable({
                     onClick={() => onSortChange("status_asc")}
                     sortLabel="Sort properties by status"
                   />
+                  <th aria-label="Open property" className="px-1 py-2.5" />
                 </tr>
               </thead>
               <tbody>
                 {properties.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
                       No properties match the current filters.
                     </td>
                   </tr>
                 ) : null}
                 {properties.map((property) => (
                   <tr
-                    aria-label={`Preview ${property.name}`}
+                    aria-label={`Open ${property.name}`}
                     className={cn(
                       propertyRowClassName,
                       property.isArchived && "text-muted-foreground",
                     )}
                     key={property.id}
-                    onClick={() => onPreviewProperty(property.id)}
+                    onClick={() => onOpenProperty(property.id)}
                     onKeyDown={(event) => {
                       if (event.currentTarget !== event.target) {
                         return;
@@ -123,14 +126,14 @@ export function PropertiesTable({
 
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();
-                        onPreviewProperty(property.id);
+                        onOpenProperty(property.id);
                       }
                     }}
                     tabIndex={0}
-                    title={`Preview ${property.name}`}
+                    title={`Open ${property.name}`}
                   >
                     <td className="px-2.5 py-2">
-                      <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
+                      <div className="grid min-w-0 max-w-[20rem] grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
                         <PropertyThumbnail property={property} />
                         <div className="min-w-0">
                           <p
@@ -150,7 +153,7 @@ export function PropertiesTable({
                     </td>
                     <td className="px-1.5 py-2">
                       <p
-                        className="truncate text-sm font-medium"
+                        className="max-w-[14rem] truncate text-sm font-medium"
                         title={property.owner}
                       >
                         {property.owner}
@@ -163,10 +166,16 @@ export function PropertiesTable({
                       <TableOccupancy property={property} />
                     </td>
                     <td className="px-1.5 py-2">
+                      <TableLeaseHealth property={property} />
+                    </td>
+                    <td className="px-1.5 py-2">
                       <TableMoneyDisplay value={property.netIncome} />
                     </td>
                     <td className="px-1.5 py-2">
                       <PropertyStatusBadges compact property={property} />
+                    </td>
+                    <td className="px-1 py-2 text-right text-muted-foreground">
+                      <ChevronRight aria-hidden="true" className="ml-auto size-4" />
                     </td>
                   </tr>
                 ))}
@@ -180,22 +189,22 @@ export function PropertiesTable({
 }
 
 function PropertyCard({
-  onPreviewProperty,
+  onOpenProperty,
   property,
 }: {
-  onPreviewProperty: (id: string) => void;
+  onOpenProperty: (id: string) => void;
   property: PropertySummary;
 }) {
   const attention = getPropertyCardAttention(property);
 
   return (
     <article
-      aria-label={`Preview ${property.name}`}
+      aria-label={`Open ${property.name}`}
       className={cn(
         "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-card text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-ring",
         property.isArchived && "text-muted-foreground",
       )}
-      onClick={() => onPreviewProperty(property.id)}
+      onClick={() => onOpenProperty(property.id)}
       onKeyDown={(event) => {
         if (event.currentTarget !== event.target) {
           return;
@@ -203,7 +212,7 @@ function PropertyCard({
 
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onPreviewProperty(property.id);
+          onOpenProperty(property.id);
         }
       }}
       role="button"
@@ -244,7 +253,7 @@ function PropertyCard({
         ) : null}
 
         <p className="mt-1 border-t border-border pt-2 text-xs font-medium text-muted-foreground">
-          Open quick view
+          Open property
         </p>
       </div>
     </article>
@@ -419,7 +428,11 @@ function PropertyThumbnail({
             Needs photo
           </span>
         </span>
-      ) : null}
+      ) : (
+        <span className="text-xs font-semibold text-muted-foreground">
+          {getPropertyInitials(property)}
+        </span>
+      )}
     </span>
   );
 }
@@ -474,6 +487,28 @@ function TableOccupancy({ property }: { property: PropertySummary }) {
         />
       </div>
     </div>
+  );
+}
+
+function TableLeaseHealth({ property }: { property: PropertySummary }) {
+  const hasMissingLease =
+    property.units > 0
+      ? property.unitsWithoutCurrentLease > 0
+      : property.currentLeaseCount === 0;
+
+  if (hasMissingLease) {
+    const label =
+      property.units > 0
+        ? `${property.unitsWithoutCurrentLease} without lease`
+        : "No current lease";
+
+    return <span className="whitespace-nowrap font-medium text-warning">{label}</span>;
+  }
+
+  return (
+    <span className="whitespace-nowrap font-medium text-muted-foreground">
+      {property.currentLeaseCount} active {property.currentLeaseCount === 1 ? "lease" : "leases"}
+    </span>
   );
 }
 

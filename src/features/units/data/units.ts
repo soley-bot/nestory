@@ -12,6 +12,7 @@ import {
   buildUnitDetail,
   buildUnitSummary,
   selectCurrentLease,
+  selectNewestDraftLease,
   type UnitDocumentRecord,
   type UnitLeaseRecord,
   type UnitMaintenanceRecord,
@@ -78,6 +79,13 @@ type PagedUnitRowsResult = {
 type UnitImageRow = {
   storage_path: string;
   unit_id: string | null;
+};
+type UnitPrimaryOwnerRow = {
+  person:
+    | { display_name: string }
+    | Array<{ display_name: string }>
+    | null;
+  property_id: string;
 };
 
 export async function getUnitsScreenData(
@@ -398,7 +406,14 @@ async function loadUnitSummariesForRows({
     unitPropertiesById = indexById(propertiesResult.data ?? []);
   }
 
-  const [leaseRows, timelineContextRows, ledgerTotalRows, imageRows, photoThumbnailUrls] =
+  const [
+    leaseRows,
+    timelineContextRows,
+    ledgerTotalRows,
+    imageRows,
+    photoThumbnailUrls,
+    ownerNamesByPropertyId,
+  ] =
     await Promise.all([
       getLeaseRowsForUnits(supabase, organizationId, [...unitIds]),
       getTimelineContextRowsForUnits(supabase, organizationId, [...unitIds]),
@@ -409,6 +424,11 @@ async function loadUnitSummariesForRows({
         supabase,
         unitIds: [...unitIds],
       }),
+      getPrimaryOwnerNamesForProperties(
+        supabase,
+        organizationId,
+        [...propertyIds],
+      ),
     ]);
   const leasesByUnitId = groupByUnitId(leaseRows);
   const ledgerByUnitId = groupByUnitId(ledgerTotalRows);
@@ -418,14 +438,55 @@ async function loadUnitSummariesForRows({
     supabase,
   });
 
-  return unitRows.map((unit) =>
-    buildUnitSummary({
-      activeLease: selectCurrentLease(leasesByUnitId.get(unit.id) ?? []),
+  return unitRows.map((unit) => {
+    const unitLeaseRows = leasesByUnitId.get(unit.id) ?? [];
+
+    return buildUnitSummary({
+      activeLease: selectCurrentLease(unitLeaseRows),
+      draftLease: selectNewestDraftLease(unitLeaseRows),
       latestTimelineEvent: latestTimelineByUnitId.get(unit.id),
       ledgerEntries: ledgerByUnitId.get(unit.id) ?? [],
       property: unitPropertiesById.get(unit.property_id),
+      propertyOwnerName:
+        ownerNamesByPropertyId.get(unit.property_id) ?? "No owner",
       thumbnailUrl: photoThumbnailUrls.get(unit.id) ?? thumbnailUrls.get(unit.id),
       unit,
+    });
+  });
+}
+
+async function getPrimaryOwnerNamesForProperties(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+  propertyIds: string[],
+) {
+  const rows = await queryUnitIdBatches(propertyIds, async (batch) => {
+    const result = await supabase
+      .from("property_owners")
+      .select(
+        "property_id, person:people!property_owners_person_fk(display_name)",
+      )
+      .eq("organization_id", organizationId)
+      .eq("is_primary", true)
+      .in("property_id", batch)
+      .is("archived_at", null)
+      .is("ended_on", null);
+
+    if (result.error) {
+      throw new Error(
+        `Could not load unit property owners: ${result.error.message}`,
+      );
+    }
+
+    return (result.data ?? []) as UnitPrimaryOwnerRow[];
+  });
+
+  return new Map(
+    rows.flatMap((row) => {
+      const person = Array.isArray(row.person) ? row.person[0] : row.person;
+      return person?.display_name
+        ? [[row.property_id, person.display_name] as const]
+        : [];
     }),
   );
 }
@@ -569,6 +630,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
   }
 
   const activeLease = selectCurrentLease(leaseRows);
+  const draftLease = selectNewestDraftLease(leaseRows);
   const maintenanceRows = (maintenanceResult.data ?? []) as UnitMaintenanceRecord[];
   const [activity, documents, people] = await Promise.all([
     resolveRecentChangeTargets({
@@ -594,6 +656,7 @@ export async function getUnitDetail(organizationId: string, unitId: string) {
       timelineEvents: timelineResult.count ?? timelineResult.data?.length ?? 0,
     },
     documents,
+    draftLease,
     ledgerEntries: ledgerTotalsResult.data ?? [],
     maintenanceCases: maintenanceRows,
     people,
@@ -758,6 +821,7 @@ function filterUnitSummaries(units: UnitSummary[], viewQuery: UnitViewQuery) {
       unit.unitNumber,
       unit.propertyCode,
       unit.propertyName,
+      unit.propertyOwnerName,
       unit.floorLabel,
       unit.statusLabel,
       unit.leaseLabel,

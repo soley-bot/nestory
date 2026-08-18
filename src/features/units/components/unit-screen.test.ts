@@ -5,7 +5,6 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -60,6 +59,12 @@ beforeEach(() => {
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
+  });
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
   });
 });
 
@@ -118,6 +123,35 @@ describe("UnitScreen redesign contract", () => {
     expect(screen.getByRole("combobox", { name: "Rows per page" })).toBeTruthy();
   });
 
+  it("exposes a control for every filter that narrows the register", () => {
+    renderUnits({
+      viewQuery: {
+        ...defaultViewQuery,
+        leaseStatus: "missing",
+        status: "maintenance",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+
+    expect(
+      screen.getByRole("combobox", { name: "Filter by operational state" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by lease link" }),
+    ).toBeTruthy();
+  });
+
+  it("counts only filters that narrow the register, not sort or page size", () => {
+    renderUnits({
+      viewQuery: { ...defaultViewQuery, pageSize: 25, sort: "rent_desc" },
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /^Filters\s*\d/ }),
+    ).toBeNull();
+  });
+
   it("uses an unframed desktop register while retaining the semantic table", () => {
     const { container } = renderUnits();
     const frame = container.querySelector<HTMLElement>(
@@ -137,7 +171,7 @@ describe("UnitScreen redesign contract", () => {
     expect(pagination!.className.split(" ")).not.toContain("border-t-0");
   });
 
-  it("uses one predictable row action, opens details only from preview, and preserves URL-backed sorting", async () => {
+  it("opens the unit record from its row and preserves URL-backed sorting", () => {
     navigation.searchParams = new URLSearchParams("status=vacant&page=2");
     const { container } = renderUnits({
       viewQuery: { ...defaultViewQuery, page: 2, status: "vacant" },
@@ -151,30 +185,10 @@ describe("UnitScreen redesign contract", () => {
     expect(table.querySelector("thead")?.className).toContain("text-xs");
 
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(0);
-    expect(within(rows[0]!).queryByRole("link", { name: "Unit 1A" })).toBeNull();
 
     fireEvent.click(rows[1]!);
-    await waitFor(() => {
-      expect(
-        screen.getByRole("dialog", { name: "Unit 2B quick view" }),
-      ).toBeTruthy();
-    });
-    expect(rows.filter((row) => row.getAttribute("aria-selected") === "true")).toHaveLength(1);
-    expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
-    expect(screen.queryByRole("complementary")).toBeNull();
-    expect(navigation.push).not.toHaveBeenCalled();
-
-    const quickView = screen.getByRole("dialog", { name: "Unit 2B quick view" });
-    expect(
-      within(quickView).getByRole("link", { name: "Open unit 2B" }).getAttribute(
-        "href",
-      ),
-    ).toBe("/units/unit-2");
-
-    fireEvent.click(screen.getByRole("button", { name: "Close quick view" }));
-    fireEvent.doubleClick(rows[1]!);
-    expect(navigation.push).not.toHaveBeenCalled();
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-2");
+    expect(screen.queryByRole("dialog", { name: /quick view/i })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Sort units by rent" }));
     expect(navigation.replace).toHaveBeenLastCalledWith(
@@ -186,178 +200,47 @@ describe("UnitScreen redesign contract", () => {
     expect(screen.queryByText(/double-click/i)).toBeNull();
   });
 
-  it("uses the approved operational quick-view structure without stacked detail boxes", async () => {
-    const user = userEvent.setup();
-    const { container } = renderUnits();
-
-    await user.click(screen.getByRole("button", { name: "Preview unit 1A" }));
-
-    const quickView = screen.getByRole("dialog", {
-      name: "Unit 1A quick view",
-    });
-    expect(
-      quickView.querySelectorAll('[data-slot="unit-preview-fact-card"]'),
-    ).toHaveLength(3);
-    expect(within(quickView).getByRole("link", { name: "Add an active lease" })).toBeTruthy();
-    expect(within(quickView).getByRole("navigation", { name: "Unit records" })).toBeTruthy();
-    expect(within(quickView).getByRole("link", { name: "Lease" })).toBeTruthy();
-    expect(within(quickView).getByRole("link", { name: "Ledger" })).toBeTruthy();
-    expect(within(quickView).getByRole("link", { name: "Maintenance" })).toBeTruthy();
-    expect(within(quickView).getByRole("link", { name: "Timeline" })).toBeTruthy();
-    expect(
-      within(quickView).getByRole("group", { name: "Unit actions" }),
-    ).toBeTruthy();
-    expect(within(quickView).queryByRole("heading", { name: "At a glance" })).toBeNull();
-    expect(within(quickView).queryByRole("heading", { name: "Related records" })).toBeNull();
-    expect(container.querySelectorAll('[data-slot="unit-preview-detail-card"]')).toHaveLength(0);
-  });
-
   it.each([1024, 390])(
-    "uses the same quick-view dialog after card selection at %ipx",
+    "opens the unit record directly after card selection at %ipx",
     async (width) => {
     installMatchMedia(width);
     const user = userEvent.setup();
     renderUnits();
 
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.queryByRole("complementary")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Preview unit 1A" }));
+    await user.click(screen.getByRole("button", { name: "Open unit 1A" }));
 
-    expect(screen.getByRole("dialog", { name: "Unit 1A quick view" })).not.toBeNull();
-    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-1");
+    expect(screen.queryByRole("dialog", { name: /quick view/i })).toBeNull();
     },
   );
 
-  it.each([
-    {
-      actionName: "Edit unit 1A",
-      drawerName: "Edit unit",
-      openMoreActions: false,
-      width: 1024,
-    },
-    {
-      actionName: "Archive unit 1A",
-      drawerName: "Archive unit",
-      openMoreActions: true,
-      width: 1024,
-    },
-    {
-      actionName: "Edit unit 1A",
-      drawerName: "Edit unit",
-      openMoreActions: false,
-      width: 390,
-    },
-  ])(
-    "replaces the quick view with one $drawerName workflow at $width px and returns focus",
-    async ({ actionName, drawerName, openMoreActions, width }) => {
-      installMatchMedia(width);
-      const user = userEvent.setup();
-      renderUnits();
-      const preview = screen.getByRole("button", { name: "Preview unit 1A" });
-
-      await user.click(preview);
-      expect(screen.getAllByRole("dialog")).toHaveLength(1);
-
-      if (openMoreActions) {
-        await user.click(
-          screen.getByRole("button", { name: "More actions for unit 1A" }),
-        );
-      }
-      await user.click(screen.getByRole("button", { name: actionName }));
-
-      const dialogs = screen.getAllByRole("dialog");
-      expect(dialogs).toHaveLength(1);
-      if (drawerName === "Edit unit") {
-        expect(dialogs[0]?.getAttribute("data-slot")).toBe("dialog-content");
-      } else {
-        expect(dialogs[0]?.getAttribute("aria-modal")).toBe("true");
-      }
-      expect(screen.getByRole("dialog", { name: drawerName })).not.toBeNull();
-      expect(screen.queryByRole("dialog", { name: "Unit 1A quick view" })).toBeNull();
-
-      await user.click(
-        screen.getByRole("button", {
-          name: drawerName === "Edit unit" ? "Close modal" : "Close drawer",
-        }),
-      );
-      expect(document.activeElement).toBe(preview);
-    },
-  );
-
-  it("replaces the 1440px quick view when a mutation drawer opens", async () => {
-    installMatchMedia(1440);
-    const user = userEvent.setup();
-    renderUnits();
-    const preview = screen.getByRole("button", { name: "Preview unit 1A" });
-    await user.click(preview);
-    const quickView = screen.getByRole("dialog", {
-      name: "Unit 1A quick view",
-    });
-    const edit = within(quickView).getByRole("button", {
-      name: "Edit unit 1A",
-    });
-
-    await user.click(edit);
-
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("dialog", { name: "Edit unit" })).not.toBeNull();
-    expect(screen.queryByRole("dialog", { name: "Unit 1A quick view" })).toBeNull();
-
-    await user.click(screen.getByRole("button", { name: "Close modal" }));
-    expect(document.activeElement).toBe(preview);
-  });
-
-  it("keeps rent out of the unit edit workflow", async () => {
-    const user = userEvent.setup();
-    renderUnits();
-
-    await user.click(screen.getByRole("button", { name: "Preview unit 1A" }));
-    await user.click(screen.getByRole("button", { name: "Edit unit 1A" }));
-
-    const editDialog = screen.getByRole("dialog", { name: "Edit unit" });
-    expect(
-      within(editDialog).queryByRole("spinbutton", { name: "Current rent" }),
-    ).toBeNull();
-    expect(
-      within(editDialog).queryByRole("heading", { name: "Rent" }),
-    ).toBeNull();
-  });
-
-  it("makes cards preview-first, supports Enter and Space, and restores focus", async () => {
+  it("opens unit cards with Enter and Space", async () => {
     installMatchMedia(1024);
     const user = userEvent.setup();
     renderUnits();
-    const firstPreview = screen.getByRole("button", { name: "Preview unit 1A" });
-    const secondPreview = screen.getByRole("button", { name: "Preview unit 2B" });
+    const firstUnit = screen.getByRole("button", { name: "Open unit 1A" });
+    const secondUnit = screen.getByRole("button", { name: "Open unit 2B" });
 
-    expect(firstPreview.getAttribute("aria-pressed")).toBe("false");
-    expect(secondPreview.getAttribute("aria-pressed")).toBe("false");
-    expect(screen.queryByRole("link", { name: "Unit 2B" })).toBeNull();
-
-    secondPreview.focus();
+    secondUnit.focus();
     await user.keyboard("{Enter}");
-    expect(secondPreview.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("dialog", { name: "Unit 2B quick view" })).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "Close quick view" }));
-    expect(document.activeElement).toBe(secondPreview);
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-2");
 
-    firstPreview.focus();
+    firstUnit.focus();
     await user.keyboard(" ");
-    expect(firstPreview.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("dialog", { name: "Unit 1A quick view" })).not.toBeNull();
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-1");
   });
 
-  it("supports Enter and Space for table-row selection", () => {
+  it("opens table rows with Enter and Space", () => {
     renderUnits();
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
 
     rows[1]!.focus();
     fireEvent.keyDown(rows[1]!, { key: "Enter" });
-    expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-2");
 
     rows[0]!.focus();
     fireEvent.keyDown(rows[0]!, { key: " " });
-    expect(rows[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-1");
   });
 
   it("offers Clear filters for a filtered empty result", () => {
@@ -401,52 +284,81 @@ describe("UnitScreen redesign contract", () => {
     ).toBeNull();
   });
 
-  it("shows active-lease occupancy and operational state as read-only context", async () => {
+  it("keeps operational-state selection concise without a readiness explainer", async () => {
     const user = userEvent.setup();
-    const leasedUnit = buildUnitSummary({
-      activeLease: {
-        id: "lease-1",
-        lease_end_date: "2027-01-31",
-        lease_start_date: "2026-02-01",
-        monthly_rent_amount: 900,
-        monthly_rent_currency: "USD",
-        primary_tenant_person_id: "person-1",
-        status: "active",
-        tenant_name: "Dara Tenant",
-        unit_id: "unit-1",
-      },
-      ledgerEntries: [],
-      property: { code: "HOME", id: "property-1", name: "Home Residence" },
-      unit: {
-        archived_at: null,
-        current_rent_amount: 900,
-        current_rent_currency: "USD",
-        floor: "1",
-        id: "unit-1",
-        property_id: "property-1",
-        size_sqm: 48,
-        status: "vacant",
-        unit_number: "1A",
-      },
-    });
-    renderUnits({ units: [leasedUnit] });
+    renderUnits({ canCreate: true, units: [] });
 
-    await user.click(screen.getByRole("row", { name: "Preview unit 1A" }));
-    const quickView = screen.getByRole("dialog", { name: "Unit 1A quick view" });
-    expect(within(quickView).queryByText(/status conflict/i)).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Edit unit 1A" }));
+    await user.click(screen.getAllByRole("button", { name: "Add unit" })[0]!);
 
-    const editDialog = screen.getByRole("dialog", { name: "Edit unit" });
-    expect(within(editDialog).getByText("Occupancy")).toBeTruthy();
-    expect(within(editDialog).getByText("Occupied")).toBeTruthy();
-    const operationalState = within(editDialog).getByRole("group", {
-      name: /^Operational state/,
+    const drawer = screen.getByRole("dialog", { name: "Add unit" });
+    const operationalState = within(drawer).getByRole("combobox", {
+      name: /Operational state/,
     });
-    expect(operationalState.textContent).toContain("Active");
+
+    expect(within(drawer).queryByText("Lease readiness")).toBeNull();
+    expect(within(drawer).queryByText(/Available for leasing after save/)).toBeNull();
+
+    await user.click(operationalState);
+    await user.click(screen.getByRole("option", { name: "Maintenance" }));
+    expect(within(drawer).queryByText(/Blocked from leasing/)).toBeNull();
+
+    await user.click(operationalState);
+    await user.click(screen.getByRole("option", { name: "Inactive" }));
+    expect(within(drawer).queryByText(/Not available for leasing/)).toBeNull();
+  });
+
+  it("renders a compact register without duplicate lease information", () => {
+    renderUnits();
+
+    const table = screen.getByRole("table");
+    expect(table.className).toContain("table-fixed");
+    expect(table.className).not.toContain("max-w-");
     expect(
-      within(operationalState).queryByRole("combobox"),
-    ).toBeNull();
-    expect(within(editDialog).queryByRole("combobox", { name: "Status" })).toBeNull();
+      Array.from(table.querySelectorAll("col"), (column) => column.className),
+    ).toEqual([
+      "w-[20%]",
+      "w-[15%]",
+      "w-[12%]",
+      "w-[15%]",
+      "w-[10%]",
+      "w-[15%]",
+      "w-[13%]",
+    ]);
+    expect(within(table).getByRole("columnheader", { name: "Status" })).toBeTruthy();
+    expect(within(table).getByRole("columnheader", { name: "Lease" })).toBeTruthy();
+    expect(within(table).getByRole("columnheader", { name: "Tenant" })).toBeTruthy();
+    expect(within(table).queryByRole("columnheader", { name: "Lease / tenant" })).toBeNull();
+    const firstRow = within(table).getByRole("row", { name: "Open unit 1A" });
+    expect(within(firstRow).getByText("Home Residence")).toBeTruthy();
+    expect(within(firstRow).getByText("No owner")).toBeTruthy();
+    expect(within(firstRow).queryByText("HOME")).toBeNull();
+    expect(within(firstRow).getByText("In service")).toBeTruthy();
+    expect(within(firstRow).queryByText("Available")).toBeNull();
+    expect(within(firstRow).getAllByText("No lease")).toHaveLength(1);
+    expect(within(firstRow).getByText("—")).toBeTruthy();
+  });
+
+  it("groups consecutive units under a non-interactive property cell", async () => {
+    const user = userEvent.setup();
+    const groupedUnits = [
+      makeUnit("unit-a", "A-01", "property-1", "HOME", "Home Residence"),
+      makeUnit("unit-b", "A-02", "property-1", "HOME", "Home Residence"),
+      makeUnit("unit-c", "B-01", "property-2", "RIVER", "Riverside House"),
+    ];
+
+    renderUnits({ units: groupedUnits });
+
+    const table = screen.getByRole("table");
+    const propertyNames = within(table).getAllByText("Home Residence");
+    expect(propertyNames).toHaveLength(1);
+    expect(propertyNames[0]?.closest("td")?.rowSpan).toBe(2);
+    expect(within(table).getByText("Riverside House").closest("td")?.rowSpan).toBe(1);
+
+    await user.click(propertyNames[0]!);
+    expect(navigation.push).not.toHaveBeenCalled();
+
+    await user.click(within(table).getByRole("button", { name: "View unit A-01 details" }));
+    expect(navigation.push).toHaveBeenCalledWith("/units/unit-a");
   });
 
   it("does not open an action=create drawer when create is unauthorized", () => {

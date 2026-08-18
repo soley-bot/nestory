@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Plus } from "lucide-react";
 import { PaginationControls } from "@/components/data/pagination-controls";
 import {
   getInitialRecordId,
@@ -13,22 +12,13 @@ import { WorkspacePage } from "@/components/layout/workspace-page";
 import {
   WorkspaceSplitView,
 } from "@/components/layout/workspace-split-view";
-import { Button } from "@/components/ui/button";
 import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SideDrawer } from "@/components/ui/side-drawer";
-import { removeSearchParams } from "@/lib/url/href";
-import {
-  ArchiveLeasePanel,
-  RestoreLeasePanel,
-} from "@/features/leases/components/lease-drawer-panels";
 import { LeaseFilters } from "@/features/leases/components/lease-filters";
-import { LeaseForm } from "@/features/leases/components/lease-form";
 import { LeaseInspector } from "@/features/leases/components/lease-inspector";
 import { LeasesTable } from "@/features/leases/components/leases-table";
 import { buildLeaseRecordHref } from "@/features/leases/lease-detail-route";
 import type {
-  LeaseFormValues,
   LeasePagination,
   LeasePropertyOption,
   LeaseSummary,
@@ -41,22 +31,6 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   year: "numeric",
 });
-type LeaseCreateInitialValues = Partial<
-  Pick<LeaseFormValues, "propertyId" | "tenantPersonId" | "unitId">
->;
-type LeaseCreateIntent = "fill-vacancy" | "standard";
-
-type DrawerState =
-  | {
-      intent?: LeaseCreateIntent;
-      initialValues?: LeaseCreateInitialValues;
-      lease?: never;
-      mode: "create";
-    }
-  | { lease: LeaseSummary; mode: "archive" }
-  | { lease: LeaseSummary; mode: "edit" }
-  | { lease: LeaseSummary; mode: "restore" };
-
 type LeaseScreenProps = {
   canConfigure?: boolean;
   initialLeaseId?: string;
@@ -74,33 +48,12 @@ export function LeaseScreen({
   leases,
   pagination,
   propertyOptions,
-  tenantOptions,
   unitOptions,
   viewQuery,
 }: LeaseScreenProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const createInitialValues = useMemo(
-    () =>
-      getLeaseCreateInitialValues(
-        searchParams,
-        propertyOptions,
-        tenantOptions,
-        unitOptions,
-      ),
-    [propertyOptions, searchParams, tenantOptions, unitOptions],
-  );
-  const createIntent = getLeaseCreateIntent(searchParams, createInitialValues);
-  const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    canConfigure && searchParams.get("action") === "create"
-      ? {
-          initialValues: createInitialValues,
-          intent: createIntent,
-          mode: "create",
-        }
-      : null,
-  );
   const [selectedLeaseId, setSelectedLeaseId] = useState(() =>
     getInitialRecordId(leases, initialLeaseId),
   );
@@ -108,7 +61,6 @@ export function LeaseScreen({
     Boolean(initialLeaseId) &&
       (!canConfigure || searchParams.get("action") !== "create"),
   );
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const focusedLease = initialLeaseId
     ? leases.find((lease) => lease.id === initialLeaseId) ?? null
     : null;
@@ -128,11 +80,6 @@ export function LeaseScreen({
   );
   const getLeaseRecordHref = (leaseId: string) =>
     buildLeaseRecordHref({ leaseId });
-  const openLeaseAction = (nextDrawer: DrawerState) => {
-    setCompactInspectorOpen(false);
-    setStatusMessage(null);
-    setDrawer(nextDrawer);
-  };
   const previewLease = (leaseId: string) => {
     setSelectedLeaseId(leaseId);
     setCompactInspectorOpen(true);
@@ -154,26 +101,10 @@ export function LeaseScreen({
       return;
     }
 
-    if (!canConfigure) {
-      router.replace(getHrefWithoutActionParam(pathname, searchParams), {
-        scroll: false,
-      });
-      return;
-    }
-
-    queueMicrotask(() => {
-      setCompactInspectorOpen(false);
-      setStatusMessage(null);
-      setDrawer({
-        initialValues: createInitialValues,
-        intent: createIntent,
-        mode: "create",
-      });
-    });
-    router.replace(getHrefWithoutActionParam(pathname, searchParams), {
+    router.replace("/properties?notice=choose-lease-context", {
       scroll: false,
     });
-  }, [canConfigure, createInitialValues, createIntent, pathname, router, searchParams]);
+  }, [router, searchParams]);
 
   const hasFilters = hasActiveLeaseFilters(viewQuery);
   const leaseList = (
@@ -189,11 +120,6 @@ export function LeaseScreen({
               >
                 Clear filters
               </Link>
-            ) : canConfigure ? (
-              <Button onClick={() => openLeaseAction({ mode: "create" })} variant="default">
-                <Plus size={15} />
-                Add lease
-              </Button>
             ) : undefined
           }
           body={hasFilters ? "No lease records match the active filters." : "No lease records are available in this workspace."}
@@ -234,23 +160,16 @@ export function LeaseScreen({
 
   return (
     <WorkspacePage
-      actions={
-        canConfigure ? (
-          <Button
-            onClick={() => openLeaseAction({ mode: "create" })}
-            variant="default"
-          >
-            <Plus size={15} />
-            Add lease
-          </Button>
-        ) : null
-      }
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/leases"
       headerClassName="py-3 lg:py-3"
       title="Leases"
     >
       <div className="flex min-w-0 flex-col">
+
+      <p className="workspace-gutter-x border-b border-border py-2 text-sm text-muted-foreground">
+        Create leases from a Property or Unit record.
+      </p>
 
       <div
         aria-label="Workspace tools"
@@ -263,18 +182,6 @@ export function LeaseScreen({
           viewQuery={viewQuery}
         />
       </div>
-
-      {statusMessage ? (
-        <div className="shrink-0 px-4 py-2 sm:px-6">
-          <div
-            className="flex items-start gap-2 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
-            role="status"
-          >
-            <CheckCircle2 className="mt-0.5 shrink-0" size={16} />
-            <p className="font-medium text-foreground">{statusMessage}</p>
-          </div>
-        </div>
-      ) : null}
 
       {reviewContext ? (
         <LeaseReviewStrip
@@ -299,147 +206,8 @@ export function LeaseScreen({
         </div>
       </div>
 
-      {drawer ? (
-        <SideDrawer
-          description={getLeaseDrawerDescription(drawer)}
-          onClose={() => setDrawer(null)}
-          open
-          title={getLeaseDrawerTitle(drawer)}
-        >
-          {drawer.mode === "archive" ? (
-            <ArchiveLeasePanel
-              lease={drawer.lease}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-            />
-          ) : drawer.mode === "restore" ? (
-            <RestoreLeasePanel
-              lease={drawer.lease}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-            />
-          ) : (
-            <LeaseForm
-              initialValues={
-                drawer.mode === "create" ? drawer.initialValues : undefined
-              }
-              key={getLeaseFormKey(drawer)}
-              lease={drawer.lease}
-              mode={drawer.mode}
-              onClose={() => setDrawer(null)}
-              onSuccess={setStatusMessage}
-              properties={propertyOptions}
-              tenants={tenantOptions}
-              units={unitOptions}
-            />
-          )}
-        </SideDrawer>
-      ) : null}
     </WorkspacePage>
   );
-}
-
-function getHrefWithoutActionParam(
-  pathname: string,
-  searchParams: { toString(): string },
-) {
-  return removeSearchParams(pathname, searchParams, [
-    "action",
-    "source",
-    "tenantPersonId",
-  ]);
-}
-
-function getLeaseCreateIntent(
-  searchParams: { get(name: string): string | null },
-  initialValues?: LeaseCreateInitialValues,
-): LeaseCreateIntent {
-  return searchParams.get("source") === "vacancy" && initialValues?.unitId
-    ? "fill-vacancy"
-    : "standard";
-}
-
-function getLeaseCreateInitialValues(
-  searchParams: { get(name: string): string | null },
-  properties: LeasePropertyOption[],
-  tenants: LeaseTenantOption[],
-  units: LeaseUnitOption[],
-): LeaseCreateInitialValues | undefined {
-  const requestedPropertyId = searchParams.get("propertyId") ?? "";
-  const requestedTenantPersonId = tenants.some(
-    (tenant) => tenant.id === searchParams.get("tenantPersonId"),
-  )
-    ? searchParams.get("tenantPersonId") ?? ""
-    : "";
-  const requestedUnitId = searchParams.get("unitId") ?? "";
-  const requestedUnit = units.find((unit) => unit.id === requestedUnitId);
-  const propertyId =
-    requestedUnit?.propertyId ??
-    (properties.some((property) => property.id === requestedPropertyId)
-      ? requestedPropertyId
-      : "");
-  const unitId =
-    requestedUnit && (!requestedPropertyId || requestedUnit.propertyId === propertyId)
-      ? requestedUnit.id
-      : "";
-
-  if (!propertyId && !unitId && !requestedTenantPersonId) {
-    return undefined;
-  }
-
-  return {
-    propertyId,
-    tenantPersonId: requestedTenantPersonId,
-    unitId,
-  };
-}
-
-function getLeaseFormKey(drawer: Extract<DrawerState, { mode: "create" | "edit" }>) {
-  if (drawer.mode === "create") {
-    return `create-${drawer.initialValues?.tenantPersonId ?? drawer.initialValues?.unitId ?? drawer.initialValues?.propertyId ?? "new"}`;
-  }
-
-  return `edit-${drawer.lease.id}`;
-}
-
-function getLeaseDrawerTitle(drawer: DrawerState) {
-  if (drawer.mode === "create") {
-    if (drawer.intent === "fill-vacancy") {
-      return "Fill vacancy";
-    }
-
-    return "Add lease";
-  }
-
-  if (drawer.mode === "edit") {
-    return "Edit lease";
-  }
-
-  if (drawer.mode === "restore") {
-    return "Restore unavailable";
-  }
-
-  return "Archive lease";
-}
-
-function getLeaseDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "create") {
-    if (drawer.intent === "fill-vacancy") {
-      return "Create a draft lease for the selected unit.";
-    }
-
-    return "Set the tenant, dates, unit, rent, and deposit.";
-  }
-
-  if (drawer.mode === "edit") {
-    return "Update authoritative term, policy, and safe Lease metadata. Relationship, occupancy, and lifecycle changes stay locked.";
-  }
-
-  if (drawer.mode === "restore") {
-    return "Restore requires checked relationship, occupancy, and dependency review.";
-  }
-
-  return "Hide this lease from active operational views without deleting its history.";
 }
 
 type LeaseReviewContext = {

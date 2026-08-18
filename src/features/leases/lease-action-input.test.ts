@@ -21,6 +21,16 @@ const invalidNumericCases = [
 ] as const;
 
 describe("lease action input", () => {
+  it("accepts deterministic PostgreSQL fixture identifiers for a future rent term", () => {
+    const result = parseFutureRentTermInput({
+      ...validFutureTerm,
+      leaseId: "30000000-0000-0000-0000-000000000001",
+      supersedesTermId: "70000000-0000-0000-0000-000000000001",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it.each(invalidNumericCases)(
     "rejects an invalid %s before numeric coercion",
     (field, value, message) => {

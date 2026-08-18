@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAssetPhotoAction } from "@/features/photos/actions";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 type PropertyFieldErrors = {
   acquisitionDate?: string[];
@@ -19,6 +20,8 @@ type PropertyFieldErrors = {
   photo?: string[];
   propertyId?: string[];
   propertyType?: string[];
+  registeredDate?: string[];
+  rentalStructure?: string[];
   status?: string[];
 };
 
@@ -34,12 +37,12 @@ const propertyStatusSchema = z.enum([
   "under_renovation",
   "inactive",
 ]);
-const postgresUuidSchema = z.guid();
+const ownerPersonIdSchema = postgresUuid("Choose a valid owner person.");
 const optionalUuidSchema = z
   .string()
   .trim()
   .refine(
-    (value) => value === "" || postgresUuidSchema.safeParse(value).success,
+    (value) => value === "" || ownerPersonIdSchema.safeParse(value).success,
     {
       message: "Choose a valid owner person.",
     },
@@ -59,6 +62,67 @@ const optionalOwnershipPercentSchema = z
     (value) => value === "" || isValidOwnershipPercent(value),
     "Enter a share greater than 0 and no more than 100 with up to 3 decimals.",
   );
+
+// The database rejects a partial owner/start-date/share trio.
+function ownershipTrioRefinement(
+  value: {
+    ownerPersonId: string;
+    ownerStartedOn: string;
+    ownershipPercent: string;
+  },
+  context: z.RefinementCtx,
+) {
+  if (value.ownerPersonId) {
+    if (!value.ownerStartedOn) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the ownership start date.",
+        path: ["ownerStartedOn"],
+      });
+    }
+
+    if (!value.ownershipPercent) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the ownership share.",
+        path: ["ownershipPercent"],
+      });
+    }
+  } else if (value.ownerStartedOn || value.ownershipPercent) {
+    context.addIssue({
+      code: "custom",
+      message: "Choose an owner for these ownership details.",
+      path: ["ownerPersonId"],
+    });
+  }
+}
+
+const propertyCreateSchema = z
+  .object({
+  address: z.string().trim().max(240, "Keep the address under 240 characters."),
+  code: z.string().trim().max(24, "Keep the code under 24 characters."),
+  idempotencyKey: z.string().trim().min(8).max(200),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter a property name.")
+    .max(120, "Keep the name under 120 characters."),
+  ownerPersonId: optionalUuidSchema,
+  ownerStartedOn: optionalDateSchema,
+  ownershipPercent: optionalOwnershipPercentSchema,
+  propertyType: z
+    .string()
+    .trim()
+    .min(1, "Enter a property type.")
+    .max(80, "Keep the type under 80 characters."),
+  registeredDate: z
+    .string()
+    .trim()
+    .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), {
+      message: "Enter a valid registered date.",
+    }),
+  })
+  .superRefine(ownershipTrioRefinement);
 
 const propertyMutationSchema = z
   .object({
@@ -89,35 +153,18 @@ const propertyMutationSchema = z
     .trim()
     .min(1, "Enter a property type.")
     .max(80, "Keep the type under 80 characters."),
+  registeredDate: z
+    .string()
+    .trim()
+    .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), {
+      message: "Enter a valid registered date.",
+    }),
   status: propertyStatusSchema,
   })
-  .superRefine((value, context) => {
-    if (value.ownerPersonId) {
-      if (!value.ownerStartedOn) {
-        context.addIssue({
-          code: "custom",
-          message: "Enter the ownership start date.",
-          path: ["ownerStartedOn"],
-        });
-      }
+  .superRefine(ownershipTrioRefinement);
 
-      if (!value.ownershipPercent) {
-        context.addIssue({
-          code: "custom",
-          message: "Enter the ownership share.",
-          path: ["ownershipPercent"],
-        });
-      }
-    } else if (value.ownerStartedOn || value.ownershipPercent) {
-      context.addIssue({
-        code: "custom",
-        message: "Choose an owner for these ownership details.",
-        path: ["ownerPersonId"],
-      });
-    }
-  });
-
-const propertyIdSchema = z.guid("Choose a property.");
+const propertyIdSchema = postgresUuid("Choose a property.");
+const propertyRentalStructureSchema = z.enum(["single_space", "multi_unit"]);
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -136,7 +183,22 @@ function readPropertyMutationInput(formData: FormData) {
     ownerStartedOn: readString(formData, "ownerStartedOn"),
     ownershipPercent: readString(formData, "ownershipPercent"),
     propertyType: readString(formData, "propertyType"),
+    registeredDate: readString(formData, "registeredDate"),
     status: readString(formData, "status"),
+  };
+}
+
+function readPropertyCreateInput(formData: FormData) {
+  return {
+    address: readString(formData, "address"),
+    code: readString(formData, "code"),
+    idempotencyKey: readString(formData, "idempotencyKey"),
+    name: readString(formData, "name"),
+    ownerPersonId: readString(formData, "ownerPersonId"),
+    ownerStartedOn: readString(formData, "ownerStartedOn"),
+    ownershipPercent: readString(formData, "ownershipPercent"),
+    propertyType: readString(formData, "propertyType"),
+    registeredDate: readString(formData, "registeredDate"),
   };
 }
 
@@ -174,9 +236,7 @@ export async function createPropertyAction(
   formData: FormData,
 ): Promise<PropertyActionState> {
   const context = await requireSuperAdminContext();
-  const parsed = propertyMutationSchema.safeParse(
-    readPropertyMutationInput(formData),
-  );
+  const parsed = propertyCreateSchema.safeParse(readPropertyCreateInput(formData));
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
@@ -192,19 +252,22 @@ export async function createPropertyAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: propertyId, error } = await supabase.rpc("create_property", {
-    p_acquisition_date: nullableString(parsed.data.acquisitionDate),
+  const { data: propertyId, error } = await supabase.rpc("create_property_minimal", {
     p_address: nullableString(parsed.data.address),
-    p_code: parsed.data.code,
+    p_code: nullableString(parsed.data.code),
+    p_idempotency_key: parsed.data.idempotencyKey,
     p_name: parsed.data.name,
-    p_notes: nullableString(parsed.data.notes),
     p_organization_id: context.organizationId,
-    p_owner: nullableString(parsed.data.owner),
-    p_owner_ownership_percent: nullableString(parsed.data.ownershipPercent),
-    p_owner_person_id: nullableString(parsed.data.ownerPersonId),
-    p_owner_started_on: nullableString(parsed.data.ownerStartedOn),
     p_property_type: parsed.data.propertyType,
-    p_status: parsed.data.status,
+    p_registered_date: nullableString(parsed.data.registeredDate),
+    // Ownership travels only when a guided surface collected it.
+    ...(parsed.data.ownerPersonId
+      ? {
+          p_owner_ownership_percent: parsed.data.ownershipPercent,
+          p_owner_person_id: parsed.data.ownerPersonId,
+          p_owner_started_on: parsed.data.ownerStartedOn,
+        }
+      : {}),
   });
 
   if (error) {
@@ -270,7 +333,7 @@ export async function updatePropertyAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("update_property", {
+  const { error } = await supabase.rpc("update_property_details", {
     p_acquisition_date: nullableString(parsed.data.acquisitionDate),
     p_address: nullableString(parsed.data.address),
     p_code: parsed.data.code,
@@ -283,6 +346,7 @@ export async function updatePropertyAction(
     p_owner_started_on: nullableString(parsed.data.ownerStartedOn),
     p_property_id: parsedPropertyId.data,
     p_property_type: parsed.data.propertyType,
+    p_registered_date: nullableString(parsed.data.registeredDate),
     p_status: parsed.data.status,
   });
 
@@ -309,6 +373,56 @@ export async function updatePropertyAction(
     message: photoState
       ? "Property updated and photo uploaded."
       : "Property updated.",
+    propertyId: parsedPropertyId.data,
+    status: "success",
+  };
+}
+
+export async function setPropertyRentalStructureAction(
+  _state: PropertyActionState,
+  formData: FormData,
+): Promise<PropertyActionState> {
+  const parsedPropertyId = propertyIdSchema.safeParse(
+    readString(formData, "propertyId"),
+  );
+  const parsedStructure = propertyRentalStructureSchema.safeParse(
+    readString(formData, "rentalStructure"),
+  );
+
+  if (!parsedPropertyId.success) {
+    return {
+      fieldErrors: { propertyId: ["Choose a property."] },
+      status: "error",
+    };
+  }
+  if (!parsedStructure.success) {
+    return {
+      fieldErrors: { rentalStructure: ["Choose how this property is rented."] },
+      status: "error",
+    };
+  }
+
+  const context = await requireSuperAdminContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("set_property_rental_structure", {
+    p_organization_id: context.organizationId,
+    p_property_id: parsedPropertyId.data,
+    p_rental_structure: parsedStructure.data,
+  });
+
+  if (error) {
+    return {
+      message: propertyRentalStructureErrorMessage(error.message),
+      status: "error",
+    };
+  }
+
+  revalidatePropertyPaths(parsedPropertyId.data);
+  return {
+    message:
+      parsedStructure.data === "single_space"
+        ? "Whole-property leasing is ready."
+        : "Unit setup is ready.",
     propertyId: parsedPropertyId.data,
     status: "success",
   };
@@ -468,6 +582,20 @@ function propertyActionErrorMessage(message: string) {
   }
 
   return "We could not save the property. Please check the fields and try again.";
+}
+
+function propertyRentalStructureErrorMessage(message: string) {
+  if (message.includes("has_units") || message.includes("active Units")) {
+    return "Archive or move active units before changing how this property is rented.";
+  }
+  if (message.includes("has_unit_leases")) {
+    return "Archive the unit leases before changing how this property is rented.";
+  }
+  if (message.includes("has_property_lease")) {
+    return "Archive the whole-property lease before changing how this property is rented.";
+  }
+
+  return "We could not change how this property is rented.";
 }
 
 function isValidOwnershipPercent(value: string) {

@@ -17,6 +17,8 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { DocumentForm } from "@/features/documents/components/document-screen";
+import { LeaseForm } from "@/features/leases/components/lease-form";
+import type { LeaseTenantOption } from "@/features/leases/lease.types";
 import {
   ArchivePropertyPanel,
   RestorePropertyPanel,
@@ -31,6 +33,7 @@ import { UnitForm } from "@/features/units/components/unit-form";
 type DrawerState =
   | { mode: "edit"; property: PropertyDetail }
   | { mode: "create-unit"; property: PropertyDetail }
+  | { mode: "create-lease"; property: PropertyDetail }
   | { mode: "create-document"; property: PropertyDetail };
 
 type ConfirmationState = {
@@ -42,15 +45,18 @@ type PropertyDetailScreenProps = {
   initialSection?: Exclude<PropertyRecordSection, "account">;
   ownerOptions: PropertyOwnerOption[];
   property: PropertyDetail;
+  tenantOptions: LeaseTenantOption[];
 };
 
 export function PropertyDetailScreen({
   initialSection = "overview",
   ownerOptions,
   property,
+  tenantOptions,
 }: PropertyDetailScreenProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
+  const [ownerAssignmentOpen, setOwnerAssignmentOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const confirmationTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -159,12 +165,19 @@ export function PropertyDetailScreen({
           setStatusMessage(null);
           setDrawer({ mode: "create-unit", property });
         }}
+        onAssignOwner={() => {
+          setStatusMessage(null);
+          setOwnerAssignmentOpen(true);
+        }}
+        onCreateLease={() => {
+          setStatusMessage(null);
+          setDrawer({ mode: "create-lease", property });
+        }}
         property={property}
       />
 
       {drawer ? (
         <SideDrawer
-          description={getPropertyDrawerDescription(drawer)}
           onClose={() => setDrawer(null)}
           open
           title={getPropertyDrawerTitle(drawer)}
@@ -178,6 +191,22 @@ export function PropertyDetailScreen({
               properties={[
                 { id: drawer.property.id, label: drawer.property.name },
               ]}
+            />
+          ) : drawer.mode === "create-lease" ? (
+            <LeaseForm
+              createContext={{
+                propertyId: drawer.property.id,
+                propertyLabel: drawer.property.name,
+                unitId: null,
+                unitLabel: null,
+              }}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+              properties={[
+                { id: drawer.property.id, label: drawer.property.name },
+              ]}
+              tenants={tenantOptions}
+              units={[]}
             />
           ) : drawer.mode === "create-document" ? (
             <DocumentForm
@@ -213,6 +242,23 @@ export function PropertyDetailScreen({
         </SideDrawer>
       ) : null}
 
+      {ownerAssignmentOpen ? (
+        <Modal
+          onClose={() => setOwnerAssignmentOpen(false)}
+          open
+          title="Assign owner"
+        >
+          <PropertyForm
+            mode="edit"
+            onClose={() => setOwnerAssignmentOpen(false)}
+            onSuccess={setStatusMessage}
+            ownerOptions={ownerOptions}
+            property={property}
+            scope="owner"
+          />
+        </Modal>
+      ) : null}
+
       {confirmation ? (
         <Modal
           onClose={closeConfirmation}
@@ -240,21 +286,14 @@ export function PropertyDetailScreen({
     </div>
   );
 }
-
 function getPropertyDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "create-unit") {
     return "Add unit";
   }
 
-  return drawer.mode === "create-document" ? "Upload document" : "Edit property";
-}
-
-function getPropertyDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "create-unit") {
-    return `Add a unit to ${drawer.property.name}.`;
+  if (drawer.mode === "create-lease") {
+    return "Create lease";
   }
 
-  return drawer.mode === "create-document"
-    ? undefined
-    : "Update the property profile used by units, owners, timeline, and ledger rows.";
+  return drawer.mode === "create-document" ? "Upload document" : "Edit property";
 }

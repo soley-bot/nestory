@@ -20,6 +20,8 @@ import {
 import { LeaseDetailView } from "@/features/leases/components/lease-detail-view";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import {
+  cancelLeaseActivationAction,
+  scheduleLeaseActivationAction,
   scheduleFutureRentTermAction,
   transitionLeaseLifecycleAction,
   type LeaseActionState,
@@ -33,14 +35,12 @@ import type {
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
+import { formatDate } from "@/lib/dates/format";
 
 type LeaseTransition = "activate" | "end" | "give_notice" | "terminate";
 type LeaseTermChange = "renewal" | "rent_change";
 
-type DrawerState =
-  | { mode: "archive" }
-  | { mode: "edit" }
-  | { mode: "restore" };
+type DrawerState = { mode: "archive" } | { mode: "edit" } | { mode: "restore" };
 
 const initialActionState: LeaseActionState = {};
 
@@ -66,10 +66,13 @@ export function LeaseDetailScreen({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const currentOccupancy =
-    lease.occupancies.find((occupancy) => occupancy.evidenceState === "accepted") ??
+    lease.occupancies.find(
+      (occupancy) => occupancy.evidenceState === "accepted",
+    ) ??
     lease.occupancies[0] ??
     null;
-  const activeTerm = lease.terms.find((term) => term.status === "active") ?? null;
+  const activeTerm =
+    lease.terms.find((term) => term.status === "active") ?? null;
 
   const openDrawer = (nextDrawer: DrawerState) => {
     setStatusMessage(null);
@@ -80,23 +83,58 @@ export function LeaseDetailScreen({
     <div className="lg:flex lg:flex-col">
       <PageHeader
         actions={
-          canConfigure ? lease.isArchived ? (
-            <Button onClick={() => openDrawer({ mode: "restore" })} variant="default">
-              <RotateCcw aria-hidden size={15} /> Restore
-            </Button>
-          ) : (
-            <>
-              <Button onClick={() => openDrawer({ mode: "edit" })} variant="default">
-                <Pencil aria-hidden size={15} /> Edit lease
+          canConfigure ? (
+            lease.isArchived ? (
+              <Button
+                onClick={() => openDrawer({ mode: "restore" })}
+                variant="default"
+              >
+                <RotateCcw aria-hidden size={15} /> Restore
               </Button>
-              <Button onClick={() => openDrawer({ mode: "archive" })} variant="outline">
+            ) : lease.statusValue === "draft" ? (
+              <>
+                <Button
+                  onClick={() => openDrawer({ mode: "edit" })}
+                  variant="default"
+                >
+                  <Pencil aria-hidden size={15} /> Edit draft
+                </Button>
+                <Button
+                  onClick={() => openDrawer({ mode: "archive" })}
+                  variant="outline"
+                >
+                  <Archive aria-hidden size={15} /> Archive
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => openDrawer({ mode: "archive" })}
+                variant="outline"
+              >
                 <Archive aria-hidden size={15} /> Archive
               </Button>
-            </>
+            )
           ) : null
         }
         breadcrumb={
-          <PageBreadcrumb current={lease.tenantName} items={[{ href: "/leases", label: "Leases" }]} />
+          <PageBreadcrumb
+            current={lease.tenantName}
+            items={[
+              { href: "/properties", label: "Properties" },
+              {
+                href: lease.hrefs.property,
+                label: `${lease.propertyCode} — ${lease.propertyName}`,
+              },
+              ...(lease.unitId && lease.hrefs.unit
+                ? [
+                    {
+                      href: lease.hrefs.unit,
+                      label: lease.unitLabel.split(" / ")[0] ?? lease.unitLabel,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         }
         className="pb-3"
         context={
@@ -117,6 +155,13 @@ export function LeaseDetailScreen({
         </div>
       ) : null}
 
+      {lease.activationSchedule ? (
+        <ScheduledActivationNotice
+          lease={lease}
+          onSuccess={setStatusMessage}
+        />
+      ) : null}
+
       <LeaseDetailView
         activeSection={activeSection}
         canConfigure={canConfigure}
@@ -129,7 +174,7 @@ export function LeaseDetailScreen({
           setStatusMessage(null);
           if (!currentOccupancy) {
             setStatusMessage(
-              "Record current occupancy evidence before changing the lease lifecycle.",
+              "Confirm the current resident and move-in before changing the lease.",
             );
             return;
           }
@@ -138,7 +183,9 @@ export function LeaseDetailScreen({
         onScheduleTerm={(mode) => {
           setStatusMessage(null);
           if (!activeTerm) {
-            setStatusMessage("An active rent term is required before scheduling a change.");
+            setStatusMessage(
+              "Add a current rent schedule before changing rent or renewing the lease.",
+            );
             return;
           }
           setTermChange(mode);
@@ -180,7 +227,18 @@ export function LeaseDetailScreen({
       ) : null}
 
       {transition && currentOccupancy ? (
-        <LeaseTransitionModal
+        transition === "activate" ? (
+          <LeaseActivationModal
+            lease={lease}
+            occupancyId={currentOccupancy.id}
+            onClose={() => setTransition(null)}
+            onSuccess={(message) => {
+              setStatusMessage(message);
+              setTransition(null);
+            }}
+          />
+        ) : (
+          <LeaseTransitionModal
           lease={lease}
           occupancyId={currentOccupancy.id}
           onClose={() => setTransition(null)}
@@ -189,7 +247,8 @@ export function LeaseDetailScreen({
             setTransition(null);
           }}
           transition={transition}
-        />
+          />
+        )
       ) : null}
 
       {termChange && activeTerm ? (
@@ -206,7 +265,11 @@ export function LeaseDetailScreen({
       ) : null}
 
       {uploadOpen ? (
-        <Modal onClose={() => setUploadOpen(false)} open title="Upload lease file">
+        <Modal
+          onClose={() => setUploadOpen(false)}
+          open
+          title="Upload lease file"
+        >
           <DocumentForm
             fixedPropertyId={lease.formValues.propertyId}
             fixedUnitId={lease.formValues.unitId ?? undefined}
@@ -253,21 +316,22 @@ function LeaseTermModal({
     () => `lease-term:${lease.id}:${mode}:${crypto.randomUUID()}`,
   );
   const defaults = getTermChangeDefaults(mode, term);
-  const copy = mode === "renewal"
-    ? {
-        endDateLabel: "Renewal end date",
-        startDateLabel: "Renewal start date",
-        submitLabel: "Renew lease",
-        successMessage: "Lease renewal scheduled.",
-        title: "Renew lease",
-      }
-    : {
-        endDateLabel: "Term end date",
-        startDateLabel: "Effective date",
-        submitLabel: "Schedule rent change",
-        successMessage: "Rent change scheduled.",
-        title: "Schedule rent change",
-      };
+  const copy =
+    mode === "renewal"
+      ? {
+          endDateLabel: "Renewal end date",
+          startDateLabel: "Renewal start date",
+          submitLabel: "Renew lease",
+          successMessage: "Lease renewal scheduled.",
+          title: "Renew lease",
+        }
+      : {
+          endDateLabel: "Term end date",
+          startDateLabel: "Effective date",
+          submitLabel: "Change rent",
+          successMessage: "Rent change scheduled.",
+          title: "Change rent",
+        };
 
   useEffect(() => {
     if (state.status !== "success") return;
@@ -277,10 +341,18 @@ function LeaseTermModal({
 
   return (
     <Modal onClose={onClose} open title={copy.title}>
-      <form action={formAction} className="space-y-4 p-4">
+      <form action={formAction} className="space-y-5 p-4">
         <input name="leaseId" type="hidden" value={lease.id} />
         <input name="supersedesTermId" type="hidden" value={term.id} />
         <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+
+
+        <div className="border-l-2 border-foreground pl-3">
+          <p className="font-medium text-foreground">{lease.tenantName}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {lease.propertyName} / {lease.unitLabel}
+          </p>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1.5 text-sm font-medium">
@@ -303,7 +375,12 @@ function LeaseTermModal({
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             Rent amount
-            <NumberInput defaultValue={term.rentAmount} min="0" name="rentAmount" required />
+            <NumberInput
+              defaultValue={term.rentAmount}
+              min="0"
+              name="rentAmount"
+              required
+            />
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             Rent due day
@@ -335,7 +412,11 @@ function LeaseTermModal({
 
         {state.message ? (
           <p
-            className={state.status === "error" ? "text-sm text-danger" : "text-sm text-muted-foreground"}
+            className={
+              state.status === "error"
+                ? "text-sm text-danger"
+                : "text-sm text-muted-foreground"
+            }
             role="status"
           >
             {state.message}
@@ -343,7 +424,9 @@ function LeaseTermModal({
         ) : null}
 
         <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button onClick={onClose} type="button" variant="ghost">Cancel</Button>
+          <Button onClick={onClose} type="button" variant="ghost">
+            Cancel
+          </Button>
           <Button disabled={pending} type="submit">
             {pending ? "Saving..." : copy.submitLabel}
           </Button>
@@ -356,13 +439,15 @@ function LeaseTermModal({
 function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "archive") return "Archive lease";
   if (drawer.mode === "restore") return "Restore lease";
-  return "Edit lease";
+  return "Edit draft";
 }
 
 function getDrawerDescription(drawer: DrawerState) {
-  if (drawer.mode === "archive") return "Archive this record without deleting its history.";
-  if (drawer.mode === "restore") return "Review whether this lease can return to active views.";
-  return "Update the lease terms, rent, or deposit.";
+  if (drawer.mode === "archive")
+    return "Archive this record without deleting its history.";
+  if (drawer.mode === "restore")
+    return "Review whether this lease can return to active views.";
+  return "Update the draft period, rent, or deposit before activation.";
 }
 
 function LeaseTransitionModal({
@@ -430,8 +515,9 @@ function LeaseTransitionModal({
         )}
 
         <label className="grid gap-1.5 text-sm font-medium">
-          Evidence note
+          Reason or note
           <textarea
+            aria-label="Reason or note"
             className="min-h-24 resize-y rounded-md border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
             name="reason"
             required
@@ -458,6 +544,152 @@ function LeaseTransitionModal({
   );
 }
 
+function ScheduledActivationNotice({
+  lease,
+  onSuccess,
+}: {
+  lease: LeaseSummary;
+  onSuccess: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    cancelLeaseActivationAction,
+    initialActionState,
+  );
+  const schedule = lease.activationSchedule;
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+    onSuccess(state.message ?? "Scheduled activation cancelled.");
+    router.refresh();
+  }, [onSuccess, router, state.message, state.status]);
+
+  if (!schedule) return null;
+  return (
+    <div className="workspace-gutter-x pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border py-3">
+        <div>
+          <p className="text-sm font-medium">
+            {schedule.status === "pending"
+              ? `Activation scheduled for ${formatDate(schedule.activationDate)}`
+              : "Scheduled activation needs attention"}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {schedule.status === "pending"
+              ? "The Lease stays Draft until that date."
+              : schedule.failureMessage ?? "Review the Lease and activate it again."}
+          </p>
+        </div>
+        {schedule.status === "pending" ? (
+          <form action={action}>
+            <input name="leaseId" type="hidden" value={lease.id} />
+            <input name="scheduleId" type="hidden" value={schedule.id} />
+            <Button disabled={pending} type="submit" variant="outline">
+              {pending ? "Cancelling..." : "Cancel scheduled activation"}
+            </Button>
+          </form>
+        ) : null}
+      </div>
+      {state.status === "error" && state.message ? (
+        <p className="mt-2 text-sm text-danger" role="alert">
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function LeaseActivationModal({
+  lease,
+  occupancyId,
+  onClose,
+  onSuccess,
+}: {
+  lease: LeaseSummary;
+  occupancyId: string;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(
+    scheduleLeaseActivationAction,
+    initialActionState,
+  );
+  const today = getBusinessDateValue();
+  const [activationMode, setActivationMode] = useState("today");
+  const [idempotencyKey] = useState(
+    () => `lease-activation:${lease.id}:${crypto.randomUUID()}`,
+  );
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+    onSuccess(state.message ?? "Lease activation saved.");
+    router.refresh();
+  }, [onSuccess, router, state.message, state.status]);
+
+  return (
+    <Modal onClose={onClose} open title="Activate lease">
+      <form action={formAction} className="space-y-5 p-4">
+        <input name="leaseId" type="hidden" value={lease.id} />
+        <input name="expectedStatus" type="hidden" value="draft" />
+        <input name="expectedOccupancyId" type="hidden" value={occupancyId} />
+        <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+
+
+        <div className="border-l-2 border-foreground pl-3">
+          <p className="font-medium text-foreground">{lease.tenantName}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {lease.propertyName} / {lease.unitLabel}
+          </p>
+        </div>
+
+        <label className="grid gap-1.5 text-sm font-medium">
+          Activation timing
+          <SelectControl
+            ariaLabel="Activation timing"
+            onValueChange={setActivationMode}
+            options={[
+              { label: "Activate today", value: "today" },
+              { label: "Activate on date", value: "scheduled" },
+            ]}
+            value={activationMode}
+          />
+        </label>
+
+        {activationMode === "scheduled" ? (
+          <div className="grid gap-1.5 text-sm font-medium">
+            <span>Activation date</span>
+            <DatePickerField
+              ariaLabel="Activation date"
+              defaultValue={today}
+              name="activationDate"
+              required
+            />
+            <FieldError errors={state.fieldErrors?.activationDate} />
+          </div>
+        ) : (
+          <input name="activationDate" type="hidden" value={today} />
+        )}
+
+        {state.status === "error" && state.message ? (
+          <p className="text-sm text-danger" role="alert">
+            {state.message}
+          </p>
+        ) : null}
+
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <Button onClick={onClose} type="button" variant="ghost">
+            Cancel
+          </Button>
+          <Button disabled={pending} type="submit">
+            {pending ? "Saving..." : "Activate lease"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function FieldError({ errors }: { errors?: string[] }) {
   return errors?.length ? (
     <span className="text-xs font-normal text-danger">{errors[0]}</span>
@@ -476,10 +708,10 @@ function getTransitionCopy(transition: LeaseTransition) {
 
   if (transition === "give_notice") {
     return {
-        effectiveDateLabel: "Notice date",
-        submitLabel: "Record notice",
-        successMessage: "Notice recorded.",
-        title: "Record notice",
+      effectiveDateLabel: "Notice date",
+      submitLabel: "Record notice",
+      successMessage: "Notice recorded.",
+      title: "Record notice",
     };
   }
 

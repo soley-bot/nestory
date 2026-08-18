@@ -363,8 +363,14 @@ describe("shared workspace anatomy", () => {
     const breadcrumb = within(pageTools).getByRole("navigation", {
       name: "Breadcrumb",
     });
-    expect(within(breadcrumb).getByRole("link", { name: "Leases" })).toBeTruthy();
-    expect(within(breadcrumb).getByText("24 records")).toBeTruthy();
+    expect(
+      within(breadcrumb).getByRole("link", { name: "Workspace" }).getAttribute("href"),
+    ).toBe("/overview");
+    expect(within(breadcrumb).getByText("Leases").getAttribute("aria-current")).toBe(
+      "page",
+    );
+    expect(within(breadcrumb).queryByText("24 records")).toBeNull();
+    expect(screen.getByText("24 records")).toBeTruthy();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
 
     const heading = screen.getByRole("heading", { level: 1, name: "Leases" });

@@ -60,29 +60,32 @@ export function PeopleTable({
       </div>
 
       {displayMode === "table" ? (
-        <div className="hidden min-w-0 md:block" data-slot="people-table-frame">
+        <div
+          className="workspace-gutter-x hidden min-w-0 px-4 sm:px-6 md:block 2xl:px-8"
+          data-slot="people-table-frame"
+        >
           <div
             aria-label="People table"
             className="overflow-x-auto"
             role="region"
           >
-            <table className="w-full min-w-[840px] table-fixed border-collapse text-left text-sm">
+            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-sm">
               {isRoleScoped ? (
                 <colgroup>
-                  <col className="w-[22%]" />
-                  <col className="w-[22%]" />
-                  <col className="w-[14%]" />
                   <col className="w-[24%]" />
-                  <col className="w-[18%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[29%]" />
+                  <col className="w-[10%]" />
                 </colgroup>
               ) : (
                 <colgroup>
                   <col className="w-[22%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[22%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[20%]" />
                   <col className="w-[10%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[26%]" />
+                  <col className="w-[8%]" />
                 </colgroup>
               )}
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
@@ -136,7 +139,7 @@ export function PeopleTable({
                       key={person.id}
                     >
                       <td className="px-2.5 py-2">
-                        <div className="min-w-0">
+                        <div className="min-w-0 max-w-[16rem]">
                           <Link
                             className="block truncate rounded-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             href={`/people/${person.id}`}
@@ -161,13 +164,13 @@ export function PeopleTable({
                           <RoleBadges roles={person.roles} />
                         </td>
                       )}
-                      <td className="px-2 py-2">
+                      <td className="max-w-[18rem] px-2 py-2">
                         <EmailCell person={person} />
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="w-px whitespace-nowrap px-2 py-2">
                         <PhoneCell person={person} />
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="max-w-[20rem] px-2 py-2">
                         <ContextCell
                           person={person}
                           roleContext={roleContext}

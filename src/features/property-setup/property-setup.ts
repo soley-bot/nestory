@@ -4,6 +4,7 @@ import type {
   PropertySetupStep,
 } from "@/features/property-setup/property-setup.types";
 
+
 export function findOpenLeaseForUnit(
   leases: PropertySetupData["leases"],
   selection: PropertySetupSelection,
@@ -17,22 +18,73 @@ export function findOpenLeaseForUnit(
   );
 }
 
+export function getSelectableSetupTenants(
+  leases: PropertySetupData["leases"],
+  tenants: PropertySetupData["tenants"],
+  selection: PropertySetupSelection,
+) {
+  return tenants.filter((tenant) =>
+    leases.every(
+      (lease) =>
+        lease.tenantPersonId !== tenant.id ||
+        (lease.propertyId === selection.propertyId &&
+          lease.unitId === selection.unitId),
+    ),
+  );
+}
+
+export function getSetupUnitStatusLabel(
+  unitId: string,
+  fallback: string,
+  leases: PropertySetupData["leases"],
+) {
+  return leases.some((lease) => lease.unitId === unitId) ? "open lease" : fallback;
+}
+
+/** A `single_space` property is leased whole, with `leases.unit_id` null. */
+export function propertySetupRequiresUnit(
+  properties: PropertySetupData["properties"],
+  selection: PropertySetupSelection,
+) {
+  if (!selection.propertyId) return true;
+
+  const property = properties.find(
+    (candidate) => candidate.id === selection.propertyId,
+  );
+
+  return property?.rentalStructure !== "single_space";
+}
+
+export function shouldLoadPropertySetupReadiness(
+  selection: PropertySetupSelection,
+): boolean {
+  return Boolean(selection.propertyId && selection.leaseId);
+}
+
 export function getHighestPropertySetupStep(
   selection: PropertySetupSelection,
+  {
+    ready = false,
+    requiresUnit = true,
+  }: { ready?: boolean; requiresUnit?: boolean } = {},
 ): PropertySetupStep {
   if (!selection.ownerId) return 1;
   if (!selection.propertyId) return 2;
-  if (!selection.unitId) return 3;
-  if (!selection.leaseId) return 4;
-  return 5;
+  if (requiresUnit && !selection.unitId) return 2;
+  if (!selection.leaseId) return 3;
+  return ready ? 5 : 4;
 }
 
 export function normalizePropertySetupStep(
   requestedStep: number,
   selection: PropertySetupSelection,
+  options: { ready?: boolean; requiresUnit?: boolean } = {},
 ) {
   const safeStep = Math.max(1, Math.min(5, requestedStep)) as PropertySetupStep;
-  return Math.min(safeStep, getHighestPropertySetupStep(selection)) as PropertySetupStep;
+  return Math.min(
+    safeStep,
+    getHighestPropertySetupStep(selection, options),
+  ) as PropertySetupStep;
 }
 
 export function buildPropertySetupQuery({

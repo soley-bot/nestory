@@ -1,117 +1,91 @@
-# Finance UX First Slice Design QA
+# Property Overview design QA
 
-Date: 2026-08-03
+## Scope
 
-## Source and scope
+- Route: `http://localhost:3000/properties/f15b6a80-ebd8-5359-9f99-741bd766fe8a`
+- State: authenticated desktop Overview for Soley Apartment
+- Reference: `C:\Users\USer\.codex\generated_images\01a00e0f-14bd-7ea0-a4db-afa998943a7e\exec-553f6bd7-4c1b-47e8-b50b-97e6b277bb85.png`
+- Implementation capture: `C:\Users\USer\.codex\visualizations\2026\08\17\01a00e0f-14bd-7ea0-a4db-afa998943a7e\property-overview-audit\04-property-overview-final.png`
+- Full-view comparison: `C:\Users\USer\.codex\visualizations\2026\08\17\01a00e0f-14bd-7ea0-a4db-afa998943a7e\property-overview-audit\05-property-overview-final-comparison.png`
+- Focused workspace comparison: `C:\Users\USer\.codex\visualizations\2026\08\17\01a00e0f-14bd-7ea0-a4db-afa998943a7e\property-overview-audit\06-property-overview-workspace-comparison.png`
 
-- Accepted source: `C:\Users\USer\.codex\visualizations\2026\08\03\019fc5d0-56c2-7ed1-acea-00d150db0994\wireframes.png`
-- Rendered routes: `/rent-income?month=2026-07` and `/bills-expenses?month=2026-07`
-- Primary viewport: `1440x900`
-- Narrow laptop check: `1280x800`
-- Combined comparison: `C:\Users\USer\.codex\visualizations\2026\08\03\019fc5d0-56c2-7ed1-acea-00d150db0994\finance-design-comparison.png`
+## Viewport normalization
 
-## Comparison result
+- Source image: 1748 x 900 pixels.
+- Browser capture: 1523 x 785 pixels.
+- The source was normalized to the browser capture dimensions before the side-by-side comparison.
+- The focused comparison uses the same 1195 x 510 pixel crop from both normalized images.
 
-The rendered slice matches the accepted structural target:
+## Fidelity review
 
-- the existing Nestory global shell remains intact;
-- Finance uses short horizontal local navigation;
-- Rent and Expenses are full-width list pages with compact inline totals;
-- row detail and write actions use one centered modal instead of a split
-  inspector or side drawer;
-- the payment modal presents only the decision-critical party, balance, date,
-  amount, account, and reference fields;
-- Add expense is split into `Expense details` and `Responsibility and review`
-  so the operator does not face every field at once.
+- Layout: passed. The four-metric strip, 70/30 operational workspace, and activity section follow the approved hierarchy.
+- Equal height: passed. Units and leases and the property card use the same stretched row and minimum height.
+- Property image: passed. The generated fallback is a real 3:2 asset and uses `object-contain`, so the building is not cropped. Uploaded property photos use the same uncropped treatment.
+- CTA semantics: passed. `Review rent` uses warning tokens and is selected when an active lease has no recent income.
+- Evidence priority: passed. Missing optional evidence is not used as the primary Overview action; evidence remains available from Files.
+- Density and hierarchy: passed. Operational records stay table-first with restrained borders, shadow, radius, and semantic color.
+- Responsive behavior: passed by implementation review. The desktop table changes to compact record cards below the medium breakpoint, and the two workspace cards stack below the extra-large breakpoint.
 
-Deliberate differences from the low-fidelity wireframe:
+## Interaction review
 
-- the implementation keeps the current Nestory tokens, dark theme, typography,
-  spacing, and icon library instead of copying the wireframe's presentation;
-- table rows use seeded operational records and the exact existing financial
-  values rather than mock figures;
-- unsupported owner balances, direct-owner rent collection, tenant invoices,
-  management-fee calculation, and markup persistence remain absent;
-- the current expense action still preserves all existing responsibility and
-  recovery fields, but moves secondary fields to step 2.
+- The `Review rent` href contract resolves to the property-scoped Finance route.
+- The property Finance destination loaded with Rent & collections, Record payment, Add charge, Expenses, and Owner account controls.
+- Unit and owner links remain record-specific rather than generic module links.
+- No user-visible runtime error or Next.js error overlay appeared during the authenticated browser capture. The current in-app browser binding did not expose a separate console-errors channel.
 
-## Interaction and layout checks
+## Iterations and findings
 
-- Authenticated seeded data rendered: 8 Rent rows and 5 Expense rows.
-- Row preview opened one accessible detail dialog on both routes.
-- Detail-to-payment transitions kept exactly one dialog open.
-- Closing a write modal returned focus to the initiating preview control in the
-  focused component suites.
-- Expense filters opened and dismissed with Escape.
-- Add expense advanced from step 1 to step 2 and returned with Back.
-- At 1280px, `documentElement` and `body` both reported equal client and scroll
-  widths on Rent and Expenses; there was no document-level horizontal overflow.
-- Browser console warnings/errors after the checked flows: none.
+### Iteration 1
 
-## Verification boundary
+- P2: the initial fallback image was too dark compared with the approved direction.
+- Resolution: replaced it with a daylight, full-building 3:2 ImageGen asset and retained uncropped display behavior.
 
-This is a presentation-only slice. It adds no schema migration and does not
-change loaders, server-action payloads, RPCs, exact-money handling, URLs, or
-financial authority.
+### Iteration 2
 
-final result: passed
+- P0: none.
+- P1: none.
+- P2: none.
+- P3: the fallback building is intentionally project-specific rather than a pixel copy of the concept image; real uploaded property photos take precedence.
 
----
+## Verification
 
-# Property Quick View Screenshot Match Design QA
+- Targeted ESLint passed for the redesigned component and data builder.
+- 20 targeted property-detail tests passed.
+- TypeScript checking is blocked only by an unrelated stale `tmp/pdfs` import that points to a missing worktree path; no property Overview TypeScript error was emitted.
 
-Date: 2026-08-14
+## Properties Register implementation QA
 
-## Source and rendered evidence
+### Scope
 
-- Source visual truth: `C:\Users\USer\AppData\Local\Temp\codex-clipboard-29455783-56c9-459b-a9b7-e712c598eda3.png`
-- Source pixels: `857x624`; the quick-view frame occupies approximately `750x565` pixels inside the source canvas.
-- Dark implementation capture: `C:\Users\USer\AppData\Local\Temp\nestory-property-quick-view-dark.png`
-- Light implementation capture: `C:\Users\USer\AppData\Local\Temp\nestory-property-quick-view-light.png`
-- Implementation pixels and CSS viewport: `1171x783` at browser density `1`; the rendered dialog is constrained to `760px` CSS width.
-- State: authenticated Properties register, Central Residence quick view open, one vacant unit, dark and light semantic themes.
-- Density normalization: the source and implementation were compared at native density. The surrounding canvases differ, so the comparison used the visible dialog frames, which are within 10 pixels of the same width.
+- Route: `http://localhost:3000/properties`
+- State: authenticated desktop table view with the default active-property register.
+- Reference: `C:\Users\USer\.codex\generated_images\01a00e0f-14bd-7ea0-a4db-afa998943a7e\exec-2b1c3b6e-d475-4d81-bf96-9999b5d0b33e.png`
+- Matched implementation capture: `C:\Users\USer\.codex\visualizations\2026\08\17\01a00e0f-14bd-7ea0-a4db-afa998943a7e\properties-register-implemented-1745x900.png`
+- Side-by-side comparison: `C:\Users\USer\.codex\visualizations\2026\08\17\01a00e0f-14bd-7ea0-a4db-afa998943a7e\properties-register-comparison.png`
+- Filter-state capture: `C:\Users\USer\.codex\visualizations\2026\08\17\01a00e0f-14bd-7ea0-a4db-afa998943a7e\properties-register-filters.png`
 
-## Findings
+### Fidelity review
 
-- No actionable P0, P1, or P2 differences remain.
-- Fonts and typography: hierarchy, title weight, KPI scale, secondary labels, and wrapping align with the source while retaining the product font stack.
-- Spacing and layout rhythm: identity header, alert strip, three-card summary, two-column facts, record pills, and anchored footer follow the source order and proportions.
-- Colors and visual tokens: the source hierarchy is preserved with Nestory semantic warning, success, muted, border, and primary tokens in both themes.
-- Image quality and asset fidelity: the source uses an initials tile and standard interface icons; the implementation uses the existing tile treatment and Lucide icons with no placeholder or drawn assets.
-- Copy and content: source structure is matched. Nestory keeps its canonical `USD 1,375.00` money format instead of the mock's suffix format.
+- Layout: passed. The quiet portfolio ribbon, integrated search/view/filter toolbar, and table-first register follow the selected visual hierarchy.
+- Density: passed. The register uses 13px rows, 11px headers, compact controls, restrained borders, and no dashboard-card stack.
+- Operational content: passed. Owner, occupancy, lease health, net, status, and the single row-navigation affordance are visible in one scan.
+- Real-data integrity: passed. Records without an uploaded property photo use an honest initials fallback instead of a misleading repeated stock image.
+- Responsive behavior: passed. The table fits the current desktop workspace without horizontal scrolling and retains the existing card fallback below the medium breakpoint.
 
-## Full-view comparison evidence
+### Interaction review
 
-The reference and latest dark implementation were opened together in one comparison input. Dialog width, section order, card count, alignment, footer placement, and overall density now align visibly. The implementation keeps the underlying register blurred and the modal centered as in the source.
+- The compact filter popover opens from the toolbar without replacing the register context.
+- Lease health supports `All lease states`, `Current lease`, and `Missing current lease`; choosing the missing state updates the URL to `?leaseStatus=missing` and filters the result set.
+- Table/card mode preserves the active lease filter in the URL.
+- Net sorting preserves the active filter and updates the URL with `sort=net_desc`.
+- Clicking a property row navigates directly to that property workspace.
+- Search remains keyboard-submit capable while removing the redundant square search button.
 
-## Focused-region comparison evidence
+### Verification
 
-A separate crop was not required: the identity header, alert, KPI text, progress bar, owner/address facts, record pills, and footer controls were all legible at native resolution in the combined comparison.
-
-## Comparison history
-
-1. First screenshot-matched pass retained the prior `640px` dialog width and a visible programmatic focus ring. This made the frame materially narrower and denser than the source (P2).
-2. The dialog was widened to `760px`, the title, card padding, corner radius, and footer control heights were brought in line with the source, and the nonessential dialog focus ring was removed.
-3. The revised dark capture was compared with the source in the same input. No actionable P0/P1/P2 differences remained. The light capture confirmed the same hierarchy and semantic contrast.
-
-## Interactions and verification
-
-- Property row opens the quick view.
-- Vacancy strip, Units, Leases, Ledger, Timeline, More, Edit, Open property, and Close remain interactive.
-- Light and dark semantic themes were rendered and inspected.
-- The browser showed no Next.js error overlay in either checked state.
-
-## Implementation checklist
-
-- [x] Match the reference frame width and centered modal layout.
-- [x] Match the identity, alert, three-KPI, property-details, record-shortcut, and footer structure.
-- [x] Preserve working record links and actions.
-- [x] Verify light and dark semantic themes.
-- [x] Run focused component tests, property tests, TypeScript, ESLint, and diff checks.
-
-## Follow-up polish
-
-- P3: The primary action color follows the active Nestory theme rather than forcing the reference mock's blue.
+- Targeted ESLint passed for all changed register, filter, data, and test files.
+- 11 targeted property filter and summary tests passed.
+- TypeScript reached only the repository's pre-existing stale `tmp/pdfs` imports; no changed Properties file emitted a TypeScript error.
+- Authenticated browser verification passed for filters, lease-state selection, table/cards persistence, sorting, and row navigation.
 
 final result: passed

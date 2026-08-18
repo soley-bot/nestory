@@ -22,7 +22,7 @@ afterEach(cleanup);
 
 describe("PropertySetupScreen", () => {
   it("steers an occupied unit to its open lease and blocks new lease creation", () => {
-    render(<PropertySetupScreen data={data} step={4} />);
+    render(<PropertySetupScreen data={data} step={3} />);
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(
@@ -36,12 +36,16 @@ describe("PropertySetupScreen", () => {
     ).toBeTruthy();
 
     expect(
-      screen.getByText(/This unit already has an open lease for Existing tenant/),
+      screen.getByText(
+        /This unit already has an open lease for Existing tenant/,
+      ),
     ).toBeTruthy();
     expect(
-      (screen.getByRole("button", {
-        name: "Create new lease",
-      }) as HTMLButtonElement).disabled,
+      (
+        screen.getByRole("button", {
+          name: "Create new lease",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Use existing lease" }));
@@ -50,7 +54,7 @@ describe("PropertySetupScreen", () => {
     const [href, options] = navigation.replace.mock.calls[0]!;
     const url = new URL(href, "http://localhost");
     expect(url.pathname).toBe("/properties/setup");
-    expect(url.searchParams.get("step")).toBe("5");
+    expect(url.searchParams.get("step")).toBe("4");
     expect(url.searchParams.get("leaseId")).toBe("lease-1");
     expect(url.searchParams.get("tenantId")).toBe("tenant-1");
     expect(options).toEqual({ scroll: false });
@@ -91,16 +95,67 @@ describe("PropertySetupScreen", () => {
             unitId: "unit-1",
           },
         }}
+        step={4}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Finish rent setup" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("Setup complete")).toBeNull();
+    expect(screen.getByText("1 required next step")).toBeTruthy();
+    expect(screen.queryByText("Owner roster")).toBeNull();
+    expect(screen.getByText("Billing terms")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: "Complete Billing terms" })
+        .getAttribute("href"),
+    ).toBe("/rent-income?leaseId=lease-1&action=billing");
+    expect(screen.queryByText("2 readiness checks")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Owner" })).toBeNull();
+  });
+
+  it("renders the final review for a whole-property lease without requiring a unit", () => {
+    render(
+      <PropertySetupScreen
+        data={{
+          ...data,
+          leases: [
+            {
+              ...data.leases[0]!,
+              unitId: null,
+            },
+          ],
+          properties: [
+            {
+              ...data.properties[0]!,
+              rentalStructure: "single_space",
+            },
+          ],
+          readiness: null,
+          selection: {
+            leaseId: "lease-1",
+            ownerId: "owner-1",
+            propertyId: "property-1",
+            tenantId: "tenant-1",
+            unitId: null,
+          },
+          units: [],
+        }}
         step={5}
       />,
     );
 
-    expect(screen.queryByText("Setup complete")).toBeNull();
-    expect(screen.getByText("2 readiness checks")).toBeTruthy();
-    expect(screen.getByText("Billing terms")).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "Complete Billing terms" }).getAttribute("href"),
-    ).toBe("/rent-income?leaseId=lease-1&action=billing");
+      screen.getByRole("heading", { level: 2, name: "Rental setup complete" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Whole property")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Unit" })).toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: "Review first rent charge" })
+        .getAttribute("href"),
+    ).toBe("/rent-income?leaseId=lease-1");
   });
 });
 
@@ -132,6 +187,7 @@ const data: PropertySetupData = {
       id: "property-1",
       label: "HOME · Home Residence",
       ownerPersonId: "owner-1",
+      rentalStructure: "multi_unit",
     },
   ],
   selection: {

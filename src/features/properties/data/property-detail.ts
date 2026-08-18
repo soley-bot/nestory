@@ -256,6 +256,7 @@ export type PropertyHealthIndicator = {
 };
 
 export type PropertyNextAction = {
+  intent?: "assign-owner";
   description: string;
   href: string;
   label: string;
@@ -278,6 +279,7 @@ export type PropertyDetail = ReturnType<typeof buildPropertySummary> & {
   notesLabel: string;
   ownerHistory: PropertyOwnerHistory[];
   photos: AssetPhoto[];
+  propertyDraftLease?: PropertyDetailLease;
   recentLedgerEntries: PropertyLedgerContext[];
   recentMaintenanceCases: PropertyMaintenanceContext[];
   recentTimelineEvents: PropertyTimelineContext[];
@@ -318,10 +320,20 @@ export function buildPropertyDetail({
   recordCounts?: Partial<PropertyDetailCounts>;
   units: PropertyDetailUnitRecord[];
 }): PropertyDetail {
+  const currentLeases = activeLeases.filter(isCurrentPropertyLease);
+  const propertyDraftLease =
+    property.rental_structure === "single_space"
+      ? activeLeases.find(
+          (lease) =>
+            !lease.archived_at &&
+            !lease.unit_id &&
+            lease.status.trim().toLowerCase() === "draft",
+        )
+      : undefined;
   const activeUnits = units.filter((unit) => !unit.archived_at);
   const unitsById = indexById(units);
   const activeLeaseByUnitId = new Map(
-    activeLeases
+    currentLeases
       .filter((lease) => lease.unit_id)
       .map((lease) => [lease.unit_id as string, lease]),
   );
@@ -332,6 +344,8 @@ export function buildPropertyDetail({
   ).length;
   const summary = buildPropertySummary({
     activeOwner,
+    currentLeaseCount: currentLeases.length,
+    currentLeaseUnitCount: activeLeaseByUnitId.size,
     hasActiveOwnerLink: Boolean(activeOwner),
     ledgerEntries,
     property,
@@ -363,7 +377,7 @@ export function buildPropertyDetail({
       : [];
   });
   const counts = {
-    activeLeases: recordCounts.activeLeases ?? activeLeases.length,
+    activeLeases: recordCounts.activeLeases ?? currentLeases.length,
     documents: recordCounts.documents ?? documents.length,
     ledgerEntries: recordCounts.ledgerEntries ?? ledgerEntries.length,
     maintenanceCases:
@@ -380,7 +394,7 @@ export function buildPropertyDetail({
 
   return {
     ...summary,
-    activeLeases: activeLeases.map((lease) =>
+    activeLeases: currentLeases.map((lease) =>
       toLeaseContext(lease, unitsById),
     ),
     activeUnitCount: activeUnits.length,
@@ -390,7 +404,7 @@ export function buildPropertyDetail({
     documents: documentContexts,
     financialSummary,
     healthIndicators: buildPropertyHealthIndicators({
-      activeLeases,
+      activeLeases: currentLeases,
       activeUnitCount: activeUnits.length,
       counts,
       financialSummary,
@@ -400,20 +414,21 @@ export function buildPropertyDetail({
     }),
     hrefs,
     monthlyRentDisplay: formatMoneyTotalsDisplay(
-      activeLeases.map((lease) => ({
+      currentLeases.map((lease) => ({
         amount: lease.monthly_rent_amount,
         currency: lease.monthly_rent_currency,
         direction: "income",
       })),
     ),
     nextAction: buildPropertyNextAction({
-      activeLeases,
+      activeLeases: currentLeases,
       activeUnitCount: activeUnits.length,
-      counts,
+      activeUnits,
       financialSummary,
       hasActiveOwnerLink: Boolean(activeOwner),
       hrefs,
       maintenanceCases,
+      propertyDraftLease,
     }),
     notesLabel: property.notes?.trim() || "No operating notes recorded",
     ownerHistory: ownerHistory.map(toOwnerHistory),
@@ -424,6 +439,9 @@ export function buildPropertyDetail({
         : "Property",
     })),
     propertyDocuments,
+    propertyDraftLease: propertyDraftLease
+      ? toPropertyDraftLeaseContext(propertyDraftLease, unitsById)
+      : undefined,
     recentLedgerEntries: recentLedgerEntries.map((entry) =>
       toLedgerContext(entry, unitsById),
     ),
@@ -456,7 +474,7 @@ export function buildPropertyDetailHrefs({
   propertyId: string;
 }): PropertyDetailHrefs {
   return {
-    account: `/properties/${propertyId}/account`,
+    account: `/properties/${propertyId}/finance`,
     addDocument: buildHref("/documents", {
       action: "create",
       category: "Property record",
@@ -646,6 +664,21 @@ function toLeaseContext(
     unitHref: lease.unit_id ? `/units/${lease.unit_id}` : undefined,
     unitLabel: unit ? `Unit ${unit.unit_number}` : "Property-level lease",
   };
+}
+
+function toPropertyDraftLeaseContext(
+  lease: PropertyDetailLeaseRecord,
+  unitsById: Map<string, PropertyDetailUnitRecord>,
+): PropertyDetailLease {
+  return {
+    ...toLeaseContext(lease, unitsById),
+    href: `/leases/${lease.id}`,
+  };
+}
+
+function isCurrentPropertyLease(lease: PropertyDetailLeaseRecord) {
+  const status = lease.status.trim().toLowerCase();
+  return !lease.archived_at && (status === "active" || status === "notice_given");
 }
 
 function toLedgerContext(
@@ -993,24 +1026,36 @@ function buildPropertyHealthIndicators({
 function buildPropertyNextAction({
   activeLeases,
   activeUnitCount,
-  counts,
+  activeUnits,
   financialSummary,
   hasActiveOwnerLink,
   hrefs,
   maintenanceCases,
+  propertyDraftLease,
 }: {
   activeLeases: PropertyDetailLeaseRecord[];
   activeUnitCount: number;
-  counts: PropertyDetailCounts;
+  activeUnits: PropertyDetailUnitRecord[];
   financialSummary: PropertyFinancialSummary;
   hasActiveOwnerLink: boolean;
   hrefs: PropertyDetailHrefs;
   maintenanceCases: PropertyDetailMaintenanceRecord[];
+  propertyDraftLease?: PropertyDetailLeaseRecord;
 }): PropertyNextAction {
+  if (propertyDraftLease) {
+    return {
+      description: `Continue the draft Lease for ${propertyDraftLease.tenant_name} instead of creating a duplicate.`,
+      href: `/leases/${propertyDraftLease.id}`,
+      label: "Continue draft lease",
+      tone: "warning",
+    };
+  }
+
   if (!hasActiveOwnerLink) {
     return {
       description: "Assign a current owner/person link before relying on owner reports.",
       href: hrefs.propertiesList,
+      intent: "assign-owner",
       label: "Assign owner",
       tone: "danger",
     };
@@ -1026,10 +1071,23 @@ function buildPropertyNextAction({
   }
 
   if (activeLeases.length === 0) {
+    const onlyUnit = activeUnits.length === 1 ? activeUnits[0] : null;
+
     return {
-      description: "Create or review leases so occupancy and rent roll are connected.",
-      href: hrefs.addLease,
-      label: "Add lease",
+      description: onlyUnit
+        ? "Continue lease setup inside this unit."
+        : "Choose the unit that needs a lease.",
+      href: onlyUnit ? `/units/${onlyUnit.id}` : hrefs.units,
+      label: onlyUnit ? `Open Unit ${onlyUnit.unit_number}` : "Review units",
+      tone: "warning",
+    };
+  }
+
+  if (financialSummary.incomeUsd <= 0) {
+    return {
+      description: "Review the rent account because the active lease has no recent income.",
+      href: hrefs.account,
+      label: "Review rent",
       tone: "warning",
     };
   }
@@ -1067,15 +1125,6 @@ function buildPropertyNextAction({
         taskId: openCase.id,
       }),
       label: "Review open issue",
-      tone: "warning",
-    };
-  }
-
-  if (counts.documents === 0) {
-    return {
-      description: "Attach ownership, lease, receipt, or inspection evidence to the record.",
-      href: hrefs.addDocument,
-      label: "Attach evidence",
       tone: "warning",
     };
   }

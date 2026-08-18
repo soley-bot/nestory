@@ -5,7 +5,6 @@ import {
 } from "@/features/units/data/units";
 import { parseUnitSearchParams } from "@/features/units/unit.filters";
 import { requireSuperAdminContext } from "@/lib/auth/context";
-import { getUuidSearchParam } from "@/lib/validation/search-params";
 
 type UnitsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -19,13 +18,9 @@ export default async function UnitsPage({ searchParams }: UnitsPageProps) {
     getUnitsScreenData(context.organizationId, viewQuery),
     getUnitPropertyOptions(context.organizationId),
   ]);
-  const initialUnitId = getUuidSearchParam(params.unitId);
-
   return (
     <UnitScreen
       canCreate
-      key={initialUnitId ?? "units"}
-      initialUnitId={initialUnitId}
       pagination={pagination}
       propertyOptions={propertyOptions}
       units={units}

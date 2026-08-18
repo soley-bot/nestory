@@ -1,15 +1,21 @@
 import type { ReactNode } from "react";
 
-import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import {
+  PageBreadcrumb,
+  type BreadcrumbItem,
+} from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 
 type WorkspacePageProps = {
   actions?: ReactNode;
+  breadcrumbCurrent?: ReactNode;
+  breadcrumbItems?: BreadcrumbItem[];
   controlsClassName?: string;
   header?: ReactNode;
   headerClassName?: string;
   localNav?: ReactNode;
   toolbar?: ReactNode;
+  toolbarClassName?: string;
   context?: ReactNode;
   contextHref?: string;
   title?: string;
@@ -18,20 +24,22 @@ type WorkspacePageProps = {
 
 export function WorkspacePage({
   actions,
+  breadcrumbCurrent,
+  breadcrumbItems,
   children,
   controlsClassName,
   context,
-  contextHref,
   header,
   headerClassName,
   localNav,
   title,
   toolbar,
+  toolbarClassName,
 }: WorkspacePageProps) {
-  const breadcrumb = title && contextHref ? (
+  const breadcrumb = title ? (
     <PageBreadcrumb
-      current={context ?? title}
-      items={[{ href: contextHref, label: title }]}
+      current={breadcrumbCurrent ?? title}
+      items={breadcrumbItems ?? [{ href: "/overview", label: "Workspace" }]}
     />
   ) : null;
   const generatedHeader = title ? (
@@ -66,7 +74,7 @@ export function WorkspacePage({
           {toolbar ? (
             <div
               aria-label="Workspace tools"
-              className="workspace-gutter-x min-w-0 py-2 text-sm lg:ml-auto lg:pl-0"
+              className={`workspace-gutter-x min-w-0 py-2 text-sm lg:ml-auto lg:pl-0 ${toolbarClassName ?? ""}`}
               data-slot="workspace-toolbar"
               role="toolbar"
             >

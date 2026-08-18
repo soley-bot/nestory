@@ -5,7 +5,7 @@ import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 const financeDestinations = [
   {
     href: "/finance",
-    label: "Work queue",
+    label: "Portfolio review",
     route: "/finance",
   },
   {
@@ -15,8 +15,7 @@ const financeDestinations = [
   },
   { href: "/bills-expenses", label: "Expenses", route: "/bills-expenses" },
   { href: "/balances", label: "Owner accounts", route: "/balances" },
-  { href: "/petty-cash", label: "Petty cash", route: "/petty-cash" },
-  { href: "/ledger", label: "Ledger", route: "/ledger" },
+  { href: "/finance/advanced", label: "Advanced", route: "/finance/advanced" },
 ] as const;
 
 const financeManagerDestinations = [
@@ -31,6 +30,8 @@ const financeMemberDestinations = [
 
 export type FinanceWorkspaceRoute =
   | (typeof financeDestinations)[number]["route"]
+  | "/ledger"
+  | "/petty-cash"
   | "/reports";
 
 export function FinanceWorkspaceNavigation({

@@ -525,7 +525,7 @@ function PropertyAccountLedger({
         }
         breadcrumb={
           <PageBreadcrumb
-            current="Account"
+            current="Owner account"
             items={[
               { href: "/properties", label: "Properties" },
               { href: `/properties/${propertyId}`, label: propertyLabel },

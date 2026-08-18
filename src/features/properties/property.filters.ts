@@ -1,5 +1,6 @@
 import type {
   PropertyArchiveState,
+  PropertyLeaseStatusFilter,
   PropertyNetStatusFilter,
   PropertyOwnerStatusFilter,
   PropertyReviewFilter,
@@ -26,6 +27,7 @@ export function parsePropertySearchParams(
 ): PropertyViewQuery {
   return {
     archiveState: parseArchiveState(params.archiveState),
+    leaseStatus: parseLeaseStatus(params.leaseStatus),
     netStatus: parseNetStatus(params.netStatus),
     ownerStatus: parseOwnerStatus(params.ownerStatus),
     page: getPositiveIntegerSearchParam(params.page, 1),
@@ -35,6 +37,14 @@ export function parsePropertySearchParams(
     sort: parseSort(params.sort),
     status: parseStatus(params.status),
   };
+}
+
+function parseLeaseStatus(
+  value: string | string[] | undefined,
+): PropertyLeaseStatusFilter {
+  const candidate = getFirstSearchParam(value);
+
+  return candidate === "missing" || candidate === "current" ? candidate : "all";
 }
 
 function parseNetStatus(

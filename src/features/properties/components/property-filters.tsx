@@ -55,6 +55,12 @@ const netFilterOptions = [
   { label: "Negative net income", value: "negative" },
 ] satisfies SelectOption[];
 
+const leaseFilterOptions = [
+  { label: "All lease states", value: "all" },
+  { label: "Current lease", value: "current" },
+  { label: "Missing current lease", value: "missing" },
+] satisfies SelectOption[];
+
 const archiveFilterOptions = [
   { label: "Active records", value: "active" },
   { label: "Archived", value: "archived" },
@@ -151,6 +157,7 @@ export function PropertyFilters({
             onSubmit={handleSearchSubmit}
             placeholder="Search properties..."
             query={query}
+            showSubmitButton={false}
             suggestions={propertySuggestions}
             onSuggestionSelect={(suggestion) => {
               const property = properties.find((item) => item.id === suggestion.id);
@@ -190,7 +197,7 @@ export function PropertyFilters({
               <Popover.Portal>
                 <Popover.Content
                   align="end"
-                  className="z-50 max-h-[min(720px,calc(100vh-8rem))] w-[min(calc(100vw-2rem),520px)] overflow-auto rounded-md border border-border bg-card text-sm shadow-lg"
+                  className="z-50 max-h-[min(640px,calc(100vh-8rem))] w-[min(calc(100vw-2rem),440px)] overflow-auto rounded-md border border-border bg-card text-sm shadow-lg"
                   id="property-advanced-search"
                   side="bottom"
                   sideOffset={6}
@@ -271,7 +278,19 @@ export function PropertyFilters({
                         />
                       </FilterField>
 
-                      <FilterField label="Review queue">
+                      <FilterField label="Lease health">
+                        <SelectControl
+                          ariaLabel="Filter by lease health"
+                          className={compactSelectClassName}
+                          onValueChange={(value) =>
+                            replaceParam("leaseStatus", value, "all")
+                          }
+                          options={leaseFilterOptions}
+                          value={viewQuery.leaseStatus}
+                        />
+                      </FilterField>
+
+                      <FilterField label="Record details">
                         <SelectControl
                           ariaLabel="Filter by review need"
                           className={compactSelectClassName}
@@ -459,6 +478,15 @@ function getActivePropertyFilters(
       label: "Owner",
       param: "ownerStatus",
       value: getOptionLabel(ownerFilterOptions, viewQuery.ownerStatus),
+    });
+  }
+
+  if (viewQuery.leaseStatus !== "all") {
+    filters.push({
+      defaultValue: "all",
+      label: "Lease",
+      param: "leaseStatus",
+      value: getOptionLabel(leaseFilterOptions, viewQuery.leaseStatus),
     });
   }
 

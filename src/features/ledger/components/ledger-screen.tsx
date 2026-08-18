@@ -226,6 +226,7 @@ export function LedgerScreen({
           ) : null}
         </>
       }
+      breadcrumbItems={[{ href: "/finance", label: "Finance" }]}
       context={`${reviewPropertyLabel ?? "All properties"} · ${pagination.totalCount} ${pagination.totalCount === 1 ? "record" : "records"}`}
       contextHref="/ledger"
       localNav={(

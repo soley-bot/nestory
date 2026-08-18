@@ -2,21 +2,20 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import {
   ArrowLeft,
   ArrowRight,
   Building2,
   Check,
-  Home,
   KeyRound,
+  Landmark,
   Plus,
   UserRound,
   UsersRound,
 } from "lucide-react";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Button } from "@/components/ui/button";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { Modal } from "@/components/ui/modal";
 import { SelectControl } from "@/components/ui/select-control";
 import { PersonForm } from "@/features/people/components/person-form";
@@ -24,11 +23,16 @@ import { PersonSelect } from "@/features/people/components/person-select";
 import { PropertyForm } from "@/features/properties/components/property-form";
 import { UnitForm } from "@/features/units/components/unit-form";
 import { LeaseForm } from "@/features/leases/components/lease-form";
+import { activateSetupLeaseAction } from "@/features/property-setup/actions";
+import { initialActivateSetupLeaseState } from "@/features/property-setup/property-setup-state";
 import {
   buildPropertySetupQuery,
   clearPropertySetupSelectionAfter,
   findOpenLeaseForUnit,
   getHighestPropertySetupStep,
+  getSelectableSetupTenants,
+  getSetupUnitStatusLabel,
+  propertySetupRequiresUnit,
 } from "@/features/property-setup/property-setup";
 import type {
   PropertySetupData,
@@ -46,10 +50,10 @@ const steps: Array<{
   step: PropertySetupStep;
 }> = [
   { icon: UserRound, label: "Owner", step: 1 },
-  { icon: Building2, label: "Property", step: 2 },
-  { icon: Home, label: "Unit", step: 3 },
-  { icon: UsersRound, label: "Tenant and lease", step: 4 },
-  { icon: Check, label: "Review", step: 5 },
+  { icon: Building2, label: "Property and space", step: 2 },
+  { icon: UsersRound, label: "Tenant and lease", step: 3 },
+  { icon: Landmark, label: "Rent setup", step: 4 },
+  { icon: Check, label: "Done", step: 5 },
 ];
 
 export function PropertySetupScreen({
@@ -64,13 +68,20 @@ export function PropertySetupScreen({
   const [pending, startTransition] = useTransition();
   const [createModal, setCreateModal] = useState<CreateModal>(null);
   const { selection } = data;
-  const highestStep = getHighestPropertySetupStep(selection);
+  const requiresUnit = propertySetupRequiresUnit(data.properties, selection);
+  const setupReady = data.readiness?.ready !== false;
+  const highestStep = getHighestPropertySetupStep(selection, {
+    ready: setupReady,
+    requiresUnit,
+  });
   const owner = data.owners.find((option) => option.id === selection.ownerId);
   const property = data.properties.find(
     (option) => option.id === selection.propertyId,
   );
   const unit = data.units.find((option) => option.id === selection.unitId);
-  const tenant = data.tenants.find((option) => option.id === selection.tenantId);
+  const tenant = data.tenants.find(
+    (option) => option.id === selection.tenantId,
+  );
   const lease = data.leases.find((option) => option.id === selection.leaseId);
   const propertyOptions = data.properties.filter(
     (option) => option.ownerPersonId === selection.ownerId,
@@ -85,6 +96,11 @@ export function PropertySetupScreen({
       option.tenantPersonId === selection.tenantId,
   );
   const openLeaseForUnit = findOpenLeaseForUnit(data.leases, selection);
+  const tenantOptions = getSelectableSetupTenants(
+    data.leases,
+    data.tenants,
+    selection,
+  );
 
   function navigate(nextSelection: PropertySetupSelection, nextStep = step) {
     const nextParams = buildPropertySetupQuery({
@@ -124,6 +140,7 @@ export function PropertySetupScreen({
           Properties
         </Link>
       }
+      breadcrumbItems={[{ href: "/properties", label: "Properties" }]}
       context={`Step ${step} of 5`}
       contextHref="/properties/setup"
       title="Set up property"
@@ -142,10 +159,10 @@ export function PropertySetupScreen({
                 {steps[step - 1]?.label}
               </p>
               <h2 className="mt-1 text-lg font-semibold text-foreground">
-                {stepTitle(step)}
+                {stepTitle(step, requiresUnit)}
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                {stepDescription(step)}
+                {stepDescription(step, requiresUnit)}
               </p>
             </header>
 
@@ -159,43 +176,50 @@ export function PropertySetupScreen({
                 />
               ) : null}
               {step === 2 ? (
-                <SelectRecordStep
-                  createLabel="Create new property"
-                  emptyCopy="No active properties are linked to this owner yet."
-                  label="Property"
-                  onCreate={() => setCreateModal("property")}
-                  onSelect={(id) => changeSelection("propertyId", id || null)}
-                  options={propertyOptions.map((option) => ({
-                    label: option.label,
-                    value: option.id,
-                  }))}
-                  placeholder="Choose property"
-                  value={selection.propertyId ?? ""}
-                />
+                <div className="space-y-5">
+                  <SelectRecordStep
+                    createLabel="Create new property"
+                    emptyCopy="No active properties are linked to this owner yet."
+                    label="Property"
+                    onCreate={() => setCreateModal("property")}
+                    onSelect={(id) => changeSelection("propertyId", id || null)}
+                    options={propertyOptions.map((option) => ({
+                      label: option.label,
+                      value: option.id,
+                    }))}
+                    placeholder="Choose property"
+                    value={selection.propertyId ?? ""}
+                  />
+                  {property ? (
+                    requiresUnit ? (
+                      <SelectRecordStep
+                        createLabel="Create new rental space"
+                        emptyCopy="This property has no rental spaces yet."
+                        label="Rental space"
+                        onCreate={() => setCreateModal("unit")}
+                        onSelect={(id) => changeSelection("unitId", id || null)}
+                        options={unitOptions.map((option) => ({
+                          label: `${option.label} · ${getSetupUnitStatusLabel(option.id, option.statusLabel, data.leases)}`,
+                          value: option.id,
+                        }))}
+                        placeholder="Choose rental space"
+                        value={selection.unitId ?? ""}
+                      />
+                    ) : (
+                      <WholePropertyStep propertyLabel={property.label} />
+                    )
+                  ) : null}
+                </div>
               ) : null}
               {step === 3 ? (
-                <SelectRecordStep
-                  createLabel="Create new unit"
-                  emptyCopy="This property has no eligible active units yet."
-                  label="Unit"
-                  onCreate={() => setCreateModal("unit")}
-                  onSelect={(id) => changeSelection("unitId", id || null)}
-                  options={unitOptions.map((option) => ({
-                    label: `${option.label} · ${option.statusLabel}`,
-                    value: option.id,
-                  }))}
-                  placeholder="Choose unit"
-                  value={selection.unitId ?? ""}
-                />
-              ) : null}
-              {step === 4 ? (
                 <TenantLeaseStep
-                  data={data}
                   matchingLeases={matchingLeases}
                   onCreateLease={() => setCreateModal("lease")}
                   onCreateTenant={() => setCreateModal("tenant")}
                   onLeaseSelect={(id) => changeSelection("leaseId", id || null)}
-                  onTenantSelect={(id) => changeSelection("tenantId", id || null)}
+                  onTenantSelect={(id) =>
+                    changeSelection("tenantId", id || null)
+                  }
                   onUseExistingLease={() => {
                     if (!openLeaseForUnit) return;
                     navigate(
@@ -204,19 +228,29 @@ export function PropertySetupScreen({
                         leaseId: openLeaseForUnit.id,
                         tenantId: openLeaseForUnit.tenantPersonId,
                       },
-                      5,
+                      4,
                     );
                   }}
                   openLeaseForUnit={openLeaseForUnit}
                   selection={selection}
+                  tenantOptions={tenantOptions}
                 />
               ) : null}
-              {step === 5 && owner && property && unit && tenant && lease ? (
-                <ReviewStep
+              {step === 4 && owner && property && tenant && lease ? (
+                <RentSetupStep
                   lease={lease}
                   owner={owner}
                   property={property}
                   readiness={data.readiness ?? null}
+                  tenant={tenant}
+                  unit={unit}
+                />
+              ) : null}
+              {step === 5 && owner && property && tenant && lease ? (
+                <DoneStep
+                  lease={lease}
+                  owner={owner}
+                  property={property}
                   tenant={tenant}
                   unit={unit}
                 />
@@ -227,7 +261,9 @@ export function PropertySetupScreen({
               <footer className="flex items-center justify-between gap-3 border-t border-border bg-muted/45 px-4 py-3 sm:px-5">
                 <Button
                   disabled={step === 1}
-                  onClick={() => navigate(selection, (step - 1) as PropertySetupStep)}
+                  onClick={() =>
+                    navigate(selection, (step - 1) as PropertySetupStep)
+                  }
                   variant="ghost"
                 >
                   <ArrowLeft size={14} />
@@ -235,7 +271,9 @@ export function PropertySetupScreen({
                 </Button>
                 <Button
                   disabled={pending || highestStep <= step}
-                  onClick={() => navigate(selection, (step + 1) as PropertySetupStep)}
+                  onClick={() =>
+                    navigate(selection, (step + 1) as PropertySetupStep)
+                  }
                   variant="default"
                 >
                   Continue
@@ -251,11 +289,11 @@ export function PropertySetupScreen({
         data={data}
         modal={createModal}
         onClose={() => setCreateModal(null)}
-        onLeaseCreated={(id) => completeCreation("leaseId", id, 5)}
+        onLeaseCreated={(id) => completeCreation("leaseId", id, 4)}
         onOwnerCreated={(id) => completeCreation("ownerId", id, 2)}
-        onPropertyCreated={(id) => completeCreation("propertyId", id, 3)}
-        onTenantCreated={(id) => completeCreation("tenantId", id, 4)}
-        onUnitCreated={(id) => completeCreation("unitId", id, 4)}
+        onPropertyCreated={(id) => completeCreation("propertyId", id, 2)}
+        onTenantCreated={(id) => completeCreation("tenantId", id, 3)}
+        onUnitCreated={(id) => completeCreation("unitId", id, 3)}
         selection={selection}
       />
     </WorkspacePage>
@@ -307,7 +345,10 @@ function SetupRail({
                 >
                   {completed ? <Check size={13} /> : item.step}
                 </span>
-                <Icon className="hidden shrink-0 sm:block lg:hidden" size={14} />
+                <Icon
+                  className="hidden shrink-0 sm:block lg:hidden"
+                  size={14}
+                />
                 <span className="truncate">{item.label}</span>
               </button>
             </li>
@@ -389,8 +430,19 @@ function SelectRecordStep({
   );
 }
 
+function WholePropertyStep({ propertyLabel }: { propertyLabel: string }) {
+  return (
+    <section className="space-y-3">
+      <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
+        {propertyLabel} is set up for whole-property leasing, so its lease is
+        held against the property with no unit. Change the rental structure on
+        the property record if it should be leased as separate units instead.
+      </p>
+    </section>
+  );
+}
+
 function TenantLeaseStep({
-  data,
   matchingLeases,
   onCreateLease,
   onCreateTenant,
@@ -399,8 +451,8 @@ function TenantLeaseStep({
   onUseExistingLease,
   openLeaseForUnit,
   selection,
+  tenantOptions,
 }: {
-  data: PropertySetupData;
   matchingLeases: PropertySetupData["leases"];
   onCreateLease: () => void;
   onCreateTenant: () => void;
@@ -409,6 +461,7 @@ function TenantLeaseStep({
   onUseExistingLease: () => void;
   openLeaseForUnit?: PropertySetupData["leases"][number];
   selection: PropertySetupSelection;
+  tenantOptions: PropertySetupData["tenants"];
 }) {
   return (
     <div className="space-y-5">
@@ -418,7 +471,7 @@ function TenantLeaseStep({
           context="Property setup tenant"
           name="tenantId"
           onValueChange={onTenantSelect}
-          options={data.tenants}
+          options={tenantOptions}
           placeholder="Search tenants"
           roles={["tenant"]}
           value={selection.tenantId ?? ""}
@@ -441,14 +494,20 @@ function TenantLeaseStep({
             value={selection.leaseId ?? ""}
           />
         ) : (
-          <p className="text-sm text-muted-foreground">Choose or create the tenant first.</p>
+          <p className="text-sm text-muted-foreground">
+            Choose or create the tenant first.
+          </p>
         )}
         {openLeaseForUnit ? (
           <div className="rounded-md border border-warning/30 bg-warning-soft/30 p-3 text-sm">
             <p className="font-medium text-foreground">
               This unit already has an open lease for {openLeaseForUnit.label}.
             </p>
-            <Button className="mt-2" onClick={onUseExistingLease} variant="secondary">
+            <Button
+              className="mt-2"
+              onClick={onUseExistingLease}
+              variant="secondary"
+            >
               Use existing lease
             </Button>
           </div>
@@ -463,7 +522,7 @@ function TenantLeaseStep({
   );
 }
 
-function ReviewStep({
+function RentSetupStep({
   lease,
   owner,
   property,
@@ -476,114 +535,144 @@ function ReviewStep({
   property: PropertySetupData["properties"][number];
   readiness: PropertySetupData["readiness"];
   tenant: PropertySetupData["tenants"][number];
-  unit: PropertySetupData["units"][number];
+  unit?: PropertySetupData["units"][number];
 }) {
-  const firstBlocker = readiness?.items.find((item) => !item.ready);
+  const [activationState, activationAction, activationPending] = useActionState(
+    activateSetupLeaseAction,
+    initialActivateSetupLeaseState,
+  );
+  const blockers = readiness?.items.filter((item) => !item.ready) ?? [];
+  const needsActivation =
+    ["draft", "active"].includes(lease.status) &&
+    blockers.some((item) => item.code === "lease" || item.code === "occupancy");
+  const visibleBlockers = needsActivation
+    ? blockers.filter(
+        (item) =>
+          !["lease", "occupancy", "billing", "rent_policy"].includes(item.code),
+      )
+    : blockers;
+  const actionCount = visibleBlockers.length + (needsActivation ? 1 : 0);
   const ready = readiness?.ready === true;
+  const canOpenRent = readiness === null || ready;
 
   return (
-    <section className="space-y-4">
-      <ConsequencePanel
-        rows={[
-          { label: "Owner", value: owner.label },
-          { label: "Property", value: property.label },
-          { label: "Unit", value: unit.label },
-          { label: "Tenant", value: tenant.label },
-          {
-            label: "Lease rent",
-            value: formatMoney(lease.monthlyRentAmount, "USD"),
-          },
-        ]}
-        summary={
-          ready
-            ? "The owner, unit, lease, occupancy, billing, policy, opening-balance, and deposit checks are ready for rent operations."
-            : "The core records are linked, but rent operations stay blocked until every required check below is complete."
-        }
-        title={ready ? "Rent ready" : "Setup needs attention"}
-      />
-      {readiness ? (
-        <section
-          aria-label="Rent readiness checklist"
-          className="rounded-md border border-border bg-muted/35"
+    <section className="space-y-5">
+      <div>
+        <h3 className="text-base font-semibold text-foreground">
+          {canOpenRent
+            ? "Rent setup is ready"
+            : `${actionCount} required next ${actionCount === 1 ? "step" : "steps"}`}
+        </h3>
+        <p className="mt-1 flex flex-wrap gap-x-2 text-sm text-muted-foreground">
+          <span>{property.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{unit?.label ?? "Whole property"}</span>
+          <span aria-hidden="true">·</span>
+          <span>{owner.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{tenant.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatMoney(lease.monthlyRentAmount, "USD")}/month</span>
+        </p>
+      </div>
+      {needsActivation ? (
+        <form
+          action={activationAction}
+          className="rounded-md border border-border p-4"
         >
-          <header className="border-b border-border px-3 py-2.5">
-            <h3 className="text-sm font-semibold">
-              {readiness.items.length} readiness checks
-            </h3>
-          </header>
+          <input name="leaseId" type="hidden" value={lease.id} />
+          <h4 className="text-sm font-semibold text-foreground">
+            {lease.status === "draft"
+              ? "Start the lease"
+              : "Finish move-in setup"}
+          </h4>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {lease.status === "draft"
+              ? "Activate the lease and confirm that the tenant has moved in today."
+              : "The lease is active. Refresh its completed move-in status and continue."}
+          </p>
+          {activationState.status === "error" ? (
+            <p className="mt-2 text-sm text-destructive" role="alert">
+              {activationState.message}
+            </p>
+          ) : null}
+          <Button className="mt-3" disabled={activationPending} type="submit">
+            {activationPending
+              ? "Updating…"
+              : lease.status === "draft"
+                ? "Activate lease and confirm move-in"
+                : "Refresh move-in status"}
+          </Button>
+        </form>
+      ) : null}
+      {visibleBlockers.length > 0 ? (
+        <section
+          aria-label="Required next steps"
+          className="border-y border-border"
+        >
           <ul className="divide-y divide-border">
-            {readiness.items.map((item) => (
-              <li className="flex items-center justify-between gap-3 px-3 py-2.5" key={item.code}>
-                <span className="flex min-w-0 items-center gap-2 text-sm">
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "grid size-5 shrink-0 place-items-center rounded-full border text-xs",
-                      item.ready
-                        ? "border-success/40 bg-success-soft text-success"
-                        : "border-warning/40 bg-warning-soft text-warning",
-                    )}
-                  >
-                    {item.ready ? <Check size={12} /> : "!"}
-                  </span>
-                  <span className="truncate font-medium">{item.label}</span>
+            {visibleBlockers.map((item) => (
+              <li
+                className="flex items-center justify-between gap-3 py-3"
+                key={item.code}
+              >
+                <span className="text-sm font-medium text-foreground">
+                  {item.label}
                 </span>
-                {item.ready ? (
-                  <span className="text-xs text-muted-foreground">Ready</span>
-                ) : (
-                  <Link
-                    className="shrink-0 text-xs font-medium text-foreground underline underline-offset-4"
-                    href={item.repairHref}
-                  >
-                    Repair
-                  </Link>
-                )}
+                <Link
+                  className="shrink-0 text-sm font-medium text-foreground underline underline-offset-4"
+                  href={item.repairHref}
+                >
+                  Complete {item.label}
+                </Link>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
-      <div className="grid gap-2 sm:grid-cols-2">
-        <SummaryLink href={`/people/${owner.id}`} label="Owner" value={owner.label} />
-        <SummaryLink href={`/properties/${property.id}`} label="Property" value={property.label} />
-        <SummaryLink href={`/units/${unit.id}`} label="Unit" value={unit.label} />
-        <SummaryLink href={`/people/${tenant.id}`} label="Tenant" value={tenant.label} />
-        <SummaryLink href={`/leases?leaseId=${lease.id}`} label="Lease" value={lease.label} />
-      </div>
-      {ready ? (
-        <Link
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          href={`/rent-income?leaseId=${lease.id}`}
-        >
-          <KeyRound size={15} />
-          Open rent workspace
-        </Link>
-      ) : firstBlocker ? (
-        <Link
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          href={firstBlocker.repairHref}
-        >
-          <ArrowRight size={15} />
-          Complete {firstBlocker.label}
-        </Link>
-      ) : null}
     </section>
   );
 }
 
-function SummaryLink({ href, label, value }: { href: string; label: string; value: string }) {
+function DoneStep({
+  lease,
+  owner,
+  property,
+  tenant,
+  unit,
+}: {
+  lease: PropertySetupData["leases"][number];
+  owner: PropertySetupData["owners"][number];
+  property: PropertySetupData["properties"][number];
+  tenant: PropertySetupData["tenants"][number];
+  unit?: PropertySetupData["units"][number];
+}) {
   return (
-    <Link
-      className="rounded-md border border-border bg-muted/45 px-3 py-2.5 transition-colors hover:bg-muted"
-      href={href}
-    >
-      <span className="block text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
-        {label}
-      </span>
-      <span className="mt-1 block truncate text-sm font-semibold text-foreground">
-        {value}
-      </span>
-    </Link>
+    <section className="space-y-5">
+      <div>
+        <h3 className="text-base font-semibold text-foreground">
+          Ready to charge rent
+        </h3>
+        <p className="mt-1 flex flex-wrap gap-x-2 text-sm text-muted-foreground">
+          <span>{property.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{unit?.label ?? "Whole property"}</span>
+          <span aria-hidden="true">·</span>
+          <span>{owner.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{tenant.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatMoney(lease.monthlyRentAmount, "USD")}/month</span>
+        </p>
+      </div>
+      <Link
+        className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        href={`/rent-income?leaseId=${lease.id}`}
+      >
+        <KeyRound size={15} />
+        Review first rent charge
+      </Link>
+    </section>
   );
 }
 
@@ -626,16 +715,22 @@ function CreateRecordModal({
   selection: PropertySetupSelection;
 }) {
   if (!modal) return null;
+  const contextProperty = data.properties.find(
+    (option) => option.id === selection.propertyId,
+  );
+  const contextUnit = data.units.find(
+    (option) => option.id === selection.unitId,
+  );
   const title = `Create ${modal}`;
+  const description =
+    modal === "owner"
+      ? "The new owner will be selected so you can continue to the property or unit."
+      : "Save this record and continue setup.";
   return (
-    <Modal
-      description="Save this source record to carry its authoritative ID into setup."
-      onClose={onClose}
-      open
-      title={title}
-    >
+    <Modal description={description} onClose={onClose} open title={title}>
       {modal === "owner" ? (
         <PersonForm
+          createSaveLabel="Create and continue"
           initialRoles={["owner"]}
           onClose={onClose}
           onSuccess={(_message, id) => onOwnerCreated(id)}
@@ -645,6 +740,7 @@ function CreateRecordModal({
       {modal === "property" ? (
         <PropertyForm
           closeOnCreateSuccess
+          collectOwnership
           initialValues={{ ownerPersonId: selection.ownerId }}
           onClose={onClose}
           onSuccess={(_message, id) => onPropertyCreated(id)}
@@ -662,6 +758,7 @@ function CreateRecordModal({
       ) : null}
       {modal === "tenant" ? (
         <PersonForm
+          createSaveLabel="Create and continue"
           initialRoles={["tenant"]}
           onClose={onClose}
           onSuccess={(_message, id) => onTenantCreated(id)}
@@ -670,6 +767,16 @@ function CreateRecordModal({
       ) : null}
       {modal === "lease" ? (
         <LeaseForm
+          createContext={
+            contextProperty
+              ? {
+                  propertyId: contextProperty.id,
+                  propertyLabel: contextProperty.label,
+                  unitId: contextUnit?.id ?? null,
+                  unitLabel: contextUnit?.label ?? null,
+                }
+              : undefined
+          }
           initialValues={{
             propertyId: selection.propertyId ?? "",
             tenantPersonId: selection.tenantId ?? "",
@@ -678,6 +785,7 @@ function CreateRecordModal({
           onClose={onClose}
           onSuccess={(_message, id) => onLeaseCreated(id)}
           properties={data.properties}
+          setupMode
           tenants={data.tenants}
           units={data.units}
         />
@@ -686,22 +794,26 @@ function CreateRecordModal({
   );
 }
 
-function stepTitle(step: PropertySetupStep) {
+function stepTitle(step: PropertySetupStep, requiresUnit = true) {
   return [
     "Choose the responsible owner",
-    "Choose the property record",
-    "Choose the operating unit",
+    requiresUnit
+      ? "Choose the property and rental space"
+      : "Choose the property",
     "Connect the tenant through a lease",
-    "Review the linked setup",
+    "Finish rent setup",
+    "Rental setup complete",
   ][step - 1];
 }
 
-function stepDescription(step: PropertySetupStep) {
+function stepDescription(step: PropertySetupStep, requiresUnit = true) {
   return [
     "Select an active Owner record or create one here.",
-    "Only active properties currently linked to the selected owner are eligible.",
-    "Select an existing unit under this property or add the first unit.",
-    "A Tenant record alone is not occupancy. Finish by selecting or creating the lease that links this tenant and unit.",
-    "Open any source record or continue directly to the first rent charge.",
+    requiresUnit
+      ? "Choose the property, then the exact space that will be rented."
+      : "This property is rented as one whole space, so no separate unit is required.",
+    "Choose or create the tenant, then save the lease, rent, move-in, and deposit details together.",
+    "Complete only the operational details still needed before the first rent charge.",
+    "The records are connected and rent operations can begin.",
   ][step - 1];
 }

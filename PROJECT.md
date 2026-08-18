@@ -23,8 +23,10 @@ The implemented product includes:
   boundaries.
 - Properties, units, people, ownership, vendors, staff, private documents,
   photos, and activity history.
-- Authoritative lease terms, parties, occupancy evidence, deposits, billing
-  terms, and an approved rent policy.
+- Authoritative lease terms, parties, occupancy evidence, deposits, and
+  lease-owned billing rules. Lease-owned billing terms are the sole rent
+  authority. The global Rent policy is retired: it has no operator-facing
+  surface, and historical approved versions remain only as audit evidence.
 - Automatic current-month rent invoices, typed generation exceptions, and an
   explicit selected-month recovery action for completed historical months.
 - Rent collected through the company or confirmed as collected directly by an
@@ -47,12 +49,14 @@ are the authority for public and protected destinations.
 
 ### Lease to rent to report
 
-1. Super Admin creates a lease with one authoritative `lease_terms` record and
-   explicit party and occupancy evidence.
-2. An effective `lease_billing_terms` record defines recipient, collection
-   route, proration inputs, and management fee.
-3. An approved `rent_policy_versions` record supplies the business timezone and
-   generation rules.
+1. Property is the operating root. A `single_space` property is leased directly
+   with `leases.unit_id = NULL`; a `multi_unit` property is leased through its
+   Units. Nestory never creates a fake Unit for a whole-property lease.
+2. Super Admin creates a contextual lease with one authoritative `lease_terms`
+   record and explicit party and occupancy evidence.
+3. An effective `lease_billing_terms` record owns the collection route,
+   recipient, management fee, and the lease-owned billing rules used to
+   generate rent. New leases do not depend on a global Rent policy.
 4. Activation catch-up or the hourly scheduled runner creates exactly one rent
    obligation and tenant invoice for an eligible lease-month. A failed lease is
    isolated in `rent_generation_exceptions`.
@@ -63,8 +67,11 @@ are the authority for public and protected destinations.
    those operational sources. Unit Profit and Loss consumes only resolved,
    correctly scoped events.
 
-There is no independent manual rent writer. Historical recovery creates only
-the selected completed month and never fills adjacent months automatically.
+Manual tenant charges use the same canonical invoice, line, income, payment,
+allocation, receipt, owner-effect, Ledger-projection, and reversal contracts as
+generated rent. A manual base-rent charge cannot duplicate an existing
+Lease-month. Historical recovery creates only the selected completed month and
+never fills adjacent months automatically.
 
 ### Paid expense to approval to reversal
 
@@ -182,9 +189,13 @@ frequency, due day, and effective dates.
 - Accepted effective ranges cannot overlap where the database contract forbids
   it.
 - Material term changes supersede history; they do not rewrite it.
-- Approved rent-policy versions are complete and immutable.
-- Lease readiness fails closed when term, billing, recipient, policy, or date
-  authority is missing or conflicting.
+- Historical approved rent-policy versions are complete and immutable. No
+  surface authors new ones.
+- New Lease readiness resolves the effective Lease billing term and its visible
+  lease-owned rent behavior; it has no global Rent policy prerequisite.
+- Historical approved rent-policy versions and invoice references remain
+  immutable audit evidence. Unresolved historical behavior fails closed until
+  an operator confirms the visible Lease rule snapshot.
 
 ## Imports, Documents, And Reports
 
@@ -231,6 +242,8 @@ unavailable.
   currency, and month; an immutable closed revision; and verified retained PDF
   and Excel artifacts. Missing authority remains visibly blocked.
 - There is no automatic historical rent backfill.
+- Lease creation is monthly-only in V1. Concessions, rent-free periods, and
+  waivers use explicit manual adjustments until dedicated workflows exist.
 
 Unavailable authority must remain visible as a blocked state or typed
 exception. Never invent a balance, settlement, allocation, owner, resident, or
@@ -282,8 +295,9 @@ Authenticated Nestory is quiet, neutral, dense operating software:
 - Keep one global `Search or jump` surface. Results stay server-scoped and raw
   UUIDs remain out of ordinary operator labels.
 - Settings uses capability-aware, path-based Workspace and Access navigation.
-  Super Admins can manage Organization, Appearance, Branches, Teams, Rent
-  policy, and Access; Finance Managers see only Rent policy. The provisioned
+  Super Admins can manage Organization, Appearance, Branches, Teams, and
+  Access. The legacy Rent policy screen is retired and no longer routable; its
+  records remain readable only as retained audit evidence. The provisioned
   workspace address is immutable in Settings, while the display name remains
   editable through the checked organization boundary.
 - Organization accent and the default display mode are Super-Admin-managed and
@@ -294,6 +308,10 @@ Authenticated Nestory is quiet, neutral, dense operating software:
   never recolor structural surfaces or semantic success, warning, danger,
   finance, maintenance, or record states.
 - Navigation and action visibility remain capability-aware for all five roles.
+- Property and Unit records are the primary operating workspaces. Their Finance
+  tabs compose canonical scoped rent and charges, expenses, and owner-account
+  data. Global Finance is a secondary portfolio review surface; Ledger and
+  Petty cash remain directly addressable under Advanced finance.
 - Loading, empty, filtered-empty, permission, blocked, error, draft, saving, and
   success states are explicit.
 - Consequential actions identify the affected record, scope, and result.

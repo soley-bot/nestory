@@ -97,6 +97,32 @@ const recoverLeaseRentPeriodSchema = z.object({
   leaseId: uuid,
 });
 
+const manualTenantChargeSchema = z
+  .object({
+    amount,
+    billingPeriod: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/, "Choose a month."),
+    chargeType: z.enum([
+      "manual_rent",
+      "utilities",
+      "cleaning",
+      "repairs_maintenance",
+      "other",
+    ]),
+    description: z.string().trim().max(240),
+    dueDate: date,
+    idempotencyKey: z.string().min(8),
+    leaseId: uuid,
+  })
+  .superRefine((data, context) => {
+    if (data.chargeType === "other" && !data.description) {
+      context.addIssue({
+        code: "custom",
+        message: "Describe the Other charge.",
+        path: ["description"],
+      });
+    }
+  });
+
 const invoiceSettlementSchema = z.object({
   amount,
   idempotencyKey: z.string().min(8),
@@ -294,6 +320,31 @@ export async function recoverLeaseRentPeriodAction(
 
   revalidateFinance();
   return { message: "Historical rent month generated.", status: "success" };
+}
+
+export async function createManualTenantChargeAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = manualTenantChargeSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireLeaseConfigurationContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("create_manual_tenant_charge", {
+    p_amount: parsed.data.amount,
+    p_billing_period_start: `${parsed.data.billingPeriod}-01`,
+    p_charge_type: parsed.data.chargeType,
+    p_description: parsed.data.description,
+    p_due_date: parsed.data.dueDate,
+    p_idempotency_key: parsed.data.idempotencyKey,
+    p_lease_id: parsed.data.leaseId,
+    p_organization_id: context.organizationId,
+  });
+  if (error) return actionError(error.message);
+  revalidateFinance();
+  revalidatePath(`/leases/${parsed.data.leaseId}`);
+  return { message: "Charge added.", status: "success" };
 }
 
 export async function recordTenantInvoicePaymentAction(

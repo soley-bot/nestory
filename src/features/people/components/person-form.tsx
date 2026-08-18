@@ -35,6 +35,7 @@ type PersonFormPresentation = {
 };
 
 type PersonFormProps = {
+  createSaveLabel?: string;
   initialRoles?: PersonRoleValue[];
   mode?: "create" | "edit";
   onClose: () => void;
@@ -49,6 +50,7 @@ type PersonFormProps = {
 };
 
 export function PersonForm({
+  createSaveLabel,
   initialRoles,
   mode = "create",
   onClose,
@@ -100,7 +102,8 @@ export function PersonForm({
       saveLabel={
         isEditMode
           ? "Save changes"
-          : `Add ${roleContext ? formatRole(roleContext).toLowerCase() : "person"}`
+          : createSaveLabel ??
+            `Add ${roleContext ? formatRole(roleContext).toLowerCase() : "person"}`
       }
       savingLabel={isEditMode ? "Saving person" : "Adding person"}
       state={state}

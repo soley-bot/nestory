@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RecordField,
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/record-form";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 
@@ -124,6 +125,23 @@ function PortalControlsHarness() {
   );
 }
 
+function ModalSelectHarness() {
+  return (
+    <Modal onClose={vi.fn()} open title="Record payment">
+      <div className="p-4">
+        <label id="deposit-to-label">Deposit to</label>
+        <SelectControl
+          aria-labelledby="deposit-to-label"
+          options={[
+            { label: "Operating bank account", value: "operating" },
+            { label: "Petty cash", value: "petty" },
+          ]}
+        />
+      </div>
+    </Modal>
+  );
+}
+
 function DeferredDefaultHarness() {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -158,7 +176,95 @@ function DeferredDefaultHarness() {
   );
 }
 
+const failureAction = vi.fn(
+  async (
+    previousState: RecordFormActionState,
+    formData: FormData,
+  ): Promise<RecordFormActionState> => {
+    void previousState;
+    void formData;
+
+    return {
+      fieldErrors: {
+        code: ["Code is already used."],
+        name: ["Name needs review."],
+      },
+      message: "Review the highlighted fields.",
+      status: "error",
+    };
+  },
+);
+
+function RealActionHarness() {
+  const [state, action, pending] = useActionState(failureAction, {});
+
+  return (
+    <RecordForm
+      action={action}
+      ariaLabel="Add property form"
+      onCancel={vi.fn()}
+      pending={pending}
+      saveLabel="Add property"
+      state={state}
+    >
+      <RecordField
+        error={state.fieldErrors?.name?.[0]}
+        label="Property name"
+        name="name"
+      >
+        <Input name="name" />
+      </RecordField>
+      <RecordField
+        error={state.fieldErrors?.code?.[0]}
+        label="Code"
+        name="code"
+      >
+        <Input name="code" />
+      </RecordField>
+      <RecordField label="Address" name="address">
+        <Input name="address" />
+      </RecordField>
+    </RecordForm>
+  );
+}
+
 describe("record form contract", () => {
+  it("preserves submitted values and expires only the edited field error before retry", async () => {
+    const user = userEvent.setup();
+    render(<RealActionHarness />);
+    const name = screen.getByRole("textbox", { name: "Property name" });
+    const code = screen.getByRole("textbox", { name: "Code" });
+    const address = screen.getByRole("textbox", { name: "Address" });
+
+    await user.type(name, "Harbor House");
+    await user.type(code, "HBR");
+    await user.type(address, "12 River Road");
+    await user.click(screen.getByRole("button", { name: "Add property" }));
+
+    await screen.findByText("Name needs review.");
+    expect(failureAction).toHaveBeenCalledTimes(1);
+    expect((name as HTMLInputElement).value).toBe("Harbor House");
+    expect((code as HTMLInputElement).value).toBe("HBR");
+    expect((address as HTMLInputElement).value).toBe("12 River Road");
+    expect(name.getAttribute("aria-invalid")).toBe("true");
+    expect(code.getAttribute("aria-invalid")).toBe("true");
+
+    await user.type(name, " updated");
+
+    expect(screen.queryByText("Name needs review.")).toBeNull();
+    expect(name.hasAttribute("aria-invalid")).toBe(false);
+    expect(screen.getByText("Code is already used.")).not.toBeNull();
+    expect(code.getAttribute("aria-invalid")).toBe("true");
+
+    await user.click(screen.getByRole("button", { name: "Add property" }));
+
+    await screen.findByText("Name needs review.");
+    expect(failureAction).toHaveBeenCalledTimes(2);
+    expect((name as HTMLInputElement).value).toBe("Harbor House updated");
+    expect((code as HTMLInputElement).value).toBe("HBR");
+    expect((address as HTMLInputElement).value).toBe("12 River Road");
+  });
+
   it("shows required fields and associates inline server errors with the first invalid control", () => {
     const { rerender } = render(<DrawerHarness />);
 
@@ -311,6 +417,18 @@ describe("record form contract", () => {
     await user.click(screen.getByRole("option", { name: "Active" }));
 
     expect(screen.getByText("Unsaved changes")).not.toBeNull();
+  });
+
+  it("portals modal select menus outside the clipped dialog surface", async () => {
+    const user = userEvent.setup();
+    render(<ModalSelectHarness />);
+    const dialog = screen.getByRole("dialog", { name: "Record payment" });
+
+    await user.click(screen.getByRole("combobox", { name: "Deposit to" }));
+    const listbox = screen.getByRole("listbox");
+
+    expect(dialog.contains(listbox)).toBe(false);
+    expect(document.body.contains(listbox)).toBe(true);
   });
 
   it("tracks date-only edits and Escape closes the calendar before the drawer", async () => {

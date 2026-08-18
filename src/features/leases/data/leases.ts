@@ -32,7 +32,7 @@ import {
 } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 
-const propertySelect = "id, code, name, archived_at";
+const propertySelect = "id, code, name, rental_structure, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
 type SupabaseServerClient = Awaited<
   ReturnType<typeof createSupabaseServerClient>
@@ -425,6 +425,7 @@ async function enrichLeaseSummaries({
     timelineResult,
     activityResult,
     ledgerResult,
+    activationSchedulesResult,
     readinessResults,
   ] = await Promise.all([
     supabase
@@ -487,6 +488,13 @@ async function enrichLeaseSummaries({
       .in("entity_id", detailLeaseIds)
       .order("created_at", { ascending: false }),
     buildLeaseLedgerQuery(supabase, organizationId, propertyIds, unitIds),
+    supabase
+      .from("lease_activation_schedules")
+      .select("id, lease_id, activation_date, status, failure_message")
+      .eq("organization_id", organizationId)
+      .in("lease_id", detailLeaseIds)
+      .in("status", ["pending", "failed"])
+      .order("created_at", { ascending: false }),
     Promise.all(
       leases.map(async (lease) => ({
         leaseId: lease.id,
@@ -555,6 +563,12 @@ async function enrichLeaseSummaries({
     );
   }
 
+  if (activationSchedulesResult.error) {
+    throw new Error(
+      `Could not load Lease activation schedules: ${activationSchedulesResult.error.message}`,
+    );
+  }
+
   for (const { result } of readinessResults) {
     if (
       result.error &&
@@ -597,11 +611,23 @@ async function enrichLeaseSummaries({
         : ((result.data?.[0] ?? null) as LeaseReadinessRow | null),
     ]),
   );
+  const activationScheduleByLeaseId = new Map(
+    (activationSchedulesResult.data ?? []).map((schedule) => [
+      schedule.lease_id,
+      {
+        activationDate: schedule.activation_date,
+        failureMessage: schedule.failure_message,
+        id: schedule.id,
+        status: schedule.status as "cancelled" | "failed" | "pending" | "processed",
+      },
+    ]),
+  );
 
   return leases.map((lease) => {
     const leaseRow = summaryToLeaseRow(lease);
 
     return buildLeaseSummary({
+      activationSchedule: activationScheduleByLeaseId.get(lease.id),
       activity: activityByLeaseId.get(lease.id) ?? [],
       documents: documentsByLeaseId.get(lease.id) ?? [],
       ledgerEntryCount: countRelatedLedgerRows(lease, ledgerRows),

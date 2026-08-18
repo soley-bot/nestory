@@ -13,7 +13,6 @@ describe("settings navigation", () => {
       "/settings/appearance",
       "/settings/branches",
       "/settings/teams",
-      "/settings/rent-policy",
       "/settings/access",
     ]);
     expect(getSettingsLandingHref("super_admin")).toBe(
@@ -21,15 +20,13 @@ describe("settings navigation", () => {
     );
   });
 
-  it("shows Finance Manager only the setting they can manage", () => {
+  it("keeps historical Rent policy under Advanced finance", () => {
     expect(
       getSettingsDestinations("finance_manager").map(
         (destination) => destination.href,
       ),
-    ).toEqual(["/settings/rent-policy"]);
-    expect(getSettingsLandingHref("finance_manager")).toBe(
-      "/settings/rent-policy",
-    );
+    ).toEqual([]);
+    expect(getSettingsLandingHref("finance_manager")).toBeNull();
   });
 
   it("does not invent Settings access for roles without a Settings capability", () => {

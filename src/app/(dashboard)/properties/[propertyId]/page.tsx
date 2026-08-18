@@ -4,6 +4,7 @@ import {
   getPropertyOwnerOptions,
 } from "@/features/properties/data/properties";
 import { requireSuperAdminContext } from "@/lib/auth/context";
+import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import PropertyNotFound from "./not-found";
 
 type PropertyPageProps = {
@@ -18,9 +19,13 @@ export default async function PropertyPage({
   const { propertyId } = await params;
   const { section } = await searchParams;
   const context = await requireSuperAdminContext();
-  const [property, ownerOptions] = await Promise.all([
+  const [property, ownerOptions, tenantOptions] = await Promise.all([
     getPropertyDetail(context.organizationId, propertyId),
     getPropertyOwnerOptions(context.organizationId),
+    getPersonSelectOptions({
+      organizationId: context.organizationId,
+      roles: ["tenant"],
+    }),
   ]);
 
   if (!property) {
@@ -32,6 +37,7 @@ export default async function PropertyPage({
       initialSection={getInitialPropertySection(section)}
       ownerOptions={ownerOptions}
       property={property}
+      tenantOptions={tenantOptions}
     />
   );
 }

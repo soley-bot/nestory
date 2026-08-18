@@ -7,12 +7,17 @@ import {
   screen,
   within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PropertyDetailScreen } from "@/features/properties/components/property-detail-screen";
 import {
   buildPropertyDetail,
   type PropertyDetail,
 } from "@/features/properties/data/property-detail";
+
+vi.mock("@/features/leases/actions", () => ({
+  createLeaseAction: async () => ({}),
+  updateLeaseAction: async () => ({}),
+}));
 
 afterEach(() => {
   cleanup();
@@ -20,6 +25,136 @@ afterEach(() => {
 });
 
 describe("PropertyDetailScreen task-first detail contract", () => {
+  it("uses a concise rental-structure control before exposing Lease or Unit setup", () => {
+    const undecidedProperty = buildPropertyDetail({
+      ledgerEntries: [],
+      property: {
+        address: "10 Riverside Road",
+        code: "RIVER",
+        id: "property-undecided",
+        name: "Riverside House",
+        owner: null,
+        property_type: "House",
+        rental_structure: "undecided",
+        status: "active",
+      },
+      units: [],
+    });
+
+    renderPropertyDetail({ propertyOverride: undecidedProperty });
+
+    const overview = screen.getByRole("tabpanel", { name: "Overview" });
+    expect(
+      within(overview).getByRole("heading", { name: "Rental structure" }),
+    ).toBeTruthy();
+    expect(within(overview).queryByText(/Choose the real operating structure/)).toBeNull();
+    expect(
+      within(overview).getByRole("button", { name: "The whole property" }),
+    ).toBeTruthy();
+    expect(
+      within(overview).getByRole("button", { name: "Separate units" }),
+    ).toBeTruthy();
+    expect(within(overview).queryByRole("link", { name: "Add lease" })).toBeNull();
+  });
+
+  it("continues chronologically to the first Unit or whole-property Lease", () => {
+    const multiUnitProperty = buildPropertyDetail({
+      ledgerEntries: [],
+      property: {
+        address: "20 Riverside Road",
+        code: "BUILDING",
+        id: "property-multi-empty",
+        name: "Riverside Building",
+        owner: null,
+        property_type: "Apartment building",
+        rental_structure: "multi_unit",
+        status: "active",
+      },
+      units: [],
+    });
+    const { rerender } = renderPropertyDetail({ propertyOverride: multiUnitProperty });
+    expect(screen.getByRole("button", { name: "Add first unit" })).toBeTruthy();
+
+    const wholeProperty = buildPropertyDetail({
+      ledgerEntries: [],
+      property: {
+        address: "10 Riverside Road",
+        code: "HOUSE",
+        id: "property-whole",
+        name: "Riverside House",
+        owner: null,
+        property_type: "House",
+        rental_structure: "single_space",
+        status: "active",
+      },
+      units: [],
+    });
+    rerender(
+      <PropertyDetailScreen
+        ownerOptions={[]}
+        property={wholeProperty}
+        tenantOptions={tenantOptions}
+      />,
+    );
+    const createLease = screen.getByRole("button", { name: "Create lease" });
+    fireEvent.click(createLease);
+
+    const drawer = screen.getByRole("dialog", { name: "Create lease" });
+    const form = within(drawer).getByRole("form", { name: "Add lease form" });
+    expect(within(drawer).getByText("Riverside House")).toBeTruthy();
+    expect(within(drawer).getByText("Whole property")).toBeTruthy();
+    expect(within(drawer).queryByRole("combobox", { name: /Property/ })).toBeNull();
+    expect(within(drawer).queryByRole("combobox", { name: /Unit/ })).toBeNull();
+    expect(
+      form.querySelector<HTMLInputElement>('input[name="propertyId"]')?.value,
+    ).toBe("property-whole");
+    expect(
+      form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value,
+    ).toBe("");
+    expect(screen.queryByRole("button", { name: "Add first unit" })).toBeNull();
+  });
+
+  it("continues an existing whole-property draft instead of offering another lease", () => {
+    const wholePropertyDraft = buildPropertyDetail({
+      activeLeases: [
+        {
+          id: "draft-lease-whole-property",
+          lease_end_date: "2027-01-31",
+          lease_start_date: "2026-02-01",
+          monthly_rent_amount: 850,
+          monthly_rent_currency: "USD",
+          status: "draft",
+          tenant_name: "Dara Tenant",
+          unit_id: null,
+        },
+      ],
+      ledgerEntries: [],
+      property: {
+        address: "10 Riverside Road",
+        code: "HOUSE-DRAFT",
+        id: "property-whole-draft",
+        name: "Riverside House",
+        owner: null,
+        property_type: "House",
+        rental_structure: "single_space",
+        status: "active",
+      },
+      units: [],
+    });
+
+    renderPropertyDetail({ propertyOverride: wholePropertyDraft });
+
+    const overview = screen.getByRole("tabpanel", { name: "Overview" });
+    const continueDraft = within(overview).getByRole("link", {
+      name: "Continue draft lease",
+    });
+    expect(continueDraft.getAttribute("href")).toBe(
+      "/leases/draft-lease-whole-property",
+    );
+    expect(within(overview).queryByRole("button", { name: "Create lease" })).toBeNull();
+    expect(within(overview).queryByRole("link", { name: "Add lease" })).toBeNull();
+  });
+
   it("keeps the property heading and edit action beside five focused record tabs", () => {
     const { container } = renderPropertyDetail();
 
@@ -30,9 +165,6 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(propertyHeading.closest("header")?.className).toContain("px-4");
     expect(propertyHeading.closest("header")?.className).toContain("sm:px-6");
     expect(screen.getByText("NST-001 / Serviced Apartment")).toBeTruthy();
-    expect(
-      screen.queryByRole("link", { name: property.nextAction.label }),
-    ).toBeNull();
     expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "More" })).toBeTruthy();
 
@@ -43,14 +175,14 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     ).toEqual([
       "Overview",
       "Units",
-      "Account",
+      "Finance",
       "Maintenance",
       "Files",
     ]);
 
     expect(
-      within(tablist).getByRole("tab", { name: "Account" }).getAttribute("href"),
-    ).toBe("/properties/property-1/account");
+      within(tablist).getByRole("tab", { name: "Finance" }).getAttribute("href"),
+    ).toBe("/properties/property-1/finance");
 
     const tabNavigation = tablist.closest("nav");
     expect(tabNavigation?.className.split(" ")).not.toContain("rounded-md");
@@ -59,8 +191,10 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
   });
 
-  it("keeps the overview quiet with essential context and three operational metrics", () => {
-    const { container } = renderPropertyDetail();
+  it("shows the operational workspace, one primary next action, and period-specific NOI", () => {
+    const { container } = renderPropertyDetail({
+      propertyOverride: propertyWithWorkflowAttention,
+    });
 
     const workspace = container.querySelector<HTMLElement>(
       '[data-slot="property-record-workspace"]',
@@ -73,16 +207,128 @@ describe("PropertyDetailScreen task-first detail contract", () => {
       'dl[aria-label="Property summary"]',
     );
     expect(propertySummary).not.toBeNull();
-    expect(within(propertySummary!).getAllByRole("term")).toHaveLength(3);
+    expect(within(propertySummary!).getAllByRole("term")).toHaveLength(4);
     expect(within(propertySummary!).getByText("Occupancy")).toBeTruthy();
-    expect(within(propertySummary!).getByText("Active leases")).toBeTruthy();
-    expect(within(propertySummary!).getByText("Net income")).toBeTruthy();
-    expect(within(overviewPanel).getByText("District 1")).toBeTruthy();
-    expect(within(overviewPanel).getByText("Jane Owner")).toBeTruthy();
+    expect(within(propertySummary!).getByText("Active lease")).toBeTruthy();
+    expect(within(propertySummary!).getByText("Monthly rent")).toBeTruthy();
+    expect(
+      within(propertySummary!).getByText("NOI / Trailing 12 months"),
+    ).toBeTruthy();
+    expect(within(propertySummary!).getByText("USD 1,100.00")).toBeTruthy();
+    expect(within(overviewPanel).getAllByText("District 1").length).toBeGreaterThan(0);
+    expect(within(overviewPanel).getAllByText("Jane Owner").length).toBeGreaterThan(0);
+
+    const nextActions = within(overviewPanel).getAllByRole("link", {
+      name: "Review overdue issue",
+    });
+    expect(nextActions).toHaveLength(1);
+    expect(nextActions[0]?.getAttribute("href")).toBe(
+      "/maintenance?archiveState=all&taskId=case-overdue",
+    );
+    expect(within(overviewPanel).getByRole("heading", { name: "Units and leases" })).toBeTruthy();
+    const propertyCard = within(overviewPanel).getByLabelText("Property details");
+    expect(propertyCard.parentElement?.className).toContain("2xl:grid-cols");
+    expect(within(propertyCard).queryByText("Property record is current")).toBeNull();
+    expect(within(propertyCard).getByText("Maintenance overdue")).toBeTruthy();
+    expect(within(propertyCard).queryByText("Evidence missing")).toBeNull();
+    expect(within(propertyCard).getByText("Nestory Residence")).toBeTruthy();
     expect(
       within(overviewPanel).queryByRole("heading", { name: "Property context" }),
     ).toBeNull();
     expect(within(overviewPanel).queryByText("1 current lease links")).toBeNull();
+  });
+
+  it("opens the focused owner modal instead of linking back to the register", () => {
+    const propertyMissingOwner = buildPropertyDetail({
+      activeLeases: [
+        {
+          id: "lease-owner-setup",
+          lease_end_date: "2027-05-31",
+          lease_start_date: "2026-06-01",
+          monthly_rent_amount: 900,
+          monthly_rent_currency: "USD",
+          status: "active",
+          tenant_name: "Dara Tenant",
+          unit_id: "unit-owner-setup",
+        },
+      ],
+      ledgerEntries: [],
+      property: {
+        address: "10 Riverside Road",
+        code: "OWNER",
+        id: "property-owner-setup",
+        name: "Owner Setup Property",
+        owner: null,
+        property_type: "Condo",
+        rental_structure: "multi_unit",
+        status: "active",
+      },
+      units: [
+        {
+          archived_at: null,
+          current_rent_amount: 900,
+          current_rent_currency: "USD",
+          floor: null,
+          id: "unit-owner-setup",
+          status: "occupied",
+          unit_number: "01",
+        },
+      ],
+    });
+
+    render(
+      <PropertyDetailScreen
+        ownerOptions={[
+          {
+            archived: false,
+            description: "Owner",
+            id: "person-owner-option",
+            label: "Sokha Owner",
+            roles: ["owner"],
+          },
+        ]}
+        property={propertyMissingOwner}
+        tenantOptions={tenantOptions}
+      />,
+    );
+
+    expect(screen.queryByText("Assign a current owner/person link before relying on owner reports.")).toBeNull();
+    const assignOwner = screen.getByRole("button", { name: "Assign owner" });
+    fireEvent.click(assignOwner);
+
+    const modal = screen.getByRole("dialog", { name: "Assign owner" });
+    expect(modal.className).toContain("max-w-2xl");
+    expect(modal.className).not.toContain("max-w-md");
+    expect(within(modal).getByRole("form", { name: "Assign owner form" })).toBeTruthy();
+    expect(within(modal).getByRole("combobox", { name: "Property owner" })).toBeTruthy();
+    expect(within(modal).queryByRole("textbox", { name: "Property name" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Assign owner" })).toBeNull();
+  });
+
+  it("keeps Add lease as the only workflow handoff when it is the canonical next action", () => {
+    renderPropertyDetail({ propertyOverride: propertyWithoutActiveLease });
+
+    const overviewPanel = screen.getByRole("tabpanel", { name: "Overview" });
+    const addLeaseLinks = within(overviewPanel).getAllByRole("link", {
+      name: "Add lease",
+    });
+
+    expect(addLeaseLinks).toHaveLength(1);
+    expect(addLeaseLinks[0]?.getAttribute("href")).toBe(
+      "/leases?action=create&propertyId=property-1",
+    );
+    expect(within(overviewPanel).getByText("No active lease")).toBeTruthy();
+    expect(
+      within(overviewPanel).getByRole("link", { name: /Jane Owner Primary owner/ }),
+    ).toBeTruthy();
+  });
+
+  it("renders the terminal accent next action with the accent treatment", () => {
+    renderPropertyDetail({ propertyOverride: propertyWithAccentNextAction });
+
+    const nextAction = screen.getByRole("link", { name: "Log maintenance case" });
+    expect(nextAction.className).toContain("border-primary");
+    expect(nextAction.className).toContain("bg-primary/10");
   });
 
   it("opens property-scoped unit creation locally and keeps unit records operational", () => {
@@ -126,6 +372,7 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     fireEvent.click(addUnit);
 
     const form = screen.getByRole("form", { name: "Add unit form" });
+    expect(within(form).queryByRole("navigation", { name: "Setup progress" })).toBeNull();
     expect(
       within(form).getByRole("combobox", { name: /^Property/ }).textContent,
     ).toBe("Nestory Residence");
@@ -141,6 +388,7 @@ describe("PropertyDetailScreen task-first detail contract", () => {
         initialSection="maintenance"
         ownerOptions={[]}
         property={property}
+        tenantOptions={tenantOptions}
       />,
     );
 
@@ -277,9 +525,20 @@ function renderPropertyDetail({
       initialSection={initialSection}
       ownerOptions={[]}
       property={propertyOverride}
+      tenantOptions={tenantOptions}
     />,
   );
 }
+
+const tenantOptions = [
+  {
+    archived: false,
+    description: "Tenant",
+    id: "tenant-1",
+    label: "Dara Tenant",
+    roles: ["tenant" as const],
+  },
+];
 
 const propertyWithMaintenance = buildPropertyDetail({
   activeLeases: [
@@ -434,4 +693,70 @@ const property = {
     overdueMaintenanceCases: 0,
   },
   recentMaintenanceCases: [],
+};
+
+const propertyWithWorkflowAttention: PropertyDetail = {
+  ...property,
+  financialSummary: {
+    ...property.financialSummary,
+    noiDisplay: { primary: "USD 1,100.00" },
+    periodLabel: "Trailing 12 months",
+  },
+  healthIndicators: [
+    {
+      description: "A current owner/person link is available for reports and follow-up.",
+      id: "owner",
+      label: "Owner linked",
+      tone: "success",
+    },
+    {
+      description: "One open maintenance case is overdue.",
+      id: "open-maintenance",
+      label: "Maintenance overdue",
+      tone: "danger",
+    },
+    {
+      description: "No property evidence or supporting documents are attached yet.",
+      id: "evidence",
+      label: "Evidence missing",
+      tone: "warning",
+    },
+    {
+      description: "Property income covers recorded expenses in the trailing 12 months.",
+      id: "noi",
+      label: "NOI positive",
+      tone: "success",
+    },
+  ],
+  nextAction: {
+    description: "Annual inspection is overdue under this property.",
+    href: "/maintenance?archiveState=all&taskId=case-overdue",
+    label: "Review overdue issue",
+    tone: "danger",
+  },
+};
+
+const propertyWithoutActiveLease: PropertyDetail = {
+  ...property,
+  activeLeases: [],
+  counts: {
+    ...property.counts,
+    activeLeases: 0,
+  },
+  nextAction: {
+    description: "Create or review leases so occupancy and rent roll are connected.",
+    href: "/leases?action=create&propertyId=property-1",
+    label: "Add lease",
+    tone: "warning",
+  },
+};
+
+const propertyWithAccentNextAction: PropertyDetail = {
+  ...property,
+  nextAction: {
+    description: "The core record is connected. Review maintenance or add the next case.",
+    href: "/maintenance?action=create&propertyId=property-1",
+    label: "Log maintenance case",
+    tone: "accent",
+  },
 };

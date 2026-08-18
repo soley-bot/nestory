@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import Link from "next/link";
+import { useActionState, useEffect, useState } from "react";
+import { ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { FormSection } from "@/components/ui/form-section";
@@ -19,6 +20,7 @@ import {
 } from "@/features/leases/actions";
 import type {
   LeaseFormValues,
+  LeaseCreateContext,
   LeasePaymentFrequency,
   LeasePropertyOption,
   LeaseStatusValue,
@@ -30,14 +32,6 @@ import type {
 
 const initialState: LeaseActionState = {};
 
-const statusOptions: { label: string; value: LeaseStatusValue }[] = [
-  { label: "Active", value: "active" },
-  { label: "Draft", value: "draft" },
-  { label: "Notice", value: "notice_given" },
-  { label: "Ended", value: "ended" },
-  { label: "Terminated", value: "terminated" },
-  { label: "Cancelled", value: "cancelled" },
-];
 const paymentFrequencyOptions: {
   label: string;
   value: LeasePaymentFrequency;
@@ -48,16 +42,8 @@ const paymentFrequencyOptions: {
   { label: "Annual", value: "annual" },
   { label: "One time", value: "one_time" },
 ];
-const termStatusOptions: { label: string; value: LeaseTermStatus }[] = [
-  { label: "Active now", value: "active" },
-  { label: "Upcoming", value: "upcoming" },
-  { label: "Draft", value: "draft" },
-  { label: "Expired", value: "expired" },
-  { label: "Terminated", value: "terminated" },
-];
-
 type LeaseFormProps = {
-  allowStatusChange?: boolean;
+  createContext?: LeaseCreateContext;
   initialValues?: LeaseFormInitialValues;
   initialStatus?: LeaseStatusValue;
   initialTermStatus?: LeaseTermStatus;
@@ -66,6 +52,7 @@ type LeaseFormProps = {
   onClose: () => void;
   onSuccess?: (message: string, leaseId?: string) => void;
   properties: LeasePropertyOption[];
+  setupMode?: boolean;
   tenants: LeaseTenantOption[];
   units: LeaseUnitOption[];
 };
@@ -75,7 +62,7 @@ type LeaseFormInitialValues = Partial<
 >;
 
 export function LeaseForm({
-  allowStatusChange = false,
+  createContext,
   initialValues,
   initialStatus,
   initialTermStatus,
@@ -83,9 +70,8 @@ export function LeaseForm({
   mode = "create",
   onClose,
   onSuccess,
-  properties,
+  setupMode = false,
   tenants,
-  units,
 }: LeaseFormProps) {
   const isEditMode = mode === "edit";
   const [state, action, pending] = useActionState(
@@ -99,85 +85,38 @@ export function LeaseForm({
     initialTermStatus,
   );
   const [idempotencyKey] = useState(() => crypto.randomUUID());
-  const [selectedPropertyId, setSelectedPropertyId] = useState(
-    defaults.propertyId,
-  );
-  const [selectedStatus, setSelectedStatus] = useState(defaults.status);
-  const [selectedTermStatus, setSelectedTermStatus] = useState(
-    defaults.termStatus,
-  );
+  const selectedPropertyId = createContext?.propertyId ?? defaults.propertyId;
   const [selectedPaymentFrequency, setSelectedPaymentFrequency] = useState(
     defaults.paymentFrequency,
   );
   const [selectedTenantId, setSelectedTenantId] = useState(
     defaults.tenantPersonId,
   );
-  const [selectedUnitId, setSelectedUnitId] = useState(defaults.unitId);
-  const [leaseStartDate, setLeaseStartDate] = useState(defaults.leaseStartDate);
-  const [leaseEndDate, setLeaseEndDate] = useState(defaults.leaseEndDate);
+  const selectedUnitId = createContext?.unitId ?? defaults.unitId;
   const [availableTenantOptions, setAvailableTenantOptions] = useState(tenants);
+  const [leaseStartDate, setLeaseStartDate] = useState(defaults.leaseStartDate);
+  const [moveInTiming, setMoveInTiming] = useState<"moved_in" | "later">("moved_in");
   const [createTenantOpen, setCreateTenantOpen] = useState(false);
-  const hasValidLeaseDates =
-    Boolean(leaseStartDate && leaseEndDate) && leaseEndDate > leaseStartDate;
-  const availableUnits = useMemo(
-    () =>
-      hasValidLeaseDates
-        ? units.filter((unit) =>
-            isUnitAvailableForLease(
-              unit,
-              leaseStartDate,
-              leaseEndDate,
-              isEditMode ? lease?.id : undefined,
-            ),
-          )
-        : [],
-    [hasValidLeaseDates, isEditMode, lease?.id, leaseEndDate, leaseStartDate, units],
-  );
-  const availablePropertyIds = useMemo(
-    () => new Set(availableUnits.map((unit) => unit.propertyId)),
-    [availableUnits],
-  );
-  const availableProperties = useMemo(
-    () =>
-      hasValidLeaseDates
-        ? properties.filter((property) => availablePropertyIds.has(property.id))
-        : [],
-    [availablePropertyIds, hasValidLeaseDates, properties],
-  );
-  const propertyOptions = isEditMode
-    ? ensureSelectedProperty(availableProperties, selectedPropertyId)
-    : availableProperties;
-  const unitOptions = useMemo(
-    () =>
-      ensureSelectedUnit(
-        availableUnits.filter(
-          (unit) => unit.propertyId === selectedPropertyId,
-        ),
-        units,
-        selectedUnitId,
-      ),
-    [availableUnits, selectedPropertyId, selectedUnitId, units],
-  );
-  const normalizedStatusOptions = ensureSelectedStatus(
-    statusOptions,
-    defaults.status,
-  );
   const tenantOptions = ensureSelectedTenant(
     availableTenantOptions,
     selectedTenantId,
     defaults.tenantName,
   );
-  const formUnitId =
-    selectedUnitId && unitOptions.some((unit) => unit.id === selectedUnitId)
-      ? selectedUnitId
-      : "";
+  const formUnitId = selectedUnitId ?? "";
+  const createAsActive = shouldCreateSetupLeaseAsActive(
+    setupMode,
+    moveInTiming,
+    formUnitId,
+  );
 
   useEffect(() => {
     if (state.status === "success") {
       onSuccess?.(state.message ?? "Lease saved.", state.leaseId);
-      onClose();
+      if (isEditMode) {
+        onClose();
+      }
     }
-  }, [onClose, onSuccess, state.leaseId, state.message, state.status]);
+  }, [isEditMode, onClose, onSuccess, state.leaseId, state.message, state.status]);
 
   function handleTenantCreated(
     personId?: string,
@@ -200,336 +139,263 @@ export function LeaseForm({
     setCreateTenantOpen(false);
   }
 
-  function handleLeaseStartDateChange(value: string) {
-    setLeaseStartDate(value);
-
-    if (!isEditMode) {
-      setSelectedPropertyId("");
-      setSelectedUnitId("");
-    }
-  }
-
-  function handleLeaseEndDateChange(value: string) {
-    setLeaseEndDate(value);
-
-    if (!isEditMode) {
-      setSelectedPropertyId("");
-      setSelectedUnitId("");
-    }
-  }
-
   return (
     <>
-    <RecordForm
-      action={action}
-      ariaLabel={isEditMode ? "Edit lease form" : "Add lease form"}
-      onCancel={onClose}
-      pending={pending}
-      saveLabel={isEditMode ? "Save changes" : "Save draft"}
-      savingLabel={isEditMode ? "Saving lease" : "Adding lease"}
-      state={{
-        ...state,
-        fieldErrors: state.fieldErrors ? { ...state.fieldErrors } : undefined,
-      }}
-    >
-      {isEditMode && lease ? (
-        <input name="leaseId" type="hidden" value={lease.id} />
-      ) : null}
-      <input
-        name="idempotencyKey"
-        suppressHydrationWarning
-        type="hidden"
-        value={idempotencyKey}
-      />
+      <RecordForm
+        action={action}
+        ariaLabel={isEditMode ? "Edit draft form" : "Add lease form"}
+        onCancel={onClose}
+        pending={pending}
+        saveLabel={isEditMode ? "Save draft changes" : setupMode ? "Save tenant and lease" : "Create draft lease"}
+        savingLabel={isEditMode ? "Saving draft" : setupMode ? "Saving tenant and lease" : "Creating draft"}
+        hideSaveOnSuccess={!isEditMode}
+        state={{
+          ...state,
+          fieldErrors: state.fieldErrors ? { ...state.fieldErrors } : undefined,
+        }}
+      >
+        {isEditMode && lease ? (
+          <input name="leaseId" type="hidden" value={lease.id} />
+        ) : null}
+        <input
+          name="idempotencyKey"
+          suppressHydrationWarning
+          type="hidden"
+          value={idempotencyKey}
+        />
 
-      {!isEditMode ? (
-        <>
-          <input name="status" type="hidden" value="draft" />
-          <input name="termStatus" type="hidden" value="draft" />
-          <input name="paymentFrequency" type="hidden" value="monthly" />
-          <input name="scheduledMoveInDate" type="hidden" value="" />
-          <input name="scheduledMoveOutDate" type="hidden" value="" />
-          <input name="actualMoveInDate" type="hidden" value="" />
-          <input name="actualMoveOutDate" type="hidden" value="" />
-        </>
-      ) : null}
+        {!isEditMode && state.status === "success" && state.leaseId ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-y border-success/30 py-2 text-sm">
+            <p className="font-medium text-foreground">Draft created</p>
+            <Link
+              className="inline-flex h-8 items-center gap-1.5 font-medium text-accent outline-none transition-colors hover:text-accent/75 focus-visible:ring-2 focus-visible:ring-ring"
+              href={`/leases/${state.leaseId}`}
+              prefetch={false}
+            >
+              Open draft
+              <ArrowRight aria-hidden size={14} />
+            </Link>
+          </div>
+        ) : null}
 
-      <FormSection title={isEditMode ? "Lease party" : "Lease details"}>
-        <div
-          className={
-            isEditMode
-              ? "grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]"
-              : "grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
-          }
-        >
-          <RecordField
-            error={state.fieldErrors?.tenantPersonId?.[0]}
-            label="Tenant"
-            name="tenantPersonId"
-            required
-          >
-            <PersonSelect
-              context="Lease tenant"
-              disabled={isEditMode}
+        {isEditMode ? (
+          <>
+            <input
               name="tenantPersonId"
-              onValueChange={setSelectedTenantId}
-              options={tenantOptions}
-              placeholder="Select tenant"
-              preservedOption={
-                selectedTenantId && defaults.tenantName
-                  ? {
-                      archived: true,
-                      description: "Historical lease tenant",
-                      id: selectedTenantId,
-                      label: defaults.tenantName,
-                      roles: ["tenant"] as const,
-                    }
-                  : undefined
-              }
-              roles={["tenant"]}
+              type="hidden"
               value={selectedTenantId}
             />
-          </RecordField>
+            <input name="propertyId" type="hidden" value={selectedPropertyId} />
+            <input name="unitId" type="hidden" value={formUnitId} />
+            <input name="status" type="hidden" value={defaults.status} />
+            <input
+              name="termStatus"
+              type="hidden"
+              value={defaults.termStatus}
+            />
+          </>
+        ) : (
+          <>
+            <input name="propertyId" type="hidden" value={selectedPropertyId} />
+            <input name="unitId" type="hidden" value={formUnitId} />
+            <input name="status" type="hidden" value={createAsActive ? "active" : "draft"} />
+            <input name="termStatus" type="hidden" value={createAsActive ? "active" : "draft"} />
+            <input name="paymentFrequency" type="hidden" value="monthly" />
+            <input name="scheduledMoveInDate" type="hidden" value={setupMode ? leaseStartDate : ""} />
+            <input name="scheduledMoveOutDate" type="hidden" value="" />
+            <input name="actualMoveInDate" type="hidden" value={createAsActive ? leaseStartDate : ""} />
+            <input name="actualMoveOutDate" type="hidden" value="" />
+          </>
+        )}
 
-          {!isEditMode ? (
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => setCreateTenantOpen(true)}
-              type="button"
-              variant="outline"
+        {!isEditMode ? (
+          <FormSection step="01" title="Tenant">
+            {createContext ? (
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-border/70 pb-3 text-sm">
+                <span className="font-medium text-foreground">{createContext.propertyLabel}</span>
+                <span aria-hidden className="text-muted-foreground">/</span>
+                <span className="text-muted-foreground">{createContext.unitLabel ?? "Whole property"}</span>
+              </div>
+            ) : null}
+            <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <RecordField
+                error={state.fieldErrors?.tenantPersonId?.[0]}
+                label="Tenant"
+                name="tenantPersonId"
+                required
+              >
+                <PersonSelect
+                  context="Lease tenant"
+                  name="tenantPersonId"
+                  onValueChange={setSelectedTenantId}
+                  options={tenantOptions}
+                  placeholder="Select tenant"
+                  roles={["tenant"]}
+                  value={selectedTenantId}
+                />
+              </RecordField>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => setCreateTenantOpen(true)}
+                type="button"
+                variant="outline"
+              >
+                <Plus aria-hidden size={15} />
+                New tenant
+              </Button>
+            </div>
+          </FormSection>
+        ) : null}
+
+        <FormSection step={isEditMode ? "01" : "02"} title="Lease period">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <RecordField
+              label="Start date"
+              name="leaseStartDate"
+              error={state.fieldErrors?.leaseStartDate?.[0]}
+              required
             >
-              <Plus aria-hidden size={15} />
-              New tenant
-            </Button>
+              <DatePickerField
+                ariaLabel="Lease start date"
+                defaultValue={defaults.leaseStartDate}
+                name="leaseStartDate"
+                onValueChange={setLeaseStartDate}
+                required
+              />
+            </RecordField>
+
+            <RecordField
+              error={state.fieldErrors?.leaseEndDate?.[0]}
+              label="End date"
+              name="leaseEndDate"
+              required
+            >
+              <DatePickerField
+                ariaLabel="Lease end date"
+                defaultValue={defaults.leaseEndDate}
+                minValue={leaseStartDate}
+                name="leaseEndDate"
+                required
+              />
+            </RecordField>
+          </div>
+
+          {setupMode && !isEditMode ? (
+            <RecordField label="Move-in status" name="moveInTiming" required>
+              <SelectControl
+                ariaLabel="Move-in status"
+                onValueChange={(value) => setMoveInTiming(value as "moved_in" | "later")}
+                options={[
+                  { label: "Tenant moved in on the lease start date", value: "moved_in" },
+                  { label: "Tenant will move in later", value: "later" },
+                ]}
+                value={moveInTiming}
+              />
+            </RecordField>
           ) : null}
 
-          {isEditMode ? <RecordField
-            error={state.fieldErrors?.status?.[0]}
-            label="Status"
-            name="status"
-            required
-          >
-            <input name="status" type="hidden" value={selectedStatus} />
-            <SelectControl
-              ariaLabel="Status"
-              disabled={!allowStatusChange}
-              onValueChange={(value) =>
-                setSelectedStatus(value as LeaseStatusValue)
-              }
-              options={normalizedStatusOptions}
-              placeholder="Choose lease status"
-              required
-              value={selectedStatus}
-            />
-          </RecordField> : null}
-        </div>
+        </FormSection>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <RecordField
-            label="Start date"
-            name="leaseStartDate"
-            error={state.fieldErrors?.leaseStartDate?.[0]}
-            required
-          >
-            <DatePickerField
-              ariaLabel="Lease start date"
-              defaultValue={defaults.leaseStartDate}
-              name="leaseStartDate"
-              onValueChange={handleLeaseStartDateChange}
+        <FormSection step={isEditMode ? "02" : "03"} title="Rent and deposit">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <RecordField
+              label="Rent amount"
+              name="monthlyRentAmount"
+              error={state.fieldErrors?.monthlyRentAmount?.[0]}
               required
-            />
-          </RecordField>
-
-          <RecordField
-            error={state.fieldErrors?.leaseEndDate?.[0]}
-            label="End date"
-            name="leaseEndDate"
-            required
-          >
-            <DatePickerField
-              ariaLabel="Lease end date"
-              defaultValue={defaults.leaseEndDate}
-              name="leaseEndDate"
-              onValueChange={handleLeaseEndDateChange}
-              required
-            />
-          </RecordField>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <RecordField
-            error={state.fieldErrors?.propertyId?.[0]}
-            label="Property"
-            name="propertyId"
-            required
-          >
-            {isEditMode ? (
-              <input
-                name="propertyId"
-                type="hidden"
-                value={selectedPropertyId}
+            >
+              <NumberInput
+                defaultValue={defaults.monthlyRentAmount}
+                min="0.01"
+                name="monthlyRentAmount"
+                placeholder="0.00"
+                required
+                step="0.01"
               />
-            ) : null}
-            <SelectControl
-              ariaLabel="Property"
-              disabled={isEditMode || !hasValidLeaseDates}
-              name={isEditMode ? undefined : "propertyId"}
-              onValueChange={(value) => {
-                setSelectedPropertyId(value);
-                setSelectedUnitId("");
-              }}
-              options={[
-                { label: "Select property", value: "" },
-                ...propertyOptions.map((property) => ({
-                  label: property.label,
-                  value: property.id,
-                })),
-              ]}
+            </RecordField>
+
+            <RecordField
+              error={state.fieldErrors?.rentDueDay?.[0]}
+              label="Rent due day"
+              name="rentDueDay"
               required
-              value={selectedPropertyId}
-            />
-          </RecordField>
+            >
+              <NumberInput
+                defaultValue={defaults.rentDueDay}
+                max="31"
+                min="1"
+                name="rentDueDay"
+                placeholder="1-31"
+                required
+                step="1"
+              />
+            </RecordField>
+          </div>
+
+          {isEditMode ? (
+            <div className="max-w-sm">
+              <RecordField
+                error={state.fieldErrors?.paymentFrequency?.[0]}
+                label="Payment frequency"
+                name="paymentFrequency"
+                required
+              >
+                <SelectControl
+                  ariaLabel="Payment frequency"
+                  name="paymentFrequency"
+                  onValueChange={(value) =>
+                    setSelectedPaymentFrequency(value as LeasePaymentFrequency)
+                  }
+                  options={[
+                    { label: "Choose frequency", value: "" },
+                    ...paymentFrequencyOptions,
+                  ]}
+                  required
+                  value={selectedPaymentFrequency}
+                />
+              </RecordField>
+            </div>
+          ) : null}
 
           <RecordField
-            error={state.fieldErrors?.unitId?.[0]}
-            label="Unit"
-            name="unitId"
-            required
-          >
-            {isEditMode ? (
-              <input name="unitId" type="hidden" value={formUnitId} />
-            ) : null}
-            <SelectControl
-              ariaLabel="Unit"
-              disabled={isEditMode || !hasValidLeaseDates || !selectedPropertyId}
-              name={isEditMode ? undefined : "unitId"}
-              onValueChange={setSelectedUnitId}
-              options={[
-                { label: "Select unit", value: "" },
-                ...unitOptions.map((unit) => ({
-                  label: formatUnitSelectLabel(unit.label),
-                  value: unit.id,
-                })),
-              ]}
-              required
-              value={formUnitId}
-            />
-          </RecordField>
-        </div>
-      </FormSection>
-
-      <FormSection title="Rent and deposit">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <RecordField
-            label="Rent amount"
-            name="monthlyRentAmount"
-            error={state.fieldErrors?.monthlyRentAmount?.[0]}
-            required
+            error={state.fieldErrors?.depositAmount?.[0]}
+            label="Security deposit"
+            name="depositAmount"
           >
             <NumberInput
-              defaultValue={defaults.monthlyRentAmount}
-              min="0.01"
-              name="monthlyRentAmount"
+              defaultValue={defaults.depositAmount}
+              min="0"
+              name="depositAmount"
               placeholder="0.00"
-              required
               step="0.01"
             />
           </RecordField>
-
-          <RecordField
-            error={state.fieldErrors?.rentDueDay?.[0]}
-            label="Rent due day"
-            name="rentDueDay"
-            required
-          >
-            <NumberInput
-              defaultValue={defaults.rentDueDay}
-              max="31"
-              min="1"
-              name="rentDueDay"
-              placeholder="1-31"
-              required
-              step="1"
-            />
-          </RecordField>
-        </div>
-
-        {isEditMode ? <div className="grid gap-4 sm:grid-cols-2">
-          <RecordField
-            error={state.fieldErrors?.paymentFrequency?.[0]}
-            label="Payment frequency"
-            name="paymentFrequency"
-            required
-          >
-            <SelectControl
-              ariaLabel="Payment frequency"
-              name="paymentFrequency"
-              onValueChange={(value) =>
-                setSelectedPaymentFrequency(value as LeasePaymentFrequency)
-              }
-              options={[
-                { label: "Choose frequency", value: "" },
-                ...paymentFrequencyOptions,
-              ]}
-              required
-              value={selectedPaymentFrequency}
-            />
-          </RecordField>
-
-          <RecordField
-            error={state.fieldErrors?.termStatus?.[0]}
-            label="Term status"
-            name="termStatus"
-            required
-          >
-            <SelectControl
-              ariaLabel="Term status"
-              name="termStatus"
-              onValueChange={(value) =>
-                setSelectedTermStatus(value as LeaseTermStatus)
-              }
-              options={[
-                { label: "Choose term status", value: "" },
-                ...termStatusOptions,
-              ]}
-              required
-              value={selectedTermStatus}
-            />
-          </RecordField>
-        </div> : null}
-
-        <RecordField
-          error={state.fieldErrors?.depositAmount?.[0]}
-          label="Security deposit"
-          name="depositAmount"
-        >
-          <NumberInput
-            defaultValue={defaults.depositAmount}
-            min="0"
-            name="depositAmount"
-            placeholder="0.00"
-            step="0.01"
-          />
-        </RecordField>
-
-      </FormSection>
-    </RecordForm>
-    <Modal
-      onClose={() => setCreateTenantOpen(false)}
-      open={createTenantOpen}
-      title="Create tenant"
-    >
-      <PersonForm
-        initialRoles={["tenant"]}
+        </FormSection>
+      </RecordForm>
+      <Modal
         onClose={() => setCreateTenantOpen(false)}
-        onSuccess={(_message, personId, roles, displayName) =>
-          handleTenantCreated(personId, roles, displayName)
-        }
-        roleContext="tenant"
-      />
-    </Modal>
+        open={createTenantOpen}
+        title="Create tenant"
+      >
+        <PersonForm
+          initialRoles={["tenant"]}
+          onClose={() => setCreateTenantOpen(false)}
+          onSuccess={(_message, personId, roles, displayName) =>
+            handleTenantCreated(personId, roles, displayName)
+          }
+          roleContext="tenant"
+        />
+      </Modal>
     </>
   );
+}
+
+export function shouldCreateSetupLeaseAsActive(
+  setupMode: boolean,
+  moveInTiming: "moved_in" | "later",
+  unitId: string,
+): boolean {
+  return setupMode && moveInTiming === "moved_in" && unitId.length > 0;
 }
 
 function getLeaseDefaults(
@@ -565,37 +431,6 @@ function toInputNumber(value: number | string | null | undefined) {
   return String(value);
 }
 
-function ensureSelectedProperty(
-  properties: LeasePropertyOption[],
-  selectedPropertyId: string,
-) {
-  if (
-    !selectedPropertyId ||
-    properties.some((property) => property.id === selectedPropertyId)
-  ) {
-    return properties;
-  }
-
-  return [...properties, { id: selectedPropertyId, label: "Current property" }];
-}
-
-function ensureSelectedUnit(
-  scopedUnits: LeaseUnitOption[],
-  allUnits: LeaseUnitOption[],
-  selectedUnitId: string,
-) {
-  if (
-    !selectedUnitId ||
-    scopedUnits.some((unit) => unit.id === selectedUnitId)
-  ) {
-    return scopedUnits;
-  }
-
-  const selectedUnit = allUnits.find((unit) => unit.id === selectedUnitId);
-
-  return selectedUnit ? [...scopedUnits, selectedUnit] : scopedUnits;
-}
-
 function ensureSelectedTenant(
   tenants: LeaseTenantOption[],
   selectedTenantId: string,
@@ -617,40 +452,5 @@ function ensureSelectedTenant(
       label: selectedTenantName || "Current tenant",
       roles: ["tenant"],
     },
-  ];
-}
-
-function formatUnitSelectLabel(label: string) {
-  return label.includes(" / ") ? (label.split(" / ").at(-1) ?? label) : label;
-}
-
-function isUnitAvailableForLease(
-  unit: LeaseUnitOption,
-  startDate: string,
-  endDate: string,
-  currentLeaseId?: string,
-) {
-  return !(unit.reservations ?? []).some(
-    (reservation) =>
-      reservation.leaseId !== currentLeaseId &&
-      reservation.startDate <= endDate &&
-      reservation.endDate >= startDate,
-  );
-}
-
-function ensureSelectedStatus(
-  options: { label: string; value: string }[],
-  selectedStatus: string,
-) {
-  if (
-    !selectedStatus ||
-    options.some((option) => option.value === selectedStatus)
-  ) {
-    return options;
-  }
-
-  return [
-    ...options,
-    { label: selectedStatus.replace(/_/g, " "), value: selectedStatus },
   ];
 }

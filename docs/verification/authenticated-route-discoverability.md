@@ -1,8 +1,8 @@
 # Authenticated route discoverability
 
-<!-- contract-sha256:1e7777367dac246a3f617f24c0837a7d510251a970949b54d57baf0ac5f13e6f -->
+<!-- contract-sha256:471ad47dc4ecdd0ba637cf902d97b1df95089f047eb2725be2de8f0e5161e4ac -->
 
-This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 44 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
+This report is generated from `config/authenticated-route-discoverability.json`. The contract covers all 46 production pages inside the authenticated dashboard layout. `/workspace` is the authenticated arrival router and is verified once per role as the shell entry.
 
 Classifications are `global`, `context`, `profile`, or `intentionally inaccessible`. An authorized page is incomplete unless its visible entry and browser journey from the current shell or contextual origin both exist.
 
@@ -18,6 +18,8 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 | `/documents` | `requireSuperAdminContext` / `canManageAccess` | global via shell-documents; pending sa:documents | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/finance -->
 | `/finance` | `requireFinanceContext` / `canReadFinance` | global via shell-finance; pending sa:finance | global via shell-finance; pending fm:finance | global via shell-finance; pending fmem:finance | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
+<!-- authenticated-route:/finance/advanced -->
+| `/finance/advanced` | `requireFinanceContext` / `canReadFinance` | global via shell-advanced-finance; pending sa:finance-advanced | global via shell-advanced-finance; pending fm:finance-advanced | global via shell-advanced-finance; pending fmem:finance-advanced | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/financial-timeline -->
 | `/financial-timeline` | `requireSuperAdminContext` / `canManageAccess` | global via shell-financial-timeline; pending sa:financial-timeline | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/import -->
@@ -29,7 +31,7 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 <!-- authenticated-route:/leases/[leaseId] -->
 | `/leases/[leaseId]` | `requireFinanceContext` / `canReadFinance` | context via lease-detail; pending sa:lease-detail | context via lease-detail; pending fm:lease-detail | context via lease-detail; pending fmem:lease-detail | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link |
 <!-- authenticated-route:/ledger -->
-| `/ledger` | `requireFinanceContext` / `canReadFinance` | global via shell-ledger; pending sa:ledger | global via shell-ledger; pending fm:ledger | global via shell-ledger; pending fmem:ledger | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link |
+| `/ledger` | `requireFinanceContext` / `canReadFinance` | context via advanced-ledger; pending sa:ledger | context via advanced-ledger; pending fm:ledger | context via advanced-ledger; pending fmem:ledger | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link |
 <!-- authenticated-route:/maintenance -->
 | `/maintenance` | `requireOperationsManagementContext` / `canManageOperations` | global via shell-maintenance; pending sa:maintenance | Intentionally inaccessible — Requires canManageOperations. | Intentionally inaccessible — Requires canManageOperations. | global via shell-maintenance; pending om:maintenance | Intentionally inaccessible — Requires canManageOperations. | none |
 <!-- authenticated-route:/maintenance-timeline -->
@@ -45,9 +47,11 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 <!-- authenticated-route:/people -->
 | `/people` | `requireSuperAdminContext` / `canManageAccess` | global via shell-people; pending sa:people | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/petty-cash -->
-| `/petty-cash` | `requireFinanceContext` / `canReadFinance` | global via shell-petty-cash; pending sa:petty-cash | global via shell-petty-cash; pending fm:petty-cash | global via shell-petty-cash; pending fmem:petty-cash | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link, no-admin-person-link |
+| `/petty-cash` | `requireFinanceContext` / `canReadFinance` | context via advanced-petty-cash; pending sa:petty-cash | context via advanced-petty-cash; pending fm:petty-cash | context via advanced-petty-cash; pending fmem:petty-cash | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link, no-admin-person-link |
 <!-- authenticated-route:/properties/[propertyId]/account -->
 | `/properties/[propertyId]/account` | `requireFinanceContext` / `canReadFinance` | context via property-account; pending sa:property-account | context via property-account; pending fm:property-account | context via property-account; pending fmem:property-account | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | none |
+<!-- authenticated-route:/properties/[propertyId]/finance -->
+| `/properties/[propertyId]/finance` | `requireFinanceContext` / `canReadFinance` | context via property-finance-invoice; pending sa:property-finance | context via property-finance-invoice; pending fm:property-finance | context via property-finance-invoice; pending fmem:property-finance | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account |
 <!-- authenticated-route:/properties/[propertyId] -->
 | `/properties/[propertyId]` | `requireSuperAdminContext` / `canManageAccess` | context via property-detail; pending sa:property-detail | Intentionally inaccessible — Requires canManageAccess; use the finance-safe property account. | Intentionally inaccessible — Requires canManageAccess; use the finance-safe property account. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/properties -->
@@ -65,7 +69,7 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 <!-- authenticated-route:/reports -->
 | `/reports` | `requireFinanceReportContext` / `canReadFinanceReports` | global via shell-reports; pending sa:reports | global via shell-reports; pending fm:reports | Intentionally inaccessible — Requires canReadFinanceReports. | Intentionally inaccessible — Requires canReadFinanceReports. | Intentionally inaccessible — Requires canReadFinanceReports. | none |
 <!-- authenticated-route:/settings -->
-| `/settings` | `requireWorkspaceContext` / `settingsEntry` | global via shell-settings; pending sa:settings | context via settings-rent-policy; pending fm:settings-entry | Intentionally inaccessible — No configurable Settings destination. | Intentionally inaccessible — No configurable Settings destination. | Intentionally inaccessible — No configurable Settings destination. | none |
+| `/settings` | `requireWorkspaceContext` / `settingsEntry` | global via shell-settings; pending sa:settings | Intentionally inaccessible — No configurable Settings destination. | Intentionally inaccessible — No configurable Settings destination. | Intentionally inaccessible — No configurable Settings destination. | Intentionally inaccessible — No configurable Settings destination. | none |
 <!-- authenticated-route:/settings/organization -->
 | `/settings/organization` | `requireSuperAdminContext` / `canManageAccess` | context via settings-organization; pending sa:settings-organization | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/settings/appearance -->
@@ -76,8 +80,6 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 | `/settings/teams` | `requireSuperAdminContext` / `canManageAccess` | context via settings-teams; pending sa:settings-teams | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/settings/access -->
 | `/settings/access` | `requireSuperAdminContext` / `canManageAccess` | context via settings-access; pending sa:settings-access | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
-<!-- authenticated-route:/settings/rent-policy -->
-| `/settings/rent-policy` | `requireLeaseConfigurationContext` / `canConfigureLeases` | context via settings-rent-policy; pending sa:rent-policy | global via shell-rent-policy; pending fm:rent-policy | Intentionally inaccessible — Requires canConfigureLeases. | Intentionally inaccessible — Requires canConfigureLeases. | Intentionally inaccessible — Requires canConfigureLeases. | none |
 <!-- authenticated-route:/staff -->
 | `/staff` | `requireSuperAdminContext` / `canManageAccess` | context via people-staff; pending sa:staff | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/tasks -->
@@ -88,6 +90,8 @@ Classifications are `global`, `context`, `profile`, or `intentionally inaccessib
 | `/timeline` | `requireSuperAdminContext` / `canManageAccess` | global via shell-timeline; pending sa:timeline | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/units/[unitId] -->
 | `/units/[unitId]` | `requireSuperAdminContext` / `canManageAccess` | context via unit-detail; pending sa:unit-detail | Intentionally inaccessible — Requires canManageAccess; finance screens keep unit identity as trace text. | Intentionally inaccessible — Requires canManageAccess; finance screens keep unit identity as trace text. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
+<!-- authenticated-route:/units/[unitId]/finance -->
+| `/units/[unitId]/finance` | `requireFinanceContext` / `canReadFinance` | context via unit-finance-invoice; pending sa:unit-finance | context via unit-finance-invoice; pending fm:unit-finance | context via unit-finance-invoice; pending fmem:unit-finance | Intentionally inaccessible — Requires canReadFinance. | Intentionally inaccessible — Requires canReadFinance. | finance-safe-property-account, no-admin-unit-link |
 <!-- authenticated-route:/units -->
 | `/units` | `requireSuperAdminContext` / `canManageAccess` | context via units-list; pending sa:units | Intentionally inaccessible — Requires canManageAccess; finance screens keep unit identity as trace text. | Intentionally inaccessible — Requires canManageAccess; finance screens keep unit identity as trace text. | Intentionally inaccessible — Requires canManageAccess. | Intentionally inaccessible — Requires canManageAccess. | none |
 <!-- authenticated-route:/users-roles -->

@@ -45,6 +45,14 @@ const statusOptions: { label: string; value: PropertyStatusValue }[] = [
   { label: "Inactive", value: "inactive" },
 ];
 
+const propertyTypeOptions = [
+  { label: "Residential apartment", value: "Residential apartment" },
+  { label: "Residential house", value: "Residential house" },
+  { label: "Mixed use", value: "Mixed use" },
+  { label: "Serviced Apartment", value: "Serviced Apartment" },
+  { label: "Condo", value: "Condo" },
+];
+
 type PhotoPreview = {
   name: string;
   url: string;
@@ -52,29 +60,37 @@ type PhotoPreview = {
 
 type PropertyFormProps = {
   closeOnCreateSuccess?: boolean;
+  /** Basic registration stays identity-only; guided setup opts in. */
+  collectOwnership?: boolean;
   initialValues?: Partial<Pick<PropertyFormValues, "ownerPersonId">>;
   mode?: "create" | "edit";
   onClose: () => void;
   onSuccess?: (message: string, propertyId?: string) => void;
   ownerOptions: PropertyOwnerOption[];
   property?: PropertySummary | null;
+  scope?: "all" | "owner";
 };
 
 export function PropertyForm({
   closeOnCreateSuccess = false,
+  collectOwnership = false,
   initialValues,
   mode = "create",
   onClose,
   onSuccess,
   ownerOptions,
   property,
+  scope = "all",
 }: PropertyFormProps) {
   const isEditMode = mode === "edit";
+  const isOwnerScope = scope === "owner";
+  const showsOwnership = isEditMode || collectOwnership;
   const [state, action, pending] = useActionState(
     isEditMode ? updatePropertyAction : createPropertyAction,
     initialState,
   );
   const defaults = getPropertyDefaults(property, initialValues);
+  const [creationIdempotencyKey] = useState(() => crypto.randomUUID());
   const [selectedOwnerPersonId, setSelectedOwnerPersonId] = useState(
     defaults.ownerPersonId ?? "",
   );
@@ -103,12 +119,16 @@ export function PropertyForm({
       state.status === "success" &&
       (isEditMode || closeOnCreateSuccess)
     ) {
-      onSuccess?.(state.message ?? "Property saved.", state.propertyId);
+      onSuccess?.(
+        isOwnerScope ? "Owner assigned." : state.message ?? "Property saved.",
+        state.propertyId,
+      );
       onClose();
     }
   }, [
     closeOnCreateSuccess,
     isEditMode,
+    isOwnerScope,
     onClose,
     onSuccess,
     state.message,
@@ -166,12 +186,20 @@ export function PropertyForm({
     <>
       <RecordForm
         action={action}
-        ariaLabel={isEditMode ? "Edit property form" : "Add property form"}
+        ariaLabel={
+          isOwnerScope
+            ? "Assign owner form"
+            : isEditMode
+              ? "Edit property form"
+              : "Add property form"
+        }
         hideSaveOnSuccess={!isEditMode}
         onCancel={onClose}
         pending={pending}
-        saveLabel={isEditMode ? "Save changes" : "Add property"}
-        savingLabel={isEditMode ? "Saving property" : "Adding property"}
+        saveLabel={isOwnerScope ? "Assign owner" : isEditMode ? "Save changes" : "Add property"}
+        savingLabel={
+          isOwnerScope ? "Assigning owner" : isEditMode ? "Saving property" : "Adding property"
+        }
         state={state}
       >
       {state.status === "success" && !isEditMode && state.propertyId ? (
@@ -180,14 +208,40 @@ export function PropertyForm({
       {isEditMode && property ? (
         <input name="propertyId" type="hidden" value={property.id} />
       ) : null}
+      {!isEditMode ? (
+        <input
+          name="idempotencyKey"
+          type="hidden"
+          value={creationIdempotencyKey}
+        />
+      ) : null}
       <input
         name="hasPhoto"
         type="hidden"
         value={property?.thumbnailUrl ? "true" : "false"}
       />
-      <input name="owner" type="hidden" value={defaults.owner ?? ""} />
+      {isEditMode ? (
+        <input name="owner" type="hidden" value={defaults.owner ?? ""} />
+      ) : null}
+      {isEditMode && !isOwnerScope ? (
+        <input name="acquisitionDate" type="hidden" value={defaults.acquisitionDate ?? ""} />
+      ) : null}
 
-      <FormSection title="Property Information">
+      {isOwnerScope ? (
+        <>
+          <input name="acquisitionDate" type="hidden" value={defaults.acquisitionDate ?? ""} />
+          <input name="address" type="hidden" value={defaults.address ?? ""} />
+          <input name="code" type="hidden" value={defaults.code} />
+          <input name="name" type="hidden" value={defaults.name} />
+          <input name="notes" type="hidden" value={defaults.notes ?? ""} />
+          <input name="propertyType" type="hidden" value={defaults.propertyType} />
+          <input name="registeredDate" type="hidden" value={defaults.registeredDate ?? ""} />
+          <input name="status" type="hidden" value={defaults.status} />
+        </>
+      ) : null}
+
+      {!isOwnerScope ? (
+      <FormSection step="01" title="Property details">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_132px]">
           <RecordField
             error={state.fieldErrors?.name?.[0]}
@@ -208,14 +262,13 @@ export function PropertyForm({
             error={state.fieldErrors?.code?.[0]}
             label="Code"
             name="code"
-            required
           >
             <Input
               autoCapitalize="characters"
               defaultValue={defaults.code}
               maxLength={24}
               name="code"
-              required
+              required={isEditMode}
               type="text"
             />
           </RecordField>
@@ -228,15 +281,30 @@ export function PropertyForm({
             error={state.fieldErrors?.propertyType?.[0]}
             required
           >
-            <Input
+            <SelectControl
+              ariaLabel="Property type"
               defaultValue={defaults.propertyType}
-              maxLength={80}
               name="propertyType"
+              options={getPropertyTypeOptions(defaults.propertyType)}
+              placeholder="Select property type"
               required
-              type="text"
             />
           </RecordField>
 
+          <RecordField
+            error={state.fieldErrors?.registeredDate?.[0]}
+            label="Registered date"
+            name="registeredDate"
+          >
+            <DatePickerField
+              ariaLabel="Registered date"
+              defaultValue={defaults.registeredDate ?? ""}
+              name="registeredDate"
+            />
+          </RecordField>
+        </div>
+
+        {isEditMode ? (
           <RecordField
             error={state.fieldErrors?.status?.[0]}
             label="Status"
@@ -251,11 +319,26 @@ export function PropertyForm({
               required
             />
           </RecordField>
-        </div>
-      </FormSection>
+        ) : null}
 
-      <FormSection title="Property Owner & Location">
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_160px]">
+        <RecordField
+          error={state.fieldErrors?.address?.[0]}
+          label="Address"
+          name="address"
+        >
+          <Input
+            defaultValue={defaults.address ?? ""}
+            maxLength={240}
+            name="address"
+            type="text"
+          />
+        </RecordField>
+      </FormSection>
+      ) : null}
+
+      {showsOwnership ? (
+      <FormSection step="02" title="Ownership">
+        <div className="grid gap-4">
           <RecordField
             label="Property owner"
             name="ownerPersonId"
@@ -282,12 +365,7 @@ export function PropertyForm({
               roles={["owner"]}
               value={selectedOwnerPersonId}
             />
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>
-                {availableOwnerOptions.length === 0
-                  ? "No owner records are available yet."
-                  : "Need a different owner?"}
-              </span>
+            <div className="mt-1 flex justify-end text-xs">
               <button
                 className="font-medium text-primary underline-offset-4 transition-colors hover:underline"
                 onClick={() => setCreateOwnerOpen(true)}
@@ -298,17 +376,6 @@ export function PropertyForm({
             </div>
           </RecordField>
 
-          <RecordField
-            label="Acquisition date"
-            name="acquisitionDate"
-            error={state.fieldErrors?.acquisitionDate?.[0]}
-          >
-            <DatePickerField
-              ariaLabel="Acquisition date"
-              defaultValue={defaults.acquisitionDate ?? ""}
-              name="acquisitionDate"
-            />
-          </RecordField>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -377,21 +444,11 @@ export function PropertyForm({
           </RecordField>
         </div>
 
-        <RecordField
-          error={state.fieldErrors?.address?.[0]}
-          label="Address"
-          name="address"
-        >
-          <Input
-            defaultValue={defaults.address ?? ""}
-            maxLength={240}
-            name="address"
-            type="text"
-          />
-        </RecordField>
       </FormSection>
+      ) : null}
 
-      <FormSection title="Photo">
+      {!isOwnerScope ? (
+      <FormSection step={showsOwnership ? "03" : "02"} title="Photo">
         <RecordField
           error={state.fieldErrors?.photo?.[0]}
           label="Property photo"
@@ -407,8 +464,10 @@ export function PropertyForm({
           />
         </RecordField>
       </FormSection>
+      ) : null}
 
-      <FormSection title="Notes">
+      {isEditMode && !isOwnerScope ? (
+      <FormSection step="04" title="Notes">
         <RecordField
           className="[&>div]:mt-0 [&>span:first-child]:sr-only"
           error={state.fieldErrors?.notes?.[0]}
@@ -422,15 +481,18 @@ export function PropertyForm({
           />
         </RecordField>
       </FormSection>
+      ) : null}
       </RecordForm>
 
+      {isEditMode ? (
       <Modal
-        description="Add an owner record, then continue with this property."
+        description="The new owner will be selected for this property."
         onClose={() => setCreateOwnerOpen(false)}
         open={createOwnerOpen}
         title="Create owner"
       >
         <PersonForm
+          createSaveLabel="Create and select"
           initialRoles={["owner"]}
           onClose={() => setCreateOwnerOpen(false)}
           onSuccess={(_message, personId, roles, displayName) =>
@@ -439,6 +501,7 @@ export function PropertyForm({
           roleContext="owner"
         />
       </Modal>
+      ) : null}
     </>
   );
 }
@@ -453,12 +516,6 @@ function CreateSuccessActions({ propertyId }: { propertyId: string }) {
           href={`/properties/${propertyId}`}
         >
           Open property record
-        </Link>
-        <Link
-          className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          href={`/units?action=create&propertyId=${propertyId}`}
-        >
-          Add units
         </Link>
       </div>
     </div>
@@ -585,6 +642,21 @@ function getPropertyDefaults(
     ownerStartedOn: property?.formValues.ownerStartedOn ?? "",
     ownershipPercent: property?.formValues.ownershipPercent ?? "",
     propertyType: property?.formValues.propertyType ?? "",
+    registeredDate: property?.formValues.registeredDate ?? "",
     status: property?.formValues.status ?? "active",
   };
+}
+
+function getPropertyTypeOptions(currentValue: string) {
+  if (
+    currentValue === "" ||
+    propertyTypeOptions.some((option) => option.value === currentValue)
+  ) {
+    return propertyTypeOptions;
+  }
+
+  return [
+    { label: currentValue, value: currentValue },
+    ...propertyTypeOptions,
+  ];
 }

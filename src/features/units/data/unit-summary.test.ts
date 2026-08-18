@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as unitSummaryModule from "@/features/units/data/unit-summary";
 import {
   buildUnitDetail,
   buildUnitDetailHrefs,
@@ -39,6 +40,13 @@ const lease = {
   status: "active",
   tenant_name: "Dara Tenant",
   unit_id: unit.id,
+};
+
+const draftLease = {
+  ...lease,
+  id: "draft-lease-1",
+  lease_start_date: "2026-05-01",
+  status: "draft",
 };
 
 describe("buildUnitSummary", () => {
@@ -82,10 +90,13 @@ describe("buildUnitSummary", () => {
       isArchived: false,
       ledgerNetLabel: "USD 875.00",
       leaseLabel: "Dara Tenant / Active",
+      leaseStatusLabel: "Active",
       propertyCode: "CTR",
+      propertyOwnerName: "No owner",
       rentLabel: "USD 850.00",
       statusLabel: "Occupied",
       statusTone: "success",
+      tenantName: "Dara Tenant",
       unitNumber: "12A",
     });
   });
@@ -120,6 +131,59 @@ describe("buildUnitSummary", () => {
       rentUsd: 900,
     });
   });
+
+  it.each([
+    {
+      activeLease: undefined,
+      draftLease: undefined,
+      status: "vacant",
+      want: { canStartLease: true, lease: "none", operational: "available" },
+    },
+    {
+      activeLease: undefined,
+      draftLease,
+      status: "reserved",
+      want: { canStartLease: false, lease: "draft", operational: "available" },
+    },
+    {
+      activeLease: lease,
+      draftLease,
+      status: "occupied",
+      want: { canStartLease: false, lease: "occupied", operational: "available" },
+    },
+    {
+      activeLease: undefined,
+      draftLease: undefined,
+      status: "maintenance",
+      want: { canStartLease: false, lease: "none", operational: "maintenance" },
+    },
+    {
+      activeLease: undefined,
+      draftLease: undefined,
+      status: "inactive",
+      want: { canStartLease: false, lease: "none", operational: "inactive" },
+    },
+    {
+      activeLease: undefined,
+      draftLease,
+      status: "maintenance",
+      want: { canStartLease: false, lease: "draft", operational: "maintenance" },
+    },
+  ])(
+    "derives $status operational readiness with $want.lease Lease state",
+    ({ activeLease, draftLease: selectedDraft, status, want }) => {
+      const summary = buildUnitSummary({
+        activeLease,
+        draftLease: selectedDraft,
+        ledgerEntries: [],
+        property,
+        unit: { ...unit, status },
+      });
+
+      expect(summary.readiness).toEqual(want);
+      expect(summary.draftLease?.id).toBe(selectedDraft?.id);
+    },
+  );
 });
 
 describe("buildUnitDetail", () => {
@@ -280,10 +344,46 @@ describe("buildUnitDetail", () => {
       ],
     });
   });
+
+  it("distinguishes missing, draft, and occupied Lease health", () => {
+    const getOccupancyHealth = ({
+      activeLease,
+      selectedDraftLease,
+    }: {
+      activeLease?: typeof lease;
+      selectedDraftLease?: typeof draftLease;
+    }) =>
+      buildUnitDetail({
+        activeLease,
+        counts: { documents: 0, ledgerEntries: 0, timelineEvents: 0 },
+        documents: [],
+        draftLease: selectedDraftLease,
+        ledgerEntries: [],
+        people: [],
+        property,
+        recentLedgerEntries: [],
+        recentTimelineEvents: [],
+        unit: { ...unit, status: "vacant" },
+      }).healthIndicators.find((indicator) => indicator.id === "occupancy");
+
+    expect(getOccupancyHealth({})).toMatchObject({
+      label: "Vacancy or setup needed",
+      tone: "warning",
+    });
+    expect(getOccupancyHealth({ selectedDraftLease: draftLease })).toMatchObject({
+      description: "A draft Lease is in progress and does not establish occupancy yet.",
+      label: "Draft lease in progress",
+      tone: "warning",
+    });
+    expect(getOccupancyHealth({ activeLease: lease })).toMatchObject({
+      label: "Occupancy aligned",
+      tone: "success",
+    });
+  });
 });
 
 describe("buildUnitDetail next action", () => {
-  it("prioritizes adding a lease for an occupied unit without one", () => {
+  it("creates a draft only for an operationally available unit without a lease", () => {
     expect(
       buildUnitDetail({
         counts: {
@@ -301,9 +401,61 @@ describe("buildUnitDetail next action", () => {
       }).repairAction,
     ).toMatchObject({
       href: "/leases?action=create&propertyId=property-1&source=vacancy&unitId=unit-1",
-      label: "Add lease",
+      label: "Create draft lease",
       tone: "danger",
     });
+  });
+
+  it.each(["maintenance", "inactive"])(
+    "prioritizes %s operational repair over Lease creation",
+    (status) => {
+      expect(
+        buildUnitDetail({
+          counts: { documents: 0, ledgerEntries: 0, timelineEvents: 0 },
+          documents: [],
+          ledgerEntries: [],
+          people: [],
+          property,
+          recentLedgerEntries: [],
+          recentTimelineEvents: [],
+          unit: { ...unit, status },
+        }).repairAction,
+      ).toMatchObject({
+        href: "/maintenance?action=create&propertyId=property-1&unitId=unit-1",
+        label: "Log maintenance case",
+      });
+    },
+  );
+
+  it("continues the exact newest draft unless operational repair outranks it", () => {
+    const available = buildUnitDetail({
+      counts: { documents: 0, ledgerEntries: 0, timelineEvents: 0 },
+      documents: [],
+      draftLease,
+      ledgerEntries: [],
+      people: [],
+      property,
+      recentLedgerEntries: [],
+      recentTimelineEvents: [],
+      unit: { ...unit, status: "vacant" },
+    });
+    const maintenance = buildUnitDetail({
+      counts: { documents: 0, ledgerEntries: 0, timelineEvents: 0 },
+      documents: [],
+      draftLease,
+      ledgerEntries: [],
+      people: [],
+      property,
+      recentLedgerEntries: [],
+      recentTimelineEvents: [],
+      unit: { ...unit, status: "maintenance" },
+    });
+
+    expect(available.repairAction).toMatchObject({
+      href: "/leases/draft-lease-1",
+      label: "Continue draft",
+    });
+    expect(maintenance.repairAction.label).toBe("Log maintenance case");
   });
 
   it("opens scoped upload when unit evidence is missing", () => {
@@ -450,6 +602,28 @@ describe("selectCurrentLease", () => {
     expect(isActiveUnitLeaseStatus("notice_given")).toBe(true);
     expect(isActiveUnitLeaseStatus("draft")).toBe(false);
     expect(selectCurrentLease([{ ...lease, status: "draft" }])).toBeUndefined();
+  });
+});
+
+describe("selectNewestDraftLease", () => {
+  it("uses descending start date and stable descending ID precedence", () => {
+    const selectNewestDraftLease = Reflect.get(
+      unitSummaryModule,
+      "selectNewestDraftLease",
+    ) as ((rows: Array<typeof lease>) => typeof lease | undefined) | undefined;
+
+    expect(selectNewestDraftLease).toBeTypeOf("function");
+    if (!selectNewestDraftLease) {
+      return;
+    }
+
+    expect(
+      selectNewestDraftLease([
+        { ...draftLease, id: "draft-a" },
+        { ...draftLease, id: "draft-b" },
+        { ...draftLease, id: "newer-ended", lease_start_date: "2026-06-01", status: "ended" },
+      ])?.id,
+    ).toBe("draft-b");
   });
 });
 

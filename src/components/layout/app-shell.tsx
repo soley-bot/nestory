@@ -95,7 +95,7 @@ const PEOPLE_CHILDREN = [
 ] satisfies readonly GlobalDestinationChild[];
 
 const FINANCE_CHILDREN = [
-  { href: "/finance", label: "Work queue", routes: ["/finance"] },
+  { href: "/finance", label: "Portfolio review", routes: ["/finance"] },
   {
     href: "/rent-income",
     label: "Rent & collections",
@@ -103,18 +103,23 @@ const FINANCE_CHILDREN = [
   },
   { href: "/bills-expenses", label: "Expenses", routes: ["/bills-expenses"] },
   { href: "/balances", label: "Owner accounts", routes: ["/balances"] },
-  { href: "/petty-cash", label: "Petty cash", routes: ["/petty-cash"] },
-  { href: "/ledger", label: "Ledger", routes: ["/ledger"] },
+  {
+    href: "/finance/advanced",
+    label: "Advanced",
+    routes: ["/finance/advanced", "/petty-cash", "/ledger"],
+  },
 ] satisfies readonly GlobalDestinationChild[];
 
 const FINANCE_MANAGER_CHILDREN = [
   { href: "/finance", label: "Review queue", routes: ["/finance"] },
+  { href: "/leases", label: "Leases", routes: ["/leases"] },
   ...FINANCE_CHILDREN.slice(1),
 ] satisfies readonly GlobalDestinationChild[];
 
 const FINANCE_MEMBER_CHILDREN = [
   { href: "/finance", label: "My submissions", routes: ["/finance"] },
-  { href: "/bills-expenses", label: "Expenses", routes: ["/bills-expenses"] },
+  { href: "/leases", label: "Leases", routes: ["/leases"] },
+  ...FINANCE_CHILDREN.slice(1),
 ] satisfies readonly GlobalDestinationChild[];
 
 const MAINTENANCE_CHILDREN = [
@@ -231,21 +236,13 @@ const ADMIN_GLOBAL_DESTINATIONS = [
 
 const FINANCE_MANAGER_GLOBAL_DESTINATIONS = [
   {
-    children: [
-      ...FINANCE_MANAGER_CHILDREN,
-      {
-        href: "/settings/rent-policy",
-        label: "Rent policy",
-        routes: ["/settings/rent-policy"],
-      },
-    ],
+    children: FINANCE_MANAGER_CHILDREN,
     id: "finance",
     href: "/finance",
     icon: Landmark,
     label: "Finance",
     routes: [
       ...FINANCE_MANAGER_CHILDREN.flatMap((destination) => destination.routes),
-      "/settings/rent-policy",
     ],
   },
   {

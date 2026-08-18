@@ -5,8 +5,13 @@ import {
   ArrowUp,
   ArrowUpDown,
   Building2,
+  ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  formatUnitLeaseReadiness,
+  formatUnitOperationalReadiness,
+} from "@/features/units/data/unit-summary";
 import type {
   UnitArchiveState,
   UnitDisplayMode,
@@ -18,18 +23,10 @@ import { cn } from "@/lib/utils";
 
 const unitRowClassName =
   "cursor-pointer border-t border-border outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
-const selectedUnitRowClassName =
-  "bg-accent shadow-[inset_3px_0_0_var(--record-spine)]";
-
 type UnitsTableProps = {
   displayMode: UnitDisplayMode;
-  onArchiveUnit?: (unit: UnitSummary) => void;
-  onEditUnit?: (unit: UnitSummary) => void;
-  onOpenUnit?: (id: string) => void;
-  onRestoreUnit?: (unit: UnitSummary) => void;
   onSelectUnit: (id: string) => void;
   onSortChange: (sort: UnitSortKey) => void;
-  selectedUnitId: string;
   sort: UnitSortKey;
   archiveState: UnitArchiveState;
   units: UnitSummary[];
@@ -40,7 +37,6 @@ export function UnitsTable({
   displayMode,
   onSelectUnit,
   onSortChange,
-  selectedUnitId,
   sort,
   units,
 }: UnitsTableProps) {
@@ -62,7 +58,6 @@ export function UnitsTable({
           <UnitCard
             key={unit.id}
             onSelectUnit={onSelectUnit}
-            selected={selectedUnitId === unit.id}
             unit={unit}
           />
         ))}
@@ -74,14 +69,15 @@ export function UnitsTable({
           data-slot="register-table-frame"
         >
           <div aria-label="Units table" className="overflow-x-auto" role="region">
-            <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
+            <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
               <colgroup>
-                <col className="w-[28%]" />
-                <col className="w-[10%]" />
+                <col className="w-[20%]" />
+                <col className="w-[15%]" />
                 <col className="w-[12%]" />
-                <col className="w-[14%]" />
-                <col className="w-[14%]" />
-                <col className="w-[22%]" />
+                <col className="w-[15%]" />
+                <col className="w-[10%]" />
+                <col className="w-[15%]" />
+                <col className="w-[13%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -103,10 +99,12 @@ export function UnitsTable({
                     active={sort === "status_asc"}
                     align="center"
                     direction="ascending"
-                    label="Occupancy"
+                    label="Status"
                     onClick={() => onSortChange("status_asc")}
-                    sortLabel="Sort units by occupancy"
+                    sortLabel="Sort units by status"
                   />
+                  <th className="px-1.5 py-2.5 font-semibold">Lease</th>
+                  <th className="px-1.5 py-2.5 font-semibold">Tenant</th>
                   <SortableHeader
                     active={sort === "rent_desc"}
                     align="right"
@@ -123,26 +121,29 @@ export function UnitsTable({
                     onClick={() => onSortChange("net_desc")}
                     sortLabel="Sort units by net"
                   />
-                  <th className="px-1.5 py-2.5 font-semibold">
-                    Lease / Tenant
-                  </th>
                 </tr>
               </thead>
               <tbody>
                 {units.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
                       {getEmptyMessage(archiveState)}
                     </td>
                   </tr>
                 ) : null}
-                {units.map((unit) => (
+                {units.map((unit, index) => {
+                  const startsPropertyGroup =
+                    index === 0 || units[index - 1]?.propertyId !== unit.propertyId;
+                  const propertyGroupSize = startsPropertyGroup
+                    ? getConsecutivePropertyCount(units, index)
+                    : 0;
+
+                  return (
                   <tr
-                    aria-label={`Preview unit ${unit.unitNumber}`}
-                    aria-selected={selectedUnitId === unit.id}
+                    aria-label={`Open unit ${unit.unitNumber}`}
                     className={cn(
                       unitRowClassName,
-                      selectedUnitId === unit.id && selectedUnitRowClassName,
+                      startsPropertyGroup && index > 0 && "border-t-2 border-border",
                       unit.isArchived && "text-muted-foreground",
                     )}
                     key={unit.id}
@@ -158,39 +159,50 @@ export function UnitsTable({
                       }
                     }}
                     tabIndex={0}
-                    title={`Preview unit ${unit.unitNumber}`}
+                    title={`Open unit ${unit.unitNumber}`}
                   >
-                    <td className="px-2.5 py-2">
-                      <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
-                        <UnitThumbnail unit={unit} />
-                        <div className="min-w-0">
-                          <p
-                            className="truncate font-medium"
-                            title={unit.propertyCode}
-                          >
-                            {unit.propertyCode}
-                          </p>
-                          <p
-                            className="mt-0.5 truncate text-xs text-muted-foreground"
-                            title={unit.propertyName}
-                          >
+                    {startsPropertyGroup ? (
+                      <td
+                        className="cursor-default whitespace-nowrap bg-card px-3.5 py-2.5 align-top"
+                        onClick={(event) => event.stopPropagation()}
+                        rowSpan={propertyGroupSize}
+                        title="Property group"
+                      >
+                        <div className="min-w-0 max-w-[18rem] leading-4">
+                          <p className="truncate font-medium" title={unit.propertyName}>
                             {unit.propertyName}
                           </p>
+                          <p className="truncate text-xs text-muted-foreground" title={unit.propertyOwnerName}>
+                            {unit.propertyOwnerName}
+                          </p>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-1.5 py-2">
-                      <p
-                        className="truncate font-medium text-foreground"
+                      </td>
+                    ) : null}
+                    <td className="whitespace-nowrap px-2 py-2.5">
+                      <button
+                        aria-label={`View unit ${unit.unitNumber} details`}
+                        className="group/unit inline-flex items-center gap-1 rounded-sm font-semibold text-foreground outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelectUnit(unit.id);
+                        }}
                         title={`Unit ${unit.unitNumber}`}
+                        type="button"
                       >
                         {unit.unitNumber}
-                      </p>
+                        <ChevronRight
+                          aria-hidden="true"
+                          className="size-3.5 text-muted-foreground transition-transform group-hover/unit:translate-x-0.5 group-hover/unit:text-primary"
+                        />
+                      </button>
                     </td>
-                    <td className="px-1.5 py-2">
+                    <td className="w-px whitespace-nowrap px-1.5 py-2.5 text-center">
                       <div className="flex flex-wrap justify-center gap-1.5">
-                        <Badge className="px-2 text-xs" tone={unit.occupancyTone}>
-                          {unit.occupancyLabel}
+                        <Badge
+                          className="px-2 text-xs"
+                          tone={getOperationalReadinessTone(unit)}
+                        >
+                          {formatUnitOperationalReadiness(unit.readiness.operational)}
                         </Badge>
                         {unit.isArchived ? (
                           <Badge className="px-2 text-xs" tone="warning">
@@ -199,25 +211,31 @@ export function UnitsTable({
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="whitespace-nowrap px-1.5 py-2.5">
+                      <p className="truncate whitespace-nowrap" title={unit.leaseStatusLabel}>
+                        {unit.leaseStatusLabel}
+                      </p>
+                    </td>
+                    <td className="w-px whitespace-nowrap px-1.5 py-2.5">
+                      <p className="max-w-[10rem] truncate whitespace-nowrap" title={unit.tenantName}>
+                        {unit.tenantName}
+                      </p>
+                    </td>
+                    <td className="w-px whitespace-nowrap px-2 py-2.5">
                       {unit.rentDisplay ? (
                         <TableMoneyDisplay value={unit.rentDisplay} />
                       ) : (
-                        <span className="block text-right font-medium">
-                          {unit.rentLabel}
+                        <span className="block text-right font-medium text-muted-foreground">
+                          —
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="w-px whitespace-nowrap px-2 py-2.5">
                       <TableMoneyDisplay value={unit.ledgerNetDisplay} />
                     </td>
-                    <td className="px-1.5 py-2">
-                      <p className="line-clamp-2 break-words leading-[18px]">
-                        {unit.leaseLabel}
-                      </p>
-                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -241,23 +259,18 @@ function getEmptyMessage(archiveState: UnitArchiveState) {
 
 function UnitCard({
   onSelectUnit,
-  selected,
   unit,
 }: {
   onSelectUnit: (id: string) => void;
-  selected: boolean;
   unit: UnitSummary;
 }) {
   return (
     <article
-      aria-label={`Preview unit ${unit.unitNumber}`}
-      aria-pressed={selected}
+      aria-label={`Open unit ${unit.unitNumber}`}
       className={cn(
         "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-card text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-ring",
-        selected && "border-record-spine bg-accent",
         unit.isArchived && "text-muted-foreground",
       )}
-      data-selected={selected ? "true" : "false"}
       onClick={() => onSelectUnit(unit.id)}
       onKeyDown={(event) => {
         if (event.currentTarget !== event.target) {
@@ -363,31 +376,54 @@ function SortableHeader({
 function UnitStatusBadges({ unit }: { unit: UnitSummary }) {
   return (
     <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-      <Badge tone={unit.occupancyTone}>{unit.occupancyLabel}</Badge>
+      <Badge tone={getOperationalReadinessTone(unit)}>
+        {formatUnitOperationalReadiness(unit.readiness.operational)}
+      </Badge>
+      <Badge tone={getLeaseReadinessTone(unit)}>
+        {formatUnitLeaseReadiness(unit.readiness.lease)}
+      </Badge>
       {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
     </div>
   );
 }
 
-function UnitThumbnail({ unit }: { unit: UnitSummary }) {
-  const className =
-    "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground";
-
-  if (unit.thumbnailUrl) {
-    return (
-      <span
-        aria-hidden="true"
-        className={cn(className, "bg-cover bg-center")}
-        style={{ backgroundImage: `url(${unit.thumbnailUrl})` }}
-      />
-    );
+function getOperationalReadinessTone(unit: UnitSummary) {
+  if (unit.readiness.operational === "maintenance") {
+    return "warning" as const;
   }
 
-  return (
-    <span className={className} aria-hidden="true">
-      <Building2 size={16} />
-    </span>
-  );
+  if (unit.readiness.operational === "inactive") {
+    return "danger" as const;
+  }
+
+  return "success" as const;
+}
+
+function getConsecutivePropertyCount(units: UnitSummary[], startIndex: number) {
+  const propertyId = units[startIndex]?.propertyId;
+  let count = 0;
+
+  for (let index = startIndex; index < units.length; index += 1) {
+    if (units[index]?.propertyId !== propertyId) {
+      break;
+    }
+
+    count += 1;
+  }
+
+  return count;
+}
+
+function getLeaseReadinessTone(unit: UnitSummary) {
+  if (unit.readiness.lease === "draft") {
+    return "warning" as const;
+  }
+
+  if (unit.readiness.lease === "occupied") {
+    return "success" as const;
+  }
+
+  return "neutral" as const;
 }
 
 function UnitPhoto({ unit }: { unit: UnitSummary }) {

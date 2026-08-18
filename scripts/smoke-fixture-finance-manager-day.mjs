@@ -508,16 +508,10 @@ async function assertOwnerStatementPublications(page, baseUrl, cwd) {
 }
 
 async function assertRoutineFinanceAuthority(page, baseUrl) {
-  await gotoPath(
-    page,
-    baseUrl,
-    "/settings/rent-policy",
-    "lease-configuration-route",
-  );
+  // The retired rent-policy screen no longer stands in for lease access.
+  await gotoPath(page, baseUrl, "/leases", "lease-configuration-route");
   await requireVisible(
-    page.getByRole("button", {
-      name: /Create draft|Approve immutable version/,
-    }),
+    page.getByRole("button", { name: "Search leases" }),
     "lease-configuration",
   );
 

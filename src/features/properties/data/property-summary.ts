@@ -5,6 +5,10 @@ import type {
   PropertyFormValues,
   PropertyStatusValue,
 } from "@/features/properties/property.types";
+import {
+  normalizePropertyRentalStructure,
+  type PropertyRentalStructure,
+} from "@/features/properties/property-rental-structure";
 
 export type PropertyRecord = {
   address: string | null;
@@ -16,6 +20,8 @@ export type PropertyRecord = {
   notes?: string | null;
   owner: string | null;
   property_type: string;
+  registered_date?: string | null;
+  rental_structure?: string;
   status: string;
 };
 
@@ -32,6 +38,8 @@ export type PropertyLedgerRecord = {
 export type PropertySummary = {
   address: string;
   code: string;
+  currentLeaseCount: number;
+  currentLeaseUnitCount: number;
   formValues: PropertyFormValues;
   hasActiveOwnerLink: boolean;
   id: string;
@@ -41,12 +49,14 @@ export type PropertySummary = {
   netIncomeUsd: number;
   occupiedUnits: number;
   owner: string;
+  rentalStructure: PropertyRentalStructure;
   status: string;
   statusTone: PropertyBadgeTone;
   thumbnailUrl?: string;
   type: string;
   unitSummary: string;
   units: number;
+  unitsWithoutCurrentLease: number;
 };
 
 export type ActivePropertyOwnerLink = {
@@ -58,6 +68,7 @@ export type ActivePropertyOwnerLink = {
 
 export function buildPropertySummary({
   activeOwner,
+  currentLeaseCount,
   currentLeaseUnitCount,
   ledgerEntries,
   property,
@@ -66,6 +77,7 @@ export function buildPropertySummary({
   thumbnailUrl,
 }: {
   activeOwner?: ActivePropertyOwnerLink | null;
+  currentLeaseCount?: number;
   currentLeaseUnitCount?: number;
   hasActiveOwnerLink?: boolean;
   ledgerEntries: PropertyLedgerRecord[];
@@ -80,11 +92,19 @@ export function buildPropertySummary({
     currentLeaseUnitCount ??
       units.filter((unit) => unit.status === "occupied").length,
   );
+  const resolvedCurrentLeaseUnitCount = Math.min(
+    units.length,
+    currentLeaseUnitCount ?? occupiedUnits,
+  );
+  const resolvedCurrentLeaseCount =
+    currentLeaseCount ?? currentLeaseUnitCount ?? occupiedUnits;
 
   return {
     address: property.address ?? "No address recorded",
     id: property.id,
     code: property.code,
+    currentLeaseCount: resolvedCurrentLeaseCount,
+    currentLeaseUnitCount: resolvedCurrentLeaseUnitCount,
     formValues: {
       acquisitionDate: property.acquisition_date ?? "",
       address: property.address ?? "",
@@ -96,6 +116,7 @@ export function buildPropertySummary({
       ownerStartedOn: activeOwner?.startedOn ?? "",
       ownershipPercent: activeOwner?.ownershipPercent ?? "",
       propertyType: property.property_type,
+      registeredDate: property.registered_date ?? "",
       status,
     },
     hasActiveOwnerLink: hasActiveOwnerLink || Boolean(activeOwner),
@@ -105,6 +126,10 @@ export function buildPropertySummary({
     netIncomeUsd,
     occupiedUnits,
     owner: activeOwner?.label ?? property.owner ?? "Unassigned",
+    rentalStructure: normalizePropertyRentalStructure(
+      property.rental_structure,
+      units.length,
+    ),
     status: formatPropertyStatus(property.status),
     statusTone: getPropertyStatusTone(status),
     thumbnailUrl,
@@ -112,6 +137,10 @@ export function buildPropertySummary({
     unitSummary:
       units.length === 0 ? "Property-only" : `${occupiedUnits}/${units.length} occupied`,
     units: units.length,
+    unitsWithoutCurrentLease: Math.max(
+      0,
+      units.length - resolvedCurrentLeaseUnitCount,
+    ),
   };
 }
 

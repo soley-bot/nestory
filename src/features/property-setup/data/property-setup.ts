@@ -6,6 +6,8 @@ import type {
   PropertySetupSelection,
   PropertySetupUnitOption,
 } from "@/features/property-setup/property-setup.types";
+import { normalizePropertyRentalStructure } from "@/features/properties/property-rental-structure";
+import { shouldLoadPropertySetupReadiness } from "@/features/property-setup/property-setup";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   formatPropertyOptionLabel,
@@ -17,6 +19,7 @@ type PropertyRow = {
   code: string;
   id: string;
   name: string;
+  rental_structure: string | null;
 };
 type OwnerLinkRow = {
   person_id: string;
@@ -54,7 +57,7 @@ export async function getPropertySetupData({
       getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
       supabase
         .from("properties")
-        .select("id, code, name")
+        .select("id, code, name, rental_structure")
         .eq("organization_id", organizationId)
         .is("archived_at", null)
         .in("status", ["active", "under_renovation"])
@@ -98,6 +101,7 @@ export async function getPropertySetupData({
   const properties = toPropertyOptions(
     (propertiesResult.data ?? []) as PropertyRow[],
     (ownerLinksResult.data ?? []) as OwnerLinkRow[],
+    (unitsResult.data ?? []) as UnitRow[],
   );
   const propertiesById = new Map(
     ((propertiesResult.data ?? []) as PropertyRow[]).map((property) => [property.id, property]),
@@ -113,27 +117,45 @@ export async function getPropertySetupData({
     units,
   });
   let readiness: PropertySetupData["readiness"] = null;
-  if (
-    selection.propertyId &&
-    selection.unitId &&
-    selection.leaseId
-  ) {
+  if (shouldLoadPropertySetupReadiness(selection)) {
     const readinessResult = await supabase.rpc("get_ips_setup_readiness", {
       p_effective_date: getBusinessDateValue(),
-      p_lease_id: selection.leaseId,
+      p_lease_id: selection.leaseId!,
       p_organization_id: organizationId,
-      p_property_id: selection.propertyId,
-      p_unit_id: selection.unitId,
+      p_property_id: selection.propertyId!,
+      p_unit_id: selection.unitId!,
     });
     if (readinessResult.error) {
       throw new Error(
         `Could not load setup readiness: ${readinessResult.error.message}`,
       );
     }
-    readiness = readinessResult.data as PropertySetupData["readiness"];
+    readiness = normalizeRentalSetupReadiness(
+      readinessResult.data as PropertySetupData["readiness"],
+    );
   }
 
   return { leases, owners, properties, readiness, selection, tenants, units };
+}
+
+export function normalizeRentalSetupReadiness(
+  readiness: PropertySetupData["readiness"],
+): PropertySetupData["readiness"] {
+  if (!readiness) return readiness;
+
+  const items = readiness.items
+    .filter((item) => !["opening_balance", "deposit"].includes(item.code))
+    .map((item) =>
+      item.code === "owner_roster"
+        ? { ...item, label: "Property owner" }
+        : item,
+    );
+
+  return {
+    ...readiness,
+    items,
+    ready: items.every((item) => item.ready),
+  };
 }
 
 export function validateSelection({
@@ -183,6 +205,7 @@ export function validateSelection({
 function toPropertyOptions(
   properties: PropertyRow[],
   ownerLinks: OwnerLinkRow[],
+  units: UnitRow[],
 ): PropertySetupPropertyOption[] {
   const primaryOwnerByProperty = new Map(
     ownerLinks.map((link) => [link.property_id, link.person_id]),
@@ -195,6 +218,10 @@ function toPropertyOptions(
             id: property.id,
             label: formatPropertyOptionLabel(property),
             ownerPersonId,
+            rentalStructure: normalizePropertyRentalStructure(
+              property.rental_structure,
+              units.filter((unit) => unit.property_id === property.id).length,
+            ),
           },
         ]
       : [];

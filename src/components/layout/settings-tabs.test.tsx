@@ -13,7 +13,6 @@ describe("SettingsTabs", () => {
     "/settings/appearance",
     "/settings/branches",
     "/settings/teams",
-    "/settings/rent-policy",
     "/settings/access",
   ])("keeps exactly one current section for %s", (activeHref) => {
     render(<SettingsTabs activeHref={activeHref} role="super_admin" />);
@@ -43,10 +42,10 @@ describe("SettingsTabs", () => {
     ).toBe(true);
   });
 
-  it("shows Finance Manager only the Workspace group", () => {
+  it("does not expose an empty Settings group to Finance Manager", () => {
     render(
       <SettingsTabs
-        activeHref="/settings/rent-policy"
+        activeHref="/settings/organization"
         role="finance_manager"
       />,
     );
@@ -54,12 +53,7 @@ describe("SettingsTabs", () => {
     const navigation = screen.getByRole("navigation", {
       name: "Settings sections",
     });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(1);
-    expect(
-      within(navigation)
-        .getByRole("link", { name: "Workspace" })
-        .getAttribute("aria-current"),
-    ).toBe("page");
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(0);
   });
 
   it("shares the page header row without recreating a full-width tab band", () => {

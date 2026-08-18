@@ -47,14 +47,14 @@ export function UnitFilters({
     source: viewQuery.query,
     value: viewQuery.query,
   });
+  // Sort order and page size change presentation, not which units are shown, so
+  // they are not counted as filters.
   const activeFilters = [
     viewQuery.propertyId !== "all",
     viewQuery.status !== "all",
     viewQuery.occupancy !== "all",
     viewQuery.leaseStatus !== "all",
     viewQuery.archiveState !== DEFAULT_UNIT_ARCHIVE_STATE,
-    viewQuery.sort !== DEFAULT_UNIT_SORT,
-    viewQuery.pageSize !== DEFAULT_UNIT_PAGE_SIZE,
   ].filter(Boolean).length;
   const hasSearchQuery = viewQuery.query.trim().length > 0;
   const hasAdvancedFilters = activeFilters > 0;
@@ -93,7 +93,7 @@ export function UnitFilters({
         <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
             ariaLabel="Search units"
-            className="lg:max-w-[560px]"
+            className="w-full lg:max-w-none"
             disabled={isPending}
             onQueryChange={(value) =>
               setQueryState({
@@ -171,9 +171,43 @@ export function UnitFilters({
                       options={[
                         { label: "All units", value: "all" },
                         { label: "Occupied", value: "occupied" },
-                        { label: "Vacant", value: "unoccupied" },
+                        { label: "No lease", value: "unoccupied" },
                       ]}
                       value={viewQuery.occupancy}
+                      />
+                    </FilterField>
+
+                    <FilterField label="Operational state">
+                      <SelectControl
+                      ariaLabel="Filter by operational state"
+                      className={compactSelectClassName}
+                      onValueChange={(value) =>
+                        replaceParam("status", value, "all")
+                      }
+                      options={[
+                        { label: "All states", value: "all" },
+                        { label: "Occupied", value: "occupied" },
+                        { label: "Vacant", value: "vacant" },
+                        { label: "Reserved", value: "reserved" },
+                        { label: "Maintenance", value: "maintenance" },
+                        { label: "Inactive", value: "inactive" },
+                      ]}
+                      value={viewQuery.status}
+                      />
+                    </FilterField>
+
+                    <FilterField label="Lease link">
+                      <SelectControl
+                      ariaLabel="Filter by lease link"
+                      className={compactSelectClassName}
+                      onValueChange={(value) =>
+                        replaceParam("leaseStatus", value, "all")
+                      }
+                      options={[
+                        { label: "All units", value: "all" },
+                        { label: "No active lease", value: "missing" },
+                      ]}
+                      value={viewQuery.leaseStatus}
                       />
                     </FilterField>
 
@@ -242,6 +276,7 @@ export function UnitFilters({
                 aria-label="Reset unit filters"
                 className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-card px-2 text-primary outline-none transition-colors hover:bg-muted hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
                 href={pathname}
+                onClick={() => setQueryState({ source: "", value: "" })}
                 scroll={false}
                 title="Reset filters"
               >

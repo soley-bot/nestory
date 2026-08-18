@@ -1887,7 +1887,7 @@
     "source": "src/app/(dashboard)/settings/page.tsx",
     "phase": 4,
     "surface": "settings",
-    "roles": ["super_admin", "finance_manager"],
+    "roles": ["super_admin"],
     "states": [
       "loading",
       "populated",
@@ -1933,7 +1933,7 @@
       "path": "/settings",
       "expectedAccess": {
         "super_admin": "accessible",
-        "finance_manager": "accessible",
+        "finance_manager": "permission-blocked",
         "finance_member": "permission-blocked",
         "operations_manager": "permission-blocked",
         "operations_member": "permission-blocked",
@@ -2281,78 +2281,6 @@
         "src/app/(dashboard)/settings/access/page.tsx",
         "src/features/organization/components/access-settings-screen.test.tsx",
         "src/features/organization/data.test.ts"
-      ],
-      "limitations": []
-    }
-  },
-  {
-    "route": "/settings/rent-policy",
-    "source": "src/app/(dashboard)/settings/rent-policy/page.tsx",
-    "phase": 4,
-    "surface": "settings",
-    "roles": ["super_admin", "finance_manager"],
-    "states": [
-      "populated",
-      "empty",
-      "error",
-      "permission-blocked",
-      "draft",
-      "saving",
-      "success"
-    ],
-    "evidence": {
-      "populated": [
-        "src/app/(dashboard)/settings/rent-policy/page.tsx",
-        "src/features/leases/components/rent-policy-screen.tsx"
-      ],
-      "empty": [
-        "src/app/(dashboard)/settings/rent-policy/page.tsx",
-        "src/features/leases/components/rent-policy-screen.tsx",
-        "src/components/ui/empty-state.tsx"
-      ],
-      "error": [
-        "src/app/(dashboard)/settings/rent-policy/page.tsx",
-        "src/features/leases/components/rent-policy-screen.test.tsx",
-        "src/components/ui/error-state.tsx"
-      ],
-      "permission-blocked": [
-        "src/app/(dashboard)/settings/rent-policy/page.tsx",
-        "src/components/ui/status-notice.tsx"
-      ],
-      "draft": [
-        "src/app/(dashboard)/settings/rent-policy/page.tsx",
-        "src/features/leases/components/rent-policy-screen.tsx",
-        "src/features/leases/components/rent-policy-screen.test.tsx",
-        "src/components/ui/workflow-feedback.test.tsx"
-      ],
-      "saving": [
-        "src/app/(dashboard)/settings/rent-policy/page.tsx",
-        "src/features/leases/components/rent-policy-screen.tsx",
-        "src/features/leases/components/rent-policy-screen.test.tsx",
-        "src/components/ui/workflow-feedback.test.tsx"
-      ],
-      "success": [
-        "src/app/(dashboard)/settings/rent-policy/page.tsx",
-        "src/features/leases/components/rent-policy-screen.tsx",
-        "src/features/leases/components/rent-policy-screen.test.tsx",
-        "src/components/ui/status-notice.tsx"
-      ]
-    },
-    "smoke": {
-      "path": "/settings/rent-policy",
-      "expectedAccess": {
-        "super_admin": "accessible",
-        "finance_manager": "accessible",
-        "finance_member": "permission-blocked",
-        "operations_manager": "permission-blocked",
-        "operations_member": "permission-blocked",
-        "anonymous": "login-required"
-      },
-      "queryContract": "not-applicable",
-      "workflowEvidence": [
-        "src/app/(dashboard)/settings/rent-policy/page.tsx",
-        "src/features/leases/components/rent-policy-screen.tsx",
-        "src/features/leases/components/rent-policy-screen.test.tsx"
       ],
       "limitations": []
     }
@@ -3411,6 +3339,179 @@
       "queryContract": "not-applicable",
       "workflowEvidence": [
         "src/app/(dashboard)/properties/[propertyId]/account/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/finance/advanced",
+    "source": "src/app/(dashboard)/finance/advanced/page.tsx",
+    "phase": 3,
+    "surface": "workspace",
+    "roles": ["super_admin", "finance_manager", "finance_member"],
+    "states": ["loading", "populated", "error", "permission-blocked"],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/finance/advanced/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": ["src/app/(dashboard)/finance/advanced/page.tsx"],
+      "error": [
+        "src/app/(dashboard)/finance/advanced/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/finance/advanced/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/finance/advanced",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": ["src/app/(dashboard)/finance/advanced/page.tsx"],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/properties/[propertyId]/finance",
+    "source": "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+    "phase": 5,
+    "surface": "detail",
+    "roles": ["super_admin", "finance_manager", "finance_member"],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/properties/10000000-0000-0000-0000-000000000001/finance",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/properties/[propertyId]/finance/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "route": "/units/[unitId]/finance",
+    "source": "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
+    "phase": 5,
+    "surface": "detail",
+    "roles": ["super_admin", "finance_manager", "finance_member"],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
+        "src/features/finance-operations/components/finance-operations-screen.test.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/units/20000000-0000-0000-0000-000000000001/finance",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "accessible",
+        "finance_member": "accessible",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "preserved",
+      "workflowEvidence": [
+        "src/app/(dashboard)/units/[unitId]/finance/page.tsx",
         "src/features/finance-operations/components/finance-operations-screen.test.tsx"
       ],
       "limitations": []

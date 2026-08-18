@@ -63,6 +63,9 @@ describe("FinanceOperationsScreen", () => {
     expect(workLayout?.className).toContain("gap-3");
     const summary = screen.getByRole("region", { name: "Finance summary" });
     expect(summary.firstElementChild?.className).toContain("py-2.5");
+    expect(summary.className).toContain("rounded-xl");
+    expect(summary.className).toContain("bg-card");
+    expect(summary.className).toContain("shadow-sm");
 
     rerender(
       <FinanceOperationsScreen
@@ -201,12 +204,28 @@ describe("FinanceOperationsScreen", () => {
       }),
     );
     const dialog = screen.getByRole("dialog", { name: "Invoice details" });
+    expect(
+      within(dialog).getByRole("heading", { name: "Charges" }),
+    ).not.toBeNull();
+    expect(within(dialog).getByText("Rent")).not.toBeNull();
+    expect(within(dialog).getAllByText("USD 640.00").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("Aug 2026 lease month")).not.toBeNull();
     expect(within(dialog).getByText("Prorated")).not.toBeNull();
+    expect(
+      within(dialog)
+        .getByRole("link", { name: "Open Property finance" })
+        .getAttribute("href"),
+    ).toBe("/properties/property-1/finance?view=rent");
+    expect(
+      within(dialog)
+        .getByRole("link", { name: "Open Unit finance" })
+        .getAttribute("href"),
+    ).toBe("/units/unit-1/finance?view=rent");
     expect(screen.queryByText(/journal|month close|uuid/i)).toBeNull();
   });
 
-  it("focuses rent-ready handoff on invoices for the exact lease", () => {
+  it("focuses the setup handoff on the exact lease and its first payment", async () => {
+    const user = userEvent.setup();
     const input = data();
     const focused = tenantInvoice();
     focused.invoiceNumber = "INV-FOCUSED";
@@ -221,7 +240,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
-        {...financeCapabilities()}
+        {...financeCapabilities({ canRecordPayments: true })}
         initialRentLeaseId="lease-1"
         organizationName="Sokha Property Services"
         view="rent"
@@ -231,8 +250,57 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByText("INV-FOCUSED")).not.toBeNull();
     expect(screen.queryByText("INV-UNRELATED")).toBeNull();
     expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "First rent charge · Dara Tenant",
+      }),
+    ).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Recover missed month" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Add tenant charge" }),
+    ).toBeNull();
+    expect(
       screen.getAllByText("1 invoice", { exact: true }).length,
     ).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Record payment" }));
+    const dialog = screen.getByRole("dialog", { name: "Confirm owner collection" });
+    expect(within(dialog).getByText("INV-FOCUSED")).not.toBeNull();
+    expect(within(dialog).queryByText("INV-UNRELATED")).toBeNull();
+  });
+
+  it("keeps manual tenant charges available from the general rent workspace", async () => {
+    const user = userEvent.setup();
+    const input = data();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add tenant charge" }));
+    const dialog = screen.getByRole("dialog", { name: "Add tenant charge" });
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value,
+    ).toBe("");
+    expect(
+      within(dialog).getByRole("combobox", { name: "Charge type" }),
+    ).not.toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Billing month" }),
+    ).not.toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Due date" }),
+    ).not.toBeNull();
+    const amount = within(dialog).getByLabelText("Amount");
+    expect(amount.getAttribute("placeholder")).toBe("0.00");
+    expect(amount.className).toContain("text-lg");
   });
 
   it("distinguishes overdue rent from a payment completed after its due date", () => {
@@ -344,6 +412,131 @@ describe("FinanceOperationsScreen", () => {
     ).toBeNull();
   });
 
+  it("keeps the active lease selected when adding a charge from unit finance", async () => {
+    const user = userEvent.setup();
+    const input = data();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        scope={{
+          id: "unit-1",
+          kind: "unit",
+          label: "Unit 01",
+          propertyId: "property-1",
+          propertyLabel: "HOME — Riverside Home",
+        }}
+        view="rent"
+      />,
+    );
+
+    expect(
+      screen.queryByRole("navigation", { name: "Setup progress" }),
+    ).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Add tenant charge" }));
+    const dialog = screen.getByRole("dialog", { name: "Add tenant charge" });
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value,
+    ).toBe("lease-1");
+    expect(
+      within(dialog).queryByRole("combobox", { name: "Lease" }),
+    ).toBeNull();
+    expect(within(dialog).queryByText("HOME — Riverside Home")).toBeNull();
+    expect(within(dialog).queryByText("Unit 01")).toBeNull();
+    expect(within(dialog).getByText("Dara Tenant")).not.toBeNull();
+  });
+
+  it("binds the only active lease when adding a charge from property finance", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <FinanceOperationsScreen
+        {...data()}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        scope={{
+          id: "property-1",
+          kind: "property",
+          label: "HOME — Riverside Home",
+          propertyId: "property-1",
+          propertyLabel: "HOME — Riverside Home",
+        }}
+        view="rent"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add tenant charge" }));
+    const dialog = screen.getByRole("dialog", { name: "Add tenant charge" });
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value,
+    ).toBe("lease-1");
+    expect(
+      within(dialog).queryByRole("combobox", { name: "Lease" }),
+    ).toBeNull();
+    expect(within(dialog).queryByText("HOME — Riverside Home")).toBeNull();
+    expect(
+      within(dialog).getByText("Dara Tenant · HOME — Unit 01"),
+    ).not.toBeNull();
+  });
+
+  it("does not offer payment recording when the scoped invoices are settled", () => {
+    const input = data();
+    input.tenantInvoices = [
+      {
+        ...tenantInvoice(),
+        balanceDue: 0,
+        paidThroughIps: 640,
+        paymentStatus: "paid",
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        scope={{
+          id: "unit-1",
+          kind: "unit",
+          label: "Unit 01",
+          propertyId: "property-1",
+          propertyLabel: "HOME — Riverside Home",
+        }}
+        view="rent"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Record payment" })).toBeNull();
+  });
+
+  it("states the paid amount instead of leading a settled invoice with zero", () => {
+    const props = data();
+    props.tenantInvoices = [
+      {
+        ...tenantInvoice(),
+        balanceDue: 0,
+        paidThroughIps: 785,
+        paymentStatus: "paid",
+        totalAmount: 785,
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...props}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+
+    expect(screen.getByText("Paid USD 785.00")).not.toBeNull();
+    expect(screen.queryByText("of USD 785.00")).toBeNull();
+  });
+
   it("opens lease billing as one compact prefilled form", () => {
     render(
       <FinanceOperationsScreen
@@ -359,7 +552,7 @@ describe("FinanceOperationsScreen", () => {
     });
     expect(
       within(navigation)
-        .getByRole("link", { name: "Work queue" })
+        .getByRole("link", { name: "Portfolio review" })
         .getAttribute("aria-current"),
     ).toBe("page");
     expect(screen.getByText("Set up lease billing")).not.toBeNull();
@@ -545,17 +738,17 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Record paid cost" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
     expect(
-      screen.getByRole("dialog", { name: "Record paid cost" }),
+      screen.getByRole("dialog", { name: "Record expense" }),
     ).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
     expect(screen.queryByText("Already paid")).toBeNull();
-    const receiptSection = screen
-      .getByText("Receipt and reconciliation", { exact: true })
-      .closest("details");
+    const receiptSection = screen.getByRole("group", {
+      name: "Receipt and reconciliation",
+    });
     expect(receiptSection).not.toBeNull();
-    expect(receiptSection?.hasAttribute("open")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     expect(screen.getByText("Charge this to")).not.toBeNull();
     expect(
       screen.getByRole("button", { name: "Property owner" }),
@@ -563,7 +756,6 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.getByRole("button", { name: "Tenant or company" }),
     ).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     expect(screen.getByLabelText("Paid-cost category")).not.toBeNull();
     expect(screen.getByLabelText("Amount paid")).not.toBeNull();
     expect(screen.getByLabelText("Paid date")).not.toBeNull();
@@ -585,6 +777,57 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByText("No open invoice")).not.toBeNull();
   });
 
+  it("keeps a property-scoped paid cost inside the finance flow", () => {
+    render(
+      <FinanceOperationsScreen
+        {...data()}
+        {...financeCapabilities({ canSubmitExpense: true })}
+        organizationName="Sokha Property Services"
+        scope={{
+          id: "property-1",
+          kind: "property",
+          label: "HOME — Riverside Home",
+          propertyId: "property-1",
+          propertyLabel: "HOME — Riverside Home",
+        }}
+        view="expenses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+    const drawer = screen.getByRole("dialog", { name: "Record expense" });
+    const form = within(drawer).getByRole("form", {
+      name: "Record expense form",
+    });
+
+    expect(
+      within(form).queryByRole("navigation", { name: "Setup progress" }),
+    ).toBeNull();
+    expect(
+      within(form).queryByRole("combobox", { name: "Property" }),
+    ).toBeNull();
+    expect(within(form).getByText("HOME — Riverside Home")).not.toBeNull();
+    expect(
+      within(form).getByRole("heading", { name: "Cost record" }),
+    ).not.toBeNull();
+    expect(
+      within(form).getByRole("heading", { name: "Payment" }),
+    ).not.toBeNull();
+    expect(
+      within(form).getByRole("heading", { name: "Responsibility" }),
+    ).not.toBeNull();
+    expect(
+      within(form).getByRole("heading", { name: "Receipt and reconciliation" }),
+    ).not.toBeNull();
+    expect(within(form).getByRole("button", { name: "Cancel" })).not.toBeNull();
+    expect(within(form).queryByText("No changes")).not.toBeNull();
+    for (const section of form.querySelectorAll('[data-slot="form-section"]')) {
+      expect(section.lastElementChild?.className).not.toContain("sm:pl-10");
+      expect(section.className).toContain("rounded-xl");
+      expect(section.className).toContain("bg-card");
+    }
+  });
+
   it("lets Finance Members submit paid costs without exposing review controls", () => {
     const input = data();
     input.expenseSubmissions = [expenseSubmission("submitted")];
@@ -599,7 +842,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Record paid cost" }),
+      screen.getByRole("button", { name: "Record expense" }),
     ).not.toBeNull();
     expect(screen.getByText("Awaiting approval")).not.toBeNull();
     expect(
@@ -684,9 +927,7 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    expect(
-      screen.queryByRole("button", { name: "Record paid cost" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Record expense" })).toBeNull();
     await user.click(
       screen.getByRole("button", { name: "Review Sokha Repairs" }),
     );
@@ -1072,11 +1313,11 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(
-      screen.getByRole("dialog", { name: "Record paid cost" }),
+      screen.getByRole("dialog", { name: "Record expense" }),
     ).not.toBeNull();
   });
 
-  it("keeps the dominant finance table unframed while retaining row separators", () => {
+  it("separates finance records from the page with a raised operating surface", () => {
     const { container } = render(
       <FinanceOperationsScreen
         {...data()}
@@ -1091,9 +1332,10 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(tableFrame).not.toBeNull();
-    expect(tableFrame?.className).not.toMatch(
-      /(?:^|\s)(?:rounded-md|rounded-lg|border)(?:\s|$)/,
-    );
+    expect(tableFrame?.className).toContain("rounded-xl");
+    expect(tableFrame?.className).toContain("border");
+    expect(tableFrame?.className).toContain("bg-card");
+    expect(tableFrame?.className).toContain("shadow-sm");
     expect(within(tableFrame!).getByRole("table")).not.toBeNull();
     expect(
       within(tableFrame!).getByRole("row", { name: /Riverside Home/ })
@@ -1360,7 +1602,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Property account" }),
+      screen.getByRole("heading", { name: "Owner account" }),
     ).not.toBeNull();
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(
@@ -1373,9 +1615,13 @@ describe("FinanceOperationsScreen", () => {
         .getByRole("link", { name: "HOME — Riverside Home" })
         .getAttribute("href"),
     ).toBe("/properties/property-1");
-    expect(within(breadcrumb).getByText("Account")).not.toBeNull();
+    expect(within(breadcrumb).getByText("Owner account")).not.toBeNull();
 
     const summary = screen.getByRole("region", { name: "Account position" });
+    expect(summary.className).toContain("pt-5");
+    expect(summary.className).toContain("rounded-xl");
+    expect(summary.className).toContain("bg-card");
+    expect(summary.className).toContain("shadow-sm");
     expect(within(summary).getByText("Owner balance")).not.toBeNull();
     expect(
       within(summary).getByText("Income minus owner costs and distributions"),
@@ -1392,8 +1638,14 @@ describe("FinanceOperationsScreen", () => {
       name: "Record owner distribution",
     });
     await user.click(action);
+    const dialog = screen.getByRole("dialog", {
+      name: "Record owner distribution",
+    });
     expect(
-      screen.getByRole("dialog", { name: "Record owner distribution" }),
+      within(dialog).queryByRole("navigation", { name: "Setup progress" }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
     ).not.toBeNull();
   });
 

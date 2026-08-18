@@ -30,6 +30,7 @@ import {
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import type {
   PropertyArchiveState,
+  PropertyLeaseStatusFilter,
   PropertyNetStatusFilter,
   PropertyOwnerOption,
   PropertyOwnerStatusFilter,
@@ -69,7 +70,7 @@ type PropertyCurrentLeaseSummaryRow = {
 };
 
 const propertySelect =
-  "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at";
+  "id, name, code, property_type, owner, address, status, registered_date, rental_structure, acquisition_date, notes, archived_at";
 const propertyImageMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const propertyRelationshipBatchSize = 75;
 
@@ -215,7 +216,6 @@ async function loadPropertySummariesForRows({
         .eq("organization_id", organizationId)
         .in("property_id", batch)
         .in("status", [...ACTIVE_UNIT_LEASE_STATUSES])
-        .not("unit_id", "is", null)
         .is("archived_at", null);
 
       if (result.error) {
@@ -273,8 +273,9 @@ async function loadPropertySummariesForRows({
 
   return properties.map((property): PropertySummary => {
     const units = unitsByProperty.get(property.id) ?? [];
+    const currentLeases = currentLeasesByProperty.get(property.id) ?? [];
     const currentLeaseUnitCount = new Set(
-      (currentLeasesByProperty.get(property.id) ?? []).flatMap((lease) =>
+      currentLeases.flatMap((lease) =>
         lease.unit_id ? [lease.unit_id] : [],
       ),
     ).size;
@@ -282,6 +283,7 @@ async function loadPropertySummariesForRows({
 
     return buildPropertySummary({
       activeOwner: ownerLinks.get(property.id),
+      currentLeaseCount: currentLeases.length,
       currentLeaseUnitCount,
       hasActiveOwnerLink: ownerLinks.has(property.id),
       ledgerEntries,
@@ -363,6 +365,7 @@ export async function getPropertiesScreenData(
 function canUsePagedPropertyBaseQuery(viewQuery: PropertyViewQuery) {
   return (
     viewQuery.query.trim().length === 0 &&
+    viewQuery.leaseStatus === "all" &&
     viewQuery.netStatus === "all" &&
     viewQuery.review === "all" &&
     (viewQuery.sort === "code_asc" ||
@@ -580,6 +583,7 @@ export async function getPropertyDetail(
     unitsResult,
     ownerRowsResult,
     activeLeasesResult,
+    propertyDraftLeaseResult,
     timelineResult,
     ledgerResult,
     documentsResult,
@@ -591,7 +595,7 @@ export async function getPropertyDetail(
     supabase
       .from("properties")
       .select(
-        "id, name, code, property_type, owner, address, status, acquisition_date, notes, archived_at",
+        "id, name, code, property_type, owner, address, status, registered_date, rental_structure, acquisition_date, notes, archived_at",
       )
       .eq("organization_id", organizationId)
       .eq("id", propertyId)
@@ -624,6 +628,18 @@ export async function getPropertyDetail(
       .is("archived_at", null)
       .order("lease_end_date", { ascending: true })
       .limit(detailRecordLimit),
+    supabase
+      .from("current_leases")
+      .select(
+        "id, unit_id, tenant_name, status, lease_start_date, lease_end_date, monthly_rent_amount, monthly_rent_currency, archived_at",
+      )
+      .eq("organization_id", organizationId)
+      .eq("property_id", propertyId)
+      .eq("status", "draft")
+      .is("unit_id", null)
+      .is("archived_at", null)
+      .order("lease_start_date", { ascending: false })
+      .limit(1),
     supabase
       .from("timeline_events")
       .select(
@@ -721,6 +737,12 @@ export async function getPropertyDetail(
     );
   }
 
+  if (propertyDraftLeaseResult.error) {
+    throw new Error(
+      `Could not load property draft lease: ${propertyDraftLeaseResult.error.message}`,
+    );
+  }
+
   if (timelineResult.error) {
     throw new Error(
       `Could not load property timeline: ${timelineResult.error.message}`,
@@ -783,7 +805,10 @@ export async function getPropertyDetail(
   });
 
   return buildPropertyDetail({
-    activeLeases: activeLeasesResult.data ?? [],
+    activeLeases: [
+      ...(activeLeasesResult.data ?? []),
+      ...(propertyDraftLeaseResult.data ?? []),
+    ],
     activeOwner: activeOwner
       ? {
           label: activeOwner.person_name,
@@ -872,6 +897,10 @@ function filterPropertySummaries(
       property,
       viewQuery.netStatus,
     );
+    const matchesLeaseStatus = propertyMatchesLeaseStatusFilter(
+      property,
+      viewQuery.leaseStatus,
+    );
     const matchesReview = propertyMatchesReviewFilter(property, viewQuery.review);
     const haystack = [
       property.name,
@@ -890,6 +919,7 @@ function filterPropertySummaries(
       matchesStatus &&
       matchesOwnerStatus &&
       matchesNetStatus &&
+      matchesLeaseStatus &&
       matchesReview &&
       matchesQuery
     );
@@ -908,6 +938,28 @@ export function propertyMatchesNetStatusFilter(
   netStatus: PropertyNetStatusFilter,
 ) {
   return netStatus === "all" || property.netIncomeUsd < 0;
+}
+
+export function propertyMatchesLeaseStatusFilter(
+  property: Pick<
+    PropertySummary,
+    "currentLeaseCount" | "units" | "unitsWithoutCurrentLease"
+  >,
+  leaseStatus: PropertyLeaseStatusFilter,
+) {
+  if (leaseStatus === "missing") {
+    return property.units > 0
+      ? property.unitsWithoutCurrentLease > 0
+      : property.currentLeaseCount === 0;
+  }
+
+  if (leaseStatus === "current") {
+    return property.units > 0
+      ? property.unitsWithoutCurrentLease === 0
+      : property.currentLeaseCount > 0;
+  }
+
+  return true;
 }
 
 export function propertyMatchesReviewFilter(

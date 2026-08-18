@@ -18,7 +18,10 @@ import type {
   UnitLedgerContext,
   UnitLeaseSummary,
   UnitMaintenanceContext,
+  UnitLeaseReadiness,
+  UnitOperationalReadiness,
   UnitPersonLink,
+  UnitReadiness,
   UnitRepairAction,
   UnitRecordCounts,
   UnitStatusValue,
@@ -126,23 +129,30 @@ const activeLeaseStatuses = new Set<string>(ACTIVE_UNIT_LEASE_STATUSES);
 
 export function buildUnitSummary({
   activeLease,
+  draftLease,
   latestTimelineEvent,
   ledgerEntries,
   property,
+  propertyOwnerName = "No owner",
   thumbnailUrl,
   unit,
 }: {
   activeLease?: UnitLeaseRecord;
+  draftLease?: UnitLeaseRecord;
   latestTimelineEvent?: UnitTimelineRecord;
   ledgerEntries: UnitLedgerRecord[];
   property?: UnitPropertyRecord;
+  propertyOwnerName?: string;
   thumbnailUrl?: string;
   unit: UnitRecord;
 }): UnitSummary {
   const statusValue = normalizeUnitStatus(unit.status);
   const isOccupied = Boolean(activeLease);
+  const readiness = buildUnitReadiness({ activeLease, draftLease, statusValue });
+  const relevantLease = activeLease ?? draftLease;
 
   return {
+    draftLease: draftLease ? toLeaseSummary(draftLease) : undefined,
     formValues: {
       floor: unit.floor,
       propertyId: unit.property_id,
@@ -162,18 +172,26 @@ export function buildUnitSummary({
       : undefined,
     leaseLabel: activeLease
       ? `${activeLease.tenant_name} / ${formatLeaseStatus(activeLease.status)}`
-      : "No active lease",
+      : draftLease
+        ? `${draftLease.tenant_name} / ${formatLeaseStatus(draftLease.status)}`
+        : "No lease",
+    leaseStatusLabel: relevantLease
+      ? formatLeaseStatus(relevantLease.status)
+      : "No lease",
     occupancyLabel: isOccupied ? "Occupied" : "Vacant",
     occupancyTone: isOccupied ? "success" : "neutral",
     propertyCode: property?.code ?? "Unknown",
     propertyId: unit.property_id,
     propertyName: property?.name ?? "Unknown property",
+    propertyOwnerName,
+    readiness,
     rentUsd: calculateRentUsd(unit, activeLease),
     rentDisplay: formatUnitRentDisplay(unit, activeLease),
     rentLabel: formatUnitRent(unit, activeLease),
     statusValue,
     statusLabel: formatUnitStatus(unit.status),
     statusTone: getUnitStatusTone(unit.status),
+    tenantName: relevantLease?.tenant_name ?? "—",
     thumbnailUrl,
     unitNumber: unit.unit_number,
   };
@@ -181,6 +199,7 @@ export function buildUnitSummary({
 
 export function buildUnitDetail({
   activeLease,
+  draftLease,
   activity = [],
   counts,
   currentDate,
@@ -195,6 +214,7 @@ export function buildUnitDetail({
   unit,
 }: {
   activeLease?: UnitLeaseRecord;
+  draftLease?: UnitLeaseRecord;
   activity?: UnitDetail["activity"];
   counts: UnitRecordCounts;
   currentDate?: Date;
@@ -210,6 +230,7 @@ export function buildUnitDetail({
 }): UnitDetail {
   const summary = buildUnitSummary({
     activeLease,
+    draftLease,
     latestTimelineEvent: recentTimelineEvents[0],
     ledgerEntries,
     property,
@@ -224,13 +245,14 @@ export function buildUnitDetail({
   });
   const financialSummary = buildUnitFinancialSummary({ currentDate, ledgerEntries });
   const repairAction = buildUnitRepairAction({
-    activeLease,
     counts,
     financialSummary,
     hrefs,
+    draftLease,
     maintenanceCases,
     rentUsd: summary.rentUsd,
     recentTimelineEvents,
+    readiness: summary.readiness,
     statusValue: summary.statusValue,
     unitId: unit.id,
     unitNumber: unit.unit_number,
@@ -248,6 +270,7 @@ export function buildUnitDetail({
       counts,
       financialSummary,
       maintenanceCases,
+      readiness: summary.readiness,
       rentUsd: summary.rentUsd,
       statusValue: summary.statusValue,
       tenantLinks,
@@ -273,9 +296,13 @@ export function buildUnitDetail({
 export function selectCurrentLease(rows: UnitLeaseRecord[]) {
   return rows
     .filter((lease) => isActiveUnitLeaseStatus(lease.status))
-    .toSorted((first, second) =>
-      second.lease_start_date.localeCompare(first.lease_start_date),
-    )[0];
+    .toSorted(compareNewestLease)[0];
+}
+
+export function selectNewestDraftLease(rows: UnitLeaseRecord[]) {
+  return rows
+    .filter((lease) => normalizeFormValue(lease.status) === "draft")
+    .toSorted(compareNewestLease)[0];
 }
 
 export function isActiveUnitLeaseStatus(status: string) {
@@ -288,6 +315,25 @@ export function formatUnitStatus(status: string) {
 
 export function formatLeaseStatus(status: string) {
   return formatStoredLabel(status);
+}
+
+export function formatUnitOperationalReadiness(
+  readiness: UnitOperationalReadiness,
+) {
+  // "Available" reads as vacancy next to Lease state, which reports occupancy.
+  return readiness === "available" ? "In service" : formatStoredLabel(readiness);
+}
+
+export function formatUnitLeaseReadiness(readiness: UnitLeaseReadiness) {
+  if (readiness === "none") {
+    return "No lease";
+  }
+
+  if (readiness === "draft") {
+    return "Draft lease";
+  }
+
+  return "Occupied";
 }
 
 export function getUnitStatusTone(status: string): UnitBadgeTone {
@@ -509,6 +555,7 @@ function buildUnitHealthIndicators({
   counts,
   financialSummary,
   maintenanceCases,
+  readiness,
   rentUsd,
   statusValue,
   tenantLinks,
@@ -517,18 +564,26 @@ function buildUnitHealthIndicators({
   counts: UnitRecordCounts;
   financialSummary: UnitFinancialSummary;
   maintenanceCases: UnitMaintenanceRecord[];
+  readiness: UnitReadiness;
   rentUsd: number;
   statusValue: UnitStatusValue;
   tenantLinks: UnitPersonLink[];
 }): UnitHealthIndicator[] {
   const indicators: UnitHealthIndicator[] = [];
 
-  if (activeLease) {
+  if (readiness.lease === "occupied") {
     indicators.push({
       description: "A current lease establishes this unit as occupied.",
       id: "occupancy",
       label: "Occupancy aligned",
       tone: "success",
+    });
+  } else if (readiness.lease === "draft") {
+    indicators.push({
+      description: "A draft Lease is in progress and does not establish occupancy yet.",
+      id: "occupancy",
+      label: "Draft lease in progress",
+      tone: "warning",
     });
   } else if (statusValue === "occupied") {
     indicators.push({
@@ -643,24 +698,26 @@ function buildUnitHealthIndicators({
 }
 
 function buildUnitRepairAction({
-  activeLease,
   counts,
   financialSummary,
   hrefs,
+  draftLease,
   maintenanceCases,
   rentUsd,
   recentTimelineEvents,
+  readiness,
   statusValue,
   unitId,
   unitNumber,
 }: {
-  activeLease?: UnitLeaseRecord;
   counts: UnitRecordCounts;
   financialSummary: UnitFinancialSummary;
   hrefs: UnitDetailHrefs;
+  draftLease?: UnitLeaseRecord;
   maintenanceCases: UnitMaintenanceRecord[];
   rentUsd: number;
   recentTimelineEvents: UnitTimelineRecord[];
+  readiness: UnitReadiness;
   statusValue: UnitStatusValue;
   unitId: string;
   unitNumber: string;
@@ -669,14 +726,35 @@ function buildUnitRepairAction({
     isRepairEventType(event.event_type),
   );
 
-  if (!activeLease) {
+  if (readiness.operational !== "available") {
+    return {
+      description:
+        readiness.operational === "maintenance"
+          ? `Unit ${unitNumber} is in maintenance. Log the repair, inspection, or completion work before leasing.`
+          : `Unit ${unitNumber} is inactive. Record the operational work required before leasing.`,
+      href: hrefs.addMaintenanceCase,
+      label: "Log maintenance case",
+      tone: readiness.operational === "inactive" ? "danger" : "warning",
+    };
+  }
+
+  if (readiness.lease === "draft" && draftLease) {
+    return {
+      description: `Continue the draft Lease for ${draftLease.tenant_name} instead of creating a duplicate.`,
+      href: `/leases/${draftLease.id}`,
+      label: "Continue draft",
+      tone: "warning",
+    };
+  }
+
+  if (readiness.lease === "none") {
     return {
       description:
         statusValue === "occupied"
-          ? `Unit ${unitNumber} is marked occupied, but no active lease is linked.`
-          : `Unit ${unitNumber} does not have an active lease yet.`,
+          ? `Unit ${unitNumber} is marked occupied, but no current or draft Lease is linked.`
+          : `Unit ${unitNumber} is available and has no current or draft Lease.`,
       href: hrefs.addLease,
-      label: "Add lease",
+      label: "Create draft lease",
       tone: statusValue === "occupied" ? "danger" : "warning",
     };
   }
@@ -696,15 +774,6 @@ function buildUnitRepairAction({
       href: hrefs.ledger,
       label: "Review ledger",
       tone: "danger",
-    };
-  }
-
-  if (statusValue === "maintenance") {
-    return {
-      description: `Unit ${unitNumber} is marked maintenance. Log the next repair, inspection, or completion note.`,
-      href: hrefs.addMaintenanceCase,
-      label: "Log maintenance case",
-      tone: "warning",
     };
   }
 
@@ -1042,6 +1111,40 @@ function normalizeUnitStatus(status: string): UnitStatusValue {
   }
 
   return "vacant";
+}
+
+function buildUnitReadiness({
+  activeLease,
+  draftLease,
+  statusValue,
+}: {
+  activeLease?: UnitLeaseRecord;
+  draftLease?: UnitLeaseRecord;
+  statusValue: UnitStatusValue;
+}): UnitReadiness {
+  const operational: UnitOperationalReadiness =
+    statusValue === "maintenance" || statusValue === "inactive"
+      ? statusValue
+      : "available";
+  const lease: UnitLeaseReadiness = activeLease
+    ? "occupied"
+    : draftLease
+      ? "draft"
+      : "none";
+
+  return {
+    canStartLease: operational === "available" && lease === "none",
+    lease,
+    operational,
+  };
+}
+
+function compareNewestLease(first: UnitLeaseRecord, second: UnitLeaseRecord) {
+  const startDateOrder = second.lease_start_date.localeCompare(
+    first.lease_start_date,
+  );
+
+  return startDateOrder || second.id.localeCompare(first.id);
 }
 
 function formatStoredLabel(value: string) {

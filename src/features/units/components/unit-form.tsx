@@ -14,6 +14,7 @@ import {
 import {
   UNIT_OPERATIONAL_STATE_OPTIONS,
   type UnitDetail,
+  type UnitOperationalStateValue,
   type UnitPropertyOption,
   type UnitSummary,
 } from "@/features/units/unit.types";
@@ -83,7 +84,7 @@ export function UnitForm({
         <input name="unitId" type="hidden" value={unit.id} />
       ) : null}
 
-      <FormSection title="Placement">
+      <FormSection step="01" title="Placement">
         <div className="grid gap-4 sm:grid-cols-2">
           <RecordField
             className="sm:col-span-2"
@@ -156,7 +157,7 @@ export function UnitForm({
 
       </FormSection>
 
-      <FormSection title="Unit details">
+      <FormSection step="02" title="Unit details">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_128px_140px]">
           <RecordField
             error={state.fieldErrors?.unitNumber?.[0]}
@@ -240,7 +241,7 @@ function getUnitDefaults(
     unitNumber: formValues?.unitNumber ?? unit?.unitNumber ?? "",
   };
 }
-function getOperationalState(storedStatus: string) {
+function getOperationalState(storedStatus: string): UnitOperationalStateValue {
   return storedStatus === "maintenance" || storedStatus === "inactive"
     ? storedStatus
     : "active";
