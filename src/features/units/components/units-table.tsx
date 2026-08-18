@@ -68,7 +68,7 @@ export function UnitsTable({
           data-slot="register-table-frame"
         >
           <div aria-label="Units table" className="overflow-x-auto" role="region">
-            <table className="w-max min-w-[980px] table-auto border-collapse text-left text-sm">
+            <table className="w-full min-w-[980px] max-w-[1100px] table-auto border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
@@ -143,7 +143,7 @@ export function UnitsTable({
                     tabIndex={0}
                     title={`Open unit ${unit.unitNumber}`}
                   >
-                    <td className="px-2.5 py-1.5">
+                    <td className="w-px whitespace-nowrap px-2.5 py-1.5">
                       <div className="min-w-0 max-w-[18rem] leading-4">
                         <p className="truncate font-medium" title={unit.propertyName}>
                           {unit.propertyName}

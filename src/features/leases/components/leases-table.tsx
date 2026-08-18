@@ -46,7 +46,7 @@ export function LeasesTable({
         data-slot="register-table-frame"
       >
         <div aria-label="Leases table" className="overflow-x-auto" role="region">
-          <table className="w-full min-w-[860px] table-auto border-collapse text-left text-sm">
+          <table className="w-full min-w-[860px] max-w-[1000px] table-auto border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
                 <th className="px-2.5 py-2.5 font-semibold">Tenant</th>

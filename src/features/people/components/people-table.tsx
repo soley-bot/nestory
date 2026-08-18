@@ -66,7 +66,7 @@ export function PeopleTable({
             className="overflow-x-auto"
             role="region"
           >
-            <table className="w-full min-w-[840px] table-auto border-collapse text-left text-sm">
+            <table className="w-full min-w-[840px] max-w-[1100px] table-auto border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 {isRoleScoped ? (
                   <tr>

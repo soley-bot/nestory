@@ -311,6 +311,9 @@ describe("UnitScreen redesign contract", () => {
     renderUnits();
 
     const table = screen.getByRole("table");
+    expect(table.className).toContain("table-auto");
+    expect(table.className).toContain("max-w-[1100px]");
+    expect(table.querySelector("colgroup")).toBeNull();
     expect(within(table).getByRole("columnheader", { name: "Status" })).toBeTruthy();
     expect(within(table).getByRole("columnheader", { name: "Lease" })).toBeTruthy();
     expect(within(table).getByRole("columnheader", { name: "Tenant" })).toBeTruthy();

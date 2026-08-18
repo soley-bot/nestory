@@ -59,7 +59,7 @@ export function PropertiesTable({
           data-slot="register-table-frame"
         >
           <div aria-label="Properties table" className="overflow-x-auto" role="region">
-            <table className="w-full min-w-[820px] table-auto border-collapse text-left text-[13px]">
+            <table className="w-full min-w-[820px] max-w-[1100px] table-auto border-collapse text-left text-[13px]">
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0.04em] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
