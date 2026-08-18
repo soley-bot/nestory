@@ -258,15 +258,17 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Add charge" }));
-    const dialog = screen.getByRole("dialog", { name: "Add charge" });
+    await user.click(screen.getByRole("button", { name: "Add tenant charge" }));
+    const dialog = screen.getByRole("dialog", { name: "Add tenant charge" });
     expect(
       dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value,
     ).toBe("lease-1");
     expect(within(dialog).getByRole("combobox", { name: "Charge type" })).not.toBeNull();
     expect(within(dialog).getByRole("button", { name: "Billing month" })).not.toBeNull();
     expect(within(dialog).getByRole("button", { name: "Due date" })).not.toBeNull();
-    expect(within(dialog).getByLabelText("Amount")).not.toBeNull();
+    const amount = within(dialog).getByLabelText("Amount");
+    expect(amount.getAttribute("placeholder")).toBe("0.00");
+    expect(amount.className).toContain("text-lg");
   });
 
   it("distinguishes overdue rent from a payment completed after its due date", () => {
@@ -398,17 +400,48 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    const progress = screen.getByRole("navigation", { name: "Setup progress" });
-    expect(within(progress).getByText("Finance").getAttribute("aria-current")).toBe(
-      "step",
-    );
+    expect(
+      screen.queryByRole("navigation", { name: "Setup progress" }),
+    ).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Add charge" }));
-    const dialog = screen.getByRole("dialog", { name: "Add charge" });
+    await user.click(screen.getByRole("button", { name: "Add tenant charge" }));
+    const dialog = screen.getByRole("dialog", { name: "Add tenant charge" });
     expect(dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value).toBe(
       "lease-1",
     );
     expect(within(dialog).queryByRole("combobox", { name: "Lease" })).toBeNull();
+    expect(within(dialog).queryByText("HOME — Riverside Home")).toBeNull();
+    expect(within(dialog).queryByText("Unit 01")).toBeNull();
+    expect(within(dialog).getByText("Dara Tenant")).not.toBeNull();
+  });
+
+  it("binds the only active lease when adding a charge from property finance", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <FinanceOperationsScreen
+        {...data()}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        scope={{
+          id: "property-1",
+          kind: "property",
+          label: "HOME — Riverside Home",
+          propertyId: "property-1",
+          propertyLabel: "HOME — Riverside Home",
+        }}
+        view="rent"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add tenant charge" }));
+    const dialog = screen.getByRole("dialog", { name: "Add tenant charge" });
+    expect(dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value).toBe(
+      "lease-1",
+    );
+    expect(within(dialog).queryByRole("combobox", { name: "Lease" })).toBeNull();
+    expect(within(dialog).queryByText("HOME — Riverside Home")).toBeNull();
+    expect(within(dialog).getByText("Dara Tenant · HOME — Unit 01")).not.toBeNull();
   });
 
   it("does not offer payment recording when the scoped invoices are settled", () => {
@@ -667,9 +700,9 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Record paid cost" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
     expect(
-      screen.getByRole("dialog", { name: "Record paid cost" }),
+      screen.getByRole("dialog", { name: "Record expense" }),
     ).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
     expect(screen.queryByText("Already paid")).toBeNull();
@@ -723,9 +756,9 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Record paid cost" }));
-    const drawer = screen.getByRole("dialog", { name: "Record paid cost" });
-    const form = within(drawer).getByRole("form", { name: "Record paid cost form" });
+    fireEvent.click(screen.getByRole("button", { name: "Record expense" }));
+    const drawer = screen.getByRole("dialog", { name: "Record expense" });
+    const form = within(drawer).getByRole("form", { name: "Record expense form" });
 
     expect(within(form).getByText("Finance").getAttribute("aria-current")).toBe(
       "step",
@@ -740,6 +773,9 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(within(form).getByRole("button", { name: "Cancel" })).not.toBeNull();
     expect(within(form).queryByText("No changes")).not.toBeNull();
+    for (const section of form.querySelectorAll('[data-slot="form-section"]')) {
+      expect(section.lastElementChild?.className).not.toContain("sm:pl-10");
+    }
   });
 
   it("lets Finance Members submit paid costs without exposing review controls", () => {
@@ -756,7 +792,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Record paid cost" }),
+      screen.getByRole("button", { name: "Record expense" }),
     ).not.toBeNull();
     expect(screen.getByText("Awaiting approval")).not.toBeNull();
     expect(
@@ -842,7 +878,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(
-      screen.queryByRole("button", { name: "Record paid cost" }),
+      screen.queryByRole("button", { name: "Record expense" }),
     ).toBeNull();
     await user.click(
       screen.getByRole("button", { name: "Review Sokha Repairs" }),
@@ -1229,7 +1265,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(
-      screen.getByRole("dialog", { name: "Record paid cost" }),
+      screen.getByRole("dialog", { name: "Record expense" }),
     ).not.toBeNull();
   });
 
@@ -1533,6 +1569,7 @@ describe("FinanceOperationsScreen", () => {
     expect(within(breadcrumb).getByText("Owner account")).not.toBeNull();
 
     const summary = screen.getByRole("region", { name: "Account position" });
+    expect(summary.className).toContain("pt-5");
     expect(within(summary).getByText("Owner balance")).not.toBeNull();
     expect(
       within(summary).getByText("Income minus owner costs and distributions"),

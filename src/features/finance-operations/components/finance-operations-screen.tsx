@@ -249,13 +249,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"
       localNav={
         props.scope ? (
-          <div className="border-b border-border">
-            <WorkflowStageStrip
-              className="workspace-gutter-x border-y-0 px-4 sm:px-6 2xl:px-8"
-              current="finance"
-            />
-            <ScopedFinanceNavigation scope={props.scope} view={props.view} />
-          </div>
+          <ScopedFinanceNavigation scope={props.scope} view={props.view} />
         ) : (
           <FinanceWorkspaceNavigation
             activeRoute={screen.activeRoute}
@@ -313,6 +307,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
               fixedLease={visibleModal.lease}
               leases={props.leases}
               onSuccess={onActionSuccess}
+              scope={props.scope}
             />
           ) : visibleModal.mode === "rent-recovery" ? (
             <HistoricalRentRecoveryForm
@@ -488,14 +483,17 @@ function getScreen(
           (invoice) => invoice.leaseId === props.initialRentLeaseId,
         )
       : props.tenantInvoices;
-    const scopedLease =
-      props.scope?.kind === "unit"
-        ? props.leases.find(
-            (lease) =>
-              lease.unitId === props.scope?.id &&
-              (lease.status === "active" || lease.status === "notice_given"),
-          )
-        : undefined;
+    const scope = props.scope;
+    const scopedLeases = scope
+      ? props.leases.filter(
+          (lease) =>
+            (lease.status === "active" || lease.status === "notice_given") &&
+            (scope.kind === "unit"
+              ? lease.unitId === scope.id
+              : lease.propertyId === scope.id),
+        )
+      : [];
+    const scopedLease = scopedLeases.length === 1 ? scopedLeases[0] : undefined;
     const canRecordScopedPayment =
       props.canRecordPayments && invoices.some((invoice) => invoice.balanceDue > 0);
     return {
@@ -525,7 +523,7 @@ function getScreen(
                   mode: "manual-charge",
                 })}
               >
-                <Plus size={15} /> Add charge
+                <Plus size={15} /> Add tenant charge
               </Button>
             ) : null}
           </>
@@ -552,7 +550,7 @@ function getScreen(
           onClick={() => openDrawer({ mode: "expense" })}
           variant="default"
         >
-          <Plus size={15} /> Record paid cost
+          <Plus size={15} /> Record expense
         </Button>
       ) : undefined,
       body: (
@@ -1179,10 +1177,10 @@ function ExpensesView({
   if (submissions.length === 0) {
     return (
       <EmptyState
-        body="Record a paid cost to start Finance review."
+        body="Record an expense to start Finance review."
         className="min-h-64"
         kind="empty"
-        title="No paid costs"
+        title="No expenses"
       />
     );
   }
@@ -1838,7 +1836,7 @@ function PropertyAccountView({
     <div className="flex min-w-0 flex-col bg-background px-4 pb-6 sm:px-6 2xl:px-8">
       <section
         aria-label="Account position"
-        className="grid shrink-0 grid-cols-1 pb-5 sm:grid-cols-2"
+        className="grid shrink-0 grid-cols-1 pb-5 pt-5 sm:grid-cols-2"
       >
         <AccountPositionItem
           description="Income minus owner costs and distributions"
@@ -2457,11 +2455,11 @@ function ExpenseForm({
     <RecordForm
       action={action}
       allowSaveWhenClean={false}
-      ariaLabel="Record paid cost form"
+      ariaLabel="Record expense form"
       onCancel={onClose}
       pending={pending}
       saveLabel="Submit for review"
-      savingLabel="Submitting paid cost"
+      savingLabel="Submitting expense"
       state={state}
     >
       <WorkflowStageStrip current="finance" />
@@ -2489,7 +2487,7 @@ function ExpenseForm({
         value={effectiveResponsibility === "tenant" ? tenantInvoiceId : ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
-      <FormSection step="01" title="Cost record">
+      <FormSection indentContent={false} step="01" title="Cost record">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Property">
           {fixedScope ? (
@@ -2570,7 +2568,7 @@ function ExpenseForm({
       </div>
       </FormSection>
 
-      <FormSection step="02" title="Payment">
+      <FormSection indentContent={false} step="02" title="Payment">
         <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount paid">
           <NumberInput
@@ -2589,7 +2587,7 @@ function ExpenseForm({
       </div>
       </FormSection>
 
-      <FormSection step="03" title="Responsibility">
+      <FormSection indentContent={false} step="03" title="Responsibility">
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Charge this to</legend>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -2663,7 +2661,7 @@ function ExpenseForm({
       ) : null}
       </FormSection>
 
-      <FormSection step="04" title="Receipt and reconciliation">
+      <FormSection indentContent={false} step="04" title="Receipt and reconciliation">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Paid from">
             <SelectControl
@@ -3162,10 +3160,12 @@ function ManualTenantChargeForm({
   fixedLease,
   leases,
   onSuccess,
+  scope,
 }: {
   fixedLease?: FinanceLease;
   leases: FinanceLease[];
   onSuccess: (message: string) => void;
+  scope?: FinanceOperationsScreenProps["scope"];
 }) {
   const availableLeases = leases.filter(
     (lease) => lease.status === "active" || lease.status === "notice_given",
@@ -3185,11 +3185,17 @@ function ManualTenantChargeForm({
         <>
           <input name="leaseId" type="hidden" value={fixedLease.id} />
           <DefinitionRows
-            rows={[
-              ["Tenant", fixedLease.tenantLabel],
-              ["Property", fixedLease.propertyLabel],
-              ["Unit", fixedLease.unitLabel],
-            ]}
+            rows={
+              scope?.kind === "unit"
+                ? [["Tenant", fixedLease.tenantLabel]]
+                : scope?.kind === "property"
+                  ? [["Tenant", `${fixedLease.tenantLabel} · ${fixedLease.unitLabel}`]]
+                  : [
+                      ["Tenant", fixedLease.tenantLabel],
+                      ["Property", fixedLease.propertyLabel],
+                      ["Unit", fixedLease.unitLabel],
+                    ]
+            }
           />
         </>
       ) : (
@@ -3240,7 +3246,15 @@ function ManualTenantChargeForm({
           />
         </Field>
         <Field label="Amount">
-          <NumberInput aria-label="Amount" min={0.01} name="amount" required step="0.01" />
+          <NumberInput
+            aria-label="Amount"
+            className="h-10 border-foreground/45 bg-background text-lg font-semibold tabular-nums"
+            min={0.01}
+            name="amount"
+            placeholder="0.00"
+            required
+            step="0.01"
+          />
         </Field>
       </div>
 
@@ -3255,14 +3269,14 @@ function ManualTenantChargeForm({
       <ActionMessage state={state} />
       <FormFooter>
         <span />
-        <SubmitButton label="Add charge" />
+        <SubmitButton label="Add tenant charge" />
       </FormFooter>
     </form>
   );
 }
 
 function getModalTitle(modal: ModalState) {
-  if (modal.mode === "manual-charge") return "Add charge";
+  if (modal.mode === "manual-charge") return "Add tenant charge";
   if (modal.mode === "rent-recovery") return "Recover missed rent";
   if (modal.mode === "invoice-details") return "Invoice details";
   if (modal.mode === "expense-details") return "Paid cost details";
@@ -3321,7 +3335,7 @@ function canRenderFinanceModal(
 
 function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "billing") return "Set up lease billing";
-  return "Record paid cost";
+  return "Record expense";
 }
 
 function useSuccess(

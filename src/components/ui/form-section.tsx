@@ -5,6 +5,7 @@ type FormSectionProps = {
   children: ReactNode;
   className?: string;
   description?: ReactNode;
+  indentContent?: boolean;
   step?: string;
   title: ReactNode;
 };
@@ -13,6 +14,7 @@ export function FormSection({
   children,
   className,
   description,
+  indentContent = true,
   step,
   title,
 }: FormSectionProps) {
@@ -53,7 +55,9 @@ export function FormSection({
           ) : null}
         </div>
       </div>
-      <div className={cn("space-y-3", step && "sm:pl-10")}>{children}</div>
+      <div className={cn("space-y-3", step && indentContent && "sm:pl-10")}>
+        {children}
+      </div>
     </section>
   );
 }
