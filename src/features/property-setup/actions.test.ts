@@ -21,29 +21,35 @@ vi.mock("@/lib/db/server", () => ({
   })),
 }));
 
-import { activateSetupLeaseAction } from "@/features/property-setup/actions";
+import {
+  activateSetupLeaseAction,
+  initialActivateSetupLeaseState,
+} from "@/features/property-setup/actions";
 
 const leaseId = "20000000-0000-0000-0000-000000000001";
 const expectedOccupancyId = "30000000-0000-0000-0000-000000000001";
 const activeOccupancyId = "30000000-0000-0000-0000-000000000002";
+let currentLeaseStatus = "draft";
 
 beforeEach(() => {
   mocks.revalidatePath.mockReset();
   mocks.rpc.mockReset();
+  currentLeaseStatus = "draft";
 });
 
 describe("activateSetupLeaseAction", () => {
   it("activates the draft and confirms move-in without leaving setup", async () => {
-    mocks.rpc
-      .mockResolvedValueOnce({
-        data: { leaseId, occupancyId: activeOccupancyId, status: "active" },
-        error: null,
-      })
-      .mockResolvedValueOnce({ data: activeOccupancyId, error: null });
+    mocks.rpc.mockResolvedValueOnce({
+      data: { leaseId, occupancyId: activeOccupancyId, status: "active" },
+      error: null,
+    });
 
     const formData = new FormData();
     formData.set("leaseId", leaseId);
-    await activateSetupLeaseAction(formData);
+    const result = await activateSetupLeaseAction(
+      initialActivateSetupLeaseState,
+      formData,
+    );
 
     expect(mocks.rpc).toHaveBeenNthCalledWith(
       1,
@@ -55,23 +61,32 @@ describe("activateSetupLeaseAction", () => {
         p_transition: "activate",
       }),
     );
-    expect(mocks.rpc).toHaveBeenNthCalledWith(
-      2,
-      "record_current_lease_occupancy_evidence",
-      expect.objectContaining({
-        p_actual_move_in_date: "2026-08-18",
-        p_expected_occupancy_id: activeOccupancyId,
-        p_lease_id: leaseId,
-      }),
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("success");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/properties/setup");
+  });
+
+  it("safely resumes after activation already succeeded", async () => {
+    currentLeaseStatus = "active";
+    const formData = new FormData();
+    formData.set("leaseId", leaseId);
+
+    const result = await activateSetupLeaseAction(
+      initialActivateSetupLeaseState,
+      formData,
     );
+
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(result.status).toBe("success");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/properties/setup");
   });
 });
 
 function queryFor(table: string) {
-  const result = table === "current_leases"
-    ? { data: { status: "draft" }, error: null }
-    : { data: { id: expectedOccupancyId }, error: null };
+  const result =
+    table === "current_leases"
+      ? { data: { status: currentLeaseStatus }, error: null }
+      : { data: { id: expectedOccupancyId }, error: null };
   const query = {
     eq: () => query,
     is: () => query,

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -23,7 +23,10 @@ import { PersonSelect } from "@/features/people/components/person-select";
 import { PropertyForm } from "@/features/properties/components/property-form";
 import { UnitForm } from "@/features/units/components/unit-form";
 import { LeaseForm } from "@/features/leases/components/lease-form";
-import { activateSetupLeaseAction } from "@/features/property-setup/actions";
+import {
+  activateSetupLeaseAction,
+  initialActivateSetupLeaseState,
+} from "@/features/property-setup/actions";
 import {
   buildPropertySetupQuery,
   clearPropertySetupSelectionAfter,
@@ -76,7 +79,9 @@ export function PropertySetupScreen({
     (option) => option.id === selection.propertyId,
   );
   const unit = data.units.find((option) => option.id === selection.unitId);
-  const tenant = data.tenants.find((option) => option.id === selection.tenantId);
+  const tenant = data.tenants.find(
+    (option) => option.id === selection.tenantId,
+  );
   const lease = data.leases.find((option) => option.id === selection.leaseId);
   const propertyOptions = data.properties.filter(
     (option) => option.ownerPersonId === selection.ownerId,
@@ -208,7 +213,9 @@ export function PropertySetupScreen({
                   onCreateLease={() => setCreateModal("lease")}
                   onCreateTenant={() => setCreateModal("tenant")}
                   onLeaseSelect={(id) => changeSelection("leaseId", id || null)}
-                  onTenantSelect={(id) => changeSelection("tenantId", id || null)}
+                  onTenantSelect={(id) =>
+                    changeSelection("tenantId", id || null)
+                  }
                   onUseExistingLease={() => {
                     if (!openLeaseForUnit) return;
                     navigate(
@@ -249,7 +256,9 @@ export function PropertySetupScreen({
               <footer className="flex items-center justify-between gap-3 border-t border-border bg-muted/45 px-4 py-3 sm:px-5">
                 <Button
                   disabled={step === 1}
-                  onClick={() => navigate(selection, (step - 1) as PropertySetupStep)}
+                  onClick={() =>
+                    navigate(selection, (step - 1) as PropertySetupStep)
+                  }
                   variant="ghost"
                 >
                   <ArrowLeft size={14} />
@@ -257,7 +266,9 @@ export function PropertySetupScreen({
                 </Button>
                 <Button
                   disabled={pending || highestStep <= step}
-                  onClick={() => navigate(selection, (step + 1) as PropertySetupStep)}
+                  onClick={() =>
+                    navigate(selection, (step + 1) as PropertySetupStep)
+                  }
                   variant="default"
                 >
                   Continue
@@ -329,7 +340,10 @@ function SetupRail({
                 >
                   {completed ? <Check size={13} /> : item.step}
                 </span>
-                <Icon className="hidden shrink-0 sm:block lg:hidden" size={14} />
+                <Icon
+                  className="hidden shrink-0 sm:block lg:hidden"
+                  size={14}
+                />
                 <span className="truncate">{item.label}</span>
               </button>
             </li>
@@ -411,11 +425,7 @@ function SelectRecordStep({
   );
 }
 
-function WholePropertyStep({
-  propertyLabel,
-}: {
-  propertyLabel: string;
-}) {
+function WholePropertyStep({ propertyLabel }: { propertyLabel: string }) {
   return (
     <section className="space-y-3">
       <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
@@ -479,14 +489,20 @@ function TenantLeaseStep({
             value={selection.leaseId ?? ""}
           />
         ) : (
-          <p className="text-sm text-muted-foreground">Choose or create the tenant first.</p>
+          <p className="text-sm text-muted-foreground">
+            Choose or create the tenant first.
+          </p>
         )}
         {openLeaseForUnit ? (
           <div className="rounded-md border border-warning/30 bg-warning-soft/30 p-3 text-sm">
             <p className="font-medium text-foreground">
               This unit already has an open lease for {openLeaseForUnit.label}.
             </p>
-            <Button className="mt-2" onClick={onUseExistingLease} variant="secondary">
+            <Button
+              className="mt-2"
+              onClick={onUseExistingLease}
+              variant="secondary"
+            >
               Use existing lease
             </Button>
           </div>
@@ -516,13 +532,18 @@ function RentSetupStep({
   tenant: PropertySetupData["tenants"][number];
   unit?: PropertySetupData["units"][number];
 }) {
+  const [activationState, activationAction, activationPending] = useActionState(
+    activateSetupLeaseAction,
+    initialActivateSetupLeaseState,
+  );
   const blockers = readiness?.items.filter((item) => !item.ready) ?? [];
   const needsActivation =
-    lease.status === "draft" &&
+    ["draft", "active"].includes(lease.status) &&
     blockers.some((item) => item.code === "lease" || item.code === "occupancy");
   const visibleBlockers = needsActivation
     ? blockers.filter(
-        (item) => !["lease", "occupancy", "billing", "rent_policy"].includes(item.code),
+        (item) =>
+          !["lease", "occupancy", "billing", "rent_policy"].includes(item.code),
       )
     : blockers;
   const actionCount = visibleBlockers.length + (needsActivation ? 1 : 0);
@@ -550,21 +571,49 @@ function RentSetupStep({
         </p>
       </div>
       {needsActivation ? (
-        <form action={activateSetupLeaseAction} className="rounded-md border border-border p-4">
+        <form
+          action={activationAction}
+          className="rounded-md border border-border p-4"
+        >
           <input name="leaseId" type="hidden" value={lease.id} />
-          <h4 className="text-sm font-semibold text-foreground">Start the lease</h4>
+          <h4 className="text-sm font-semibold text-foreground">
+            {lease.status === "draft"
+              ? "Start the lease"
+              : "Finish move-in setup"}
+          </h4>
           <p className="mt-1 text-sm text-muted-foreground">
-            Activate the lease and confirm that the tenant has moved in today.
+            {lease.status === "draft"
+              ? "Activate the lease and confirm that the tenant has moved in today."
+              : "The lease is active. Refresh its completed move-in status and continue."}
           </p>
-          <Button className="mt-3" type="submit">Activate lease and confirm move-in</Button>
+          {activationState.status === "error" ? (
+            <p className="mt-2 text-sm text-destructive" role="alert">
+              {activationState.message}
+            </p>
+          ) : null}
+          <Button className="mt-3" disabled={activationPending} type="submit">
+            {activationPending
+              ? "Updating…"
+              : lease.status === "draft"
+                ? "Activate lease and confirm move-in"
+                : "Refresh move-in status"}
+          </Button>
         </form>
       ) : null}
       {visibleBlockers.length > 0 ? (
-        <section aria-label="Required next steps" className="border-y border-border">
+        <section
+          aria-label="Required next steps"
+          className="border-y border-border"
+        >
           <ul className="divide-y divide-border">
             {visibleBlockers.map((item) => (
-              <li className="flex items-center justify-between gap-3 py-3" key={item.code}>
-                <span className="text-sm font-medium text-foreground">{item.label}</span>
+              <li
+                className="flex items-center justify-between gap-3 py-3"
+                key={item.code}
+              >
+                <span className="text-sm font-medium text-foreground">
+                  {item.label}
+                </span>
                 <Link
                   className="shrink-0 text-sm font-medium text-foreground underline underline-offset-4"
                   href={item.repairHref}
@@ -596,12 +645,18 @@ function DoneStep({
   return (
     <section className="space-y-5">
       <div>
-        <h3 className="text-base font-semibold text-foreground">Ready to charge rent</h3>
+        <h3 className="text-base font-semibold text-foreground">
+          Ready to charge rent
+        </h3>
         <p className="mt-1 flex flex-wrap gap-x-2 text-sm text-muted-foreground">
-          <span>{property.label}</span><span aria-hidden="true">·</span>
-          <span>{unit?.label ?? "Whole property"}</span><span aria-hidden="true">·</span>
-          <span>{owner.label}</span><span aria-hidden="true">·</span>
-          <span>{tenant.label}</span><span aria-hidden="true">·</span>
+          <span>{property.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{unit?.label ?? "Whole property"}</span>
+          <span aria-hidden="true">·</span>
+          <span>{owner.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{tenant.label}</span>
+          <span aria-hidden="true">·</span>
           <span>{formatMoney(lease.monthlyRentAmount, "USD")}/month</span>
         </p>
       </div>
@@ -658,19 +713,16 @@ function CreateRecordModal({
   const contextProperty = data.properties.find(
     (option) => option.id === selection.propertyId,
   );
-  const contextUnit = data.units.find((option) => option.id === selection.unitId);
+  const contextUnit = data.units.find(
+    (option) => option.id === selection.unitId,
+  );
   const title = `Create ${modal}`;
   const description =
     modal === "owner"
       ? "The new owner will be selected so you can continue to the property or unit."
       : "Save this record and continue setup.";
   return (
-    <Modal
-      description={description}
-      onClose={onClose}
-      open
-      title={title}
-    >
+    <Modal description={description} onClose={onClose} open title={title}>
       {modal === "owner" ? (
         <PersonForm
           createSaveLabel="Create and continue"
@@ -740,7 +792,9 @@ function CreateRecordModal({
 function stepTitle(step: PropertySetupStep, requiresUnit = true) {
   return [
     "Choose the responsible owner",
-    requiresUnit ? "Choose the property and rental space" : "Choose the property",
+    requiresUnit
+      ? "Choose the property and rental space"
+      : "Choose the property",
     "Connect the tenant through a lease",
     "Finish rent setup",
     "Rental setup complete",
