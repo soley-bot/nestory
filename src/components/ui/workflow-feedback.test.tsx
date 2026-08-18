@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/draft-action-bar";
 import { EmptyState, type EmptyStateKind } from "@/components/ui/empty-state";
 import { FormSection } from "@/components/ui/form-section";
+import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 
@@ -581,5 +582,26 @@ describe("drawer workflow slots", () => {
     );
     expect(dialog.querySelector('[data-slot="drawer-summary"]')).toBeNull();
     expect(dialog.querySelector('[data-slot="drawer-footer"]')).toBeNull();
+  });
+});
+
+describe("modal workflow slots", () => {
+  it("constrains tall forms and gives scrolling to the modal body", () => {
+    render(
+      <Modal onClose={vi.fn()} open title="Create property">
+        <form aria-label="Tall form">
+          <div style={{ height: 1200 }}>Form fields</div>
+          <button type="submit">Save</button>
+        </form>
+      </Modal>,
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Create property" });
+    const content = dialog.querySelector('[data-slot="modal-content"]');
+
+    expect(dialog.className).toContain("grid-rows-[auto_minmax(0,1fr)]");
+    expect(dialog.className).toContain("overflow-hidden");
+    expect(content?.className).toContain("min-h-0");
+    expect(content?.className).toContain("overflow-y-auto");
   });
 });
