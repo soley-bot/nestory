@@ -430,8 +430,8 @@ SELECT is(
       AND item->>'code' = 'opening_balance'
     LIMIT 1
   ),
-  false,
-  'current owners without same-currency opening authority keep setup blocked'
+  NULL::boolean,
+  'opening-balance migration is not part of rental setup readiness'
 );
 RESET ROLE;
 

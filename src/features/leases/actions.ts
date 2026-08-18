@@ -423,7 +423,7 @@ export async function createLeaseAction(
 
   return {
     leaseId,
-    message: "Draft lease created.",
+    message: parsed.data.status === "active" ? "Lease created and activated." : "Draft lease created.",
     status: "success",
   };
 }

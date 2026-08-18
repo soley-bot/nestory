@@ -52,6 +52,7 @@ type LeaseFormProps = {
   onClose: () => void;
   onSuccess?: (message: string, leaseId?: string) => void;
   properties: LeasePropertyOption[];
+  setupMode?: boolean;
   tenants: LeaseTenantOption[];
   units: LeaseUnitOption[];
 };
@@ -69,6 +70,7 @@ export function LeaseForm({
   mode = "create",
   onClose,
   onSuccess,
+  setupMode = false,
   tenants,
 }: LeaseFormProps) {
   const isEditMode = mode === "edit";
@@ -93,6 +95,7 @@ export function LeaseForm({
   const selectedUnitId = createContext?.unitId ?? defaults.unitId;
   const [availableTenantOptions, setAvailableTenantOptions] = useState(tenants);
   const [leaseStartDate, setLeaseStartDate] = useState(defaults.leaseStartDate);
+  const [moveInTiming, setMoveInTiming] = useState<"moved_in" | "later">("moved_in");
   const [createTenantOpen, setCreateTenantOpen] = useState(false);
   const tenantOptions = ensureSelectedTenant(
     availableTenantOptions,
@@ -138,8 +141,8 @@ export function LeaseForm({
         ariaLabel={isEditMode ? "Edit draft form" : "Add lease form"}
         onCancel={onClose}
         pending={pending}
-        saveLabel={isEditMode ? "Save draft changes" : "Create draft lease"}
-        savingLabel={isEditMode ? "Saving draft" : "Creating draft"}
+        saveLabel={isEditMode ? "Save draft changes" : setupMode ? "Save tenant and lease" : "Create draft lease"}
+        savingLabel={isEditMode ? "Saving draft" : setupMode ? "Saving tenant and lease" : "Creating draft"}
         hideSaveOnSuccess={!isEditMode}
         state={{
           ...state,
@@ -190,12 +193,12 @@ export function LeaseForm({
           <>
             <input name="propertyId" type="hidden" value={selectedPropertyId} />
             <input name="unitId" type="hidden" value={formUnitId} />
-            <input name="status" type="hidden" value="draft" />
-            <input name="termStatus" type="hidden" value="draft" />
+            <input name="status" type="hidden" value={setupMode && moveInTiming === "moved_in" ? "active" : "draft"} />
+            <input name="termStatus" type="hidden" value={setupMode && moveInTiming === "moved_in" ? "active" : "draft"} />
             <input name="paymentFrequency" type="hidden" value="monthly" />
-            <input name="scheduledMoveInDate" type="hidden" value="" />
+            <input name="scheduledMoveInDate" type="hidden" value={setupMode ? leaseStartDate : ""} />
             <input name="scheduledMoveOutDate" type="hidden" value="" />
-            <input name="actualMoveInDate" type="hidden" value="" />
+            <input name="actualMoveInDate" type="hidden" value={setupMode && moveInTiming === "moved_in" ? leaseStartDate : ""} />
             <input name="actualMoveOutDate" type="hidden" value="" />
           </>
         )}
@@ -271,6 +274,20 @@ export function LeaseForm({
               />
             </RecordField>
           </div>
+
+          {setupMode && !isEditMode ? (
+            <RecordField label="Move-in status" name="moveInTiming" required>
+              <SelectControl
+                ariaLabel="Move-in status"
+                onValueChange={(value) => setMoveInTiming(value as "moved_in" | "later")}
+                options={[
+                  { label: "Tenant moved in on the lease start date", value: "moved_in" },
+                  { label: "Tenant will move in later", value: "later" },
+                ]}
+                value={moveInTiming}
+              />
+            </RecordField>
+          ) : null}
 
         </FormSection>
 

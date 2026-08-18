@@ -6,7 +6,10 @@ import {
   normalizePropertySetupStep,
   propertySetupRequiresUnit,
 } from "@/features/property-setup/property-setup";
-import { validateSelection } from "@/features/property-setup/data/property-setup";
+import {
+  normalizeRentalSetupReadiness,
+  validateSelection,
+} from "@/features/property-setup/data/property-setup";
 
 const completeSelection = {
   leaseId: "lease-1",
@@ -17,6 +20,27 @@ const completeSelection = {
 };
 
 describe("property setup progression", () => {
+  it("keeps finance migration and deposit custody out of the rent-start gate", () => {
+    const readiness = normalizeRentalSetupReadiness({
+      effectiveDate: "2026-08-18",
+      items: [
+        { code: "owner_roster", label: "Owner roster", ready: false, repairHref: "/property" },
+        { code: "lease", label: "Active lease", ready: true, repairHref: "/lease" },
+        { code: "opening_balance", label: "Opening balances", ready: false, repairHref: "/balances" },
+        { code: "deposit", label: "Deposit handling", ready: false, repairHref: "/lease" },
+      ],
+      leaseId: "lease-1",
+      organizationId: "organization-1",
+      propertyId: "property-1",
+      ready: false,
+      unitId: "unit-1",
+    });
+
+    expect(readiness?.items.map((item) => item.code)).toEqual(["owner_roster", "lease"]);
+    expect(readiness?.items[0]).toMatchObject({ label: "Property owner", ready: true });
+    expect(readiness?.ready).toBe(true);
+  });
+
   it("prevents forward navigation until each authoritative relationship exists", () => {
     expect(
       normalizePropertySetupStep(5, {
@@ -24,8 +48,9 @@ describe("property setup progression", () => {
         leaseId: null,
         tenantId: null,
       }),
-    ).toBe(4);
-    expect(getHighestPropertySetupStep(completeSelection)).toBe(5);
+    ).toBe(3);
+    expect(getHighestPropertySetupStep(completeSelection)).toBe(4);
+    expect(getHighestPropertySetupStep(completeSelection, { ready: true })).toBe(5);
   });
 
   it("lets a whole-property setup reach the lease step without a unit", () => {
@@ -50,12 +75,12 @@ describe("property setup progression", () => {
       getHighestPropertySetupStep(wholePropertySelection, {
         requiresUnit: false,
       }),
-    ).toBe(4);
+    ).toBe(3);
     expect(
-      normalizePropertySetupStep(4, wholePropertySelection, {
+      normalizePropertySetupStep(3, wholePropertySelection, {
         requiresUnit: false,
       }),
-    ).toBe(4);
+    ).toBe(3);
   });
 
   it("still requires a unit before the lease step on a multi-unit property", () => {
@@ -70,7 +95,7 @@ describe("property setup progression", () => {
     const selection = { ...completeSelection, leaseId: null, unitId: null };
 
     expect(propertySetupRequiresUnit(properties, selection)).toBe(true);
-    expect(normalizePropertySetupStep(4, selection)).toBe(3);
+    expect(normalizePropertySetupStep(3, selection)).toBe(2);
   });
 
   it("clears downstream selections when an earlier record changes", () => {

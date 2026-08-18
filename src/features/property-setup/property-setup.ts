@@ -34,19 +34,22 @@ export function propertySetupRequiresUnit(
 
 export function getHighestPropertySetupStep(
   selection: PropertySetupSelection,
-  { requiresUnit = true }: { requiresUnit?: boolean } = {},
+  {
+    ready = false,
+    requiresUnit = true,
+  }: { ready?: boolean; requiresUnit?: boolean } = {},
 ): PropertySetupStep {
   if (!selection.ownerId) return 1;
   if (!selection.propertyId) return 2;
-  if (requiresUnit && !selection.unitId) return 3;
-  if (!selection.leaseId) return 4;
-  return 5;
+  if (requiresUnit && !selection.unitId) return 2;
+  if (!selection.leaseId) return 3;
+  return ready ? 5 : 4;
 }
 
 export function normalizePropertySetupStep(
   requestedStep: number,
   selection: PropertySetupSelection,
-  options: { requiresUnit?: boolean } = {},
+  options: { ready?: boolean; requiresUnit?: boolean } = {},
 ) {
   const safeStep = Math.max(1, Math.min(5, requestedStep)) as PropertySetupStep;
   return Math.min(

@@ -133,10 +133,32 @@ export async function getPropertySetupData({
         `Could not load setup readiness: ${readinessResult.error.message}`,
       );
     }
-    readiness = readinessResult.data as PropertySetupData["readiness"];
+    readiness = normalizeRentalSetupReadiness(
+      readinessResult.data as PropertySetupData["readiness"],
+    );
   }
 
   return { leases, owners, properties, readiness, selection, tenants, units };
+}
+
+export function normalizeRentalSetupReadiness(
+  readiness: PropertySetupData["readiness"],
+): PropertySetupData["readiness"] {
+  if (!readiness) return readiness;
+
+  const items = readiness.items
+    .filter((item) => !["opening_balance", "deposit"].includes(item.code))
+    .map((item) =>
+      item.code === "owner_roster"
+        ? { ...item, label: "Property owner", ready: true }
+        : item,
+    );
+
+  return {
+    ...readiness,
+    items,
+    ready: items.every((item) => item.ready),
+  };
 }
 
 export function validateSelection({

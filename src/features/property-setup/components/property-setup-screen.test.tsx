@@ -22,7 +22,7 @@ afterEach(cleanup);
 
 describe("PropertySetupScreen", () => {
   it("steers an occupied unit to its open lease and blocks new lease creation", () => {
-    render(<PropertySetupScreen data={data} step={4} />);
+    render(<PropertySetupScreen data={data} step={3} />);
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(
@@ -50,7 +50,7 @@ describe("PropertySetupScreen", () => {
     const [href, options] = navigation.replace.mock.calls[0]!;
     const url = new URL(href, "http://localhost");
     expect(url.pathname).toBe("/properties/setup");
-    expect(url.searchParams.get("step")).toBe("5");
+    expect(url.searchParams.get("step")).toBe("4");
     expect(url.searchParams.get("leaseId")).toBe("lease-1");
     expect(url.searchParams.get("tenantId")).toBe("tenant-1");
     expect(options).toEqual({ scroll: false });
@@ -91,10 +91,11 @@ describe("PropertySetupScreen", () => {
             unitId: "unit-1",
           },
         }}
-        step={5}
+        step={4}
       />,
     );
 
+    expect(screen.getByRole("heading", { level: 2, name: "Finish rent setup" })).toBeTruthy();
     expect(screen.queryByText("Setup complete")).toBeNull();
     expect(screen.getByText("1 required next step")).toBeTruthy();
     expect(screen.queryByText("Owner roster")).toBeNull();
@@ -138,7 +139,7 @@ describe("PropertySetupScreen", () => {
     );
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Review the linked setup" }),
+      screen.getByRole("heading", { level: 2, name: "Rental setup complete" }),
     ).toBeTruthy();
     expect(screen.getByText("Whole property")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Unit" })).toBeNull();

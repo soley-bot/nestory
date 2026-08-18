@@ -8,8 +8,8 @@ import {
   ArrowRight,
   Building2,
   Check,
-  Home,
   KeyRound,
+  Landmark,
   Plus,
   UserRound,
   UsersRound,
@@ -23,6 +23,7 @@ import { PersonSelect } from "@/features/people/components/person-select";
 import { PropertyForm } from "@/features/properties/components/property-form";
 import { UnitForm } from "@/features/units/components/unit-form";
 import { LeaseForm } from "@/features/leases/components/lease-form";
+import { activateSetupLeaseAction } from "@/features/property-setup/actions";
 import {
   buildPropertySetupQuery,
   clearPropertySetupSelectionAfter,
@@ -46,10 +47,10 @@ const steps: Array<{
   step: PropertySetupStep;
 }> = [
   { icon: UserRound, label: "Owner", step: 1 },
-  { icon: Building2, label: "Property", step: 2 },
-  { icon: Home, label: "Unit", step: 3 },
-  { icon: UsersRound, label: "Tenant and lease", step: 4 },
-  { icon: Check, label: "Review", step: 5 },
+  { icon: Building2, label: "Property and space", step: 2 },
+  { icon: UsersRound, label: "Tenant and lease", step: 3 },
+  { icon: Landmark, label: "Rent setup", step: 4 },
+  { icon: Check, label: "Done", step: 5 },
 ];
 
 export function PropertySetupScreen({
@@ -65,7 +66,11 @@ export function PropertySetupScreen({
   const [createModal, setCreateModal] = useState<CreateModal>(null);
   const { selection } = data;
   const requiresUnit = propertySetupRequiresUnit(data.properties, selection);
-  const highestStep = getHighestPropertySetupStep(selection, { requiresUnit });
+  const setupReady = data.readiness?.ready !== false;
+  const highestStep = getHighestPropertySetupStep(selection, {
+    ready: setupReady,
+    requiresUnit,
+  });
   const owner = data.owners.find((option) => option.id === selection.ownerId);
   const property = data.properties.find(
     (option) => option.id === selection.propertyId,
@@ -161,43 +166,42 @@ export function PropertySetupScreen({
                 />
               ) : null}
               {step === 2 ? (
-                <SelectRecordStep
-                  createLabel="Create new property"
-                  emptyCopy="No active properties are linked to this owner yet."
-                  label="Property"
-                  onCreate={() => setCreateModal("property")}
-                  onSelect={(id) => changeSelection("propertyId", id || null)}
-                  options={propertyOptions.map((option) => ({
-                    label: option.label,
-                    value: option.id,
-                  }))}
-                  placeholder="Choose property"
-                  value={selection.propertyId ?? ""}
-                />
-              ) : null}
-              {step === 3 ? (
-                requiresUnit ? (
+                <div className="space-y-5">
                   <SelectRecordStep
-                    createLabel="Create new unit"
-                    emptyCopy="This property has no eligible active units yet."
-                    label="Unit"
-                    onCreate={() => setCreateModal("unit")}
-                    onSelect={(id) => changeSelection("unitId", id || null)}
-                    options={unitOptions.map((option) => ({
-                      label: `${option.label} · ${option.statusLabel}`,
+                    createLabel="Create new property"
+                    emptyCopy="No active properties are linked to this owner yet."
+                    label="Property"
+                    onCreate={() => setCreateModal("property")}
+                    onSelect={(id) => changeSelection("propertyId", id || null)}
+                    options={propertyOptions.map((option) => ({
+                      label: option.label,
                       value: option.id,
                     }))}
-                    placeholder="Choose unit"
-                    value={selection.unitId ?? ""}
+                    placeholder="Choose property"
+                    value={selection.propertyId ?? ""}
                   />
-                ) : (
-                  <WholePropertyStep
-                    onContinue={() => navigate(selection, 4)}
-                    propertyLabel={property?.label ?? "This property"}
-                  />
-                )
+                  {property ? (
+                    requiresUnit ? (
+                      <SelectRecordStep
+                        createLabel="Create new rental space"
+                        emptyCopy="This property has no rental spaces yet."
+                        label="Rental space"
+                        onCreate={() => setCreateModal("unit")}
+                        onSelect={(id) => changeSelection("unitId", id || null)}
+                        options={unitOptions.map((option) => ({
+                          label: `${option.label} · ${option.statusLabel}`,
+                          value: option.id,
+                        }))}
+                        placeholder="Choose rental space"
+                        value={selection.unitId ?? ""}
+                      />
+                    ) : (
+                      <WholePropertyStep propertyLabel={property.label} />
+                    )
+                  ) : null}
+                </div>
               ) : null}
-              {step === 4 ? (
+              {step === 3 ? (
                 <TenantLeaseStep
                   data={data}
                   matchingLeases={matchingLeases}
@@ -213,19 +217,28 @@ export function PropertySetupScreen({
                         leaseId: openLeaseForUnit.id,
                         tenantId: openLeaseForUnit.tenantPersonId,
                       },
-                      5,
+                      4,
                     );
                   }}
                   openLeaseForUnit={openLeaseForUnit}
                   selection={selection}
                 />
               ) : null}
-              {step === 5 && owner && property && tenant && lease ? (
-                <ReviewStep
+              {step === 4 && owner && property && tenant && lease ? (
+                <RentSetupStep
                   lease={lease}
                   owner={owner}
                   property={property}
                   readiness={data.readiness ?? null}
+                  tenant={tenant}
+                  unit={unit}
+                />
+              ) : null}
+              {step === 5 && owner && property && tenant && lease ? (
+                <DoneStep
+                  lease={lease}
+                  owner={owner}
+                  property={property}
                   tenant={tenant}
                   unit={unit}
                 />
@@ -260,11 +273,11 @@ export function PropertySetupScreen({
         data={data}
         modal={createModal}
         onClose={() => setCreateModal(null)}
-        onLeaseCreated={(id) => completeCreation("leaseId", id, 5)}
+        onLeaseCreated={(id) => completeCreation("leaseId", id, 4)}
         onOwnerCreated={(id) => completeCreation("ownerId", id, 2)}
-        onPropertyCreated={(id) => completeCreation("propertyId", id, 3)}
-        onTenantCreated={(id) => completeCreation("tenantId", id, 4)}
-        onUnitCreated={(id) => completeCreation("unitId", id, 4)}
+        onPropertyCreated={(id) => completeCreation("propertyId", id, 2)}
+        onTenantCreated={(id) => completeCreation("tenantId", id, 3)}
+        onUnitCreated={(id) => completeCreation("unitId", id, 3)}
         selection={selection}
       />
     </WorkspacePage>
@@ -399,10 +412,8 @@ function SelectRecordStep({
 }
 
 function WholePropertyStep({
-  onContinue,
   propertyLabel,
 }: {
-  onContinue: () => void;
   propertyLabel: string;
 }) {
   return (
@@ -412,10 +423,6 @@ function WholePropertyStep({
         held against the property with no unit. Change the rental structure on
         the property record if it should be leased as separate units instead.
       </p>
-      <Button className="h-8" onClick={onContinue} type="button">
-        Continue without a unit
-        <ArrowRight size={14} />
-      </Button>
     </section>
   );
 }
@@ -494,7 +501,7 @@ function TenantLeaseStep({
   );
 }
 
-function ReviewStep({
+function RentSetupStep({
   lease,
   owner,
   property,
@@ -510,6 +517,15 @@ function ReviewStep({
   unit?: PropertySetupData["units"][number];
 }) {
   const blockers = readiness?.items.filter((item) => !item.ready) ?? [];
+  const needsActivation =
+    lease.status === "draft" &&
+    blockers.some((item) => item.code === "lease" || item.code === "occupancy");
+  const visibleBlockers = needsActivation
+    ? blockers.filter(
+        (item) => !["lease", "occupancy", "billing", "rent_policy"].includes(item.code),
+      )
+    : blockers;
+  const actionCount = visibleBlockers.length + (needsActivation ? 1 : 0);
   const ready = readiness?.ready === true;
   const canOpenRent = readiness === null || ready;
 
@@ -518,8 +534,8 @@ function ReviewStep({
       <div>
         <h3 className="text-base font-semibold text-foreground">
           {canOpenRent
-            ? "Rental setup is ready"
-            : `${blockers.length} required next ${blockers.length === 1 ? "step" : "steps"}`}
+            ? "Rent setup is ready"
+            : `${actionCount} required next ${actionCount === 1 ? "step" : "steps"}`}
         </h3>
         <p className="mt-1 flex flex-wrap gap-x-2 text-sm text-muted-foreground">
           <span>{property.label}</span>
@@ -533,10 +549,20 @@ function ReviewStep({
           <span>{formatMoney(lease.monthlyRentAmount, "USD")}/month</span>
         </p>
       </div>
-      {blockers.length > 0 ? (
+      {needsActivation ? (
+        <form action={activateSetupLeaseAction} className="rounded-md border border-border p-4">
+          <input name="leaseId" type="hidden" value={lease.id} />
+          <h4 className="text-sm font-semibold text-foreground">Start the lease</h4>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Activate the lease and confirm that the tenant has moved in today.
+          </p>
+          <Button className="mt-3" type="submit">Activate lease and confirm move-in</Button>
+        </form>
+      ) : null}
+      {visibleBlockers.length > 0 ? (
         <section aria-label="Required next steps" className="border-y border-border">
           <ul className="divide-y divide-border">
-            {blockers.map((item) => (
+            {visibleBlockers.map((item) => (
               <li className="flex items-center justify-between gap-3 py-3" key={item.code}>
                 <span className="text-sm font-medium text-foreground">{item.label}</span>
                 <Link
@@ -550,29 +576,42 @@ function ReviewStep({
           </ul>
         </section>
       ) : null}
-      {canOpenRent ? (
-        <Link
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          href={`/rent-income?leaseId=${lease.id}`}
-        >
-          <KeyRound size={15} />
-          Open rent workspace
-        </Link>
-      ) : null}
-      <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-border pt-4 text-sm">
-        <Link
-          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          href={`/properties/${property.id}`}
-        >
-          Open property
-        </Link>
-        <Link
-          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          href={`/leases?leaseId=${lease.id}`}
-        >
-          Open lease
-        </Link>
+    </section>
+  );
+}
+
+function DoneStep({
+  lease,
+  owner,
+  property,
+  tenant,
+  unit,
+}: {
+  lease: PropertySetupData["leases"][number];
+  owner: PropertySetupData["owners"][number];
+  property: PropertySetupData["properties"][number];
+  tenant: PropertySetupData["tenants"][number];
+  unit?: PropertySetupData["units"][number];
+}) {
+  return (
+    <section className="space-y-5">
+      <div>
+        <h3 className="text-base font-semibold text-foreground">Ready to charge rent</h3>
+        <p className="mt-1 flex flex-wrap gap-x-2 text-sm text-muted-foreground">
+          <span>{property.label}</span><span aria-hidden="true">·</span>
+          <span>{unit?.label ?? "Whole property"}</span><span aria-hidden="true">·</span>
+          <span>{owner.label}</span><span aria-hidden="true">·</span>
+          <span>{tenant.label}</span><span aria-hidden="true">·</span>
+          <span>{formatMoney(lease.monthlyRentAmount, "USD")}/month</span>
+        </p>
       </div>
+      <Link
+        className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        href={`/rent-income?leaseId=${lease.id}`}
+      >
+        <KeyRound size={15} />
+        Open rent workspace
+      </Link>
     </section>
   );
 }
@@ -689,6 +728,7 @@ function CreateRecordModal({
           onClose={onClose}
           onSuccess={(_message, id) => onLeaseCreated(id)}
           properties={data.properties}
+          setupMode
           tenants={data.tenants}
           units={data.units}
         />
@@ -698,29 +738,23 @@ function CreateRecordModal({
 }
 
 function stepTitle(step: PropertySetupStep, requiresUnit = true) {
-  if (step === 3 && !requiresUnit) {
-    return "Confirm the whole-property placement";
-  }
-
   return [
     "Choose the responsible owner",
-    "Choose the property record",
-    "Choose the operating unit",
+    requiresUnit ? "Choose the property and rental space" : "Choose the property",
     "Connect the tenant through a lease",
-    "Review the linked setup",
+    "Finish rent setup",
+    "Rental setup complete",
   ][step - 1];
 }
 
 function stepDescription(step: PropertySetupStep, requiresUnit = true) {
-  if (step === 3 && !requiresUnit) {
-    return "This property is leased as a whole, so the lease attaches to the property itself and no unit is needed.";
-  }
-
   return [
     "Select an active Owner record or create one here.",
-    "Only active properties currently linked to the selected owner are eligible.",
-    "Select an existing unit under this property or add the first unit.",
-    "A Tenant record alone is not occupancy. Finish by selecting or creating the lease that links this tenant and unit.",
-    "Open any source record or continue directly to the first rent charge.",
+    requiresUnit
+      ? "Choose the property, then the exact space that will be rented."
+      : "This property is rented as one whole space, so no separate unit is required.",
+    "Choose or create the tenant, then save the lease, rent, move-in, and deposit details together.",
+    "Complete only the operational details still needed before the first rent charge.",
+    "The records are connected and rent operations can begin.",
   ][step - 1];
 }
