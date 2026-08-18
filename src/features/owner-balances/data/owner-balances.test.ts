@@ -314,7 +314,7 @@ describe("authoritative owner balance loader", () => {
     });
 
     expect(mocks.rpc).not.toHaveBeenCalled();
-    expect(result.propertyOptions).toEqual([{ id: propertyId, label: "RS-01 — Riverside" }]);
+    expect(result.propertyOptions).toEqual([{ id: propertyId, label: "Riverside — RS-01" }]);
     expect(result.ownerOptions).toEqual([
       { id: ownerId, label: "Nora Owner", propertyIds: [propertyId] },
     ]);

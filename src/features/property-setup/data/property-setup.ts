@@ -6,6 +6,7 @@ import type {
   PropertySetupSelection,
   PropertySetupUnitOption,
 } from "@/features/property-setup/property-setup.types";
+import { normalizePropertyRentalStructure } from "@/features/properties/property-rental-structure";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   formatPropertyOptionLabel,
@@ -17,6 +18,7 @@ type PropertyRow = {
   code: string;
   id: string;
   name: string;
+  rental_structure: string | null;
 };
 type OwnerLinkRow = {
   person_id: string;
@@ -54,7 +56,7 @@ export async function getPropertySetupData({
       getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
       supabase
         .from("properties")
-        .select("id, code, name")
+        .select("id, code, name, rental_structure")
         .eq("organization_id", organizationId)
         .is("archived_at", null)
         .in("status", ["active", "under_renovation"])
@@ -98,6 +100,7 @@ export async function getPropertySetupData({
   const properties = toPropertyOptions(
     (propertiesResult.data ?? []) as PropertyRow[],
     (ownerLinksResult.data ?? []) as OwnerLinkRow[],
+    (unitsResult.data ?? []) as UnitRow[],
   );
   const propertiesById = new Map(
     ((propertiesResult.data ?? []) as PropertyRow[]).map((property) => [property.id, property]),
@@ -183,6 +186,7 @@ export function validateSelection({
 function toPropertyOptions(
   properties: PropertyRow[],
   ownerLinks: OwnerLinkRow[],
+  units: UnitRow[],
 ): PropertySetupPropertyOption[] {
   const primaryOwnerByProperty = new Map(
     ownerLinks.map((link) => [link.property_id, link.person_id]),
@@ -195,6 +199,10 @@ function toPropertyOptions(
             id: property.id,
             label: formatPropertyOptionLabel(property),
             ownerPersonId,
+            rentalStructure: normalizePropertyRentalStructure(
+              property.rental_structure,
+              units.filter((unit) => unit.property_id === property.id).length,
+            ),
           },
         ]
       : [];

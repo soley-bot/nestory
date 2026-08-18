@@ -312,7 +312,8 @@ export function formatLeaseStatus(status: string) {
 export function formatUnitOperationalReadiness(
   readiness: UnitOperationalReadiness,
 ) {
-  return formatStoredLabel(readiness);
+  // "Available" reads as vacancy next to Lease state, which reports occupancy.
+  return readiness === "available" ? "In service" : formatStoredLabel(readiness);
 }
 
 export function formatUnitLeaseReadiness(readiness: UnitLeaseReadiness) {

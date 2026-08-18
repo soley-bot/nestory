@@ -226,13 +226,6 @@ async function openContextJourney(page, journey, chain) {
       openAdvancedFinanceTool(page, chain, journey.route, "Ledger"),
     "advanced-petty-cash": () =>
       openAdvancedFinanceTool(page, chain, journey.route, "Petty cash"),
-    "advanced-rent-policy": () =>
-      openAdvancedFinanceTool(
-        page,
-        chain,
-        journey.route,
-        "Historical rent policies",
-      ),
     "property-finance-invoice": () =>
       openInvoiceFinance(page, chain, journey.route, "Open Property finance"),
     "unit-finance-invoice": () =>

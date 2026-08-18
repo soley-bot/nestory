@@ -1,6 +1,9 @@
 import { PropertySetupScreen } from "@/features/property-setup/components/property-setup-screen";
 import { getPropertySetupData } from "@/features/property-setup/data/property-setup";
-import { normalizePropertySetupStep } from "@/features/property-setup/property-setup";
+import {
+  normalizePropertySetupStep,
+  propertySetupRequiresUnit,
+} from "@/features/property-setup/property-setup";
 import type { PropertySetupSelection } from "@/features/property-setup/property-setup.types";
 import { requireSuperAdminContext } from "@/lib/auth/context";
 import { getFirstSearchParam, getUuidSearchParam } from "@/lib/validation/search-params";
@@ -24,7 +27,10 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
     requestedSelection,
   });
   const requestedStep = Number(getFirstSearchParam(params.step) ?? 1);
-  const step = normalizePropertySetupStep(requestedStep, data.selection);
+  const requiresUnit = propertySetupRequiresUnit(data.properties, data.selection);
+  const step = normalizePropertySetupStep(requestedStep, data.selection, {
+    requiresUnit,
+  });
 
   return <PropertySetupScreen data={data} step={step} />;
 }

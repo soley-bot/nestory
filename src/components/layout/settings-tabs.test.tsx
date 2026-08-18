@@ -13,7 +13,6 @@ describe("SettingsTabs", () => {
     "/settings/appearance",
     "/settings/branches",
     "/settings/teams",
-    "/settings/rent-policy",
     "/settings/access",
   ])("keeps exactly one current section for %s", (activeHref) => {
     render(<SettingsTabs activeHref={activeHref} role="super_admin" />);
@@ -46,7 +45,7 @@ describe("SettingsTabs", () => {
   it("does not expose an empty Settings group to Finance Manager", () => {
     render(
       <SettingsTabs
-        activeHref="/settings/rent-policy"
+        activeHref="/settings/organization"
         role="finance_manager"
       />,
     );

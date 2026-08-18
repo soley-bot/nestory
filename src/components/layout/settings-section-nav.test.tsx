@@ -32,7 +32,7 @@ describe("SettingsSectionNav", () => {
   it("keeps Finance Manager Settings empty after policy retirement", () => {
     render(
       <SettingsSectionNav
-        activeHref="/settings/rent-policy"
+        activeHref="/settings/organization"
         role="finance_manager"
       />,
     );

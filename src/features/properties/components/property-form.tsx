@@ -61,6 +61,8 @@ type PhotoPreview = {
 
 type PropertyFormProps = {
   closeOnCreateSuccess?: boolean;
+  /** Basic registration stays identity-only; guided setup opts in. */
+  collectOwnership?: boolean;
   initialValues?: Partial<Pick<PropertyFormValues, "ownerPersonId">>;
   mode?: "create" | "edit";
   onClose: () => void;
@@ -72,6 +74,7 @@ type PropertyFormProps = {
 
 export function PropertyForm({
   closeOnCreateSuccess = false,
+  collectOwnership = false,
   initialValues,
   mode = "create",
   onClose,
@@ -82,6 +85,7 @@ export function PropertyForm({
 }: PropertyFormProps) {
   const isEditMode = mode === "edit";
   const isOwnerScope = scope === "owner";
+  const showsOwnership = isEditMode || collectOwnership;
   const [state, action, pending] = useActionState(
     isEditMode ? updatePropertyAction : createPropertyAction,
     initialState,
@@ -334,7 +338,7 @@ export function PropertyForm({
       </FormSection>
       ) : null}
 
-      {isEditMode ? (
+      {showsOwnership ? (
       <FormSection step="02" title="Ownership">
         <div className="grid gap-4">
           <RecordField
@@ -446,7 +450,7 @@ export function PropertyForm({
       ) : null}
 
       {!isOwnerScope ? (
-      <FormSection step={isEditMode ? "03" : "02"} title="Photo">
+      <FormSection step={showsOwnership ? "03" : "02"} title="Photo">
         <RecordField
           error={state.fieldErrors?.photo?.[0]}
           label="Property photo"

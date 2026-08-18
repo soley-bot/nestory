@@ -124,6 +124,35 @@ describe("UnitScreen redesign contract", () => {
     expect(screen.getByRole("combobox", { name: "Rows per page" })).toBeTruthy();
   });
 
+  it("exposes a control for every filter that narrows the register", () => {
+    renderUnits({
+      viewQuery: {
+        ...defaultViewQuery,
+        leaseStatus: "missing",
+        status: "maintenance",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+
+    expect(
+      screen.getByRole("combobox", { name: "Filter by operational state" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by lease link" }),
+    ).toBeTruthy();
+  });
+
+  it("counts only filters that narrow the register, not sort or page size", () => {
+    renderUnits({
+      viewQuery: { ...defaultViewQuery, pageSize: 25, sort: "rent_desc" },
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /^Filters\s*\d/ }),
+    ).toBeNull();
+  });
+
   it("uses an unframed desktop register while retaining the semantic table", () => {
     const { container } = renderUnits();
     const frame = container.querySelector<HTMLElement>(
@@ -487,7 +516,8 @@ describe("UnitScreen redesign contract", () => {
     expect(within(table).getByRole("columnheader", { name: "Operational readiness" })).toBeTruthy();
     expect(within(table).getByRole("columnheader", { name: "Lease state" })).toBeTruthy();
     const firstRow = within(table).getByRole("row", { name: "Preview unit 1A" });
-    expect(within(firstRow).getByText("Available")).toBeTruthy();
+    expect(within(firstRow).getByText("In service")).toBeTruthy();
+    expect(within(firstRow).queryByText("Available")).toBeNull();
     expect(within(firstRow).getAllByText("No lease")).toHaveLength(2);
   });
 

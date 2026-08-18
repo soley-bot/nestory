@@ -57,7 +57,6 @@
     { "route": "/settings/branches", "result": "pass", "findings": [], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
     { "route": "/settings/teams", "result": "pass", "findings": [], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
     { "route": "/settings/access", "result": "pass", "findings": [{ "issue": "Member, person, staff, role, and scope can be conflated", "disposition": "preserve-for-safety", "outcome": "Concise access-boundary copy remains beside invite and role changes." }], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
-    { "route": "/settings/rent-policy", "result": "pass", "findings": [{ "issue": "Policy authority and lifecycle language", "disposition": "rename", "outcome": "Rent policy and Status use plain labels; approval prerequisites remain visible." }], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
     { "route": "/users-roles", "result": "pass", "findings": [{ "issue": "Member, person, staff, role, and scope can be conflated", "disposition": "preserve-for-safety", "outcome": "Concise access-boundary copy remains beside invite and role changes." }], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
     { "route": "/account", "result": "pass", "findings": [], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" }
   ]

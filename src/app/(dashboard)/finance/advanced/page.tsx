@@ -15,11 +15,6 @@ const advancedTools = [
     href: "/petty-cash",
     label: "Petty cash",
   },
-  {
-    description: "Read historical global policy versions retained for audit evidence.",
-    href: "/settings/rent-policy",
-    label: "Historical rent policies",
-  },
 ];
 
 export default async function AdvancedFinancePage() {

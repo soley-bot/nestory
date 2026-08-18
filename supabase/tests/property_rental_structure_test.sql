@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(20);
+SELECT plan(24);
 
 SELECT has_column('public', 'properties', 'rental_structure',
   'properties record the operator-selected rental structure');
@@ -17,17 +17,17 @@ SELECT ok(EXISTS (
 ), 'rental structure is constrained to the supported choices');
 
 SELECT has_function('public', 'create_property_minimal',
-  ARRAY['uuid','text','text','text','text','date','text'],
+  ARRAY['uuid','text','text','text','text','date','text','uuid','date','numeric'],
   'the minimal checked Property creation RPC exists');
 SELECT has_function('public', 'set_property_rental_structure',
   ARRAY['uuid','uuid','text'],
   'the checked rental-structure transition RPC exists');
 SELECT function_privs_are('public', 'create_property_minimal',
-  ARRAY['uuid','text','text','text','text','date','text'],
+  ARRAY['uuid','text','text','text','text','date','text','uuid','date','numeric'],
   'authenticated', ARRAY['EXECUTE'],
   'authenticated callers may use the checked minimal creation RPC');
 SELECT function_privs_are('public', 'create_property_minimal',
-  ARRAY['uuid','text','text','text','text','date','text'],
+  ARRAY['uuid','text','text','text','text','date','text','uuid','date','numeric'],
   'anon', ARRAY[]::text[], 'anonymous callers cannot create Properties');
 
 INSERT INTO public.organizations (id, name, slug)
@@ -159,6 +159,43 @@ SELECT throws_ok($$
   )
 $$, '23514', 'Archive active Units before changing the rental structure',
   'an active Unit prevents a circular switch back to whole-property rental');
+
+INSERT INTO public.people (id, organization_id, display_name, party_type)
+VALUES (
+  '71000000-0000-4000-8000-000000000050',
+  '71000000-0000-4000-8000-000000000001', 'Structure Owner', 'individual'
+);
+
+SELECT lives_ok($$
+  SELECT public.create_property_minimal(
+    '71000000-0000-4000-8000-000000000001', 'Owned At Creation', NULL,
+    'House', NULL, NULL, 'property-create-0003',
+    '71000000-0000-4000-8000-000000000050', '2026-08-01', 100
+  )
+$$, 'a Property can be created with its primary owner in one call');
+
+SELECT is(
+  (SELECT owner.person_id::text || '|' || owner.ownership_percent::text
+   FROM public.property_owners AS owner
+   JOIN public.properties AS property ON property.id = owner.property_id
+   WHERE property.name = 'Owned At Creation' AND owner.is_primary),
+  '71000000-0000-4000-8000-000000000050|100.000',
+  'the primary ownership link is written with the creation');
+
+SELECT throws_ok($$
+  SELECT public.create_property_minimal(
+    '71000000-0000-4000-8000-000000000001', 'Partial Owner', NULL,
+    'House', NULL, NULL, 'property-create-0004',
+    '71000000-0000-4000-8000-000000000050', NULL, NULL
+  )
+$$, '22023', 'Owner, ownership start date, and ownership share must be supplied together',
+  'a partial ownership trio is refused at creation');
+
+SELECT is(
+  (SELECT count(*)::integer FROM public.properties
+   WHERE organization_id = '71000000-0000-4000-8000-000000000001'
+     AND name = 'Partial Owner'),
+  0, 'a refused ownership trio leaves no Property behind');
 
 RESET ROLE;
 SELECT * FROM finish();

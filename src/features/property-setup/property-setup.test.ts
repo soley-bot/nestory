@@ -4,6 +4,7 @@ import {
   findOpenLeaseForUnit,
   getHighestPropertySetupStep,
   normalizePropertySetupStep,
+  propertySetupRequiresUnit,
 } from "@/features/property-setup/property-setup";
 import { validateSelection } from "@/features/property-setup/data/property-setup";
 
@@ -25,6 +26,51 @@ describe("property setup progression", () => {
       }),
     ).toBe(4);
     expect(getHighestPropertySetupStep(completeSelection)).toBe(5);
+  });
+
+  it("lets a whole-property setup reach the lease step without a unit", () => {
+    const wholePropertySelection = {
+      ...completeSelection,
+      leaseId: null,
+      unitId: null,
+    };
+    const properties = [
+      {
+        id: "property-1",
+        label: "P1",
+        ownerPersonId: "owner-1",
+        rentalStructure: "single_space" as const,
+      },
+    ];
+
+    expect(
+      propertySetupRequiresUnit(properties, wholePropertySelection),
+    ).toBe(false);
+    expect(
+      getHighestPropertySetupStep(wholePropertySelection, {
+        requiresUnit: false,
+      }),
+    ).toBe(4);
+    expect(
+      normalizePropertySetupStep(4, wholePropertySelection, {
+        requiresUnit: false,
+      }),
+    ).toBe(4);
+  });
+
+  it("still requires a unit before the lease step on a multi-unit property", () => {
+    const properties = [
+      {
+        id: "property-1",
+        label: "P1",
+        ownerPersonId: "owner-1",
+        rentalStructure: "multi_unit" as const,
+      },
+    ];
+    const selection = { ...completeSelection, leaseId: null, unitId: null };
+
+    expect(propertySetupRequiresUnit(properties, selection)).toBe(true);
+    expect(normalizePropertySetupStep(4, selection)).toBe(3);
   });
 
   it("clears downstream selections when an earlier record changes", () => {
@@ -84,7 +130,12 @@ describe("validateSelection", () => {
       ],
       owners: [person("owner-1", ["owner"])],
       properties: [
-        { id: "property-1", label: "P1", ownerPersonId: "owner-1" },
+        {
+          id: "property-1",
+          label: "P1",
+          ownerPersonId: "owner-1",
+          rentalStructure: "multi_unit",
+        },
       ],
       requestedSelection: completeSelection,
       tenants: [person("tenant-1", ["tenant"])],
@@ -106,7 +157,12 @@ describe("validateSelection", () => {
       leases: [],
       owners: [person("owner-1", ["owner"])],
       properties: [
-        { id: "property-1", label: "P1", ownerPersonId: "owner-2" },
+        {
+          id: "property-1",
+          label: "P1",
+          ownerPersonId: "owner-2",
+          rentalStructure: "multi_unit",
+        },
       ],
       requestedSelection: completeSelection,
       tenants: [person("tenant-1", ["tenant"])],

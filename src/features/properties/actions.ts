@@ -63,7 +63,42 @@ const optionalOwnershipPercentSchema = z
     "Enter a share greater than 0 and no more than 100 with up to 3 decimals.",
   );
 
-const propertyCreateSchema = z.object({
+// The database rejects a partial owner/start-date/share trio.
+function ownershipTrioRefinement(
+  value: {
+    ownerPersonId: string;
+    ownerStartedOn: string;
+    ownershipPercent: string;
+  },
+  context: z.RefinementCtx,
+) {
+  if (value.ownerPersonId) {
+    if (!value.ownerStartedOn) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the ownership start date.",
+        path: ["ownerStartedOn"],
+      });
+    }
+
+    if (!value.ownershipPercent) {
+      context.addIssue({
+        code: "custom",
+        message: "Enter the ownership share.",
+        path: ["ownershipPercent"],
+      });
+    }
+  } else if (value.ownerStartedOn || value.ownershipPercent) {
+    context.addIssue({
+      code: "custom",
+      message: "Choose an owner for these ownership details.",
+      path: ["ownerPersonId"],
+    });
+  }
+}
+
+const propertyCreateSchema = z
+  .object({
   address: z.string().trim().max(240, "Keep the address under 240 characters."),
   code: z.string().trim().max(24, "Keep the code under 24 characters."),
   idempotencyKey: z.string().trim().min(8).max(200),
@@ -72,6 +107,9 @@ const propertyCreateSchema = z.object({
     .trim()
     .min(1, "Enter a property name.")
     .max(120, "Keep the name under 120 characters."),
+  ownerPersonId: optionalUuidSchema,
+  ownerStartedOn: optionalDateSchema,
+  ownershipPercent: optionalOwnershipPercentSchema,
   propertyType: z
     .string()
     .trim()
@@ -83,7 +121,8 @@ const propertyCreateSchema = z.object({
     .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), {
       message: "Enter a valid registered date.",
     }),
-});
+  })
+  .superRefine(ownershipTrioRefinement);
 
 const propertyMutationSchema = z
   .object({
@@ -122,31 +161,7 @@ const propertyMutationSchema = z
     }),
   status: propertyStatusSchema,
   })
-  .superRefine((value, context) => {
-    if (value.ownerPersonId) {
-      if (!value.ownerStartedOn) {
-        context.addIssue({
-          code: "custom",
-          message: "Enter the ownership start date.",
-          path: ["ownerStartedOn"],
-        });
-      }
-
-      if (!value.ownershipPercent) {
-        context.addIssue({
-          code: "custom",
-          message: "Enter the ownership share.",
-          path: ["ownershipPercent"],
-        });
-      }
-    } else if (value.ownerStartedOn || value.ownershipPercent) {
-      context.addIssue({
-        code: "custom",
-        message: "Choose an owner for these ownership details.",
-        path: ["ownerPersonId"],
-      });
-    }
-  });
+  .superRefine(ownershipTrioRefinement);
 
 const propertyIdSchema = postgresUuid("Choose a property.");
 const propertyRentalStructureSchema = z.enum(["single_space", "multi_unit"]);
@@ -179,6 +194,9 @@ function readPropertyCreateInput(formData: FormData) {
     code: readString(formData, "code"),
     idempotencyKey: readString(formData, "idempotencyKey"),
     name: readString(formData, "name"),
+    ownerPersonId: readString(formData, "ownerPersonId"),
+    ownerStartedOn: readString(formData, "ownerStartedOn"),
+    ownershipPercent: readString(formData, "ownershipPercent"),
     propertyType: readString(formData, "propertyType"),
     registeredDate: readString(formData, "registeredDate"),
   };
@@ -242,6 +260,14 @@ export async function createPropertyAction(
     p_organization_id: context.organizationId,
     p_property_type: parsed.data.propertyType,
     p_registered_date: nullableString(parsed.data.registeredDate),
+    // Ownership travels only when a guided surface collected it.
+    ...(parsed.data.ownerPersonId
+      ? {
+          p_owner_ownership_percent: parsed.data.ownershipPercent,
+          p_owner_person_id: parsed.data.ownerPersonId,
+          p_owner_started_on: parsed.data.ownerStartedOn,
+        }
+      : {}),
   });
 
   if (error) {

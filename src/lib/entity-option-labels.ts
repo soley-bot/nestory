@@ -8,16 +8,18 @@ type UnitOptionLabelSource = {
   unitNumber: string;
 };
 
+// The name leads. An unset code is generated from the record id, so a
+// code-first label buries the only part an operator recognises.
 export function formatPropertyOptionLabel({
   code,
   name,
 }: PropertyOptionLabelSource) {
-  return `${code} — ${name}`;
+  return `${name} — ${code}`;
 }
 
 export function formatUnitOptionLabel({
   propertyCode,
   unitNumber,
 }: UnitOptionLabelSource) {
-  return `${propertyCode ?? "Unknown property"} — Unit ${unitNumber}`;
+  return `Unit ${unitNumber} — ${propertyCode ?? "Unknown property"}`;
 }

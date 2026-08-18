@@ -352,7 +352,7 @@ function renderEnterpriseEvidence({
     "## Role architecture and product-contract override",
     "",
     "- Super Admin retains organization/access governance, structural setup, reconciliation-source configuration, correction/reversal authority, reopen/recovery, and global unlocks.",
-    "- Finance Manager owns routine lease and rent-policy configuration, independent owner-opening review, reconciled month close, statement publication, review queues, reports, and ordinary financial corrections.",
+    "- Finance Manager owns routine lease and billing configuration, independent owner-opening review, reconciled month close, statement publication, review queues, reports, and ordinary financial corrections.",
     "- Finance Member prepares rent, paid-cost, owner-opening, evidence, and day-to-day finance work without review or exception authority.",
     "- Operations Manager owns cases, assignments, recurring work, inspections, work orders, and completion-to-Finance handoff. Operations Member receives a task-first worklist and scoped account access.",
     "- The sole `PROJECT.md` override delegates routine Finance completion from Super Admin to Finance Manager. Migration predicates, Storage policies, route access, server actions, generated types, role matrices, pgTAP, and browser acceptance were updated together; maker-checker, tenant scope, locks, immutable evidence, and exceptional authority remain intact.",
@@ -399,7 +399,6 @@ async function curateVisuals(lightRun, darkRun) {
     ["owner-balances-desktop-dark", darkRun, "/balances", "desktop"],
     ["operations-desktop-light", lightRun, "/maintenance", "desktop"],
     ["operations-phone-light", lightRun, "/maintenance", "phone"],
-    ["rent-policy-desktop-light", lightRun, "/settings/rent-policy", "desktop"],
     ["login-phone-dark", darkRun, "/login", "phone"],
   ];
   const promoted = [...publicVisuals];

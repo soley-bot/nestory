@@ -132,6 +132,7 @@ const data: PropertySetupData = {
       id: "property-1",
       label: "HOME · Home Residence",
       ownerPersonId: "owner-1",
+      rentalStructure: "multi_unit",
     },
   ],
   selection: {

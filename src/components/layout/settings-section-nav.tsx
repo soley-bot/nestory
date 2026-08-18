@@ -5,7 +5,6 @@ import {
   Building2,
   Landmark,
   Palette,
-  ReceiptText,
   UsersRound,
 } from "lucide-react";
 import { useSettingsNavigationGuard } from "@/components/layout/settings-navigation-guard";
@@ -17,7 +16,6 @@ const iconByHref = {
   "/settings/appearance": Palette,
   "/settings/branches": Building2,
   "/settings/organization": Landmark,
-  "/settings/rent-policy": ReceiptText,
   "/settings/teams": UsersRound,
 } as const;
 

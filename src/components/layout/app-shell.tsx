@@ -106,7 +106,7 @@ const FINANCE_CHILDREN = [
   {
     href: "/finance/advanced",
     label: "Advanced",
-    routes: ["/finance/advanced", "/petty-cash", "/ledger", "/settings/rent-policy"],
+    routes: ["/finance/advanced", "/petty-cash", "/ledger"],
   },
 ] satisfies readonly GlobalDestinationChild[];
 

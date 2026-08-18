@@ -4,6 +4,7 @@ import type {
   PropertySetupStep,
 } from "@/features/property-setup/property-setup.types";
 
+
 export function findOpenLeaseForUnit(
   leases: PropertySetupData["leases"],
   selection: PropertySetupSelection,
@@ -17,12 +18,27 @@ export function findOpenLeaseForUnit(
   );
 }
 
+/** A `single_space` property is leased whole, with `leases.unit_id` null. */
+export function propertySetupRequiresUnit(
+  properties: PropertySetupData["properties"],
+  selection: PropertySetupSelection,
+) {
+  if (!selection.propertyId) return true;
+
+  const property = properties.find(
+    (candidate) => candidate.id === selection.propertyId,
+  );
+
+  return property?.rentalStructure !== "single_space";
+}
+
 export function getHighestPropertySetupStep(
   selection: PropertySetupSelection,
+  { requiresUnit = true }: { requiresUnit?: boolean } = {},
 ): PropertySetupStep {
   if (!selection.ownerId) return 1;
   if (!selection.propertyId) return 2;
-  if (!selection.unitId) return 3;
+  if (requiresUnit && !selection.unitId) return 3;
   if (!selection.leaseId) return 4;
   return 5;
 }
@@ -30,9 +46,13 @@ export function getHighestPropertySetupStep(
 export function normalizePropertySetupStep(
   requestedStep: number,
   selection: PropertySetupSelection,
+  options: { requiresUnit?: boolean } = {},
 ) {
   const safeStep = Math.max(1, Math.min(5, requestedStep)) as PropertySetupStep;
-  return Math.min(safeStep, getHighestPropertySetupStep(selection)) as PropertySetupStep;
+  return Math.min(
+    safeStep,
+    getHighestPropertySetupStep(selection, options),
+  ) as PropertySetupStep;
 }
 
 export function buildPropertySetupQuery({

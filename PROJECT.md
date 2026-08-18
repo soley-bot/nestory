@@ -24,8 +24,9 @@ The implemented product includes:
 - Properties, units, people, ownership, vendors, staff, private documents,
   photos, and activity history.
 - Authoritative lease terms, parties, occupancy evidence, deposits, and
-  lease-owned billing rules. Historical approved rent policies remain audit
-  evidence but are not a prerequisite for a new lease.
+  lease-owned billing rules. Lease-owned billing terms are the sole rent
+  authority. The global Rent policy is retired: it has no operator-facing
+  surface, and historical approved versions remain only as audit evidence.
 - Automatic current-month rent invoices, typed generation exceptions, and an
   explicit selected-month recovery action for completed historical months.
 - Rent collected through the company or confirmed as collected directly by an
@@ -188,7 +189,8 @@ frequency, due day, and effective dates.
 - Accepted effective ranges cannot overlap where the database contract forbids
   it.
 - Material term changes supersede history; they do not rewrite it.
-- Approved rent-policy versions are complete and immutable.
+- Historical approved rent-policy versions are complete and immutable. No
+  surface authors new ones.
 - New Lease readiness resolves the effective Lease billing term and its visible
   lease-owned rent behavior; it has no global Rent policy prerequisite.
 - Historical approved rent-policy versions and invoice references remain
@@ -294,8 +296,8 @@ Authenticated Nestory is quiet, neutral, dense operating software:
   UUIDs remain out of ordinary operator labels.
 - Settings uses capability-aware, path-based Workspace and Access navigation.
   Super Admins can manage Organization, Appearance, Branches, Teams, and
-  Access. Legacy Rent policy remains directly addressable for audit and staged
-  compatibility but is removed from ordinary navigation. The provisioned
+  Access. The legacy Rent policy screen is retired and no longer routable; its
+  records remain readable only as retained audit evidence. The provisioned
   workspace address is immutable in Settings, while the display name remains
   editable through the checked organization boundary.
 - Organization accent and the default display mode are Super-Admin-managed and

@@ -93,6 +93,7 @@ export function LeaseForm({
   );
   const selectedUnitId = createContext?.unitId ?? defaults.unitId;
   const [availableTenantOptions, setAvailableTenantOptions] = useState(tenants);
+  const [leaseStartDate, setLeaseStartDate] = useState(defaults.leaseStartDate);
   const [createTenantOpen, setCreateTenantOpen] = useState(false);
   const tenantOptions = ensureSelectedTenant(
     availableTenantOptions,
@@ -252,6 +253,7 @@ export function LeaseForm({
                 ariaLabel="Lease start date"
                 defaultValue={defaults.leaseStartDate}
                 name="leaseStartDate"
+                onValueChange={setLeaseStartDate}
                 required
               />
             </RecordField>
@@ -265,6 +267,7 @@ export function LeaseForm({
               <DatePickerField
                 ariaLabel="Lease end date"
                 defaultValue={defaults.leaseEndDate}
+                minValue={leaseStartDate}
                 name="leaseEndDate"
                 required
               />

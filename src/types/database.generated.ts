@@ -9375,6 +9375,9 @@ export type Database = {
           p_idempotency_key: string
           p_name: string
           p_organization_id: string
+          p_owner_ownership_percent?: number
+          p_owner_person_id?: string
+          p_owner_started_on?: string
           p_property_type: string
           p_registered_date: string
         }

@@ -29,6 +29,7 @@ import {
   clearPropertySetupSelectionAfter,
   findOpenLeaseForUnit,
   getHighestPropertySetupStep,
+  propertySetupRequiresUnit,
 } from "@/features/property-setup/property-setup";
 import type {
   PropertySetupData,
@@ -64,7 +65,8 @@ export function PropertySetupScreen({
   const [pending, startTransition] = useTransition();
   const [createModal, setCreateModal] = useState<CreateModal>(null);
   const { selection } = data;
-  const highestStep = getHighestPropertySetupStep(selection);
+  const requiresUnit = propertySetupRequiresUnit(data.properties, selection);
+  const highestStep = getHighestPropertySetupStep(selection, { requiresUnit });
   const owner = data.owners.find((option) => option.id === selection.ownerId);
   const property = data.properties.find(
     (option) => option.id === selection.propertyId,
@@ -143,10 +145,10 @@ export function PropertySetupScreen({
                 {steps[step - 1]?.label}
               </p>
               <h2 className="mt-1 text-lg font-semibold text-foreground">
-                {stepTitle(step)}
+                {stepTitle(step, requiresUnit)}
               </h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                {stepDescription(step)}
+                {stepDescription(step, requiresUnit)}
               </p>
             </header>
 
@@ -175,19 +177,26 @@ export function PropertySetupScreen({
                 />
               ) : null}
               {step === 3 ? (
-                <SelectRecordStep
-                  createLabel="Create new unit"
-                  emptyCopy="This property has no eligible active units yet."
-                  label="Unit"
-                  onCreate={() => setCreateModal("unit")}
-                  onSelect={(id) => changeSelection("unitId", id || null)}
-                  options={unitOptions.map((option) => ({
-                    label: `${option.label} · ${option.statusLabel}`,
-                    value: option.id,
-                  }))}
-                  placeholder="Choose unit"
-                  value={selection.unitId ?? ""}
-                />
+                requiresUnit ? (
+                  <SelectRecordStep
+                    createLabel="Create new unit"
+                    emptyCopy="This property has no eligible active units yet."
+                    label="Unit"
+                    onCreate={() => setCreateModal("unit")}
+                    onSelect={(id) => changeSelection("unitId", id || null)}
+                    options={unitOptions.map((option) => ({
+                      label: `${option.label} · ${option.statusLabel}`,
+                      value: option.id,
+                    }))}
+                    placeholder="Choose unit"
+                    value={selection.unitId ?? ""}
+                  />
+                ) : (
+                  <WholePropertyStep
+                    onContinue={() => navigate(selection, 4)}
+                    propertyLabel={property?.label ?? "This property"}
+                  />
+                )
               ) : null}
               {step === 4 ? (
                 <TenantLeaseStep
@@ -386,6 +395,28 @@ function SelectRecordStep({
         </p>
       ) : null}
       <OrCreateButton label={createLabel} onClick={onCreate} />
+    </section>
+  );
+}
+
+function WholePropertyStep({
+  onContinue,
+  propertyLabel,
+}: {
+  onContinue: () => void;
+  propertyLabel: string;
+}) {
+  return (
+    <section className="space-y-3">
+      <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
+        {propertyLabel} is set up for whole-property leasing, so its lease is
+        held against the property with no unit. Change the rental structure on
+        the property record if it should be leased as separate units instead.
+      </p>
+      <Button className="h-8" onClick={onContinue} type="button">
+        Continue without a unit
+        <ArrowRight size={14} />
+      </Button>
     </section>
   );
 }
@@ -627,6 +658,10 @@ function CreateRecordModal({
   selection: PropertySetupSelection;
 }) {
   if (!modal) return null;
+  const contextProperty = data.properties.find(
+    (option) => option.id === selection.propertyId,
+  );
+  const contextUnit = data.units.find((option) => option.id === selection.unitId);
   const title = `Create ${modal}`;
   const description =
     modal === "owner"
@@ -651,6 +686,7 @@ function CreateRecordModal({
       {modal === "property" ? (
         <PropertyForm
           closeOnCreateSuccess
+          collectOwnership
           initialValues={{ ownerPersonId: selection.ownerId }}
           onClose={onClose}
           onSuccess={(_message, id) => onPropertyCreated(id)}
@@ -668,6 +704,7 @@ function CreateRecordModal({
       ) : null}
       {modal === "tenant" ? (
         <PersonForm
+          createSaveLabel="Create and continue"
           initialRoles={["tenant"]}
           onClose={onClose}
           onSuccess={(_message, id) => onTenantCreated(id)}
@@ -676,6 +713,16 @@ function CreateRecordModal({
       ) : null}
       {modal === "lease" ? (
         <LeaseForm
+          createContext={
+            contextProperty
+              ? {
+                  propertyId: contextProperty.id,
+                  propertyLabel: contextProperty.label,
+                  unitId: contextUnit?.id ?? null,
+                  unitLabel: contextUnit?.label ?? null,
+                }
+              : undefined
+          }
           initialValues={{
             propertyId: selection.propertyId ?? "",
             tenantPersonId: selection.tenantId ?? "",
@@ -692,7 +739,11 @@ function CreateRecordModal({
   );
 }
 
-function stepTitle(step: PropertySetupStep) {
+function stepTitle(step: PropertySetupStep, requiresUnit = true) {
+  if (step === 3 && !requiresUnit) {
+    return "Confirm the whole-property placement";
+  }
+
   return [
     "Choose the responsible owner",
     "Choose the property record",
@@ -702,7 +753,11 @@ function stepTitle(step: PropertySetupStep) {
   ][step - 1];
 }
 
-function stepDescription(step: PropertySetupStep) {
+function stepDescription(step: PropertySetupStep, requiresUnit = true) {
+  if (step === 3 && !requiresUnit) {
+    return "This property is leased as a whole, so the lease attaches to the property itself and no unit is needed.";
+  }
+
   return [
     "Select an active Owner record or create one here.",
     "Only active properties currently linked to the selected owner are eligible.",

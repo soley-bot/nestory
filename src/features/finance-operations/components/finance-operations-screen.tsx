@@ -5,6 +5,7 @@ import {
   useActionState,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -305,6 +306,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
           {visibleModal.mode === "manual-charge" ? (
             <ManualTenantChargeForm
               fixedLease={visibleModal.lease}
+              invoices={props.tenantInvoices}
               leases={props.leases}
               onSuccess={onActionSuccess}
               scope={props.scope}
@@ -3181,11 +3183,13 @@ function WithdrawalForm({
 
 function ManualTenantChargeForm({
   fixedLease,
+  invoices,
   leases,
   onSuccess,
   scope,
 }: {
   fixedLease?: FinanceLease;
+  invoices: TenantInvoiceSummary[];
   leases: FinanceLease[];
   onSuccess: (message: string) => void;
   scope?: FinanceOperationsScreenProps["scope"];
@@ -3194,6 +3198,9 @@ function ManualTenantChargeForm({
     (lease) => lease.status === "active" || lease.status === "notice_given",
   );
   const [chargeType, setChargeType] = useState("utilities");
+  const submittedChargeTypeRef = useRef("utilities");
+  const [leaseId, setLeaseId] = useState(fixedLease?.id ?? "");
+  const [billingPeriod, setBillingPeriod] = useState(getBusinessMonthValue());
   const idempotencyKey = useStableActionId("manual-tenant-charge");
   const [state, action] = useActionState(
     createManualTenantChargeAction,
@@ -3201,8 +3208,28 @@ function ManualTenantChargeForm({
   );
   useSuccess(state, onSuccess);
 
+  // A charge for a month that already has an invoice joins it and inherits its
+  // due date, so the operator is shown that date instead of being asked for one.
+  const existingInvoice = invoices.find(
+    (invoice) =>
+      invoice.leaseId === leaseId &&
+      invoice.billingPeriodStart.slice(0, 7) === billingPeriod &&
+      invoice.paymentStatus !== "voided",
+  );
+
   return (
-    <form action={action} className="space-y-4 p-4">
+    <form
+      action={action}
+      className="space-y-4 p-4"
+      onReset={(event) => {
+        // React resets a form after its action; keep entries on a rejection.
+        event.preventDefault();
+        setChargeType(submittedChargeTypeRef.current);
+      }}
+      onSubmit={() => {
+        submittedChargeTypeRef.current = chargeType;
+      }}
+    >
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       {fixedLease ? (
         <>
@@ -3228,12 +3255,14 @@ function ManualTenantChargeForm({
           <SelectControl
             ariaLabel="Lease"
             name="leaseId"
+            onValueChange={setLeaseId}
             options={availableLeases.map((lease) => ({
               label: `${lease.tenantLabel} · ${lease.propertyLabel} · ${lease.unitLabel}`,
               value: lease.id,
             }))}
             placeholder="Choose Lease"
             required
+            value={leaseId}
           />
         </Field>
       )}
@@ -3257,19 +3286,31 @@ function ManualTenantChargeForm({
         <Field label="Billing month">
           <MonthPickerField
             ariaLabel="Billing month"
-            defaultValue={getBusinessMonthValue()}
+            defaultValue={billingPeriod}
             name="billingPeriod"
+            onValueChange={setBillingPeriod}
             required
           />
         </Field>
-        <Field label="Due date">
-          <DatePickerField
-            ariaLabel="Due date"
-            defaultValue={getBusinessDateValue()}
-            name="dueDate"
-            required
-          />
-        </Field>
+        {existingInvoice ? (
+          <Field label="Due date">
+            <input name="dueDate" type="hidden" value={existingInvoice.dueDate} />
+            <p className="flex h-8 items-center text-sm text-muted-foreground">
+              {formatDate(existingInvoice.dueDate)} · joins{" "}
+              {existingInvoice.invoiceNumber}
+            </p>
+          </Field>
+        ) : (
+          <Field label="Due date">
+            <DatePickerField
+              ariaLabel="Due date"
+              defaultValue={getBusinessDateValue()}
+              minValue={`${billingPeriod}-01`}
+              name="dueDate"
+              required
+            />
+          </Field>
+        )}
         <Field label="Amount">
           <NumberInput
             aria-label="Amount"

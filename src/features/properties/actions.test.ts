@@ -59,6 +59,55 @@ describe("property ownership authority inputs", () => {
     });
   });
 
+  it("creates the property and its owner link in one call when guided setup supplies ownership", async () => {
+    const formData = new FormData();
+    formData.set("address", "10 Riverside Road");
+    formData.set("code", "");
+    formData.set("idempotencyKey", "property-create-0002");
+    formData.set("name", "Riverside House");
+    formData.set("ownerPersonId", ownerPersonId);
+    formData.set("ownerStartedOn", "2026-08-01");
+    formData.set("ownershipPercent", "100.000");
+    formData.set("propertyType", "House");
+    formData.set("registeredDate", "2026-08-17");
+
+    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+      propertyId,
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("create_property_minimal", {
+      p_address: "10 Riverside Road",
+      p_code: null,
+      p_idempotency_key: "property-create-0002",
+      p_name: "Riverside House",
+      p_organization_id: organizationId,
+      p_owner_ownership_percent: "100.000",
+      p_owner_person_id: ownerPersonId,
+      p_owner_started_on: "2026-08-01",
+      p_property_type: "House",
+      p_registered_date: "2026-08-17",
+    });
+  });
+
+  it("rejects a creation owner selection without an explicit effective start and share", async () => {
+    const formData = new FormData();
+    formData.set("code", "");
+    formData.set("idempotencyKey", "property-create-0003");
+    formData.set("name", "Riverside House");
+    formData.set("ownerPersonId", ownerPersonId);
+    formData.set("propertyType", "House");
+    formData.set("registeredDate", "2026-08-17");
+
+    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+      fieldErrors: {
+        ownerStartedOn: ["Enter the ownership start date."],
+        ownershipPercent: ["Enter the ownership share."],
+      },
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("persists the explicit rental placement choice through the checked RPC", async () => {
     const formData = new FormData();
     formData.set("propertyId", propertyId);

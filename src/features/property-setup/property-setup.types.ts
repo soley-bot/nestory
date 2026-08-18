@@ -1,5 +1,6 @@
 import type { LeasePropertyOption, LeaseTenantOption, LeaseUnitOption } from "@/features/leases/lease.types";
 import type { PersonSelectOption } from "@/features/people/person-select";
+import type { PropertyRentalStructure } from "@/features/properties/property-rental-structure";
 
 export type PropertySetupSelection = {
   leaseId: string | null;
@@ -11,6 +12,7 @@ export type PropertySetupSelection = {
 
 export type PropertySetupPropertyOption = LeasePropertyOption & {
   ownerPersonId: string;
+  rentalStructure: PropertyRentalStructure;
 };
 
 export type PropertySetupUnitOption = LeaseUnitOption & {
