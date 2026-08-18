@@ -22,18 +22,10 @@ import { cn } from "@/lib/utils";
 
 const unitRowClassName =
   "cursor-pointer border-t border-border outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
-const selectedUnitRowClassName =
-  "bg-accent shadow-[inset_3px_0_0_var(--record-spine)]";
-
 type UnitsTableProps = {
   displayMode: UnitDisplayMode;
-  onArchiveUnit?: (unit: UnitSummary) => void;
-  onEditUnit?: (unit: UnitSummary) => void;
-  onOpenUnit?: (id: string) => void;
-  onRestoreUnit?: (unit: UnitSummary) => void;
   onSelectUnit: (id: string) => void;
   onSortChange: (sort: UnitSortKey) => void;
-  selectedUnitId: string;
   sort: UnitSortKey;
   archiveState: UnitArchiveState;
   units: UnitSummary[];
@@ -44,7 +36,6 @@ export function UnitsTable({
   displayMode,
   onSelectUnit,
   onSortChange,
-  selectedUnitId,
   sort,
   units,
 }: UnitsTableProps) {
@@ -66,7 +57,6 @@ export function UnitsTable({
           <UnitCard
             key={unit.id}
             onSelectUnit={onSelectUnit}
-            selected={selectedUnitId === unit.id}
             unit={unit}
           />
         ))}
@@ -146,11 +136,9 @@ export function UnitsTable({
                 ) : null}
                 {units.map((unit) => (
                   <tr
-                    aria-label={`Preview unit ${unit.unitNumber}`}
-                    aria-selected={selectedUnitId === unit.id}
+                    aria-label={`Open unit ${unit.unitNumber}`}
                     className={cn(
                       unitRowClassName,
-                      selectedUnitId === unit.id && selectedUnitRowClassName,
                       unit.isArchived && "text-muted-foreground",
                     )}
                     key={unit.id}
@@ -166,7 +154,7 @@ export function UnitsTable({
                       }
                     }}
                     tabIndex={0}
-                    title={`Preview unit ${unit.unitNumber}`}
+                    title={`Open unit ${unit.unitNumber}`}
                   >
                     <td className="px-2.5 py-2">
                       <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
@@ -260,23 +248,18 @@ function getEmptyMessage(archiveState: UnitArchiveState) {
 
 function UnitCard({
   onSelectUnit,
-  selected,
   unit,
 }: {
   onSelectUnit: (id: string) => void;
-  selected: boolean;
   unit: UnitSummary;
 }) {
   return (
     <article
-      aria-label={`Preview unit ${unit.unitNumber}`}
-      aria-pressed={selected}
+      aria-label={`Open unit ${unit.unitNumber}`}
       className={cn(
         "group min-w-0 cursor-pointer overflow-hidden rounded-md border border-border bg-card text-sm outline-none transition-colors hover:border-record-spine focus-visible:ring-2 focus-visible:ring-ring",
-        selected && "border-record-spine bg-accent",
         unit.isArchived && "text-muted-foreground",
       )}
-      data-selected={selected ? "true" : "false"}
       onClick={() => onSelectUnit(unit.id)}
       onKeyDown={(event) => {
         if (event.currentTarget !== event.target) {
