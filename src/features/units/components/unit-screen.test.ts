@@ -307,16 +307,20 @@ describe("UnitScreen redesign contract", () => {
     expect(within(drawer).queryByText(/Not available for leasing/)).toBeNull();
   });
 
-  it("renders operational readiness and Lease state separately in the register", () => {
+  it("renders a compact register without duplicate lease information", () => {
     renderUnits();
 
     const table = screen.getByRole("table");
-    expect(within(table).getByRole("columnheader", { name: "Operational readiness" })).toBeTruthy();
-    expect(within(table).getByRole("columnheader", { name: "Lease state" })).toBeTruthy();
+    expect(within(table).getByRole("columnheader", { name: "Status" })).toBeTruthy();
+    expect(within(table).queryByRole("columnheader", { name: "Lease state" })).toBeNull();
+    expect(within(table).getByRole("columnheader", { name: "Lease / tenant" })).toBeTruthy();
     const firstRow = within(table).getByRole("row", { name: "Open unit 1A" });
+    expect(within(firstRow).getByText("Home Residence")).toBeTruthy();
+    expect(within(firstRow).getByText("No owner")).toBeTruthy();
+    expect(within(firstRow).queryByText("HOME")).toBeNull();
     expect(within(firstRow).getByText("In service")).toBeTruthy();
     expect(within(firstRow).queryByText("Available")).toBeNull();
-    expect(within(firstRow).getAllByText("No lease")).toHaveLength(2);
+    expect(within(firstRow).getAllByText("No lease")).toHaveLength(1);
   });
 
   it("does not open an action=create drawer when create is unauthorized", () => {

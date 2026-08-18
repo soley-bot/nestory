@@ -231,6 +231,7 @@ export type UnitSummary = {
   propertyCode: string;
   propertyId: string;
   propertyName: string;
+  propertyOwnerName: string;
   readiness: UnitReadiness;
   rentUsd: number;
   rentDisplay?: MoneyDisplayValue;

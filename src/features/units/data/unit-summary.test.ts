@@ -91,6 +91,7 @@ describe("buildUnitSummary", () => {
       ledgerNetLabel: "USD 875.00",
       leaseLabel: "Dara Tenant / Active",
       propertyCode: "CTR",
+      propertyOwnerName: "No owner",
       rentLabel: "USD 850.00",
       statusLabel: "Occupied",
       statusTone: "success",

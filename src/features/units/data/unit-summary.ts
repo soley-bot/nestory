@@ -133,6 +133,7 @@ export function buildUnitSummary({
   latestTimelineEvent,
   ledgerEntries,
   property,
+  propertyOwnerName = "No owner",
   thumbnailUrl,
   unit,
 }: {
@@ -141,6 +142,7 @@ export function buildUnitSummary({
   latestTimelineEvent?: UnitTimelineRecord;
   ledgerEntries: UnitLedgerRecord[];
   property?: UnitPropertyRecord;
+  propertyOwnerName?: string;
   thumbnailUrl?: string;
   unit: UnitRecord;
 }): UnitSummary {
@@ -177,6 +179,7 @@ export function buildUnitSummary({
     propertyCode: property?.code ?? "Unknown",
     propertyId: unit.property_id,
     propertyName: property?.name ?? "Unknown property",
+    propertyOwnerName,
     readiness,
     rentUsd: calculateRentUsd(unit, activeLease),
     rentDisplay: formatUnitRentDisplay(unit, activeLease),

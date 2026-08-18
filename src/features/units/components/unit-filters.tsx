@@ -88,12 +88,12 @@ export function UnitFilters({
   }
 
   return (
-    <div className="w-full min-w-0">
+    <div className="w-full min-w-0 lg:w-[min(72vw,800px)]">
       <div>
         <div className="flex flex-col gap-2 text-sm lg:flex-row lg:items-center lg:justify-between">
           <SearchCombo
             ariaLabel="Search units"
-            className="lg:max-w-[560px]"
+            className="w-full lg:max-w-none"
             disabled={isPending}
             onQueryChange={(value) =>
               setQueryState({

@@ -70,13 +70,12 @@ export function UnitsTable({
           <div aria-label="Units table" className="overflow-x-auto" role="region">
             <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
               <colgroup>
+                <col className="w-[30%]" />
+                <col className="w-[10%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
                 <col className="w-[24%]" />
-                <col className="w-[8%]" />
-                <col className="w-[12%]" />
-                <col className="w-[11%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
-                <col className="w-[21%]" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
@@ -98,13 +97,10 @@ export function UnitsTable({
                     active={sort === "status_asc"}
                     align="center"
                     direction="ascending"
-                    label="Operational readiness"
+                    label="Status"
                     onClick={() => onSortChange("status_asc")}
-                    sortLabel="Sort units by operational readiness"
+                    sortLabel="Sort units by status"
                   />
-                  <th className="px-1.5 py-2.5 text-center font-semibold">
-                    Lease state
-                  </th>
                   <SortableHeader
                     active={sort === "rent_desc"}
                     align="right"
@@ -122,14 +118,14 @@ export function UnitsTable({
                     sortLabel="Sort units by net"
                   />
                   <th className="px-1.5 py-2.5 font-semibold">
-                    Lease / Tenant
+                    Lease / tenant
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {units.length === 0 ? (
                   <tr className="border-t border-border">
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
                       {getEmptyMessage(archiveState)}
                     </td>
                   </tr>
@@ -156,26 +152,17 @@ export function UnitsTable({
                     tabIndex={0}
                     title={`Open unit ${unit.unitNumber}`}
                   >
-                    <td className="px-2.5 py-2">
-                      <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
-                        <UnitThumbnail unit={unit} />
-                        <div className="min-w-0">
-                          <p
-                            className="truncate font-medium"
-                            title={unit.propertyCode}
-                          >
-                            {unit.propertyCode}
-                          </p>
-                          <p
-                            className="mt-0.5 truncate text-xs text-muted-foreground"
-                            title={unit.propertyName}
-                          >
-                            {unit.propertyName}
-                          </p>
-                        </div>
+                    <td className="px-2.5 py-1.5">
+                      <div className="min-w-0 leading-4">
+                        <p className="truncate font-medium" title={unit.propertyName}>
+                          {unit.propertyName}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground" title={unit.propertyOwnerName}>
+                          {unit.propertyOwnerName}
+                        </p>
                       </div>
                     </td>
-                    <td className="px-1.5 py-2">
+                    <td className="px-1.5 py-1.5">
                       <p
                         className="truncate font-medium text-foreground"
                         title={`Unit ${unit.unitNumber}`}
@@ -183,7 +170,7 @@ export function UnitsTable({
                         {unit.unitNumber}
                       </p>
                     </td>
-                    <td className="px-1.5 py-2 text-center">
+                    <td className="px-1.5 py-1.5 text-center">
                       <div className="flex flex-wrap justify-center gap-1.5">
                         <Badge
                           className="px-2 text-xs"
@@ -198,28 +185,20 @@ export function UnitsTable({
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-1.5 py-2 text-center">
-                      <Badge
-                        className="px-2 text-xs"
-                        tone={getLeaseReadinessTone(unit)}
-                      >
-                        {formatUnitLeaseReadiness(unit.readiness.lease)}
-                      </Badge>
-                    </td>
-                    <td className="px-2 py-2">
+                    <td className="px-2 py-1.5">
                       {unit.rentDisplay ? (
                         <TableMoneyDisplay value={unit.rentDisplay} />
                       ) : (
-                        <span className="block text-right font-medium">
-                          {unit.rentLabel}
+                        <span className="block text-right font-medium text-muted-foreground">
+                          —
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-2 py-1.5">
                       <TableMoneyDisplay value={unit.ledgerNetDisplay} />
                     </td>
-                    <td className="px-1.5 py-2">
-                      <p className="line-clamp-2 break-words leading-[18px]">
+                    <td className="px-1.5 py-1.5">
+                      <p className="truncate whitespace-nowrap" title={unit.leaseLabel}>
                         {unit.leaseLabel}
                       </p>
                     </td>
@@ -398,27 +377,6 @@ function getLeaseReadinessTone(unit: UnitSummary) {
   }
 
   return "neutral" as const;
-}
-
-function UnitThumbnail({ unit }: { unit: UnitSummary }) {
-  const className =
-    "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground";
-
-  if (unit.thumbnailUrl) {
-    return (
-      <span
-        aria-hidden="true"
-        className={cn(className, "bg-cover bg-center")}
-        style={{ backgroundImage: `url(${unit.thumbnailUrl})` }}
-      />
-    );
-  }
-
-  return (
-    <span className={className} aria-hidden="true">
-      <Building2 size={16} />
-    </span>
-  );
 }
 
 function UnitPhoto({ unit }: { unit: UnitSummary }) {
