@@ -96,11 +96,14 @@ describe("PropertySetupScreen", () => {
     );
 
     expect(screen.queryByText("Setup complete")).toBeNull();
-    expect(screen.getByText("2 readiness checks")).toBeTruthy();
+    expect(screen.getByText("1 required next step")).toBeTruthy();
+    expect(screen.queryByText("Owner roster")).toBeNull();
     expect(screen.getByText("Billing terms")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Complete Billing terms" }).getAttribute("href"),
     ).toBe("/rent-income?leaseId=lease-1&action=billing");
+    expect(screen.queryByText("2 readiness checks")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Owner" })).toBeNull();
   });
 
   it("renders the final review for a whole-property lease without requiring a unit", () => {

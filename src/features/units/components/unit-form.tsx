@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
-import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 import {
   createUnitAction,
   type UnitActionState,
@@ -81,7 +80,6 @@ export function UnitForm({
       savingLabel={isEditMode ? "Saving unit" : "Adding unit"}
       state={state}
     >
-      <WorkflowStageStrip current="unit" />
       {isEditMode && unit ? (
         <input name="unitId" type="hidden" value={unit.id} />
       ) : null}

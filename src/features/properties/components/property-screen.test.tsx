@@ -554,14 +554,13 @@ describe("PropertyScreen redesign contract", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add property" }));
 
     const drawer = screen.getByRole("dialog", { name: "Add property" });
-    const progress = within(drawer).getByRole("navigation", { name: "Setup progress" });
     const drawerHeader = drawer.querySelector<HTMLElement>(
       '[data-slot="drawer-header"]',
     );
     const actionBar = screen.getByTestId("draft-action-bar");
     expect(drawer.style.width).toBe("720px");
     expect(drawer.style.maxWidth).toBe("92vw");
-    expect(within(progress).getByText("Property").getAttribute("aria-current")).toBe("step");
+    expect(within(drawer).queryByRole("navigation", { name: "Setup progress" })).toBeNull();
     expect(drawerHeader?.className.split(" ")).not.toContain("border-b");
     expect(actionBar.className.split(" ")).not.toContain("border-t");
     expect(

@@ -11,7 +11,6 @@ import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
-import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { DocumentForm } from "@/features/documents/components/document-screen";
 import {
@@ -347,7 +346,6 @@ function LeaseTermModal({
         <input name="supersedesTermId" type="hidden" value={term.id} />
         <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
 
-        <WorkflowStageStrip current="lease" />
 
         <div className="border-l-2 border-foreground pl-3">
           <p className="font-medium text-foreground">{lease.tenantName}</p>
@@ -637,7 +635,6 @@ function LeaseActivationModal({
         <input name="expectedOccupancyId" type="hidden" value={occupancyId} />
         <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
 
-        <WorkflowStageStrip current="lease" />
 
         <div className="border-l-2 border-foreground pl-3">
           <p className="font-medium text-foreground">{lease.tenantName}</p>

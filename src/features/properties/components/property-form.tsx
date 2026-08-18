@@ -16,7 +16,6 @@ import { Modal } from "@/components/ui/modal";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { Textarea } from "@/components/ui/textarea";
-import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 import {
   Tooltip,
   TooltipContent,
@@ -203,7 +202,6 @@ export function PropertyForm({
         }
         state={state}
       >
-      <WorkflowStageStrip current={isOwnerScope ? "owner" : "property"} />
       {state.status === "success" && !isEditMode && state.propertyId ? (
         <CreateSuccessActions propertyId={state.propertyId} />
       ) : null}

@@ -92,8 +92,7 @@ describe("LeaseDetailScreen", () => {
     await user.click(screen.getByRole("button", { name: "Activate lease" }));
 
     const dialog = screen.getByRole("dialog", { name: "Activate lease" });
-    const progress = within(dialog).getByRole("navigation", { name: "Setup progress" });
-    expect(within(progress).getByText("Lease").getAttribute("aria-current")).toBe("step");
+    expect(within(dialog).queryByRole("navigation", { name: "Setup progress" })).toBeNull();
     const mode = within(dialog).getByRole("combobox", { name: "Activation timing" });
     expect(mode.textContent).toContain("Activate today");
     expect(within(dialog).queryByLabelText("Activation date")).toBeNull();

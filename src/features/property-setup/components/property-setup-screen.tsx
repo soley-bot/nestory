@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { Button } from "@/components/ui/button";
-import { ConsequencePanel } from "@/components/ui/consequence-panel";
 import { Modal } from "@/components/ui/modal";
 import { SelectControl } from "@/components/ui/select-control";
 import { PersonForm } from "@/features/people/components/person-form";
@@ -510,84 +509,48 @@ function ReviewStep({
   tenant: PropertySetupData["tenants"][number];
   unit?: PropertySetupData["units"][number];
 }) {
-  const firstBlocker = readiness?.items.find((item) => !item.ready);
+  const blockers = readiness?.items.filter((item) => !item.ready) ?? [];
   const ready = readiness?.ready === true;
+  const canOpenRent = readiness === null || ready;
 
   return (
-    <section className="space-y-4">
-      <ConsequencePanel
-        rows={[
-          { label: "Owner", value: owner.label },
-          { label: "Property", value: property.label },
-          {
-            label: "Rental space",
-            value: unit?.label ?? "Whole property",
-          },
-          { label: "Tenant", value: tenant.label },
-          {
-            label: "Lease rent",
-            value: formatMoney(lease.monthlyRentAmount, "USD"),
-          },
-        ]}
-        summary={
-          ready
-            ? "The owner, rental space, lease, occupancy, billing, opening-balance, and deposit checks are ready for rent operations."
-            : "The core records are linked, but rent operations stay blocked until every required check below is complete."
-        }
-        title={ready ? "Rent ready" : "Setup needs attention"}
-      />
-      {readiness ? (
-        <section
-          aria-label="Rent readiness checklist"
-          className="rounded-md border border-border bg-muted/35"
-        >
-          <header className="border-b border-border px-3 py-2.5">
-            <h3 className="text-sm font-semibold">
-              {readiness.items.length} readiness checks
-            </h3>
-          </header>
+    <section className="space-y-5">
+      <div>
+        <h3 className="text-base font-semibold text-foreground">
+          {canOpenRent
+            ? "Rental setup is ready"
+            : `${blockers.length} required next ${blockers.length === 1 ? "step" : "steps"}`}
+        </h3>
+        <p className="mt-1 flex flex-wrap gap-x-2 text-sm text-muted-foreground">
+          <span>{property.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{unit?.label ?? "Whole property"}</span>
+          <span aria-hidden="true">·</span>
+          <span>{owner.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{tenant.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatMoney(lease.monthlyRentAmount, "USD")}/month</span>
+        </p>
+      </div>
+      {blockers.length > 0 ? (
+        <section aria-label="Required next steps" className="border-y border-border">
           <ul className="divide-y divide-border">
-            {readiness.items.map((item) => (
-              <li className="flex items-center justify-between gap-3 px-3 py-2.5" key={item.code}>
-                <span className="flex min-w-0 items-center gap-2 text-sm">
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "grid size-5 shrink-0 place-items-center rounded-full border text-xs",
-                      item.ready
-                        ? "border-success/40 bg-success-soft text-success"
-                        : "border-warning/40 bg-warning-soft text-warning",
-                    )}
-                  >
-                    {item.ready ? <Check size={12} /> : "!"}
-                  </span>
-                  <span className="truncate font-medium">{item.label}</span>
-                </span>
-                {item.ready ? (
-                  <span className="text-xs text-muted-foreground">Ready</span>
-                ) : (
-                  <Link
-                    className="shrink-0 text-xs font-medium text-foreground underline underline-offset-4"
-                    href={item.repairHref}
-                  >
-                    Repair
-                  </Link>
-                )}
+            {blockers.map((item) => (
+              <li className="flex items-center justify-between gap-3 py-3" key={item.code}>
+                <span className="text-sm font-medium text-foreground">{item.label}</span>
+                <Link
+                  className="shrink-0 text-sm font-medium text-foreground underline underline-offset-4"
+                  href={item.repairHref}
+                >
+                  Complete {item.label}
+                </Link>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
-      <div className="grid gap-2 sm:grid-cols-2">
-        <SummaryLink href={`/people/${owner.id}`} label="Owner" value={owner.label} />
-        <SummaryLink href={`/properties/${property.id}`} label="Property" value={property.label} />
-        {unit ? (
-          <SummaryLink href={`/units/${unit.id}`} label="Unit" value={unit.label} />
-        ) : null}
-        <SummaryLink href={`/people/${tenant.id}`} label="Tenant" value={tenant.label} />
-        <SummaryLink href={`/leases?leaseId=${lease.id}`} label="Lease" value={lease.label} />
-      </div>
-      {ready ? (
+      {canOpenRent ? (
         <Link
           className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           href={`/rent-income?leaseId=${lease.id}`}
@@ -595,32 +558,22 @@ function ReviewStep({
           <KeyRound size={15} />
           Open rent workspace
         </Link>
-      ) : firstBlocker ? (
-        <Link
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-foreground px-3 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          href={firstBlocker.repairHref}
-        >
-          <ArrowRight size={15} />
-          Complete {firstBlocker.label}
-        </Link>
       ) : null}
+      <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-border pt-4 text-sm">
+        <Link
+          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          href={`/properties/${property.id}`}
+        >
+          Open property
+        </Link>
+        <Link
+          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          href={`/leases?leaseId=${lease.id}`}
+        >
+          Open lease
+        </Link>
+      </div>
     </section>
-  );
-}
-
-function SummaryLink({ href, label, value }: { href: string; label: string; value: string }) {
-  return (
-    <Link
-      className="rounded-md border border-border bg-muted/45 px-3 py-2.5 transition-colors hover:bg-muted"
-      href={href}
-    >
-      <span className="block text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
-        {label}
-      </span>
-      <span className="mt-1 block truncate text-sm font-semibold text-foreground">
-        {value}
-      </span>
-    </Link>
   );
 }
 

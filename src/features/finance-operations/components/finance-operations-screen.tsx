@@ -16,7 +16,6 @@ import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
-import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 import { AuditDetails } from "@/components/ui/audit-details";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2467,7 +2466,6 @@ function ExpenseForm({
       savingLabel="Submitting expense"
       state={state}
     >
-      <WorkflowStageStrip current="finance" />
       <input name="propertyId" type="hidden" value={propertyId} />
       <input name="unitId" type="hidden" value={unitId} />
       <input name="category" type="hidden" value={category} />
@@ -3129,7 +3127,6 @@ function WithdrawalForm({
   useSuccess(state, onSuccess);
   return (
     <form action={action} className="space-y-4 bg-muted/15 p-4">
-      <WorkflowStageStrip current="finance" />
       <DefinitionRows
         rows={[
           ["Property", position.propertyLabel],

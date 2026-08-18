@@ -10,7 +10,6 @@ import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
-import { WorkflowStageStrip } from "@/components/ui/workflow-stage-strip";
 import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
 import type { PersonRoleValue } from "@/features/people/people.types";
@@ -147,7 +146,6 @@ export function LeaseForm({
           fieldErrors: state.fieldErrors ? { ...state.fieldErrors } : undefined,
         }}
       >
-        <WorkflowStageStrip current="lease" />
         {isEditMode && lease ? (
           <input name="leaseId" type="hidden" value={lease.id} />
         ) : null}

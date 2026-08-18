@@ -372,10 +372,7 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     fireEvent.click(addUnit);
 
     const form = screen.getByRole("form", { name: "Add unit form" });
-    expect(
-      within(form).getByRole("navigation", { name: "Setup progress" }).textContent,
-    ).toBe("PropertyOwnerUnitLeaseFinance");
-    expect(within(form).getByText("Unit").getAttribute("aria-current")).toBe("step");
+    expect(within(form).queryByRole("navigation", { name: "Setup progress" })).toBeNull();
     expect(
       within(form).getByRole("combobox", { name: /^Property/ }).textContent,
     ).toBe("Nestory Residence");

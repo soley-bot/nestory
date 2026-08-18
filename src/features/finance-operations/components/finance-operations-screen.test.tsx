@@ -763,9 +763,7 @@ describe("FinanceOperationsScreen", () => {
     const drawer = screen.getByRole("dialog", { name: "Record expense" });
     const form = within(drawer).getByRole("form", { name: "Record expense form" });
 
-    expect(within(form).getByText("Finance").getAttribute("aria-current")).toBe(
-      "step",
-    );
+    expect(within(form).queryByRole("navigation", { name: "Setup progress" })).toBeNull();
     expect(within(form).queryByRole("combobox", { name: "Property" })).toBeNull();
     expect(within(form).getByText("HOME — Riverside Home")).not.toBeNull();
     expect(within(form).getByRole("heading", { name: "Cost record" })).not.toBeNull();
@@ -1598,9 +1596,7 @@ describe("FinanceOperationsScreen", () => {
     const dialog = screen.getByRole("dialog", {
       name: "Record owner distribution",
     });
-    expect(within(dialog).getByText("Finance").getAttribute("aria-current")).toBe(
-      "step",
-    );
+    expect(within(dialog).queryByRole("navigation", { name: "Setup progress" })).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Cancel" })).not.toBeNull();
   });
 
