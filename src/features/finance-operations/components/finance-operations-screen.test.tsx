@@ -201,6 +201,9 @@ describe("FinanceOperationsScreen", () => {
       }),
     );
     const dialog = screen.getByRole("dialog", { name: "Invoice details" });
+    expect(within(dialog).getByRole("heading", { name: "Charges" })).not.toBeNull();
+    expect(within(dialog).getByText("Rent")).not.toBeNull();
+    expect(within(dialog).getAllByText("USD 640.00").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("Aug 2026 lease month")).not.toBeNull();
     expect(within(dialog).getByText("Prorated")).not.toBeNull();
     expect(
@@ -373,6 +376,64 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.queryByText(/never fills earlier or later months/i),
     ).toBeNull();
+  });
+
+  it("keeps the active lease selected when adding a charge from unit finance", async () => {
+    const user = userEvent.setup();
+    const input = data();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        scope={{
+          id: "unit-1",
+          kind: "unit",
+          label: "Unit 01",
+          propertyId: "property-1",
+          propertyLabel: "HOME — Riverside Home",
+        }}
+        view="rent"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add charge" }));
+    const dialog = screen.getByRole("dialog", { name: "Add charge" });
+    expect(dialog.querySelector<HTMLInputElement>('input[name="leaseId"]')?.value).toBe(
+      "lease-1",
+    );
+    expect(within(dialog).queryByRole("combobox", { name: "Lease" })).toBeNull();
+  });
+
+  it("does not offer payment recording when the scoped invoices are settled", () => {
+    const input = data();
+    input.tenantInvoices = [
+      {
+        ...tenantInvoice(),
+        balanceDue: 0,
+        paidThroughIps: 640,
+        paymentStatus: "paid",
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        scope={{
+          id: "unit-1",
+          kind: "unit",
+          label: "Unit 01",
+          propertyId: "property-1",
+          propertyLabel: "HOME — Riverside Home",
+        }}
+        view="rent"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Record payment" })).toBeNull();
   });
 
   it("states the paid amount instead of leading a settled invoice with zero", () => {

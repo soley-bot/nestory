@@ -476,17 +476,27 @@ function getScreen(
           (invoice) => invoice.leaseId === props.initialRentLeaseId,
         )
       : props.tenantInvoices;
+    const scopedLease =
+      props.scope?.kind === "unit"
+        ? props.leases.find(
+            (lease) =>
+              lease.unitId === props.scope?.id &&
+              (lease.status === "active" || lease.status === "notice_given"),
+          )
+        : undefined;
+    const canRecordScopedPayment =
+      props.canRecordPayments && invoices.some((invoice) => invoice.balanceDue > 0);
     return {
       activeRoute: "/rent-income" as const,
       actions:
-        props.canRecordPayments || canConfigureRent || canRecoverRent ? (
+        canRecordScopedPayment || canConfigureRent || canRecoverRent ? (
           <>
             {canRecoverRent ? (
               <Button onClick={() => openModal({ mode: "rent-recovery" })} variant="ghost">
                 Recover missed month
               </Button>
             ) : null}
-            {props.canRecordPayments ? (
+            {canRecordScopedPayment ? (
               <Button
                 onClick={() => openModal({ mode: "payment" })}
                 variant="outline"
@@ -499,7 +509,7 @@ function getScreen(
                 onClick={() => openModal({
                   lease: props.initialRentLeaseId
                     ? props.leases.find((lease) => lease.id === props.initialRentLeaseId)
-                    : undefined,
+                    : scopedLease,
                   mode: "manual-charge",
                 })}
               >
@@ -1509,6 +1519,22 @@ function InvoiceDetails({
           status={invoice.paymentStatus}
         />
       </div>
+      <section aria-labelledby="invoice-charges-heading">
+        <h3 className="text-sm font-semibold" id="invoice-charges-heading">
+          Charges
+        </h3>
+        <div className="mt-2 divide-y divide-border border-y border-border">
+          {invoice.lines.map((line) => (
+            <div
+              className="flex items-center justify-between gap-4 py-2.5 text-sm"
+              key={line.id}
+            >
+              <span className="font-medium">{line.label}</span>
+              <Money amount={line.amount} />
+            </div>
+          ))}
+        </div>
+      </section>
       <DefinitionRows
         rows={[
           [

@@ -213,7 +213,7 @@ describe("LeaseDetailScreen", () => {
 
   it.each([
     ["rent", "Rent & deposit", "Change rent"],
-    ["occupancy", "Move-in & move-out", "Move-in confirmation"],
+    ["occupancy", "Move-in & move-out", "Confirmed dates"],
     ["files", "Files & history", "Lease agreement.pdf"],
   ] as const)(
     "keeps %s workflows in the %s section",
@@ -268,6 +268,25 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByText("Confirmation")).not.toBeNull();
     expect(screen.queryByText("Evidence")).toBeNull();
     expect(screen.queryByText("Accepted")).toBeNull();
+  });
+
+  it("keeps the current occupancy visible and historical occupancy collapsed", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.occupancies.push({
+      ...lease.occupancies[0]!,
+      actualLabel: "01 Jan 2026 - 30 Jun 2026",
+      evidenceState: "superseded",
+      id: "occupancy-old",
+      residentLabel: "Previous Tenant",
+    });
+
+    renderDetail("occupancy", lease);
+
+    expect(screen.queryByText("Previous Tenant")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Move-in confirmation" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Occupancy history" }));
+    expect(screen.getByText("Previous Tenant")).not.toBeNull();
   });
 
   it("uploads a file without leaving the lease record", async () => {

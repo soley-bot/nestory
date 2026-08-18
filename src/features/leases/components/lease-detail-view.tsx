@@ -446,6 +446,10 @@ function LeaseOccupancy({
     lease.occupancies.find(
       (occupancy) => occupancy.evidenceState === "accepted",
     ) ?? lease.occupancies[0];
+  const historicalOccupancies = lease.occupancies.filter(
+    (occupancy) => occupancy.id !== currentOccupancy?.id,
+  );
+  const [showOccupancyHistory, setShowOccupancyHistory] = useState(false);
   const canRecord =
     canConfigure &&
     !lease.isArchived &&
@@ -457,39 +461,66 @@ function LeaseOccupancy({
       <section aria-labelledby="occupancy-heading">
         <SectionHeading id="occupancy-heading" title="Move-in & move-out" />
         <div className="mt-3 divide-y divide-border border-y border-border">
-          {lease.occupancies.length ? (
-            lease.occupancies.map((occupancy) => (
+          {currentOccupancy ? (
+            <>
               <div
                 className="grid gap-3 py-4 text-sm md:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,1fr))]"
-                key={occupancy.id}
               >
-                <Detail label="Unit" value={occupancy.unitLabel} />
+                <Detail label="Unit" value={currentOccupancy.unitLabel} />
                 <Detail
                   label="Planned dates"
-                  value={occupancy.scheduledLabel}
+                  value={currentOccupancy.scheduledLabel}
                 />
-                <Detail label="Confirmed dates" value={occupancy.actualLabel} />
+                <Detail label="Confirmed dates" value={currentOccupancy.actualLabel} />
                 <Detail
                   label="Confirmation"
                   value={getMoveInConfirmation(
-                    occupancy.actualLabel,
-                    occupancy.residentLabel,
+                    currentOccupancy.actualLabel,
+                    currentOccupancy.residentLabel,
                   )}
                 />
               </div>
-            ))
+              {historicalOccupancies.length ? (
+                <div className="py-2">
+                  <Button
+                    onClick={() => setShowOccupancyHistory((visible) => !visible)}
+                    variant="ghost"
+                  >
+                    Occupancy history
+                  </Button>
+                  {showOccupancyHistory ? (
+                    <div className="mt-2 divide-y divide-border border-t border-border">
+                      {historicalOccupancies.map((occupancy) => (
+                        <div
+                          className="grid gap-3 py-4 text-sm md:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,1fr))]"
+                          key={occupancy.id}
+                        >
+                          <Detail label="Unit" value={occupancy.unitLabel} />
+                          <Detail label="Planned dates" value={occupancy.scheduledLabel} />
+                          <Detail label="Confirmed dates" value={occupancy.actualLabel} />
+                          <Detail
+                            label="Resident"
+                            value={occupancy.residentLabel || "Not recorded"}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
           ) : (
             <EmptyLine label="No move-in or move-out details recorded." />
           )}
         </div>
       </section>
 
-      <section aria-labelledby="occupancy-evidence-heading">
-        <SectionHeading
-          id="occupancy-evidence-heading"
-          title="Move-in confirmation"
-        />
-        {canRecord && currentOccupancy ? (
+      {canRecord && currentOccupancy ? (
+        <section aria-labelledby="occupancy-evidence-heading">
+          <SectionHeading
+            id="occupancy-evidence-heading"
+            title="Move-in confirmation"
+          />
           <form
             action={recordEvidence}
             className="mt-3 grid gap-3 border-y border-border py-4 sm:grid-cols-2 lg:grid-cols-4"
@@ -537,17 +568,8 @@ function LeaseOccupancy({
               </Button>
             </div>
           </form>
-        ) : (
-          <div className="mt-3 border-y border-border py-4 text-sm text-muted-foreground">
-            {currentOccupancy
-              ? getMoveInConfirmation(
-                  currentOccupancy.actualLabel,
-                  currentOccupancy.residentLabel,
-                )
-              : "Move-in has not been confirmed."}
-          </div>
-        )}
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }
