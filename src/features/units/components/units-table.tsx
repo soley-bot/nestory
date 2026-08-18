@@ -68,16 +68,7 @@ export function UnitsTable({
           data-slot="register-table-frame"
         >
           <div aria-label="Units table" className="overflow-x-auto" role="region">
-            <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
-              <colgroup>
-                <col className="w-[23%]" />
-                <col className="w-[8%]" />
-                <col className="w-[11%]" />
-                <col className="w-[10%]" />
-                <col className="w-[15%]" />
-                <col className="w-[16.5%]" />
-                <col className="w-[16.5%]" />
-              </colgroup>
+            <table className="w-max min-w-[980px] table-auto border-collapse text-left text-sm">
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
@@ -153,7 +144,7 @@ export function UnitsTable({
                     title={`Open unit ${unit.unitNumber}`}
                   >
                     <td className="px-2.5 py-1.5">
-                      <div className="min-w-0 leading-4">
+                      <div className="min-w-0 max-w-[18rem] leading-4">
                         <p className="truncate font-medium" title={unit.propertyName}>
                           {unit.propertyName}
                         </p>
@@ -162,7 +153,7 @@ export function UnitsTable({
                         </p>
                       </div>
                     </td>
-                    <td className="px-1.5 py-1.5">
+                    <td className="w-px whitespace-nowrap px-1.5 py-1.5">
                       <p
                         className="truncate font-medium text-foreground"
                         title={`Unit ${unit.unitNumber}`}
@@ -170,7 +161,7 @@ export function UnitsTable({
                         {unit.unitNumber}
                       </p>
                     </td>
-                    <td className="px-1.5 py-1.5 text-center">
+                    <td className="w-px whitespace-nowrap px-1.5 py-1.5 text-center">
                       <div className="flex flex-wrap justify-center gap-1.5">
                         <Badge
                           className="px-2 text-xs"
@@ -185,17 +176,17 @@ export function UnitsTable({
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-1.5 py-1.5">
+                    <td className="w-px whitespace-nowrap px-1.5 py-1.5">
                       <p className="truncate whitespace-nowrap" title={unit.leaseStatusLabel}>
                         {unit.leaseStatusLabel}
                       </p>
                     </td>
-                    <td className="px-1.5 py-1.5">
-                      <p className="truncate whitespace-nowrap" title={unit.tenantName}>
+                    <td className="w-px whitespace-nowrap px-1.5 py-1.5">
+                      <p className="max-w-[14rem] truncate whitespace-nowrap" title={unit.tenantName}>
                         {unit.tenantName}
                       </p>
                     </td>
-                    <td className="px-2 py-1.5">
+                    <td className="w-px whitespace-nowrap px-2 py-1.5">
                       {unit.rentDisplay ? (
                         <TableMoneyDisplay value={unit.rentDisplay} />
                       ) : (
@@ -204,7 +195,7 @@ export function UnitsTable({
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-1.5">
+                    <td className="w-px whitespace-nowrap px-2 py-1.5">
                       <TableMoneyDisplay value={unit.ledgerNetDisplay} />
                     </td>
                   </tr>

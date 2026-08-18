@@ -59,16 +59,7 @@ export function PropertiesTable({
           data-slot="register-table-frame"
         >
           <div aria-label="Properties table" className="overflow-x-auto" role="region">
-            <table className="w-full min-w-[820px] table-fixed border-collapse text-left text-[13px]">
-              <colgroup>
-                <col className="w-[26%]" />
-                <col className="w-[16%]" />
-                <col className="w-[19%]" />
-                <col className="w-[16%]" />
-                <col className="w-[11%]" />
-                <col className="w-[9%]" />
-                <col className="w-[3%]" />
-              </colgroup>
+            <table className="w-full min-w-[820px] table-auto border-collapse text-left text-[13px]">
               <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] uppercase tracking-[0.04em] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 <tr>
                   <SortableHeader
@@ -133,7 +124,7 @@ export function PropertiesTable({
                     title={`Open ${property.name}`}
                   >
                     <td className="px-2.5 py-2">
-                      <div className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
+                      <div className="grid min-w-0 max-w-[20rem] grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
                         <PropertyThumbnail property={property} />
                         <div className="min-w-0">
                           <p
@@ -153,7 +144,7 @@ export function PropertiesTable({
                     </td>
                     <td className="px-1.5 py-2">
                       <p
-                        className="truncate text-sm font-medium"
+                        className="max-w-[14rem] truncate text-sm font-medium"
                         title={property.owner}
                       >
                         {property.owner}

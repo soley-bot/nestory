@@ -98,21 +98,13 @@ afterEach(() => {
 });
 
 describe("LeaseScreen redesign contract", () => {
-  it("gives status more register width than rent", () => {
+  it("lets the browser size register columns from their content", () => {
     renderLeases();
 
-    const columns = Array.from(
-      screen.getByRole("table").querySelectorAll("col"),
-      (column) => column.className,
-    );
+    const table = screen.getByRole("table");
 
-    expect(columns).toEqual([
-      "w-[18%]",
-      "w-[24%]",
-      "w-[24%]",
-      "w-[10%]",
-      "w-[24%]",
-    ]);
+    expect(table.className).toContain("table-auto");
+    expect(table.querySelector("colgroup")).toBeNull();
   });
 
   it("keeps deposit attention beside the status badge on desktop", () => {

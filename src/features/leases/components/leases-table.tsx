@@ -46,14 +46,7 @@ export function LeasesTable({
         data-slot="register-table-frame"
       >
         <div aria-label="Leases table" className="overflow-x-auto" role="region">
-          <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
-            <colgroup>
-              <col className="w-[18%]" />
-              <col className="w-[24%]" />
-              <col className="w-[24%]" />
-              <col className="w-[10%]" />
-              <col className="w-[24%]" />
-            </colgroup>
+          <table className="w-full min-w-[860px] table-auto border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs uppercase tracking-[0] text-muted-foreground shadow-[0_1px_0_var(--border)]">
               <tr>
                 <th className="px-2.5 py-2.5 font-semibold">Tenant</th>
@@ -98,7 +91,7 @@ export function LeasesTable({
                   }}
                   tabIndex={0}
                 >
-                  <td className="px-2.5 py-2 align-middle">
+                  <td className="max-w-[15rem] px-2.5 py-2 align-middle">
                     <RecordLink
                       href={getLeaseHref(lease.id)}
                       title={`Open lease for ${lease.tenantName}`}
@@ -114,15 +107,15 @@ export function LeasesTable({
                       </p>
                     ) : null}
                   </td>
-                  <td className="px-1.5 py-2 align-middle">
+                  <td className="max-w-[18rem] px-1.5 py-2 align-middle">
                     <RecordContextLinks lease={lease} />
                   </td>
-                  <td className="px-1.5 py-2 align-middle tabular-nums">
+                  <td className="w-px whitespace-nowrap px-1.5 py-2 align-middle tabular-nums">
                     <p className="truncate">
                       {lease.startDateLabel} &ndash; {lease.endDateLabel}
                     </p>
                   </td>
-                  <td className="px-1.5 py-2 text-right align-middle">
+                  <td className="w-px whitespace-nowrap px-1.5 py-2 text-right align-middle">
                     <TableMoneyDisplay value={lease.rentDisplay} />
                   </td>
                   <td className="px-1.5 py-2 align-middle">
