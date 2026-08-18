@@ -29,7 +29,7 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
   const requestedStep = Number(getFirstSearchParam(params.step) ?? 1);
   const requiresUnit = propertySetupRequiresUnit(data.properties, data.selection);
   const step = normalizePropertySetupStep(requestedStep, data.selection, {
-    ready: data.readiness?.ready !== false,
+    ready: data.readiness?.ready === true,
     requiresUnit,
   });
 

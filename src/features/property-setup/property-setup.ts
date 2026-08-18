@@ -55,6 +55,12 @@ export function propertySetupRequiresUnit(
   return property?.rentalStructure !== "single_space";
 }
 
+export function shouldLoadPropertySetupReadiness(
+  selection: PropertySetupSelection,
+): boolean {
+  return Boolean(selection.propertyId && selection.leaseId);
+}
+
 export function getHighestPropertySetupStep(
   selection: PropertySetupSelection,
   {

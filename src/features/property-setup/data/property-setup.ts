@@ -7,6 +7,7 @@ import type {
   PropertySetupUnitOption,
 } from "@/features/property-setup/property-setup.types";
 import { normalizePropertyRentalStructure } from "@/features/properties/property-rental-structure";
+import { shouldLoadPropertySetupReadiness } from "@/features/property-setup/property-setup";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
   formatPropertyOptionLabel,
@@ -116,17 +117,13 @@ export async function getPropertySetupData({
     units,
   });
   let readiness: PropertySetupData["readiness"] = null;
-  if (
-    selection.propertyId &&
-    selection.unitId &&
-    selection.leaseId
-  ) {
+  if (shouldLoadPropertySetupReadiness(selection)) {
     const readinessResult = await supabase.rpc("get_ips_setup_readiness", {
       p_effective_date: getBusinessDateValue(),
-      p_lease_id: selection.leaseId,
+      p_lease_id: selection.leaseId!,
       p_organization_id: organizationId,
-      p_property_id: selection.propertyId,
-      p_unit_id: selection.unitId,
+      p_property_id: selection.propertyId!,
+      p_unit_id: selection.unitId!,
     });
     if (readinessResult.error) {
       throw new Error(

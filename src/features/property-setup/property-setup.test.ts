@@ -7,6 +7,7 @@ import {
   getHighestPropertySetupStep,
   normalizePropertySetupStep,
   propertySetupRequiresUnit,
+  shouldLoadPropertySetupReadiness,
 } from "@/features/property-setup/property-setup";
 import {
   normalizeRentalSetupReadiness,
@@ -136,6 +137,22 @@ describe("property setup progression", () => {
         unitId: "unit-2",
       }),
     ).toBeUndefined();
+  });
+
+  it("loads readiness for a whole-property Lease without a Unit", () => {
+    expect(
+      shouldLoadPropertySetupReadiness({
+        ...completeSelection,
+        unitId: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldLoadPropertySetupReadiness({
+        ...completeSelection,
+        leaseId: null,
+        unitId: null,
+      }),
+    ).toBe(false);
   });
 
   it("keeps unavailable tenants out of new lease creation", () => {

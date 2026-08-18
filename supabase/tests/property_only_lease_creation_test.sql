@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(31);
+SELECT plan(35);
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_error(p_sql text)
 RETURNS jsonb
@@ -62,6 +62,7 @@ CREATE TEMP TABLE property_only_lease_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  scheduled_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   single_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   multi_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   undecided_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -129,10 +130,16 @@ FROM property_only_lease_state;
 
 INSERT INTO public.people(id, organization_id, display_name, party_type)
 SELECT tenant_id, organization_id, 'Property Tenant', 'individual'
+FROM property_only_lease_state
+UNION ALL
+SELECT scheduled_tenant_id, organization_id, 'Scheduled Property Tenant', 'individual'
 FROM property_only_lease_state;
 
 INSERT INTO public.person_roles(organization_id, person_id, role)
 SELECT organization_id, tenant_id, 'tenant'
+FROM property_only_lease_state
+UNION ALL
+SELECT organization_id, scheduled_tenant_id, 'tenant'
 FROM property_only_lease_state;
 
 SELECT set_config(
@@ -146,9 +153,9 @@ UPDATE property_only_lease_state AS state
 SET property_lease_result = public.create_property_lease(
   state.organization_id,
   state.single_property_id,
-  state.tenant_id,
-  DATE '2027-01-01',
-  DATE '2027-12-31',
+  state.scheduled_tenant_id,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 364,
   1200,
   'USD',
   1,
@@ -371,6 +378,69 @@ SELECT is(
   1,
   'replaying the same request does not duplicate the schedule'
 );
+
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
+SET LOCAL ROLE service_role;
+
+UPDATE public.lease_activation_schedules AS schedule
+SET activation_date = (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date
+FROM property_only_lease_state AS state
+WHERE schedule.lease_id = (state.property_lease_result ->> 'leaseId')::uuid;
+
+SELECT lives_ok(
+  (
+    SELECT format(
+      'SELECT public.process_due_lease_activations(%L, DATE %L, 100)',
+      organization_id,
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date
+    )
+    FROM property_only_lease_state
+  ),
+  'the service-role activation runner processes a due schedule without a user JWT'
+);
+
+SELECT is(
+  (
+    SELECT schedule.status
+    FROM public.lease_activation_schedules AS schedule,
+      property_only_lease_state AS state
+    WHERE schedule.lease_id = (state.property_lease_result ->> 'leaseId')::uuid
+  ),
+  'processed',
+  'the due activation schedule is marked processed'
+);
+
+SELECT is(
+  (
+    SELECT lease.status
+    FROM public.leases AS lease,
+      property_only_lease_state AS state
+    WHERE lease.id = (state.property_lease_result ->> 'leaseId')::uuid
+  ),
+  'active',
+  'the due activation runner activates the scheduled Lease'
+);
+
+RESET ROLE;
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM cron.job AS job
+    WHERE job.jobname = 'nestory-hourly-lease-activation'
+      AND job.command = 'SELECT app_private.run_due_lease_activations();'
+  ),
+  'scheduled Lease activations have an hourly processor'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM property_only_lease_state),
+  true
+);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
 UPDATE property_only_lease_state AS state
 SET immediate_lease_result = public.create_property_lease(
