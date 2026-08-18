@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, type ReactNode } from "react";
-import { FilePlus2 } from "lucide-react";
+import { useActionState, useState, type ReactNode } from "react";
+import { FilePlus2, MoreHorizontal } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -154,16 +160,12 @@ function LeaseOverview({
       </section>
 
       <section aria-labelledby="lease-attention-heading">
-        <SectionHeading
-          id="lease-attention-heading"
-          title="Current attention"
-        />
-        <div className="mt-3 flex flex-col justify-between gap-3 border-y border-border py-3 sm:flex-row sm:items-center">
+        <div className="flex flex-col justify-between gap-3 border-y border-warning/35 bg-warning-soft/20 px-4 py-3 sm:flex-row sm:items-center">
           <div className="min-w-0">
-            <p className="font-medium">{lease.nextAction.label}</p>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {lease.nextAction.description}
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-warning" id="lease-attention-heading">
+              Attention
             </p>
+            <p className="mt-1 font-semibold">{lease.nextAction.label}</p>
           </div>
           <Badge className="shrink-0" tone={lease.nextAction.tone}>
             {lease.nextAction.tone === "success" ? "Ready" : "Review"}
@@ -171,9 +173,8 @@ function LeaseOverview({
         </div>
       </section>
 
-      <section aria-labelledby="lease-actions-heading">
-        <SectionHeading id="lease-actions-heading" title="Manage lease" />
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-y border-border py-3">
+      <section aria-label="Lease actions">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
           {canConfigure &&
           !lease.isArchived &&
           lease.statusValue === "draft" ? (
@@ -184,43 +185,33 @@ function LeaseOverview({
           {canConfigure &&
           !lease.isArchived &&
           lease.statusValue === "active" ? (
-            <Button onClick={() => onScheduleTerm("renewal")} variant="outline">
+            <Button onClick={() => onScheduleTerm("renewal")}>
               Renew lease
             </Button>
           ) : null}
-          {canConfigure &&
-          !lease.isArchived &&
-          lease.statusValue === "active" ? (
-            <Button
-              onClick={() => onScheduleTerm("rent_change")}
-              variant="outline"
-            >
-              Change rent
-            </Button>
-          ) : null}
-          {canConfigure &&
-          !lease.isArchived &&
-          lease.statusValue === "active" ? (
-            <Button onClick={() => onLifecycleChange("give_notice")}>
-              Record notice
-            </Button>
-          ) : null}
-          {canConfigure &&
-          !lease.isArchived &&
-          ["active", "notice_given"].includes(lease.statusValue) ? (
-            <Button onClick={() => onLifecycleChange("end")} variant="outline">
-              Complete move-out
-            </Button>
-          ) : null}
-          {canConfigure &&
-          !lease.isArchived &&
-          ["active", "notice_given"].includes(lease.statusValue) ? (
-            <Button
-              onClick={() => onLifecycleChange("terminate")}
-              variant="outline"
-            >
-              Terminate lease
-            </Button>
+          {canConfigure && !lease.isArchived && lease.statusValue !== "draft" ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  Manage lease
+                  <MoreHorizontal size={15} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-48">
+                {lease.statusValue === "active" ? (
+                  <>
+                    <DropdownMenuItem onSelect={() => onScheduleTerm("rent_change")}>Change rent</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>Record notice</DropdownMenuItem>
+                  </>
+                ) : null}
+                {["active", "notice_given"].includes(lease.statusValue) ? (
+                  <>
+                    <DropdownMenuItem onSelect={() => onLifecycleChange("end")}>Complete move-out</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => onLifecycleChange("terminate")} variant="destructive">Terminate lease</DropdownMenuItem>
+                  </>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
         </div>
       </section>
@@ -246,16 +237,18 @@ function LeaseRentAndDeposit({
     {},
   );
   const activeTerm = lease.terms.find((term) => term.status === "active");
+  const historicalTerms = lease.terms.filter((term) => term.status !== "active");
+  const [showRentHistory, setShowRentHistory] = useState(false);
+  const [showDepositForm, setShowDepositForm] = useState(false);
 
   return (
     <div className="space-y-8">
       <section aria-labelledby="rent-deposit-heading">
         <SectionHeading id="rent-deposit-heading" title="Rent & deposit" />
-        <dl className="mt-3 grid grid-cols-1 border-y border-border sm:grid-cols-3">
+        <dl className="mt-3 grid grid-cols-1 border-y border-border sm:grid-cols-2">
           <Metric label="Current rent">
             <MoneyDisplay value={lease.rentDisplay} />
           </Metric>
-          <Metric label="Rent status" value={lease.rentReadiness.label} />
           <Metric label="Security deposit" value={getDepositSummary(lease)} />
         </dl>
       </section>
@@ -273,7 +266,7 @@ function LeaseRentAndDeposit({
           ) : null}
         </div>
         <div className="mt-3 divide-y divide-border border-y border-border">
-          {lease.terms.map((term) => (
+          {lease.terms.filter((term) => term.status === "active").map((term) => (
             <div
               className="grid gap-1 py-3 text-sm sm:grid-cols-[minmax(0,1.5fr)_minmax(120px,0.75fr)_minmax(100px,0.5fr)] sm:items-center"
               key={term.id}
@@ -294,6 +287,24 @@ function LeaseRentAndDeposit({
             </div>
           ))}
         </div>
+        {historicalTerms.length ? (
+          <div className="mt-2">
+            <Button onClick={() => setShowRentHistory((visible) => !visible)} variant="ghost">
+              Rent history
+            </Button>
+            {showRentHistory ? (
+              <div className="mt-2 divide-y divide-border border-y border-border">
+                {historicalTerms.map((term) => (
+                  <div className="grid gap-1 py-3 text-sm sm:grid-cols-[minmax(0,1.5fr)_minmax(120px,0.75fr)_minmax(100px,0.5fr)] sm:items-center" key={term.id}>
+                    <div><p className="font-medium">{term.datesLabel}</p><p className="text-xs text-muted-foreground">{term.paymentFrequencyLabel} / {term.dueLabel}</p></div>
+                    <MoneyDisplay value={term.rentDisplay} />
+                    <Badge className="w-fit" tone="neutral">{getTermStatusLabel(term.status)}</Badge>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section aria-labelledby="deposit-events-heading">
@@ -355,6 +366,13 @@ function LeaseRentAndDeposit({
                   </div>
                 ) : null}
                 {canConfigure ? (
+                  <div className="mt-3">
+                    <Button onClick={() => setShowDepositForm((visible) => !visible)} variant="outline">
+                      Record deposit activity
+                    </Button>
+                  </div>
+                ) : null}
+                {canConfigure && showDepositForm ? (
                   <form
                     action={recordDepositEvent}
                     className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-5"

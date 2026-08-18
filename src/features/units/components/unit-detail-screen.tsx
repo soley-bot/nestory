@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { ArrowRight, Archive, History, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
+import { Archive, History, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
@@ -35,10 +35,6 @@ import {
 import { UnitDetailView } from "@/features/units/components/unit-detail-view";
 import { UnitForm } from "@/features/units/components/unit-form";
 import {
-  formatUnitLeaseReadiness,
-  formatUnitOperationalReadiness,
-} from "@/features/units/data/unit-summary";
-import {
   UnitLeaseDetailsPanel,
   UnitLedgerEntryPanel,
   UnitMaintenanceCasePanel,
@@ -48,6 +44,7 @@ import type {
   UnitDetail,
   UnitPropertyOption,
 } from "@/features/units/unit.types";
+import { formatDate } from "@/lib/dates/format";
 
 type DrawerState =
   | { mode: "edit"; unit: UnitDetail }
@@ -177,11 +174,9 @@ export function UnitDetailScreen({
         }
         context={
           <div className="flex items-center gap-2">
-            <Badge tone="neutral">
-              Operational readiness: {formatUnitOperationalReadiness(unit.readiness.operational)}
-            </Badge>
             <Badge tone={unit.readiness.lease === "occupied" ? "success" : "neutral"}>
-              Lease state: {formatUnitLeaseReadiness(unit.readiness.lease)}
+              {unit.readiness.lease === "occupied" ? "Occupied" : "Available"}
+              {unit.activeLease ? ` · Lease ends ${formatDate(unit.activeLease.endDate)}` : ""}
             </Badge>
             {unit.isArchived ? <Badge tone="warning">Archived</Badge> : null}
           </div>
@@ -189,39 +184,6 @@ export function UnitDetailScreen({
         description={`${unit.propertyCode} / ${unit.propertyName}`}
         title={`Unit ${unit.unitNumber}`}
       />
-
-      <section
-        aria-label="Unit next action"
-        className="mx-4 border-y border-border py-3 sm:mx-6 2xl:mx-8"
-      >
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">
-              {unit.repairAction.label}
-            </p>
-          </div>
-          {unit.repairAction.label === "Create draft lease" ? (
-            <Button
-              onClick={() => {
-                setStatusMessage(null);
-                setDrawer({ mode: "create-lease", unit });
-              }}
-              variant="outline"
-            >
-              {unit.repairAction.label}
-              <ArrowRight size={14} />
-            </Button>
-          ) : (
-            <Link
-              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-              href={unit.repairAction.href}
-            >
-              {unit.repairAction.label}
-              <ArrowRight size={14} />
-            </Link>
-          )}
-        </div>
-      </section>
 
       {statusMessage ? (
         <div className="px-4 pt-5 sm:px-6 lg:shrink-0 lg:px-6">
@@ -240,6 +202,10 @@ export function UnitDetailScreen({
         onAddDocument={() => {
           setStatusMessage(null);
           setDrawer({ mode: "create-document", unit });
+        }}
+        onCreateLease={() => {
+          setStatusMessage(null);
+          setDrawer({ mode: "create-lease", unit });
         }}
         onNewMaintenanceCase={() => {
           setStatusMessage(null);

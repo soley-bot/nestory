@@ -227,6 +227,8 @@ describe("PropertyDetailScreen task-first detail contract", () => {
     );
     expect(within(overviewPanel).getByRole("heading", { name: "Units and leases" })).toBeTruthy();
     const propertyCard = within(overviewPanel).getByLabelText("Property details");
+    expect(propertyCard.parentElement?.className).toContain("2xl:grid-cols");
+    expect(within(propertyCard).queryByText("Property record is current")).toBeNull();
     expect(within(propertyCard).getByText("Maintenance overdue")).toBeTruthy();
     expect(within(propertyCard).queryByText("Evidence missing")).toBeNull();
     expect(within(propertyCard).getByText("Nestory Residence")).toBeTruthy();

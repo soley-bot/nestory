@@ -38,6 +38,7 @@ const unitRecordSections: Array<{
 export function UnitDetailView({
   initialSection = "overview",
   onAddDocument,
+  onCreateLease,
   onNewMaintenanceCase,
   onOpenLease,
   onOpenLedgerEntry,
@@ -47,6 +48,7 @@ export function UnitDetailView({
 }: {
   initialSection?: UnitRecordSection;
   onAddDocument: () => void;
+  onCreateLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
@@ -74,6 +76,7 @@ export function UnitDetailView({
         <UnitRecordPanel
           activeSection={activeSection}
           onAddDocument={onAddDocument}
+          onCreateLease={onCreateLease}
           onNewMaintenanceCase={onNewMaintenanceCase}
           onOpenLease={onOpenLease}
           onOpenLedgerEntry={onOpenLedgerEntry}
@@ -88,6 +91,7 @@ export function UnitDetailView({
 function UnitRecordPanel({
   activeSection,
   onAddDocument,
+  onCreateLease,
   onNewMaintenanceCase,
   onOpenLease,
   onOpenLedgerEntry,
@@ -96,6 +100,7 @@ function UnitRecordPanel({
 }: {
   activeSection: UnitRecordSection;
   onAddDocument: () => void;
+  onCreateLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
@@ -112,6 +117,7 @@ function UnitRecordPanel({
       {getUnitRecordPanelContent({
         activeSection,
         onAddDocument,
+        onCreateLease,
         onNewMaintenanceCase,
         onOpenLease,
         onOpenLedgerEntry,
@@ -125,6 +131,7 @@ function UnitRecordPanel({
 function getUnitRecordPanelContent({
   activeSection,
   onAddDocument,
+  onCreateLease,
   onNewMaintenanceCase,
   onOpenLease,
   onOpenLedgerEntry,
@@ -133,6 +140,7 @@ function getUnitRecordPanelContent({
 }: {
   activeSection: UnitRecordSection;
   onAddDocument: () => void;
+  onCreateLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
   onOpenLedgerEntry: (entry: UnitLedgerContext) => void;
@@ -140,7 +148,7 @@ function getUnitRecordPanelContent({
   unit: UnitDetail;
 }) {
   if (activeSection === "lease") {
-    return <UnitLeasePanel onOpenLease={onOpenLease} unit={unit} />;
+    return <UnitLeasePanel onCreateLease={onCreateLease} onOpenLease={onOpenLease} unit={unit} />;
   }
 
   if (activeSection === "finance") {
@@ -161,10 +169,16 @@ function getUnitRecordPanelContent({
     return <UnitFilesPanel onAddDocument={onAddDocument} unit={unit} />;
   }
 
-  return <UnitOverviewPanel unit={unit} />;
+  return <UnitOverviewPanel onCreateLease={onCreateLease} unit={unit} />;
 }
 
-function UnitOverviewPanel({ unit }: { unit: UnitDetail }) {
+function UnitOverviewPanel({
+  onCreateLease,
+  unit,
+}: {
+  onCreateLease: () => void;
+  unit: UnitDetail;
+}) {
   const openChecks = unit.healthIndicators.filter(
     (indicator) => indicator.tone !== "success",
   );
@@ -216,9 +230,18 @@ function UnitOverviewPanel({ unit }: { unit: UnitDetail }) {
         <section aria-label="Unit attention" id="unit-attention">
           <SectionTitle
             actions={
-              <span className="text-xs text-muted-foreground">
-                {openChecks.length} {openChecks.length === 1 ? "item" : "items"}
-              </span>
+              unit.repairAction.label === "Create draft lease" ? (
+                <Button onClick={onCreateLease} size="sm" variant="outline">
+                  {unit.repairAction.label}
+                </Button>
+              ) : (
+                <Link
+                  className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  href={unit.repairAction.href}
+                >
+                  {unit.repairAction.label}
+                </Link>
+              )
             }
             title="Attention"
           />
@@ -256,20 +279,31 @@ function UnitOverviewPanel({ unit }: { unit: UnitDetail }) {
 }
 
 function UnitLeasePanel({
+  onCreateLease,
   onOpenLease,
   unit,
 }: {
+  onCreateLease: () => void;
   onOpenLease: () => void;
   unit: UnitDetail;
 }) {
+  const setupAction =
+    unit.repairAction.label === "Create draft lease" ? (
+      <Button onClick={onCreateLease} size="sm">Create draft lease</Button>
+    ) : (
+      <Link
+        className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        href={unit.repairAction.href}
+      >
+        {unit.repairAction.label}
+      </Link>
+    );
+
   if (!unit.activeLease) {
     if (unit.draftLease) {
       return (
         <section id="unit-lease">
-          <SectionTitle title="Lease" />
-          <p className="py-3 text-sm text-muted-foreground">
-            This draft does not establish occupancy. Use the Continue draft action above.
-          </p>
+          <SectionTitle actions={setupAction} title="Lease" />
           <dl className="grid grid-cols-1 divide-y divide-border border-y border-border py-3 text-sm sm:grid-cols-4 sm:divide-x sm:divide-y-0">
             <Detail label="Tenant" value={unit.draftLease.tenantName} />
             <Detail label="Status" value={unit.draftLease.statusLabel} />
@@ -290,14 +324,14 @@ function UnitLeasePanel({
 
     const explanation =
       unit.readiness.operational === "maintenance"
-        ? "This Unit is in maintenance. Complete the operational work before leasing."
+        ? "Unavailable while this unit is in maintenance."
         : unit.readiness.operational === "inactive"
-          ? "This Unit is inactive. Return it to an available operational state before leasing."
-          : "No current or draft Lease is linked. Use the Create draft lease action above.";
+          ? "Unavailable while this unit is inactive."
+          : "No current lease.";
 
     return (
       <section id="unit-lease">
-        <SectionTitle title="Lease" />
+        <SectionTitle actions={setupAction} title="Lease" />
         <p className="py-6 text-sm text-muted-foreground">{explanation}</p>
       </section>
     );

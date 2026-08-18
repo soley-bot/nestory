@@ -482,14 +482,14 @@ function getScreen(
         props.canRecordPayments || canConfigureRent || canRecoverRent ? (
           <>
             {canRecoverRent ? (
-              <Button onClick={() => openModal({ mode: "rent-recovery" })}>
+              <Button onClick={() => openModal({ mode: "rent-recovery" })} variant="ghost">
                 Recover missed month
               </Button>
             ) : null}
             {props.canRecordPayments ? (
               <Button
                 onClick={() => openModal({ mode: "payment" })}
-                variant="default"
+                variant="outline"
               >
                 <WalletCards size={15} /> Record payment
               </Button>
@@ -1100,8 +1100,12 @@ function RentView({
                       )}
                     </Td>
                     <Td>
-                      <Money amount={invoice.balanceDue} />
-                      {invoice.totalAmount !== invoice.balanceDue ? (
+                      {invoice.balanceDue === 0 ? (
+                        <p className="font-medium tabular-nums">Paid {formatMoneyDisplay(invoice.totalAmount).primary}</p>
+                      ) : (
+                        <Money amount={invoice.balanceDue} />
+                      )}
+                      {invoice.balanceDue > 0 && invoice.totalAmount !== invoice.balanceDue ? (
                         <p className="mt-1 text-xs text-muted-foreground">
                           of {formatMoneyDisplay(invoice.totalAmount).primary}
                         </p>

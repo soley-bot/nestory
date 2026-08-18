@@ -65,20 +65,9 @@ describe("LeaseDetailScreen", () => {
     expect(
       screen.getAllByText(/Riverside House \/ Unit 2A/).length,
     ).toBeGreaterThan(0);
-    expect(
-      screen.getByRole("heading", { name: "Manage lease" }),
-    ).not.toBeNull();
     expect(screen.getByRole("button", { name: "Renew lease" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Change rent" })).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Record notice" }),
-    ).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Complete move-out" }),
-    ).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Terminate lease" }),
-    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Manage lease" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Change rent" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Edit lease" })).toBeNull();
   });
 
@@ -186,7 +175,8 @@ describe("LeaseDetailScreen", () => {
     const user = userEvent.setup();
     renderDetail("overview");
 
-    await user.click(screen.getByRole("button", { name: "Complete move-out" }));
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Complete move-out" }));
 
     const dialog = screen.getByRole("dialog", { name: "Complete move-out" });
     expect(within(dialog).getByLabelText("Move-out date")).not.toBeNull();
@@ -199,7 +189,8 @@ describe("LeaseDetailScreen", () => {
     const user = userEvent.setup();
     renderDetail("overview");
 
-    await user.click(screen.getByRole("button", { name: "Record notice" }));
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    await user.click(screen.getByRole("menuitem", { name: "Record notice" }));
 
     const dialog = screen.getByRole("dialog", { name: "Record notice" });
     expect(within(dialog).getByLabelText("Notice date")).not.toBeNull();
@@ -234,8 +225,10 @@ describe("LeaseDetailScreen", () => {
     },
   );
 
-  it("describes deposit activity as user actions instead of stored event rows", () => {
+  it("keeps rent history and deposit entry collapsed until requested", async () => {
+    const user = userEvent.setup();
     const lease = makeLease();
+    lease.terms.push({ ...lease.terms[0]!, id: "term-old", status: "superseded" });
     lease.deposits[0]!.events = [
       {
         amountDisplay: lease.deposits[0]!.amountDisplay,
@@ -252,14 +245,17 @@ describe("LeaseDetailScreen", () => {
     expect(
       screen.getByRole("heading", { name: "Rent schedule" }),
     ).not.toBeNull();
+    expect(screen.queryByText("Rent status")).toBeNull();
     expect(
       screen.getByRole("heading", { name: "Deposit activity" }),
     ).not.toBeNull();
-    expect(screen.getAllByText(/Deposit received/).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Replaced")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Rent history" }));
+    expect(screen.getByText("Replaced")).not.toBeNull();
+    expect(screen.queryByText(/Receipt or note/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Record deposit activity" }));
     expect(screen.getByText(/Receipt or note/)).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Save deposit activity" }),
-    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Save deposit activity" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Undo entry" })).not.toBeNull();
     expect(screen.queryByText(/received \/ /)).toBeNull();
   });

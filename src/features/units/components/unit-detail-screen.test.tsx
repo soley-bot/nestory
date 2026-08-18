@@ -33,9 +33,10 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Unit 12A" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "More" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Review overdue issue" })).toBeTruthy();
-    expect(screen.getByText("Operational readiness: Available")).toBeTruthy();
-    expect(screen.getByText("Lease state: Occupied")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Unit next action" })).toBeNull();
+    expect(screen.queryByText("Operational readiness: Available")).toBeNull();
+    expect(screen.queryByText("Lease state: Occupied")).toBeNull();
+    expect(screen.getByText(/Occupied.*Lease ends/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
 
     const tablist = screen.getByRole("tablist");
@@ -63,6 +64,7 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(within(panel).queryByText("Status needs review")).toBeNull();
     expect(within(panel).queryByText(/unit status is not occupied/i)).toBeNull();
     expect(within(panel).getByText("Evidence missing")).toBeTruthy();
+    expect(within(panel).getByRole("link", { name: "Review overdue issue" })).toBeTruthy();
     expect(within(panel).queryByRole("heading", { name: "Unit context" })).toBeNull();
     expect(within(panel).queryByRole("heading", { name: "Record quality" })).toBeNull();
     expect(within(panel).queryByText(/recent profile changes/i)).toBeNull();
@@ -174,7 +176,7 @@ describe("UnitDetailScreen focused operating record", () => {
 
     const panel = screen.getByRole("tabpanel", { name: "Lease" });
     expect(within(panel).queryByRole("link", { name: "Add lease" })).toBeNull();
-    expect(within(panel).getByText(/no current or draft lease/i)).toBeTruthy();
+    expect(within(panel).getByText("No current lease.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Create draft lease" }));
 
     const drawer = screen.getByRole("dialog", { name: "Create lease" });
@@ -196,7 +198,7 @@ describe("UnitDetailScreen focused operating record", () => {
 
     const panel = screen.getByRole("tabpanel", { name: "Lease" });
     expect(within(panel).queryByRole("button", { name: "Add lease" })).toBeNull();
-    expect(within(panel).getByText(/maintenance.*before leasing/i)).toBeTruthy();
+    expect(within(panel).getByText("Unavailable while this unit is in maintenance.")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Log maintenance case" })).toBeTruthy();
     expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
   });
@@ -210,6 +212,7 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(within(panel).getByText("Draft")).toBeTruthy();
     expect(within(panel).getByText("Lease dates")).toBeTruthy();
     expect(within(panel).getByText("Monthly rent")).toBeTruthy();
+    expect(within(panel).queryByText(/does not establish occupancy/i)).toBeNull();
     expect(
       screen.getByRole("link", { name: "Continue draft" }).getAttribute("href"),
     ).toBe("/leases/draft-lease-1");

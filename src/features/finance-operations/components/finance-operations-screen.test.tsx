@@ -375,6 +375,31 @@ describe("FinanceOperationsScreen", () => {
     ).toBeNull();
   });
 
+  it("states the paid amount instead of leading a settled invoice with zero", () => {
+    const props = data();
+    props.tenantInvoices = [
+      {
+        ...tenantInvoice(),
+        balanceDue: 0,
+        paidThroughIps: 785,
+        paymentStatus: "paid",
+        totalAmount: 785,
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...props}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+
+    expect(screen.getByText("Paid USD 785.00")).not.toBeNull();
+    expect(screen.queryByText("of USD 785.00")).toBeNull();
+  });
+
   it("opens lease billing as one compact prefilled form", () => {
     render(
       <FinanceOperationsScreen

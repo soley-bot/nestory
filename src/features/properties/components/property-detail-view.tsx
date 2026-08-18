@@ -400,7 +400,7 @@ function PropertyOverviewWorkspace({
         />
       </dl>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,2.45fr)_minmax(300px,0.9fr)] xl:items-stretch">
+      <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,2.45fr)_minmax(300px,0.9fr)] 2xl:items-stretch">
         <PropertyOverviewUnits property={property} />
         <PropertyOverviewCard onAssignOwner={onAssignOwner} property={property} />
       </div>
@@ -738,9 +738,7 @@ function PropertyOverviewCard({
               />
               <span className="truncate">{attention.label}</span>
             </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">Property record is current</p>
-          )}
+          ) : null}
           <PropertyOverviewAction
             action={property.nextAction}
             onAssignOwner={onAssignOwner}
