@@ -230,7 +230,10 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
                           href: `/properties/${props.scope.propertyId}`,
                           label: props.scope.propertyLabel,
                         },
-                        { href: `/units/${props.scope.id}`, label: props.scope.label },
+                        {
+                          href: `/units/${props.scope.id}`,
+                          label: props.scope.label,
+                        },
                       ]
                 }
               />
@@ -244,7 +247,9 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
             }
             title={`${props.scope.label} finance`}
           />
-        ) : "header" in screen ? screen.header : undefined
+        ) : "header" in screen ? (
+          screen.header
+        ) : undefined
       }
       headerClassName="px-4 py-3 sm:px-6 lg:py-3 2xl:px-8"
       localNav={
@@ -450,10 +455,22 @@ function ScopedFinanceNavigation({
       ? `/properties/${scope.id}/finance`
       : `/units/${scope.id}/finance`;
   const items = [
-    { active: view === "rent", href: `${base}?view=rent`, label: "Rent & charges" },
-    { active: view === "expenses", href: `${base}?view=expenses`, label: "Expenses" },
+    {
+      active: view === "rent",
+      href: `${base}?view=rent`,
+      label: "Rent & charges",
+    },
+    {
+      active: view === "expenses",
+      href: `${base}?view=expenses`,
+      label: "Expenses",
+    },
     scope.kind === "property"
-      ? { active: view === "account", href: `${base}?view=owner`, label: "Owner account" }
+      ? {
+          active: view === "account",
+          href: `${base}?view=owner`,
+          label: "Owner account",
+        }
       : {
           active: false,
           href: `/properties/${scope.propertyId}/finance?view=owner`,
@@ -479,6 +496,9 @@ function getScreen(
   const canRecoverRent = props.canRecoverRent;
 
   if (props.view === "rent") {
+    const focusedLease = props.initialRentLeaseId
+      ? props.leases.find((lease) => lease.id === props.initialRentLeaseId)
+      : undefined;
     const invoices = props.initialRentLeaseId
       ? props.tenantInvoices.filter(
           (invoice) => invoice.leaseId === props.initialRentLeaseId,
@@ -496,33 +516,50 @@ function getScreen(
       : [];
     const scopedLease = scopedLeases.length === 1 ? scopedLeases[0] : undefined;
     const canRecordScopedPayment =
-      props.canRecordPayments && invoices.some((invoice) => invoice.balanceDue > 0);
+      props.canRecordPayments &&
+      invoices.some((invoice) => invoice.balanceDue > 0);
+    const focusedPayableInvoice = props.initialRentLeaseId
+      ? invoices.find((invoice) => invoice.balanceDue > 0)
+      : undefined;
     return {
       activeRoute: "/rent-income" as const,
       actions:
         canRecordScopedPayment || canConfigureRent || canRecoverRent ? (
           <>
-            {canRecoverRent ? (
-              <Button onClick={() => openModal({ mode: "rent-recovery" })} variant="ghost">
+            {canRecoverRent && !props.initialRentLeaseId ? (
+              <Button
+                onClick={() => openModal({ mode: "rent-recovery" })}
+                variant="ghost"
+              >
                 Recover missed month
               </Button>
             ) : null}
             {canRecordScopedPayment ? (
               <Button
-                onClick={() => openModal({ mode: "payment" })}
+                onClick={() =>
+                  openModal(
+                    focusedPayableInvoice
+                      ? { invoice: focusedPayableInvoice, mode: "payment" }
+                      : { mode: "payment" },
+                  )
+                }
                 variant="outline"
               >
                 <WalletCards size={15} /> Record payment
               </Button>
             ) : null}
-            {canConfigureRent ? (
+            {canConfigureRent && !props.initialRentLeaseId ? (
               <Button
-                onClick={() => openModal({
-                  lease: props.initialRentLeaseId
-                    ? props.leases.find((lease) => lease.id === props.initialRentLeaseId)
-                    : scopedLease,
-                  mode: "manual-charge",
-                })}
+                onClick={() =>
+                  openModal({
+                    lease: props.initialRentLeaseId
+                      ? props.leases.find(
+                          (lease) => lease.id === props.initialRentLeaseId,
+                        )
+                      : scopedLease,
+                    mode: "manual-charge",
+                  })
+                }
               >
                 <Plus size={15} /> Add tenant charge
               </Button>
@@ -538,7 +575,9 @@ function getScreen(
       ),
       context: `${invoices.length} ${invoices.length === 1 ? "invoice" : "invoices"}`,
       contextHref: "/rent-income",
-      title: "Rent & collections",
+      title: focusedLease
+        ? `First rent charge · ${focusedLease.tenantLabel}`
+        : "Rent & collections",
       toolbar: undefined,
     };
   }
@@ -1119,11 +1158,14 @@ function RentView({
                     </Td>
                     <Td>
                       {invoice.balanceDue === 0 ? (
-                        <p className="font-medium tabular-nums">Paid {formatMoneyDisplay(invoice.totalAmount).primary}</p>
+                        <p className="font-medium tabular-nums">
+                          Paid {formatMoneyDisplay(invoice.totalAmount).primary}
+                        </p>
                       ) : (
                         <Money amount={invoice.balanceDue} />
                       )}
-                      {invoice.balanceDue > 0 && invoice.totalAmount !== invoice.balanceDue ? (
+                      {invoice.balanceDue > 0 &&
+                      invoice.totalAmount !== invoice.balanceDue ? (
                         <p className="mt-1 text-xs text-muted-foreground">
                           of {formatMoneyDisplay(invoice.totalAmount).primary}
                         </p>
@@ -2417,10 +2459,15 @@ function ExpenseForm({
     actionInitialState,
   );
   const [propertyId, setPropertyId] = useState(
-    fixedScope?.propertyId ?? initialInvoice?.propertyId ?? propertyOptions[0]?.id ?? "",
+    fixedScope?.propertyId ??
+      initialInvoice?.propertyId ??
+      propertyOptions[0]?.id ??
+      "",
   );
   const [unitId, setUnitId] = useState(
-    fixedScope?.kind === "unit" ? fixedScope.id : initialInvoice?.unitId ?? "",
+    fixedScope?.kind === "unit"
+      ? fixedScope.id
+      : (initialInvoice?.unitId ?? ""),
   );
   const [category, setCategory] = useState("cleaning");
   const [vendor, setVendor] = useState("");
@@ -2496,84 +2543,88 @@ function ExpenseForm({
         step="01"
         title="Cost record"
       >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Property">
-          {fixedScope ? (
-            <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
-              {fixedScope.propertyLabel}
-            </div>
-          ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Property">
+            {fixedScope ? (
+              <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
+                {fixedScope.propertyLabel}
+              </div>
+            ) : (
+              <SelectControl
+                onValueChange={(value) => {
+                  setPropertyId(value);
+                  setUnitId("");
+                  setTenantInvoiceId("");
+                  setReconciliationSourceId(
+                    reconciliationSources.find(
+                      (source) =>
+                        source.propertyId == null ||
+                        source.propertyId === value,
+                    )?.id ?? "",
+                  );
+                }}
+                options={propertyOptions.map((option) => ({
+                  label: option.label,
+                  value: option.id,
+                }))}
+                value={propertyId}
+              />
+            )}
+          </Field>
+          <Field label="Unit">
+            {fixedScope?.kind === "unit" ? (
+              <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
+                {fixedScope.label}
+              </div>
+            ) : (
+              <SelectControl
+                onValueChange={(value) => {
+                  setUnitId(value);
+                  const selectedInvoice = invoices.find(
+                    (invoice) => invoice.id === tenantInvoiceId,
+                  );
+                  if (selectedInvoice?.unitId !== (value || null)) {
+                    setTenantInvoiceId("");
+                  }
+                }}
+                options={[
+                  { label: "No unit", value: "" },
+                  ...unitOptions
+                    .filter((option) => option.propertyId === propertyId)
+                    .map((option) => ({
+                      label: option.label,
+                      value: option.id,
+                    })),
+                ]}
+                value={unitId}
+              />
+            )}
+          </Field>
+          <Field label="Paid-cost category">
             <SelectControl
-            onValueChange={(value) => {
-              setPropertyId(value);
-              setUnitId("");
-              setTenantInvoiceId("");
-              setReconciliationSourceId(
-                reconciliationSources.find(
-                  (source) =>
-                    source.propertyId == null || source.propertyId === value,
-                )?.id ?? "",
-              );
-            }}
-            options={propertyOptions.map((option) => ({
-              label: option.label,
-              value: option.id,
-            }))}
-            value={propertyId}
-          />
-          )}
-        </Field>
-        <Field label="Unit">
-          {fixedScope?.kind === "unit" ? (
-            <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
-              {fixedScope.label}
-            </div>
-          ) : (
-            <SelectControl
-            onValueChange={(value) => {
-              setUnitId(value);
-              const selectedInvoice = invoices.find(
-                (invoice) => invoice.id === tenantInvoiceId,
-              );
-              if (selectedInvoice?.unitId !== (value || null)) {
-                setTenantInvoiceId("");
-              }
-            }}
-            options={[
-              { label: "No unit", value: "" },
-              ...unitOptions
-                .filter((option) => option.propertyId === propertyId)
-                .map((option) => ({ label: option.label, value: option.id })),
-            ]}
-            value={unitId}
-          />
-          )}
-        </Field>
-        <Field label="Paid-cost category">
-          <SelectControl
-            ariaLabel="Paid-cost category"
-            onValueChange={setCategory}
-            options={[
-              { label: "Cleaning", value: "cleaning" },
-              { label: "Utility", value: "utility" },
-              {
-                label: "Repairs and maintenance",
-                value: "repairs_maintenance",
-              },
-              { label: "Other", value: "other" },
-            ]}
-            value={category}
-          />
-        </Field>
-        <Field label="Paid to">
-          <Input
-            onChange={(event) => setVendor(event.target.value)}
-            placeholder="Vendor or payee"
-            required
-            value={vendor}
-          />
-        </Field>
-      </div>
+              ariaLabel="Paid-cost category"
+              onValueChange={setCategory}
+              options={[
+                { label: "Cleaning", value: "cleaning" },
+                { label: "Utility", value: "utility" },
+                {
+                  label: "Repairs and maintenance",
+                  value: "repairs_maintenance",
+                },
+                { label: "Other", value: "other" },
+              ]}
+              value={category}
+            />
+          </Field>
+          <Field label="Paid to">
+            <Input
+              onChange={(event) => setVendor(event.target.value)}
+              placeholder="Vendor or payee"
+              required
+              value={vendor}
+            />
+          </Field>
+        </div>
       </FormSection>
 
       <FormSection
@@ -2583,21 +2634,21 @@ function ExpenseForm({
         title="Payment"
       >
         <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Amount paid">
-          <NumberInput
-            onChange={(event) => setCost(event.target.value)}
-            required
-            value={cost}
-          />
-        </Field>
-        <Field label="Paid date">
-          <Input
-            onChange={(event) => setExpenseDate(event.target.value)}
-            type="date"
-            value={expenseDate}
-          />
-        </Field>
-      </div>
+          <Field label="Amount paid">
+            <NumberInput
+              onChange={(event) => setCost(event.target.value)}
+              required
+              value={cost}
+            />
+          </Field>
+          <Field label="Paid date">
+            <Input
+              onChange={(event) => setExpenseDate(event.target.value)}
+              type="date"
+              value={expenseDate}
+            />
+          </Field>
+        </div>
       </FormSection>
 
       <FormSection
@@ -2606,77 +2657,77 @@ function ExpenseForm({
         step="03"
         title="Responsibility"
       >
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium">Charge this to</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Button
-            aria-pressed={effectiveResponsibility === "owner"}
-            className={cn(
-              "h-auto justify-start px-3 py-3 text-left",
-              effectiveResponsibility === "owner"
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground",
-            )}
-            onClick={() => setResponsibility("owner")}
-            type="button"
-            variant="outline"
-          >
-            Property owner
-          </Button>
-          <Button
-            aria-pressed={effectiveResponsibility === "tenant"}
-            className={cn(
-              "h-auto justify-start px-3 py-3 text-left",
-              effectiveResponsibility === "tenant"
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground",
-            )}
-            onClick={() => setResponsibility("tenant")}
-            type="button"
-            variant="outline"
-          >
-            Tenant or company
-          </Button>
-        </div>
-      </fieldset>
-
-      {effectiveResponsibility === "tenant" ? (
-        <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
-          <Field label="Invoice">
-            <SelectControl
-              onValueChange={(value) => {
-                setTenantInvoiceId(value);
-                const invoice = invoices.find((item) => item.id === value);
-                setUnitId(invoice?.unitId ?? "");
-              }}
-              options={matchingInvoices.map((invoice) => ({
-                label: `${invoice.recipientLabel} · ${invoice.invoiceNumber}`,
-                value: invoice.id,
-              }))}
-              placeholder={
-                matchingInvoices.length > 0
-                  ? "Choose invoice"
-                  : "No open invoice"
-              }
-              value={tenantInvoiceId}
-            />
-          </Field>
-          <Field label="Service fee">
-            <NumberInput
-              onChange={(event) => setMarkup(event.target.value)}
-              required
-              value={markup}
-            />
-          </Field>
-          <div className="flex items-center justify-between gap-4 border-t border-border pt-3 text-sm sm:col-span-2">
-            <span className="text-muted-foreground">Invoice line</span>
-            <span className="font-semibold">
-              {categoryLabel(category)} ·{" "}
-              {formatMoneyDisplay(invoiceTotal).primary}
-            </span>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Charge this to</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              aria-pressed={effectiveResponsibility === "owner"}
+              className={cn(
+                "h-auto justify-start px-3 py-3 text-left",
+                effectiveResponsibility === "owner"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => setResponsibility("owner")}
+              type="button"
+              variant="outline"
+            >
+              Property owner
+            </Button>
+            <Button
+              aria-pressed={effectiveResponsibility === "tenant"}
+              className={cn(
+                "h-auto justify-start px-3 py-3 text-left",
+                effectiveResponsibility === "tenant"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => setResponsibility("tenant")}
+              type="button"
+              variant="outline"
+            >
+              Tenant or company
+            </Button>
           </div>
-        </div>
-      ) : null}
+        </fieldset>
+
+        {effectiveResponsibility === "tenant" ? (
+          <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+            <Field label="Invoice">
+              <SelectControl
+                onValueChange={(value) => {
+                  setTenantInvoiceId(value);
+                  const invoice = invoices.find((item) => item.id === value);
+                  setUnitId(invoice?.unitId ?? "");
+                }}
+                options={matchingInvoices.map((invoice) => ({
+                  label: `${invoice.recipientLabel} · ${invoice.invoiceNumber}`,
+                  value: invoice.id,
+                }))}
+                placeholder={
+                  matchingInvoices.length > 0
+                    ? "Choose invoice"
+                    : "No open invoice"
+                }
+                value={tenantInvoiceId}
+              />
+            </Field>
+            <Field label="Service fee">
+              <NumberInput
+                onChange={(event) => setMarkup(event.target.value)}
+                required
+                value={markup}
+              />
+            </Field>
+            <div className="flex items-center justify-between gap-4 border-t border-border pt-3 text-sm sm:col-span-2">
+              <span className="text-muted-foreground">Invoice line</span>
+              <span className="font-semibold">
+                {categoryLabel(category)} ·{" "}
+                {formatMoneyDisplay(invoiceTotal).primary}
+              </span>
+            </div>
+          </div>
+        ) : null}
       </FormSection>
 
       <FormSection
@@ -3237,7 +3288,12 @@ function ManualTenantChargeForm({
                 scope?.kind === "unit"
                   ? [["Tenant", fixedLease.tenantLabel]]
                   : scope?.kind === "property"
-                    ? [["Tenant", `${fixedLease.tenantLabel} · ${fixedLease.unitLabel}`]]
+                    ? [
+                        [
+                          "Tenant",
+                          `${fixedLease.tenantLabel} · ${fixedLease.unitLabel}`,
+                        ],
+                      ]
                     : [
                         ["Tenant", fixedLease.tenantLabel],
                         ["Property", fixedLease.propertyLabel],
@@ -3274,7 +3330,10 @@ function ManualTenantChargeForm({
               { label: "Manual rent", value: "manual_rent" },
               { label: "Utilities", value: "utilities" },
               { label: "Cleaning", value: "cleaning" },
-              { label: "Repairs and maintenance", value: "repairs_maintenance" },
+              {
+                label: "Repairs and maintenance",
+                value: "repairs_maintenance",
+              },
               { label: "Other", value: "other" },
             ]}
             value={chargeType}
@@ -3291,7 +3350,11 @@ function ManualTenantChargeForm({
         </Field>
         {existingInvoice ? (
           <Field label="Due date">
-            <input name="dueDate" type="hidden" value={existingInvoice.dueDate} />
+            <input
+              name="dueDate"
+              type="hidden"
+              value={existingInvoice.dueDate}
+            />
             <p className="flex h-8 items-center text-sm text-muted-foreground">
               {formatDate(existingInvoice.dueDate)} · joins{" "}
               {existingInvoice.invoiceNumber}
@@ -3321,11 +3384,19 @@ function ManualTenantChargeForm({
         </Field>
       </div>
 
-      <Field label={chargeType === "other" ? "Description" : "Description (optional)"}>
+      <Field
+        label={
+          chargeType === "other" ? "Description" : "Description (optional)"
+        }
+      >
         <Input
           aria-label="Description"
           name="description"
-          placeholder={chargeType === "other" ? "What is this charge for?" : "Optional note"}
+          placeholder={
+            chargeType === "other"
+              ? "What is this charge for?"
+              : "Optional note"
+          }
           required={chargeType === "other"}
         />
       </Field>

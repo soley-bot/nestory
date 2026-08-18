@@ -665,7 +665,7 @@ function DoneStep({
         href={`/rent-income?leaseId=${lease.id}`}
       >
         <KeyRound size={15} />
-        Open rent workspace
+        Review first rent charge
       </Link>
     </section>
   );

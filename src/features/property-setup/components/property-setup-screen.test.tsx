@@ -36,12 +36,16 @@ describe("PropertySetupScreen", () => {
     ).toBeTruthy();
 
     expect(
-      screen.getByText(/This unit already has an open lease for Existing tenant/),
+      screen.getByText(
+        /This unit already has an open lease for Existing tenant/,
+      ),
     ).toBeTruthy();
     expect(
-      (screen.getByRole("button", {
-        name: "Create new lease",
-      }) as HTMLButtonElement).disabled,
+      (
+        screen.getByRole("button", {
+          name: "Create new lease",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Use existing lease" }));
@@ -95,13 +99,17 @@ describe("PropertySetupScreen", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { level: 2, name: "Finish rent setup" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Finish rent setup" }),
+    ).toBeTruthy();
     expect(screen.queryByText("Setup complete")).toBeNull();
     expect(screen.getByText("1 required next step")).toBeTruthy();
     expect(screen.queryByText("Owner roster")).toBeNull();
     expect(screen.getByText("Billing terms")).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "Complete Billing terms" }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: "Complete Billing terms" })
+        .getAttribute("href"),
     ).toBe("/rent-income?leaseId=lease-1&action=billing");
     expect(screen.queryByText("2 readiness checks")).toBeNull();
     expect(screen.queryByRole("link", { name: "Owner" })).toBeNull();
@@ -144,7 +152,9 @@ describe("PropertySetupScreen", () => {
     expect(screen.getByText("Whole property")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Unit" })).toBeNull();
     expect(
-      screen.getByRole("link", { name: "Open rent workspace" }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: "Review first rent charge" })
+        .getAttribute("href"),
     ).toBe("/rent-income?leaseId=lease-1");
   });
 });
