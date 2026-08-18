@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/record-form";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 
@@ -121,6 +122,23 @@ function PortalControlsHarness() {
         </RecordField>
       </RecordForm>
     </SideDrawer>
+  );
+}
+
+function ModalSelectHarness() {
+  return (
+    <Modal onClose={vi.fn()} open title="Record payment">
+      <div className="p-4">
+        <label id="deposit-to-label">Deposit to</label>
+        <SelectControl
+          aria-labelledby="deposit-to-label"
+          options={[
+            { label: "Operating bank account", value: "operating" },
+            { label: "Petty cash", value: "petty" },
+          ]}
+        />
+      </div>
+    </Modal>
   );
 }
 
@@ -399,6 +417,18 @@ describe("record form contract", () => {
     await user.click(screen.getByRole("option", { name: "Active" }));
 
     expect(screen.getByText("Unsaved changes")).not.toBeNull();
+  });
+
+  it("portals modal select menus outside the clipped dialog surface", async () => {
+    const user = userEvent.setup();
+    render(<ModalSelectHarness />);
+    const dialog = screen.getByRole("dialog", { name: "Record payment" });
+
+    await user.click(screen.getByRole("combobox", { name: "Deposit to" }));
+    const listbox = screen.getByRole("listbox");
+
+    expect(dialog.contains(listbox)).toBe(false);
+    expect(document.body.contains(listbox)).toBe(true);
   });
 
   it("tracks date-only edits and Escape closes the calendar before the drawer", async () => {

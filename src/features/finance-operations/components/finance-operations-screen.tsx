@@ -2387,15 +2387,22 @@ function SettleInvoiceForm({
           />
         </Field>
         {invoice.collectionRoute === "through_ips" ? (
-          <Field label="Received in">
-            <SelectControl
-              name="reconciliationSourceId"
-              options={sources.map((source) => ({
-                label: source.label,
-                value: source.id,
-              }))}
-              required
-            />
+          <Field label="Deposit to">
+            <div className="space-y-1.5">
+              <SelectControl
+                name="reconciliationSourceId"
+                options={sources.map((source) => ({
+                  label: source.label,
+                  value: source.id,
+                }))}
+                placeholder="Choose receiving account"
+                required
+              />
+              <p className="text-xs leading-4 text-muted-foreground">
+                Choose the bank, cash, or collection account where this
+                payment was received.
+              </p>
+            </div>
           </Field>
         ) : null}
         <Field label="Reference">

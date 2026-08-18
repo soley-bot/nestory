@@ -30,8 +30,6 @@ export function Modal({
   size?: "compact" | "default"
   title: string
 }) {
-  const [portalContainer, setPortalContainer] = React.useState<HTMLDivElement | null>(null)
-
   return (
     <Dialog
       onOpenChange={(nextOpen) => {
@@ -39,7 +37,7 @@ export function Modal({
       }}
       open={open}
     >
-      <OverlayPortalContainerProvider value={portalContainer}>
+      <OverlayPortalContainerProvider value={null}>
         <DialogContent
           className={cn(
             "max-h-[min(82vh,680px)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0",
@@ -71,11 +69,6 @@ export function Modal({
           >
             {children}
           </div>
-          <div
-            className="contents"
-            data-slot="modal-portals"
-            ref={setPortalContainer}
-          />
         </DialogContent>
       </OverlayPortalContainerProvider>
     </Dialog>
