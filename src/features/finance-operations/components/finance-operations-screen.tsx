@@ -21,10 +21,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { MonthPickerField } from "@/components/ui/month-picker-field";
 import { NumberInput } from "@/components/ui/number-input";
+import { RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { Table, TableCell, TableHead } from "@/components/ui/table";
@@ -290,9 +292,11 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
             />
           ) : (
             <ExpenseForm
+              fixedScope={props.scope}
               initialInvoiceId={visibleDrawer.initialInvoiceId}
               initialResponsibility={visibleDrawer.initialResponsibility}
               invoices={props.tenantInvoices}
+              onClose={closeDrawer}
               onSuccess={onActionSuccess}
               propertyOptions={props.propertyOptions}
               reconciliationSources={props.reconciliationSources}
@@ -427,6 +431,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
             />
           ) : (
             <WithdrawalForm
+              onClose={closeModal}
               onSuccess={onActionSuccess}
               position={visibleModal.position}
             />
@@ -625,10 +630,10 @@ function getScreen(
             />
           }
           className="px-4 py-3 sm:px-6 2xl:px-8 lg:py-3"
-          title="Property account"
+          title="Owner account"
         />
       ) : undefined,
-      title: "Property account",
+      title: "Owner account",
       toolbar: undefined,
     };
   }
@@ -1174,8 +1179,8 @@ function ExpensesView({
   if (submissions.length === 0) {
     return (
       <EmptyState
-        body="Submit a paid property cost for Finance review. Nothing affects balances until approval."
-        className="h-full"
+        body="Record a paid cost to start Finance review."
+        className="min-h-64"
         kind="empty"
         title="No paid costs"
       />
@@ -2381,17 +2386,21 @@ function SettleInvoiceForm({
 }
 
 function ExpenseForm({
+  fixedScope,
   initialInvoiceId,
   initialResponsibility,
   invoices,
+  onClose,
   onSuccess,
   propertyOptions,
   reconciliationSources,
   unitOptions,
 }: {
+  fixedScope?: FinanceOperationsScreenProps["scope"];
   initialInvoiceId?: string;
   initialResponsibility?: "owner" | "tenant";
   invoices: TenantInvoiceSummary[];
+  onClose: () => void;
   onSuccess: (message: string) => void;
   propertyOptions: FinanceOperationsData["propertyOptions"];
   reconciliationSources: FinanceOperationsData["reconciliationSources"];
@@ -2401,14 +2410,16 @@ function ExpenseForm({
   const initialInvoice = invoices.find(
     (invoice) => invoice.id === initialInvoiceId,
   );
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     submitExpenseAction,
     actionInitialState,
   );
   const [propertyId, setPropertyId] = useState(
-    initialInvoice?.propertyId ?? propertyOptions[0]?.id ?? "",
+    fixedScope?.propertyId ?? initialInvoice?.propertyId ?? propertyOptions[0]?.id ?? "",
   );
-  const [unitId, setUnitId] = useState(initialInvoice?.unitId ?? "");
+  const [unitId, setUnitId] = useState(
+    fixedScope?.kind === "unit" ? fixedScope.id : initialInvoice?.unitId ?? "",
+  );
   const [category, setCategory] = useState("cleaning");
   const [vendor, setVendor] = useState("");
   const [cost, setCost] = useState("");
@@ -2443,7 +2454,17 @@ function ExpenseForm({
   const invoiceTotal = Number(cost || 0) + Number(effectiveMarkup || 0);
   useSuccess(state, onSuccess);
   return (
-    <form action={action} className="space-y-5 p-5">
+    <RecordForm
+      action={action}
+      allowSaveWhenClean={false}
+      ariaLabel="Record paid cost form"
+      onCancel={onClose}
+      pending={pending}
+      saveLabel="Submit for review"
+      savingLabel="Submitting paid cost"
+      state={state}
+    >
+      <WorkflowStageStrip current="finance" />
       <input name="propertyId" type="hidden" value={propertyId} />
       <input name="unitId" type="hidden" value={unitId} />
       <input name="category" type="hidden" value={category} />
@@ -2468,9 +2489,15 @@ function ExpenseForm({
         value={effectiveResponsibility === "tenant" ? tenantInvoiceId : ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+      <FormSection step="01" title="Cost record">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Property">
-          <SelectControl
+          {fixedScope ? (
+            <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
+              {fixedScope.propertyLabel}
+            </div>
+          ) : (
+            <SelectControl
             onValueChange={(value) => {
               setPropertyId(value);
               setUnitId("");
@@ -2488,9 +2515,15 @@ function ExpenseForm({
             }))}
             value={propertyId}
           />
+          )}
         </Field>
         <Field label="Unit">
-          <SelectControl
+          {fixedScope?.kind === "unit" ? (
+            <div className="flex min-h-8 items-center border-b border-border px-1 text-sm font-medium">
+              {fixedScope.label}
+            </div>
+          ) : (
+            <SelectControl
             onValueChange={(value) => {
               setUnitId(value);
               const selectedInvoice = invoices.find(
@@ -2508,6 +2541,7 @@ function ExpenseForm({
             ]}
             value={unitId}
           />
+          )}
         </Field>
         <Field label="Paid-cost category">
           <SelectControl
@@ -2533,6 +2567,11 @@ function ExpenseForm({
             value={vendor}
           />
         </Field>
+      </div>
+      </FormSection>
+
+      <FormSection step="02" title="Payment">
+        <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount paid">
           <NumberInput
             onChange={(event) => setCost(event.target.value)}
@@ -2548,9 +2587,11 @@ function ExpenseForm({
           />
         </Field>
       </div>
+      </FormSection>
 
-      <fieldset className="space-y-2 border-t border-border pt-4">
-        <legend className="text-sm font-semibold">Charge this to</legend>
+      <FormSection step="03" title="Responsibility">
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Charge this to</legend>
         <div className="grid gap-2 sm:grid-cols-2">
           <Button
             aria-pressed={effectiveResponsibility === "owner"}
@@ -2620,12 +2661,10 @@ function ExpenseForm({
           </div>
         </div>
       ) : null}
+      </FormSection>
 
-      <details className="border-t border-border pt-4">
-        <summary className="cursor-pointer text-sm font-semibold">
-          Receipt and reconciliation
-        </summary>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <FormSection step="04" title="Receipt and reconciliation">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Paid from">
             <SelectControl
               ariaLabel="Paid from"
@@ -2661,23 +2700,9 @@ function ExpenseForm({
             </Field>
           </div>
         </div>
-      </details>
+      </FormSection>
       <ActionMessage state={state} />
-      <FormFooter>
-        <span />
-        <SubmitButton
-          disabled={
-            !propertyId ||
-            !reconciliationSourceId ||
-            !vendor ||
-            !reference.trim() ||
-            Number(cost) <= 0 ||
-            (effectiveResponsibility === "tenant" && !tenantInvoiceId)
-          }
-          label="Submit for review"
-        />
-      </FormFooter>
-    </form>
+    </RecordForm>
   );
 }
 
@@ -3065,9 +3090,11 @@ function OwnerPaymentForm({
 }
 
 function WithdrawalForm({
+  onClose,
   onSuccess,
   position,
 }: {
+  onClose: () => void;
   onSuccess: (message: string) => void;
   position: PropertyFinancePosition;
 }) {
@@ -3079,6 +3106,7 @@ function WithdrawalForm({
   useSuccess(state, onSuccess);
   return (
     <form action={action} className="space-y-4 p-4">
+      <WorkflowStageStrip current="finance" />
       <DefinitionRows
         rows={[
           ["Property", position.propertyLabel],
@@ -3121,7 +3149,9 @@ function WithdrawalForm({
       </div>
       <ActionMessage state={state} />
       <FormFooter>
-        <span />
+        <Button onClick={onClose} type="button" variant="ghost">
+          Cancel
+        </Button>
         <SubmitButton label="Record owner distribution" />
       </FormFooter>
     </form>

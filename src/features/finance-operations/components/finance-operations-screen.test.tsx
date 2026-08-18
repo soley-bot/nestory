@@ -673,11 +673,11 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
     expect(screen.getByRole("button", { name: "Close drawer" })).not.toBeNull();
     expect(screen.queryByText("Already paid")).toBeNull();
-    const receiptSection = screen
-      .getByText("Receipt and reconciliation", { exact: true })
-      .closest("details");
+    const receiptSection = screen.getByRole("group", {
+      name: "Receipt and reconciliation",
+    });
     expect(receiptSection).not.toBeNull();
-    expect(receiptSection?.hasAttribute("open")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     expect(screen.getByText("Charge this to")).not.toBeNull();
     expect(
       screen.getByRole("button", { name: "Property owner" }),
@@ -685,7 +685,6 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.getByRole("button", { name: "Tenant or company" }),
     ).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
     expect(screen.getByLabelText("Paid-cost category")).not.toBeNull();
     expect(screen.getByLabelText("Amount paid")).not.toBeNull();
     expect(screen.getByLabelText("Paid date")).not.toBeNull();
@@ -705,6 +704,42 @@ describe("FinanceOperationsScreen", () => {
     expect(screen.getByText("Service fee")).not.toBeNull();
     expect(screen.getByText("Invoice line")).not.toBeNull();
     expect(screen.getByText("No open invoice")).not.toBeNull();
+  });
+
+  it("keeps a property-scoped paid cost inside the finance flow", () => {
+    render(
+      <FinanceOperationsScreen
+        {...data()}
+        {...financeCapabilities({ canSubmitExpense: true })}
+        organizationName="Sokha Property Services"
+        scope={{
+          id: "property-1",
+          kind: "property",
+          label: "HOME — Riverside Home",
+          propertyId: "property-1",
+          propertyLabel: "HOME — Riverside Home",
+        }}
+        view="expenses"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Record paid cost" }));
+    const drawer = screen.getByRole("dialog", { name: "Record paid cost" });
+    const form = within(drawer).getByRole("form", { name: "Record paid cost form" });
+
+    expect(within(form).getByText("Finance").getAttribute("aria-current")).toBe(
+      "step",
+    );
+    expect(within(form).queryByRole("combobox", { name: "Property" })).toBeNull();
+    expect(within(form).getByText("HOME — Riverside Home")).not.toBeNull();
+    expect(within(form).getByRole("heading", { name: "Cost record" })).not.toBeNull();
+    expect(within(form).getByRole("heading", { name: "Payment" })).not.toBeNull();
+    expect(within(form).getByRole("heading", { name: "Responsibility" })).not.toBeNull();
+    expect(
+      within(form).getByRole("heading", { name: "Receipt and reconciliation" }),
+    ).not.toBeNull();
+    expect(within(form).getByRole("button", { name: "Cancel" })).not.toBeNull();
+    expect(within(form).queryByText("No changes")).not.toBeNull();
   });
 
   it("lets Finance Members submit paid costs without exposing review controls", () => {
@@ -1482,7 +1517,7 @@ describe("FinanceOperationsScreen", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Property account" }),
+      screen.getByRole("heading", { name: "Owner account" }),
     ).not.toBeNull();
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(
@@ -1514,9 +1549,13 @@ describe("FinanceOperationsScreen", () => {
       name: "Record owner distribution",
     });
     await user.click(action);
-    expect(
-      screen.getByRole("dialog", { name: "Record owner distribution" }),
-    ).not.toBeNull();
+    const dialog = screen.getByRole("dialog", {
+      name: "Record owner distribution",
+    });
+    expect(within(dialog).getByText("Finance").getAttribute("aria-current")).toBe(
+      "step",
+    );
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).not.toBeNull();
   });
 
   it("surfaces a nonzero owner amount due as an account warning", () => {
