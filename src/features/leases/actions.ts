@@ -76,7 +76,7 @@ const termStatusSchema = z.enum([
   "terminated",
   "upcoming",
 ]);
-const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "applied", "retained", "refunded"]), leaseDepositId: postgresUuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
+const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "retained", "refunded"]), leaseDepositId: postgresUuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
 const currentOccupancyEvidenceSchema = z
   .object({
     actualMoveInDate: dateSchema,
@@ -1039,6 +1039,10 @@ function leaseActionErrorMessage(message: string) {
 
   if (message.includes("violates foreign key")) {
     return "Choose valid property and unit records before saving this lease.";
+  }
+
+  if (message.includes("lease_deposit_activity_recorded")) {
+    return "This deposit already has recorded activity. Reverse the deposit events before changing the amount.";
   }
 
   if (message.includes("Not authorized") || message.includes("row-level security")) {
