@@ -388,7 +388,6 @@ function LeaseRentAndDeposit({
                         name="eventType"
                         options={[
                           { label: "Deposit received", value: "received" },
-                          { label: "Deposit used", value: "applied" },
                           { label: "Deposit retained", value: "retained" },
                           { label: "Deposit refunded", value: "refunded" },
                         ]}

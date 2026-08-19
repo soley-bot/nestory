@@ -76,7 +76,7 @@ const termStatusSchema = z.enum([
   "terminated",
   "upcoming",
 ]);
-const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "applied", "retained", "refunded"]), leaseDepositId: postgresUuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
+const depositEventSchema = z.object({ amount: z.coerce.number().positive("Enter a positive amount."), eventDate: dateSchema, eventType: z.enum(["received", "retained", "refunded"]), leaseDepositId: postgresUuid("Choose a lease deposit."), reference: z.string().trim().max(200) });
 const currentOccupancyEvidenceSchema = z
   .object({
     actualMoveInDate: dateSchema,
@@ -694,7 +694,7 @@ export async function updateLeaseAction(
     return {
       message:
         getLeaseMutationErrorMessage(error, "update") ??
-        leaseActionErrorMessage(error.message),
+        leaseActionErrorMessage(error.message, error.details),
       status: "error",
     };
   }
@@ -967,7 +967,8 @@ function getLeaseLifecycleSuccessMessage(
   }
 }
 
-function leaseActionErrorMessage(message: string) {
+function leaseActionErrorMessage(message: string, details?: string | null) {
+  const errorMessage = `${message} ${details ?? ""}`;
   if (isLeaseUnitTermConflict(message)) {
     return "This unit is already reserved for those dates.";
   }
@@ -1039,6 +1040,10 @@ function leaseActionErrorMessage(message: string) {
 
   if (message.includes("violates foreign key")) {
     return "Choose valid property and unit records before saving this lease.";
+  }
+
+  if (errorMessage.includes("lease_deposit_activity_recorded")) {
+    return "This deposit already has recorded activity. Reverse the deposit events before changing the amount.";
   }
 
   if (message.includes("Not authorized") || message.includes("row-level security")) {
