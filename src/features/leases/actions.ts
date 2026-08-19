@@ -694,7 +694,7 @@ export async function updateLeaseAction(
     return {
       message:
         getLeaseMutationErrorMessage(error, "update") ??
-        leaseActionErrorMessage(error.message),
+        leaseActionErrorMessage(error.message, error.details),
       status: "error",
     };
   }
@@ -967,7 +967,8 @@ function getLeaseLifecycleSuccessMessage(
   }
 }
 
-function leaseActionErrorMessage(message: string) {
+function leaseActionErrorMessage(message: string, details?: string | null) {
+  const errorMessage = `${message} ${details ?? ""}`;
   if (isLeaseUnitTermConflict(message)) {
     return "This unit is already reserved for those dates.";
   }
@@ -1041,7 +1042,7 @@ function leaseActionErrorMessage(message: string) {
     return "Choose valid property and unit records before saving this lease.";
   }
 
-  if (message.includes("lease_deposit_activity_recorded")) {
+  if (errorMessage.includes("lease_deposit_activity_recorded")) {
     return "This deposit already has recorded activity. Reverse the deposit events before changing the amount.";
   }
 
