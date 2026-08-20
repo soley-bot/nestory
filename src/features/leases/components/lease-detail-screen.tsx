@@ -37,7 +37,12 @@ import type {
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatDate } from "@/lib/dates/format";
 
-type LeaseTransition = "activate" | "end" | "give_notice" | "terminate";
+type LeaseTransition =
+  | "activate"
+  | "cancel"
+  | "end"
+  | "give_notice"
+  | "terminate";
 type LeaseTermChange = "renewal" | "rent_change";
 
 type DrawerState = { mode: "archive" } | { mode: "edit" } | { mode: "restore" };
@@ -712,6 +717,15 @@ function getTransitionCopy(transition: LeaseTransition) {
       submitLabel: "Record notice",
       successMessage: "Notice recorded.",
       title: "Record notice",
+    };
+  }
+
+  if (transition === "cancel") {
+    return {
+      effectiveDateLabel: "Cancellation date",
+      submitLabel: "Cancel draft",
+      successMessage: "Draft lease cancelled.",
+      title: "Cancel draft",
     };
   }
 
