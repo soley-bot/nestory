@@ -86,12 +86,23 @@ async function nextIssue(args) {
     return;
   }
 
-  const issue = issues[0];
-  const event = await sentryRequest(
-    `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(String(issue.id))}/events/latest/`,
-  );
-  const summary = safeSummary(issue, event);
-  writeJson(summary);
+  let authorizationOnly;
+  for (const issue of issues) {
+    const event = await sentryRequest(
+      `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(String(issue.id))}/events/latest/?environment=production`,
+    );
+    if (!isProductionEvent(event)) continue;
+
+    const summary = safeSummary(issue, event);
+    if (summary.disposition === "insufficient_context") continue;
+    if (summary.disposition === "candidate") {
+      writeJson(summary);
+      return;
+    }
+    authorizationOnly ??= summary;
+  }
+
+  writeJson(authorizationOnly ?? { disposition: "no_candidate" });
 }
 
 async function resolveIssue(args) {
@@ -102,8 +113,24 @@ async function resolveIssue(args) {
     throw new CliError("resolve requires a numeric issue id and --release with an exact 40-character lowercase SHA.", 2);
   }
 
+  const issuePath = `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(issueId)}/`;
+  const issue = await sentryRequest(issuePath);
+  if (issue?.project?.slug !== sentryProject()) {
+    throw new CliError("Refusing to resolve an issue outside the configured Sentry project.", 2);
+  }
+  if (issue?.status !== "unresolved") {
+    throw new CliError("Refusing to resolve a Sentry issue that is not currently unresolved.", 2);
+  }
+  const event = await sentryRequest(`${issuePath}events/latest/?environment=production`);
+  if (!isProductionEvent(event)) {
+    throw new CliError("Refusing to resolve a non-production Sentry issue.", 2);
+  }
+  if (safeSummary(issue, event).disposition !== "candidate") {
+    throw new CliError("Refusing to resolve a protected-domain Sentry issue without authorization.", 2);
+  }
+
   await sentryRequest(
-    `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(issueId)}/`,
+    issuePath,
     {
       body: JSON.stringify({
         status: "resolved",
@@ -136,7 +163,7 @@ function sentryProject() {
 }
 
 async function sentryRequest(path, init = {}) {
-  const base = (process.env.SENTRY_AUTOFIX_API_BASE || "https://sentry.io").replace(/\/$/, "");
+  const base = sentryApiBase();
   let response;
   try {
     response = await fetch(`${base}${path}`, {
@@ -156,13 +183,36 @@ async function sentryRequest(path, init = {}) {
   return response.json();
 }
 
+function sentryApiBase() {
+  const rawBase = process.env.SENTRY_AUTOFIX_API_BASE || "https://sentry.io";
+  let base;
+  try {
+    base = new URL(rawBase);
+  } catch {
+    throw new CliError("SENTRY_AUTOFIX_API_BASE must be a valid trusted URL.", 2);
+  }
+
+  const trustedSentryHost =
+    base.protocol === "https:" && /(^|\.)sentry\.io$/i.test(base.hostname);
+  const testLocalhost =
+    process.env.NODE_ENV === "test" &&
+    base.protocol === "http:" &&
+    ["127.0.0.1", "::1", "localhost"].includes(base.hostname);
+  if (!trustedSentryHost && !testLocalhost) {
+    throw new CliError("Refusing to send the Sentry token to an untrusted API host.", 2);
+  }
+
+  return base.toString().replace(/\/$/, "");
+}
+
 function safeSummary(issue, event) {
   const exceptions = exceptionValues(event);
-  const rawFrames = exceptions
-    .flatMap((exception) => exception.stacktrace?.frames ?? [])
-    .filter((frame) => frame?.inApp !== false)
-    .slice(-10);
+  const rawFrames = exceptions.flatMap(
+    (exception) => exception.stacktrace?.frames ?? [],
+  );
   const frames = rawFrames
+    .filter((frame) => frame?.inApp !== false)
+    .slice(-10)
     .map((frame) => ({ filename: safeSourcePath(frame.filename) }))
     .filter((frame) => frame.filename !== undefined);
   const protectedText = [
@@ -178,7 +228,9 @@ function safeSummary(issue, event) {
     count: safeInteger(issue.count),
     disposition: containsProtectedDomain(protectedText)
       ? "requires_authorization"
-      : "candidate",
+      : exceptions.length === 0 || frames.length === 0
+        ? "insufficient_context"
+        : "candidate",
     firstSeen: safeTimestamp(issue.firstSeen),
     frames,
     id: String(issue.id),
@@ -187,6 +239,16 @@ function safeSummary(issue, event) {
     shortId: safeShortId(issue.shortId),
     userCount: safeInteger(issue.userCount),
   };
+}
+
+function isProductionEvent(event) {
+  if (typeof event?.environment === "string") {
+    return event.environment === "production";
+  }
+  const environmentTag = Array.isArray(event?.tags)
+    ? event.tags.find((tag) => tag?.key === "environment")
+    : undefined;
+  return environmentTag?.value === "production";
 }
 
 function exceptionValues(event) {
@@ -236,7 +298,9 @@ function safePermalink(value) {
   if (typeof value !== "string") return undefined;
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:") return undefined;
+    if (url.protocol !== "https:" || !/(^|\.)sentry\.io$/i.test(url.hostname)) {
+      return undefined;
+    }
     url.hash = "";
     url.search = "";
     return url.toString();
