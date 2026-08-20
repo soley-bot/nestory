@@ -101,9 +101,12 @@ async function nextIssue(args) {
   let authorizationOnly;
   for (const issue of issues) {
     const event = await sentryRequest(
-      `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(String(issue.id))}/events/latest/`,
+      `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(String(issue.id))}/events/latest/?environment=production`,
     );
     const summary = safeSummary(issue, event);
+    if (summary.environment !== "production") {
+      continue;
+    }
     if (summary.disposition === "candidate") {
       writeJson(summary);
       return;

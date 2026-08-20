@@ -3,12 +3,8 @@
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
 
-import { sha256Hex } from "@/features/documents/content-fingerprint";
 import type { WorkspaceRole } from "@/lib/auth/context";
-
-async function scopedTelemetryId(scope: "organization" | "user", value: string) {
-  return sha256Hex(new TextEncoder().encode(`nestory:sentry:${scope}:${value}`));
-}
+import { buildScopedSentryIdentity } from "@/lib/observability/sentry-identity";
 
 export function SentryIdentity({
   organizationId,
@@ -22,13 +18,13 @@ export function SentryIdentity({
   useEffect(() => {
     let active = true;
 
-    void Promise.all([
-      scopedTelemetryId("organization", organizationId),
-      scopedTelemetryId("user", `${organizationId}:${userId}`),
-    ]).then(([scopedOrganizationId, scopedUserId]) => {
+    void buildScopedSentryIdentity({ organizationId, role, userId }).then((identity) => {
       if (!active) return;
-      Sentry.setUser({ id: scopedUserId });
-      Sentry.setTags({ organization_id: scopedOrganizationId, role });
+      Sentry.setUser({ id: identity.scopedUserId });
+      Sentry.setTags({
+        organization_id: identity.scopedOrganizationId,
+        role: identity.role,
+      });
     }).catch(() => {
       if (!active) return;
       Sentry.setUser(null);

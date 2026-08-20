@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
+import * as Sentry from "@sentry/nextjs";
 import { AppShell } from "@/components/layout/app-shell";
 import { SentryIdentity } from "@/components/observability/sentry-identity";
 import { ThemeRuntime } from "@/components/theme-runtime";
 import { requireWorkspaceContext } from "@/lib/auth/context";
+import { buildScopedSentryIdentity } from "@/lib/observability/sentry-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,13 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const context = await requireWorkspaceContext();
+  const sentryIdentity = await buildScopedSentryIdentity(context);
+  const sentryScope = Sentry.getIsolationScope();
+  sentryScope.setUser({ id: sentryIdentity.scopedUserId });
+  sentryScope.setTags({
+    organization_id: sentryIdentity.scopedOrganizationId,
+    role: sentryIdentity.role,
+  });
   // SidebarProvider writes sidebar_state on every toggle; read it back so the
   // rail renders in the state the operator left it, with no flash on load.
   const cookieStore = await cookies();

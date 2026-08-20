@@ -158,9 +158,20 @@ test("next emits one redacted low-risk issue", async () => {
     );
     assert.equal(
       requests[1].url,
-      "/api/0/organizations/fixture-org/issues/101/events/latest/",
+      "/api/0/organizations/fixture-org/issues/101/events/latest/?environment=production",
     );
   });
+});
+
+test("next skips an issue whose latest event is not production", async () => {
+  await withFixtureServer(
+    { ...issue, environment: "preview" },
+    async ({ environment }) => {
+      const result = await runCli(["next", "--dry-run"], environment);
+      assert.equal(result.code, 0, result.stderr);
+      assert.deepEqual(JSON.parse(result.stdout), { disposition: "no_candidate" });
+    },
+  );
 });
 
 test("next prefers the provisioned Nestory project variables", async () => {
