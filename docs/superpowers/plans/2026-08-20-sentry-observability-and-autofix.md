@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver privacy-scrubbed Sentry error reporting for Nestory and an hourly local Codex automation that directly fixes only verified low-risk production errors.
+**Goal:** Deliver privacy-scrubbed Sentry error reporting for Nestory and an hourly local Codex automation that fixes only verified low-risk production errors through guarded pull requests.
 
-**Architecture:** Provision Sentry through the linked Vercel project, then wrap the official Next.js SDK with small Nestory-owned configuration and redaction helpers. A deterministic Node.js CLI will retrieve and redact one unresolved issue, enforce denylisted domains, and resolve only an explicitly identified issue; a Codex project automation will own code diagnosis, isolated-worktree changes, verification, non-force pushes to `main`, and post-deployment checks.
+**Architecture:** Provision Sentry through the linked Vercel project, then wrap the official Next.js SDK with small Nestory-owned configuration and redaction helpers. A deterministic Node.js CLI will retrieve and redact one unresolved issue, enforce denylisted domains, and resolve only an explicitly identified issue; a Codex project automation will own code diagnosis, isolated-worktree changes, verification, guarded pull requests, and post-deployment checks.
 
 **Tech Stack:** Next.js 16.2.9, React 19.2.7, `@sentry/nextjs`, TypeScript 5, Vitest 4, Node.js 24 test runner, Vercel CLI, Sentry REST API, Codex local project automation.
 
@@ -19,7 +19,7 @@
 - Missing Sentry configuration must never break local development, tests, CI, or application startup.
 - The automation processes at most one issue per run and never force-pushes, bypasses gates, or modifies another task's worktree.
 - Auth, permissions, RLS, migrations, financial workflows, environment settings, integrations, dependency-major upgrades, destructive operations, and ambiguous failures require user authorization.
-- Direct-to-main automation is allowed only after a failing regression test, relevant tests, lint, TypeScript, build, remote-base parity, and production verification.
+- Automation-owned pull requests are allowed only after a failing regression test, relevant tests, lint, TypeScript, build, remote-base integration, required review, and production verification.
 
 ---
 
@@ -409,7 +409,7 @@ git add package.json scripts/sentry-autofix.mjs scripts/sentry-autofix.node-test
 git commit -m "feat: add guarded Sentry issue runner"
 ```
 
-### Task 5: Create the Hourly Direct-Fix Automation and Verify the System
+### Task 5: Create the Hourly Guarded-PR Automation and Verify the System
 
 **Files:**
 - Modify only if durable operator guidance is needed: `docs/superpowers/specs/2026-08-20-sentry-observability-and-autofix-design.md`
@@ -432,7 +432,7 @@ npm run build
 git diff --check
 ```
 
-Expected: every command exits 0. Do not activate direct pushes while any command fails.
+Expected: every command exits 0. Do not activate the automation while any command fails.
 
 - [ ] **Step 2: Confirm non-force Git and deployment access without changing remote state**
 
@@ -453,7 +453,7 @@ Expected: credentials are valid, the worktree is clean, and the branch provenanc
 Create an hourly local project automation with this behavioral core:
 
 ```text
-Work in D:\nestory. Read PROJECT.md and the Sentry autofix spec first. Run `npm run sentry:autofix -- next --dry-run` and process at most one issue. If its disposition is not `candidate`, report it and stop. Fetch origin and inspect every worktree, branch, remote PR, and ownership conflict. Never modify an active checkout. Create a fresh isolated worktree from exact origin/main. Reproduce the issue with a failing test before editing. Never auto-change auth, roles, permissions, RLS, migrations, database types, financial workflows, secrets, environment, integrations, destructive behavior, or ambiguous failures. Run the relevant tier, lint, `npx tsc --noEmit`, `npm run test:all`, and `npm run build`. Fetch origin/main again and stop if it changed. Commit with the Sentry short ID and push non-forcefully with `git push origin HEAD:main`. Verify CI and the Vercel production deployment. Resolve with `npm run sentry:autofix -- resolve <issue-id> --release <40-char-sha>` only after healthy production verification and no recurring event. On failure, revert only if the automation commit remains exact origin/main tip and the revert passes the same gates; otherwise stop and report exact evidence. Remove only the automation-owned clean worktree. Never force-push, bypass a gate, or expose tokens or raw Sentry payloads.
+Work in D:\nestory. Read PROJECT.md and the Sentry autofix spec first. Load secrets only from D:\nestory\.env.local without printing them. Run `node --env-file-if-exists=D:\nestory\.env.local scripts/sentry-autofix.mjs next --dry-run` and process at most one issue. If its disposition is not `candidate`, report it and stop. Fetch origin and inspect every worktree, branch, remote PR, and ownership conflict. Never modify an active checkout. Create a fresh isolated worktree from exact origin/main. Reproduce the issue with a failing test before editing. Never auto-change auth, roles, permissions, RLS, migrations, database types, financial workflows, secrets, environment, integrations, destructive behavior, or ambiguous failures. Run the relevant tier, lint, `npx tsc --noEmit`, `npm run test:all`, and `npm run build`. Fetch origin/main again and integrate it safely if needed. Commit with the Sentry short ID, push only an automation-owned branch non-forcefully, and open a non-draft pull request. Wait for required CI, Vercel, CodeRabbit, and review evidence; never bypass protections or dismiss reviews. Merge through the protected PR flow only after all gates pass. Verify the exact merged Vercel production deployment and confirm the manual `pilot.nestory-kh.com` alias points to that READY deployment. Resolve with `node --env-file-if-exists=D:\nestory\.env.local scripts/sentry-autofix.mjs resolve <issue-id> --release <40-char-sha>` only after healthy production verification and no recurring event. On failure, prepare any revert on a new branch and use the same guarded PR flow; otherwise stop and report exact evidence. Remove only the automation-owned clean worktree. Never force-push, push directly to main, bypass a gate, broaden token scopes, or expose tokens or raw Sentry payloads.
 ```
 
 Set notifications for failed runs and authorization-required stops. The schedule is hourly in `Asia/Bangkok`, local execution, attached to the Nestory project.
@@ -464,7 +464,7 @@ Run the automation once with no unresolved synthetic issue and require a safe no
 
 - [ ] **Step 5: Verify a real Sentry event and source map**
 
-Deploy the instrumented branch through the approved direct-main path. Trigger the controlled authenticated error once. In Sentry, confirm environment `production`, exact Git SHA release, resolved source filename/line, normalized route, pseudonymous user ID, organization/role tags, and absence of prohibited data. Remove or disable the trigger and redeploy.
+Deploy the instrumented branch through the protected pull-request path. Trigger the controlled authenticated error once. In Sentry, confirm environment `production`, exact Git SHA release, resolved source filename/line, normalized route, pseudonymous user ID, organization/role tags, and absence of prohibited data. Remove or disable the trigger and redeploy.
 
 - [ ] **Step 6: Activate hourly execution and record exact state**
 

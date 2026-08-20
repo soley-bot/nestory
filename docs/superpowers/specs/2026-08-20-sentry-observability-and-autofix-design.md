@@ -5,7 +5,8 @@
 Nestory will report production application failures to Sentry with enough
 release, route, organization, and pseudonymous-user context to identify the
 affected workflow. A local Codex automation will inspect those issues and may
-apply low-risk fixes directly to `main` without opening a pull request.
+prepare low-risk fixes on isolated branches and merge them only through guarded
+pull requests.
 
 This design does not grant an agent authority to alter financial truth,
 authorization, database history, production secrets, or destructive behavior.
@@ -21,7 +22,7 @@ authorization, database history, production secrets, or destructive behavior.
   safe route identifier without sending names, email addresses, record labels,
   form values, query strings, cookies, or financial values.
 - Run a recurring local repair agent that processes at most one production
-  issue per run and pushes only verified, low-risk fixes directly to `main`.
+  issue per run and proposes only verified, low-risk fixes through pull requests.
 - Stop and notify the user whenever authorization, ambiguity, collision, or
   material product risk prevents a safe automatic fix.
 
@@ -41,7 +42,7 @@ Provisioning may pause for these explicit user actions:
 3. Create or approve a narrowly scoped Sentry API token with issue read and
    issue update access for the repair automation.
 4. Confirm GitHub or Git credential authorization if the local automation
-   cannot perform a non-force push to `main`.
+   cannot push an automation-owned branch or open a pull request.
 
 Secret values remain in Sentry, Vercel, the local automation environment, or
 the user's credential store. They must never appear in source, documentation,
@@ -110,9 +111,11 @@ A standalone local Codex project automation will run hourly in the
 7. Implement the smallest fix and run the relevant test tier plus lint,
    TypeScript checking, and a production build. Database tests are additionally
    required when a supposedly low-risk fix reaches a database-facing boundary.
-8. Fetch `origin/main` again and require that it is unchanged from the worktree
-   base. Commit with the Sentry issue ID and push non-forcefully to `main`.
-9. Observe CI, Vercel deployment status, and new Sentry events. Resolve the
+8. Fetch `origin/main` again, integrate it safely if needed, commit with the
+   Sentry issue ID, and push an automation-owned branch non-forcefully. Open a
+   non-draft pull request and wait for required checks and reviews without
+   bypassing or dismissing them. Merge only through the protected PR flow.
+9. Observe CI, the exact merged Vercel production deployment, and new Sentry events. Resolve the
    Sentry issue only after the production deployment is healthy and the failure
    does not recur during the verification window.
 10. Remove only the automation-owned, clean worktree after retaining the commit,
@@ -150,12 +153,12 @@ The automation must stop and notify the user for any change involving:
 
 ## Rollback and Failure Handling
 
-If the automation's production verification fails, it may automatically revert
-only when its commit is still the exact tip of `origin/main`, the revert applies
-cleanly, and the failure is attributable to that commit. The revert receives
-the same non-force push, CI, deployment, and production verification. In every
-other case the automation stops without modifying history and alerts the user
-with the exact commit, issue, failed check, and current remote state.
+If the automation's production verification fails, it must not rewrite or
+directly push `main`. It may prepare a revert only on a fresh isolated branch,
+open a guarded pull request, and merge it through the same required review,
+CI, deployment, and production verification path. If that cannot be done
+safely, it stops and alerts the user with the exact commit, issue, failed check,
+and current remote state.
 
 Repeated failures for the same issue are quarantined after one failed repair
 attempt until a human explicitly re-enables it. API authorization failures,
@@ -188,6 +191,6 @@ dry-run repair report. No secret values are retained in that evidence.
 The repair agent is a local Codex automation. It runs only while its configured
 local execution environment is available. It is not a substitute for Sentry
 alerting, CI, backups, review of high-risk failures, or production incident
-response. Direct-to-main fixes deliberately trade review latency for speed, so
-the narrow allowlist, one-issue limit, collision checks, full verification, and
-automatic quarantine are mandatory controls rather than optional guidance.
+response. The guarded pull-request path, narrow allowlist, one-issue limit,
+collision checks, full verification, and automatic quarantine are mandatory
+controls rather than optional guidance.
