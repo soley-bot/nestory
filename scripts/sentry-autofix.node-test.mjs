@@ -225,10 +225,12 @@ test("next never emits free-form strings from issue or event payloads", async ()
 
 test("next blocks plural and finance protected-domain terms", async () => {
   for (const title of [
+    "Authorization check failed",
     "Payments failed",
     "Expenses export failed",
     "Roles screen crashed",
     "Finance dashboard crashed",
+    "Unauthorized request",
   ]) {
     await withFixtureServer({ ...issue, title }, async ({ environment }) => {
       const result = await runCli(["next", "--dry-run"], environment);
@@ -274,7 +276,10 @@ test("resolve marks one issue resolved in the exact release", async () => {
     assert.equal(JSON.parse(result.stdout).status, "resolved");
     assert.equal(requests.length, 3);
     assert.equal(requests[0].method, "GET");
-    assert.match(requests[1].url, /events\/latest/);
+    assert.equal(
+      requests[1].url,
+      "/api/0/organizations/fixture-org/issues/101/events/latest/?environment=production",
+    );
     assert.equal(requests[2].method, "PUT");
     assert.deepEqual(JSON.parse(requests[2].body), {
       status: "resolved",

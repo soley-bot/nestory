@@ -7,6 +7,10 @@ const PROTECTED_TERMS = [
   "policy",
   "auth",
   "authentication",
+  "authorization",
+  "authorize",
+  "authorized",
+  "unauthorized",
   "invite",
   "permission",
   "permissions",
@@ -133,7 +137,7 @@ async function resolveIssue(args) {
   if (issue?.status !== "unresolved") {
     throw new CliError("Refusing to resolve a Sentry issue that is not currently unresolved.", 2);
   }
-  const event = await sentryRequest(`${issuePath}events/latest/`);
+  const event = await sentryRequest(`${issuePath}events/latest/?environment=production`);
   const summary = safeSummary(issue, event);
   if (summary.environment !== "production") {
     throw new CliError("Refusing to resolve a non-production Sentry issue.", 2);
