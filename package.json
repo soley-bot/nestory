@@ -21,6 +21,7 @@
     "test:maintenance-mobile": "node scripts/smoke-maintenance-mobile.mjs",
     "maintenance:run-local": "node scripts/run-maintenance-automation.mjs",
     "maintenance:test-runner": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/maintenance-automation-runner.node-test.mjs",
+    "sentry:autofix": "node scripts/sentry-autofix.mjs",
     "test:route-discoverability": "node scripts/verify-authenticated-route-discoverability.mjs",
     "test:fixture-route-discoverability": "node scripts/smoke-authenticated-route-discoverability.mjs",
     "test:fixture-roles": "node scripts/smoke-fixture-role-journeys.mjs",
