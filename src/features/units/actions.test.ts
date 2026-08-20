@@ -35,6 +35,7 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 import {
+  archiveUnitAction,
   createUnitAction,
   updateUnitAction,
 } from "@/features/units/actions";
@@ -144,6 +145,20 @@ describe("unit rent authority", () => {
       p_status: "vacant",
       p_unit_id: unitId,
       p_unit_number: "1A",
+    });
+  });
+
+  it("directs the operator to close an open lease before archiving its unit", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "Unit has an open Lease" },
+    });
+    const formData = new FormData();
+    formData.set("unitId", unitId);
+
+    await expect(archiveUnitAction({}, formData)).resolves.toEqual({
+      message: "End or cancel the open lease before archiving this unit.",
+      status: "error",
     });
   });
 });

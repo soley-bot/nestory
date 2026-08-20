@@ -16,6 +16,7 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 import {
+  archivePropertyAction,
   createPropertyAction,
   setPropertyRentalStructureAction,
   updatePropertyAction,
@@ -229,6 +230,20 @@ describe("property ownership authority inputs", () => {
       status: "error",
     });
     expect(rpc.mock.calls.at(-1)?.[1]).not.toHaveProperty("p_owner_mode");
+  });
+
+  it("directs the operator to close open leases before archiving a property", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "Property has an open Lease" },
+    });
+    const formData = new FormData();
+    formData.set("propertyId", propertyId);
+
+    await expect(archivePropertyAction({}, formData)).resolves.toEqual({
+      message: "End or cancel open leases before archiving this property.",
+      status: "error",
+    });
   });
 });
 

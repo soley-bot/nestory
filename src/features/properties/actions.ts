@@ -565,6 +565,10 @@ function propertyActionErrorMessage(message: string) {
     return "A property with this code already exists.";
   }
 
+  if (message.includes("Property has an open Lease")) {
+    return "End or cancel open leases before archiving this property.";
+  }
+
   if (message.includes("Property has active units")) {
     return "Archive or move active units before archiving this property.";
   }

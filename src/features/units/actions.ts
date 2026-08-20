@@ -427,6 +427,10 @@ function unitActionErrorMessage(message: string) {
     return "A unit with this number already exists for that property.";
   }
 
+  if (message.includes("Unit has an open Lease")) {
+    return "End or cancel the open lease before archiving this unit.";
+  }
+
   if (message.includes("Property not found")) {
     return "Choose an active property before saving this unit.";
   }
