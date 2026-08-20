@@ -4,15 +4,19 @@ Generated from package commands, GitHub workflows, script imports, source refere
 
 ## Summary
 
-- default-gate: 34
-- documented-operator: 2
-- reusable-support: 19
-- specialist-command: 52
+- default-gate: 35
+- documented-operator: 6
+- reusable-support: 21
+- specialist-command: 54
 
 ## Inventory
 
 | Script | Classification | Reference evidence |
 | --- | --- | --- |
+| `scripts/ci-deployment-gate.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `package:test:contracts` |
+| `scripts/cleanup-paid-cost-storage-orphans-core.mjs` | reusable-support | `docs/repository/script-inventory.md`, `scripts/cleanup-paid-cost-storage-orphans.mjs`, `scripts/cleanup-paid-cost-storage-orphans.node-test.mjs` |
+| `scripts/cleanup-paid-cost-storage-orphans.mjs` | documented-operator | `docs/repository/script-inventory.md` |
+| `scripts/cleanup-paid-cost-storage-orphans.node-test.mjs` | documented-operator | `docs/repository/script-inventory.md` |
 | `scripts/compare-ips-cutover-rehearsals.mjs` | documented-operator | `docs/repository/script-inventory.md`, `docs/runbooks/ips-cutover.md` |
 | `scripts/document-evidence-storage-cleanup.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:documents:test-evidence-storage` |
 | `scripts/document-evidence-storage.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:documents:test-evidence-storage`, `scripts/document-evidence-storage-cleanup.node-test.mjs` |
@@ -49,7 +53,7 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/owner-balance-lifecycle-concurrency.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:owners:test-lifecycle` |
 | `scripts/owner-balance-lifecycle-correction-concurrency.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:owners:test-lifecycle` |
 | `scripts/owner-balance-lifecycle-fixture-contract.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `package:owners:test-lifecycle`, `package:test:contracts` |
-| `scripts/owner-balance-lifecycle-loaded-fixture.node-test.mjs` | specialist-command | `package:owners:test-lifecycle`, `package:test:database:contracts` |
+| `scripts/owner-balance-lifecycle-loaded-fixture.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:owners:test-lifecycle`, `package:test:database:contracts` |
 | `scripts/owner-close-browser-contract.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `package:test:contracts` |
 | `scripts/owner-close-concurrency.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:owners:test-close` |
 | `scripts/owner-opening-balance-schema-concurrency.node-test.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:owners:test-workflow` |
@@ -67,9 +71,12 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/route-registry-core.mjs` | reusable-support | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `scripts/route-registry-core.node-test.mjs`, `scripts/smoke-authenticated-route-discoverability.mjs`, `scripts/verify-authenticated-route-discoverability.mjs` |
 | `scripts/route-registry-core.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `package:test:contracts` |
 | `scripts/run-maintenance-automation.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:maintenance:run-local`, `scripts/maintenance-automation-runner.node-test.mjs` |
+| `scripts/run-supabase-portable.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:db:reset`, `package:supabase:start`, `scripts/supabase-portable-migrations.node-test.mjs` |
 | `scripts/run-vitest-tier.mjs` | default-gate | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `package:test:ui`, `package:test:unit` |
 | `scripts/script-inventory-core.mjs` | reusable-support | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `scripts/generate-script-inventory.mjs`, `scripts/script-inventory-core.node-test.mjs` |
 | `scripts/script-inventory-core.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `package:test:contracts` |
+| `scripts/sentry-autofix.mjs` | specialist-command | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-20-sentry-observability-and-autofix.md`, `package:sentry:autofix`, `scripts/sentry-autofix.node-test.mjs` |
+| `scripts/sentry-autofix.node-test.mjs` | documented-operator | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-20-sentry-observability-and-autofix.md` |
 | `scripts/smoke-authenticated-route-discoverability-core.mjs` | reusable-support | `docs/repository/script-inventory.md`, `scripts/smoke-authenticated-route-discoverability.mjs`, `scripts/smoke-authenticated-route-discoverability.node-test.mjs`, `scripts/verify-authenticated-route-discoverability.mjs` |
 | `scripts/smoke-authenticated-route-discoverability.mjs` | specialist-command | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `package:test:fixture-route-discoverability` |
 | `scripts/smoke-authenticated-route-discoverability.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `package:test:contracts` |
@@ -97,9 +104,11 @@ Generated from package commands, GitHub workflows, script imports, source refere
 | `scripts/smoke-owner-statement-browser-acceptance.mjs` | specialist-command | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-10-owner-statement-publication.md`, `package:test:owner-statement-browser-acceptance`, `scripts/owner-statement-browser-contract.node-test.mjs` |
 | `scripts/smoke-properties-flow.mjs` | specialist-command | `docs/repository/script-inventory.md`, `package:test:properties-flow` |
 | `scripts/smoke-ui-redesign-artifacts.mjs` | reusable-support | `docs/repository/script-inventory.md`, `scripts/generate-enterprise-frontend-evidence.mjs`, `scripts/smoke-ui-redesign-policy.test.mjs`, `scripts/smoke-ui-redesign.mjs` |
-| `scripts/smoke-ui-redesign-policy.mjs` | reusable-support | `docs/repository/script-inventory.md`, `scripts/generate-enterprise-frontend-evidence.mjs`, `scripts/ips-golden-setup-browser-contract.mjs`, `scripts/smoke-authenticated-route-discoverability.mjs`, `scripts/smoke-fixture-finance-manager-day.mjs`, `scripts/smoke-fixture-role-journeys.mjs`, `scripts/smoke-ips-cutover-browser-acceptance.mjs`, `scripts/smoke-ips-golden-setup.mjs`, `scripts/smoke-ips-paid-cost-browser-acceptance.mjs`, `scripts/smoke-ips-rent-browser-acceptance.mjs`, `scripts/smoke-maintenance-mobile.mjs`, `scripts/smoke-owner-balance-browser-acceptance.mjs`, `scripts/smoke-owner-close-browser-acceptance.mjs`, `scripts/smoke-owner-opening-browser-acceptance.mjs`, `scripts/smoke-owner-statement-browser-acceptance.mjs`, `scripts/smoke-ui-redesign-artifacts.mjs`, `scripts/smoke-ui-redesign-policy.test.mjs`, `scripts/smoke-ui-redesign.mjs` |
-| `scripts/smoke-ui-redesign-policy.test.mjs` | default-gate | `docs/repository/script-inventory.md` |
+| `scripts/smoke-ui-redesign-policy.mjs` | reusable-support | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-15-settings-redesign.md`, `scripts/generate-enterprise-frontend-evidence.mjs`, `scripts/ips-golden-setup-browser-contract.mjs`, `scripts/smoke-authenticated-route-discoverability.mjs`, `scripts/smoke-fixture-finance-manager-day.mjs`, `scripts/smoke-fixture-role-journeys.mjs`, `scripts/smoke-ips-cutover-browser-acceptance.mjs`, `scripts/smoke-ips-golden-setup.mjs`, `scripts/smoke-ips-paid-cost-browser-acceptance.mjs`, `scripts/smoke-ips-rent-browser-acceptance.mjs`, `scripts/smoke-maintenance-mobile.mjs`, `scripts/smoke-owner-balance-browser-acceptance.mjs`, `scripts/smoke-owner-close-browser-acceptance.mjs`, `scripts/smoke-owner-opening-browser-acceptance.mjs`, `scripts/smoke-owner-statement-browser-acceptance.mjs`, `scripts/smoke-ui-redesign-artifacts.mjs`, `scripts/smoke-ui-redesign-policy.test.mjs`, `scripts/smoke-ui-redesign.mjs` |
+| `scripts/smoke-ui-redesign-policy.test.mjs` | default-gate | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-15-settings-redesign.md` |
 | `scripts/smoke-ui-redesign.mjs` | specialist-command | `docs/repository/script-inventory.md`, `docs/superpowers/plans/2026-08-09-ips-operational-readiness-program.md`, `docs/superpowers/plans/2026-08-14-repository-health-and-test-architecture.md`, `docs/verification/enterprise-frontend-redesign-evidence.md`, `package:test:ui-a11y`, `package:test:ui-redesign`, `scripts/generate-enterprise-frontend-evidence.mjs` |
+| `scripts/supabase-portable-migrations.mjs` | reusable-support | `docs/repository/script-inventory.md`, `scripts/run-supabase-portable.mjs`, `scripts/supabase-portable-migrations.node-test.mjs` |
+| `scripts/supabase-portable-migrations.node-test.mjs` | documented-operator | `docs/repository/script-inventory.md` |
 | `scripts/target-org-dump-core.mjs` | reusable-support | `docs/repository/script-inventory.md`, `scripts/target-org-dump.node-test.mjs` |
 | `scripts/target-org-dump.node-test.mjs` | default-gate | `docs/repository/script-inventory.md`, `package:test:contracts` |
 | `scripts/unit-profit-loss-comparison-core.mjs` | reusable-support | `docs/repository/script-inventory.md`, `scripts/generate-unit-profit-loss-comparison.mjs`, `scripts/unit-profit-loss-comparison.node-test.mjs` |
