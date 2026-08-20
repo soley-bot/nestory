@@ -2,24 +2,24 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver privacy-scrubbed Sentry error reporting for Nestory and an hourly local Codex automation that directly fixes only verified low-risk production errors.
+**Goal:** Deliver privacy-scrubbed Sentry error reporting for Nestory and an hourly local Codex automation that triages one verified low-risk production error into a reviewable pull request.
 
-**Architecture:** Provision Sentry through the linked Vercel project, then wrap the official Next.js SDK with small Nestory-owned configuration and redaction helpers. A deterministic Node.js CLI will retrieve and redact one unresolved issue, enforce denylisted domains, and resolve only an explicitly identified issue; a Codex project automation will own code diagnosis, isolated-worktree changes, verification, non-force pushes to `main`, and post-deployment checks.
+**Architecture:** Provision Sentry through the linked Vercel project, then wrap the official Next.js SDK with small Nestory-owned configuration and redaction helpers. A deterministic Node.js CLI will retrieve one unresolved issue while emitting only allowlisted metadata, enforce protected-domain rules, and resolve only an explicitly identified issue; a Codex project automation will own code diagnosis, isolated-worktree changes, verification, and a non-force feature-branch pull request. A human-reviewed merge remains required before production checks and issue resolution.
 
-**Tech Stack:** Next.js 16.2.9, React 19.2.7, `@sentry/nextjs`, TypeScript 5, Vitest 4, Node.js 24 test runner, Vercel CLI, Sentry REST API, Codex local project automation.
+**Tech Stack:** Next.js 16.3.1, React 19.2.7, `@sentry/nextjs`, TypeScript 5, Vitest 4, Node.js 24 test runner, Vercel CLI, Sentry REST API, Codex local project automation.
 
 **Spec:** `docs/superpowers/specs/2026-08-20-sentry-observability-and-autofix-design.md`
 
 ## Global Constraints
 
-- Capture error events at 100 percent and performance traces at 10 percent by default.
+- Capture error events while keeping performance tracing disabled until a separate transaction and span privacy contract is implemented and reviewed.
 - Keep Session Replay and Sentry debug logging disabled.
 - Never send names, email addresses, cookies, authorization headers, request bodies, form values, financial values, query strings, or secrets.
 - Allowed custom context is stable internal user ID, organization ID, fixed role, normalized route pattern, environment, and release SHA.
 - Missing Sentry configuration must never break local development, tests, CI, or application startup.
 - The automation processes at most one issue per run and never force-pushes, bypasses gates, or modifies another task's worktree.
 - Auth, permissions, RLS, migrations, financial workflows, environment settings, integrations, dependency-major upgrades, destructive operations, and ambiguous failures require user authorization.
-- Direct-to-main automation is allowed only after a failing regression test, relevant tests, lint, TypeScript, build, remote-base parity, and production verification.
+- Direct-to-main automation is forbidden; every proposed fix must use an isolated branch and pull request.
 
 ---
 
@@ -89,7 +89,6 @@ SENTRY_PROJECT=
 SENTRY_AUTH_TOKEN=
 SENTRY_AUTOFIX_TOKEN=
 SENTRY_AUTOFIX_API_BASE=https://sentry.io
-SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
 - [ ] **Step 6: Verify the dependency and secret boundary**
@@ -153,11 +152,11 @@ it("removes request data and free-form identity while retaining safe tags", () =
   expect(event?.tags).toMatchObject({ organization_id: "org-1", role: "finance_manager" });
 });
 
-it("uses production-safe sampling and disables default PII", () => {
+it("disables performance sampling and default PII", () => {
   expect(buildSentryOptions("client")).toMatchObject({
     debug: false,
     sendDefaultPii: false,
-    tracesSampleRate: 0.1,
+    tracesSampleRate: 0,
   });
 });
 
@@ -181,7 +180,7 @@ Expected: FAIL because `sentry-options.ts` does not exist.
 
 - [ ] **Step 3: Implement the shared SDK options and scrubber**
 
-Implement strict allowlisting: delete request cookies, data, query string, authorization/cookie headers, user email/username/IP, breadcrumbs containing form or console payloads, and `extra`; replace event request URLs with `normalizeSentryRoute(new URL(url).pathname)`. Parse `SENTRY_TRACES_SAMPLE_RATE` only when it is a finite number from 0 through 1; otherwise use `0.1`. Use `process.env.VERCEL_ENV ?? process.env.NODE_ENV` and `process.env.VERCEL_GIT_COMMIT_SHA` for environment and release.
+Implement strict allowlisting: delete free-form message and exception values, request cookies, data, query string, authorization/cookie headers, user email/username/IP, breadcrumbs containing form or console payloads, and `extra`; replace event request URLs with `normalizeSentryRoute(new URL(url).pathname)`. Keep `tracesSampleRate` at `0` and do not register router-transition tracing. Use `process.env.VERCEL_ENV ?? process.env.NODE_ENV` and `process.env.VERCEL_GIT_COMMIT_SHA` for environment and release.
 
 - [ ] **Step 4: Run the helper tests and make them pass**
 
@@ -432,7 +431,7 @@ npm run build
 git diff --check
 ```
 
-Expected: every command exits 0. Do not activate direct pushes while any command fails.
+Expected: every command exits 0. Do not activate pull-request creation while any command fails.
 
 - [ ] **Step 2: Confirm non-force Git and deployment access without changing remote state**
 
@@ -453,7 +452,7 @@ Expected: credentials are valid, the worktree is clean, and the branch provenanc
 Create an hourly local project automation with this behavioral core:
 
 ```text
-Work in D:\nestory. Read PROJECT.md and the Sentry autofix spec first. Run `npm run sentry:autofix -- next --dry-run` and process at most one issue. If its disposition is not `candidate`, report it and stop. Fetch origin and inspect every worktree, branch, remote PR, and ownership conflict. Never modify an active checkout. Create a fresh isolated worktree from exact origin/main. Reproduce the issue with a failing test before editing. Never auto-change auth, roles, permissions, RLS, migrations, database types, financial workflows, secrets, environment, integrations, destructive behavior, or ambiguous failures. Run the relevant tier, lint, `npx tsc --noEmit`, `npm run test:all`, and `npm run build`. Fetch origin/main again and stop if it changed. Commit with the Sentry short ID and push non-forcefully with `git push origin HEAD:main`. Verify CI and the Vercel production deployment. Resolve with `npm run sentry:autofix -- resolve <issue-id> --release <40-char-sha>` only after healthy production verification and no recurring event. On failure, revert only if the automation commit remains exact origin/main tip and the revert passes the same gates; otherwise stop and report exact evidence. Remove only the automation-owned clean worktree. Never force-push, bypass a gate, or expose tokens or raw Sentry payloads.
+Work in D:\nestory. Read PROJECT.md and the Sentry autofix spec first. Run `npm run sentry:autofix -- next --dry-run` and process at most one issue. If its disposition is not `candidate`, report it and stop. Fetch origin and inspect every worktree, branch, remote PR, and ownership conflict. Never modify an active checkout. Create a fresh isolated worktree from exact origin/main. Reproduce the issue with a failing test before editing. Never auto-change auth, roles, permissions, access management, RLS, migrations, database types, financial workflows, leases, tenant/property/unit/people/document workflows, secrets, environment, integrations, dependency-major versions, destructive behavior, or ambiguous failures. Run the relevant tier, lint, `npx tsc --noEmit`, `npm run test:all`, and `npm run build`. Fetch origin/main again and stop if it changed. Commit with the Sentry short ID, push a new non-force feature branch, and open a pull request with the verification evidence. Never merge, push to `main`, deploy production, resolve the Sentry issue, or delete another task's branch/worktree. Leave production verification and issue resolution to the reviewed release workflow. Remove only the automation-owned clean worktree after its branch is safely pushed. Never force-push, bypass a gate, or expose tokens or raw Sentry payloads.
 ```
 
 Set notifications for failed runs and authorization-required stops. The schedule is hourly in `Asia/Bangkok`, local execution, attached to the Nestory project.
@@ -464,7 +463,7 @@ Run the automation once with no unresolved synthetic issue and require a safe no
 
 - [ ] **Step 5: Verify a real Sentry event and source map**
 
-Deploy the instrumented branch through the approved direct-main path. Trigger the controlled authenticated error once. In Sentry, confirm environment `production`, exact Git SHA release, resolved source filename/line, normalized route, pseudonymous user ID, organization/role tags, and absence of prohibited data. Remove or disable the trigger and redeploy.
+Deploy the instrumented branch through the reviewed pull-request path. Trigger the controlled authenticated error once. In Sentry, confirm environment `production`, exact Git SHA release, resolved source filename/line, normalized route, pseudonymous user ID, organization/role tags, and absence of prohibited data. Remove or disable the trigger and redeploy.
 
 - [ ] **Step 6: Activate hourly execution and record exact state**
 

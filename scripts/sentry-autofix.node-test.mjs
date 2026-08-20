@@ -162,6 +162,7 @@ test("next blocks protected-domain issue text", async () => {
     "RLS policy rejected rent payment allocation",
     "ownerBalances failed in src/features/finance/property-cash.ts",
     "Reports could not format an invoice amount",
+    "AccessSettingsPage failed in src/app/(dashboard)/settings/access/page.tsx",
   ]) {
     await withFixtureServer({ ...issue, title }, async ({ environment }) => {
       const result = await runCli(["next", "--dry-run"], environment);

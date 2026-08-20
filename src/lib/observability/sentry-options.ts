@@ -24,7 +24,7 @@ export function buildSentryOptions(runtime: SentryRuntime) {
     environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
     release: process.env.VERCEL_GIT_COMMIT_SHA,
     sendDefaultPii: false,
-    tracesSampleRate: parseSampleRate(process.env.SENTRY_TRACES_SAMPLE_RATE),
+    tracesSampleRate: 0,
   };
 }
 
@@ -99,9 +99,4 @@ function routePathname(input: string) {
   } catch {
     return "/unknown";
   }
-}
-
-function parseSampleRate(value: string | undefined) {
-  const parsed = value === undefined ? Number.NaN : Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.1;
 }

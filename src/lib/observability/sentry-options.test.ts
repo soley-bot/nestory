@@ -78,9 +78,8 @@ describe("Sentry event privacy", () => {
     expect(event).not.toHaveProperty("message");
   });
 
-  it("uses safe sampling defaults and disables default PII", () => {
+  it("disables performance sampling and default PII", () => {
     process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN = "https://public@example.invalid/1";
-    process.env.SENTRY_TRACES_SAMPLE_RATE = "not-a-number";
     process.env.VERCEL_ENV = "production";
     process.env.VERCEL_GIT_COMMIT_SHA = "a".repeat(40);
 
@@ -91,7 +90,7 @@ describe("Sentry event privacy", () => {
       environment: "production",
       release: "a".repeat(40),
       sendDefaultPii: false,
-      tracesSampleRate: 0.1,
+      tracesSampleRate: 0,
     });
   });
 
