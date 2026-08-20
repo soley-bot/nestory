@@ -98,6 +98,9 @@ describe("granular Finance contexts", () => {
     await expect(
       authContext.requireFinancialMonthUnlockContext(),
     ).rejects.toThrow("REDIRECT:/no-access");
+    await expect(
+      authContext.requireHistoricalRentRecoveryContext(),
+    ).rejects.toThrow("REDIRECT:/no-access");
     expect(mocks.redirect).toHaveBeenCalledWith("/no-access");
   });
 });

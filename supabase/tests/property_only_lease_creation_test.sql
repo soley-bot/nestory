@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(40);
+SELECT plan(43);
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_error(p_sql text)
 RETURNS jsonb
@@ -65,6 +65,7 @@ CREATE TEMP TABLE property_only_lease_state (
   scheduled_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   termination_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   changed_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  billing_company_id uuid NOT NULL DEFAULT gen_random_uuid(),
   single_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   multi_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   undecided_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -155,6 +156,9 @@ SELECT termination_tenant_id, organization_id, 'Termination Property Tenant', 'i
 FROM property_only_lease_state
 UNION ALL
 SELECT changed_tenant_id, organization_id, 'Rent Change Tenant', 'individual'
+FROM property_only_lease_state
+UNION ALL
+SELECT billing_company_id, organization_id, 'Mekong Owner Company', 'company'
 FROM property_only_lease_state;
 
 INSERT INTO public.person_roles(organization_id, person_id, role)
@@ -168,6 +172,23 @@ SELECT organization_id, termination_tenant_id, 'tenant'
 FROM property_only_lease_state
 UNION ALL
 SELECT organization_id, changed_tenant_id, 'tenant'
+FROM property_only_lease_state
+UNION ALL
+SELECT organization_id, billing_company_id, 'owner'
+FROM property_only_lease_state;
+
+INSERT INTO public.property_owners(
+  organization_id, property_id, person_id, ownership_percent, is_primary,
+  started_on
+)
+SELECT
+  organization_id, immediate_property_id, billing_company_id, 100, true,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date - 365
+FROM property_only_lease_state
+UNION ALL
+SELECT
+  organization_id, changed_property_id, billing_company_id, 100, true,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date - 365
 FROM property_only_lease_state;
 
 SELECT set_config(
@@ -475,7 +496,7 @@ SET immediate_lease_result = public.create_property_lease(
   state.organization_id,
   state.immediate_property_id,
   state.tenant_id,
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)::date,
   (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 364,
   1000,
   'USD',
@@ -487,6 +508,23 @@ SET immediate_lease_result = public.create_property_lease(
   'draft',
   'immediate-property-lease-create'
 );
+
+RESET ROLE;
+UPDATE public.lease_billing_terms AS billing
+SET collection_route = 'direct_to_owner',
+    management_fee_mode = 'percentage',
+    management_fee_value = 10,
+    charge_management_fee_when_active = true,
+    full_management_fee_during_proration = false,
+    billing_recipient_kind = 'company',
+    billing_recipient_person_id = state.billing_company_id,
+    first_period_prorated_amount = 700,
+    final_period_prorated_amount = 600
+FROM property_only_lease_state AS state
+WHERE billing.organization_id = state.organization_id
+  AND billing.lease_id = (state.immediate_lease_result ->> 'leaseId')::uuid
+  AND billing.superseded_at IS NULL;
+SET LOCAL ROLE authenticated;
 
 UPDATE property_only_lease_state AS state
 SET immediate_activation_result = public.request_lease_activation(
@@ -521,6 +559,24 @@ SELECT is(
   'active',
   'the immediate Lease is active after one request'
 );
+
+RESET ROLE;
+SELECT app_private.generate_simple_lease_rent_invoice(
+  organization_id,
+  (immediate_lease_result ->> 'leaseId')::uuid,
+  date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)::date,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  'activation',
+  admin_id
+)
+FROM property_only_lease_state;
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM property_only_lease_state),
+  true
+);
+SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
 UPDATE property_only_lease_state AS state
 SET termination_lease_result = public.create_property_lease(
@@ -629,12 +685,58 @@ SELECT is(
     WHERE invoice.lease_id = (state.immediate_lease_result ->> 'leaseId')::uuid
       AND line.line_type = 'rent'
   ),
-  round(1000 * ((date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
-    + interval '1 month - 1 day')::date
-    - (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 1)
-    / extract(day FROM (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
-      + interval '1 month - 1 day'))::numeric, 2),
-  'the first rent charge uses the Lease actual-days proration rule'
+  700::numeric,
+  'the first rent charge uses the Lease agreed prorated amount'
+);
+
+SELECT results_eq(
+  $$
+    SELECT invoice.collection_route, invoice.recipient_kind, invoice.recipient_label,
+      invoice.is_prorated
+    FROM public.tenant_invoices AS invoice,
+      property_only_lease_state AS state
+    WHERE invoice.lease_id = (state.immediate_lease_result ->> 'leaseId')::uuid
+  $$,
+  $$VALUES ('direct_to_owner'::text, 'company'::text, 'Mekong Owner Company'::text, true)$$,
+  'automatic rent snapshots the Lease collection route and billing recipient'
+);
+
+SELECT results_eq(
+  $$
+    SELECT fee.amount, fee.fee_mode, fee.fee_value,
+      (
+        SELECT count(*)::integer
+        FROM public.management_fee_occurrences AS replay_fee
+        WHERE replay_fee.organization_id = invoice.organization_id
+          AND replay_fee.tenant_invoice_id = invoice.id
+      ),
+      (
+        SELECT count(*)::integer
+        FROM public.owner_invoice_lines AS owner_line
+        WHERE owner_line.organization_id = invoice.organization_id
+          AND owner_line.property_id = invoice.property_id
+          AND owner_line.source_type = 'management_fee'
+      )
+    FROM public.management_fee_occurrences AS fee
+    JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = fee.organization_id
+     AND invoice.id = fee.tenant_invoice_id,
+      property_only_lease_state AS state
+    WHERE invoice.lease_id = (state.immediate_lease_result ->> 'leaseId')::uuid
+  $$,
+  $$VALUES (70.00::numeric, 'percentage'::text, 10.0000::numeric, 1, 1)$$,
+  'automatic rent replay keeps one management fee occurrence and owner charge'
+);
+
+SELECT results_eq(
+  $$
+    SELECT invoice.occupant_labels
+    FROM public.tenant_invoices AS invoice,
+      property_only_lease_state AS state
+    WHERE invoice.lease_id = (state.immediate_lease_result ->> 'leaseId')::uuid
+  $$,
+  $$VALUES (ARRAY['Property Tenant']::text[])$$,
+  'a company billing recipient does not replace the Lease occupant snapshot'
 );
 
 UPDATE property_only_lease_state AS state
@@ -654,6 +756,21 @@ SET changed_lease_result = public.create_property_lease(
   'draft',
   'rent-change-lease-create'
 );
+
+RESET ROLE;
+UPDATE public.lease_billing_terms AS billing
+SET collection_route = 'through_ips',
+    management_fee_mode = 'percentage',
+    management_fee_value = 10,
+    charge_management_fee_when_active = true,
+    full_management_fee_during_proration = false,
+    billing_recipient_kind = 'individual',
+    billing_recipient_person_id = state.changed_tenant_id
+FROM property_only_lease_state AS state
+WHERE billing.organization_id = state.organization_id
+  AND billing.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
+  AND billing.superseded_at IS NULL;
+SET LOCAL ROLE authenticated;
 
 UPDATE property_only_lease_state AS state
 SET changed_activation_result = public.request_lease_activation(
@@ -691,6 +808,20 @@ SET changed_term_id = public.schedule_authoritative_lease_term(
   'rent-change-next-full-month'
 );
 
+SELECT public.create_manual_tenant_charge(
+  organization_id,
+  (changed_lease_result ->> 'leaseId')::uuid,
+  'utilities',
+  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+    + interval '1 month')::date,
+  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+    + interval '1 month')::date,
+  75,
+  'Pre-existing utility charge',
+  'rent-change-preexisting-utility'
+)
+FROM property_only_lease_state;
+
 RESET ROLE;
 SELECT app_private.generate_simple_lease_rent_invoice(
   organization_id,
@@ -711,19 +842,22 @@ SELECT set_config(
 );
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 
-SELECT is(
-  (
-    SELECT invoice.total_amount
-    FROM public.tenant_invoices AS invoice,
+SELECT results_eq(
+  $$
+    SELECT invoice.total_amount, invoice.management_fee_amount, fee.amount
+    FROM public.tenant_invoices AS invoice
+    LEFT JOIN public.management_fee_occurrences AS fee
+      ON fee.organization_id = invoice.organization_id
+     AND fee.tenant_invoice_id = invoice.id,
       property_only_lease_state AS state
     WHERE invoice.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
       AND invoice.billing_period_start = (
         date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
         + interval '1 month'
       )::date
-  ),
-  1100::numeric,
-  'a next-full-month rent change keeps the opening rent for the changed month'
+  $$,
+  $$VALUES (1175.00::numeric, 110.00::numeric, 110.00::numeric)$$,
+  'a next-full-month rent change keeps opening rent, fees, and pre-existing charges'
 );
 
 SELECT is(

@@ -35,7 +35,7 @@ export default async function PropertyFinancePage({
       canRecordOwnerCash={context.capabilities.canOperateFinance}
       canRecordPayments={context.capabilities.canOperateFinance}
       canReadFinanceReports={context.capabilities.canReadFinanceReports}
-      canRecoverRent={context.capabilities.canConfigureLeases}
+      canRecoverRent={context.capabilities.canRecoverHistoricalRent}
       canReviewExpense={context.capabilities.canReviewExpense}
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
