@@ -1,4 +1,14 @@
-import type { ErrorEvent } from "@sentry/nextjs";
+import type {
+  ErrorEvent,
+  Event,
+  init,
+} from "@sentry/nextjs";
+
+type SentryOptions = Parameters<typeof init>[0];
+type SpanJSON = Parameters<NonNullable<SentryOptions["beforeSendSpan"]>>[0];
+type TransactionEvent = Parameters<
+  NonNullable<SentryOptions["beforeSendTransaction"]>
+>[0];
 
 type SentryRuntime = "client" | "edge" | "server";
 
@@ -10,43 +20,108 @@ const ROUTE_IDENTIFIERS: Record<string, string> = {
 };
 
 const SAFE_TAGS = new Set(["organization_id", "role", "route"]);
+const SAFE_SPAN_SOURCES = new Set(["component", "custom", "route", "task", "url", "view"]);
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const EMAIL = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const BEARER_TOKEN = /\bBearer\s+[^\s,;]+/gi;
+const SAFE_TECHNICAL_TOKEN = /^[a-z0-9_.-]{1,80}$/i;
 
 export function buildSentryOptions(runtime: SentryRuntime) {
-  void runtime;
   const dsn = process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN;
+  const clientRuntime = runtime === "client";
 
   return {
     beforeSend: scrubSentryEvent,
+    beforeSendSpan: scrubSentrySpan,
+    beforeSendTransaction: scrubSentryTransaction,
     debug: false,
     dsn,
     enabled: Boolean(dsn),
-    environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
-    release: process.env.VERCEL_GIT_COMMIT_SHA,
+    environment: clientRuntime
+      ? (process.env.NEXT_PUBLIC_VERCEL_ENV ?? "unknown")
+      : (process.env.VERCEL_ENV ?? process.env.NODE_ENV),
+    release: clientRuntime
+      ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
+      : process.env.VERCEL_GIT_COMMIT_SHA,
     sendDefaultPii: false,
-    tracesSampleRate: parseSampleRate(process.env.SENTRY_TRACES_SAMPLE_RATE),
+    tracesSampleRate: parseSampleRate(
+      clientRuntime
+        ? process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE
+        : process.env.SENTRY_TRACES_SAMPLE_RATE,
+    ),
   };
 }
 
 export function scrubSentryEvent(event: ErrorEvent): ErrorEvent | null {
-  const scrubbed: ErrorEvent = { ...event };
+  return scrubEventPayload(event);
+}
+
+export function scrubSentryTransaction(event: TransactionEvent): TransactionEvent | null {
+  const scrubbed = scrubEventPayload(event);
+  scrubbed.transaction = scrubbed.transaction
+    ? normalizeTransactionName(scrubbed.transaction)
+    : "[transaction]";
+  scrubbed.spans = scrubbed.spans?.map(scrubSentrySpan);
+  return scrubbed;
+}
+
+export function scrubSentrySpan(span: SpanJSON): SpanJSON {
+  const scrubbed = { ...span };
+  const operation = safeTechnicalToken(span.op) ?? "operation";
+  const safeData: SpanJSON["data"] = {};
+  const spanOperation = safeTechnicalToken(span.data?.["sentry.op"]);
+  const spanOrigin = safeTechnicalToken(span.data?.["sentry.origin"]);
+  const spanSource = span.data?.["sentry.source"];
+  const sampleRate = span.data?.["sentry.sample_rate"];
+
+  if (spanOperation) safeData["sentry.op"] = spanOperation;
+  if (spanOrigin) safeData["sentry.origin"] = spanOrigin;
+  if (typeof spanSource === "string" && SAFE_SPAN_SOURCES.has(spanSource)) {
+    safeData["sentry.source"] = spanSource;
+  }
+  if (typeof sampleRate === "number" && sampleRate >= 0 && sampleRate <= 1) {
+    safeData["sentry.sample_rate"] = sampleRate;
+  }
+
+  scrubbed.data = safeData;
+  scrubbed.description = `[${operation}]`;
+  Reflect.deleteProperty(scrubbed, "links");
+  return scrubbed;
+}
+
+function scrubEventPayload<T extends Event>(event: T): T {
+  const scrubbed = { ...event } as T;
 
   delete scrubbed.contexts;
   delete scrubbed.extra;
+  delete scrubbed.fingerprint;
+  delete scrubbed.logentry;
 
   if (scrubbed.message) {
-    scrubbed.message = redactText(scrubbed.message);
+    scrubbed.message = "[redacted]";
   }
 
   if (scrubbed.exception?.values) {
     scrubbed.exception = {
       ...scrubbed.exception,
-      values: scrubbed.exception.values.map((value) => ({
-        ...value,
-        ...(value.value ? { value: redactText(value.value) } : {}),
-      })),
+      values: scrubbed.exception.values.map((value) => {
+        const errorType = safeTechnicalToken(value.type) ?? "Error";
+        return {
+          ...value,
+          type: errorType,
+          ...(value.value ? { value: "[redacted]" } : {}),
+          ...(value.stacktrace
+            ? {
+                stacktrace: {
+                  ...value.stacktrace,
+                  frames: value.stacktrace.frames?.map((frame) => {
+                    const safeFrame = { ...frame };
+                    Reflect.deleteProperty(safeFrame, "vars");
+                    return safeFrame;
+                  }),
+                },
+              }
+            : {}),
+        };
+      }),
     };
   }
 
@@ -83,6 +158,12 @@ export function scrubSentryEvent(event: ErrorEvent): ErrorEvent | null {
   return scrubbed;
 }
 
+function normalizeTransactionName(value: string) {
+  return value.startsWith("/") || /^https?:\/\//i.test(value)
+    ? normalizeSentryRoute(value)
+    : "[transaction]";
+}
+
 export function normalizeSentryRoute(input: string) {
   const pathname = routePathname(input);
   const segments = pathname.split("/").filter(Boolean);
@@ -109,8 +190,8 @@ function parseSampleRate(value: string | undefined) {
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.1;
 }
 
-function redactText(value: string) {
-  return value
-    .replace(EMAIL, "[redacted-email]")
-    .replace(BEARER_TOKEN, "[redacted-token]");
+function safeTechnicalToken(value: unknown) {
+  return typeof value === "string" && SAFE_TECHNICAL_TOKEN.test(value)
+    ? value
+    : undefined;
 }

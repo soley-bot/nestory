@@ -6,28 +6,50 @@ const PROTECTED_TERMS = [
   "rls",
   "policy",
   "auth",
+  "authentication",
   "invite",
   "permission",
+  "permissions",
   "role",
+  "roles",
   "organization",
+  "organizations",
   "branch",
+  "branches",
   "rent",
+  "rents",
   "invoice",
+  "invoices",
   "payment",
+  "payments",
   "expense",
+  "expenses",
   "balance",
+  "balances",
   "owner",
+  "owners",
   "statement",
+  "statements",
   "deposit",
+  "deposits",
   "ledger",
+  "ledgers",
   "reversal",
+  "reversals",
+  "finance",
+  "financial",
   "secret",
+  "secrets",
   "environment",
+  "environments",
   "vercel",
   "sentry",
   "delete",
+  "deletes",
   "archive",
+  "archives",
   "restore",
+  "restores",
 ];
 
 const protectedPattern = new RegExp(
@@ -69,12 +91,20 @@ async function nextIssue(args) {
     return;
   }
 
-  const issue = issues[0];
-  const event = await sentryRequest(
-    `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(String(issue.id))}/events/latest/`,
-  );
-  const summary = safeSummary(issue, event);
-  writeJson(summary);
+  let authorizationOnly;
+  for (const issue of issues) {
+    const event = await sentryRequest(
+      `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(String(issue.id))}/events/latest/`,
+    );
+    const summary = safeSummary(issue, event);
+    if (summary.disposition === "candidate") {
+      writeJson(summary);
+      return;
+    }
+    authorizationOnly ??= summary;
+  }
+
+  writeJson(authorizationOnly ?? { disposition: "no_candidate" });
 }
 
 async function resolveIssue(args) {

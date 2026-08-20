@@ -30,7 +30,8 @@ function runCli(args, environment = {}) {
   });
 }
 
-async function withFixtureServer(issue, callback) {
+async function withFixtureServer(issueOrIssues, callback) {
+  const issues = Array.isArray(issueOrIssues) ? issueOrIssues : [issueOrIssues];
   const requests = [];
   const server = createServer(async (request, response) => {
     let body = "";
@@ -39,10 +40,13 @@ async function withFixtureServer(issue, callback) {
     response.setHeader("content-type", "application/json");
 
     if (request.url?.includes("/issues/?")) {
-      response.end(JSON.stringify([issue]));
+      response.end(JSON.stringify(issues));
       return;
     }
     if (request.url?.includes("/events/latest/")) {
+      const eventIssue =
+        issues.find((candidate) => request.url?.includes(`/issues/${candidate.id}/`)) ??
+        issues[0];
       response.end(
         JSON.stringify({
           entries: [
@@ -60,7 +64,8 @@ async function withFixtureServer(issue, callback) {
                       ],
                     },
                     type: "TypeError",
-                    value: issue.exception ?? "Cannot read properties of undefined",
+                    value:
+                      eventIssue.exception ?? "Cannot read properties of undefined",
                   },
                 ],
               },
@@ -76,8 +81,11 @@ async function withFixtureServer(issue, callback) {
       );
       return;
     }
-    if (request.method === "PUT" && request.url?.endsWith(`/issues/${issue.id}/`)) {
-      response.end(JSON.stringify({ id: issue.id, status: "resolved" }));
+    const resolvedIssue = issues.find((candidate) =>
+      request.url?.endsWith(`/issues/${candidate.id}/`),
+    );
+    if (request.method === "PUT" && resolvedIssue) {
+      response.end(JSON.stringify({ id: resolvedIssue.id, status: "resolved" }));
       return;
     }
     response.statusCode = 404;
@@ -162,6 +170,41 @@ test("next blocks protected-domain issue text", async () => {
       const result = await runCli(["next", "--dry-run"], environment);
       assert.equal(result.code, 0, result.stderr);
       assert.equal(JSON.parse(result.stdout).disposition, "requires_authorization");
+    },
+  );
+});
+
+test("next blocks plural and finance protected-domain terms", async () => {
+  for (const title of [
+    "Payments failed",
+    "Expenses export failed",
+    "Roles screen crashed",
+    "Finance dashboard crashed",
+  ]) {
+    await withFixtureServer({ ...issue, title }, async ({ environment }) => {
+      const result = await runCli(["next", "--dry-run"], environment);
+      assert.equal(result.code, 0, result.stderr);
+      assert.equal(JSON.parse(result.stdout).disposition, "requires_authorization");
+    });
+  }
+});
+
+test("next skips authorization-only issues to emit one later safe candidate", async () => {
+  const safeIssue = {
+    ...issue,
+    id: "202",
+    shortId: "NESTORY-2",
+    title: "TypeError: Widget state missing",
+  };
+  await withFixtureServer(
+    [{ ...issue, title: "Payments failed" }, safeIssue],
+    async ({ environment, requests }) => {
+      const result = await runCli(["next", "--dry-run"], environment);
+      assert.equal(result.code, 0, result.stderr);
+      const candidate = JSON.parse(result.stdout);
+      assert.equal(candidate.id, "202");
+      assert.equal(candidate.disposition, "candidate");
+      assert.equal(requests.length, 3);
     },
   );
 });

@@ -4,6 +4,8 @@ import {
   buildSentryOptions,
   normalizeSentryRoute,
   scrubSentryEvent,
+  scrubSentrySpan,
+  scrubSentryTransaction,
 } from "@/lib/observability/sentry-options";
 
 const originalEnvironment = { ...process.env };
@@ -53,7 +55,7 @@ describe("Sentry event privacy", () => {
     expect(event).toEqual(
       expect.objectContaining({
         breadcrumbs: [{ category: "ui.click", type: "user" }],
-        message: "Failed for [redacted-email] with [redacted-token]",
+        message: "[redacted]",
         request: {
           headers: { "user-agent": "browser" },
           url: "/properties/[propertyId]",
@@ -69,21 +71,108 @@ describe("Sentry event privacy", () => {
     expect(event).not.toHaveProperty("extra");
   });
 
+  it("removes exception values and stack variables while retaining the error type", () => {
+    const event = scrubSentryEvent({
+      exception: {
+        values: [
+          {
+            stacktrace: {
+              frames: [
+                {
+                  filename: "src/features/finance/property-cash.ts",
+                  function: "postCash",
+                  vars: { amount: "100.00", owner: "Private Owner" },
+                },
+              ],
+            },
+            type: "Error",
+            value: "Unable to post 100.00 for Private Owner",
+          },
+        ],
+      },
+      logentry: { message: "Private Owner owes 100.00" },
+      message: "Payment 100.00 failed for Private Owner",
+      type: undefined,
+    });
+
+    expect(event?.message).toBe("[redacted]");
+    expect(event).not.toHaveProperty("logentry");
+    expect(event?.exception?.values?.[0]).toMatchObject({
+      type: "Error",
+      value: "[redacted]",
+    });
+    expect(event?.exception?.values?.[0].stacktrace?.frames?.[0]).not.toHaveProperty(
+      "vars",
+    );
+  });
+
+  it("scrubs transaction and span payloads before tracing delivery", () => {
+    const span = {
+      data: {
+        amount: "100.00",
+        "http.query": "owner=Private Owner",
+        "sentry.op": "http.client",
+      },
+      description:
+        "GET /properties/95ac813d-6930-4d19-b36d-303ce7a69c38?owner=Private",
+      op: "http.client",
+      span_id: "b".repeat(16),
+      start_timestamp: 1,
+      timestamp: 2,
+      trace_id: "a".repeat(32),
+    };
+    const transaction = scrubSentryTransaction({
+      contexts: { private: { amount: "100.00" } },
+      extra: { owner: "Private Owner" },
+      request: {
+        data: { amount: "100.00" },
+        query_string: "owner=Private",
+        url: "https://app.example/properties/95ac813d-6930-4d19-b36d-303ce7a69c38?owner=Private",
+      },
+      spans: [span],
+      transaction:
+        "/properties/95ac813d-6930-4d19-b36d-303ce7a69c38?owner=Private",
+      type: "transaction",
+    });
+
+    expect(transaction).toMatchObject({
+      request: { url: "/properties/[propertyId]" },
+      spans: [
+        {
+          data: { "sentry.op": "http.client" },
+          description: "[http.client]",
+        },
+      ],
+      transaction: "/properties/[propertyId]",
+    });
+    expect(transaction).not.toHaveProperty("contexts");
+    expect(transaction).not.toHaveProperty("extra");
+    expect(scrubSentrySpan(span)).not.toHaveProperty("links");
+  });
+
   it("uses safe sampling defaults and disables default PII", () => {
     process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN = "https://public@example.invalid/1";
-    process.env.SENTRY_TRACES_SAMPLE_RATE = "not-a-number";
-    process.env.VERCEL_ENV = "production";
-    process.env.VERCEL_GIT_COMMIT_SHA = "a".repeat(40);
+    process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE = "not-a-number";
+    process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA = "a".repeat(40);
 
     expect(buildSentryOptions("client")).toMatchObject({
       debug: false,
       dsn: "https://public@example.invalid/1",
       enabled: true,
-      environment: "production",
+      environment: "preview",
       release: "a".repeat(40),
       sendDefaultPii: false,
       tracesSampleRate: 0.1,
     });
+  });
+
+  it("never labels a client event production without public Vercel metadata", () => {
+    process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN = "https://public@example.invalid/1";
+    delete process.env.NEXT_PUBLIC_VERCEL_ENV;
+    process.env.VERCEL_ENV = "production";
+
+    expect(buildSentryOptions("client").environment).toBe("unknown");
   });
 
   it("disables delivery when the DSN is absent", () => {
