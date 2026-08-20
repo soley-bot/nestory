@@ -8,8 +8,20 @@ vi.mock("@/features/people/actions", () => ({
   updatePersonAction: async () => ({}),
 }));
 
+vi.stubGlobal(
+  "ResizeObserver",
+  class ResizeObserverMock {
+    disconnect() {}
+    observe() {}
+    unobserve() {}
+  },
+);
+
 import { PersonForm } from "@/features/people/components/person-form";
-import type { PersonRoleValue } from "@/features/people/people.types";
+import type {
+  PeopleSummary,
+  PersonRoleValue,
+} from "@/features/people/people.types";
 
 afterEach(cleanup);
 
@@ -128,4 +140,37 @@ describe("PersonForm role-specific presentation", () => {
       ).toBeTruthy();
     },
   );
+
+  it("shows travel documents when editing a multi-role tenant from People", () => {
+    render(
+      <PersonForm
+        mode="edit"
+        onClose={vi.fn()}
+        person={
+          {
+            contact: {},
+            displayName: "Multi Role Person",
+            formValues: {
+              displayName: "Multi Role Person",
+              partyType: "individual",
+              roles: ["tenant", "vendor"],
+            },
+            id: "person-1",
+            partyType: "individual",
+            roles: [
+              { role: "tenant", status: "active" },
+              { role: "vendor", status: "active" },
+            ],
+          } as PeopleSummary
+        }
+      />,
+    );
+
+    expect(
+      screen.getByRole("group", { name: "Passport number" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Visa expiry date" }),
+    ).toBeTruthy();
+  });
 });

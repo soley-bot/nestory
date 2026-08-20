@@ -11,7 +11,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PersonDetailScreen } from "@/features/people/components/person-detail-screen";
 import PersonNotFound from "@/app/(dashboard)/people/[personId]/not-found";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
-import { formatDate } from "@/lib/dates/format";
 import type { PeopleSummary } from "@/features/people/people.types";
 
 beforeEach(() => {
@@ -422,7 +421,7 @@ describe("PersonDetailScreen", () => {
     expect(screen.getByText("Passport expiry")).toBeTruthy();
     expect(screen.getByText("30 Apr 2031")).toBeTruthy();
     expect(screen.getByText("Visa expiry")).toBeTruthy();
-    expect(screen.getByText(formatDate("2028-09-15"))).toBeTruthy();
+    expect(screen.getByText("15 Sep 2028")).toBeTruthy();
   });
 });
 

@@ -41,7 +41,7 @@ import type {
   PeoplePropertyLink,
   PeopleSummary,
 } from "@/features/people/people.types";
-import { formatDate } from "@/lib/dates/format";
+import { formatCalendarDate, formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 
 type DialogState = { mode: "edit"; person: PeopleSummary };
@@ -250,7 +250,7 @@ export function PersonDetailScreen({
                           }
                           value={
                             person.passportExpiryDate
-                              ? formatDate(person.passportExpiryDate)
+                              ? formatCalendarDate(person.passportExpiryDate)
                               : "Not recorded"
                           }
                         />
@@ -258,7 +258,7 @@ export function PersonDetailScreen({
                           label="Visa expiry"
                           value={
                             person.visaExpiryDate
-                              ? formatDate(person.visaExpiryDate)
+                              ? formatCalendarDate(person.visaExpiryDate)
                               : "Not recorded"
                           }
                         />

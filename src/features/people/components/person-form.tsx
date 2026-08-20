@@ -67,6 +67,16 @@ export function PersonForm({
   );
   const defaults = getPersonDefaults(person, initialRoles);
   const presentation = getPersonFormPresentation(roleContext);
+  const showsTravelDocuments =
+    presentation.showTravelDocuments ||
+    Boolean(
+      isEditMode &&
+        person?.roles.some(
+          (role) =>
+            role.status === "active" &&
+            (role.role === "owner" || role.role === "tenant"),
+        ),
+    );
   const locksRole = !isEditMode && Boolean(roleContext);
   const submittedRoles =
     defaults.roles.length > 0
@@ -182,7 +192,7 @@ export function PersonForm({
           </RecordField>
         </div>
 
-        {presentation.showTravelDocuments ? (
+        {showsTravelDocuments ? (
           <div className="space-y-4 border-t border-border pt-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <RecordField

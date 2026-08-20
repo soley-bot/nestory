@@ -6543,14 +6543,11 @@ export type Database = {
           notes: string | null
           organization_id: string
           party_type: string
-          passport_expiry_date: string | null
-          passport_number: string | null
           primary_email: string | null
           primary_phone: string | null
           tax_identifier: string | null
           updated_at: string
           updated_by: string | null
-          visa_expiry_date: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -6563,14 +6560,11 @@ export type Database = {
           notes?: string | null
           organization_id: string
           party_type?: string
-          passport_expiry_date?: string | null
-          passport_number?: string | null
           primary_email?: string | null
           primary_phone?: string | null
           tax_identifier?: string | null
           updated_at?: string
           updated_by?: string | null
-          visa_expiry_date?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -6583,14 +6577,11 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           party_type?: string
-          passport_expiry_date?: string | null
-          passport_number?: string | null
           primary_email?: string | null
           primary_phone?: string | null
           tax_identifier?: string | null
           updated_at?: string
           updated_by?: string | null
-          visa_expiry_date?: string | null
         }
         Relationships: [
           {
@@ -6723,6 +6714,50 @@ export type Database = {
             foreignKeyName: "person_roles_person_fk"
             columns: ["organization_id", "person_id"]
             isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      person_travel_documents: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          organization_id: string
+          passport_expiry_date: string | null
+          passport_number: string | null
+          person_id: string
+          updated_at: string
+          updated_by: string | null
+          visa_expiry_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          organization_id: string
+          passport_expiry_date?: string | null
+          passport_number?: string | null
+          person_id: string
+          updated_at?: string
+          updated_by?: string | null
+          visa_expiry_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          organization_id?: string
+          passport_expiry_date?: string | null
+          passport_number?: string | null
+          person_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          visa_expiry_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_travel_documents_person_fk"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: true
             referencedRelation: "people"
             referencedColumns: ["organization_id", "id"]
           },

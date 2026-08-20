@@ -20,16 +20,21 @@ describe("getPeopleScreenData", () => {
           legal_name: null,
           notes: null,
           party_type: "individual",
-          passport_expiry_date: "2031-04-30",
-          passport_number: "N1234567",
           primary_email: null,
           primary_phone: null,
           tax_identifier: null,
           updated_at: "2026-08-01T00:00:00Z",
-          visa_expiry_date: "2028-09-15",
         },
       ],
       person_roles: [],
+      person_travel_documents: [
+        {
+          passport_expiry_date: "2031-04-30",
+          passport_number: "N1234567",
+          person_id: "person-1",
+          visa_expiry_date: "2028-09-15",
+        },
+      ],
       person_contacts: [],
       lease_parties: [
         {
