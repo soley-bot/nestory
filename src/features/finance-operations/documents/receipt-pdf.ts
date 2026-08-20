@@ -3,6 +3,7 @@ import {
   buildCommercialPdf,
   commercialPdfColors,
   drawCommercialImage,
+  drawCommercialIdentityFields,
   drawCommercialLine,
   drawCommercialRect,
   drawCommercialText,
@@ -11,6 +12,7 @@ import {
   fitCommercialImage,
   formatCommercialDate,
   formatCommercialMoney,
+  getCommercialIdentityBottom,
   paginateCommercialTableRows,
   wrapCommercialText,
 } from "@/features/finance-operations/documents/commercial-pdf-primitives";
@@ -20,13 +22,19 @@ type ReceiptRow = { amount: string; height: number; lines: string[] };
 const margin = 42;
 const contentWidth = 511;
 const tableBottom = 112;
-const firstTableTop = 548;
+const maximumFirstTableTop = 548;
 const continuedTableTop = 692;
 const tableHeaderHeight = 25;
 const descriptionWidth = 359;
 const amountWidth = contentWidth - descriptionWidth;
 
 export function buildTenantReceiptPdf(model: TenantReceiptPdfModel): Uint8Array {
+  const identity = receiptIdentityFields(model);
+  const firstTableTop = Math.min(
+    maximumFirstTableTop,
+    getCommercialIdentityBottom(identity.left, 719, 235) - 18,
+    getCommercialIdentityBottom(identity.right, 719, 216) - 18,
+  );
   const rows = model.allocations.map((allocation) => {
     const lines = wrapCommercialText(
       allocation.label,
@@ -53,7 +61,13 @@ export function buildTenantReceiptPdf(model: TenantReceiptPdfModel): Uint8Array 
   }
 
   const pageContents = pages.map((pageRows, pageIndex) =>
-    renderReceiptPage(model, pageRows, pageIndex, pages.length),
+    renderReceiptPage(
+      model,
+      pageRows,
+      pageIndex,
+      pages.length,
+      firstTableTop,
+    ),
   );
   const assets = model.issuer.logo
     ? [{ ...model.issuer.logo, name: "Logo" }]
@@ -66,6 +80,7 @@ function renderReceiptPage(
   rows: ReceiptRow[],
   pageIndex: number,
   totalPages: number,
+  firstTableTop: number,
 ) {
   const commands: string[] = [];
   drawReceiptHeader(commands, model, pageIndex > 0);
@@ -130,11 +145,11 @@ function drawReceiptHeader(
       width: 275,
     });
   }
-  drawCommercialText(commands, "RECEIPT", 350, 786, {
+  drawCommercialText(commands, "PAYMENT RECEIPT", 300, 786, {
     align: "right",
     bold: true,
     fontSize: 22,
-    width: 203,
+    width: 253,
   });
   drawCommercialText(commands, model.receiptNumber, 350, 769, {
     align: "right",
@@ -154,40 +169,9 @@ function drawReceiptHeader(
 }
 
 function drawReceiptIdentity(commands: string[], model: TenantReceiptPdfModel) {
-  drawLabelValue(commands, "RECEIVED FROM", model.recipientLabel, margin, 719, 235);
-  drawLabelValue(
-    commands,
-    "PROPERTY",
-    [model.propertyLabel, model.unitLabel].filter(Boolean).join(" / "),
-    margin,
-    678,
-    235,
-  );
-  drawLabelValue(
-    commands,
-    "PAYMENT RECEIVED",
-    formatCommercialMoney(model.paymentAmount, model.currency),
-    margin,
-    637,
-    235,
-  );
-  drawLabelValue(
-    commands,
-    "PAYMENT DATE",
-    formatCommercialDate(model.paymentDate),
-    337,
-    719,
-    216,
-  );
-  drawLabelValue(commands, "INVOICE", model.invoiceNumber, 337, 678, 216);
-  drawLabelValue(
-    commands,
-    "REFERENCE",
-    model.paymentReference ?? "-",
-    337,
-    637,
-    216,
-  );
+  const fields = receiptIdentityFields(model);
+  drawCommercialIdentityFields(commands, fields.left, margin, 719, 235);
+  drawCommercialIdentityFields(commands, fields.right, 337, 719, 216);
 }
 
 function drawReceiptBalances(
@@ -272,26 +256,30 @@ function drawStatus(commands: string[], label: string) {
   });
 }
 
-function drawLabelValue(
-  commands: string[],
-  label: string,
-  value: string,
-  x: number,
-  y: number,
-  width: number,
-) {
-  drawCommercialText(commands, label, x, y, {
-    bold: true,
-    color: commercialPdfColors.muted,
-    fontSize: 6.8,
-    width,
-  });
-  const lines = wrapCommercialText(value, width, 9.5).slice(0, 2);
-  lines.forEach((line, index) => {
-    drawCommercialText(commands, line, x, y - 16 - index * 11, {
-      bold: true,
-      fontSize: 9.5,
-      width,
-    });
-  });
+function receiptIdentityFields(model: TenantReceiptPdfModel) {
+  return {
+    left: [
+      { label: "RECEIVED FROM", value: model.recipientLabel },
+      {
+        label: "PROPERTY",
+        value: [model.propertyLabel, model.unitLabel].filter(Boolean).join(" / "),
+      },
+      {
+        label: "PAYMENT RECEIVED",
+        value: formatCommercialMoney(model.paymentAmount, model.currency),
+      },
+    ],
+    right: [
+      {
+        label: "PAYMENT DATE",
+        value: formatCommercialDate(model.paymentDate),
+      },
+      {
+        label: "PUBLICATION DATE",
+        value: formatCommercialDate(model.publicationDate),
+      },
+      { label: "INVOICE", value: model.invoiceNumber },
+      { label: "REFERENCE", value: model.paymentReference ?? "-" },
+    ],
+  };
 }

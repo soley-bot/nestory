@@ -12,7 +12,8 @@ describe("tenant receipt PDF", () => {
     expect(first).toEqual(second);
     expect(text.startsWith("%PDF-1.4")).toBe(true);
     expect(text).toContain("/MediaBox [0 0 595 842]");
-    expect(text).toContain("RECEIPT");
+    expect(text).toContain("PAYMENT RECEIPT");
+    expect(text).not.toMatch(/\(RECEIPT\) Tj/);
     expect(text).toContain("RCT-2026-0018");
     expect(text).toContain("INV-2026-0042");
     expect(text).toContain("Independent Property Service");
@@ -22,6 +23,7 @@ describe("tenant receipt PDF", () => {
     expect(text).toContain("The Peak Residence");
     expect(text).toContain("Unit 2807");
     expect(text).toContain("08 Aug 2026");
+    expect(text).toContain("09 Aug 2026");
     expect(text).toContain("BANK-008182");
     expect(text).toContain("August 2026 rent");
     expect(text).toContain("Parking");
@@ -81,6 +83,70 @@ describe("tenant receipt PDF", () => {
     expect(text).toContain("REMAINING BALANCE");
   });
 
+  it("splits one oversized allocation across pages without losing its content", () => {
+    const label = [
+      "OVERSIZED-ALLOCATION-START",
+      ...Array.from({ length: 750 }, (_, index) => `allocation-${index + 1}`),
+      "OVERSIZED-ALLOCATION-END",
+    ].join(" ");
+    const text = pdfText(
+      buildTenantReceiptPdf({
+        ...receiptModel(),
+        allocations: [{ amount: "500.00", label }],
+      }),
+    );
+
+    expect(pdfPageCount(text)).toBeGreaterThan(1);
+    const secondHeader = text.indexOf(
+      "RCT-2026-0018",
+      text.indexOf("RCT-2026-0018") + 1,
+    );
+    expect(secondHeader).toBeGreaterThan(0);
+    expect(text).toContain("OVERSIZED-ALLOCATION-START");
+    expect(text).toContain("OVERSIZED-ALLOCATION-END");
+    expect(text.indexOf("OVERSIZED-ALLOCATION-END")).toBeGreaterThan(
+      secondHeader,
+    );
+  });
+
+  it("preserves complete long identity text instead of truncating it", () => {
+    const text = pdfText(
+      buildTenantReceiptPdf({
+        ...receiptModel(),
+        propertyLabel:
+          "The Peak Residence North Tower with extended property identity FINAL-PROPERTY-MARKER",
+        recipientLabel:
+          "Sokha Chan and household paying recipient with complete legal display FINAL-RECIPIENT-MARKER",
+        unitLabel:
+          "Unit 2807, floor 28, east wing, building section FINAL-UNIT-MARKER",
+      }),
+    );
+
+    expect(text).toContain("FINAL-RECIPIENT-MARKER");
+    expect(text).toContain("FINAL-PROPERTY-MARKER");
+    expect(text).toContain("FINAL-UNIT-MARKER");
+  });
+
+  it("preserves Khmer commercial identity and allocation text deterministically", () => {
+    const model: TenantReceiptPdfModel = {
+      ...receiptModel(),
+      allocations: [{ amount: "500.00", label: "ថ្លៃជួលប្រចាំខែសីហា" }],
+      issuer: { name: "សេវាកម្មអចលនទ្រព្យឯករាជ្យ" },
+      propertyLabel: "អគារដឹភីក",
+      recipientLabel: "សុខា ចាន់",
+      unitLabel: "បន្ទប់ ២៨០៧",
+    };
+    const first = buildTenantReceiptPdf(model);
+    const second = buildTenantReceiptPdf(model);
+    const text = pdfText(first);
+
+    expect(first).toEqual(second);
+    expect(text).toContain(pdfUnicodeHex("សេវាកម្មអចលនទ្រព្យឯករាជ្យ"));
+    expect(text).toContain(pdfUnicodeHex("សុខា ចាន់"));
+    expect(text).toContain(pdfUnicodeHex("អគារដឹភីក / បន្ទប់ ២៨០៧"));
+    expect(text).toContain(pdfUnicodeHex("ថ្លៃជួលប្រចាំខែសីហា"));
+  });
+
   it("renders a visible reversed label without creating a cancellation document", () => {
     const text = pdfText(
       buildTenantReceiptPdf({ ...receiptModel(), reversed: true }),
@@ -109,6 +175,7 @@ function receiptModel(): TenantReceiptPdfModel {
     paymentAmount: "500.00",
     paymentDate: "2026-08-08",
     paymentReference: "BANK-008182",
+    publicationDate: "2026-08-09",
     propertyLabel: "The Peak Residence",
     receiptNumber: "RCT-2026-0018",
     recipientLabel: "Sokha Chan",
@@ -129,4 +196,8 @@ function pdfPageCount(text: string) {
 
 function occurrences(text: string, value: string) {
   return text.split(value).length - 1;
+}
+
+function pdfUnicodeHex(value: string) {
+  return `<${Buffer.from(value, "utf16le").swap16().toString("hex").toUpperCase()}>`;
 }

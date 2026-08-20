@@ -31,6 +31,9 @@ describe("tenant invoice PDF", () => {
     expect(text).toContain("Parking");
     expect(text).toContain("USD 1,250.00");
     expect(text).toContain("TOTAL DUE");
+    expect(text).toContain("Pay by bank transfer to IPS operating");
+    expect(text).toContain("account 001-9182.");
+    expect(text).toContain("Please include the invoice number with payment.");
     expect(text).toContain("NOT A TAX INVOICE");
     expect(text).not.toContain("VAT amount");
     expect(text).not.toContain("Tax ID");
@@ -67,6 +70,82 @@ describe("tenant invoice PDF", () => {
     expect(text).toContain("TOTAL DUE");
   });
 
+  it("splits one oversized line across pages without losing its content", () => {
+    const description = [
+      "OVERSIZED-LINE-START",
+      ...Array.from({ length: 750 }, (_, index) => `detail-${index + 1}`),
+      "OVERSIZED-LINE-END",
+    ].join(" ");
+    const text = pdfText(
+      buildTenantInvoicePdf({
+        ...invoiceModel(),
+        lines: [{ amount: "1250.00", description, label: "Rent detail" }],
+      }),
+    );
+
+    expect(pdfPageCount(text)).toBeGreaterThan(1);
+    const secondHeader = text.indexOf(
+      "INV-2026-0042",
+      text.indexOf("INV-2026-0042") + 1,
+    );
+    expect(secondHeader).toBeGreaterThan(0);
+    expect(text).toContain("OVERSIZED-LINE-START");
+    expect(text).toContain("OVERSIZED-LINE-END");
+    expect(text.indexOf("OVERSIZED-LINE-END")).toBeGreaterThan(secondHeader);
+  });
+
+  it("preserves complete long identity text instead of truncating it", () => {
+    const text = pdfText(
+      buildTenantInvoicePdf({
+        ...invoiceModel(),
+        occupantLabels: Array.from(
+          { length: 12 },
+          (_, index) => `Occupant ${index + 1} identity detail`,
+        ).concat("FINAL-OCCUPANT-MARKER"),
+        propertyLabel:
+          "The Peak Residence North Tower with extended property identity FINAL-PROPERTY-MARKER",
+        recipientLabel:
+          "Sokha Chan and household billing recipient with complete legal display FINAL-RECIPIENT-MARKER",
+        unitLabel:
+          "Unit 2807, floor 28, east wing, building section FINAL-UNIT-MARKER",
+      }),
+    );
+
+    expect(text).toContain("FINAL-RECIPIENT-MARKER");
+    expect(text).toContain("FINAL-PROPERTY-MARKER");
+    expect(text).toContain("FINAL-UNIT-MARKER");
+    expect(text).toContain("FINAL-OCCUPANT-MARKER");
+  });
+
+  it("preserves Khmer commercial identity and line text deterministically", () => {
+    const model: TenantInvoicePdfModel = {
+      ...invoiceModel(),
+      issuer: { name: "សេវាកម្មអចលនទ្រព្យឯករាជ្យ" },
+      lines: [
+        {
+          amount: "1250.00",
+          description: "ថ្លៃជួលប្រចាំខែសីហា",
+          label: "ថ្លៃជួល",
+        },
+      ],
+      occupantLabels: ["ម៉ាលី ចាន់", "ដារ៉ា ចាន់"],
+      propertyLabel: "អគារដឹភីក",
+      recipientLabel: "សុខា ចាន់",
+      unitLabel: "បន្ទប់ ២៨០៧",
+    };
+    const first = buildTenantInvoicePdf(model);
+    const second = buildTenantInvoicePdf(model);
+    const text = pdfText(first);
+
+    expect(first).toEqual(second);
+    expect(text).toContain(pdfUnicodeHex("សេវាកម្មអចលនទ្រព្យឯករាជ្យ"));
+    expect(text).toContain(pdfUnicodeHex("សុខា ចាន់"));
+    expect(text).toContain(pdfUnicodeHex("អគារដឹភីក / បន្ទប់ ២៨០៧"));
+    expect(text).toContain(
+      pdfUnicodeHex("ថ្លៃជួល - ថ្លៃជួលប្រចាំខែសីហា"),
+    );
+  });
+
   it("renders a visible void label without creating a cancellation document", () => {
     const text = pdfText(
       buildTenantInvoicePdf({ ...invoiceModel(), voided: true }),
@@ -89,6 +168,19 @@ describe("tenant invoice PDF", () => {
     expect(text).toContain("/Subtype /Image");
     expect(text).toContain("/Filter /DCTDecode");
     expect(text).toContain("/Logo Do");
+  });
+
+  it("rejects a logo that is not a valid positive-size JPEG asset", () => {
+    const model = invoiceModel();
+    model.issuer.logo = {
+      bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]),
+      height: 0,
+      width: 240,
+    };
+
+    expect(() => buildTenantInvoicePdf(model)).toThrow(
+      "Issuer logo must be a positive-size JPEG image.",
+    );
   });
 });
 
@@ -114,6 +206,8 @@ function invoiceModel(): TenantInvoicePdfModel {
       { amount: "50.00", description: null, label: "Parking" },
     ],
     occupantLabels: ["Maly Chan", "Dara Chan"],
+    note: "Please include the invoice number with payment.",
+    paymentInstructions: "Pay by bank transfer to IPS operating account 001-9182.",
     propertyLabel: "The Peak Residence",
     recipientLabel: "Sokha Chan",
     totalAmount: "1250.00",
@@ -133,4 +227,8 @@ function pdfPageCount(text: string) {
 
 function occurrences(text: string, value: string) {
   return text.split(value).length - 1;
+}
+
+function pdfUnicodeHex(value: string) {
+  return `<${Buffer.from(value, "utf16le").swap16().toString("hex").toUpperCase()}>`;
 }

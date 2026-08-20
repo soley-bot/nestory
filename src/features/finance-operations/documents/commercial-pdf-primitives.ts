@@ -1,3 +1,5 @@
+import { commercialUnicodeFontBase64 } from "@/features/finance-operations/documents/commercial-unicode-font";
+
 export type CommercialPdfImage = {
   bytes: Uint8Array;
   height: number;
@@ -19,6 +21,11 @@ export type CommercialPdfTwoColumnRow = {
   lines: string[];
 };
 
+export type CommercialPdfIdentityField = {
+  label: string;
+  value: string;
+};
+
 export const commercialA4Portrait = { height: 842, width: 595 } as const;
 
 export const commercialPdfColors = {
@@ -34,11 +41,14 @@ export function buildCommercialPdf(
   pageContents: string[],
   imageAssets: CommercialPdfImage[] = [],
 ) {
-  const firstImageObjectId = 5 + pageContents.length * 2;
+  imageAssets.forEach(validateCommercialImage);
+  const unicodeFont = buildCommercialUnicodeFont();
+  const firstPageObjectId = 11;
+  const firstImageObjectId = firstPageObjectId + pageContents.length * 2;
   const maxObjectId = firstImageObjectId + imageAssets.length - 1;
   const objects: Array<Buffer | string> = new Array(maxObjectId + 1);
   const pageRefs = pageContents
-    .map((_, index) => `${5 + index * 2} 0 R`)
+    .map((_, index) => `${firstPageObjectId + index * 2} 0 R`)
     .join(" ");
   const imageResources = imageAssets.length
     ? ` /XObject << ${imageAssets
@@ -55,13 +65,31 @@ export function buildCommercialPdf(
   objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
   objects[4] =
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
+  objects[5] =
+    "<< /Type /Font /Subtype /Type0 /BaseFont /NotoSansKhmer /Encoding /Identity-H " +
+    "/DescendantFonts [6 0 R] /ToUnicode 10 0 R >>";
+  objects[6] =
+    "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /NotoSansKhmer " +
+    "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> " +
+    `/FontDescriptor 7 0 R /DW 600 /W [6016 [${unicodeFont.khmerWidths.join(" ")}]] ` +
+    "/CIDToGIDMap 9 0 R >>";
+  objects[7] =
+    "<< /Type /FontDescriptor /FontName /NotoSansKhmer /Flags 4 " +
+    `/FontBBox [${unicodeFont.fontBox.join(" ")}] /ItalicAngle 0 ` +
+    `/Ascent ${unicodeFont.ascent} /Descent ${unicodeFont.descent} ` +
+    "/CapHeight 714 /StemV 80 /FontFile2 8 0 R >>";
+  objects[8] = binaryStream(unicodeFont.bytes, {
+    Length1: unicodeFont.bytes.byteLength,
+  });
+  objects[9] = binaryStream(unicodeFont.cidToGidMap);
+  objects[10] = textStream(unicodeToUnicodeCMap());
 
   pageContents.forEach((content, index) => {
-    const pageObjectId = 5 + index * 2;
+    const pageObjectId = firstPageObjectId + index * 2;
     const contentObjectId = pageObjectId + 1;
     objects[pageObjectId] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${commercialA4Portrait.width} ${commercialA4Portrait.height}] ` +
-      `/Resources << /Font << /F1 3 0 R /F2 4 0 R >>${imageResources} >> ` +
+      `/Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >>${imageResources} >> ` +
       `/Contents ${contentObjectId} 0 R >>`;
     objects[contentObjectId] =
       `<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream`;
@@ -166,6 +194,7 @@ export function drawCommercialText(
 ) {
   const fontSize = options.fontSize ?? 9;
   const text = sanitizeCommercialText(value);
+  const unicode = /[^\x20-\x7e]/.test(text);
   const width = options.width ?? 0;
   const offset =
     options.align === "right"
@@ -178,8 +207,11 @@ export function drawCommercialText(
         : 0;
   commands.push(
     `${toRgb(options.color ?? commercialPdfColors.ink)} rg`,
-    `BT /${options.bold ? "F2" : "F1"} ${round(fontSize)} Tf 1 0 0 1 ` +
-      `${round(x + offset)} ${round(y)} Tm (${escapePdfString(text)}) Tj ET`,
+    unicode
+      ? `BT /F3 ${round(fontSize)} Tf 1 0 0 1 ${round(x + offset)} ${round(y)} Tm ` +
+        `${unicodePdfHex(text)} Tj ET`
+      : `BT /${options.bold ? "F2" : "F1"} ${round(fontSize)} Tf 1 0 0 1 ` +
+        `${round(x + offset)} ${round(y)} Tm (${escapePdfString(text)}) Tj ET`,
   );
 }
 
@@ -224,6 +256,45 @@ export function drawCommercialTwoColumnTableHeader(
       width: options.amountWidth - 20,
     },
   );
+}
+
+export function getCommercialIdentityBottom(
+  fields: CommercialPdfIdentityField[],
+  top: number,
+  width: number,
+) {
+  return fields.reduce((y, field) => {
+    const lineCount = wrapCommercialText(field.value, width, 9.5).length;
+    return y - 40 - Math.max(0, lineCount - 1) * 11;
+  }, top);
+}
+
+export function drawCommercialIdentityFields(
+  commands: string[],
+  fields: CommercialPdfIdentityField[],
+  x: number,
+  top: number,
+  width: number,
+) {
+  let y = top;
+  fields.forEach((field) => {
+    drawCommercialText(commands, field.label, x, y, {
+      bold: true,
+      color: commercialPdfColors.muted,
+      fontSize: 6.8,
+      width,
+    });
+    const lines = wrapCommercialText(field.value, width, 9.5);
+    lines.forEach((line, index) => {
+      drawCommercialText(commands, line, x, y - 16 - index * 11, {
+        bold: true,
+        fontSize: 9.5,
+        width,
+      });
+    });
+    y -= 40 + Math.max(0, lines.length - 1) * 11;
+  });
+  return y;
 }
 
 export function drawCommercialTwoColumnTableRow(
@@ -281,8 +352,8 @@ export function drawCommercialTwoColumnTableRow(
   );
 }
 
-export function paginateCommercialTableRows<T extends { height: number }>(
-  rows: T[],
+export function paginateCommercialTableRows(
+  rows: CommercialPdfTwoColumnRow[],
   options: {
     firstTableTop: number;
     tableBottom: number;
@@ -290,12 +361,49 @@ export function paginateCommercialTableRows<T extends { height: number }>(
     continuedTableTop: number;
   },
 ) {
-  const pages: T[][] = [[]];
+  const pages: CommercialPdfTwoColumnRow[][] = [[]];
   let pageIndex = 0;
   let remaining =
     options.firstTableTop - options.tableHeaderHeight - options.tableBottom;
   for (const row of rows) {
-    if (pages[pageIndex].length && row.height > remaining) {
+    let lines = [...row.lines];
+    let firstFragment = true;
+    while (lines.length) {
+      const wholeHeight = Math.max(31, lines.length * 11 + 14);
+      if (wholeHeight <= remaining) {
+        const fragment = {
+          ...row,
+          amount: firstFragment ? row.amount : "",
+          height: wholeHeight,
+          lines,
+        };
+        pages[pageIndex].push(fragment);
+        remaining -= fragment.height;
+        lines = [];
+        continue;
+      }
+
+      const maxLines = Math.floor((remaining - 14) / 11);
+      if (maxLines < 1) {
+        pages.push([]);
+        pageIndex += 1;
+        remaining =
+          options.continuedTableTop -
+          options.tableHeaderHeight -
+          options.tableBottom;
+        continue;
+      }
+
+      const fragmentLines = lines.slice(0, maxLines);
+      const fragment = {
+        ...row,
+        amount: firstFragment ? row.amount : "",
+        height: Math.max(31, fragmentLines.length * 11 + 14),
+        lines: fragmentLines,
+      };
+      pages[pageIndex].push(fragment);
+      lines = lines.slice(fragmentLines.length);
+      firstFragment = false;
       pages.push([]);
       pageIndex += 1;
       remaining =
@@ -303,8 +411,6 @@ export function paginateCommercialTableRows<T extends { height: number }>(
         options.tableHeaderHeight -
         options.tableBottom;
     }
-    pages[pageIndex].push(row);
-    remaining -= row.height;
   }
   return pages;
 }
@@ -401,6 +507,8 @@ function estimateCommercialTextWidth(
   let units = 0;
   for (const character of value) {
     if (character === " ") units += 0.32;
+    else if (/[\u17b4-\u17d3]/.test(character)) units += 0;
+    else if (/[\u1780-\u17ff]/.test(character)) units += 0.62;
     else if (/[il.,'|]/.test(character)) units += 0.28;
     else if (/[mwMW@#%]/.test(character)) units += 0.82;
     else if (/[A-Z0-9]/.test(character)) units += 0.58;
@@ -415,9 +523,8 @@ function sanitizeCommercialText(value: string) {
       .replace(/[\u2010-\u2015]/g, "-")
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201c\u201d]/g, '"')
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^\x20-\x7e]+/g, " ")
+      .normalize("NFC")
+      .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
       .replace(/\s+/g, " ")
       .trim() || "-"
   );
@@ -428,6 +535,176 @@ function escapePdfString(value: string) {
     .replace(/\\/g, "\\\\")
     .replace(/\(/g, "\\(")
     .replace(/\)/g, "\\)");
+}
+
+function unicodePdfHex(value: string) {
+  return `<${Buffer.from(value, "utf16le").swap16().toString("hex").toUpperCase()}>`;
+}
+
+function validateCommercialImage(image: CommercialPdfImage) {
+  const bytes = image.bytes;
+  const jpegMarkers =
+    bytes.byteLength >= 4 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[bytes.byteLength - 2] === 0xff &&
+    bytes[bytes.byteLength - 1] === 0xd9;
+  if (
+    !jpegMarkers ||
+    !Number.isFinite(image.width) ||
+    image.width <= 0 ||
+    !Number.isFinite(image.height) ||
+    image.height <= 0
+  ) {
+    throw new Error("Issuer logo must be a positive-size JPEG image.");
+  }
+}
+
+function buildCommercialUnicodeFont() {
+  const bytes = new Uint8Array(
+    Buffer.from(commercialUnicodeFontBase64, "base64"),
+  );
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const tables = readTrueTypeTables(view);
+  const unitsPerEm = view.getUint16(requiredTable(tables, "head") + 18);
+  const head = requiredTable(tables, "head");
+  const hhea = requiredTable(tables, "hhea");
+  const hmtx = requiredTable(tables, "hmtx");
+  const cmap = buildTrueTypeCmap(view, requiredTable(tables, "cmap"));
+  const numberOfHMetrics = view.getUint16(hhea + 34);
+  const advanceWidth = (glyphId: number) =>
+    view.getUint16(hmtx + Math.min(glyphId, numberOfHMetrics - 1) * 4);
+  const scale = (value: number) => Math.round((value * 1000) / unitsPerEm);
+  const cidToGidMap = new Uint8Array(0x10000 * 2);
+  for (let codePoint = 0; codePoint <= 0xffff; codePoint += 1) {
+    const glyphId = cmap(codePoint);
+    cidToGidMap[codePoint * 2] = glyphId >> 8;
+    cidToGidMap[codePoint * 2 + 1] = glyphId & 0xff;
+  }
+  const khmerWidths = Array.from({ length: 0x80 }, (_, index) =>
+    scale(advanceWidth(cmap(0x1780 + index))),
+  );
+  return {
+    ascent: scale(view.getInt16(hhea + 4)),
+    bytes,
+    cidToGidMap,
+    descent: scale(view.getInt16(hhea + 6)),
+    fontBox: [
+      scale(view.getInt16(head + 36)),
+      scale(view.getInt16(head + 38)),
+      scale(view.getInt16(head + 40)),
+      scale(view.getInt16(head + 42)),
+    ],
+    khmerWidths,
+  };
+}
+
+function readTrueTypeTables(view: DataView) {
+  const tables = new Map<string, number>();
+  const tableCount = view.getUint16(4);
+  for (let index = 0; index < tableCount; index += 1) {
+    const record = 12 + index * 16;
+    const tag = String.fromCharCode(
+      view.getUint8(record),
+      view.getUint8(record + 1),
+      view.getUint8(record + 2),
+      view.getUint8(record + 3),
+    );
+    tables.set(tag, view.getUint32(record + 8));
+  }
+  return tables;
+}
+
+function requiredTable(tables: Map<string, number>, tag: string) {
+  const offset = tables.get(tag);
+  if (offset === undefined) throw new Error(`Unicode font is missing ${tag}.`);
+  return offset;
+}
+
+function buildTrueTypeCmap(view: DataView, cmapOffset: number) {
+  const count = view.getUint16(cmapOffset + 2);
+  let format4Offset: number | null = null;
+  for (let index = 0; index < count; index += 1) {
+    const record = cmapOffset + 4 + index * 8;
+    const platform = view.getUint16(record);
+    const encoding = view.getUint16(record + 2);
+    const offset = cmapOffset + view.getUint32(record + 4);
+    if (
+      view.getUint16(offset) === 4 &&
+      (platform === 0 || (platform === 3 && encoding === 1))
+    ) {
+      format4Offset = offset;
+      if (platform === 3) break;
+    }
+  }
+  if (format4Offset === null) {
+    throw new Error("Unicode font is missing a BMP character map.");
+  }
+  const offset = format4Offset;
+  const segmentCount = view.getUint16(offset + 6) / 2;
+  const endCodes = offset + 14;
+  const startCodes = endCodes + segmentCount * 2 + 2;
+  const deltas = startCodes + segmentCount * 2;
+  const rangeOffsets = deltas + segmentCount * 2;
+  return (codePoint: number) => {
+    for (let segment = 0; segment < segmentCount; segment += 1) {
+      const end = view.getUint16(endCodes + segment * 2);
+      if (codePoint > end) continue;
+      const start = view.getUint16(startCodes + segment * 2);
+      if (codePoint < start) return 0;
+      const delta = view.getInt16(deltas + segment * 2);
+      const rangePosition = rangeOffsets + segment * 2;
+      const rangeOffset = view.getUint16(rangePosition);
+      if (rangeOffset === 0) return (codePoint + delta) & 0xffff;
+      const glyphPosition =
+        rangePosition + rangeOffset + (codePoint - start) * 2;
+      const glyph = view.getUint16(glyphPosition);
+      return glyph === 0 ? 0 : (glyph + delta) & 0xffff;
+    }
+    return 0;
+  };
+}
+
+function binaryStream(
+  bytes: Uint8Array,
+  entries: Record<string, number> = {},
+) {
+  const dictionary = Object.entries(entries)
+    .map(([key, value]) => `/${key} ${value}`)
+    .join(" ");
+  return Buffer.concat([
+    Buffer.from(
+      `<< /Length ${bytes.byteLength}${dictionary ? ` ${dictionary}` : ""} >>\nstream\n`,
+      "latin1",
+    ),
+    Buffer.from(bytes),
+    Buffer.from("\nendstream", "latin1"),
+  ]);
+}
+
+function textStream(value: string) {
+  return `<< /Length ${Buffer.byteLength(value, "latin1")} >>\nstream\n${value}\nendstream`;
+}
+
+function unicodeToUnicodeCMap() {
+  return [
+    "/CIDInit /ProcSet findresource begin",
+    "12 dict begin",
+    "begincmap",
+    "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def",
+    "/CMapName /NotoSansKhmer-UCS def",
+    "/CMapType 2 def",
+    "1 begincodespacerange",
+    "<0000> <FFFF>",
+    "endcodespacerange",
+    "1 beginbfrange",
+    "<0000> <FFFF> <0000>",
+    "endbfrange",
+    "endcmap",
+    "CMapName currentdict /CMap defineresource pop",
+    "end",
+    "end",
+  ].join("\n");
 }
 
 function toRgb(hex: string) {

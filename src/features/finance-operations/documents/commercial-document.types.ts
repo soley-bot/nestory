@@ -14,7 +14,9 @@ export type TenantInvoicePdfModel = {
   issueDate: string;
   issuer: CommercialIssuerSnapshot;
   lines: Array<{ amount: string; description: string | null; label: string }>;
+  note: string | null;
   occupantLabels: string[];
+  paymentInstructions: string;
   propertyLabel: string;
   recipientLabel: string;
   totalAmount: string;
@@ -32,6 +34,7 @@ export type TenantReceiptPdfModel = {
   paymentAmount: string;
   paymentDate: string;
   paymentReference: string | null;
+  publicationDate: string;
   propertyLabel: string;
   receiptNumber: string;
   recipientLabel: string;
