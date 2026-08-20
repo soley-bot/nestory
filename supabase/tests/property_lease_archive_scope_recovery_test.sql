@@ -151,8 +151,8 @@ SELECT throws_ok(
     ORDER BY term.term_sequence DESC
     LIMIT 1
   $sql$,
-  '23503',
-  'Whole-Property Lease scope is not supported or no longer exists',
+  '42501',
+  'permission denied for function create_authoritative_lease_term',
   'whole-property recovery remains restricted to checked lifecycle actions'
 );
 

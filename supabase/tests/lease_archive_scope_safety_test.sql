@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(13);
+SELECT plan(15);
 
 CREATE TEMP TABLE lease_archive_scope_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -234,6 +234,25 @@ WHERE public.units.id = lease_archive_scope_state.active_unit_id;
 
 SET LOCAL session_replication_role = origin;
 
+SELECT ok(
+  NOT has_function_privilege(
+    'anon',
+    'public.create_authoritative_lease_term(uuid,uuid,date,date,numeric,public.currency_code,integer,text,text,uuid,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'authenticated',
+    'public.create_authoritative_lease_term(uuid,uuid,date,date,numeric,public.currency_code,integer,text,text,uuid,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'service_role',
+    'public.create_authoritative_lease_term(uuid,uuid,date,date,numeric,public.currency_code,integer,text,text,uuid,text)',
+    'EXECUTE'
+  ),
+  'Data API roles cannot execute the low-level authoritative term writer'
+);
+
 SET LOCAL ROLE authenticated;
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -311,9 +330,46 @@ SELECT throws_ok(
     ORDER BY term.term_sequence DESC
     LIMIT 1
   $sql$,
-  '23503',
-  'Lease scope is not supported or no longer exists',
+  '42501',
+  'permission denied for function create_authoritative_lease_term',
   'archived-scope recovery remains restricted to the checked lifecycle command'
+);
+
+SELECT throws_ok(
+  $sql$
+    WITH forged_recovery_context AS MATERIALIZED (
+      SELECT set_config(
+        'app.lease_scope_terminal_recovery_context',
+        'checked-lease-lifecycle-v1',
+        true
+      ) AS context_value
+    )
+    SELECT public.create_authoritative_lease_term(
+      state.organization_id,
+      (state.active_creation_result ->> 'leaseId')::uuid,
+      term.start_date,
+      term.end_date,
+      term.rent_amount,
+      term.rent_currency,
+      term.rent_due_day,
+      term.payment_frequency,
+      'terminated',
+      term.id,
+      'lease-archive-forged-context-v1:' || forged.context_value
+    )
+    FROM lease_archive_scope_state AS state
+    JOIN public.lease_terms AS term
+      ON term.lease_id = (state.active_creation_result ->> 'leaseId')::uuid
+    CROSS JOIN forged_recovery_context AS forged
+    WHERE term.authority_kind = 'authoritative'
+      AND term.status NOT IN ('superseded', 'terminated')
+      AND term.archived_at IS NULL
+    ORDER BY term.term_sequence DESC
+    LIMIT 1
+  $sql$,
+  '42501',
+  'permission denied for function create_authoritative_lease_term',
+  'a caller-set recovery setting cannot bypass the checked lifecycle command'
 );
 
 SELECT lives_ok(
