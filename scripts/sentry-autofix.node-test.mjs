@@ -126,8 +126,10 @@ test("next emits one redacted low-risk issue", async () => {
     const candidate = JSON.parse(result.stdout);
     assert.equal(candidate.id, "101");
     assert.equal(candidate.disposition, "candidate");
-    assert.equal(candidate.environment, "production");
     assert.equal(candidate.frames[0].filename, "src/components/widget.tsx");
+    for (const field of ["culprit", "environment", "release", "title"]) {
+      assert.equal(Object.hasOwn(candidate, field), false);
+    }
     assert.doesNotMatch(result.stdout, /fixture-secret|private@example\.com|fixture-token/);
     assert.equal(requests.length, 2);
     assert.match(
@@ -156,12 +158,35 @@ test("next prefers the provisioned Nestory project variables", async () => {
 });
 
 test("next blocks protected-domain issue text", async () => {
-  await withFixtureServer(
-    { ...issue, title: "RLS policy rejected rent payment allocation" },
-    async ({ environment }) => {
+  for (const title of [
+    "RLS policy rejected rent payment allocation",
+    "ownerBalances failed in src/features/finance/property-cash.ts",
+    "Reports could not format an invoice amount",
+  ]) {
+    await withFixtureServer({ ...issue, title }, async ({ environment }) => {
       const result = await runCli(["next", "--dry-run"], environment);
       assert.equal(result.code, 0, result.stderr);
       assert.equal(JSON.parse(result.stdout).disposition, "requires_authorization");
+    });
+  }
+});
+
+test("next omits all free-form Sentry text from its summary", async () => {
+  await withFixtureServer(
+    {
+      ...issue,
+      culprit: "Riverside record",
+      exception: "Bearer private-token for operator@example.com cost USD 123.45",
+      permalink: "https://sentry.example/issues/101?label=Riverside",
+      title: "Riverside failed for operator@example.com at USD 123.45",
+    },
+    async ({ environment }) => {
+      const result = await runCli(["next", "--dry-run"], environment);
+      assert.equal(result.code, 0, result.stderr);
+      assert.doesNotMatch(
+        result.stdout,
+        /Riverside|operator@example\.com|private-token|123\.45/,
+      );
     },
   );
 });

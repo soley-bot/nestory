@@ -11,8 +11,6 @@ const ROUTE_IDENTIFIERS: Record<string, string> = {
 
 const SAFE_TAGS = new Set(["organization_id", "role", "route"]);
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const EMAIL = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const BEARER_TOKEN = /\bBearer\s+[^\s,;]+/gi;
 
 export function buildSentryOptions(runtime: SentryRuntime) {
   void runtime;
@@ -36,17 +34,16 @@ export function scrubSentryEvent(event: ErrorEvent): ErrorEvent | null {
   delete scrubbed.contexts;
   delete scrubbed.extra;
 
-  if (scrubbed.message) {
-    scrubbed.message = redactText(scrubbed.message);
-  }
+  delete scrubbed.message;
 
   if (scrubbed.exception?.values) {
     scrubbed.exception = {
       ...scrubbed.exception,
-      values: scrubbed.exception.values.map((value) => ({
-        ...value,
-        ...(value.value ? { value: redactText(value.value) } : {}),
-      })),
+      values: scrubbed.exception.values.map((value) => {
+        const safe = { ...value };
+        delete safe.value;
+        return safe;
+      }),
     };
   }
 
@@ -107,10 +104,4 @@ function routePathname(input: string) {
 function parseSampleRate(value: string | undefined) {
   const parsed = value === undefined ? Number.NaN : Number(value);
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.1;
-}
-
-function redactText(value: string) {
-  return value
-    .replace(EMAIL, "[redacted-email]")
-    .replace(BEARER_TOKEN, "[redacted-token]");
 }

@@ -24,6 +24,14 @@ describe("Sentry event privacy", () => {
         },
       ],
       extra: { amount: "100.00", note: "private" },
+      exception: {
+        values: [
+          {
+            type: "Error",
+            value: "Property Riverside failed for USD 100.00",
+          },
+        ],
+      },
       message: "Failed for operator@example.com with Bearer abc123",
       request: {
         cookies: { session: "secret" },
@@ -53,7 +61,7 @@ describe("Sentry event privacy", () => {
     expect(event).toEqual(
       expect.objectContaining({
         breadcrumbs: [{ category: "ui.click", type: "user" }],
-        message: "Failed for [redacted-email] with [redacted-token]",
+        exception: { values: [{ type: "Error" }] },
         request: {
           headers: { "user-agent": "browser" },
           url: "/properties/[propertyId]",
@@ -67,6 +75,7 @@ describe("Sentry event privacy", () => {
       }),
     );
     expect(event).not.toHaveProperty("extra");
+    expect(event).not.toHaveProperty("message");
   });
 
   it("uses safe sampling defaults and disables default PII", () => {

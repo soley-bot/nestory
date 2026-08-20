@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const PROTECTED_TERMS = [
+const PROTECTED_PREFIXES = [
   "supabase",
   "migration",
   "rls",
@@ -11,6 +11,12 @@ const PROTECTED_TERMS = [
   "role",
   "organization",
   "branch",
+  "finance",
+  "financial",
+  "report",
+  "cash",
+  "amount",
+  "currency",
   "rent",
   "invoice",
   "payment",
@@ -21,6 +27,14 @@ const PROTECTED_TERMS = [
   "deposit",
   "ledger",
   "reversal",
+  "lease",
+  "tenant",
+  "property",
+  "unit",
+  "people",
+  "person",
+  "document",
+  "storage",
   "secret",
   "environment",
   "vercel",
@@ -29,11 +43,6 @@ const PROTECTED_TERMS = [
   "archive",
   "restore",
 ];
-
-const protectedPattern = new RegExp(
-  `\\b(?:${PROTECTED_TERMS.map(escapeRegExp).join("|")})\\b`,
-  "i",
-);
 
 async function main() {
   const [command, ...args] = process.argv.slice(2);
@@ -141,36 +150,33 @@ async function sentryRequest(path, init = {}) {
 
 function safeSummary(issue, event) {
   const exceptions = exceptionValues(event);
-  const frames = exceptions
+  const rawFrames = exceptions
     .flatMap((exception) => exception.stacktrace?.frames ?? [])
     .filter((frame) => frame?.inApp !== false)
-    .slice(-10)
-    .map((frame) => ({
-      ...(typeof frame.filename === "string" ? { filename: frame.filename } : {}),
-      ...(typeof frame.function === "string" ? { function: frame.function } : {}),
-    }));
+    .slice(-10);
+  const frames = rawFrames
+    .map((frame) => ({ filename: safeSourcePath(frame.filename) }))
+    .filter((frame) => frame.filename !== undefined);
   const protectedText = [
     issue.title,
     issue.culprit,
     ...exceptions.map((exception) => exception.value),
-    ...frames.flatMap((frame) => [frame.filename, frame.function]),
+    ...rawFrames.flatMap((frame) => [frame.filename, frame.function]),
   ]
     .filter((value) => typeof value === "string")
     .join(" ");
 
   return {
     count: safeInteger(issue.count),
-    culprit: safeText(issue.culprit),
-    disposition: protectedPattern.test(protectedText) ? "requires_authorization" : "candidate",
-    environment: safeEnvironment(event),
+    disposition: containsProtectedDomain(protectedText)
+      ? "requires_authorization"
+      : "candidate",
     firstSeen: safeTimestamp(issue.firstSeen),
     frames,
     id: String(issue.id),
     lastSeen: safeTimestamp(issue.lastSeen),
     permalink: safePermalink(issue.permalink),
-    release: safeRelease(event?.release),
-    shortId: safeText(issue.shortId),
-    title: safeText(issue.title),
+    shortId: safeShortId(issue.shortId),
     userCount: safeInteger(issue.userCount),
   };
 }
@@ -182,21 +188,30 @@ function exceptionValues(event) {
   return Array.isArray(exceptionEntry?.data?.values) ? exceptionEntry.data.values : [];
 }
 
-function safeEnvironment(event) {
-  if (typeof event?.environment === "string") return event.environment;
-  const tag = Array.isArray(event?.tags)
-    ? event.tags.find((candidate) => candidate?.key === "environment")
+function containsProtectedDomain(value) {
+  const tokens = value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+  return tokens.some((token) =>
+    PROTECTED_PREFIXES.some((prefix) => token.startsWith(prefix)),
+  );
+}
+
+function safeSourcePath(value) {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.replaceAll("\\", "/");
+  return /^(?:src|app|scripts)\/[A-Za-z0-9_@./()[\]-]{1,300}$/.test(normalized)
+    ? normalized
     : undefined;
-  return safeText(tag?.value);
 }
 
-function safeRelease(release) {
-  if (typeof release === "string") return safeText(release);
-  return safeText(release?.version);
-}
-
-function safeText(value) {
-  return typeof value === "string" ? value.slice(0, 500) : undefined;
+function safeShortId(value) {
+  return typeof value === "string" && /^[A-Z0-9_-]{1,64}$/i.test(value)
+    ? value
+    : undefined;
 }
 
 function safeInteger(value) {
@@ -213,7 +228,10 @@ function safePermalink(value) {
   if (typeof value !== "string") return undefined;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" ? url.toString() : undefined;
+    if (url.protocol !== "https:") return undefined;
+    url.hash = "";
+    url.search = "";
+    return url.toString();
   } catch {
     return undefined;
   }
@@ -221,10 +239,6 @@ function safePermalink(value) {
 
 function writeJson(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 class CliError extends Error {
