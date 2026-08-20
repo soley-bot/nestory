@@ -15,6 +15,99 @@ SELECT has_table(
   'server-computed upload attestations are retained in a private schema'
 );
 
+SELECT has_table(
+  'app_private',
+  'tenant_commercial_document_cleanup_claims',
+  'orphan cleanup authority is retained in a private claim table'
+);
+
+SELECT has_function(
+  'public',
+  'begin_tenant_commercial_document_cleanup',
+  ARRAY['uuid','text','uuid','text','uuid','text'],
+  'service cleanup atomically claims one exact source object'
+);
+
+SELECT has_function(
+  'public',
+  'finish_tenant_commercial_document_cleanup',
+  ARRAY['uuid','text','uuid','text','uuid','text'],
+  'service cleanup finishes only after the exact claimed object is gone'
+);
+
+SELECT has_trigger(
+  'storage',
+  'objects',
+  'guard_tenant_commercial_document_storage_object',
+  'tenant commercial document Storage mutation requires an exact cleanup claim'
+);
+
+SELECT ok(
+  COALESCE((
+    SELECT relation.relrowsecurity AND relation.relforcerowsecurity
+    FROM pg_catalog.pg_class AS relation
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = relation.relnamespace
+    WHERE namespace.nspname = 'app_private'
+      AND relation.relname = 'tenant_commercial_document_cleanup_claims'
+  ), false),
+  'cleanup claims enable and force RLS'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM information_schema.table_privileges AS privilege
+    WHERE privilege.table_schema = 'app_private'
+      AND privilege.table_name = 'tenant_commercial_document_cleanup_claims'
+      AND privilege.grantee IN ('PUBLIC', 'anon', 'authenticated', 'service_role')
+  ),
+  0,
+  'cleanup claims expose no direct Data API table privilege'
+);
+
+SELECT ok(
+  (
+    SELECT count(*) FILTER (
+      WHERE privilege.grantee = 'service_role'
+    ) = 2
+    AND count(*) FILTER (
+      WHERE privilege.grantee IN ('PUBLIC', 'anon', 'authenticated')
+    ) = 0
+    FROM information_schema.routine_privileges AS privilege
+    WHERE privilege.specific_schema = 'public'
+      AND privilege.routine_name IN (
+        'begin_tenant_commercial_document_cleanup',
+        'finish_tenant_commercial_document_cleanup'
+      )
+      AND privilege.privilege_type = 'EXECUTE'
+  ),
+  'cleanup claim RPCs are executable only by service_role'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM pg_catalog.pg_proc AS function
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = function.pronamespace
+    WHERE namespace.nspname = 'public'
+      AND function.proname IN (
+        'attest_tenant_commercial_document_upload',
+        'register_tenant_commercial_document_artifact',
+        'mark_tenant_commercial_document_publication_failed',
+        'begin_tenant_commercial_document_cleanup',
+        'finish_tenant_commercial_document_cleanup'
+      )
+      AND pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(function.oid),
+        'tenant_commercial_document_source_v1'
+      ) > 0
+  ),
+  5,
+  'attestation, registration, failure, and cleanup use the same source lock key'
+);
+
 SELECT has_function(
   'public',
   'get_tenant_commercial_document_publication_source',
@@ -450,6 +543,32 @@ VALUES
     'a5000000-0000-4000-8000-000000000001',
     'a6000000-0000-4000-8000-000000000001',
     '2026-04-01', '2026-04-30', '2026-04-01', '2026-04-05',
+    'through_ips', 'individual',
+    'a3000000-0000-4000-8000-000000000001',
+    'Tenant Document Fixture', 'USD', 1000, 'issued', NULL, NULL,
+    'a1000000-0000-4000-8000-000000000001'
+  ),
+  (
+    'a7000000-0000-4000-8000-000000000005',
+    'a0000000-0000-4000-8000-000000000001',
+    'INV-CLEAN-1005',
+    'a4000000-0000-4000-8000-000000000001',
+    'a5000000-0000-4000-8000-000000000001',
+    'a6000000-0000-4000-8000-000000000001',
+    '2026-05-01', '2026-05-31', '2026-05-01', '2026-05-05',
+    'through_ips', 'individual',
+    'a3000000-0000-4000-8000-000000000001',
+    'Tenant Document Fixture', 'USD', 1000, 'issued', NULL, NULL,
+    'a1000000-0000-4000-8000-000000000001'
+  ),
+  (
+    'a7000000-0000-4000-8000-000000000006',
+    'a0000000-0000-4000-8000-000000000001',
+    'INV-CLEAN-1006',
+    'a4000000-0000-4000-8000-000000000001',
+    'a5000000-0000-4000-8000-000000000001',
+    'a6000000-0000-4000-8000-000000000001',
+    '2026-06-01', '2026-06-30', '2026-06-01', '2026-06-05',
     'through_ips', 'individual',
     'a3000000-0000-4000-8000-000000000001',
     'Tenant Document Fixture', 'USD', 1000, 'issued', NULL, NULL,
@@ -1029,9 +1148,13 @@ SELECT results_eq(
 );
 
 RESET ROLE;
+-- Simulate out-of-band metadata replacement while keeping the production
+-- trigger's normal UPDATE denial covered below.
+SET LOCAL session_replication_role = replica;
 UPDATE storage.objects
 SET version = 'tenant-commercial-document-v1-receipt-replaced'
 WHERE id = 'c0000000-0000-4000-8000-000000000002';
+SET LOCAL session_replication_role = origin;
 SET LOCAL ROLE authenticated;
 SELECT pg_catalog.set_config(
   'request.jwt.claim.sub',
@@ -1335,6 +1458,361 @@ SELECT results_eq(
     'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000004/A.pdf'::text
   )$$,
   'registration derives a consistent immutable filename from the short safe number'
+);
+
+RESET ROLE;
+
+INSERT INTO storage.objects (
+  id, bucket_id, name, owner_id, metadata, version
+) VALUES
+  (
+    'c0000000-0000-4000-8000-000000000007',
+    'tenant-commercial-documents',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+    'a1000000-0000-4000-8000-000000000001',
+    '{"mimetype":"application/pdf","size":768}'::jsonb,
+    'tenant-commercial-document-cleanup-v1'
+  ),
+  (
+    'c0000000-0000-4000-8000-000000000008',
+    'tenant-commercial-documents',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000006/INV-CLEAN-1006.pdf',
+    'a1000000-0000-4000-8000-000000000001',
+    '{"mimetype":"application/pdf","size":800}'::jsonb,
+    'tenant-commercial-document-cleanup-v1-other-source'
+  );
+
+INSERT INTO app_private.tenant_commercial_document_upload_attestations (
+  organization_id, source_kind, source_id, storage_path, storage_object_id,
+  storage_object_version, size_bytes, sha256, renderer_version,
+  presentation_snapshot_sha256, attested_by
+) VALUES (
+  'a0000000-0000-4000-8000-000000000001',
+  'invoice',
+  'a7000000-0000-4000-8000-000000000006',
+  'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000006/INV-CLEAN-1006.pdf',
+  'c0000000-0000-4000-8000-000000000099',
+  'stale-object-version',
+  800,
+  repeat('9', 64),
+  'commercial-pdf-v1',
+  app_private.tenant_commercial_document_snapshot_sha256(
+    '{"kind":"invoice","cleanup":"stale"}'::jsonb
+  ),
+  'a1000000-0000-4000-8000-000000000001'
+);
+
+SET LOCAL ROLE service_role;
+SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
+SELECT pg_catalog.set_config('storage.allow_delete_query', 'true', true);
+
+SELECT lives_ok(
+  $$
+    SELECT public.attest_tenant_commercial_document_upload(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000005',
+      'a1000000-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+      'c0000000-0000-4000-8000-000000000007',
+      'tenant-commercial-document-cleanup-v1',
+      repeat('8', 64),
+      768,
+      'commercial-pdf-v1',
+      '{"kind":"invoice","cleanup":"candidate"}'::jsonb
+    )
+  $$,
+  'cleanup candidate has an exact unconsumed service attestation'
+);
+
+SELECT throws_ok(
+  $$
+    DELETE FROM storage.objects
+    WHERE bucket_id = 'tenant-commercial-documents'
+      AND id = 'c0000000-0000-4000-8000-000000000007'
+  $$,
+  '42501',
+  'tenant_commercial_document_storage_delete_forbidden',
+  'service Storage deletion without an exact cleanup claim is denied'
+);
+
+SELECT is(
+  public.begin_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000005',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+    'c0000000-0000-4000-8000-000000000099',
+    'tenant-commercial-document-cleanup-v1'
+  ),
+  false,
+  'cleanup cannot claim a path with a mismatched Storage object identity'
+);
+
+SELECT is(
+  public.begin_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000001/INV-1001.pdf',
+    'c0000000-0000-4000-8000-000000000001',
+    'tenant-commercial-document-v1-invoice-current'
+  ),
+  false,
+  'cleanup cannot claim an object backing a published artifact'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.begin_tenant_commercial_document_cleanup(
+      'b0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000005',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+      'c0000000-0000-4000-8000-000000000007',
+      'tenant-commercial-document-cleanup-v1'
+    )
+  $$,
+  '22023',
+  'tenant_commercial_document_cleanup_invalid',
+  'cleanup rejects a cross-organization source and path combination'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.begin_tenant_commercial_document_cleanup(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000006',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+      'c0000000-0000-4000-8000-000000000007',
+      'tenant-commercial-document-cleanup-v1'
+    )
+  $$,
+  '22023',
+  'tenant_commercial_document_cleanup_invalid',
+  'cleanup rejects a cross-source path combination'
+);
+
+SELECT is(
+  public.begin_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000006',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000006/INV-CLEAN-1006.pdf',
+    'c0000000-0000-4000-8000-000000000008',
+    'tenant-commercial-document-cleanup-v1-other-source'
+  ),
+  false,
+  'cleanup rejects a current object whose existing attestation binds stale identity'
+);
+
+SELECT is(
+  public.begin_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000005',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+    'c0000000-0000-4000-8000-000000000007',
+    'tenant-commercial-document-cleanup-v1'
+  ),
+  true,
+  'the first cleanup worker claims the exact unregistered object'
+);
+
+SELECT is(
+  public.begin_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000005',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+    'c0000000-0000-4000-8000-000000000007',
+    'tenant-commercial-document-cleanup-v1'
+  ),
+  false,
+  'a second cleanup worker cannot claim the same source and path'
+);
+
+SELECT is(
+  public.finish_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000005',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+    'c0000000-0000-4000-8000-000000000007',
+    'tenant-commercial-document-cleanup-v1'
+  ),
+  false,
+  'finish fails closed while the exact claimed Storage object still exists'
+);
+
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*)::integer
+       FROM app_private.tenant_commercial_document_cleanup_claims
+       WHERE source_id = 'a7000000-0000-4000-8000-000000000005'),
+      (SELECT count(*)::integer
+       FROM app_private.tenant_commercial_document_upload_attestations
+       WHERE source_id = 'a7000000-0000-4000-8000-000000000005'
+         AND consumed_at IS NULL)
+  $$,
+  $$VALUES (1, 1)$$,
+  'failed finish preserves both the cleanup claim and unconsumed attestation'
+);
+
+SET LOCAL ROLE service_role;
+SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
+
+SELECT throws_ok(
+  $$
+    SELECT public.attest_tenant_commercial_document_upload(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000005',
+      'a1000000-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+      'c0000000-0000-4000-8000-000000000007',
+      'tenant-commercial-document-cleanup-v1',
+      repeat('8', 64),
+      768,
+      'commercial-pdf-v1',
+      '{"kind":"invoice","cleanup":"candidate"}'::jsonb
+    )
+  $$,
+  '55000',
+  'tenant_commercial_document_cleanup_in_progress',
+  'an active claim blocks attestation for the same source and path'
+);
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.register_tenant_commercial_document_artifact(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000005',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+      repeat('8', 64), 768, 'commercial-pdf-v1', 'INV-CLEAN-1005',
+      '{"kind":"invoice","cleanup":"candidate"}'::jsonb
+    )
+  $$,
+  '55000',
+  'tenant_commercial_document_cleanup_in_progress',
+  'an active claim blocks registration before attestation consumption'
+);
+
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*)::integer
+       FROM public.tenant_commercial_document_artifacts
+       WHERE source_id = 'a7000000-0000-4000-8000-000000000005'),
+      (SELECT count(*)::integer
+       FROM app_private.tenant_commercial_document_upload_attestations
+       WHERE source_id = 'a7000000-0000-4000-8000-000000000005'
+         AND consumed_at IS NULL)
+  $$,
+  $$VALUES (0, 1)$$,
+  'blocked registration inserts no artifact and consumes no attestation'
+);
+
+SET LOCAL ROLE service_role;
+SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
+
+SELECT lives_ok(
+  $$
+    SELECT public.attest_tenant_commercial_document_upload(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000006',
+      'a1000000-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000006/INV-CLEAN-1006.pdf',
+      'c0000000-0000-4000-8000-000000000008',
+      'tenant-commercial-document-cleanup-v1-other-source',
+      repeat('a', 64),
+      800,
+      'commercial-pdf-v1',
+      '{"kind":"invoice","cleanup":"other-source"}'::jsonb
+    )
+  $$,
+  'a cleanup claim does not block attestation for another source'
+);
+
+SELECT throws_ok(
+  $$
+    UPDATE storage.objects
+    SET version = 'tenant-commercial-document-cleanup-mutated'
+    WHERE bucket_id = 'tenant-commercial-documents'
+      AND id = 'c0000000-0000-4000-8000-000000000007'
+  $$,
+  '42501',
+  'tenant_commercial_document_storage_update_forbidden',
+  'tenant commercial document objects cannot be updated even with a cleanup claim'
+);
+
+SELECT lives_ok(
+  $$
+    DELETE FROM storage.objects
+    WHERE bucket_id = 'tenant-commercial-documents'
+      AND id = 'c0000000-0000-4000-8000-000000000007'
+      AND version = 'tenant-commercial-document-cleanup-v1'
+  $$,
+  'service Storage deletion succeeds only for the exact claimed object identity and version'
+);
+
+SELECT is(
+  public.finish_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000005',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+    'c0000000-0000-4000-8000-000000000007',
+    'tenant-commercial-document-cleanup-v1'
+  ),
+  true,
+  'finish removes cleanup authority only after the exact claimed object is gone'
+);
+
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*)::integer
+       FROM app_private.tenant_commercial_document_cleanup_claims
+       WHERE source_id = 'a7000000-0000-4000-8000-000000000005'),
+      (SELECT count(*)::integer
+       FROM app_private.tenant_commercial_document_upload_attestations
+       WHERE source_id = 'a7000000-0000-4000-8000-000000000005')
+  $$,
+  $$VALUES (0, 0)$$,
+  'successful finish removes the exact claim and unconsumed attestation'
+);
+
+SET LOCAL ROLE service_role;
+SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
+
+SELECT throws_ok(
+  $$
+    DELETE FROM storage.objects
+    WHERE bucket_id = 'tenant-commercial-documents'
+      AND id = 'c0000000-0000-4000-8000-000000000001'
+  $$,
+  '42501',
+  'tenant_commercial_document_storage_delete_forbidden',
+  'a published tenant commercial document object remains immutable'
 );
 
 RESET ROLE;

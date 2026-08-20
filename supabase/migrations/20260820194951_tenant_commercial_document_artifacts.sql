@@ -95,6 +95,40 @@ ALTER TABLE app_private.tenant_commercial_document_upload_attestations
 REVOKE ALL ON TABLE app_private.tenant_commercial_document_upload_attestations
   FROM PUBLIC, anon, authenticated, service_role;
 
+CREATE TABLE app_private.tenant_commercial_document_cleanup_claims (
+  organization_id uuid NOT NULL
+    REFERENCES public.organizations(id) ON DELETE RESTRICT,
+  source_kind text NOT NULL CHECK (source_kind IN ('invoice', 'receipt')),
+  source_id uuid NOT NULL,
+  storage_path text NOT NULL UNIQUE CHECK (
+    pg_catalog.length(pg_catalog.btrim(storage_path)) BETWEEN 8 AND 512
+    AND storage_path = pg_catalog.btrim(storage_path)
+  ),
+  storage_object_id uuid NOT NULL UNIQUE,
+  storage_object_version text NOT NULL CHECK (
+    pg_catalog.length(storage_object_version) BETWEEN 1 AND 200
+    AND storage_object_version = pg_catalog.btrim(storage_object_version)
+  ),
+  claimed_at timestamptz NOT NULL DEFAULT pg_catalog.statement_timestamp(),
+  PRIMARY KEY (organization_id, source_kind, source_id),
+  CHECK (
+    app_private.storage_object_org_id(storage_path) = organization_id
+    AND pg_catalog.cardinality(pg_catalog.string_to_array(storage_path, '/')) = 4
+    AND pg_catalog.split_part(storage_path, '/', 2) = source_kind
+    AND pg_catalog.split_part(storage_path, '/', 3) = source_id::text
+    AND pg_catalog.split_part(storage_path, '/', 4) ~
+      '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.pdf$'
+  )
+);
+
+ALTER TABLE app_private.tenant_commercial_document_cleanup_claims
+  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_private.tenant_commercial_document_cleanup_claims
+  FORCE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE app_private.tenant_commercial_document_cleanup_claims
+  FROM PUBLIC, anon, authenticated, service_role;
+
 CREATE INDEX tenant_commercial_document_artifacts_org_status_idx
   ON public.tenant_commercial_document_artifacts (
     organization_id, publication_status, source_kind, created_at DESC
@@ -322,6 +356,306 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.begin_tenant_commercial_document_cleanup(
+  p_organization_id uuid,
+  p_source_kind text,
+  p_source_id uuid,
+  p_storage_path text,
+  p_storage_object_id uuid,
+  p_storage_object_version text
+) RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $$
+DECLARE
+  v_attestation app_private.tenant_commercial_document_upload_attestations%ROWTYPE;
+  v_claimed_count integer := 0;
+  v_expected_number text;
+  v_expected_path text;
+  v_kind text := pg_catalog.lower(pg_catalog.btrim(p_source_kind));
+  v_object storage.objects%ROWTYPE;
+  v_path text := pg_catalog.btrim(p_storage_path);
+  v_storage_object_version text := pg_catalog.btrim(p_storage_object_version);
+BEGIN
+  IF COALESCE((SELECT auth.role())::text, '') IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'tenant_commercial_document_cleanup_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_organization_id IS NULL
+    OR v_kind NOT IN ('invoice', 'receipt')
+    OR p_source_id IS NULL
+    OR p_storage_object_id IS NULL
+    OR pg_catalog.length(v_storage_object_version) NOT BETWEEN 1 AND 200
+    OR app_private.storage_object_org_id(v_path) IS DISTINCT FROM p_organization_id
+    OR pg_catalog.cardinality(pg_catalog.string_to_array(v_path, '/')) <> 4
+    OR pg_catalog.split_part(v_path, '/', 2) IS DISTINCT FROM v_kind
+    OR pg_catalog.split_part(v_path, '/', 3) IS DISTINCT FROM p_source_id::text
+    OR pg_catalog.split_part(v_path, '/', 4) !~
+      '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.pdf$' THEN
+    RAISE EXCEPTION 'tenant_commercial_document_cleanup_invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      pg_catalog.concat_ws(
+        ':',
+        'tenant_commercial_document_source_v1',
+        p_organization_id,
+        v_kind,
+        p_source_id
+      ),
+      0
+    )
+  );
+
+  IF v_kind = 'invoice' THEN
+    SELECT invoice.invoice_number
+    INTO v_expected_number
+    FROM public.tenant_invoices AS invoice
+    WHERE invoice.organization_id = p_organization_id
+      AND invoice.id = p_source_id
+    FOR KEY SHARE;
+  ELSE
+    SELECT payment.receipt_number
+    INTO v_expected_number
+    FROM public.tenant_invoice_payments AS payment
+    WHERE payment.organization_id = p_organization_id
+      AND payment.id = p_source_id
+    FOR KEY SHARE;
+  END IF;
+
+  IF v_expected_number IS NULL
+    OR app_private.tenant_commercial_document_safe_number(v_expected_number) = '' THEN
+    RAISE EXCEPTION 'tenant_commercial_document_cleanup_invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  v_expected_path := app_private.tenant_commercial_document_storage_path(
+    p_organization_id,
+    v_kind,
+    p_source_id,
+    v_expected_number
+  );
+
+  IF v_path IS DISTINCT FROM v_expected_path THEN
+    RAISE EXCEPTION 'tenant_commercial_document_cleanup_invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT object.*
+  INTO v_object
+  FROM storage.objects AS object
+  WHERE object.bucket_id = 'tenant-commercial-documents'
+    AND object.name = v_path
+  FOR KEY SHARE;
+
+  IF v_object.id IS NULL
+    OR v_object.id IS DISTINCT FROM p_storage_object_id
+    OR v_object.version IS DISTINCT FROM v_storage_object_version
+    OR EXISTS (
+      SELECT 1
+      FROM public.tenant_commercial_document_artifacts AS artifact
+      WHERE artifact.organization_id = p_organization_id
+        AND artifact.source_kind = v_kind
+        AND artifact.source_id = p_source_id
+        AND artifact.publication_status = 'published'
+    ) THEN
+    RETURN false;
+  END IF;
+
+  SELECT attestation.*
+  INTO v_attestation
+  FROM app_private.tenant_commercial_document_upload_attestations AS attestation
+  WHERE attestation.organization_id = p_organization_id
+    AND attestation.source_kind = v_kind
+    AND attestation.source_id = p_source_id
+  FOR UPDATE;
+
+  IF FOUND AND (
+    v_attestation.consumed_at IS NOT NULL
+    OR v_attestation.storage_path IS DISTINCT FROM v_path
+    OR v_attestation.storage_object_id IS DISTINCT FROM p_storage_object_id
+    OR v_attestation.storage_object_version IS DISTINCT FROM v_storage_object_version
+  ) THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO app_private.tenant_commercial_document_cleanup_claims (
+    organization_id,
+    source_kind,
+    source_id,
+    storage_path,
+    storage_object_id,
+    storage_object_version
+  ) VALUES (
+    p_organization_id,
+    v_kind,
+    p_source_id,
+    v_path,
+    p_storage_object_id,
+    v_storage_object_version
+  )
+  ON CONFLICT DO NOTHING;
+
+  GET DIAGNOSTICS v_claimed_count = ROW_COUNT;
+  RETURN v_claimed_count = 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.finish_tenant_commercial_document_cleanup(
+  p_organization_id uuid,
+  p_source_kind text,
+  p_source_id uuid,
+  p_storage_path text,
+  p_storage_object_id uuid,
+  p_storage_object_version text
+) RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $$
+DECLARE
+  v_claim app_private.tenant_commercial_document_cleanup_claims%ROWTYPE;
+  v_deleted_count integer := 0;
+  v_kind text := pg_catalog.lower(pg_catalog.btrim(p_source_kind));
+  v_path text := pg_catalog.btrim(p_storage_path);
+  v_storage_object_version text := pg_catalog.btrim(p_storage_object_version);
+BEGIN
+  IF COALESCE((SELECT auth.role())::text, '') IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'tenant_commercial_document_cleanup_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_organization_id IS NULL
+    OR v_kind NOT IN ('invoice', 'receipt')
+    OR p_source_id IS NULL
+    OR p_storage_object_id IS NULL
+    OR pg_catalog.length(v_storage_object_version) NOT BETWEEN 1 AND 200
+    OR app_private.storage_object_org_id(v_path) IS DISTINCT FROM p_organization_id
+    OR pg_catalog.cardinality(pg_catalog.string_to_array(v_path, '/')) <> 4
+    OR pg_catalog.split_part(v_path, '/', 2) IS DISTINCT FROM v_kind
+    OR pg_catalog.split_part(v_path, '/', 3) IS DISTINCT FROM p_source_id::text THEN
+    RAISE EXCEPTION 'tenant_commercial_document_cleanup_invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      pg_catalog.concat_ws(
+        ':',
+        'tenant_commercial_document_source_v1',
+        p_organization_id,
+        v_kind,
+        p_source_id
+      ),
+      0
+    )
+  );
+
+  SELECT claim.*
+  INTO v_claim
+  FROM app_private.tenant_commercial_document_cleanup_claims AS claim
+  WHERE claim.organization_id = p_organization_id
+    AND claim.source_kind = v_kind
+    AND claim.source_id = p_source_id
+    AND claim.storage_path = v_path
+    AND claim.storage_object_id = p_storage_object_id
+    AND claim.storage_object_version = v_storage_object_version
+  FOR UPDATE;
+
+  IF v_claim.storage_path IS NULL
+    OR EXISTS (
+      SELECT 1
+      FROM storage.objects AS object
+      WHERE object.bucket_id = 'tenant-commercial-documents'
+        AND object.name = v_path
+        AND object.id = p_storage_object_id
+        AND object.version = v_storage_object_version
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.tenant_commercial_document_artifacts AS artifact
+      WHERE artifact.organization_id = p_organization_id
+        AND artifact.source_kind = v_kind
+        AND artifact.source_id = p_source_id
+        AND artifact.publication_status = 'published'
+    ) THEN
+    RETURN false;
+  END IF;
+
+  DELETE FROM app_private.tenant_commercial_document_upload_attestations AS attestation
+  WHERE attestation.organization_id = p_organization_id
+    AND attestation.source_kind = v_kind
+    AND attestation.source_id = p_source_id
+    AND attestation.storage_path = v_path
+    AND attestation.storage_object_id = p_storage_object_id
+    AND attestation.storage_object_version = v_storage_object_version
+    AND attestation.consumed_at IS NULL;
+
+  DELETE FROM app_private.tenant_commercial_document_cleanup_claims AS claim
+  WHERE claim.organization_id = p_organization_id
+    AND claim.source_kind = v_kind
+    AND claim.source_id = p_source_id
+    AND claim.storage_path = v_path
+    AND claim.storage_object_id = p_storage_object_id
+    AND claim.storage_object_version = v_storage_object_version;
+
+  GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+  RETURN v_deleted_count = 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.guard_tenant_commercial_document_storage_object()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $$
+BEGIN
+  IF OLD.bucket_id IS DISTINCT FROM 'tenant-commercial-documents' THEN
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    RAISE EXCEPTION 'tenant_commercial_document_storage_update_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF COALESCE((SELECT auth.role())::text, '') IS DISTINCT FROM 'service_role'
+    OR NOT EXISTS (
+      SELECT 1
+      FROM app_private.tenant_commercial_document_cleanup_claims AS claim
+      WHERE claim.organization_id = app_private.storage_object_org_id(OLD.name)
+        AND claim.source_kind = pg_catalog.split_part(OLD.name, '/', 2)
+        AND claim.source_id::text = pg_catalog.split_part(OLD.name, '/', 3)
+        AND claim.storage_path = OLD.name
+        AND claim.storage_object_id = OLD.id
+        AND claim.storage_object_version = OLD.version
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.tenant_commercial_document_artifacts AS artifact
+          WHERE artifact.organization_id = claim.organization_id
+            AND artifact.source_kind = claim.source_kind
+            AND artifact.source_id = claim.source_id
+            AND artifact.publication_status = 'published'
+        )
+    ) THEN
+    RAISE EXCEPTION 'tenant_commercial_document_storage_delete_forbidden'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER guard_tenant_commercial_document_storage_object
+  BEFORE UPDATE OR DELETE ON storage.objects
+  FOR EACH ROW
+  EXECUTE FUNCTION app_private.guard_tenant_commercial_document_storage_object();
+
 CREATE OR REPLACE FUNCTION public.attest_tenant_commercial_document_upload(
   p_organization_id uuid,
   p_source_kind text,
@@ -392,6 +726,18 @@ BEGIN
       0
     )
   );
+
+  IF EXISTS (
+    SELECT 1
+    FROM app_private.tenant_commercial_document_cleanup_claims AS claim
+    WHERE claim.organization_id = p_organization_id
+      AND claim.source_kind = v_kind
+      AND claim.source_id = p_source_id
+      AND claim.storage_path = v_path
+  ) THEN
+    RAISE EXCEPTION 'tenant_commercial_document_cleanup_in_progress'
+      USING ERRCODE = '55000';
+  END IF;
 
   SELECT object.*
   INTO v_storage_object
@@ -794,6 +1140,18 @@ BEGIN
       0
     )
   );
+
+  IF EXISTS (
+    SELECT 1
+    FROM app_private.tenant_commercial_document_cleanup_claims AS claim
+    WHERE claim.organization_id = p_organization_id
+      AND claim.source_kind = v_kind
+      AND claim.source_id = p_source_id
+      AND claim.storage_path = v_path
+  ) THEN
+    RAISE EXCEPTION 'tenant_commercial_document_cleanup_in_progress'
+      USING ERRCODE = '55000';
+  END IF;
 
   IF v_kind = 'invoice' THEN
     SELECT invoice.invoice_number
@@ -1311,6 +1669,8 @@ $$;
 ALTER TABLE public.tenant_commercial_document_artifacts OWNER TO postgres;
 ALTER TABLE app_private.tenant_commercial_document_upload_attestations
   OWNER TO postgres;
+ALTER TABLE app_private.tenant_commercial_document_cleanup_claims
+  OWNER TO postgres;
 ALTER FUNCTION app_private.tenant_commercial_document_safe_number(text)
   OWNER TO postgres;
 ALTER FUNCTION app_private.tenant_commercial_document_storage_path(
@@ -1325,6 +1685,14 @@ ALTER FUNCTION app_private.guard_tenant_commercial_document_artifact_write()
 ALTER FUNCTION app_private.is_tenant_commercial_document_registered(text, uuid, text)
   OWNER TO postgres;
 ALTER FUNCTION app_private.can_attest_tenant_commercial_document_as_actor(uuid, uuid)
+  OWNER TO postgres;
+ALTER FUNCTION public.begin_tenant_commercial_document_cleanup(
+  uuid, text, uuid, text, uuid, text
+) OWNER TO postgres;
+ALTER FUNCTION public.finish_tenant_commercial_document_cleanup(
+  uuid, text, uuid, text, uuid, text
+) OWNER TO postgres;
+ALTER FUNCTION app_private.guard_tenant_commercial_document_storage_object()
   OWNER TO postgres;
 ALTER FUNCTION public.attest_tenant_commercial_document_upload(
   uuid, text, uuid, uuid, text, uuid, text, text, bigint, text, jsonb
@@ -1359,6 +1727,20 @@ GRANT EXECUTE ON FUNCTION app_private.is_tenant_commercial_document_registered(t
   TO authenticated;
 REVOKE ALL ON FUNCTION app_private.can_attest_tenant_commercial_document_as_actor(uuid, uuid)
   FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.begin_tenant_commercial_document_cleanup(
+  uuid, text, uuid, text, uuid, text
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.finish_tenant_commercial_document_cleanup(
+  uuid, text, uuid, text, uuid, text
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION app_private.guard_tenant_commercial_document_storage_object()
+  FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.begin_tenant_commercial_document_cleanup(
+  uuid, text, uuid, text, uuid, text
+) TO service_role;
+GRANT EXECUTE ON FUNCTION public.finish_tenant_commercial_document_cleanup(
+  uuid, text, uuid, text, uuid, text
+) TO service_role;
 
 REVOKE ALL ON FUNCTION public.attest_tenant_commercial_document_upload(
   uuid, text, uuid, uuid, text, uuid, text, text, bigint, text, jsonb
@@ -1392,3 +1774,14 @@ GRANT EXECUTE ON FUNCTION public.mark_tenant_commercial_document_publication_fai
 GRANT EXECUTE ON FUNCTION public.get_tenant_commercial_document_artifact_download(
   uuid, uuid
 ) TO authenticated;
+
+COMMENT ON TABLE app_private.tenant_commercial_document_cleanup_claims IS
+  'Short-lived exact-object claims that serialize tenant commercial document orphan deletion against attestation and registration.';
+COMMENT ON FUNCTION public.begin_tenant_commercial_document_cleanup(
+  uuid, text, uuid, text, uuid, text
+) IS
+  'Claims one exact unregistered tenant commercial document Storage object for server-only cleanup.';
+COMMENT ON FUNCTION public.finish_tenant_commercial_document_cleanup(
+  uuid, text, uuid, text, uuid, text
+) IS
+  'Releases an exact cleanup claim and unconsumed attestation only after the claimed Storage object is absent or replaced.';

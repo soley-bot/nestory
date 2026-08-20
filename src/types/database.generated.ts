@@ -9185,6 +9185,17 @@ export type Database = {
         Args: { p_organization_id: string; p_storage_path: string }
         Returns: boolean
       }
+      begin_tenant_commercial_document_cleanup: {
+        Args: {
+          p_organization_id: string
+          p_source_id: string
+          p_source_kind: string
+          p_storage_object_id: string
+          p_storage_object_version: string
+          p_storage_path: string
+        }
+        Returns: boolean
+      }
       cancel_lease_activation: {
         Args: { p_organization_id: string; p_schedule_id: string }
         Returns: Json
@@ -9619,6 +9630,17 @@ export type Database = {
       }
       finish_paid_cost_evidence_cleanup: {
         Args: { p_organization_id: string; p_storage_path: string }
+        Returns: boolean
+      }
+      finish_tenant_commercial_document_cleanup: {
+        Args: {
+          p_organization_id: string
+          p_source_id: string
+          p_source_kind: string
+          p_storage_object_id: string
+          p_storage_object_version: string
+          p_storage_path: string
+        }
         Returns: boolean
       }
       generate_owner_balance_period: {
