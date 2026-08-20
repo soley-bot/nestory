@@ -6,6 +6,7 @@ import {
 import type { Database } from "@/types/database";
 import type {
   ExpenseSubmissionSummary,
+  CommercialDocumentLink,
   FinanceLease,
   FinanceOperationsData,
   FinanceOption,
@@ -58,6 +59,21 @@ type InvoiceSettlementRow = {
   reversalOfId: string | null;
   reversalReason: string | null;
   route: TenantInvoiceSettlement["route"];
+};
+type CommercialDocumentArtifactRow = Pick<
+  Database["public"]["Tables"]["tenant_commercial_document_artifacts"]["Row"],
+  | "document_number"
+  | "id"
+  | "organization_id"
+  | "publication_status"
+  | "published_at"
+  | "source_id"
+  | "source_kind"
+>;
+type CommercialDocumentLinks = {
+  invoices: Map<string, CommercialDocumentLink>;
+  receiptNumbers: Map<string, string>;
+  receipts: Map<string, CommercialDocumentLink>;
 };
 type FinancePropertyRow = {
   archived_at: string | null;
@@ -359,6 +375,19 @@ export async function getFinanceOperationsData(
     );
   }
 
+  const ipsPaymentIds = (tenantInvoiceSettlementResult.data ?? []).flatMap(
+    (settlement) =>
+      settlement.route === "through_ips" && !settlement.reversalOfId
+        ? [settlement.id]
+        : [],
+  );
+  const commercialDocuments = await loadCommercialDocumentLinks(
+    supabase,
+    organizationId,
+    tenantInvoiceIds,
+    ipsPaymentIds,
+  );
+
   const properties = propertiesResult.data ?? [];
   const units = unitsResult.data ?? [];
   const people = peopleResult.data ?? [];
@@ -392,6 +421,7 @@ export async function getFinanceOperationsData(
   );
   const settlementsByInvoiceId = buildSettlementsByInvoiceId(
     tenantInvoiceSettlementResult.data ?? [],
+    commercialDocuments,
   );
   const linesByInvoiceId = new Map<string, TenantInvoiceLine[]>();
 
@@ -595,6 +625,7 @@ export async function getFinanceOperationsData(
         linesByInvoiceId,
         generationByInvoiceId,
         settlementsByInvoiceId,
+        commercialDocuments.invoices,
       ),
     ),
     unitOptions: units.flatMap((unit) => {
@@ -725,8 +756,101 @@ async function getTenantInvoiceSettlementRows(
   return { data: rows, error: null };
 }
 
-function buildSettlementsByInvoiceId(
+export async function loadCommercialDocumentLinks(
+  supabase: Pick<
+    Awaited<ReturnType<typeof createSupabaseServerClient>>,
+    "from"
+  >,
+  organizationId: string,
+  invoiceIds: readonly string[],
+  ipsPaymentIds: readonly string[],
+): Promise<CommercialDocumentLinks> {
+  const sourceIds = [...new Set([...invoiceIds, ...ipsPaymentIds])];
+  if (sourceIds.length === 0) {
+    return { invoices: new Map(), receiptNumbers: new Map(), receipts: new Map() };
+  }
+
+  const { data, error } = await supabase
+    .from("tenant_commercial_document_artifacts")
+    .select(
+      "id, organization_id, source_kind, source_id, document_number, publication_status, published_at",
+    )
+    .eq("organization_id", organizationId)
+    .in("source_id", sourceIds);
+  if (error) {
+    throw new Error("Could not load commercial document status.");
+  }
+  return mapCommercialDocumentLinks(
+    organizationId,
+    (data ?? []) as CommercialDocumentArtifactRow[],
+    invoiceIds,
+    ipsPaymentIds,
+  );
+}
+
+export function mapCommercialDocumentLinks(
+  organizationId: string,
+  rows: readonly CommercialDocumentArtifactRow[],
+  invoiceIds: readonly string[],
+  ipsPaymentIds: readonly string[],
+): CommercialDocumentLinks {
+  const invoiceIdSet = new Set(invoiceIds);
+  const ipsPaymentIdSet = new Set(ipsPaymentIds);
+  const invoices = new Map<string, CommercialDocumentLink>();
+  const receiptNumbers = new Map<string, string>();
+  const receipts = new Map<string, CommercialDocumentLink>();
+
+  for (const invoiceId of invoiceIdSet) {
+    invoices.set(invoiceId, notPublishedCommercialDocument());
+  }
+  for (const paymentId of ipsPaymentIdSet) {
+    receipts.set(paymentId, notPublishedCommercialDocument());
+  }
+
+  for (const row of rows) {
+    if (row.organization_id !== organizationId) continue;
+    const isInvoice = row.source_kind === "invoice" && invoiceIdSet.has(row.source_id);
+    const isReceipt = row.source_kind === "receipt" && ipsPaymentIdSet.has(row.source_id);
+    if (!isInvoice && !isReceipt) continue;
+
+    const link = toCommercialDocumentLink(row);
+    if (isInvoice) {
+      invoices.set(row.source_id, link);
+    } else {
+      receipts.set(row.source_id, link);
+      if (link.publicationStatus === "published") {
+        receiptNumbers.set(row.source_id, row.document_number);
+      }
+    }
+  }
+
+  return { invoices, receiptNumbers, receipts };
+}
+
+function notPublishedCommercialDocument(): CommercialDocumentLink {
+  return {
+    artifactId: null,
+    href: null,
+    publicationStatus: "not_published",
+    publishedAt: null,
+  };
+}
+
+function toCommercialDocumentLink(
+  row: CommercialDocumentArtifactRow,
+): CommercialDocumentLink {
+  const published = row.publication_status === "published";
+  return {
+    artifactId: row.id,
+    href: published ? `/api/finance/documents/${row.id}` : null,
+    publicationStatus: published ? "published" : "failed",
+    publishedAt: published ? row.published_at : null,
+  };
+}
+
+export function buildSettlementsByInvoiceId(
   rows: InvoiceSettlementRow[],
+  commercialDocuments: CommercialDocumentLinks,
 ): Map<string, TenantInvoiceSettlement[]> {
   const reversalByOriginalId = new Map(
     rows.flatMap((row) =>
@@ -746,6 +870,15 @@ function buildSettlementsByInvoiceId(
       isReversed: Boolean(reversal),
       reference: row.reference,
       reversalReason: reversal?.reversalReason ?? null,
+      receipt:
+        row.route === "through_ips"
+          ? (commercialDocuments.receipts.get(row.id) ??
+            notPublishedCommercialDocument())
+          : null,
+      receiptNumber:
+        row.route === "through_ips"
+          ? (commercialDocuments.receiptNumbers.get(row.id) ?? null)
+          : null,
       route: row.route,
     });
     settlementsByInvoiceId.set(row.invoiceId, settlements);
@@ -1024,7 +1157,7 @@ function toBilling(
   };
 }
 
-function toTenantInvoice(
+export function toTenantInvoice(
   row: TenantInvoiceBalanceRow,
   properties: Map<string, { code: string; id: string; name: string }>,
   units: Map<string, { id: string; property_id: string; unit_number: string }>,
@@ -1039,6 +1172,7 @@ function toTenantInvoice(
     }
   >,
   settlementsByInvoiceId: Map<string, TenantInvoiceSettlement[]>,
+  commercialDocumentsByInvoiceId: Map<string, CommercialDocumentLink>,
 ): TenantInvoiceSummary[] {
   if (
     !row.id ||
@@ -1079,6 +1213,9 @@ function toTenantInvoice(
       paidThroughIps: Number(row.paid_through_ips ?? 0),
       paymentStatus: (row.payment_status ??
         "unpaid") as TenantInvoiceSummary["paymentStatus"],
+      pdf:
+        commercialDocumentsByInvoiceId.get(row.id) ??
+        notPublishedCommercialDocument(),
       propertyId: row.property_id,
       propertyLabel: propertyLabel(property),
       recipientLabel: row.recipient_label ?? "Unknown",
