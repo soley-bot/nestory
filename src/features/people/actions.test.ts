@@ -101,7 +101,9 @@ describe("guided tenant archive", () => {
   it("ends the linked tenancy before archiving without deleting its history", async () => {
     from.mockImplementation((table: string) => {
       if (table === "lease_parties") {
-        return queryResult([{ lease_id: leaseId }]);
+        return queryResult([
+          { is_primary: true, lease_id: leaseId, party_role: "primary_tenant" },
+        ]);
       }
       if (table === "leases") {
         return queryResult([{ id: leaseId, status: "active" }]);
@@ -157,7 +159,11 @@ describe("guided tenant archive", () => {
 
   it("keeps the tenant active when the lease transition fails", async () => {
     from.mockImplementation((table: string) => {
-      if (table === "lease_parties") return queryResult([{ lease_id: leaseId }]);
+      if (table === "lease_parties") {
+        return queryResult([
+          { is_primary: true, lease_id: leaseId, party_role: "primary_tenant" },
+        ]);
+      }
       if (table === "leases") return queryResult([{ id: leaseId, status: "draft" }]);
       if (table === "lease_occupancies") {
         return queryResult([
@@ -183,7 +189,11 @@ describe("guided tenant archive", () => {
 
   it("stops when the linked leases changed after the archive dialog opened", async () => {
     from.mockImplementation((table: string) => {
-      if (table === "lease_parties") return queryResult([{ lease_id: leaseId }]);
+      if (table === "lease_parties") {
+        return queryResult([
+          { is_primary: true, lease_id: leaseId, party_role: "primary_tenant" },
+        ]);
+      }
       throw new Error(`Unexpected table: ${table}`);
     });
 
@@ -197,6 +207,107 @@ describe("guided tenant archive", () => {
       status: "error",
     });
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not terminate a lease when the person is a co-tenant", async () => {
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        return queryResult([
+          { is_primary: false, lease_id: leaseId, party_role: "co_tenant" },
+        ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ leaseIds: [leaseId], personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({
+      message: "Change the primary tenant on the linked lease before archiving this person.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not partially close multiple leases", async () => {
+    const secondLeaseId = "70000000-0000-4000-8000-000000000002";
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        return queryResult([
+          { is_primary: true, lease_id: leaseId, party_role: "primary_tenant" },
+          {
+            is_primary: true,
+            lease_id: secondLeaseId,
+            party_role: "primary_tenant",
+          },
+        ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({
+        leaseIds: [leaseId, secondLeaseId],
+        personId: tenantPersonId,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      message: "Review each open lease before archiving this tenant.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("reports the safe retry when archiving fails after the tenancy ended", async () => {
+    let partyQueryCount = 0;
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        partyQueryCount += 1;
+        if (partyQueryCount > 1) return queryResult([]);
+        return queryResult([
+          { is_primary: true, lease_id: leaseId, party_role: "primary_tenant" },
+        ]);
+      }
+      if (table === "leases") {
+        return queryResult([{ id: leaseId, status: "active" }]);
+      }
+      if (table === "lease_occupancies") {
+        return queryResult([
+          { evidence_state: "accepted", id: occupancyId, lease_id: leaseId },
+        ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    rpc
+      .mockResolvedValueOnce({ data: { leaseId }, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "archive failed" },
+      })
+      .mockResolvedValueOnce({ data: tenantPersonId, error: null });
+
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ leaseIds: [leaseId], personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({
+      message: "The tenancy ended, but the tenant was not archived. Refresh and choose Archive again.",
+      status: "error",
+    });
+    expect(rpc).toHaveBeenCalledTimes(2);
+
+    await expect(
+      archiveTenantAction({}, archiveForm({ personId: tenantPersonId })),
+    ).resolves.toMatchObject({
+      message: "Tenant archived.",
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledTimes(3);
   });
 });
 

@@ -272,11 +272,11 @@ export async function archiveTenantAction(
   const supabase = await createSupabaseServerClient();
   const { data: partyRows, error: partyError } = await supabase
     .from("lease_parties")
-    .select("lease_id")
+    .select("lease_id, party_role, is_primary")
     .eq("organization_id", context.organizationId)
     .eq("person_id", parsed.data.personId)
-    .eq("party_role", "tenant")
-    .eq("is_primary", true)
+    .eq("evidence_state", "accepted")
+    .in("business_lifecycle", ["planned", "effective"])
     .is("ended_on", null)
     .is("archived_at", null);
 
@@ -287,20 +287,49 @@ export async function archiveTenantAction(
     };
   }
 
-  const leaseIds = [
+  const currentLeaseIds = [
     ...new Set((partyRows ?? []).map((party) => party.lease_id)),
   ];
   const expectedLeaseIds = [...new Set(parsed.data.leaseIds)];
 
   if (
-    leaseIds.length !== expectedLeaseIds.length ||
-    leaseIds.some((leaseId) => !expectedLeaseIds.includes(leaseId))
+    currentLeaseIds.length !== expectedLeaseIds.length ||
+    currentLeaseIds.some((leaseId) => !expectedLeaseIds.includes(leaseId))
   ) {
     return {
       message: "The tenant's linked leases changed. Refresh and try again.",
       status: "error",
     };
   }
+
+  const primaryLeaseIds = [
+    ...new Set(
+      (partyRows ?? [])
+        .filter(
+          (party) =>
+            party.is_primary && party.party_role === "primary_tenant",
+        )
+        .map((party) => party.lease_id),
+    ),
+  ];
+
+  if (currentLeaseIds.length !== primaryLeaseIds.length) {
+    return {
+      message:
+        "Change the primary tenant on the linked lease before archiving this person.",
+      status: "error",
+    };
+  }
+
+  if (primaryLeaseIds.length > 1) {
+    return {
+      message: "Review each open lease before archiving this tenant.",
+      status: "error",
+    };
+  }
+
+  const leaseIds = primaryLeaseIds;
+  let tenancyTransitioned = false;
 
   if (leaseIds.length > 0) {
     const [{ data: leaseRows, error: leaseError }, { data: occupancyRows, error: occupancyError }] =
@@ -378,6 +407,8 @@ export async function archiveTenantAction(
           status: "error",
         };
       }
+
+      tenancyTransitioned = true;
     }
   }
 
@@ -387,6 +418,15 @@ export async function archiveTenantAction(
   });
 
   if (archiveError) {
+    if (tenancyTransitioned) {
+      revalidatePeoplePaths();
+      return {
+        message:
+          "The tenancy ended, but the tenant was not archived. Refresh and choose Archive again.",
+        status: "error",
+      };
+    }
+
     return {
       message: getPeopleMutationErrorMessage(archiveError, "archive"),
       status: "error",

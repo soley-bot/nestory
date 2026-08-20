@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect } from "react";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,18 +29,22 @@ export function ArchivePersonPanel({
   person,
   presentation = "drawer",
 }: PersonPanelProps) {
-  const blockingLeases =
+  const linkedLeases =
     person.linked.activeLeases.length > 0
       ? person.linked.activeLeases
       : person.linked.activeLease
         ? [person.linked.activeLease]
         : [];
+  const blockingLeases = [
+    ...new Map(linkedLeases.map((lease) => [lease.id, lease])).values(),
+  ];
   const isTenant = person.roles.some(
     (role) => role.role === "tenant" && role.status === "active",
   );
   const draftOnly =
     blockingLeases.length > 0 &&
     blockingLeases.every((lease) => lease.status.toLowerCase() === "draft");
+  const hasMultipleLeases = blockingLeases.length > 1;
   const today = getBusinessDateValue();
   const [state, action, pending] = useActionState(
     archiveTenantAction,
@@ -77,22 +82,46 @@ export function ArchivePersonPanel({
             <PersonPanelSummary person={person} />
           </>
         ) : null}
-        {blockingLeases.length > 0 ? (
+        {hasMultipleLeases ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This tenant has multiple open leases. Review each lease first so
+              no tenancy is ended by mistake. All linked history remains
+              available.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {blockingLeases.map((lease, index) => (
+                <Button asChild key={lease.id} size="sm" variant="outline">
+                  <Link href={lease.href}>Review lease {index + 1}</Link>
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : blockingLeases.length > 0 ? (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               {draftOnly
-                ? "This tenant has a draft lease. Cancel it and archive the tenant in one step."
-                : "This tenant has an active lease. End it and archive the tenant in one step."} Rent, deposit, move, document, and audit history stays linked.
+                ? "This tenant has a draft lease. If they are the primary tenant, the draft will be cancelled and they will be archived in one step."
+                : "This tenant has an active lease. If they are the primary tenant, the tenancy will end and they will be archived in one step."} Co-tenants are never removed from a lease here. Rent, deposit, move, document, and audit history stays linked.
             </p>
             <div className="grid gap-1.5 text-sm font-medium">
               <span>{draftOnly ? "Cancellation date" : "End date"}</span>
               <DatePickerField
+                aria-describedby={
+                  state.fieldErrors?.effectiveDate?.length
+                    ? "archive-effective-date-error"
+                    : undefined
+                }
+                aria-invalid={Boolean(state.fieldErrors?.effectiveDate?.length)}
                 ariaLabel={draftOnly ? "Cancellation date" : "End date"}
                 defaultValue={today}
                 name="effectiveDate"
                 required
               />
-              <FieldError errors={state.fieldErrors?.effectiveDate} />
+              <FieldError
+                errors={state.fieldErrors?.effectiveDate}
+                id="archive-effective-date-error"
+              />
             </div>
             <label className="grid gap-1.5 text-sm font-medium">
               Optional note
@@ -119,9 +148,7 @@ export function ArchivePersonPanel({
           pending
             ? "Archiving..."
             : blockingLeases.length > 0
-              ? draftOnly
-                ? "Cancel draft and archive"
-                : "End tenancy and archive"
+              ? "Archive tenant"
               : isTenant
                 ? "Archive tenant"
                 : "Archive person"
@@ -131,6 +158,7 @@ export function ArchivePersonPanel({
         onClose={onClose}
         pending={pending}
         presentation={presentation}
+        showConfirm={!hasMultipleLeases}
       />
     </form>
   );
@@ -218,9 +246,15 @@ function PanelMessage({ state }: { state: PeopleActionState }) {
   );
 }
 
-function FieldError({ errors }: { errors?: string[] }) {
+function FieldError({ errors, id }: { errors?: string[]; id?: string }) {
   return errors?.length ? (
-    <span className="text-xs font-normal text-danger">{errors[0]}</span>
+    <span
+      className="text-xs font-normal text-danger"
+      id={id}
+      role="alert"
+    >
+      {errors[0]}
+    </span>
   ) : null;
 }
 
