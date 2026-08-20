@@ -611,7 +611,7 @@ export async function getPropertyDetail(
     supabase
       .from("property_owners")
       .select(
-        "id, person_id, ownership_label, is_primary, started_on, ended_on, archived_at",
+        "id, person_id, ownership_label, ownership_percent, is_primary, started_on, ended_on, archived_at",
       )
       .eq("organization_id", organizationId)
       .eq("property_id", propertyId)

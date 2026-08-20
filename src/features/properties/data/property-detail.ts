@@ -3,6 +3,7 @@ import type { LinkedDocument } from "@/features/documents/document.types";
 import type { AssetPhoto } from "@/features/photos/photo.types";
 import {
   buildPropertySummary,
+  type ActivePropertyOwnerLink,
   type PropertyLedgerRecord,
   type PropertyRecord,
 } from "@/features/properties/data/property-summary";
@@ -108,6 +109,7 @@ export type PropertyOwnerHistoryRecord = {
   id: string;
   is_primary: boolean;
   ownership_label: string | null;
+  ownership_percent: number | null;
   person_id: string;
   person_name: string;
   started_on: string | null;
@@ -306,7 +308,7 @@ export function buildPropertyDetail({
   units,
 }: {
   activeLeases?: PropertyDetailLeaseRecord[];
-  activeOwner?: { label: string; personId: string } | null;
+  activeOwner?: ActivePropertyOwnerLink | null;
   activity?: RecentChange[];
   documents?: PropertyDetailDocumentRecord[];
   expenseEvidence?: PropertyExpenseEvidenceRecord[];
@@ -342,8 +344,25 @@ export function buildPropertyDetail({
       activeLeaseByUnitId.has(unit.id) ||
       unit.status.trim().toLowerCase() === "occupied",
   ).length;
+  const currentOwnerHistory = ownerHistory.find(
+    (owner) => owner.is_primary && !owner.archived_at && !owner.ended_on,
+  );
+  const activeOwnerWithFacts = activeOwner
+    ? {
+        ...activeOwner,
+        ownershipPercent:
+          currentOwnerHistory?.person_id === activeOwner.personId &&
+          typeof currentOwnerHistory.ownership_percent === "number"
+            ? currentOwnerHistory.ownership_percent.toFixed(3)
+            : activeOwner.ownershipPercent,
+        startedOn:
+          currentOwnerHistory?.person_id === activeOwner.personId
+            ? currentOwnerHistory.started_on ?? activeOwner.startedOn
+            : activeOwner.startedOn,
+      }
+    : activeOwner;
   const summary = buildPropertySummary({
-    activeOwner,
+    activeOwner: activeOwnerWithFacts,
     currentLeaseCount: currentLeases.length,
     currentLeaseUnitCount: activeLeaseByUnitId.size,
     hasActiveOwnerLink: Boolean(activeOwner),
