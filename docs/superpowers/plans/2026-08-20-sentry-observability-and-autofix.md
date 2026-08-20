@@ -33,7 +33,7 @@
 
 **Interfaces:**
 - Consumes: linked Vercel project `nestory` and user authorization for Sentry account claim when requested.
-- Produces: installed `@sentry/nextjs`, Vercel-provided `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, and DSN environment names; no secret values enter Git.
+- Produces: installed `@sentry/nextjs`, Vercel-provided `NESTORY_SENTRY_ORG`, `NESTORY_SENTRY_PROJECT`, `NESTORY_SENTRY_AUTH_TOKEN`, and DSN environment names; no secret values enter Git.
 
 - [ ] **Step 1: Install the global Vercel CLI and verify the executable**
 
@@ -73,7 +73,7 @@ Expected: the pull succeeds and `vercel env ls` shows only environment variable 
 Run the guide command with the organization and project identifiers supplied by the integration:
 
 ```powershell
-npx @sentry/wizard@latest -i nextjs --saas --org $env:SENTRY_ORG --project $env:SENTRY_PROJECT --coming-from vercel
+npx @sentry/wizard@latest -i nextjs --saas --org $env:NESTORY_SENTRY_ORG --project $env:NESTORY_SENTRY_PROJECT --coming-from vercel
 ```
 
 Expected: `@sentry/nextjs` is locked in `package.json` and `package-lock.json`, and the wizard creates the SDK entry files. Reject sample routes and replay defaults that violate the spec.
@@ -83,10 +83,10 @@ Expected: `@sentry/nextjs` is locked in `package.json` and `package-lock.json`, 
 Add these names to `.env.example` with empty values and comments that distinguish runtime ingestion, build-time source maps, and automation access:
 
 ```dotenv
-NEXT_PUBLIC_SENTRY_DSN=
-SENTRY_ORG=
-SENTRY_PROJECT=
-SENTRY_AUTH_TOKEN=
+NEXT_PUBLIC_NESTORY_SENTRY_DSN=
+NESTORY_SENTRY_ORG=
+NESTORY_SENTRY_PROJECT=
+NESTORY_SENTRY_AUTH_TOKEN=
 SENTRY_AUTOFIX_TOKEN=
 SENTRY_AUTOFIX_API_BASE=https://sentry.io
 SENTRY_TRACES_SAMPLE_RATE=0.1
@@ -317,7 +317,7 @@ git commit -m "feat: report application boundary failures"
 - Modify: `scripts/script-inventory.json` through the repository generator if required by its contract.
 
 **Interfaces:**
-- Consumes: `SENTRY_AUTOFIX_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`, optional `SENTRY_AUTOFIX_API_BASE`, and Sentry organization issue APIs.
+- Consumes: `SENTRY_AUTOFIX_TOKEN`, `NESTORY_SENTRY_ORG`, `NESTORY_SENTRY_PROJECT`, optional `SENTRY_AUTOFIX_API_BASE`, and Sentry organization issue APIs.
 - Produces: `npm run sentry:autofix -- next`, `npm run sentry:autofix -- next --dry-run`, and `npm run sentry:autofix -- resolve <issueId> --release <sha>` with redacted JSON output and nonzero fail-closed exits.
 
 - [ ] **Step 1: Write failing CLI contract tests**

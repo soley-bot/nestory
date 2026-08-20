@@ -110,6 +110,8 @@ describe("Sentry event privacy", () => {
     const span = {
       data: {
         amount: "100.00",
+        authorization: "Bearer private-token",
+        email: "operator@example.com",
         "http.query": "owner=Private Owner",
         "sentry.op": "http.client",
       },
@@ -148,6 +150,7 @@ describe("Sentry event privacy", () => {
     expect(transaction).not.toHaveProperty("contexts");
     expect(transaction).not.toHaveProperty("extra");
     expect(scrubSentrySpan(span)).not.toHaveProperty("links");
+    expect(JSON.stringify(transaction)).not.toMatch(/private-token|operator@example\.com/);
   });
 
   it("uses safe sampling defaults and disables default PII", () => {

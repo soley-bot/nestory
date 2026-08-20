@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const sentry = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe("SentryIdentity", () => {
-  it("sets pseudonymous workspace identity and clears it on unmount", () => {
+  it("sets scoped irreversible workspace identity and clears it on unmount", async () => {
     const { unmount } = render(
       <SentryIdentity
         organizationId="org-1"
@@ -28,16 +28,38 @@ describe("SentryIdentity", () => {
       />,
     );
 
-    expect(sentry.setUser).toHaveBeenCalledWith({ id: "user-1" });
-    expect(sentry.setTags).toHaveBeenCalledWith({
-      organization_id: "org-1",
-      role: "finance_manager",
+    await waitFor(() => {
+      expect(sentry.setUser).toHaveBeenCalledWith({
+        id: expect.stringMatching(/^[0-9a-f]{64}$/),
+      });
+      expect(sentry.setTags).toHaveBeenCalledWith({
+        organization_id: expect.stringMatching(/^[0-9a-f]{64}$/),
+        role: "finance_manager",
+      });
     });
+    expect(JSON.stringify(sentry.setUser.mock.calls)).not.toContain("user-1");
+    expect(JSON.stringify(sentry.setTags.mock.calls)).not.toContain("org-1");
 
     unmount();
 
     expect(sentry.setUser).toHaveBeenLastCalledWith(null);
     expect(sentry.setTag).toHaveBeenCalledWith("organization_id", undefined);
     expect(sentry.setTag).toHaveBeenCalledWith("role", undefined);
+  });
+
+  it("uses a different user pseudonym in a different organization", async () => {
+    const { rerender } = render(
+      <SentryIdentity organizationId="org-1" role="super_admin" userId="user-1" />,
+    );
+    await waitFor(() => expect(sentry.setUser).toHaveBeenCalled());
+    const firstId = sentry.setUser.mock.calls.at(-1)?.[0]?.id;
+
+    rerender(
+      <SentryIdentity organizationId="org-2" role="super_admin" userId="user-1" />,
+    );
+    await waitFor(() => {
+      const currentId = sentry.setUser.mock.calls.at(-1)?.[0]?.id;
+      expect(currentId).not.toBe(firstId);
+    });
   });
 });

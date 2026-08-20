@@ -56,6 +56,13 @@ const protectedPattern = new RegExp(
   `\\b(?:${PROTECTED_TERMS.map(escapeRegExp).join("|")})\\b`,
   "i",
 );
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const SAFE_ENVIRONMENTS = new Set(["development", "preview", "production", "unknown"]);
+const SAFE_FRAME_PATH = /^[a-z0-9_./@\\-]{1,240}$/i;
+const SAFE_FUNCTION = /^[a-z0-9_.$<>-]{1,120}$/i;
+const SAFE_SHORT_ID = /^[A-Z0-9][A-Z0-9-]{0,79}$/;
+const SAFE_TECHNICAL_TOKEN = /^[a-z0-9_.-]{1,80}$/i;
+const UUID_SEGMENT = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi;
 
 async function main() {
   const [command, ...args] = process.argv.slice(2);
@@ -115,8 +122,25 @@ async function resolveIssue(args) {
     throw new CliError("resolve requires a numeric issue id and --release with an exact 40-character lowercase SHA.", 2);
   }
 
+  const issuePath = `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(issueId)}/`;
+  const issue = await sentryRequest(issuePath);
+  if (issue?.project?.slug !== sentryProject()) {
+    throw new CliError("Refusing to resolve an issue outside the configured Sentry project.", 2);
+  }
+  if (issue?.status !== "unresolved") {
+    throw new CliError("Refusing to resolve a Sentry issue that is not currently unresolved.", 2);
+  }
+  const event = await sentryRequest(`${issuePath}events/latest/`);
+  const summary = safeSummary(issue, event);
+  if (summary.environment !== "production") {
+    throw new CliError("Refusing to resolve a non-production Sentry issue.", 2);
+  }
+  if (summary.disposition !== "candidate") {
+    throw new CliError("Refusing to resolve a protected-domain Sentry issue without authorization.", 2);
+  }
+
   await sentryRequest(
-    `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(issueId)}/`,
+    issuePath,
     {
       body: JSON.stringify({
         status: "resolved",
@@ -149,11 +173,12 @@ function sentryProject() {
 }
 
 async function sentryRequest(path, init = {}) {
-  const base = (process.env.SENTRY_AUTOFIX_API_BASE || "https://sentry.io").replace(/\/$/, "");
+  const base = sentryApiBase();
   let response;
   try {
     response = await fetch(`${base}${path}`, {
       ...init,
+      signal: AbortSignal.timeout(requestTimeoutMs()),
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${process.env.SENTRY_AUTOFIX_TOKEN}`,
@@ -169,6 +194,34 @@ async function sentryRequest(path, init = {}) {
   return response.json();
 }
 
+function sentryApiBase() {
+  const rawBase = process.env.SENTRY_AUTOFIX_API_BASE || "https://sentry.io";
+  let base;
+  try {
+    base = new URL(rawBase);
+  } catch {
+    throw new CliError("SENTRY_AUTOFIX_API_BASE must be a valid trusted URL.", 2);
+  }
+
+  const trustedSentryHost =
+    base.protocol === "https:" && /(^|\.)sentry\.io$/i.test(base.hostname);
+  const testLocalhost =
+    process.env.NODE_ENV === "test" &&
+    base.protocol === "http:" &&
+    ["127.0.0.1", "::1", "localhost"].includes(base.hostname);
+  if (!trustedSentryHost && !testLocalhost) {
+    throw new CliError("Refusing to send the Sentry token to an untrusted API host.", 2);
+  }
+  return base.toString().replace(/\/$/, "");
+}
+
+function requestTimeoutMs() {
+  const parsed = Number.parseInt(process.env.SENTRY_AUTOFIX_TIMEOUT_MS ?? "", 10);
+  return Number.isFinite(parsed) && parsed >= 100 && parsed <= 30_000
+    ? parsed
+    : DEFAULT_REQUEST_TIMEOUT_MS;
+}
+
 function safeSummary(issue, event) {
   const exceptions = exceptionValues(event);
   const frames = exceptions
@@ -176,8 +229,8 @@ function safeSummary(issue, event) {
     .filter((frame) => frame?.inApp !== false)
     .slice(-10)
     .map((frame) => ({
-      ...(typeof frame.filename === "string" ? { filename: frame.filename } : {}),
-      ...(typeof frame.function === "string" ? { function: frame.function } : {}),
+      ...(safeFramePath(frame.filename) ? { filename: safeFramePath(frame.filename) } : {}),
+      ...(safeFunction(frame.function) ? { function: safeFunction(frame.function) } : {}),
     }));
   const protectedText = [
     issue.title,
@@ -190,17 +243,18 @@ function safeSummary(issue, event) {
 
   return {
     count: safeInteger(issue.count),
-    culprit: safeText(issue.culprit),
     disposition: protectedPattern.test(protectedText) ? "requires_authorization" : "candidate",
     environment: safeEnvironment(event),
     firstSeen: safeTimestamp(issue.firstSeen),
     frames,
-    id: String(issue.id),
+    id: /^\d+$/.test(String(issue.id)) ? String(issue.id) : undefined,
     lastSeen: safeTimestamp(issue.lastSeen),
     permalink: safePermalink(issue.permalink),
     release: safeRelease(event?.release),
-    shortId: safeText(issue.shortId),
-    title: safeText(issue.title),
+    shortId: typeof issue.shortId === "string" && SAFE_SHORT_ID.test(issue.shortId)
+      ? issue.shortId
+      : undefined,
+    title: safeTechnicalToken(exceptions[0]?.type) ?? "Error",
     userCount: safeInteger(issue.userCount),
   };
 }
@@ -213,20 +267,41 @@ function exceptionValues(event) {
 }
 
 function safeEnvironment(event) {
-  if (typeof event?.environment === "string") return event.environment;
+  if (typeof event?.environment === "string" && SAFE_ENVIRONMENTS.has(event.environment)) {
+    return event.environment;
+  }
   const tag = Array.isArray(event?.tags)
     ? event.tags.find((candidate) => candidate?.key === "environment")
     : undefined;
-  return safeText(tag?.value);
+  return typeof tag?.value === "string" && SAFE_ENVIRONMENTS.has(tag.value)
+    ? tag.value
+    : "unknown";
 }
 
 function safeRelease(release) {
-  if (typeof release === "string") return safeText(release);
-  return safeText(release?.version);
+  const value = typeof release === "string" ? release : release?.version;
+  return typeof value === "string" && /^[0-9a-f]{40}$/.test(value)
+    ? value
+    : undefined;
 }
 
-function safeText(value) {
-  return typeof value === "string" ? value.slice(0, 500) : undefined;
+function safeTechnicalToken(value) {
+  return typeof value === "string" && SAFE_TECHNICAL_TOKEN.test(value)
+    ? value
+    : undefined;
+}
+
+function safeFramePath(value) {
+  if (typeof value !== "string") return undefined;
+  const withoutQuery = value.split(/[?#]/, 1)[0];
+  if (!SAFE_FRAME_PATH.test(withoutQuery)) return undefined;
+  return withoutQuery.replace(UUID_SEGMENT, "[record-id]");
+}
+
+function safeFunction(value) {
+  return typeof value === "string" && SAFE_FUNCTION.test(value)
+    ? value
+    : undefined;
 }
 
 function safeInteger(value) {
@@ -243,7 +318,12 @@ function safePermalink(value) {
   if (typeof value !== "string") return undefined;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" ? url.toString() : undefined;
+    if (url.protocol !== "https:" || !/(^|\.)sentry\.io$/i.test(url.hostname)) {
+      return undefined;
+    }
+    url.search = "";
+    url.hash = "";
+    return url.toString();
   } catch {
     return undefined;
   }
