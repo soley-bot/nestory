@@ -9,8 +9,10 @@ import type { PersonRoleValue } from "@/features/people/people.types";
 
 type PeopleFieldErrors = {
   displayName?: string[];
+  effectiveDate?: string[];
   legalName?: string[];
   notes?: string[];
+  note?: string[];
   partyType?: string[];
   passportExpiryDate?: string[];
   passportNumber?: string[];
@@ -42,6 +44,14 @@ const optionalDateSchema = z
     (value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value),
     "Enter a valid date.",
   );
+const tenantArchiveSchema = z.object({
+  effectiveDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose an end date."),
+  leaseIds: z.array(z.uuid("Choose a linked lease.")),
+  note: z.string().trim().max(300, "Keep the note under 300 characters."),
+  personId: personIdSchema,
+});
 
 const peopleMutationSchema = z
   .object({
@@ -239,6 +249,159 @@ export async function archivePersonAction(
     fallbackMessage: "Person archived.",
     formData,
   });
+}
+
+export async function archiveTenantAction(
+  _state: PeopleActionState,
+  formData: FormData,
+): Promise<PeopleActionState> {
+  const context = await requireSuperAdminContext();
+  const parsed = tenantArchiveSchema.safeParse({
+    effectiveDate: readString(formData, "effectiveDate"),
+    leaseIds: formData
+      .getAll("leaseId")
+      .map((value) => (typeof value === "string" ? value : "")),
+    note: readString(formData, "note"),
+    personId: readString(formData, "personId"),
+  });
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: partyRows, error: partyError } = await supabase
+    .from("lease_parties")
+    .select("lease_id")
+    .eq("organization_id", context.organizationId)
+    .eq("person_id", parsed.data.personId)
+    .eq("party_role", "tenant")
+    .eq("is_primary", true)
+    .is("ended_on", null)
+    .is("archived_at", null);
+
+  if (partyError) {
+    return {
+      message: "The tenant's open leases could not be checked.",
+      status: "error",
+    };
+  }
+
+  const leaseIds = [
+    ...new Set((partyRows ?? []).map((party) => party.lease_id)),
+  ];
+  const expectedLeaseIds = [...new Set(parsed.data.leaseIds)];
+
+  if (
+    leaseIds.length !== expectedLeaseIds.length ||
+    leaseIds.some((leaseId) => !expectedLeaseIds.includes(leaseId))
+  ) {
+    return {
+      message: "The tenant's linked leases changed. Refresh and try again.",
+      status: "error",
+    };
+  }
+
+  if (leaseIds.length > 0) {
+    const [{ data: leaseRows, error: leaseError }, { data: occupancyRows, error: occupancyError }] =
+      await Promise.all([
+        supabase
+          .from("leases")
+          .select("id, status")
+          .eq("organization_id", context.organizationId)
+          .in("id", leaseIds)
+          .is("archived_at", null),
+        supabase
+          .from("lease_occupancies")
+          .select("id, lease_id, evidence_state, updated_at")
+          .eq("organization_id", context.organizationId)
+          .in("lease_id", leaseIds)
+          .is("archived_at", null)
+          .order("updated_at", { ascending: false }),
+      ]);
+
+    if (leaseError || occupancyError) {
+      return {
+        message: "The tenant's open leases could not be prepared for archiving.",
+        status: "error",
+      };
+    }
+
+    for (const leaseId of leaseIds) {
+      const lease = (leaseRows ?? []).find((row) => row.id === leaseId);
+      const leaseOccupancies = (occupancyRows ?? []).filter(
+        (row) => row.lease_id === leaseId,
+      );
+      const occupancy =
+        leaseOccupancies.find((row) => row.evidence_state === "accepted") ??
+        leaseOccupancies[0];
+
+      if (!lease || !occupancy) {
+        return {
+          message: "Open the linked lease and review its occupancy before archiving.",
+          status: "error",
+        };
+      }
+
+      const status = lease.status.toLowerCase();
+      const transition = status === "draft" ? "cancel" : "terminate";
+
+      if (!["active", "draft", "notice_given"].includes(status)) {
+        return {
+          message: "Open the linked lease and review its status before archiving.",
+          status: "error",
+        };
+      }
+
+      const reason = [
+        "Tenant archived from person record.",
+        parsed.data.note,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const { data: transitionResult, error: transitionError } =
+        await supabase.rpc("transition_lease_lifecycle", {
+          p_effective_date: parsed.data.effectiveDate,
+          p_expected_occupancy_id: occupancy.id,
+          p_expected_status: status,
+          p_idempotency_key: `archive-tenant:${parsed.data.personId}:${leaseId}:${parsed.data.effectiveDate}`,
+          p_lease_id: leaseId,
+          p_organization_id: context.organizationId,
+          p_reason: reason,
+          p_scheduled_move_out_date: null as never,
+          p_transition: transition,
+        });
+
+      if (transitionError || !transitionResult) {
+        return {
+          message: "The linked lease could not be ended. The tenant was not archived.",
+          status: "error",
+        };
+      }
+    }
+  }
+
+  const { error: archiveError } = await supabase.rpc("archive_person", {
+    p_organization_id: context.organizationId,
+    p_person_id: parsed.data.personId,
+  });
+
+  if (archiveError) {
+    return {
+      message: getPeopleMutationErrorMessage(archiveError, "archive"),
+      status: "error",
+    };
+  }
+
+  revalidatePeoplePaths();
+
+  return {
+    message:
+      leaseIds.length > 0
+        ? "Tenancy ended and tenant archived."
+        : "Tenant archived.",
+    status: "success",
+  };
 }
 
 export async function restorePersonAction(

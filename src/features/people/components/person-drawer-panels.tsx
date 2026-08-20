@@ -1,15 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useEffect } from "react";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import {
-  archivePersonAction,
+  archiveTenantAction,
   type PeopleActionState,
   restorePersonAction,
 } from "@/features/people/actions";
 import type { PeopleSummary } from "@/features/people/people.types";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 
 const archiveInitialState: PeopleActionState = {};
 const restoreInitialState: PeopleActionState = {};
@@ -33,8 +34,15 @@ export function ArchivePersonPanel({
       : person.linked.activeLease
         ? [person.linked.activeLease]
         : [];
+  const isTenant = person.roles.some(
+    (role) => role.role === "tenant" && role.status === "active",
+  );
+  const draftOnly =
+    blockingLeases.length > 0 &&
+    blockingLeases.every((lease) => lease.status.toLowerCase() === "draft");
+  const today = getBusinessDateValue();
   const [state, action, pending] = useActionState(
-    archivePersonAction,
+    archiveTenantAction,
     archiveInitialState,
   );
 
@@ -53,6 +61,12 @@ export function ArchivePersonPanel({
       }
     >
       <input name="personId" type="hidden" value={person.id} />
+      {blockingLeases.map((lease) => (
+        <input key={lease.id} name="leaseId" type="hidden" value={lease.id} />
+      ))}
+      {blockingLeases.length === 0 ? (
+        <input name="effectiveDate" type="hidden" value={today} />
+      ) : null}
       <div className="flex-1 space-y-4 px-4 py-4 sm:px-5">
         {presentation === "drawer" ? (
           <>
@@ -64,22 +78,31 @@ export function ArchivePersonPanel({
           </>
         ) : null}
         {blockingLeases.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Open Lease roles must be ended or cancelled through a checked
-              relationship transition first. Linked history is preserved.
+              {draftOnly
+                ? "This tenant has a draft lease. Cancel it and archive the tenant in one step."
+                : "This tenant has an active lease. End it and archive the tenant in one step."} Rent, deposit, move, document, and audit history stays linked.
             </p>
-            <div className="space-y-2">
-              {blockingLeases.map((lease, index) => (
-                <Button asChild className="w-full" key={lease.id} variant="outline">
-                  <Link href={`/leases/${lease.id}`}>
-                    {blockingLeases.length === 1
-                      ? "Open blocking lease"
-                      : `Open blocking lease ${index + 1}`}
-                  </Link>
-                </Button>
-              ))}
+            <div className="grid gap-1.5 text-sm font-medium">
+              <span>{draftOnly ? "Cancellation date" : "End date"}</span>
+              <DatePickerField
+                ariaLabel={draftOnly ? "Cancellation date" : "End date"}
+                defaultValue={today}
+                name="effectiveDate"
+                required
+              />
+              <FieldError errors={state.fieldErrors?.effectiveDate} />
             </div>
+            <label className="grid gap-1.5 text-sm font-medium">
+              Optional note
+              <textarea
+                aria-label="Optional note"
+                className="min-h-20 resize-y rounded-md border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
+                name="note"
+              />
+              <FieldError errors={state.fieldErrors?.note} />
+            </label>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
@@ -92,13 +115,22 @@ export function ArchivePersonPanel({
       </div>
 
       <PanelFooter
-        confirmLabel={pending ? "Archiving..." : "Archive person"}
+        confirmLabel={
+          pending
+            ? "Archiving..."
+            : blockingLeases.length > 0
+              ? draftOnly
+                ? "Cancel draft and archive"
+                : "End tenancy and archive"
+              : isTenant
+                ? "Archive tenant"
+                : "Archive person"
+        }
         icon={<Archive size={15} />}
         intent="danger"
         onClose={onClose}
         pending={pending}
         presentation={presentation}
-        showConfirm={blockingLeases.length === 0}
       />
     </form>
   );
@@ -184,6 +216,12 @@ function PanelMessage({ state }: { state: PeopleActionState }) {
       {state.message}
     </p>
   );
+}
+
+function FieldError({ errors }: { errors?: string[] }) {
+  return errors?.length ? (
+    <span className="text-xs font-normal text-danger">{errors[0]}</span>
+  ) : null;
 }
 
 function PanelFooter({
