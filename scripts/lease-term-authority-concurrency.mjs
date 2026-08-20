@@ -333,7 +333,8 @@ function prepareDraftAuthority() {
   runSql(`\\set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
-SET LOCAL ROLE authenticated;
+-- The authoritative term writer is intentionally internal-only. Run this
+-- concurrency fixture as its postgres owner while retaining the admin actor.
 SELECT public.create_authoritative_lease_term(
   '${ids.organization}'::uuid,
   '${ids.lease}'::uuid,
@@ -354,7 +355,7 @@ function authoritativeTermSql(leaseId, idempotencyKey, holdOpen) {
   return `\\set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
-SET LOCAL ROLE authenticated;
+-- Exercise the internal writer's lock behavior as its postgres owner.
 SELECT public.create_authoritative_lease_term(
   '${ids.organization}'::uuid,
   '${leaseId}'::uuid,
