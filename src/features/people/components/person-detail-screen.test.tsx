@@ -243,7 +243,7 @@ describe("PersonDetailScreen", () => {
     ).toBe("unchecked");
   });
 
-  it("keeps archive visible and offers one guided action for an active tenant lease", () => {
+  it("keeps archive visible and points an active tenant to the lease workflow", () => {
     render(<PersonDetailScreen person={person} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
@@ -252,17 +252,18 @@ describe("PersonDetailScreen", () => {
     expect(drawer.className).toContain("sm:max-w-md");
     expect(
       within(drawer).getByText(
-        /this tenant has an active lease/i,
+        /end or cancel it from the lease record first/i,
       ),
     ).toBeTruthy();
-    expect(within(drawer).getByLabelText("End date")).toBeTruthy();
-    expect(within(drawer).getByLabelText("Optional note")).toBeTruthy();
+    expect(
+      within(drawer).getByRole("link", { name: "Review lease" }),
+    ).toBeTruthy();
     expect(within(drawer).queryByText(/lifecycle evidence/i)).toBeNull();
     expect(
-      within(drawer).getByRole("button", {
+      within(drawer).queryByRole("button", {
         name: "Archive tenant",
       }),
-    ).toBeTruthy();
+    ).toBeNull();
   });
 
   it("keeps archive available when no lease relationship blocks it", () => {
@@ -291,7 +292,7 @@ describe("PersonDetailScreen", () => {
     ).toBeNull();
   });
 
-  it("offers cancel draft and archive without asking for lifecycle evidence", () => {
+  it("points a draft tenant to the lease workflow without asking for evidence", () => {
     const draftPerson: PeopleSummary = {
       ...person,
       linked: {
@@ -307,12 +308,12 @@ describe("PersonDetailScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
 
     const dialog = screen.getByRole("dialog", { name: "Archive Dara Tenant?" });
-    expect(within(dialog).getByLabelText("Cancellation date")).toBeTruthy();
     expect(
-      within(dialog).getByRole("button", {
-        name: "Archive tenant",
-      }),
+      within(dialog).getByRole("link", { name: "Review lease" }),
     ).toBeTruthy();
+    expect(
+      within(dialog).queryByRole("button", { name: "Archive tenant" }),
+    ).toBeNull();
     expect(within(dialog).queryByText(/lifecycle evidence/i)).toBeNull();
   });
 
@@ -339,7 +340,7 @@ describe("PersonDetailScreen", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Archive Dara Tenant?" });
     expect(
-      within(dialog).getByText(/multiple open leases/i),
+      within(dialog).getByText(/end or cancel each lease/i),
     ).toBeTruthy();
     expect(
       within(dialog).getAllByRole("link", { name: /Review lease/ }),
@@ -371,10 +372,13 @@ describe("PersonDetailScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
 
     const dialog = screen.getByRole("dialog", { name: "Archive Dara Tenant?" });
-    expect(within(dialog).queryByText(/multiple open leases/i)).toBeNull();
+    expect(within(dialog).queryByText(/end or cancel each lease/i)).toBeNull();
     expect(
-      within(dialog).getByRole("button", { name: "Archive tenant" }),
+      within(dialog).getByRole("link", { name: "Review lease" }),
     ).toBeTruthy();
+    expect(
+      within(dialog).queryByRole("button", { name: "Archive tenant" }),
+    ).toBeNull();
   });
 
   it("keeps history secondary in More", () => {

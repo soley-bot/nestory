@@ -4,14 +4,12 @@ import Link from "next/link";
 import { useActionState, useEffect } from "react";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DatePickerField } from "@/components/ui/date-picker-field";
 import {
   archiveTenantAction,
   type PeopleActionState,
   restorePersonAction,
 } from "@/features/people/actions";
 import type { PeopleSummary } from "@/features/people/people.types";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
 
 const archiveInitialState: PeopleActionState = {};
 const restoreInitialState: PeopleActionState = {};
@@ -41,11 +39,7 @@ export function ArchivePersonPanel({
   const isTenant = person.roles.some(
     (role) => role.role === "tenant" && role.status === "active",
   );
-  const draftOnly =
-    blockingLeases.length > 0 &&
-    blockingLeases.every((lease) => lease.status.toLowerCase() === "draft");
-  const hasMultipleLeases = blockingLeases.length > 1;
-  const today = getBusinessDateValue();
+  const hasBlockingLeases = blockingLeases.length > 0;
   const [state, action, pending] = useActionState(
     archiveTenantAction,
     archiveInitialState,
@@ -66,12 +60,6 @@ export function ArchivePersonPanel({
       }
     >
       <input name="personId" type="hidden" value={person.id} />
-      {blockingLeases.map((lease) => (
-        <input key={lease.id} name="leaseId" type="hidden" value={lease.id} />
-      ))}
-      {blockingLeases.length === 0 ? (
-        <input name="effectiveDate" type="hidden" value={today} />
-      ) : null}
       <div className="flex-1 space-y-4 px-4 py-4 sm:px-5">
         {presentation === "drawer" ? (
           <>
@@ -82,56 +70,24 @@ export function ArchivePersonPanel({
             <PersonPanelSummary person={person} />
           </>
         ) : null}
-        {hasMultipleLeases ? (
+        {hasBlockingLeases ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              This tenant has multiple open leases. Review each lease first so
-              no tenancy is ended by mistake. All linked history remains
-              available.
+              {blockingLeases.length > 1
+                ? "This tenant has open leases. End or cancel each lease from its lease record first, then return here to archive the tenant."
+                : "This tenant has an open lease. End or cancel it from the lease record first, then return here to archive the tenant."} All linked history remains available.
             </p>
             <div className="flex flex-wrap gap-2">
               {blockingLeases.map((lease, index) => (
                 <Button asChild key={lease.id} size="sm" variant="outline">
-                  <Link href={lease.href}>Review lease {index + 1}</Link>
+                  <Link href={lease.href}>
+                    {blockingLeases.length > 1
+                      ? `Review lease ${index + 1}`
+                      : "Review lease"}
+                  </Link>
                 </Button>
               ))}
             </div>
-          </div>
-        ) : blockingLeases.length > 0 ? (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {draftOnly
-                ? "This tenant has a draft lease. If they are the primary tenant, the draft will be cancelled and they will be archived in one step."
-                : "This tenant has an active lease. If they are the primary tenant, the tenancy will end and they will be archived in one step."} Co-tenants are never removed from a lease here. Rent, deposit, move, document, and audit history stays linked.
-            </p>
-            <div className="grid gap-1.5 text-sm font-medium">
-              <span>{draftOnly ? "Cancellation date" : "End date"}</span>
-              <DatePickerField
-                aria-describedby={
-                  state.fieldErrors?.effectiveDate?.length
-                    ? "archive-effective-date-error"
-                    : undefined
-                }
-                aria-invalid={Boolean(state.fieldErrors?.effectiveDate?.length)}
-                ariaLabel={draftOnly ? "Cancellation date" : "End date"}
-                defaultValue={today}
-                name="effectiveDate"
-                required
-              />
-              <FieldError
-                errors={state.fieldErrors?.effectiveDate}
-                id="archive-effective-date-error"
-              />
-            </div>
-            <label className="grid gap-1.5 text-sm font-medium">
-              Optional note
-              <textarea
-                aria-label="Optional note"
-                className="min-h-20 resize-y rounded-md border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
-                name="note"
-              />
-              <FieldError errors={state.fieldErrors?.note} />
-            </label>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
@@ -147,18 +103,16 @@ export function ArchivePersonPanel({
         confirmLabel={
           pending
             ? "Archiving..."
-            : blockingLeases.length > 0
+            : isTenant
               ? "Archive tenant"
-              : isTenant
-                ? "Archive tenant"
-                : "Archive person"
+              : "Archive person"
         }
         icon={<Archive size={15} />}
         intent="danger"
         onClose={onClose}
         pending={pending}
         presentation={presentation}
-        showConfirm={!hasMultipleLeases}
+        showConfirm={!hasBlockingLeases}
       />
     </form>
   );
@@ -244,18 +198,6 @@ function PanelMessage({ state }: { state: PeopleActionState }) {
       {state.message}
     </p>
   );
-}
-
-function FieldError({ errors, id }: { errors?: string[]; id?: string }) {
-  return errors?.length ? (
-    <span
-      className="text-xs font-normal text-danger"
-      id={id}
-      role="alert"
-    >
-      {errors[0]}
-    </span>
-  ) : null;
 }
 
 function PanelFooter({
