@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   fetchAllActionableRows,
+  fetchRowsByIdBatches,
+  isRentGenerationSource,
   mergeRowsById,
   toExpenseSubmissionSummary,
 } from "@/features/finance-operations/data/finance-operations";
@@ -20,6 +22,46 @@ describe("fetchAllActionableRows", () => {
     });
     expect(fetchPage).toHaveBeenCalledTimes(3);
     expect(fetchPage).toHaveBeenNthCalledWith(3, 500, 749);
+  });
+});
+
+describe("fetchRowsByIdBatches", () => {
+  it("scopes every page to requested invoice ids and returns more than 1,000 lines", async () => {
+    const invoiceIds = Array.from({ length: 205 }, (_, index) =>
+      `invoice-${index.toString().padStart(3, "0")}`,
+    );
+    const source = invoiceIds.flatMap((invoiceId) =>
+      Array.from({ length: 6 }, (_, lineIndex) => ({
+        id: `${invoiceId}-line-${lineIndex}`,
+        invoiceId,
+      })),
+    );
+    const fetchPage = vi.fn(
+      async (batchIds: readonly string[], from: number, to: number) => ({
+        data: source
+          .filter((row) => batchIds.includes(row.invoiceId))
+          .slice(from, to + 1),
+        error: null,
+      }),
+    );
+
+    await expect(
+      fetchRowsByIdBatches(invoiceIds, fetchPage, 100, 500),
+    ).resolves.toEqual({ data: source, error: null });
+    expect(fetchPage).toHaveBeenCalledTimes(5);
+    expect(fetchPage.mock.calls.every(([ids]) => ids.length <= 100)).toBe(true);
+    expect(fetchPage).toHaveBeenNthCalledWith(
+      2,
+      invoiceIds.slice(0, 100),
+      500,
+      999,
+    );
+    expect(fetchPage).toHaveBeenNthCalledWith(
+      5,
+      invoiceIds.slice(200),
+      0,
+      499,
+    );
   });
 });
 
@@ -47,6 +89,13 @@ describe("mergeRowsById", () => {
         [{ id: "invoice-1", status: "history" }],
       ),
     ).toEqual([{ id: "invoice-1", status: "open" }]);
+  });
+});
+
+describe("isRentGenerationSource", () => {
+  it("keeps lease-owned rent provenance visible", () => {
+    expect(isRentGenerationSource("lease_rules_v1")).toBe(true);
+    expect(isRentGenerationSource("unknown_source")).toBe(false);
   });
 });
 

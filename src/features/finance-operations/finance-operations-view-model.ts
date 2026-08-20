@@ -94,7 +94,8 @@ export function getInvoiceStatusPresentation({
 export function getRentGenerationLabel(
   source: TenantInvoiceSummary["generationSource"],
 ) {
-  if (source === "manual_recovery") return "Recovered by Super Admin";
+  if (source === "manual_recovery") return "Recovered manually";
+  if (source === "lease_rules_v1") return "Generated from lease rules";
   if (source === "scheduled" || source === "activation_catch_up") {
     return "Generated automatically";
   }

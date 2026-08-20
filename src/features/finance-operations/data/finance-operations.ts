@@ -26,6 +26,17 @@ type TenantInvoiceGenerationRow = Pick<
   Database["public"]["Tables"]["tenant_invoices"]["Row"],
   "billing_period_start" | "generation_source" | "id" | "is_prorated"
 >;
+type TenantInvoiceLineBalanceRow = Pick<
+  Database["public"]["Views"]["tenant_invoice_line_balances"]["Row"],
+  | "amount"
+  | "balance_due"
+  | "customer_label"
+  | "id"
+  | "income_item_id"
+  | "invoice_id"
+  | "line_type"
+  | "sort_order"
+>;
 type OwnerInvoiceBalanceRow =
   Database["public"]["Views"]["owner_invoice_balances"]["Row"];
 type PositionRow =
@@ -88,6 +99,32 @@ export async function fetchAllActionableRows<T>(
     const pageRows = page.data ?? [];
     rows.push(...pageRows);
     if (pageRows.length < pageSize) break;
+  }
+
+  return { data: rows, error: null };
+}
+
+export async function fetchRowsByIdBatches<T>(
+  ids: readonly string[],
+  fetchPage: (
+    batchIds: readonly string[],
+    from: number,
+    to: number,
+  ) => Promise<DataPageResult<T>>,
+  batchSize = 100,
+  pageSize = 500,
+): Promise<DataPageResult<T>> {
+  const rows: T[] = [];
+  const uniqueIds = [...new Set(ids)];
+
+  for (let index = 0; index < uniqueIds.length; index += batchSize) {
+    const batchIds = uniqueIds.slice(index, index + batchSize);
+    const result = await fetchAllActionableRows(
+      (from, to) => fetchPage(batchIds, from, to),
+      pageSize,
+    );
+    if (result.error) return { data: null, error: result.error };
+    rows.push(...(result.data ?? []));
   }
 
   return { data: rows, error: null };
@@ -204,7 +241,6 @@ export async function getFinanceOperationsData(
     billingResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
-    tenantLinesResult,
     ownerInvoicesResult,
     expenseSubmissionsResult,
     positionsResult,
@@ -249,13 +285,6 @@ export async function getFinanceOperationsData(
       .is("superseded_at", null),
     getTenantInvoiceBalanceRows(supabase, organizationId, propertyId),
     getUnresolvedRentGenerationExceptions(supabase, organizationId),
-    supabase
-      .from("tenant_invoice_line_balances")
-      .select(
-        "id, invoice_id, income_item_id, line_type, customer_label, amount, balance_due, sort_order",
-      )
-      .eq("organization_id", organizationId)
-      .order("sort_order"),
     getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
     getExpenseSubmissionRows(supabase, organizationId),
     supabase
@@ -280,7 +309,6 @@ export async function getFinanceOperationsData(
     billingResult,
     tenantInvoicesResult,
     rentGenerationExceptionsResult,
-    tenantLinesResult,
     ownerInvoicesResult,
     expenseSubmissionsResult,
     positionsResult,
@@ -294,13 +322,25 @@ export async function getFinanceOperationsData(
     );
   }
 
+  const tenantInvoiceIds = (tenantInvoicesResult.data ?? []).flatMap(
+    (invoice) => (invoice.id ? [invoice.id] : []),
+  );
+  const tenantLinesResult = await getTenantInvoiceLineRows(
+    supabase,
+    organizationId,
+    tenantInvoiceIds,
+  );
+  if (tenantLinesResult.error) {
+    throw new Error(
+      `Could not load tenant invoice lines: ${tenantLinesResult.error.message}`,
+    );
+  }
+
   const tenantInvoiceGenerationResult =
     await getTenantInvoiceGenerationRows(
       supabase,
       organizationId,
-      (tenantInvoicesResult.data ?? []).flatMap((invoice) =>
-        invoice.id ? [invoice.id] : [],
-      ),
+      tenantInvoiceIds,
     );
   if (tenantInvoiceGenerationResult.error) {
     throw new Error(
@@ -311,9 +351,7 @@ export async function getFinanceOperationsData(
   const tenantInvoiceSettlementResult = await getTenantInvoiceSettlementRows(
     supabase,
     organizationId,
-    (tenantInvoicesResult.data ?? []).flatMap((invoice) =>
-      invoice.id ? [invoice.id] : [],
-    ),
+    tenantInvoiceIds,
   );
   if (tenantInvoiceSettlementResult.error) {
     throw new Error(
@@ -737,6 +775,28 @@ async function getUnresolvedRentGenerationExceptions(
   });
 }
 
+async function getTenantInvoiceLineRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  invoiceIds: readonly string[],
+): Promise<DataPageResult<TenantInvoiceLineBalanceRow>> {
+  return fetchRowsByIdBatches(invoiceIds, async (batchIds, from, to) => {
+    const { data, error } = await supabase
+      .from("tenant_invoice_line_balances")
+      .select(
+        "id, invoice_id, income_item_id, line_type, customer_label, amount, balance_due, sort_order",
+      )
+      .eq("organization_id", organizationId)
+      .in("invoice_id", [...batchIds])
+      .order("invoice_id")
+      .order("sort_order")
+      .order("id")
+      .range(from, to);
+
+    return { data, error };
+  });
+}
+
 async function getTenantInvoiceBalanceRows(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organizationId: string,
@@ -1030,11 +1090,12 @@ function toTenantInvoice(
   ];
 }
 
-function isRentGenerationSource(
+export function isRentGenerationSource(
   value: string | null | undefined,
 ): value is NonNullable<TenantInvoiceSummary["generationSource"]> {
   return (
     value === "activation_catch_up" ||
+    value === "lease_rules_v1" ||
     value === "manual_recovery" ||
     value === "scheduled"
   );
