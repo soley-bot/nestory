@@ -224,6 +224,47 @@ describe("Lease occupancy evidence input", () => {
     });
   });
 
+  it("refreshes tenant archive eligibility after cancelling a draft lease", async () => {
+    const occupancyId = "40000000-0000-0000-0000-000000000001";
+    rpc.mockResolvedValueOnce({
+      data: {
+        leaseId,
+        occupancyId,
+        status: "cancelled",
+      },
+      error: null,
+    });
+    const formData = new FormData();
+    formData.set("effectiveDate", "2027-04-01");
+    formData.set("expectedOccupancyId", occupancyId);
+    formData.set("expectedStatus", "draft");
+    formData.set("idempotencyKey", "lease-cancel-v1");
+    formData.set("leaseId", leaseId);
+    formData.set("reason", "Duplicate draft created in error");
+    formData.set("transition", "cancel");
+
+    await expect(
+      transitionLeaseLifecycleAction({}, formData),
+    ).resolves.toMatchObject({
+      leaseId,
+      message: "Draft lease cancelled.",
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("transition_lease_lifecycle", {
+      p_effective_date: "2027-04-01",
+      p_expected_occupancy_id: occupancyId,
+      p_expected_status: "draft",
+      p_idempotency_key: "lease-cancel-v1",
+      p_lease_id: leaseId,
+      p_organization_id: organizationId,
+      p_reason: "Duplicate draft created in error",
+      p_scheduled_move_out_date: null,
+      p_transition: "cancel",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/people");
+    expect(revalidatePath).toHaveBeenCalledWith("/tenants");
+  });
+
   it("requests simple Lease activation without an operator explanation", async () => {
     const occupancyId = "40000000-0000-0000-0000-000000000001";
     const formData = new FormData();

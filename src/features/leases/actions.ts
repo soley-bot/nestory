@@ -931,7 +931,9 @@ function revalidateLeasePaths(
   revalidatePath("/documents");
   revalidatePath("/leases");
   revalidatePath("/ledger");
+  revalidatePath("/people");
   revalidatePath("/reports");
+  revalidatePath("/tenants");
   revalidatePath("/timeline");
   revalidatePath("/units");
   revalidatePath("/properties");

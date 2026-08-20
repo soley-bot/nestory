@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect } from "react";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,12 @@ export function ArchivePersonPanel({
   person,
   presentation = "drawer",
 }: PersonPanelProps) {
+  const blockingLeases =
+    person.linked.activeLeases.length > 0
+      ? person.linked.activeLeases
+      : person.linked.activeLease
+        ? [person.linked.activeLease]
+        : [];
   const [state, action, pending] = useActionState(
     archivePersonAction,
     archiveInitialState,
@@ -56,10 +63,31 @@ export function ArchivePersonPanel({
             <PersonPanelSummary person={person} />
           </>
         ) : null}
-        <p className="text-sm text-muted-foreground">
-          Open Lease roles must be ended or cancelled through a checked
-          relationship transition first. Linked history is preserved.
-        </p>
+        {blockingLeases.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Open Lease roles must be ended or cancelled through a checked
+              relationship transition first. Linked history is preserved.
+            </p>
+            <div className="space-y-2">
+              {blockingLeases.map((lease, index) => (
+                <Button asChild className="w-full" key={lease.id} variant="outline">
+                  <Link href={`/leases/${lease.id}`}>
+                    {blockingLeases.length === 1
+                      ? "Open blocking lease"
+                      : `Open blocking lease ${index + 1}`}
+                  </Link>
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            This person will leave active lists while linked history remains
+            available. Permanent deletion is not available for operational
+            person records.
+          </p>
+        )}
         <PanelMessage state={state} />
       </div>
 
@@ -70,6 +98,7 @@ export function ArchivePersonPanel({
         onClose={onClose}
         pending={pending}
         presentation={presentation}
+        showConfirm={blockingLeases.length === 0}
       />
     </form>
   );
@@ -164,6 +193,7 @@ function PanelFooter({
   onClose,
   pending,
   presentation = "drawer",
+  showConfirm = true,
 }: {
   confirmLabel: string;
   icon: React.ReactNode;
@@ -171,6 +201,7 @@ function PanelFooter({
   onClose: () => void;
   pending: boolean;
   presentation?: "drawer" | "modal";
+  showConfirm?: boolean;
 }) {
   return (
     <div
@@ -189,19 +220,21 @@ function PanelFooter({
         >
           Cancel
         </Button>
-        <Button
-          className="w-full sm:w-auto"
-          disabled={pending}
-          type="submit"
-          variant={
-            presentation === "modal" && intent === "danger"
-              ? "destructive"
-              : "default"
-          }
-        >
-          {icon}
-          {confirmLabel}
-        </Button>
+        {showConfirm ? (
+          <Button
+            className="w-full sm:w-auto"
+            disabled={pending}
+            type="submit"
+            variant={
+              presentation === "modal" && intent === "danger"
+                ? "destructive"
+                : "default"
+            }
+          >
+            {icon}
+            {confirmLabel}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

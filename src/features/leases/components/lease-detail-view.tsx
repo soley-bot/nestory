@@ -51,7 +51,7 @@ export function LeaseDetailView({
   lease: LeaseSummary;
   onAttachFile: () => void;
   onLifecycleChange: (
-    transition: "activate" | "end" | "give_notice" | "terminate",
+    transition: "activate" | "cancel" | "end" | "give_notice" | "terminate",
   ) => void;
   onScheduleTerm: (mode: "renewal" | "rent_change") => void;
 }) {
@@ -125,7 +125,7 @@ function LeaseOverview({
   canConfigure: boolean;
   lease: LeaseSummary;
   onLifecycleChange: (
-    transition: "activate" | "end" | "give_notice" | "terminate",
+    transition: "activate" | "cancel" | "end" | "give_notice" | "terminate",
   ) => void;
   onScheduleTerm: (mode: "renewal" | "rent_change") => void;
 }) {
@@ -178,9 +178,17 @@ function LeaseOverview({
           {canConfigure &&
           !lease.isArchived &&
           lease.statusValue === "draft" ? (
-            <Button onClick={() => onLifecycleChange("activate")}>
-              Activate lease
-            </Button>
+            <>
+              <Button onClick={() => onLifecycleChange("activate")}>
+                Activate lease
+              </Button>
+              <Button
+                onClick={() => onLifecycleChange("cancel")}
+                variant="destructive"
+              >
+                Cancel draft
+              </Button>
+            </>
           ) : null}
           {canConfigure &&
           !lease.isArchived &&
