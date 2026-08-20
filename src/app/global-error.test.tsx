@@ -21,6 +21,9 @@ describe("GlobalError", () => {
     render(<GlobalError error={error} reset={reset} />);
 
     expect(captureException).toHaveBeenCalledWith(error);
+    expect(
+      screen.getByText(/reopen the record to confirm the latest state/i),
+    ).toBeInTheDocument();
     screen.getByRole("button", { name: "Try again" }).click();
     expect(reset).toHaveBeenCalledOnce();
   });

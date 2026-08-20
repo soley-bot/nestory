@@ -19,7 +19,10 @@ export default function GlobalError({
       <body>
         <main>
           <h1>Nestory is temporarily unavailable</h1>
-          <p>Your records were not changed. Try loading the application again.</p>
+          <p>
+            Try loading the application again. If this happened after saving,
+            reopen the record to confirm the latest state.
+          </p>
           <button onClick={reset} type="button">
             Try again
           </button>
