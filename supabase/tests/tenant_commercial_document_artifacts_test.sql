@@ -32,8 +32,24 @@ SELECT has_function(
 SELECT has_function(
   'public',
   'attest_tenant_commercial_document_upload',
-  ARRAY['uuid','text','uuid','uuid','text','uuid','text','text','bigint'],
-  'one service-only RPC records the server-computed byte attestation'
+  ARRAY[
+    'uuid','text','uuid','uuid','text','uuid','text','text','bigint','text','jsonb'
+  ],
+  'one service-only RPC binds bytes, renderer, and presentation snapshot'
+);
+
+SELECT has_column(
+  'app_private',
+  'tenant_commercial_document_upload_attestations',
+  'renderer_version',
+  'upload attestation binds the trusted renderer version'
+);
+
+SELECT has_column(
+  'app_private',
+  'tenant_commercial_document_upload_attestations',
+  'presentation_snapshot_sha256',
+  'upload attestation binds the canonical presentation snapshot hash'
 );
 
 SELECT has_function(
@@ -182,17 +198,17 @@ SELECT ok(
 SELECT ok(
   pg_catalog.has_function_privilege(
     'service_role',
-    'public.attest_tenant_commercial_document_upload(uuid,text,uuid,uuid,text,uuid,text,text,bigint)',
+    'public.attest_tenant_commercial_document_upload(uuid,text,uuid,uuid,text,uuid,text,text,bigint,text,jsonb)',
     'EXECUTE'
   )
   AND NOT pg_catalog.has_function_privilege(
     'authenticated',
-    'public.attest_tenant_commercial_document_upload(uuid,text,uuid,uuid,text,uuid,text,text,bigint)',
+    'public.attest_tenant_commercial_document_upload(uuid,text,uuid,uuid,text,uuid,text,text,bigint,text,jsonb)',
     'EXECUTE'
   )
   AND NOT pg_catalog.has_function_privilege(
     'anon',
-    'public.attest_tenant_commercial_document_upload(uuid,text,uuid,uuid,text,uuid,text,text,bigint)',
+    'public.attest_tenant_commercial_document_upload(uuid,text,uuid,uuid,text,uuid,text,text,bigint,text,jsonb)',
     'EXECUTE'
   )
   AND NOT EXISTS (
@@ -205,7 +221,7 @@ SELECT ok(
       )
     ) AS privilege
     WHERE function.oid =
-      'public.attest_tenant_commercial_document_upload(uuid,text,uuid,uuid,text,uuid,text,text,bigint)'::regprocedure
+      'public.attest_tenant_commercial_document_upload(uuid,text,uuid,uuid,text,uuid,text,text,bigint,text,jsonb)'::regprocedure
       AND privilege.grantee = 0
       AND privilege.privilege_type = 'EXECUTE'
   ),
@@ -422,6 +438,19 @@ VALUES
     'a6000000-0000-4000-8000-000000000001',
     '2026-03-01', '2026-03-31', '2026-03-01', '2026-03-05',
     'direct_to_owner', 'individual',
+    'a3000000-0000-4000-8000-000000000001',
+    'Tenant Document Fixture', 'USD', 1000, 'issued', NULL, NULL,
+    'a1000000-0000-4000-8000-000000000001'
+  ),
+  (
+    'a7000000-0000-4000-8000-000000000004',
+    'a0000000-0000-4000-8000-000000000001',
+    '__A',
+    'a4000000-0000-4000-8000-000000000001',
+    'a5000000-0000-4000-8000-000000000001',
+    'a6000000-0000-4000-8000-000000000001',
+    '2026-04-01', '2026-04-30', '2026-04-01', '2026-04-05',
+    'through_ips', 'individual',
     'a3000000-0000-4000-8000-000000000001',
     'Tenant Document Fixture', 'USD', 1000, 'issued', NULL, NULL,
     'a1000000-0000-4000-8000-000000000001'
@@ -727,7 +756,9 @@ SELECT throws_ok(
       'c0000000-0000-4000-8000-000000000001',
       'tenant-commercial-document-v1-invoice-current',
       repeat('d', 64),
-      1024
+      1024,
+      'commercial-pdf-v1',
+      '{"paymentInstructions":"Bank transfer","kind":"invoice"}'::jsonb
     )
   $$,
   '42501', NULL,
@@ -763,7 +794,9 @@ SELECT lives_ok(
       'c0000000-0000-4000-8000-000000000001',
       'tenant-commercial-document-v1-invoice-current',
       repeat('d', 64),
-      1024
+      1024,
+      'commercial-pdf-v1',
+      '{"paymentInstructions":"Bank transfer","kind":"invoice"}'::jsonb
     )
   $$,
   'service_role can attest the server-computed Invoice byte hash'
@@ -773,6 +806,38 @@ SELECT pg_catalog.set_config(
   'request.jwt.claim.sub',
   'a1000000-0000-4000-8000-000000000001',
   true
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.register_tenant_commercial_document_artifact(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000001/INV-1001.pdf',
+      repeat('d', 64), 1024, 'commercial-pdf-v2', 'INV-1001',
+      '{"kind":"invoice","paymentInstructions":"Bank transfer"}'::jsonb
+    )
+  $$,
+  '22023',
+  'tenant_commercial_document_upload_attestation_mismatch',
+  'registration rejects a renderer version not bound by service attestation'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.register_tenant_commercial_document_artifact(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000001/INV-1001.pdf',
+      repeat('d', 64), 1024, 'commercial-pdf-v1', 'INV-1001',
+      '{"kind":"invoice","paymentInstructions":"Wire to forged account"}'::jsonb
+    )
+  $$,
+  '22023',
+  'tenant_commercial_document_upload_attestation_mismatch',
+  'registration rejects presentation claims not bound by service attestation'
 );
 
 UPDATE tenant_commercial_document_test_state
@@ -827,6 +892,19 @@ SELECT results_eq(
   'a failed Receipt publication persists no false artifact metadata'
 );
 
+SELECT throws_ok(
+  $$
+    SELECT *
+    FROM public.get_tenant_commercial_document_artifact_download(
+      'a0000000-0000-4000-8000-000000000001',
+      (SELECT receipt_artifact_id FROM tenant_commercial_document_test_state)
+    )
+  $$,
+  '55000',
+  'tenant_commercial_document_artifact_not_published',
+  'download metadata rejects failed publications with null integrity fields'
+);
+
 SELECT is(
   public.mark_tenant_commercial_document_publication_failed(
     'a0000000-0000-4000-8000-000000000001',
@@ -851,7 +929,9 @@ SELECT lives_ok(
       'c0000000-0000-4000-8000-000000000002',
       'tenant-commercial-document-v1-receipt-current',
       repeat('e', 64),
-      2048
+      2048,
+      'commercial-pdf-v1',
+      '{"amount":"400.00","kind":"receipt"}'::jsonb
     )
   $$,
   'service_role can attest the server-computed Receipt byte hash for retry'
@@ -1176,6 +1256,88 @@ SELECT throws_ok(
   'tenant_commercial_document_artifact_immutable',
   'published artifacts cannot be deleted'
 );
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+
+SELECT lives_ok(
+  $$
+    INSERT INTO storage.objects (
+      id, bucket_id, name, owner_id, metadata, version
+    ) VALUES (
+      'c0000000-0000-4000-8000-000000000006',
+      'tenant-commercial-documents',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000004/A.pdf',
+      'a1000000-0000-4000-8000-000000000001',
+      '{"mimetype":"application/pdf","size":512}'::jsonb,
+      'tenant-commercial-document-v1-invoice-short-safe-number'
+    )
+  $$,
+  'Storage accepts a one-character basename derived from an authoritative number'
+);
+
+RESET ROLE;
+SET LOCAL ROLE service_role;
+SELECT lives_ok(
+  $$
+    SELECT public.attest_tenant_commercial_document_upload(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000004',
+      'a1000000-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000004/A.pdf',
+      'c0000000-0000-4000-8000-000000000006',
+      'tenant-commercial-document-v1-invoice-short-safe-number',
+      repeat('7', 64),
+      512,
+      'commercial-pdf-v1',
+      '{"kind":"invoice","edge":"short-safe-number"}'::jsonb
+    )
+  $$,
+  'service attestation accepts the exact one-character sanitized object path'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.register_tenant_commercial_document_artifact(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000004',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000004/A.pdf',
+      repeat('7', 64), 512, 'commercial-pdf-v1', '__A',
+      '{"edge":"short-safe-number","kind":"invoice"}'::jsonb
+    )
+  $$,
+  'registration accepts a one-character server-derived safe number'
+);
+
+SELECT results_eq(
+  $$
+    SELECT artifact.filename, artifact.storage_path
+    FROM public.tenant_commercial_document_artifacts AS artifact
+    WHERE artifact.organization_id = 'a0000000-0000-4000-8000-000000000001'
+      AND artifact.source_kind = 'invoice'
+      AND artifact.source_id = 'a7000000-0000-4000-8000-000000000004'
+  $$,
+  $$VALUES (
+    'invoice-A.pdf'::text,
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000004/A.pdf'::text
+  )$$,
+  'registration derives a consistent immutable filename from the short safe number'
+);
+
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;

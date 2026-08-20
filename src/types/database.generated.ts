@@ -9169,6 +9169,8 @@ export type Database = {
         Args: {
           p_actor_id: string
           p_organization_id: string
+          p_presentation_snapshot: Json
+          p_renderer_version: string
           p_sha256: string
           p_size_bytes: number
           p_source_id: string

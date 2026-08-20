@@ -69,6 +69,13 @@ CREATE TABLE app_private.tenant_commercial_document_upload_attestations (
   ),
   size_bytes bigint NOT NULL CHECK (size_bytes > 0),
   sha256 text NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+  renderer_version text NOT NULL CHECK (
+    pg_catalog.length(pg_catalog.btrim(renderer_version)) BETWEEN 1 AND 40
+    AND renderer_version = pg_catalog.btrim(renderer_version)
+  ),
+  presentation_snapshot_sha256 text NOT NULL CHECK (
+    presentation_snapshot_sha256 ~ '^[0-9a-f]{64}$'
+  ),
   attested_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
   attested_at timestamptz NOT NULL DEFAULT now(),
   consumed_at timestamptz,
@@ -154,6 +161,26 @@ AS $$
   SELECT pg_catalog.lower(pg_catalog.btrim(p_source_kind)) || '-' ||
     app_private.tenant_commercial_document_safe_number(p_document_number) ||
     '.pdf';
+$$;
+
+-- Canonical snapshot hash contract: lowercase SHA-256 hex over the UTF-8 bytes
+-- of PostgreSQL's jsonb::text representation. Callers pass the same JSON value
+-- to attestation and registration; they never supply or authorize this digest.
+CREATE OR REPLACE FUNCTION app_private.tenant_commercial_document_snapshot_sha256(
+  p_presentation_snapshot jsonb
+) RETURNS text
+LANGUAGE sql
+IMMUTABLE
+STRICT
+SET search_path TO ''
+AS $$
+  SELECT pg_catalog.encode(
+    extensions.digest(
+      pg_catalog.convert_to(p_presentation_snapshot::text, 'UTF8'),
+      'sha256'
+    ),
+    'hex'
+  );
 $$;
 
 ALTER TABLE public.tenant_commercial_document_artifacts
@@ -273,7 +300,7 @@ CREATE POLICY "Finance operators can create tenant commercial documents"
     AND pg_catalog.split_part(name, '/', 3) ~*
       '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
     AND pg_catalog.split_part(name, '/', 4) ~
-      '^[A-Za-z0-9][A-Za-z0-9._-]{1,79}\.pdf$'
+      '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.pdf$'
   );
 
 CREATE OR REPLACE FUNCTION app_private.can_attest_tenant_commercial_document_as_actor(
@@ -304,7 +331,9 @@ CREATE OR REPLACE FUNCTION public.attest_tenant_commercial_document_upload(
   p_storage_object_id uuid,
   p_storage_object_version text,
   p_sha256 text,
-  p_size_bytes bigint
+  p_size_bytes bigint,
+  p_renderer_version text,
+  p_presentation_snapshot jsonb
 ) RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -314,6 +343,8 @@ DECLARE
   v_attestation app_private.tenant_commercial_document_upload_attestations%ROWTYPE;
   v_kind text := pg_catalog.lower(pg_catalog.btrim(p_source_kind));
   v_path text := pg_catalog.btrim(p_storage_path);
+  v_presentation_snapshot_sha256 text;
+  v_renderer_version text := pg_catalog.btrim(p_renderer_version);
   v_sha256 text := pg_catalog.btrim(p_sha256);
   v_storage_object storage.objects%ROWTYPE;
   v_storage_object_version text := pg_catalog.btrim(p_storage_object_version);
@@ -330,6 +361,8 @@ BEGIN
     OR p_source_id IS NULL
     OR p_storage_object_id IS NULL
     OR pg_catalog.length(v_storage_object_version) NOT BETWEEN 1 AND 200
+    OR pg_catalog.length(v_renderer_version) NOT BETWEEN 1 AND 40
+    OR pg_catalog.jsonb_typeof(p_presentation_snapshot) IS DISTINCT FROM 'object'
     OR v_sha256 !~ '^[0-9a-f]{64}$'
     OR p_size_bytes IS NULL OR p_size_bytes <= 0
     OR app_private.storage_object_org_id(v_path) IS DISTINCT FROM p_organization_id
@@ -337,10 +370,15 @@ BEGIN
     OR pg_catalog.split_part(v_path, '/', 2) IS DISTINCT FROM v_kind
     OR pg_catalog.split_part(v_path, '/', 3) IS DISTINCT FROM p_source_id::text
     OR pg_catalog.split_part(v_path, '/', 4) !~
-      '^[A-Za-z0-9][A-Za-z0-9._-]{1,79}\.pdf$' THEN
+      '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.pdf$' THEN
     RAISE EXCEPTION 'tenant_commercial_document_upload_attestation_invalid'
       USING ERRCODE = '22023';
   END IF;
+
+  v_presentation_snapshot_sha256 :=
+    app_private.tenant_commercial_document_snapshot_sha256(
+      p_presentation_snapshot
+    );
 
   PERFORM pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended(
@@ -387,7 +425,10 @@ BEGIN
       OR v_attestation.storage_object_id IS DISTINCT FROM p_storage_object_id
       OR v_attestation.storage_object_version IS DISTINCT FROM v_storage_object_version
       OR v_attestation.size_bytes IS DISTINCT FROM p_size_bytes
-      OR v_attestation.sha256 IS DISTINCT FROM v_sha256 THEN
+      OR v_attestation.sha256 IS DISTINCT FROM v_sha256
+      OR v_attestation.renderer_version IS DISTINCT FROM v_renderer_version
+      OR v_attestation.presentation_snapshot_sha256 IS DISTINCT FROM
+        v_presentation_snapshot_sha256 THEN
       RAISE EXCEPTION 'tenant_commercial_document_upload_attestation_conflict'
         USING ERRCODE = '23514';
     END IF;
@@ -401,6 +442,8 @@ BEGIN
         storage_object_version = v_storage_object_version,
         size_bytes = p_size_bytes,
         sha256 = v_sha256,
+        renderer_version = v_renderer_version,
+        presentation_snapshot_sha256 = v_presentation_snapshot_sha256,
         attested_by = p_actor_id,
         attested_at = pg_catalog.now()
     WHERE attestation.id = v_attestation.id;
@@ -416,6 +459,8 @@ BEGIN
     storage_object_version,
     size_bytes,
     sha256,
+    renderer_version,
+    presentation_snapshot_sha256,
     attested_by
   ) VALUES (
     p_organization_id,
@@ -426,6 +471,8 @@ BEGIN
     v_storage_object_version,
     p_size_bytes,
     v_sha256,
+    v_renderer_version,
+    v_presentation_snapshot_sha256,
     p_actor_id
   ) RETURNING id INTO v_attestation.id;
 
@@ -704,6 +751,7 @@ DECLARE
   v_filename text;
   v_kind text := pg_catalog.lower(pg_catalog.btrim(p_source_kind));
   v_path text := pg_catalog.btrim(p_storage_path);
+  v_presentation_snapshot_sha256 text;
   v_renderer_version text := pg_catalog.btrim(p_renderer_version);
   v_sha256 text := pg_catalog.btrim(p_sha256);
   v_storage_object storage.objects%ROWTYPE;
@@ -714,6 +762,11 @@ BEGIN
     RAISE EXCEPTION 'tenant_commercial_document_register_forbidden'
       USING ERRCODE = '42501';
   END IF;
+
+  v_presentation_snapshot_sha256 :=
+    app_private.tenant_commercial_document_snapshot_sha256(
+      p_presentation_snapshot
+    );
 
   IF v_kind NOT IN ('invoice', 'receipt') THEN
     RAISE EXCEPTION 'tenant_commercial_document_source_kind_invalid'
@@ -891,7 +944,10 @@ BEGIN
     OR v_attestation.storage_object_id IS DISTINCT FROM v_storage_object.id
     OR v_attestation.storage_object_version IS DISTINCT FROM v_storage_object.version
     OR v_attestation.size_bytes IS DISTINCT FROM p_size_bytes
-    OR v_attestation.sha256 IS DISTINCT FROM v_sha256 THEN
+    OR v_attestation.sha256 IS DISTINCT FROM v_sha256
+    OR v_attestation.renderer_version IS DISTINCT FROM v_renderer_version
+    OR v_attestation.presentation_snapshot_sha256 IS DISTINCT FROM
+      v_presentation_snapshot_sha256 THEN
     RAISE EXCEPTION 'tenant_commercial_document_upload_attestation_mismatch'
       USING ERRCODE = '22023';
   END IF;
@@ -1189,8 +1245,12 @@ BEGIN
       USING ERRCODE = '23503';
   END IF;
 
-  IF v_artifact.publication_status = 'published'
-    AND NOT EXISTS (
+  IF v_artifact.publication_status IS DISTINCT FROM 'published' THEN
+    RAISE EXCEPTION 'tenant_commercial_document_artifact_not_published'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF NOT EXISTS (
       SELECT 1
       FROM storage.objects AS object
       WHERE object.bucket_id = 'tenant-commercial-documents'
@@ -1258,6 +1318,8 @@ ALTER FUNCTION app_private.tenant_commercial_document_storage_path(
 ) OWNER TO postgres;
 ALTER FUNCTION app_private.tenant_commercial_document_filename(text, text)
   OWNER TO postgres;
+ALTER FUNCTION app_private.tenant_commercial_document_snapshot_sha256(jsonb)
+  OWNER TO postgres;
 ALTER FUNCTION app_private.guard_tenant_commercial_document_artifact_write()
   OWNER TO postgres;
 ALTER FUNCTION app_private.is_tenant_commercial_document_registered(text, uuid, text)
@@ -1265,7 +1327,7 @@ ALTER FUNCTION app_private.is_tenant_commercial_document_registered(text, uuid, 
 ALTER FUNCTION app_private.can_attest_tenant_commercial_document_as_actor(uuid, uuid)
   OWNER TO postgres;
 ALTER FUNCTION public.attest_tenant_commercial_document_upload(
-  uuid, text, uuid, uuid, text, uuid, text, text, bigint
+  uuid, text, uuid, uuid, text, uuid, text, text, bigint, text, jsonb
 ) OWNER TO postgres;
 ALTER FUNCTION public.get_tenant_commercial_document_publication_source(
   uuid, text, uuid
@@ -1287,6 +1349,8 @@ REVOKE ALL ON FUNCTION app_private.tenant_commercial_document_storage_path(
 ) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION app_private.tenant_commercial_document_filename(text, text)
   FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION app_private.tenant_commercial_document_snapshot_sha256(jsonb)
+  FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION app_private.guard_tenant_commercial_document_artifact_write()
   FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION app_private.is_tenant_commercial_document_registered(text, uuid, text)
@@ -1297,10 +1361,10 @@ REVOKE ALL ON FUNCTION app_private.can_attest_tenant_commercial_document_as_acto
   FROM PUBLIC, anon, authenticated, service_role;
 
 REVOKE ALL ON FUNCTION public.attest_tenant_commercial_document_upload(
-  uuid, text, uuid, uuid, text, uuid, text, text, bigint
+  uuid, text, uuid, uuid, text, uuid, text, text, bigint, text, jsonb
 ) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.attest_tenant_commercial_document_upload(
-  uuid, text, uuid, uuid, text, uuid, text, text, bigint
+  uuid, text, uuid, uuid, text, uuid, text, text, bigint, text, jsonb
 ) TO service_role;
 
 REVOKE ALL ON FUNCTION public.get_tenant_commercial_document_publication_source(
