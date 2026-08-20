@@ -5,6 +5,7 @@ import { useActionState, useEffect } from "react";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  archivePersonAction,
   archiveTenantAction,
   type PeopleActionState,
   restorePersonAction,
@@ -41,7 +42,7 @@ export function ArchivePersonPanel({
   );
   const hasBlockingLeases = blockingLeases.length > 0;
   const [state, action, pending] = useActionState(
-    archiveTenantAction,
+    isTenant ? archiveTenantAction : archivePersonAction,
     archiveInitialState,
   );
 

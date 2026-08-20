@@ -292,6 +292,28 @@ describe("PersonDetailScreen", () => {
     ).toBeNull();
   });
 
+  it("keeps generic archive feedback for a non-tenant person", () => {
+    const owner: PeopleSummary = {
+      ...person,
+      linked: {
+        activeLeaseCount: 0,
+        activeLeases: [],
+        ownerProperties: [],
+        ownerPropertyCount: 0,
+      },
+      roleLabel: "Owner",
+      roles: [{ role: "owner", status: "active" }],
+    };
+    render(<PersonDetailScreen person={owner} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Archive Dara Tenant?" });
+    expect(
+      within(dialog).getByRole("button", { name: "Archive person" }),
+    ).toBeTruthy();
+  });
+
   it("points a draft tenant to the lease workflow without asking for evidence", () => {
     const draftPerson: PeopleSummary = {
       ...person,
