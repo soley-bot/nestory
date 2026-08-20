@@ -16,6 +16,8 @@ function runCli(args, environment = {}) {
         SENTRY_AUTOFIX_TOKEN: "",
         SENTRY_ORG: "",
         SENTRY_PROJECT: "",
+        NESTORY_SENTRY_ORG: "",
+        NESTORY_SENTRY_PROJECT: "",
         ...environment,
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -128,6 +130,20 @@ test("next emits one redacted low-risk issue", async () => {
     assert.equal(candidate.frames[0].filename, "src/components/widget.tsx");
     assert.doesNotMatch(result.stdout, /fixture-secret|private@example\.com|fixture-token/);
     assert.equal(requests.length, 2);
+  });
+});
+
+test("next prefers the provisioned Nestory project variables", async () => {
+  await withFixtureServer(issue, async ({ environment }) => {
+    const result = await runCli(["next", "--dry-run"], {
+      ...environment,
+      NESTORY_SENTRY_ORG: environment.SENTRY_ORG,
+      NESTORY_SENTRY_PROJECT: environment.SENTRY_PROJECT,
+      SENTRY_ORG: "legacy-org",
+      SENTRY_PROJECT: "legacy-project",
+    });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).disposition, "candidate");
   });
 });
 

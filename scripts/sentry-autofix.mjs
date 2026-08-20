@@ -58,12 +58,12 @@ async function nextIssue(args) {
   const query = new URLSearchParams({
     environment: "production",
     limit: "10",
-    project: process.env.SENTRY_PROJECT,
+    project: sentryProject(),
     query: "is:unresolved",
     sort: "recommended",
   });
   const issues = await sentryRequest(
-    `/api/0/organizations/${encodeURIComponent(process.env.SENTRY_ORG)}/issues/?${query}`,
+    `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/?${query}`,
   );
   if (!Array.isArray(issues) || issues.length === 0) {
     writeJson({ disposition: "no_candidate" });
@@ -87,7 +87,7 @@ async function resolveIssue(args) {
   }
 
   await sentryRequest(
-    `/api/0/organizations/${encodeURIComponent(process.env.SENTRY_ORG)}/issues/${encodeURIComponent(issueId)}/`,
+    `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(issueId)}/`,
     {
       body: JSON.stringify({
         status: "resolved",
@@ -100,11 +100,23 @@ async function resolveIssue(args) {
 }
 
 function requireCredentials() {
-  for (const name of ["SENTRY_AUTOFIX_TOKEN", "SENTRY_ORG", "SENTRY_PROJECT"]) {
-    if (!process.env[name]?.trim()) {
-      throw new CliError(`${name} is required.`, 2);
-    }
+  if (!process.env.SENTRY_AUTOFIX_TOKEN?.trim()) {
+    throw new CliError("SENTRY_AUTOFIX_TOKEN is required.", 2);
   }
+  if (!sentryOrg()) {
+    throw new CliError("NESTORY_SENTRY_ORG is required.", 2);
+  }
+  if (!sentryProject()) {
+    throw new CliError("NESTORY_SENTRY_PROJECT is required.", 2);
+  }
+}
+
+function sentryOrg() {
+  return process.env.NESTORY_SENTRY_ORG?.trim() || process.env.SENTRY_ORG?.trim();
+}
+
+function sentryProject() {
+  return process.env.NESTORY_SENTRY_PROJECT?.trim() || process.env.SENTRY_PROJECT?.trim();
 }
 
 async function sentryRequest(path, init = {}) {
