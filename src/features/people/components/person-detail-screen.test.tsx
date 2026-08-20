@@ -243,7 +243,7 @@ describe("PersonDetailScreen", () => {
     ).toBe("unchecked");
   });
 
-  it("warns that open Lease roles must be resolved before archive", () => {
+  it("routes a blocked tenant to the lease instead of retrying an impossible archive", () => {
     render(<PersonDetailScreen person={person} />);
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "More" }));
@@ -256,6 +256,39 @@ describe("PersonDetailScreen", () => {
         /open Lease roles must be ended or cancelled through a checked relationship transition first/i,
       ),
     ).toBeTruthy();
+    expect(
+      within(drawer)
+        .getByRole("link", { name: "Open blocking lease" })
+        .getAttribute("href"),
+    ).toBe("/leases/lease-1");
+    expect(
+      within(drawer).queryByRole("button", { name: "Archive person" }),
+    ).toBeNull();
+  });
+
+  it("keeps archive available when no lease relationship blocks it", () => {
+    const unlinkedPerson: PeopleSummary = {
+      ...person,
+      linked: {
+        activeLeaseCount: 0,
+        activeLeases: [],
+        ownerProperties: [],
+        ownerPropertyCount: 0,
+      },
+      recordCounts: { ...person.recordCounts, leases: 0 },
+    };
+    render(<PersonDetailScreen person={unlinkedPerson} />);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Archive Dara Tenant?" });
+    expect(
+      within(drawer).getByRole("button", { name: "Archive person" }),
+    ).toBeTruthy();
+    expect(
+      within(drawer).queryByRole("link", { name: "Open blocking lease" }),
+    ).toBeNull();
   });
 
   it("keeps history secondary in More", () => {

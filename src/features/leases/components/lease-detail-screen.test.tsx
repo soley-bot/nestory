@@ -106,6 +106,24 @@ describe("LeaseDetailScreen", () => {
     expect(within(dialog).getByLabelText("Activation date")).not.toBeNull();
   });
 
+  it("cancels a draft through the checked lifecycle transition", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.statusLabel = "Draft";
+    lease.statusValue = "draft";
+
+    renderDetail("overview", lease);
+
+    await user.click(screen.getByRole("button", { name: "Cancel draft" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Cancel draft" });
+    expect(within(dialog).getByLabelText("Cancellation date")).not.toBeNull();
+    expect(within(dialog).getByLabelText("Reason or note")).not.toBeNull();
+    expect(
+      dialog.querySelector<HTMLInputElement>('input[name="transition"]')?.value,
+    ).toBe("cancel");
+  });
+
   it("shows a pending activation with a direct cancel action", () => {
     const lease = makeLease();
     lease.statusLabel = "Draft";
