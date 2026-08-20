@@ -23,7 +23,6 @@ const nextConfig: NextConfig = {
 
 export default withSentryConfig(nextConfig, {
   authToken: process.env.NESTORY_SENTRY_AUTH_TOKEN,
-  automaticVercelMonitors: false,
   org: process.env.NESTORY_SENTRY_ORG,
   project: process.env.NESTORY_SENTRY_PROJECT,
   release: {
@@ -35,6 +34,7 @@ export default withSentryConfig(nextConfig, {
   },
   telemetry: false,
   webpack: {
+    automaticVercelMonitors: false,
     treeshake: {
       removeDebugLogging: true,
     },
