@@ -532,7 +532,7 @@ export async function transitionLeaseLifecycleAction(
   if (error || !returnedLeaseId) {
     return {
       message: error
-        ? leaseActionErrorMessage(error.message)
+        ? leaseActionErrorMessage(error.message, error.details)
         : "The lease lifecycle transition was not returned.",
       status: "error",
     };
@@ -993,6 +993,12 @@ function leaseActionErrorMessage(message: string, details?: string | null) {
 
   if (message.includes("Lease not found")) {
     return "We could not find that lease.";
+  }
+
+  if (
+    errorMessage.includes("Lease scope is not supported or no longer exists")
+  ) {
+    return "This lease is no longer linked to a supported property or unit. Refresh the lease before trying again.";
   }
 
   if (

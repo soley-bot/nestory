@@ -23,10 +23,13 @@ export type PeopleFormValues = {
   legalName?: string | null;
   notes?: string | null;
   partyType: PersonPartyType;
+  passportExpiryDate?: string | null;
+  passportNumber?: string | null;
   primaryEmail?: string | null;
   primaryPhone?: string | null;
   roles: PersonRoleValue[];
   taxIdentifier?: string | null;
+  visaExpiryDate?: string | null;
 };
 
 export type PersonRoleSummary = {
@@ -149,6 +152,8 @@ export type PeopleSummary = {
   nextAction: PeopleNextAction;
   notes?: string | null;
   partyType: PersonPartyType;
+  passportExpiryDate?: string | null;
+  passportNumber?: string | null;
   partyTypeLabel: string;
   recordCounts: PeopleRecordCounts;
   riskIndicators: PeopleRiskIndicator[];
@@ -157,6 +162,7 @@ export type PeopleSummary = {
   statusLabel: string;
   statusTone: PeopleBadgeTone;
   updatedAt: string;
+  visaExpiryDate?: string | null;
 };
 
 export type PeopleScreenData = {

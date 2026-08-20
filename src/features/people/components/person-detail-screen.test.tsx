@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PersonDetailScreen } from "@/features/people/components/person-detail-screen";
 import PersonNotFound from "@/app/(dashboard)/people/[personId]/not-found";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
+import { formatDate } from "@/lib/dates/format";
 import type { PeopleSummary } from "@/features/people/people.types";
 
 beforeEach(() => {
@@ -402,6 +403,26 @@ describe("PersonDetailScreen", () => {
     expect(
       screen.queryByRole("heading", { name: "Workspace Access" }),
     ).toBeNull();
+  });
+
+  it("shows travel-document details for owners and tenants", () => {
+    render(
+      <PersonDetailScreen
+        person={{
+          ...person,
+          passportExpiryDate: "2031-04-30",
+          passportNumber: "N1234567",
+          visaExpiryDate: "2028-09-15",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Passport number")).toBeTruthy();
+    expect(screen.getByText("N1234567")).toBeTruthy();
+    expect(screen.getByText("Passport expiry")).toBeTruthy();
+    expect(screen.getByText("30 Apr 2031")).toBeTruthy();
+    expect(screen.getByText("Visa expiry")).toBeTruthy();
+    expect(screen.getByText(formatDate("2028-09-15"))).toBeTruthy();
   });
 });
 

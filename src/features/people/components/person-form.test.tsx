@@ -105,4 +105,27 @@ describe("PersonForm role-specific presentation", () => {
     fireEvent.change(phone, { target: { value: "+85512345678" } });
     expect(phone.value).toBe("+855 12 345 678");
   });
+
+  it.each(["owner", "tenant"] satisfies PersonRoleValue[])(
+    "collects passport and visa follow-up dates for a %s",
+    (role) => {
+      render(
+        <PersonForm
+          initialRoles={[role]}
+          onClose={vi.fn()}
+          roleContext={role}
+        />,
+      );
+
+      expect(
+        screen.getByRole("group", { name: "Passport number" }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("group", { name: "Passport expiry date" }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("group", { name: "Visa expiry date" }),
+      ).toBeTruthy();
+    },
+  );
 });

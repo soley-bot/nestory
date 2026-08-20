@@ -38,7 +38,7 @@ import type {
 import { formatPartyType, formatRole } from "@/features/people/people.labels";
 
 const peopleSelect =
-  "id, display_name, legal_name, party_type, primary_email, primary_phone, tax_identifier, notes, archived_at, updated_at, created_at";
+  "id, display_name, legal_name, party_type, passport_number, passport_expiry_date, visa_expiry_date, primary_email, primary_phone, tax_identifier, notes, archived_at, updated_at, created_at";
 const roleSelect = "id, person_id, role, status, archived_at";
 const contactSelect =
   "id, person_id, contact_name, contact_type, email, phone, is_primary, archived_at";
@@ -79,10 +79,13 @@ type PersonRow = {
   legalName: string | null;
   notes: string | null;
   partyType: PersonPartyType;
+  passportExpiryDate: string | null;
+  passportNumber: string | null;
   primaryEmail: string | null;
   primaryPhone: string | null;
   taxIdentifier: string | null;
   updatedAt: string;
+  visaExpiryDate: string | null;
 };
 
 function buildPeopleBaseQuery(
@@ -2012,12 +2015,15 @@ export function buildPeopleSummary({
       legalName: person.legalName,
       notes: person.notes,
       partyType: person.partyType,
+      passportExpiryDate: person.passportExpiryDate,
+      passportNumber: person.passportNumber,
       primaryEmail: person.primaryEmail,
       primaryPhone: person.primaryPhone,
       roles: visibleRoles
         .filter((role) => role.status === "active")
         .map((role) => role.role),
       taxIdentifier: person.taxIdentifier,
+      visaExpiryDate: person.visaExpiryDate,
     },
     hasUsefulContact: hasUsefulPersonContact(person, contacts),
     hrefs: detailHrefs,
@@ -2036,6 +2042,8 @@ export function buildPeopleSummary({
     notes: person.notes,
     partyType: person.partyType,
     partyTypeLabel: formatPartyType(person.partyType),
+    passportExpiryDate: person.passportExpiryDate,
+    passportNumber: person.passportNumber,
     recordCounts,
     riskIndicators,
     roles: visibleRoles,
@@ -2046,6 +2054,7 @@ export function buildPeopleSummary({
     statusLabel: status.label,
     statusTone: status.tone,
     updatedAt: person.updatedAt,
+    visaExpiryDate: person.visaExpiryDate,
   };
 }
 
@@ -2892,10 +2901,13 @@ function toPersonRow(row: UnknownRecord): PersonRow | null {
     legalName: readNullableString(row, "legal_name"),
     notes: readNullableString(row, "notes"),
     partyType: readPartyType(row, "party_type"),
+    passportExpiryDate: readNullableString(row, "passport_expiry_date"),
+    passportNumber: readNullableString(row, "passport_number"),
     primaryEmail: readNullableString(row, "primary_email"),
     primaryPhone: readNullableString(row, "primary_phone"),
     taxIdentifier: readNullableString(row, "tax_identifier"),
     updatedAt: readString(row, "updated_at") || readString(row, "created_at"),
+    visaExpiryDate: readNullableString(row, "visa_expiry_date"),
   };
 }
 

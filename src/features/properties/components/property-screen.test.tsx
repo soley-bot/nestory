@@ -127,6 +127,8 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.getByRole("option", { name: "Residential house" })).toBeTruthy();
     expect(screen.getByRole("option", { name: "Mixed use" })).toBeTruthy();
     expect(screen.getByRole("option", { name: "Serviced Apartment" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Renovated Apartment" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "House/Villa" })).toBeTruthy();
     const condo = screen.getByRole("option", { name: "Condo" });
     expect(condo).toBeTruthy();
     fireEvent.click(condo);

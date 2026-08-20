@@ -6543,11 +6543,14 @@ export type Database = {
           notes: string | null
           organization_id: string
           party_type: string
+          passport_expiry_date: string | null
+          passport_number: string | null
           primary_email: string | null
           primary_phone: string | null
           tax_identifier: string | null
           updated_at: string
           updated_by: string | null
+          visa_expiry_date: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -6560,11 +6563,14 @@ export type Database = {
           notes?: string | null
           organization_id: string
           party_type?: string
+          passport_expiry_date?: string | null
+          passport_number?: string | null
           primary_email?: string | null
           primary_phone?: string | null
           tax_identifier?: string | null
           updated_at?: string
           updated_by?: string | null
+          visa_expiry_date?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -6577,11 +6583,14 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           party_type?: string
+          passport_expiry_date?: string | null
+          passport_number?: string | null
           primary_email?: string | null
           primary_phone?: string | null
           tax_identifier?: string | null
           updated_at?: string
           updated_by?: string | null
+          visa_expiry_date?: string | null
         }
         Relationships: [
           {
@@ -9288,10 +9297,13 @@ export type Database = {
           p_notes: string
           p_organization_id: string
           p_party_type: string
+          p_passport_expiry_date: string
+          p_passport_number: string
           p_primary_email: string
           p_primary_phone: string
           p_roles: string[]
           p_tax_identifier: string
+          p_visa_expiry_date: string
         }
         Returns: string
       }
@@ -10755,11 +10767,14 @@ export type Database = {
           p_notes: string
           p_organization_id: string
           p_party_type: string
+          p_passport_expiry_date: string
+          p_passport_number: string
           p_person_id: string
           p_primary_email: string
           p_primary_phone: string
           p_roles: string[]
           p_tax_identifier: string
+          p_visa_expiry_date: string
         }
         Returns: string
       }

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireLeaseConfigurationContext, revalidatePath, rpc } = vi.hoisted(() => ({
-  requireLeaseConfigurationContext: vi.fn(),
-  revalidatePath: vi.fn(),
-  rpc: vi.fn(),
-}));
+const { requireLeaseConfigurationContext, revalidatePath, rpc } = vi.hoisted(
+  () => ({
+    requireLeaseConfigurationContext: vi.fn(),
+    revalidatePath: vi.fn(),
+    rpc: vi.fn(),
+  }),
+);
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({ requireLeaseConfigurationContext }));
@@ -195,6 +197,33 @@ describe("Lease occupancy evidence input", () => {
     expect(revalidatePath).toHaveBeenCalledWith(`/leases/${leaseId}`);
   });
 
+  it("explains an unsupported lease scope returned by the lifecycle RPC", async () => {
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: {
+        details: "Lease scope is not supported or no longer exists",
+        message: "Database transaction failed",
+      },
+    });
+    const formData = new FormData();
+    formData.set("effectiveDate", "2027-04-01");
+    formData.set("expectedOccupancyId", "40000000-0000-0000-0000-000000000001");
+    formData.set("expectedStatus", "active");
+    formData.set("idempotencyKey", "lease-terminate-v1");
+    formData.set("leaseId", leaseId);
+    formData.set("reason", "Lease ended by mutual agreement");
+    formData.set("scheduledMoveOutDate", "");
+    formData.set("transition", "terminate");
+
+    await expect(
+      transitionLeaseLifecycleAction({}, formData),
+    ).resolves.toMatchObject({
+      message:
+        "This lease is no longer linked to a supported property or unit. Refresh the lease before trying again.",
+      status: "error",
+    });
+  });
+
   it("requests simple Lease activation without an operator explanation", async () => {
     const occupancyId = "40000000-0000-0000-0000-000000000001";
     const formData = new FormData();
@@ -208,7 +237,9 @@ describe("Lease occupancy evidence input", () => {
       error: null,
     });
 
-    await expect(scheduleLeaseActivationAction({}, formData)).resolves.toMatchObject({
+    await expect(
+      scheduleLeaseActivationAction({}, formData),
+    ).resolves.toMatchObject({
       leaseId,
       message: "Lease activation scheduled for 2027-05-01.",
       status: "success",

@@ -20,10 +20,13 @@ describe("getPeopleScreenData", () => {
           legal_name: null,
           notes: null,
           party_type: "individual",
+          passport_expiry_date: "2031-04-30",
+          passport_number: "N1234567",
           primary_email: null,
           primary_phone: null,
           tax_identifier: null,
           updated_at: "2026-08-01T00:00:00Z",
+          visa_expiry_date: "2028-09-15",
         },
       ],
       person_roles: [],
@@ -90,6 +93,16 @@ describe("getPeopleScreenData", () => {
     expect(result.people[0]?.linked.activeLeases[0]).toMatchObject({
       id: "lease-1",
       propertyId: "property-1",
+    });
+    expect(result.people[0]).toMatchObject({
+      formValues: {
+        passportExpiryDate: "2031-04-30",
+        passportNumber: "N1234567",
+        visaExpiryDate: "2028-09-15",
+      },
+      passportExpiryDate: "2031-04-30",
+      passportNumber: "N1234567",
+      visaExpiryDate: "2028-09-15",
     });
   });
 
