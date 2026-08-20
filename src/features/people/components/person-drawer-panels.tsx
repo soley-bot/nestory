@@ -6,6 +6,7 @@ import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   archivePersonAction,
+  archiveTenantAction,
   type PeopleActionState,
   restorePersonAction,
 } from "@/features/people/actions";
@@ -27,14 +28,21 @@ export function ArchivePersonPanel({
   person,
   presentation = "drawer",
 }: PersonPanelProps) {
-  const blockingLeases =
+  const linkedLeases =
     person.linked.activeLeases.length > 0
       ? person.linked.activeLeases
       : person.linked.activeLease
         ? [person.linked.activeLease]
         : [];
+  const blockingLeases = [
+    ...new Map(linkedLeases.map((lease) => [lease.id, lease])).values(),
+  ];
+  const isTenant = person.roles.some(
+    (role) => role.role === "tenant" && role.status === "active",
+  );
+  const hasBlockingLeases = blockingLeases.length > 0;
   const [state, action, pending] = useActionState(
-    archivePersonAction,
+    isTenant ? archiveTenantAction : archivePersonAction,
     archiveInitialState,
   );
 
@@ -63,19 +71,20 @@ export function ArchivePersonPanel({
             <PersonPanelSummary person={person} />
           </>
         ) : null}
-        {blockingLeases.length > 0 ? (
+        {hasBlockingLeases ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Open Lease roles must be ended or cancelled through a checked
-              relationship transition first. Linked history is preserved.
+              {blockingLeases.length > 1
+                ? "This tenant has open leases. End or cancel each lease from its lease record first, then return here to archive the tenant."
+                : "This tenant has an open lease. End or cancel it from the lease record first, then return here to archive the tenant."} All linked history remains available.
             </p>
-            <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
               {blockingLeases.map((lease, index) => (
-                <Button asChild className="w-full" key={lease.id} variant="outline">
-                  <Link href={`/leases/${lease.id}`}>
-                    {blockingLeases.length === 1
-                      ? "Open blocking lease"
-                      : `Open blocking lease ${index + 1}`}
+                <Button asChild key={lease.id} size="sm" variant="outline">
+                  <Link href={lease.href}>
+                    {blockingLeases.length > 1
+                      ? `Review lease ${index + 1}`
+                      : "Review lease"}
                   </Link>
                 </Button>
               ))}
@@ -92,13 +101,19 @@ export function ArchivePersonPanel({
       </div>
 
       <PanelFooter
-        confirmLabel={pending ? "Archiving..." : "Archive person"}
+        confirmLabel={
+          pending
+            ? "Archiving..."
+            : isTenant
+              ? "Archive tenant"
+              : "Archive person"
+        }
         icon={<Archive size={15} />}
         intent="danger"
         onClose={onClose}
         pending={pending}
         presentation={presentation}
-        showConfirm={blockingLeases.length === 0}
+        showConfirm={!hasBlockingLeases}
       />
     </form>
   );

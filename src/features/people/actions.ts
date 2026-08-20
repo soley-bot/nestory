@@ -42,6 +42,7 @@ const optionalDateSchema = z
     (value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value),
     "Enter a valid date.",
   );
+const tenantArchiveSchema = z.object({ personId: personIdSchema });
 
 const peopleMutationSchema = z
   .object({
@@ -239,6 +240,65 @@ export async function archivePersonAction(
     fallbackMessage: "Person archived.",
     formData,
   });
+}
+
+export async function archiveTenantAction(
+  _state: PeopleActionState,
+  formData: FormData,
+): Promise<PeopleActionState> {
+  const context = await requireSuperAdminContext();
+  const parsed = tenantArchiveSchema.safeParse({
+    personId: readString(formData, "personId"),
+  });
+
+  if (!parsed.success) {
+    return invalidFormState(parsed.error);
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: partyRows, error: partyError } = await supabase
+    .from("lease_parties")
+    .select("lease_id")
+    .eq("organization_id", context.organizationId)
+    .eq("person_id", parsed.data.personId)
+    .eq("evidence_state", "accepted")
+    .in("business_lifecycle", ["planned", "effective"])
+    .is("ended_on", null)
+    .is("archived_at", null);
+
+  if (partyError) {
+    return {
+      message: "The tenant's open leases could not be checked.",
+      status: "error",
+    };
+  }
+
+  if ((partyRows ?? []).length > 0) {
+    return {
+      message:
+        "End or cancel the linked lease first, then return here to archive this tenant.",
+      status: "error",
+    };
+  }
+
+  const { error: archiveError } = await supabase.rpc("archive_person", {
+    p_organization_id: context.organizationId,
+    p_person_id: parsed.data.personId,
+  });
+
+  if (archiveError) {
+    return {
+      message: getPeopleMutationErrorMessage(archiveError, "archive"),
+      status: "error",
+    };
+  }
+
+  revalidatePeoplePaths();
+
+  return {
+    message: "Tenant archived.",
+    status: "success",
+  };
 }
 
 export async function restorePersonAction(

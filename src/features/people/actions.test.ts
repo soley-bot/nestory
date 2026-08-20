@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireSuperAdminContext, revalidatePath, rpc } = vi.hoisted(() => ({
+const { from, requireSuperAdminContext, revalidatePath, rpc } = vi.hoisted(() => ({
+  from: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
@@ -9,10 +10,13 @@ const { requireSuperAdminContext, revalidatePath, rpc } = vi.hoisted(() => ({
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
 vi.mock("@/lib/db/server", () => ({
-  createSupabaseServerClient: async () => ({ rpc }),
+  createSupabaseServerClient: async () => ({ from, rpc }),
 }));
 
-import { createPersonAction } from "@/features/people/actions";
+import {
+  archiveTenantAction,
+  createPersonAction,
+} from "@/features/people/actions";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const personId = "80000000-0000-0000-0000-000000000001";
@@ -60,3 +64,302 @@ describe("person travel document inputs", () => {
     });
   });
 });
+
+describe("guided tenant archive", () => {
+  const tenantPersonId = "80000000-0000-4000-8000-000000000001";
+  const leaseId = "70000000-0000-4000-8000-000000000001";
+  const occupancyId = "60000000-0000-4000-8000-000000000001";
+
+  beforeEach(() => {
+    from.mockReset();
+    requireSuperAdminContext.mockReset();
+    revalidatePath.mockReset();
+    rpc.mockReset();
+    requireSuperAdminContext.mockResolvedValue({ organizationId });
+  });
+
+  it("archives an unlinked tenant without invoking a lease transition", async () => {
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") return queryResult([]);
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    rpc.mockResolvedValue({ data: tenantPersonId, error: null });
+
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({ status: "success" });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("archive_person", {
+      p_organization_id: organizationId,
+      p_person_id: tenantPersonId,
+    });
+  });
+
+  it("does not invoke lifecycle or archive RPCs while a current lease is linked", async () => {
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        return queryResult([
+          {
+            is_primary: true,
+            lease_id: leaseId,
+            party_role: "primary_tenant",
+            person_id: tenantPersonId,
+          },
+        ]);
+      }
+      if (table === "leases") {
+        return queryResult([{ id: leaseId, status: "active" }]);
+      }
+      if (table === "lease_occupancies") {
+        return queryResult([
+          {
+            evidence_state: "accepted",
+            id: occupancyId,
+            lease_id: leaseId,
+          },
+        ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({
+      message:
+        "End or cancel the linked lease first, then return here to archive this tenant.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("keeps the tenant active without attempting a draft cancellation", async () => {
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        return queryResult([
+          {
+            is_primary: true,
+            lease_id: leaseId,
+            party_role: "primary_tenant",
+            person_id: tenantPersonId,
+          },
+        ]);
+      }
+      if (table === "leases") return queryResult([{ id: leaseId, status: "draft" }]);
+      if (table === "lease_occupancies") {
+        return queryResult([
+          { evidence_state: "accepted", id: occupancyId, lease_id: leaseId },
+        ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({ status: "error" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("stops when the linked leases changed after the archive dialog opened", async () => {
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        return queryResult([
+          {
+            is_primary: true,
+            lease_id: leaseId,
+            party_role: "primary_tenant",
+            person_id: tenantPersonId,
+          },
+        ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({
+      message:
+        "End or cancel the linked lease first, then return here to archive this tenant.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not terminate a lease when the person is a co-tenant", async () => {
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        return queryResult([
+          {
+            is_primary: false,
+            lease_id: leaseId,
+            party_role: "co_tenant",
+            person_id: tenantPersonId,
+          },
+        ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({
+      message:
+        "End or cancel the linked lease first, then return here to archive this tenant.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not partially close multiple leases", async () => {
+    const secondLeaseId = "70000000-0000-4000-8000-000000000002";
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        return queryResult([
+          {
+            is_primary: true,
+            lease_id: leaseId,
+            party_role: "primary_tenant",
+            person_id: tenantPersonId,
+          },
+          {
+            is_primary: true,
+            lease_id: secondLeaseId,
+            party_role: "primary_tenant",
+            person_id: tenantPersonId,
+          },
+        ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({
+      message:
+        "End or cancel the linked lease first, then return here to archive this tenant.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("archives successfully after the current lease relationship is gone", async () => {
+    let partyQueryCount = 0;
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        partyQueryCount += 1;
+        if (partyQueryCount > 1) return queryResult([]);
+        return queryResult([
+          {
+            is_primary: true,
+            lease_id: leaseId,
+            party_role: "primary_tenant",
+            person_id: tenantPersonId,
+          },
+        ]);
+      }
+      if (table === "leases") {
+        return queryResult([{ id: leaseId, status: "active" }]);
+      }
+      if (table === "lease_occupancies") {
+        return queryResult([
+          { evidence_state: "accepted", id: occupancyId, lease_id: leaseId },
+        ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+    rpc.mockResolvedValue({ data: tenantPersonId, error: null });
+
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({
+      message:
+        "End or cancel the linked lease first, then return here to archive this tenant.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+
+    await expect(
+      archiveTenantAction({}, archiveForm({ personId: tenantPersonId })),
+    ).resolves.toMatchObject({
+      message: "Tenant archived.",
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not end a shared lease while another current party is attached", async () => {
+    const otherPersonId = "80000000-0000-4000-8000-000000000002";
+    let partyQueryCount = 0;
+    from.mockImplementation((table: string) => {
+      if (table === "lease_parties") {
+        partyQueryCount += 1;
+        return partyQueryCount === 1
+          ? queryResult([
+              {
+                is_primary: true,
+                lease_id: leaseId,
+                party_role: "primary_tenant",
+                person_id: tenantPersonId,
+              },
+            ])
+          : queryResult([
+              { lease_id: leaseId, person_id: tenantPersonId },
+              { lease_id: leaseId, person_id: otherPersonId },
+            ]);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const result = await archiveTenantAction(
+      {},
+      archiveForm({ personId: tenantPersonId }),
+    );
+
+    expect(result).toMatchObject({
+      message:
+        "End or cancel the linked lease first, then return here to archive this tenant.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+function archiveForm({ personId }: { personId: string }) {
+  const formData = new FormData();
+  formData.set("personId", personId);
+  return formData;
+}
+
+function queryResult(data: unknown[], error: { message: string } | null = null) {
+  const result = { data, error };
+  const builder: Record<string, unknown> = {
+    then: (
+      resolve: (value: typeof result) => unknown,
+      reject: (reason: unknown) => unknown,
+    ) => Promise.resolve(result).then(resolve, reject),
+  };
+
+  for (const method of ["eq", "in", "is", "order", "select"]) {
+    builder[method] = vi.fn(() => builder);
+  }
+
+  return builder;
+}

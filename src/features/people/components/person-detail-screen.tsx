@@ -22,7 +22,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
@@ -125,11 +124,22 @@ export function PersonDetailScreen({
                 <Pencil size={15} />
                 Edit
               </Button>
+              <Button
+                className="text-danger hover:text-danger"
+                onClick={() => {
+                  setStatusMessage(null);
+                  setConfirmation({ mode: "archive", person });
+                }}
+                ref={confirmationTriggerRef}
+                variant="outline"
+              >
+                <Archive size={15} />
+                Archive
+              </Button>
               <DropdownMenu onOpenChange={setMoreOpen} open={moreOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     aria-label="More"
-                    ref={confirmationTriggerRef}
                     variant="outline"
                   >
                     <MoreHorizontal size={16} />
@@ -142,18 +152,6 @@ export function PersonDetailScreen({
                       <History size={15} />
                       View history
                     </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      setMoreOpen(false);
-                      setStatusMessage(null);
-                      setConfirmation({ mode: "archive", person });
-                    }}
-                    variant="destructive"
-                  >
-                    <Archive size={15} />
-                    Archive
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
