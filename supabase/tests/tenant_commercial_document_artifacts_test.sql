@@ -353,7 +353,8 @@ SELECT ok(
 CREATE TEMP TABLE tenant_commercial_document_test_state (
   invoice_artifact_id uuid,
   receipt_artifact_id uuid,
-  cleanup_claim_id text
+  cleanup_claim_id text,
+  replacement_cleanup_claim_id text
 ) ON COMMIT DROP;
 INSERT INTO tenant_commercial_document_test_state DEFAULT VALUES;
 GRANT SELECT, UPDATE ON tenant_commercial_document_test_state TO authenticated, service_role;
@@ -585,6 +586,19 @@ VALUES
     'a5000000-0000-4000-8000-000000000001',
     'a6000000-0000-4000-8000-000000000001',
     '2026-06-01', '2026-06-30', '2026-06-01', '2026-06-05',
+    'through_ips', 'individual',
+    'a3000000-0000-4000-8000-000000000001',
+    'Tenant Document Fixture', 'USD', 1000, 'issued', NULL, NULL,
+    'a1000000-0000-4000-8000-000000000001'
+  ),
+  (
+    'a7000000-0000-4000-8000-000000000007',
+    'a0000000-0000-4000-8000-000000000001',
+    'INV-CLEAN-1007',
+    'a4000000-0000-4000-8000-000000000001',
+    'a5000000-0000-4000-8000-000000000001',
+    'a6000000-0000-4000-8000-000000000001',
+    '2026-07-01', '2026-07-31', '2026-07-01', '2026-07-05',
     'through_ips', 'individual',
     'a3000000-0000-4000-8000-000000000001',
     'Tenant Document Fixture', 'USD', 1000, 'issued', NULL, NULL,
@@ -1496,6 +1510,14 @@ INSERT INTO storage.objects (
     'a1000000-0000-4000-8000-000000000001',
     '{"mimetype":"application/pdf","size":800}'::jsonb,
     'tenant-commercial-document-cleanup-v1-other-source'
+  ),
+  (
+    'c0000000-0000-4000-8000-000000000010',
+    'tenant-commercial-documents',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000007/INV-CLEAN-1007.pdf',
+    'a1000000-0000-4000-8000-000000000001',
+    '{"mimetype":"application/pdf","size":820}'::jsonb,
+    'tenant-commercial-document-cleanup-replaced-old'
   );
 
 INSERT INTO app_private.tenant_commercial_document_upload_attestations (
@@ -1940,6 +1962,163 @@ SELECT results_eq(
     'published'::text
   )$$,
   'post-cleanup publication persists the new authoritative artifact'
+);
+
+RESET ROLE;
+SET LOCAL ROLE service_role;
+SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
+
+SELECT lives_ok(
+  $$
+    SELECT public.attest_tenant_commercial_document_upload(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000007',
+      'a1000000-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000007/INV-CLEAN-1007.pdf',
+      'c0000000-0000-4000-8000-000000000010',
+      'tenant-commercial-document-cleanup-replaced-old',
+      repeat('c', 64),
+      820,
+      'commercial-pdf-v1',
+      '{"kind":"invoice","cleanup":"replaced-old"}'::jsonb
+    )
+  $$,
+  'the original same-path object receives an exact unconsumed attestation'
+);
+
+UPDATE tenant_commercial_document_test_state
+SET replacement_cleanup_claim_id =
+  public.begin_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000007',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000007/INV-CLEAN-1007.pdf',
+    'c0000000-0000-4000-8000-000000000010',
+    'tenant-commercial-document-cleanup-replaced-old'
+  )::text;
+
+SELECT ok(
+  (SELECT replacement_cleanup_claim_id
+   FROM tenant_commercial_document_test_state) ~*
+    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+  'same-path replacement cleanup begins with a durable exact claim'
+);
+
+RESET ROLE;
+-- Simulate an out-of-band provider replacement at the claimed path without
+-- weakening the production trigger, as in the existing changed-object test.
+SET LOCAL session_replication_role = replica;
+UPDATE storage.objects
+SET id = 'c0000000-0000-4000-8000-000000000011',
+    metadata = '{"mimetype":"application/pdf","size":821}'::jsonb,
+    version = 'tenant-commercial-document-cleanup-replaced-new'
+WHERE bucket_id = 'tenant-commercial-documents'
+  AND name = 'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000007/INV-CLEAN-1007.pdf'
+  AND id = 'c0000000-0000-4000-8000-000000000010'
+  AND version = 'tenant-commercial-document-cleanup-replaced-old';
+SET LOCAL session_replication_role = origin;
+
+SET LOCAL ROLE service_role;
+SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
+
+SELECT is(
+  public.finish_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000007',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000007/INV-CLEAN-1007.pdf',
+    'c0000000-0000-4000-8000-000000000010',
+    'tenant-commercial-document-cleanup-replaced-old',
+    (SELECT replacement_cleanup_claim_id::uuid
+     FROM tenant_commercial_document_test_state)
+  ),
+  true,
+  'finish succeeds when the claimed path now resolves to a different object identity and version'
+);
+
+RESET ROLE;
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*)::integer
+       FROM app_private.tenant_commercial_document_cleanup_claims
+       WHERE source_id = 'a7000000-0000-4000-8000-000000000007'),
+      (SELECT count(*)::integer
+       FROM app_private.tenant_commercial_document_upload_attestations
+       WHERE source_id = 'a7000000-0000-4000-8000-000000000007'),
+      (SELECT count(*)::integer
+       FROM storage.objects
+       WHERE bucket_id = 'tenant-commercial-documents'
+         AND name = 'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000007/INV-CLEAN-1007.pdf'
+         AND id = 'c0000000-0000-4000-8000-000000000011'
+         AND version = 'tenant-commercial-document-cleanup-replaced-new'),
+      (SELECT count(*)::integer
+       FROM app_private.tenant_commercial_document_upload_attestations
+       WHERE source_id = 'a7000000-0000-4000-8000-000000000006')
+  $$,
+  $$VALUES (0, 0, 1, 1)$$,
+  'finish clears only the old attestation and claim while preserving the replacement and unrelated attestation'
+);
+
+SET LOCAL ROLE service_role;
+SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
+
+SELECT lives_ok(
+  $$
+    SELECT public.attest_tenant_commercial_document_upload(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000007',
+      'a1000000-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000007/INV-CLEAN-1007.pdf',
+      'c0000000-0000-4000-8000-000000000011',
+      'tenant-commercial-document-cleanup-replaced-new',
+      repeat('d', 64),
+      821,
+      'commercial-pdf-v1',
+      '{"kind":"invoice","cleanup":"replaced-new"}'::jsonb
+    )
+  $$,
+  'normal authority can attest the replacement object after exact cleanup finishes'
+);
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.register_tenant_commercial_document_artifact(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000007',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000007/INV-CLEAN-1007.pdf',
+      repeat('d', 64), 821, 'commercial-pdf-v1', 'INV-CLEAN-1007',
+      '{"kind":"invoice","cleanup":"replaced-new"}'::jsonb
+    )
+  $$,
+  'normal publication authority can register the replacement object after cleanup finishes'
+);
+
+SELECT results_eq(
+  $$
+    SELECT artifact.storage_object_id, artifact.storage_object_version,
+           artifact.publication_status
+    FROM public.tenant_commercial_document_artifacts AS artifact
+    WHERE artifact.source_id = 'a7000000-0000-4000-8000-000000000007'
+  $$,
+  $$VALUES (
+    'c0000000-0000-4000-8000-000000000011'::uuid,
+    'tenant-commercial-document-cleanup-replaced-new'::text,
+    'published'::text
+  )$$,
+  'post-cleanup publication binds the preserved same-path replacement identity and version'
 );
 
 RESET ROLE;
