@@ -63,6 +63,7 @@ CREATE TEMP TABLE property_only_lease_state (
   organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   scheduled_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  termination_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   changed_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   single_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   multi_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -150,6 +151,9 @@ UNION ALL
 SELECT scheduled_tenant_id, organization_id, 'Scheduled Property Tenant', 'individual'
 FROM property_only_lease_state
 UNION ALL
+SELECT termination_tenant_id, organization_id, 'Termination Property Tenant', 'individual'
+FROM property_only_lease_state
+UNION ALL
 SELECT changed_tenant_id, organization_id, 'Rent Change Tenant', 'individual'
 FROM property_only_lease_state;
 
@@ -158,6 +162,9 @@ SELECT organization_id, tenant_id, 'tenant'
 FROM property_only_lease_state
 UNION ALL
 SELECT organization_id, scheduled_tenant_id, 'tenant'
+FROM property_only_lease_state
+UNION ALL
+SELECT organization_id, termination_tenant_id, 'tenant'
 FROM property_only_lease_state
 UNION ALL
 SELECT organization_id, changed_tenant_id, 'tenant'
@@ -519,7 +526,7 @@ UPDATE property_only_lease_state AS state
 SET termination_lease_result = public.create_property_lease(
   state.organization_id,
   state.termination_property_id,
-  state.tenant_id,
+  state.termination_tenant_id,
   (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
   (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 364,
   950,
