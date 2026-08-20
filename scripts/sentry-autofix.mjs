@@ -58,12 +58,11 @@ async function nextIssue(args) {
   const query = new URLSearchParams({
     environment: "production",
     limit: "10",
-    project: sentryProject(),
     query: "is:unresolved",
     sort: "recommended",
   });
   const issues = await sentryRequest(
-    `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/?${query}`,
+    `/api/0/projects/${encodeURIComponent(sentryOrg())}/${encodeURIComponent(sentryProject())}/issues/?${query}`,
   );
   if (!Array.isArray(issues) || issues.length === 0) {
     writeJson({ disposition: "no_candidate" });
@@ -72,7 +71,7 @@ async function nextIssue(args) {
 
   const issue = issues[0];
   const event = await sentryRequest(
-    `/api/0/issues/${encodeURIComponent(String(issue.id))}/events/latest/`,
+    `/api/0/organizations/${encodeURIComponent(sentryOrg())}/issues/${encodeURIComponent(String(issue.id))}/events/latest/`,
   );
   const summary = safeSummary(issue, event);
   writeJson(summary);

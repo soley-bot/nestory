@@ -130,6 +130,14 @@ test("next emits one redacted low-risk issue", async () => {
     assert.equal(candidate.frames[0].filename, "src/components/widget.tsx");
     assert.doesNotMatch(result.stdout, /fixture-secret|private@example\.com|fixture-token/);
     assert.equal(requests.length, 2);
+    assert.match(
+      requests[0].url,
+      /^\/api\/0\/projects\/fixture-org\/fixture-project\/issues\/\?/,
+    );
+    assert.equal(
+      requests[1].url,
+      "/api/0/organizations/fixture-org/issues/101/events/latest/",
+    );
   });
 });
 
