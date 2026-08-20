@@ -12,11 +12,14 @@ type PeopleFieldErrors = {
   legalName?: string[];
   notes?: string[];
   partyType?: string[];
+  passportExpiryDate?: string[];
+  passportNumber?: string[];
   personId?: string[];
   primaryEmail?: string[];
   primaryPhone?: string[];
   roles?: string[];
   taxIdentifier?: string[];
+  visaExpiryDate?: string[];
 };
 
 export type PeopleActionState = {
@@ -32,36 +35,61 @@ const personIdSchema = z.uuid("Choose a person.");
 const partyTypeSchema = z.enum(["individual", "company"]);
 const roleSchema = z.enum(["tenant", "owner", "vendor", "staff"]);
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const optionalDateSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value),
+    "Enter a valid date.",
+  );
 
-const peopleMutationSchema = z.object({
-  displayName: z
-    .string()
-    .trim()
-    .min(1, "Enter a display name.")
-    .max(140, "Keep the display name under 140 characters."),
-  legalName: z
-    .string()
-    .trim()
-    .max(180, "Keep the legal name under 180 characters."),
-  notes: z.string().trim().max(900, "Keep notes under 900 characters."),
-  partyType: partyTypeSchema,
-  primaryEmail: z
-    .string()
-    .trim()
-    .max(180, "Keep the email under 180 characters.")
-    .refine((value) => value === "" || emailPattern.test(value), {
-      message: "Enter a valid email.",
-    }),
-  primaryPhone: z
-    .string()
-    .trim()
-    .max(60, "Keep the phone under 60 characters."),
-  roles: z.array(roleSchema).min(1, "Choose at least one role."),
-  taxIdentifier: z
-    .string()
-    .trim()
-    .max(80, "Keep the tax identifier under 80 characters."),
-});
+const peopleMutationSchema = z
+  .object({
+    displayName: z
+      .string()
+      .trim()
+      .min(1, "Enter a display name.")
+      .max(140, "Keep the display name under 140 characters."),
+    legalName: z
+      .string()
+      .trim()
+      .max(180, "Keep the legal name under 180 characters."),
+    notes: z.string().trim().max(900, "Keep notes under 900 characters."),
+    partyType: partyTypeSchema,
+    passportExpiryDate: optionalDateSchema,
+    passportNumber: z
+      .string()
+      .trim()
+      .max(80, "Keep the passport number under 80 characters."),
+    primaryEmail: z
+      .string()
+      .trim()
+      .max(180, "Keep the email under 180 characters.")
+      .refine((value) => value === "" || emailPattern.test(value), {
+        message: "Enter a valid email.",
+      }),
+    primaryPhone: z
+      .string()
+      .trim()
+      .max(60, "Keep the phone under 60 characters."),
+    roles: z.array(roleSchema).min(1, "Choose at least one role."),
+    taxIdentifier: z
+      .string()
+      .trim()
+      .max(80, "Keep the tax identifier under 80 characters."),
+    visaExpiryDate: optionalDateSchema,
+  })
+  .superRefine((values, context) => {
+    if (Boolean(values.passportNumber) === Boolean(values.passportExpiryDate)) {
+      return;
+    }
+
+    context.addIssue({
+      code: "custom",
+      message: "Enter both the passport number and expiry date.",
+      path: [values.passportNumber ? "passportExpiryDate" : "passportNumber"],
+    });
+  });
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -74,12 +102,15 @@ function readPeopleMutationInput(formData: FormData) {
     legalName: readString(formData, "legalName"),
     notes: readString(formData, "notes"),
     partyType: readString(formData, "partyType"),
+    passportExpiryDate: readString(formData, "passportExpiryDate"),
+    passportNumber: readString(formData, "passportNumber"),
     primaryEmail: readString(formData, "primaryEmail"),
     primaryPhone: readString(formData, "primaryPhone"),
     roles: formData
       .getAll("roles")
       .map((value) => (typeof value === "string" ? value : "")),
     taxIdentifier: readString(formData, "taxIdentifier"),
+    visaExpiryDate: readString(formData, "visaExpiryDate"),
   };
 }
 
@@ -106,10 +137,13 @@ function peopleRpcPayload(
     p_notes: nullableString(values.notes),
     p_organization_id: context.organizationId,
     p_party_type: values.partyType,
+    p_passport_expiry_date: nullableString(values.passportExpiryDate),
+    p_passport_number: nullableString(values.passportNumber),
     p_primary_email: nullableString(values.primaryEmail),
     p_primary_phone: nullableString(values.primaryPhone),
     p_roles: values.roles,
     p_tax_identifier: nullableString(values.taxIdentifier),
+    p_visa_expiry_date: nullableString(values.visaExpiryDate),
   };
 }
 
@@ -118,7 +152,9 @@ export async function createPersonAction(
   formData: FormData,
 ): Promise<PeopleActionState> {
   const context = await requireSuperAdminContext();
-  const parsed = peopleMutationSchema.safeParse(readPeopleMutationInput(formData));
+  const parsed = peopleMutationSchema.safeParse(
+    readPeopleMutationInput(formData),
+  );
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
@@ -152,8 +188,12 @@ export async function updatePersonAction(
   formData: FormData,
 ): Promise<PeopleActionState> {
   const context = await requireSuperAdminContext();
-  const parsedPersonId = personIdSchema.safeParse(readString(formData, "personId"));
-  const parsed = peopleMutationSchema.safeParse(readPeopleMutationInput(formData));
+  const parsedPersonId = personIdSchema.safeParse(
+    readString(formData, "personId"),
+  );
+  const parsed = peopleMutationSchema.safeParse(
+    readPeopleMutationInput(formData),
+  );
 
   if (!parsedPersonId.success) {
     return {
@@ -222,7 +262,9 @@ async function updatePersonArchiveState({
   formData: FormData;
 }): Promise<PeopleActionState> {
   const context = await requireSuperAdminContext();
-  const parsedPersonId = personIdSchema.safeParse(readString(formData, "personId"));
+  const parsedPersonId = personIdSchema.safeParse(
+    readString(formData, "personId"),
+  );
 
   if (!parsedPersonId.success) {
     return {

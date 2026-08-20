@@ -436,6 +436,26 @@ describe("PersonDetailScreen", () => {
       screen.queryByRole("heading", { name: "Workspace Access" }),
     ).toBeNull();
   });
+
+  it("shows travel-document details for owners and tenants", () => {
+    render(
+      <PersonDetailScreen
+        person={{
+          ...person,
+          passportExpiryDate: "2031-04-30",
+          passportNumber: "N1234567",
+          visaExpiryDate: "2028-09-15",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Passport number")).toBeTruthy();
+    expect(screen.getByText("N1234567")).toBeTruthy();
+    expect(screen.getByText("Passport expiry")).toBeTruthy();
+    expect(screen.getByText("30 Apr 2031")).toBeTruthy();
+    expect(screen.getByText("Visa expiry")).toBeTruthy();
+    expect(screen.getByText("15 Sep 2028")).toBeTruthy();
+  });
 });
 
 const person: PeopleSummary = {

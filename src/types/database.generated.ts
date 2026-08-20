@@ -6719,6 +6719,50 @@ export type Database = {
           },
         ]
       }
+      person_travel_documents: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          organization_id: string
+          passport_expiry_date: string | null
+          passport_number: string | null
+          person_id: string
+          updated_at: string
+          updated_by: string | null
+          visa_expiry_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          organization_id: string
+          passport_expiry_date?: string | null
+          passport_number?: string | null
+          person_id: string
+          updated_at?: string
+          updated_by?: string | null
+          visa_expiry_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          organization_id?: string
+          passport_expiry_date?: string | null
+          passport_number?: string | null
+          person_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          visa_expiry_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_travel_documents_person_fk"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       petty_cash_accounts: {
         Row: {
           account_number: string
@@ -9281,20 +9325,38 @@ export type Database = {
         }
         Returns: string
       }
-      create_person: {
-        Args: {
-          p_display_name: string
-          p_legal_name: string
-          p_notes: string
-          p_organization_id: string
-          p_party_type: string
-          p_primary_email: string
-          p_primary_phone: string
-          p_roles: string[]
-          p_tax_identifier: string
-        }
-        Returns: string
-      }
+      create_person:
+        | {
+            Args: {
+              p_display_name: string
+              p_legal_name: string
+              p_notes: string
+              p_organization_id: string
+              p_party_type: string
+              p_primary_email: string
+              p_primary_phone: string
+              p_roles: string[]
+              p_tax_identifier: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_display_name: string
+              p_legal_name: string
+              p_notes: string
+              p_organization_id: string
+              p_party_type: string
+              p_passport_expiry_date: string
+              p_passport_number: string
+              p_primary_email: string
+              p_primary_phone: string
+              p_roles: string[]
+              p_tax_identifier: string
+              p_visa_expiry_date: string
+            }
+            Returns: string
+          }
       create_petty_cash_account: {
         Args: {
           p_account_number: string
@@ -10748,21 +10810,40 @@ export type Database = {
         }
         Returns: string
       }
-      update_person: {
-        Args: {
-          p_display_name: string
-          p_legal_name: string
-          p_notes: string
-          p_organization_id: string
-          p_party_type: string
-          p_person_id: string
-          p_primary_email: string
-          p_primary_phone: string
-          p_roles: string[]
-          p_tax_identifier: string
-        }
-        Returns: string
-      }
+      update_person:
+        | {
+            Args: {
+              p_display_name: string
+              p_legal_name: string
+              p_notes: string
+              p_organization_id: string
+              p_party_type: string
+              p_person_id: string
+              p_primary_email: string
+              p_primary_phone: string
+              p_roles: string[]
+              p_tax_identifier: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_display_name: string
+              p_legal_name: string
+              p_notes: string
+              p_organization_id: string
+              p_party_type: string
+              p_passport_expiry_date: string
+              p_passport_number: string
+              p_person_id: string
+              p_primary_email: string
+              p_primary_phone: string
+              p_roles: string[]
+              p_tax_identifier: string
+              p_visa_expiry_date: string
+            }
+            Returns: string
+          }
       update_petty_cash_entry: {
         Args: {
           p_amount: number

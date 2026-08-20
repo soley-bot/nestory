@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(39);
+SELECT plan(40);
 
 CREATE OR REPLACE FUNCTION pg_temp.capture_error(p_sql text)
 RETURNS jsonb
@@ -63,11 +63,13 @@ CREATE TEMP TABLE property_only_lease_state (
   organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   scheduled_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  termination_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   changed_tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   single_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   multi_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   undecided_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   immediate_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  termination_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   changed_property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
   simple_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -75,6 +77,9 @@ CREATE TEMP TABLE property_only_lease_state (
   activation_result jsonb,
   immediate_lease_result jsonb,
   immediate_activation_result jsonb,
+  termination_lease_result jsonb,
+  termination_activation_result jsonb,
+  termination_result jsonb,
   changed_lease_result jsonb,
   changed_activation_result jsonb,
   changed_term_id uuid,
@@ -123,6 +128,9 @@ UNION ALL
 SELECT immediate_property_id, organization_id, 'Immediate house', 'NOW', 'house', 'active', 'single_space'
 FROM property_only_lease_state
 UNION ALL
+SELECT termination_property_id, organization_id, 'Termination house', 'END', 'house', 'active', 'single_space'
+FROM property_only_lease_state
+UNION ALL
 SELECT changed_property_id, organization_id, 'Rent change house', 'CHANGE', 'house', 'active', 'single_space'
 FROM property_only_lease_state;
 
@@ -143,6 +151,9 @@ UNION ALL
 SELECT scheduled_tenant_id, organization_id, 'Scheduled Property Tenant', 'individual'
 FROM property_only_lease_state
 UNION ALL
+SELECT termination_tenant_id, organization_id, 'Termination Property Tenant', 'individual'
+FROM property_only_lease_state
+UNION ALL
 SELECT changed_tenant_id, organization_id, 'Rent Change Tenant', 'individual'
 FROM property_only_lease_state;
 
@@ -151,6 +162,9 @@ SELECT organization_id, tenant_id, 'tenant'
 FROM property_only_lease_state
 UNION ALL
 SELECT organization_id, scheduled_tenant_id, 'tenant'
+FROM property_only_lease_state
+UNION ALL
+SELECT organization_id, termination_tenant_id, 'tenant'
 FROM property_only_lease_state
 UNION ALL
 SELECT organization_id, changed_tenant_id, 'tenant'
@@ -506,6 +520,62 @@ SELECT is(
   ),
   'active',
   'the immediate Lease is active after one request'
+);
+
+UPDATE property_only_lease_state AS state
+SET termination_lease_result = public.create_property_lease(
+  state.organization_id,
+  state.termination_property_id,
+  state.termination_tenant_id,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 364,
+  950,
+  'USD',
+  1,
+  'monthly',
+  'draft',
+  NULL,
+  NULL,
+  'draft',
+  'termination-property-lease-create'
+);
+
+UPDATE property_only_lease_state AS state
+SET termination_activation_result = public.request_lease_activation(
+  state.organization_id,
+  (state.termination_lease_result ->> 'leaseId')::uuid,
+  'draft',
+  (
+    SELECT occupancy.id
+    FROM public.lease_occupancies AS occupancy
+    WHERE occupancy.lease_id = (state.termination_lease_result ->> 'leaseId')::uuid
+      AND occupancy.evidence_state = 'accepted'
+  ),
+  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  'termination-property-lease-activation'
+);
+
+SELECT lives_ok(
+  (
+    SELECT format(
+      'UPDATE property_only_lease_state AS target SET termination_result = public.transition_lease_lifecycle(%L,%L,%L,%L,%L,DATE %L,NULL,%L,%L)',
+      state.organization_id,
+      (state.termination_lease_result ->> 'leaseId')::uuid,
+      'active',
+      (
+        SELECT occupancy.id
+        FROM public.lease_occupancies AS occupancy
+        WHERE occupancy.lease_id = (state.termination_lease_result ->> 'leaseId')::uuid
+          AND occupancy.evidence_state = 'accepted'
+      ),
+      'terminate',
+      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      'Tenant requested early termination',
+      'termination-property-lease-transition'
+    )
+    FROM property_only_lease_state AS state
+  ),
+  'an active whole-Property Lease can be terminated through the checked lifecycle'
 );
 
 SELECT is(

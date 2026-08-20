@@ -39,6 +39,8 @@ import { formatPartyType, formatRole } from "@/features/people/people.labels";
 
 const peopleSelect =
   "id, display_name, legal_name, party_type, primary_email, primary_phone, tax_identifier, notes, archived_at, updated_at, created_at";
+const travelDocumentSelect =
+  "person_id, passport_number, passport_expiry_date, visa_expiry_date";
 const roleSelect = "id, person_id, role, status, archived_at";
 const contactSelect =
   "id, person_id, contact_name, contact_type, email, phone, is_primary, archived_at";
@@ -83,6 +85,13 @@ type PersonRow = {
   primaryPhone: string | null;
   taxIdentifier: string | null;
   updatedAt: string;
+};
+
+type TravelDocumentRow = {
+  passportExpiryDate: string | null;
+  passportNumber: string | null;
+  personId: string;
+  visaExpiryDate: string | null;
 };
 
 function buildPeopleBaseQuery(
@@ -183,6 +192,7 @@ type PeopleDataTable =
   | "documents"
   | "lease_parties"
   | "people"
+  | "person_travel_documents"
   | "person_contacts"
   | "person_roles"
   | "properties"
@@ -770,7 +780,14 @@ async function loadPeopleSummariesForRows({
   supabase: SupabaseServerClient;
 }): Promise<PeopleSummaryLoadResult> {
   const personIds = new Set(people.map((person) => person.id));
-  const [roles, contacts, leaseParties, propertyOwners, vendorProfiles] =
+  const [
+    roles,
+    contacts,
+    leaseParties,
+    propertyOwners,
+    vendorProfiles,
+    travelDocuments,
+  ] =
     await Promise.all([
       getRows(supabase, "person_roles", roleSelect, organizationId, toRoleRow, {
         column: "person_id",
@@ -806,6 +823,14 @@ async function loadPeopleSummariesForRows({
         vendorProfileSelect,
         organizationId,
         toVendorProfileRow,
+        { column: "person_id", values: personIds },
+      ),
+      getRows(
+        supabase,
+        "person_travel_documents",
+        travelDocumentSelect,
+        organizationId,
+        toTravelDocumentRow,
         { column: "person_id", values: personIds },
       ),
     ]);
@@ -888,6 +913,9 @@ async function loadPeopleSummariesForRows({
   const leasePartiesByPerson = groupByPersonId(leaseParties);
   const propertyOwnersByPerson = groupByPersonId(propertyOwners);
   const vendorProfilesByPerson = groupByPersonId(vendorProfiles);
+  const travelDocumentsByPerson = new Map(
+    travelDocuments.map((document) => [document.personId, document]),
+  );
   const leasesById = indexById(leases);
   const propertiesById = indexById(properties);
   const unitsById = indexById(units);
@@ -917,6 +945,7 @@ async function loadPeopleSummariesForRows({
       propertyOwners: propertyOwnersByPerson.get(person.id) ?? [],
       propertiesById,
       roles: rolesByPerson.get(person.id) ?? [],
+      travelDocument: travelDocumentsByPerson.get(person.id),
       unitsById,
       vendorProfiles: vendorProfilesByPerson.get(person.id) ?? [],
     }),
@@ -1948,6 +1977,7 @@ export function buildPeopleSummary({
   propertyOwners,
   propertiesById,
   roles,
+  travelDocument,
   unitsById,
   vendorProfiles,
 }: {
@@ -1960,6 +1990,7 @@ export function buildPeopleSummary({
   propertyOwners: PropertyOwnerRow[];
   propertiesById: Map<string, PropertyRow>;
   roles: RoleRow[];
+  travelDocument?: TravelDocumentRow;
   unitsById: Map<string, UnitRow>;
   vendorProfiles: VendorProfileRow[];
 }): PeopleSummary {
@@ -2012,12 +2043,15 @@ export function buildPeopleSummary({
       legalName: person.legalName,
       notes: person.notes,
       partyType: person.partyType,
+      passportExpiryDate: travelDocument?.passportExpiryDate ?? null,
+      passportNumber: travelDocument?.passportNumber ?? null,
       primaryEmail: person.primaryEmail,
       primaryPhone: person.primaryPhone,
       roles: visibleRoles
         .filter((role) => role.status === "active")
         .map((role) => role.role),
       taxIdentifier: person.taxIdentifier,
+      visaExpiryDate: travelDocument?.visaExpiryDate ?? null,
     },
     hasUsefulContact: hasUsefulPersonContact(person, contacts),
     hrefs: detailHrefs,
@@ -2036,6 +2070,8 @@ export function buildPeopleSummary({
     notes: person.notes,
     partyType: person.partyType,
     partyTypeLabel: formatPartyType(person.partyType),
+    passportExpiryDate: travelDocument?.passportExpiryDate ?? null,
+    passportNumber: travelDocument?.passportNumber ?? null,
     recordCounts,
     riskIndicators,
     roles: visibleRoles,
@@ -2046,6 +2082,7 @@ export function buildPeopleSummary({
     statusLabel: status.label,
     statusTone: status.tone,
     updatedAt: person.updatedAt,
+    visaExpiryDate: travelDocument?.visaExpiryDate ?? null,
   };
 }
 
@@ -2896,6 +2933,21 @@ function toPersonRow(row: UnknownRecord): PersonRow | null {
     primaryPhone: readNullableString(row, "primary_phone"),
     taxIdentifier: readNullableString(row, "tax_identifier"),
     updatedAt: readString(row, "updated_at") || readString(row, "created_at"),
+  };
+}
+
+function toTravelDocumentRow(row: UnknownRecord): TravelDocumentRow | null {
+  const personId = readString(row, "person_id");
+
+  if (!personId) {
+    return null;
+  }
+
+  return {
+    passportExpiryDate: readNullableString(row, "passport_expiry_date"),
+    passportNumber: readNullableString(row, "passport_number"),
+    personId,
+    visaExpiryDate: readNullableString(row, "visa_expiry_date"),
   };
 }
 

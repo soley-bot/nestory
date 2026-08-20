@@ -8,8 +8,20 @@ vi.mock("@/features/people/actions", () => ({
   updatePersonAction: async () => ({}),
 }));
 
+vi.stubGlobal(
+  "ResizeObserver",
+  class ResizeObserverMock {
+    disconnect() {}
+    observe() {}
+    unobserve() {}
+  },
+);
+
 import { PersonForm } from "@/features/people/components/person-form";
-import type { PersonRoleValue } from "@/features/people/people.types";
+import type {
+  PeopleSummary,
+  PersonRoleValue,
+} from "@/features/people/people.types";
 
 afterEach(cleanup);
 
@@ -104,5 +116,78 @@ describe("PersonForm role-specific presentation", () => {
     }) as HTMLInputElement;
     fireEvent.change(phone, { target: { value: "+85512345678" } });
     expect(phone.value).toBe("+855 12 345 678");
+  });
+
+  it.each(["owner", "tenant"] satisfies PersonRoleValue[])(
+    "collects passport and visa follow-up dates for a %s",
+    (role) => {
+      render(
+        <PersonForm
+          initialRoles={[role]}
+          onClose={vi.fn()}
+          roleContext={role}
+        />,
+      );
+
+      expect(
+        screen.getByRole("group", { name: "Passport number" }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("group", { name: "Passport expiry date" }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("group", { name: "Visa expiry date" }),
+      ).toBeTruthy();
+    },
+  );
+
+  it("shows travel documents when editing a multi-role tenant from People", () => {
+    render(
+      <PersonForm
+        mode="edit"
+        onClose={vi.fn()}
+        person={
+          {
+            contact: {},
+            displayName: "Multi Role Person",
+            formValues: {
+              displayName: "Multi Role Person",
+              partyType: "individual",
+              roles: ["tenant", "vendor"],
+            },
+            id: "person-1",
+            partyType: "individual",
+            roles: [
+              { role: "tenant", status: "active" },
+              { role: "vendor", status: "active" },
+            ],
+          } as PeopleSummary
+        }
+      />,
+    );
+
+    expect(
+      screen.getByRole("group", { name: "Passport number" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Visa expiry date" }),
+    ).toBeTruthy();
+  });
+
+  it("shows travel documents after selecting an owner on the general create form", () => {
+    render(<PersonForm onClose={vi.fn()} />);
+
+    expect(
+      screen.queryByRole("group", { name: "Passport number" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Owner" }));
+
+    expect(
+      screen.getByRole("group", { name: "Passport number" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Visa expiry date" }),
+    ).toBeTruthy();
   });
 });

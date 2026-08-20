@@ -1,0 +1,2 @@
+CREATE INDEX person_travel_documents_organization_person_idx
+ON public.person_travel_documents (organization_id, person_id);

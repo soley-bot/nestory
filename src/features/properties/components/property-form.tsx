@@ -51,6 +51,8 @@ const propertyTypeOptions = [
   { label: "Mixed use", value: "Mixed use" },
   { label: "Serviced Apartment", value: "Serviced Apartment" },
   { label: "Condo", value: "Condo" },
+  { label: "Renovated Apartment", value: "Renovated Apartment" },
+  { label: "House/Villa", value: "House/Villa" },
 ];
 
 type PhotoPreview = {

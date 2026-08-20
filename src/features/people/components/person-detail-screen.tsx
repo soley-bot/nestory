@@ -41,7 +41,7 @@ import type {
   PeoplePropertyLink,
   PeopleSummary,
 } from "@/features/people/people.types";
-import { formatDate } from "@/lib/dates/format";
+import { formatCalendarDate, formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 
 type DialogState = { mode: "edit"; person: PeopleSummary };
@@ -78,6 +78,7 @@ export function PersonDetailScreen({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const confirmationTriggerRef = useRef<HTMLButtonElement>(null);
   const isStaffOnly = isStaffOnlyPerson(person);
+  const showsTravelDocuments = hasTravelDocumentRole(person);
   const showWorkspaceAccess =
     Boolean(accessStatus) &&
     !person.isArchived &&
@@ -235,6 +236,34 @@ export function PersonDetailScreen({
                       tone={person.contact.phone ? undefined : "warning"}
                       value={person.contact.phone ?? "No phone"}
                     />
+                    {showsTravelDocuments ? (
+                      <>
+                        <Detail
+                          label="Passport number"
+                          tone={person.passportNumber ? undefined : "warning"}
+                          value={person.passportNumber ?? "Not recorded"}
+                        />
+                        <Detail
+                          label="Passport expiry"
+                          tone={
+                            person.passportExpiryDate ? undefined : "warning"
+                          }
+                          value={
+                            person.passportExpiryDate
+                              ? formatCalendarDate(person.passportExpiryDate)
+                              : "Not recorded"
+                          }
+                        />
+                        <Detail
+                          label="Visa expiry"
+                          value={
+                            person.visaExpiryDate
+                              ? formatCalendarDate(person.visaExpiryDate)
+                              : "Not recorded"
+                          }
+                        />
+                      </>
+                    ) : null}
                     {!isStaffOnly ? (
                       <Detail label="Linked" value={getLinkedSummary(person)} />
                     ) : null}
@@ -746,6 +775,14 @@ function isStaffOnlyPerson(person: PeopleSummary) {
   return (
     activeRoles.some((role) => role.role === "staff") &&
     activeRoles.every((role) => role.role === "staff")
+  );
+}
+
+function hasTravelDocumentRole(person: PeopleSummary) {
+  return person.roles.some(
+    (role) =>
+      role.status === "active" &&
+      (role.role === "owner" || role.role === "tenant"),
   );
 }
 

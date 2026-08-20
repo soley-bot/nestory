@@ -7,6 +7,7 @@ import {
   type ComponentProps,
 } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
@@ -32,6 +33,7 @@ type PersonFormPresentation = {
   displayNameLabel: string;
   notesLabel: string;
   showTaxIdentifier: boolean;
+  showTravelDocuments: boolean;
 };
 
 type PersonFormProps = {
@@ -72,6 +74,11 @@ export function PersonForm({
       : roleContext
         ? [roleContext]
         : [];
+  const [selectedRoles, setSelectedRoles] =
+    useState<PersonRoleValue[]>(submittedRoles);
+  const showsTravelDocuments =
+    presentation.showTravelDocuments ||
+    selectedRoles.some((role) => role === "owner" || role === "tenant");
 
   useEffect(() => {
     if (state.status === "success") {
@@ -102,8 +109,8 @@ export function PersonForm({
       saveLabel={
         isEditMode
           ? "Save changes"
-          : createSaveLabel ??
-            `Add ${roleContext ? formatRole(roleContext).toLowerCase() : "person"}`
+          : (createSaveLabel ??
+            `Add ${roleContext ? formatRole(roleContext).toLowerCase() : "person"}`)
       }
       savingLabel={isEditMode ? "Saving person" : "Adding person"}
       state={state}
@@ -180,6 +187,66 @@ export function PersonForm({
           </RecordField>
         </div>
 
+        {showsTravelDocuments ? (
+          <div className="space-y-4 border-t border-border pt-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <RecordField
+                error={state.fieldErrors?.passportNumber?.[0]}
+                label="Passport number"
+                name="passportNumber"
+              >
+                <Input
+                  defaultValue={defaults.passportNumber}
+                  name="passportNumber"
+                  type="text"
+                />
+              </RecordField>
+
+              <RecordField
+                error={state.fieldErrors?.passportExpiryDate?.[0]}
+                label="Passport expiry date"
+                name="passportExpiryDate"
+              >
+                <DatePickerField
+                  ariaLabel="Passport expiry date"
+                  defaultValue={defaults.passportExpiryDate}
+                  name="passportExpiryDate"
+                />
+              </RecordField>
+            </div>
+
+            <RecordField
+              error={state.fieldErrors?.visaExpiryDate?.[0]}
+              label="Visa expiry date"
+              name="visaExpiryDate"
+            >
+              <DatePickerField
+                ariaLabel="Visa expiry date"
+                defaultValue={defaults.visaExpiryDate}
+                name="visaExpiryDate"
+              />
+            </RecordField>
+          </div>
+        ) : (
+          <>
+            <input
+              name="passportNumber"
+              type="hidden"
+              value={defaults.passportNumber}
+            />
+            <input
+              name="passportExpiryDate"
+              type="hidden"
+              value={defaults.passportExpiryDate}
+            />
+            <input
+              name="visaExpiryDate"
+              type="hidden"
+              value={defaults.visaExpiryDate}
+            />
+          </>
+        )}
+
         {locksRole ? (
           submittedRoles.map((role) => (
             <input key={role} name="roles" type="hidden" value={role} />
@@ -195,8 +262,17 @@ export function PersonForm({
               <div className="grid gap-2 sm:grid-cols-3">
                 {roleOptions.map((role) => (
                   <RoleCheckbox
-                    defaultChecked={defaults.roles.includes(role)}
+                    checked={selectedRoles.includes(role)}
                     key={role}
+                    onCheckedChange={(checked) =>
+                      setSelectedRoles((currentRoles) =>
+                        checked
+                          ? [...new Set([...currentRoles, role])]
+                          : currentRoles.filter(
+                              (currentRole) => currentRole !== role,
+                            ),
+                      )
+                    }
                     role={role}
                   />
                 ))}
@@ -255,30 +331,35 @@ function getPersonFormPresentation(
         displayNameLabel: "Owner name",
         notesLabel: "Owner notes",
         showTaxIdentifier: true,
+        showTravelDocuments: true,
       };
     case "tenant":
       return {
         displayNameLabel: "Tenant name",
         notesLabel: "Tenancy notes",
         showTaxIdentifier: false,
+        showTravelDocuments: true,
       };
     case "staff":
       return {
         displayNameLabel: "Staff name",
         notesLabel: "Staff notes",
         showTaxIdentifier: false,
+        showTravelDocuments: false,
       };
     case "vendor":
       return {
         displayNameLabel: "Vendor or business name",
         notesLabel: "Vendor notes",
         showTaxIdentifier: true,
+        showTravelDocuments: false,
       };
     default:
       return {
         displayNameLabel: "Display name",
         notesLabel: "Internal notes",
         showTaxIdentifier: true,
+        showTravelDocuments: false,
       };
   }
 }
@@ -345,10 +426,12 @@ function joinPhoneGroups(prefix: string, digits: string, sizes: number[]) {
 }
 
 function RoleCheckbox({
-  defaultChecked,
+  checked,
+  onCheckedChange,
   role,
 }: {
-  defaultChecked: boolean;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
   role: PersonRoleValue;
 }) {
   return (
@@ -358,7 +441,12 @@ function RoleCheckbox({
         "hover:bg-muted",
       )}
     >
-      <Checkbox defaultChecked={defaultChecked} name="roles" value={role} />
+      <Checkbox
+        checked={checked}
+        name="roles"
+        onCheckedChange={(value) => onCheckedChange(value === true)}
+        value={role}
+      />
       <span>{formatRole(role)}</span>
     </label>
   );
@@ -372,10 +460,13 @@ function getPersonDefaults(
   legalName: string;
   notes: string;
   partyType: PersonPartyType;
+  passportExpiryDate: string;
+  passportNumber: string;
   primaryEmail: string;
   primaryPhone: string;
   roles: PersonRoleValue[];
   taxIdentifier: string;
+  visaExpiryDate: string;
 } {
   const formValues = person?.formValues;
 
@@ -384,9 +475,13 @@ function getPersonDefaults(
     legalName: formValues?.legalName ?? person?.legalName ?? "",
     notes: formValues?.notes ?? person?.notes ?? "",
     partyType: formValues?.partyType ?? person?.partyType ?? "individual",
+    passportExpiryDate:
+      formValues?.passportExpiryDate ?? person?.passportExpiryDate ?? "",
+    passportNumber: formValues?.passportNumber ?? person?.passportNumber ?? "",
     primaryEmail: formValues?.primaryEmail ?? person?.contact.email ?? "",
     primaryPhone: formValues?.primaryPhone ?? person?.contact.phone ?? "",
     roles: formValues?.roles ?? initialRoles,
     taxIdentifier: formValues?.taxIdentifier ?? "",
+    visaExpiryDate: formValues?.visaExpiryDate ?? person?.visaExpiryDate ?? "",
   };
 }

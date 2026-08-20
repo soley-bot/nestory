@@ -9,8 +9,7 @@ type CurrencyCode = PublicSchemaGenerated["Enums"]["currency_code"];
 type OwnerBalanceComponent =
   PublicSchemaGenerated["Enums"]["owner_balance_component"];
 type TimelineEventType = PublicSchemaGenerated["Enums"]["timeline_event_type"];
-type GeneratedCurrentLease =
-  PublicSchemaGenerated["Views"]["current_leases"];
+type GeneratedCurrentLease = PublicSchemaGenerated["Views"]["current_leases"];
 type CurrentLeaseRow = Omit<
   GeneratedCurrentLease["Row"],
   | "created_at"
@@ -566,10 +565,13 @@ type RpcFunctionOverrides = {
       p_notes: string | null;
       p_organization_id: string;
       p_party_type: string;
+      p_passport_expiry_date: string | null;
+      p_passport_number: string | null;
       p_primary_email: string | null;
       p_primary_phone: string | null;
       p_roles: string[];
       p_tax_identifier: string | null;
+      p_visa_expiry_date: string | null;
     }
   >;
   create_property: WithArgs<
@@ -680,11 +682,14 @@ type RpcFunctionOverrides = {
       p_notes: string | null;
       p_organization_id: string;
       p_party_type: string;
+      p_passport_expiry_date: string | null;
+      p_passport_number: string | null;
       p_person_id: string;
       p_primary_email: string | null;
       p_primary_phone: string | null;
       p_roles: string[];
       p_tax_identifier: string | null;
+      p_visa_expiry_date: string | null;
     }
   >;
   update_property: WithArgs<
@@ -764,10 +769,7 @@ type RpcFunctionOverrides = {
 type PublicFunctions = Omit<GeneratedFunctions, keyof RpcFunctionOverrides> &
   RpcFunctionOverrides;
 
-type PublicViews = Omit<
-  PublicSchemaGenerated["Views"],
-  "current_leases"
-> & {
+type PublicViews = Omit<PublicSchemaGenerated["Views"], "current_leases"> & {
   current_leases: Omit<GeneratedCurrentLease, "Row"> & {
     Row: CurrentLeaseRow;
   };
