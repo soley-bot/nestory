@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -20,4 +21,22 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  authToken: process.env.NESTORY_SENTRY_AUTH_TOKEN,
+  automaticVercelMonitors: false,
+  org: process.env.NESTORY_SENTRY_ORG,
+  project: process.env.NESTORY_SENTRY_PROJECT,
+  release: {
+    name: process.env.VERCEL_GIT_COMMIT_SHA,
+  },
+  silent: !process.env.CI,
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
+  telemetry: false,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+});

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/layout/app-shell";
+import { SentryIdentity } from "@/components/observability/sentry-identity";
 import { ThemeRuntime } from "@/components/theme-runtime";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 
@@ -21,6 +22,11 @@ export default async function DashboardLayout({
       organizationId={context.organizationId}
       theme={context.theme}
     >
+      <SentryIdentity
+        organizationId={context.organizationId}
+        role={context.role}
+        userId={context.userId}
+      />
       <AppShell
         defaultSidebarOpen={sidebarState !== "false"}
         organizationId={context.organizationId}
