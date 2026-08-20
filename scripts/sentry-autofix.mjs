@@ -40,6 +40,9 @@ const PROTECTED_TERMS = [
   "ledgers",
   "reversal",
   "reversals",
+  "report",
+  "reporting",
+  "reports",
   "finance",
   "financial",
   "secret",
@@ -109,6 +112,9 @@ async function nextIssue(args) {
     );
     const summary = safeSummary(issue, event);
     if (summary.environment !== "production") {
+      continue;
+    }
+    if (summary.disposition === "insufficient_context") {
       continue;
     }
     if (summary.disposition === "candidate") {
@@ -231,8 +237,8 @@ function requestTimeoutMs() {
 
 function safeSummary(issue, event) {
   const exceptions = exceptionValues(event);
-  const frames = exceptions
-    .flatMap((exception) => exception.stacktrace?.frames ?? [])
+  const rawFrames = exceptions.flatMap((exception) => exception.stacktrace?.frames ?? []);
+  const frames = rawFrames
     .filter((frame) => frame?.inApp !== false)
     .slice(-10)
     .map((frame) => ({
@@ -243,14 +249,20 @@ function safeSummary(issue, event) {
     issue.title,
     issue.culprit,
     ...exceptions.map((exception) => exception.value),
-    ...frames.flatMap((frame) => [frame.filename, frame.function]),
+    ...rawFrames.flatMap((frame) => [frame?.filename, frame?.function]),
   ]
     .filter((value) => typeof value === "string")
     .join(" ");
 
+  const disposition = protectedPattern.test(protectedText)
+    ? "requires_authorization"
+    : exceptions.length === 0 || frames.length === 0
+      ? "insufficient_context"
+      : "candidate";
+
   return {
     count: safeInteger(issue.count),
-    disposition: protectedPattern.test(protectedText) ? "requires_authorization" : "candidate",
+    disposition,
     environment: safeEnvironment(event),
     firstSeen: safeTimestamp(issue.firstSeen),
     frames,

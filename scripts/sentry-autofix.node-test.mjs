@@ -51,13 +51,13 @@ async function withFixtureServer(issueOrIssues, callback) {
         issues[0];
       response.end(
         JSON.stringify({
-          entries: [
+          entries: eventIssue.noException ? [] : [
             {
               data: {
                 values: [
                   {
                     stacktrace: {
-                      frames: [
+                      frames: eventIssue.frames ?? [
                         {
                           filename: eventIssue.frameFilename ?? "src/components/widget.tsx",
                           function: eventIssue.frameFunction ?? "Widget",
@@ -230,6 +230,7 @@ test("next blocks plural and finance protected-domain terms", async () => {
     "Expenses export failed",
     "Roles screen crashed",
     "Finance dashboard crashed",
+    "Report export failed",
     "Unauthorized request",
   ]) {
     await withFixtureServer({ ...issue, title }, async ({ environment }) => {
@@ -238,6 +239,32 @@ test("next blocks plural and finance protected-domain terms", async () => {
       assert.equal(JSON.parse(result.stdout).disposition, "requires_authorization");
     });
   }
+});
+
+test("next scans protected terms in every raw frame before output truncation", async () => {
+  const frames = [
+    { filename: "src/features/finance/cash.ts", function: "calculate", inApp: true },
+    ...Array.from({ length: 11 }, (_, index) => ({
+      filename: `src/lib/shared-${index}.ts`,
+      function: `shared${index}`,
+      inApp: true,
+    })),
+  ];
+  await withFixtureServer({ ...issue, frames }, async ({ environment }) => {
+    const result = await runCli(["next", "--dry-run"], environment);
+    assert.equal(result.code, 0, result.stderr);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.disposition, "requires_authorization");
+    assert.equal(summary.frames.length, 10);
+  });
+});
+
+test("next skips events without usable exception stack context", async () => {
+  await withFixtureServer({ ...issue, noException: true }, async ({ environment }) => {
+    const result = await runCli(["next", "--dry-run"], environment);
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), { disposition: "no_candidate" });
+  });
 });
 
 test("next skips authorization-only issues to emit one later safe candidate", async () => {
