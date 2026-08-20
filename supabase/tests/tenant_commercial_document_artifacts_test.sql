@@ -21,6 +21,13 @@ SELECT has_table(
   'orphan cleanup authority is retained in a private claim table'
 );
 
+SELECT has_column(
+  'app_private',
+  'tenant_commercial_document_cleanup_claims',
+  'id',
+  'cleanup claims have a durable resume identity'
+);
+
 SELECT has_function(
   'public',
   'begin_tenant_commercial_document_cleanup',
@@ -28,10 +35,18 @@ SELECT has_function(
   'service cleanup atomically claims one exact source object'
 );
 
+SELECT function_returns(
+  'public',
+  'begin_tenant_commercial_document_cleanup',
+  ARRAY['uuid','text','uuid','text','uuid','text'],
+  'uuid',
+  'cleanup begin returns a durable claim identity'
+);
+
 SELECT has_function(
   'public',
   'finish_tenant_commercial_document_cleanup',
-  ARRAY['uuid','text','uuid','text','uuid','text'],
+  ARRAY['uuid','text','uuid','text','uuid','text','uuid'],
   'service cleanup finishes only after the exact claimed object is gone'
 );
 
@@ -337,10 +352,11 @@ SELECT ok(
 
 CREATE TEMP TABLE tenant_commercial_document_test_state (
   invoice_artifact_id uuid,
-  receipt_artifact_id uuid
+  receipt_artifact_id uuid,
+  cleanup_claim_id text
 ) ON COMMIT DROP;
 INSERT INTO tenant_commercial_document_test_state DEFAULT VALUES;
-GRANT SELECT, UPDATE ON tenant_commercial_document_test_state TO authenticated;
+GRANT SELECT, UPDATE ON tenant_commercial_document_test_state TO authenticated, service_role;
 
 INSERT INTO auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -1544,8 +1560,8 @@ SELECT is(
     'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
     'c0000000-0000-4000-8000-000000000099',
     'tenant-commercial-document-cleanup-v1'
-  ),
-  false,
+  )::text,
+  NULL::text,
   'cleanup cannot claim a path with a mismatched Storage object identity'
 );
 
@@ -1557,8 +1573,8 @@ SELECT is(
     'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000001/INV-1001.pdf',
     'c0000000-0000-4000-8000-000000000001',
     'tenant-commercial-document-v1-invoice-current'
-  ),
-  false,
+  )::text,
+  NULL::text,
   'cleanup cannot claim an object backing a published artifact'
 );
 
@@ -1602,22 +1618,26 @@ SELECT is(
     'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000006/INV-CLEAN-1006.pdf',
     'c0000000-0000-4000-8000-000000000008',
     'tenant-commercial-document-cleanup-v1-other-source'
-  ),
-  false,
+  )::text,
+  NULL::text,
   'cleanup rejects a current object whose existing attestation binds stale identity'
 );
 
-SELECT is(
-  public.begin_tenant_commercial_document_cleanup(
+UPDATE tenant_commercial_document_test_state
+SET cleanup_claim_id = public.begin_tenant_commercial_document_cleanup(
     'a0000000-0000-4000-8000-000000000001',
     'invoice',
     'a7000000-0000-4000-8000-000000000005',
     'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
     'c0000000-0000-4000-8000-000000000007',
     'tenant-commercial-document-cleanup-v1'
-  ),
-  true,
-  'the first cleanup worker claims the exact unregistered object'
+  )::text;
+
+SELECT ok(
+  (SELECT cleanup_claim_id
+   FROM tenant_commercial_document_test_state) ~*
+    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+  'the first cleanup worker receives a durable claim UUID'
 );
 
 SELECT is(
@@ -1628,9 +1648,9 @@ SELECT is(
     'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
     'c0000000-0000-4000-8000-000000000007',
     'tenant-commercial-document-cleanup-v1'
-  ),
-  false,
-  'a second cleanup worker cannot claim the same source and path'
+  )::text,
+  (SELECT cleanup_claim_id FROM tenant_commercial_document_test_state),
+  'a crash-resume begin returns the same exact durable claim UUID'
 );
 
 SELECT is(
@@ -1640,7 +1660,9 @@ SELECT is(
     'a7000000-0000-4000-8000-000000000005',
     'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
     'c0000000-0000-4000-8000-000000000007',
-    'tenant-commercial-document-cleanup-v1'
+    'tenant-commercial-document-cleanup-v1',
+    (SELECT cleanup_claim_id::uuid
+     FROM tenant_commercial_document_test_state)
   ),
   false,
   'finish fails closed while the exact claimed Storage object still exists'
@@ -1663,8 +1685,53 @@ SELECT results_eq(
   'failed finish preserves both the cleanup claim and unconsumed attestation'
 );
 
+-- Simulate an authoritative number correction while the old exact object is
+-- durably claimed, then stage the replacement path Task 3 would publish.
+SET LOCAL session_replication_role = replica;
+UPDATE public.tenant_invoices
+SET invoice_number = 'INV-CLEAN-1005-RENAMED'
+WHERE id = 'a7000000-0000-4000-8000-000000000005';
+SET LOCAL session_replication_role = origin;
+
+INSERT INTO storage.objects (
+  id, bucket_id, name, owner_id, metadata, version
+) VALUES (
+  'c0000000-0000-4000-8000-000000000009',
+  'tenant-commercial-documents',
+  'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005-RENAMED.pdf',
+  'a1000000-0000-4000-8000-000000000001',
+  '{"mimetype":"application/pdf","size":900}'::jsonb,
+  'tenant-commercial-document-cleanup-v2-renamed'
+);
+
 SET LOCAL ROLE service_role;
 SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
+
+SELECT is(
+  public.begin_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000005',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+    'c0000000-0000-4000-8000-000000000007',
+    'tenant-commercial-document-cleanup-v1'
+  )::text,
+  (SELECT cleanup_claim_id FROM tenant_commercial_document_test_state),
+  'the exact old cleanup claim remains resumable after an authoritative number change'
+);
+
+SELECT is(
+  public.begin_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000005',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005-RENAMED.pdf',
+    'c0000000-0000-4000-8000-000000000009',
+    'tenant-commercial-document-cleanup-v2-renamed'
+  )::text,
+  NULL::text,
+  'a different object and path cannot steal or resume an active source claim'
+);
 
 SELECT throws_ok(
   $$
@@ -1673,18 +1740,18 @@ SELECT throws_ok(
       'invoice',
       'a7000000-0000-4000-8000-000000000005',
       'a1000000-0000-4000-8000-000000000001',
-      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
-      'c0000000-0000-4000-8000-000000000007',
-      'tenant-commercial-document-cleanup-v1',
-      repeat('8', 64),
-      768,
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005-RENAMED.pdf',
+      'c0000000-0000-4000-8000-000000000009',
+      'tenant-commercial-document-cleanup-v2-renamed',
+      repeat('b', 64),
+      900,
       'commercial-pdf-v1',
-      '{"kind":"invoice","cleanup":"candidate"}'::jsonb
+      '{"kind":"invoice","cleanup":"replacement"}'::jsonb
     )
   $$,
   '55000',
   'tenant_commercial_document_cleanup_in_progress',
-  'an active claim blocks attestation for the same source and path'
+  'an active source claim blocks attestation after an authoritative path change'
 );
 
 RESET ROLE;
@@ -1701,14 +1768,14 @@ SELECT throws_ok(
       'a0000000-0000-4000-8000-000000000001',
       'invoice',
       'a7000000-0000-4000-8000-000000000005',
-      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
-      repeat('8', 64), 768, 'commercial-pdf-v1', 'INV-CLEAN-1005',
-      '{"kind":"invoice","cleanup":"candidate"}'::jsonb
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005-RENAMED.pdf',
+      repeat('b', 64), 900, 'commercial-pdf-v1', 'INV-CLEAN-1005-RENAMED',
+      '{"kind":"invoice","cleanup":"replacement"}'::jsonb
     )
   $$,
   '55000',
   'tenant_commercial_document_cleanup_in_progress',
-  'an active claim blocks registration before attestation consumption'
+  'an active source claim blocks registration after an authoritative path change'
 );
 
 RESET ROLE;
@@ -1779,7 +1846,23 @@ SELECT is(
     'a7000000-0000-4000-8000-000000000005',
     'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
     'c0000000-0000-4000-8000-000000000007',
-    'tenant-commercial-document-cleanup-v1'
+    'tenant-commercial-document-cleanup-v1',
+    'd0000000-0000-4000-8000-000000000001'
+  ),
+  false,
+  'finish with the wrong cleanup claim UUID preserves the exact durable claim'
+);
+
+SELECT is(
+  public.finish_tenant_commercial_document_cleanup(
+    'a0000000-0000-4000-8000-000000000001',
+    'invoice',
+    'a7000000-0000-4000-8000-000000000005',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005.pdf',
+    'c0000000-0000-4000-8000-000000000007',
+    'tenant-commercial-document-cleanup-v1',
+    (SELECT cleanup_claim_id::uuid
+     FROM tenant_commercial_document_test_state)
   ),
   true,
   'finish removes cleanup authority only after the exact claimed object is gone'
@@ -1801,6 +1884,65 @@ SELECT results_eq(
   'successful finish removes the exact claim and unconsumed attestation'
 );
 
+SET LOCAL ROLE service_role;
+SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
+
+SELECT lives_ok(
+  $$
+    SELECT public.attest_tenant_commercial_document_upload(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000005',
+      'a1000000-0000-4000-8000-000000000001',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005-RENAMED.pdf',
+      'c0000000-0000-4000-8000-000000000009',
+      'tenant-commercial-document-cleanup-v2-renamed',
+      repeat('b', 64),
+      900,
+      'commercial-pdf-v1',
+      '{"kind":"invoice","cleanup":"replacement"}'::jsonb
+    )
+  $$,
+  'attestation can resume on the replacement path after exact cleanup finishes'
+);
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.register_tenant_commercial_document_artifact(
+      'a0000000-0000-4000-8000-000000000001',
+      'invoice',
+      'a7000000-0000-4000-8000-000000000005',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005-RENAMED.pdf',
+      repeat('b', 64), 900, 'commercial-pdf-v1', 'INV-CLEAN-1005-RENAMED',
+      '{"kind":"invoice","cleanup":"replacement"}'::jsonb
+    )
+  $$,
+  'publication can proceed on the authoritative replacement path after cleanup finishes'
+);
+
+SELECT results_eq(
+  $$
+    SELECT artifact.filename, artifact.storage_path, artifact.publication_status
+    FROM public.tenant_commercial_document_artifacts AS artifact
+    WHERE artifact.source_id = 'a7000000-0000-4000-8000-000000000005'
+  $$,
+  $$VALUES (
+    'invoice-INV-CLEAN-1005-RENAMED.pdf'::text,
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000005/INV-CLEAN-1005-RENAMED.pdf'::text,
+    'published'::text
+  )$$,
+  'post-cleanup publication persists the new authoritative artifact'
+);
+
+RESET ROLE;
 SET LOCAL ROLE service_role;
 SELECT pg_catalog.set_config('request.jwt.claim.role', 'service_role', true);
 

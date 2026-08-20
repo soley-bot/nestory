@@ -96,6 +96,7 @@ REVOKE ALL ON TABLE app_private.tenant_commercial_document_upload_attestations
   FROM PUBLIC, anon, authenticated, service_role;
 
 CREATE TABLE app_private.tenant_commercial_document_cleanup_claims (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL
     REFERENCES public.organizations(id) ON DELETE RESTRICT,
   source_kind text NOT NULL CHECK (source_kind IN ('invoice', 'receipt')),
@@ -110,7 +111,7 @@ CREATE TABLE app_private.tenant_commercial_document_cleanup_claims (
     AND storage_object_version = pg_catalog.btrim(storage_object_version)
   ),
   claimed_at timestamptz NOT NULL DEFAULT pg_catalog.statement_timestamp(),
-  PRIMARY KEY (organization_id, source_kind, source_id),
+  UNIQUE (organization_id, source_kind, source_id),
   CHECK (
     app_private.storage_object_org_id(storage_path) = organization_id
     AND pg_catalog.cardinality(pg_catalog.string_to_array(storage_path, '/')) = 4
@@ -363,14 +364,14 @@ CREATE OR REPLACE FUNCTION public.begin_tenant_commercial_document_cleanup(
   p_storage_path text,
   p_storage_object_id uuid,
   p_storage_object_version text
-) RETURNS boolean
+) RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO ''
 AS $$
 DECLARE
   v_attestation app_private.tenant_commercial_document_upload_attestations%ROWTYPE;
-  v_claimed_count integer := 0;
+  v_claim app_private.tenant_commercial_document_cleanup_claims%ROWTYPE;
   v_expected_number text;
   v_expected_path text;
   v_kind text := pg_catalog.lower(pg_catalog.btrim(p_source_kind));
@@ -410,6 +411,27 @@ BEGIN
       0
     )
   );
+
+  -- An exact durable claim is the resume token. Check it before current-source
+  -- validation so a worker can recover after a crash even if the authoritative
+  -- document number changed or the exact Storage object was already removed.
+  SELECT claim.*
+  INTO v_claim
+  FROM app_private.tenant_commercial_document_cleanup_claims AS claim
+  WHERE claim.organization_id = p_organization_id
+    AND claim.source_kind = v_kind
+    AND claim.source_id = p_source_id
+  FOR UPDATE;
+
+  IF FOUND THEN
+    IF v_claim.storage_path IS NOT DISTINCT FROM v_path
+      AND v_claim.storage_object_id IS NOT DISTINCT FROM p_storage_object_id
+      AND v_claim.storage_object_version IS NOT DISTINCT FROM v_storage_object_version THEN
+      RETURN v_claim.id;
+    END IF;
+
+    RETURN NULL;
+  END IF;
 
   IF v_kind = 'invoice' THEN
     SELECT invoice.invoice_number
@@ -463,7 +485,7 @@ BEGIN
         AND artifact.source_id = p_source_id
         AND artifact.publication_status = 'published'
     ) THEN
-    RETURN false;
+    RETURN NULL;
   END IF;
 
   SELECT attestation.*
@@ -480,7 +502,7 @@ BEGIN
     OR v_attestation.storage_object_id IS DISTINCT FROM p_storage_object_id
     OR v_attestation.storage_object_version IS DISTINCT FROM v_storage_object_version
   ) THEN
-    RETURN false;
+    RETURN NULL;
   END IF;
 
   INSERT INTO app_private.tenant_commercial_document_cleanup_claims (
@@ -498,10 +520,10 @@ BEGIN
     p_storage_object_id,
     v_storage_object_version
   )
-  ON CONFLICT DO NOTHING;
+  ON CONFLICT DO NOTHING
+  RETURNING id INTO v_claim.id;
 
-  GET DIAGNOSTICS v_claimed_count = ROW_COUNT;
-  RETURN v_claimed_count = 1;
+  RETURN v_claim.id;
 END;
 $$;
 
@@ -511,7 +533,8 @@ CREATE OR REPLACE FUNCTION public.finish_tenant_commercial_document_cleanup(
   p_source_id uuid,
   p_storage_path text,
   p_storage_object_id uuid,
-  p_storage_object_version text
+  p_storage_object_version text,
+  p_cleanup_claim_id uuid
 ) RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -533,6 +556,7 @@ BEGIN
     OR v_kind NOT IN ('invoice', 'receipt')
     OR p_source_id IS NULL
     OR p_storage_object_id IS NULL
+    OR p_cleanup_claim_id IS NULL
     OR pg_catalog.length(v_storage_object_version) NOT BETWEEN 1 AND 200
     OR app_private.storage_object_org_id(v_path) IS DISTINCT FROM p_organization_id
     OR pg_catalog.cardinality(pg_catalog.string_to_array(v_path, '/')) <> 4
@@ -559,6 +583,7 @@ BEGIN
   INTO v_claim
   FROM app_private.tenant_commercial_document_cleanup_claims AS claim
   WHERE claim.organization_id = p_organization_id
+    AND claim.id = p_cleanup_claim_id
     AND claim.source_kind = v_kind
     AND claim.source_id = p_source_id
     AND claim.storage_path = v_path
@@ -597,6 +622,7 @@ BEGIN
 
   DELETE FROM app_private.tenant_commercial_document_cleanup_claims AS claim
   WHERE claim.organization_id = p_organization_id
+    AND claim.id = p_cleanup_claim_id
     AND claim.source_kind = v_kind
     AND claim.source_id = p_source_id
     AND claim.storage_path = v_path
@@ -624,6 +650,9 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  -- The Storage API supplies no request-scoped attempt token to this trigger.
+  -- Under the globally trusted service_role boundary, deletion therefore
+  -- requires both service_role and a durable claim matching OLD exactly.
   IF COALESCE((SELECT auth.role())::text, '') IS DISTINCT FROM 'service_role'
     OR NOT EXISTS (
       SELECT 1
@@ -733,7 +762,6 @@ BEGIN
     WHERE claim.organization_id = p_organization_id
       AND claim.source_kind = v_kind
       AND claim.source_id = p_source_id
-      AND claim.storage_path = v_path
   ) THEN
     RAISE EXCEPTION 'tenant_commercial_document_cleanup_in_progress'
       USING ERRCODE = '55000';
@@ -1147,7 +1175,6 @@ BEGIN
     WHERE claim.organization_id = p_organization_id
       AND claim.source_kind = v_kind
       AND claim.source_id = p_source_id
-      AND claim.storage_path = v_path
   ) THEN
     RAISE EXCEPTION 'tenant_commercial_document_cleanup_in_progress'
       USING ERRCODE = '55000';
@@ -1690,7 +1717,7 @@ ALTER FUNCTION public.begin_tenant_commercial_document_cleanup(
   uuid, text, uuid, text, uuid, text
 ) OWNER TO postgres;
 ALTER FUNCTION public.finish_tenant_commercial_document_cleanup(
-  uuid, text, uuid, text, uuid, text
+  uuid, text, uuid, text, uuid, text, uuid
 ) OWNER TO postgres;
 ALTER FUNCTION app_private.guard_tenant_commercial_document_storage_object()
   OWNER TO postgres;
@@ -1731,7 +1758,7 @@ REVOKE ALL ON FUNCTION public.begin_tenant_commercial_document_cleanup(
   uuid, text, uuid, text, uuid, text
 ) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.finish_tenant_commercial_document_cleanup(
-  uuid, text, uuid, text, uuid, text
+  uuid, text, uuid, text, uuid, text, uuid
 ) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION app_private.guard_tenant_commercial_document_storage_object()
   FROM PUBLIC, anon, authenticated, service_role;
@@ -1739,7 +1766,7 @@ GRANT EXECUTE ON FUNCTION public.begin_tenant_commercial_document_cleanup(
   uuid, text, uuid, text, uuid, text
 ) TO service_role;
 GRANT EXECUTE ON FUNCTION public.finish_tenant_commercial_document_cleanup(
-  uuid, text, uuid, text, uuid, text
+  uuid, text, uuid, text, uuid, text, uuid
 ) TO service_role;
 
 REVOKE ALL ON FUNCTION public.attest_tenant_commercial_document_upload(
@@ -1776,12 +1803,12 @@ GRANT EXECUTE ON FUNCTION public.get_tenant_commercial_document_artifact_downloa
 ) TO authenticated;
 
 COMMENT ON TABLE app_private.tenant_commercial_document_cleanup_claims IS
-  'Short-lived exact-object claims that serialize tenant commercial document orphan deletion against attestation and registration.';
+  'Durable exact-object claims that serialize tenant commercial document orphan deletion against source-wide attestation and registration.';
 COMMENT ON FUNCTION public.begin_tenant_commercial_document_cleanup(
   uuid, text, uuid, text, uuid, text
 ) IS
-  'Claims one exact unregistered tenant commercial document Storage object for server-only cleanup.';
+  'Returns a durable UUID for a new or exactly resumed unregistered tenant commercial document Storage cleanup claim; conflicting attempts return null.';
 COMMENT ON FUNCTION public.finish_tenant_commercial_document_cleanup(
-  uuid, text, uuid, text, uuid, text
+  uuid, text, uuid, text, uuid, text, uuid
 ) IS
-  'Releases an exact cleanup claim and unconsumed attestation only after the claimed Storage object is absent or replaced.';
+  'Releases the identified exact cleanup claim and unconsumed attestation only after the claimed Storage object is absent or replaced.';

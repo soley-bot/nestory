@@ -9194,7 +9194,7 @@ export type Database = {
           p_storage_object_version: string
           p_storage_path: string
         }
-        Returns: boolean
+        Returns: string
       }
       cancel_lease_activation: {
         Args: { p_organization_id: string; p_schedule_id: string }
@@ -9634,6 +9634,7 @@ export type Database = {
       }
       finish_tenant_commercial_document_cleanup: {
         Args: {
+          p_cleanup_claim_id: string
           p_organization_id: string
           p_source_id: string
           p_source_kind: string
