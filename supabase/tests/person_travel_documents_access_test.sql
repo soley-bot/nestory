@@ -110,11 +110,10 @@ SELECT is(
 
 RESET ROLE;
 
-SELECT like(
+SELECT ok(
   pg_get_functiondef(
     'public.update_person(uuid,uuid,text,text,text,text,text,text,text,text[],text,date,date)'::regprocedure
-  ),
-  '%revisionFingerprint%',
+  ) LIKE '%revisionFingerprint%',
   'travel document updates record distinguishable privacy-safe revision evidence'
 );
 
