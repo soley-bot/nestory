@@ -127,6 +127,14 @@ describe("Sentry event privacy", () => {
     delete process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN;
     expect(buildSentryOptions("server").enabled).toBe(false);
   });
+
+  it("keeps standalone production browser errors visible without Vercel metadata", () => {
+    process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN = "https://public@example.invalid/1";
+    delete process.env.NEXT_PUBLIC_VERCEL_ENV;
+    process.env = { ...process.env, NODE_ENV: "production" };
+
+    expect(buildSentryOptions("client").environment).toBe("production");
+  });
 });
 
 describe("Sentry route normalization", () => {

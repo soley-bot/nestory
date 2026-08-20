@@ -22,7 +22,7 @@ export function buildSentryOptions(runtime: SentryRuntime) {
     dsn,
     enabled: Boolean(dsn),
     environment: clientRuntime
-      ? (process.env.NEXT_PUBLIC_VERCEL_ENV ?? "unknown")
+      ? (process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown")
       : (process.env.VERCEL_ENV ?? process.env.NODE_ENV),
     release: clientRuntime
       ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
