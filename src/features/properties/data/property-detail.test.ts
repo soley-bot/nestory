@@ -61,6 +61,37 @@ describe("buildPropertyDetail", () => {
     expect(detail.unitsList).toEqual([]);
   });
 
+  it("keeps current ownership facts in the property detail edit defaults", () => {
+    const detail = buildPropertyDetail({
+      activeOwner: {
+        label: "Jane Owner",
+        personId: "person-owner",
+      },
+      ledgerEntries: [],
+      ownerHistory: [
+        {
+          archived_at: null,
+          ended_on: null,
+          id: "owner-link-1",
+          is_primary: true,
+          ownership_label: "Primary",
+          ownership_percent: 100,
+          person_id: "person-owner",
+          person_name: "Jane Owner",
+          started_on: "2014-07-14",
+        },
+      ],
+      property,
+      units: [],
+    });
+
+    expect(detail.formValues).toMatchObject({
+      ownerPersonId: "person-owner",
+      ownerStartedOn: "2014-07-14",
+      ownershipPercent: "100.000",
+    });
+  });
+
   it("formats optional units with rent, status, and archive state", () => {
     const detail = buildPropertyDetail({
       ledgerEntries: [
@@ -236,6 +267,7 @@ describe("buildPropertyDetail", () => {
           id: "owner-link-1",
           is_primary: true,
           ownership_label: "Primary",
+          ownership_percent: 100,
           person_id: "person-owner",
           person_name: "Jane Owner",
           started_on: "2026-01-01",
