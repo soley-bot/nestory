@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(6);
+SELECT plan(7);
 
 SELECT has_table(
   'public',
@@ -106,6 +106,16 @@ SELECT is(
   (SELECT count(*)::integer FROM public.person_travel_documents),
   1,
   'organization administrators can read travel documents'
+);
+
+RESET ROLE;
+
+SELECT like(
+  pg_get_functiondef(
+    'public.update_person(uuid,uuid,text,text,text,text,text,text,text,text[],text,date,date)'::regprocedure
+  ),
+  '%revisionFingerprint%',
+  'travel document updates record distinguishable privacy-safe revision evidence'
 );
 
 SELECT * FROM finish();

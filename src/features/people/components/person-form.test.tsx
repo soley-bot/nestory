@@ -173,4 +173,21 @@ describe("PersonForm role-specific presentation", () => {
       screen.getByRole("group", { name: "Visa expiry date" }),
     ).toBeTruthy();
   });
+
+  it("shows travel documents after selecting an owner on the general create form", () => {
+    render(<PersonForm onClose={vi.fn()} />);
+
+    expect(
+      screen.queryByRole("group", { name: "Passport number" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Owner" }));
+
+    expect(
+      screen.getByRole("group", { name: "Passport number" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Visa expiry date" }),
+    ).toBeTruthy();
+  });
 });

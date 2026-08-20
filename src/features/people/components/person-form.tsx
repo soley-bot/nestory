@@ -67,16 +67,6 @@ export function PersonForm({
   );
   const defaults = getPersonDefaults(person, initialRoles);
   const presentation = getPersonFormPresentation(roleContext);
-  const showsTravelDocuments =
-    presentation.showTravelDocuments ||
-    Boolean(
-      isEditMode &&
-        person?.roles.some(
-          (role) =>
-            role.status === "active" &&
-            (role.role === "owner" || role.role === "tenant"),
-        ),
-    );
   const locksRole = !isEditMode && Boolean(roleContext);
   const submittedRoles =
     defaults.roles.length > 0
@@ -84,6 +74,11 @@ export function PersonForm({
       : roleContext
         ? [roleContext]
         : [];
+  const [selectedRoles, setSelectedRoles] =
+    useState<PersonRoleValue[]>(submittedRoles);
+  const showsTravelDocuments =
+    presentation.showTravelDocuments ||
+    selectedRoles.some((role) => role === "owner" || role === "tenant");
 
   useEffect(() => {
     if (state.status === "success") {
@@ -267,8 +262,17 @@ export function PersonForm({
               <div className="grid gap-2 sm:grid-cols-3">
                 {roleOptions.map((role) => (
                   <RoleCheckbox
-                    defaultChecked={defaults.roles.includes(role)}
+                    checked={selectedRoles.includes(role)}
                     key={role}
+                    onCheckedChange={(checked) =>
+                      setSelectedRoles((currentRoles) =>
+                        checked
+                          ? [...new Set([...currentRoles, role])]
+                          : currentRoles.filter(
+                              (currentRole) => currentRole !== role,
+                            ),
+                      )
+                    }
                     role={role}
                   />
                 ))}
@@ -422,10 +426,12 @@ function joinPhoneGroups(prefix: string, digits: string, sizes: number[]) {
 }
 
 function RoleCheckbox({
-  defaultChecked,
+  checked,
+  onCheckedChange,
   role,
 }: {
-  defaultChecked: boolean;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
   role: PersonRoleValue;
 }) {
   return (
@@ -435,7 +441,12 @@ function RoleCheckbox({
         "hover:bg-muted",
       )}
     >
-      <Checkbox defaultChecked={defaultChecked} name="roles" value={role} />
+      <Checkbox
+        checked={checked}
+        name="roles"
+        onCheckedChange={(value) => onCheckedChange(value === true)}
+        value={role}
+      />
       <span>{formatRole(role)}</span>
     </label>
   );
