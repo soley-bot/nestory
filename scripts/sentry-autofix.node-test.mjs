@@ -231,6 +231,7 @@ test("next blocks plural and finance protected-domain terms", async () => {
     "Roles screen crashed",
     "Finance dashboard crashed",
     "Report export failed",
+    "Reporting pipeline failed",
     "Unauthorized request",
   ]) {
     await withFixtureServer({ ...issue, title }, async ({ environment }) => {
