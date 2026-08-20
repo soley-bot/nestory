@@ -221,6 +221,13 @@ export const requireLeaseConfigurationContext = cache(async () =>
   })),
 );
 
+export const requireHistoricalRentRecoveryContext = cache(async () =>
+  requireCapability("canRecoverHistoricalRent").then((context) => ({
+    ...context,
+    role: context.role as "super_admin",
+  })),
+);
+
 export const requireFinanceContext = cache(async () =>
   requireCapability("canReadFinance").then((context) => ({
     ...context,

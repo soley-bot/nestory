@@ -61,6 +61,7 @@ export type TenantInvoiceSummary = {
   dueDate: string;
   generationSource:
     | "activation_catch_up"
+    | "lease_rules_v1"
     | "manual_recovery"
     | "scheduled"
     | null;

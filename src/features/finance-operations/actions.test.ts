@@ -12,6 +12,7 @@ const {
   requireFinanceReviewContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
+  requireHistoricalRentRecoveryContext,
   requireLeaseConfigurationContext,
   revalidatePath,
   rpc,
@@ -27,6 +28,7 @@ const {
   requireFinanceReviewContext: vi.fn(),
   requireFinanceReversalContext: vi.fn(),
   requireFinanceSubmissionContext: vi.fn(),
+  requireHistoricalRentRecoveryContext: vi.fn(),
   requireLeaseConfigurationContext: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock("@/lib/auth/context", () => ({
   requireFinanceReviewContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
+  requireHistoricalRentRecoveryContext,
   requireLeaseConfigurationContext,
 }));
 vi.mock("@/lib/db/server", () => ({
@@ -91,6 +94,7 @@ describe("rent generation recovery action", () => {
     requireFinanceReviewContext.mockReset();
     requireFinanceReversalContext.mockReset();
     requireFinanceSubmissionContext.mockReset();
+    requireHistoricalRentRecoveryContext.mockReset();
     requireLeaseConfigurationContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
@@ -98,6 +102,7 @@ describe("rent generation recovery action", () => {
     requireCurrentRentRetryContext.mockResolvedValue({ organizationId });
     requireFinanceOperationContext.mockResolvedValue({ organizationId });
     requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
+    requireHistoricalRentRecoveryContext.mockResolvedValue({ organizationId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
   });
@@ -191,7 +196,8 @@ describe("rent generation recovery action", () => {
       message: "Historical rent month generated.",
       status: "success",
     });
-    expect(requireLeaseConfigurationContext).toHaveBeenCalledOnce();
+    expect(requireHistoricalRentRecoveryContext).toHaveBeenCalledOnce();
+    expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith("recover_lease_rent_period", {
       p_billing_period_start: "2026-07-01",
       p_lease_id: leaseId,

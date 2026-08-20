@@ -10,6 +10,7 @@ import {
   requireFinanceReviewContext,
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
+  requireHistoricalRentRecoveryContext,
   requireLeaseConfigurationContext,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -298,7 +299,7 @@ export async function recoverLeaseRentPeriodAction(
   );
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireLeaseConfigurationContext();
+  const context = await requireHistoricalRentRecoveryContext();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("recover_lease_rent_period", {
     p_billing_period_start: `${parsed.data.billingPeriod}-01`,

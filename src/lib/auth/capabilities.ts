@@ -24,6 +24,7 @@ export type WorkspaceCapabilities = {
   canPublishOwnerStatement: boolean;
   canReadFinance: boolean;
   canReadFinanceReports: boolean;
+  canRecoverHistoricalRent: boolean;
   canReadOwnerBalanceAuthority: boolean;
   canReopenOwnerMonth: boolean;
   canRequestOwnerOpeningBalanceCorrection: boolean;
@@ -53,6 +54,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canPublishOwnerStatement: true,
     canReadFinance: true,
     canReadFinanceReports: true,
+    canRecoverHistoricalRent: true,
     canReadOwnerBalanceAuthority: true,
     canReopenOwnerMonth: true,
     canRequestOwnerOpeningBalanceCorrection: true,
@@ -80,6 +82,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canPublishOwnerStatement: true,
     canReadFinance: true,
     canReadFinanceReports: true,
+    canRecoverHistoricalRent: false,
     canReadOwnerBalanceAuthority: true,
     canReopenOwnerMonth: false,
     canRequestOwnerOpeningBalanceCorrection: true,
@@ -107,6 +110,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canPublishOwnerStatement: false,
     canReadFinance: true,
     canReadFinanceReports: false,
+    canRecoverHistoricalRent: false,
     canReadOwnerBalanceAuthority: true,
     canReopenOwnerMonth: false,
     canRequestOwnerOpeningBalanceCorrection: true,
@@ -134,6 +138,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canPublishOwnerStatement: false,
     canReadFinance: false,
     canReadFinanceReports: false,
+    canRecoverHistoricalRent: false,
     canReadOwnerBalanceAuthority: false,
     canReopenOwnerMonth: false,
     canRequestOwnerOpeningBalanceCorrection: false,
@@ -161,6 +166,7 @@ const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
     canPublishOwnerStatement: false,
     canReadFinance: false,
     canReadFinanceReports: false,
+    canRecoverHistoricalRent: false,
     canReadOwnerBalanceAuthority: false,
     canReopenOwnerMonth: false,
     canRequestOwnerOpeningBalanceCorrection: false,

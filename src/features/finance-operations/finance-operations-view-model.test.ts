@@ -51,7 +51,10 @@ describe("finance operations presentation model", () => {
 
   it("labels automatic and recovery invoice sources for operators", () => {
     expect(getRentGenerationLabel("manual_recovery")).toBe(
-      "Recovered by Super Admin",
+      "Recovered manually",
+    );
+    expect(getRentGenerationLabel("lease_rules_v1")).toBe(
+      "Generated from lease rules",
     );
     expect(getRentGenerationLabel("scheduled")).toBe(
       "Generated automatically",
