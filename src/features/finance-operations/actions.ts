@@ -18,6 +18,11 @@ import {
   preparePaidCostEvidence,
   validatePaidCostEvidenceFile,
 } from "@/features/finance-operations/paid-cost-evidence";
+import {
+  markReceiptPublicationFailed,
+  publishTenantInvoiceArtifact,
+  publishTenantReceiptArtifact,
+} from "@/features/finance-operations/documents/commercial-document-artifacts";
 import type { Json } from "@/types/database";
 import type { FinanceOperationsActionState } from "@/features/finance-operations/finance-operations.types";
 
@@ -135,6 +140,17 @@ const invoiceSettlementSchema = z.object({
 const paymentSchema = invoiceSettlementSchema.extend({
   reconciliationSourceId: uuid,
 });
+
+const invoicePublicationSchema = z.object({
+  contactEmail: z.string().trim().email().max(180),
+  contactPhone: z.string().trim().min(3).max(60),
+  invoiceId: uuid,
+  note: z.string().trim().max(500),
+  paymentInstructions: z.string().trim().min(3).max(1200),
+}).strict();
+
+const receiptPublicationRetrySchema = z.object({ paymentId: uuid }).strict();
+const RECEIPT_PUBLICATION_FAILURE_CATEGORY = "storage_unavailable";
 
 const settlementReversalSchema = z.object({
   idempotencyKey: z.string().min(8),
@@ -357,7 +373,7 @@ export async function recordTenantInvoicePaymentAction(
   const context = await requireFinanceOperationContext();
   const supabase = await createSupabaseServerClient();
   const allocations = parseAllocations(formData);
-  const { error } = await supabase.rpc("record_tenant_invoice_payment", {
+  const { data, error } = await supabase.rpc("record_tenant_invoice_payment", {
     p_allocations: allocations.length > 0 ? (allocations as Json) : null,
     p_amount: parsed.data.amount,
     p_idempotency_key: parsed.data.idempotencyKey,
@@ -368,8 +384,105 @@ export async function recordTenantInvoicePaymentAction(
     p_reference: parsed.data.reference,
   });
   if (error) return actionError(error.message);
-  revalidateFinance();
-  return { message: "Payment recorded.", status: "success" };
+  const paymentId =
+    typeof data === "string" && uuid.safeParse(data).success ? data : null;
+  if (!paymentId) {
+    revalidateFinance();
+    return receiptUnavailableState();
+  }
+
+  try {
+    const artifact = await publishTenantReceiptArtifact({
+      client: supabase,
+      organizationId: context.organizationId,
+      paymentId,
+    });
+    revalidateFinance();
+    return {
+      artifactHref: artifact.href,
+      artifactId: artifact.artifactId,
+      message: "Payment recorded.",
+      publicationStatus: "published",
+      status: "success",
+    };
+  } catch {
+    try {
+      await markReceiptPublicationFailed(
+        supabase,
+        context.organizationId,
+        paymentId,
+        RECEIPT_PUBLICATION_FAILURE_CATEGORY,
+      );
+    } catch {
+      // Receipt failure persistence must not change the committed payment result.
+    }
+    revalidateFinance();
+    return receiptUnavailableState();
+  }
+}
+
+export async function publishTenantInvoicePdfAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = invoicePublicationSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireFinanceOperationContext();
+  const supabase = await createSupabaseServerClient();
+  try {
+    const artifact = await publishTenantInvoiceArtifact({
+      client: supabase,
+      invoiceId: parsed.data.invoiceId,
+      organizationId: context.organizationId,
+      publicationInput: {
+        contactEmail: parsed.data.contactEmail,
+        contactPhone: parsed.data.contactPhone,
+        note: parsed.data.note || null,
+        paymentInstructions: parsed.data.paymentInstructions,
+      },
+    });
+    revalidateFinance();
+    return {
+      artifactHref: artifact.href,
+      artifactId: artifact.artifactId,
+      message: "Invoice published.",
+      publicationStatus: "published",
+      status: "success",
+    };
+  } catch {
+    revalidateFinance();
+    return { message: "Invoice PDF unavailable.", status: "error" };
+  }
+}
+
+export async function retryTenantReceiptPdfAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = receiptPublicationRetrySchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireFinanceOperationContext();
+  const supabase = await createSupabaseServerClient();
+  try {
+    const artifact = await publishTenantReceiptArtifact({
+      client: supabase,
+      organizationId: context.organizationId,
+      paymentId: parsed.data.paymentId,
+    });
+    revalidateFinance();
+    return {
+      artifactHref: artifact.href,
+      artifactId: artifact.artifactId,
+      message: "Receipt published.",
+      publicationStatus: "published",
+      status: "success",
+    };
+  } catch {
+    revalidateFinance();
+    return { message: "Receipt PDF unavailable.", status: "error" };
+  }
 }
 
 export async function confirmOwnerCollectionAction(
@@ -627,6 +740,14 @@ function validationError(error: z.ZodError): FinanceOperationsActionState {
   return actionError(
     error.issues[0]?.message ?? "Check the form and try again.",
   );
+}
+
+function receiptUnavailableState(): FinanceOperationsActionState {
+  return {
+    message: "Payment recorded. Receipt unavailable.",
+    publicationStatus: "failed",
+    status: "success",
+  };
 }
 
 function actionError(message: string): FinanceOperationsActionState {

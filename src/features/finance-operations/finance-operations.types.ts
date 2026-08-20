@@ -196,6 +196,9 @@ export type FinanceOperationsData = {
 };
 
 export type FinanceOperationsActionState = {
+  artifactHref?: string;
+  artifactId?: string;
   message?: string;
+  publicationStatus?: "failed" | "published";
   status?: "error" | "success";
 };
