@@ -463,6 +463,36 @@ test("owner import preserve-path rewrite is token-scoped and newline invariant",
   }
 });
 
+test("Lease scope hardening rewrites are LF and CRLF invariant", () => {
+  const file =
+    "20260820114448_harden_lease_scope_recovery_and_archive_serialization.sql";
+  const lfSource = readMigration(file).replaceAll("\r\n", "\n");
+  const crlfSource = lfSource.replaceAll("\n", "\r\n");
+  const definitionNormalization =
+    "v_definition := pg_catalog.replace(v_definition, E'\\r\\n', E'\\n');";
+
+  for (const source of [lfSource, crlfSource]) {
+    const blocks = source.split("DO $$").slice(1);
+    assert.equal(blocks.length, 4, "migration must retain four exact rewrites");
+    for (const block of blocks) {
+      const definitionRead = block.indexOf("pg_get_functiondef(");
+      const normalization = block.indexOf(definitionNormalization);
+      const match = block.indexOf("strpos(v_definition,");
+      assert.ok(
+        definitionRead >= 0 &&
+          definitionRead < normalization &&
+          normalization < match,
+        "each predecessor definition must be normalized before matching",
+      );
+    }
+  }
+
+  const lfConstants = readNormalizedRewriteConstants(lfSource);
+  const crlfConstants = readNormalizedRewriteConstants(crlfSource);
+  assert.equal(lfConstants.length, 10, "all ten rewrite constants must normalize");
+  assert.deepEqual(crlfConstants, lfConstants);
+});
+
 function readMigration(file) {
   return fs.readFileSync(path.join(migrationsDirectory, file), "utf8");
 }
@@ -552,6 +582,14 @@ function readAllTaggedConstants(source, tag) {
     cursor = end + opening.length;
   }
   return values;
+}
+
+function readNormalizedRewriteConstants(source) {
+  const pattern =
+    /\w+ constant text := pg_catalog\.replace\(\$(\w+)\$([\s\S]*?)\$\1\$, E'\\r\\n', E'\\n'\);/g;
+  return [...source.matchAll(pattern)].map((match) =>
+    match[2].replaceAll("\r\n", "\n"),
+  );
 }
 
 function readPlainConstant(source, name) {
