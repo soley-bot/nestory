@@ -10,6 +10,8 @@ const ids = {
   otherProperty: "f4800000-0000-4000-8000-000000000007",
   otherUnit: "f4800000-0000-4000-8000-000000000008",
   otherLease: "f4800000-0000-4000-8000-000000000009",
+  archiveRaceProperty: "f4800000-0000-4000-8000-00000000000a",
+  archiveRaceUnit: "f4800000-0000-4000-8000-00000000000b",
 };
 
 const container = readOption("--container") ??
@@ -36,8 +38,12 @@ try {
   prepareDraftAuthority();
   await provePeriodTransitionSerializesTermEdit();
 
+  cleanup();
+  fixture();
+  await proveArchiveSerializesWithConcurrentLeaseCreation();
+
   process.stdout.write(
-    "PASS lease-term authority: overlapping terms, organization-month writes, and month-lock transitions serialize correctly.\n",
+    "PASS lease-term authority: overlapping terms, organization-month writes, month-lock transitions, and scope archives serialize correctly.\n",
   );
 } catch (error) {
   proofError = error;
@@ -217,6 +223,178 @@ WHERE lease_id = '${ids.lease}'::uuid
   }
 }
 
+async function proveArchiveSerializesWithConcurrentLeaseCreation() {
+  const creator = startPsql(
+    unitLeaseCreationSql("archive-race-creator-wins", true),
+    true,
+  );
+  await creator.waitFor("OPEN_LEASE_WRITTEN");
+
+  const creatorState = queryScalar(`
+SELECT state
+FROM pg_catalog.pg_stat_activity
+WHERE application_name = '${creator.applicationName}';`);
+  if (creatorState !== "idle in transaction") {
+    throw new Error(
+      `Lease creator did not retain its transaction after the RPC; state=${creatorState}.`,
+    );
+  }
+
+  const propertyLockXid = queryScalar(`
+SELECT xmax::text
+FROM public.properties
+WHERE id = '${ids.archiveRaceProperty}'::uuid;`);
+  if (propertyLockXid === "0") {
+    throw new Error("Lease creation did not retain a lock on its parent Property.");
+  }
+
+  const archiver = startPsql(`\\set ON_ERROR_STOP on
+BEGIN;
+SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
+SET LOCAL ROLE authenticated;
+UPDATE public.properties
+SET archived_at = statement_timestamp(),
+    archived_by = '${ids.admin}'::uuid,
+    updated_by = '${ids.admin}'::uuid
+WHERE organization_id = '${ids.organization}'::uuid
+  AND id = '${ids.archiveRaceProperty}'::uuid;
+COMMIT;
+`);
+
+  await waitForLock(archiver);
+  creator.release();
+  const [creatorResult, archiverResult] = await Promise.all([
+    creator.result,
+    archiver.result,
+  ]);
+  assertSucceeded("concurrent Lease creation", creatorResult);
+
+  if (
+    archiverResult.code === 0 ||
+    !archiverResult.output.includes("Property has an open Lease")
+  ) {
+    throw new Error(
+      `Concurrent Property archive did not fail after Lease creation committed.\n${archiverResult.output}`,
+    );
+  }
+
+  const archivedAt = queryScalar(`
+SELECT archived_at IS NULL
+FROM public.properties
+WHERE id = '${ids.archiveRaceProperty}'::uuid;`);
+  if (archivedAt !== "t") {
+    throw new Error("Rejected concurrent archive changed the Property record.");
+  }
+
+  cleanup();
+  fixture();
+
+  const firstArchiver = startPsql(
+    `\\set ON_ERROR_STOP on
+BEGIN;
+SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
+SET LOCAL ROLE authenticated;
+UPDATE public.properties
+SET archived_at = statement_timestamp(),
+    archived_by = '${ids.admin}'::uuid,
+    updated_by = '${ids.admin}'::uuid
+WHERE organization_id = '${ids.organization}'::uuid
+  AND id = '${ids.archiveRaceProperty}'::uuid;
+\\echo PROPERTY_ARCHIVED
+`,
+    true,
+  );
+  await firstArchiver.waitFor("PROPERTY_ARCHIVED");
+
+  const blockedCreator = startPsql(
+    unitLeaseCreationSql("archive-race-archiver-wins", false),
+  );
+  await waitForLock(blockedCreator);
+  firstArchiver.release();
+  const [firstArchiverResult, blockedCreatorResult] = await Promise.all([
+    firstArchiver.result,
+    blockedCreator.result,
+  ]);
+  assertSucceeded("concurrent Property archive", firstArchiverResult);
+
+  if (
+    blockedCreatorResult.code === 0 ||
+    !blockedCreatorResult.output.includes("Unit not found under selected property")
+  ) {
+    throw new Error(
+      `Concurrent Lease creation did not fail after Property archive committed.\n${blockedCreatorResult.output}`,
+    );
+  }
+
+  const leaseCount = queryScalar(`
+SELECT count(*)
+FROM public.leases
+WHERE organization_id = '${ids.organization}'::uuid
+  AND property_id = '${ids.archiveRaceProperty}'::uuid;`);
+  if (leaseCount !== "0") {
+    throw new Error("Rejected concurrent creation left a Lease record behind.");
+  }
+}
+
+function unitLeaseCreationSql(idempotencyKey, holdOpen) {
+  return `\\set ON_ERROR_STOP on
+BEGIN;
+SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
+SET LOCAL ROLE authenticated;
+SELECT public.create_simplified_unit_lease(
+  '${ids.organization}'::uuid,
+  '${ids.archiveRaceProperty}'::uuid,
+  '${ids.archiveRaceUnit}'::uuid,
+  '${ids.tenant}'::uuid,
+  '2026-09-01'::date,
+  '2027-08-31'::date,
+  700,
+  'USD'::public.currency_code,
+  10,
+  'monthly',
+  'draft',
+  NULL,
+  NULL,
+  'draft',
+  jsonb_build_object(
+    'primaryParty', jsonb_build_object(
+      'personId', '${ids.tenant}'::uuid,
+      'lifecycle', 'planned',
+      'recordSource', 'operator_confirmed',
+      'reason', 'archive_race_draft_created',
+      'startedOn', jsonb_build_object(
+        'date', NULL, 'kind', 'unknown', 'confidence', 'unknown'
+      ),
+      'endedOn', jsonb_build_object(
+        'date', NULL, 'kind', 'unknown', 'confidence', 'unknown'
+      )
+    ),
+    'occupancy', jsonb_build_object(
+      'lifecycle', 'reserved',
+      'recordSource', 'operator_confirmed',
+      'reason', 'archive_race_draft_created',
+      'scheduledMoveIn', jsonb_build_object(
+        'date', '2026-09-01'::date, 'kind', 'known', 'confidence', 'confirmed'
+      ),
+      'scheduledMoveOut', jsonb_build_object(
+        'date', '2027-08-31'::date, 'kind', 'known', 'confidence', 'confirmed'
+      ),
+      'actualMoveIn', jsonb_build_object(
+        'date', NULL, 'kind', 'unknown', 'confidence', 'unknown'
+      ),
+      'actualMoveOut', jsonb_build_object(
+        'date', NULL, 'kind', 'unknown', 'confidence', 'unknown'
+      )
+    ),
+    'participants', '[]'::jsonb
+  ),
+  '${idempotencyKey}'
+);
+\\echo OPEN_LEASE_WRITTEN
+${holdOpen ? "" : "COMMIT;"}
+`;
+}
+
 function fixture() {
   runSql(`\\set ON_ERROR_STOP on
 BEGIN;
@@ -267,6 +445,14 @@ VALUES
   'TERM-UNRELATED',
   'apartment',
   'active'
+),
+(
+  '${ids.archiveRaceProperty}'::uuid,
+  '${ids.organization}'::uuid,
+  'Lease archive race property',
+  'ARCHIVE-RACE',
+  'apartment',
+  'active'
 );
 INSERT INTO public.units(
   id, organization_id, property_id, unit_number, status,
@@ -289,6 +475,15 @@ VALUES
   'UNRELATED-1',
   'vacant',
   800,
+  'USD'
+),
+(
+  '${ids.archiveRaceUnit}'::uuid,
+  '${ids.organization}'::uuid,
+  '${ids.archiveRaceProperty}'::uuid,
+  'ARCHIVE-RACE-1',
+  'vacant',
+  700,
   'USD'
 );
 INSERT INTO public.people(id, organization_id, display_name)
@@ -491,6 +686,12 @@ DELETE FROM app_private.financial_idempotency_requests
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
+-- Simplified Lease creation writes an immutable billing snapshot. Remove only
+-- this isolated fixture's snapshot with triggers disabled before its org row.
+SET LOCAL session_replication_role = replica;
+DELETE FROM public.lease_billing_terms
+WHERE organization_id = '${ids.organization}'::uuid;
+SET LOCAL session_replication_role = origin;
 ALTER TABLE public.financial_reconciliation_sources
   DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
 DELETE FROM public.financial_reconciliation_sources

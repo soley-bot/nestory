@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(15);
+SELECT plan(18);
 
 CREATE TEMP TABLE lease_archive_scope_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -424,6 +424,133 @@ SELECT ok(
       AND event.to_status = 'ended'
   ),
   'ending an orphaned active Lease preserves its lifecycle event history'
+);
+
+CREATE OR REPLACE FUNCTION pg_temp.attempt_forged_term_correction()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_state lease_archive_scope_state%ROWTYPE;
+  v_term public.lease_terms%ROWTYPE;
+BEGIN
+  SELECT * INTO STRICT v_state FROM lease_archive_scope_state;
+  SELECT *
+  INTO STRICT v_term
+  FROM public.lease_terms AS term
+  WHERE term.lease_id = (v_state.draft_creation_result ->> 'leaseId')::uuid
+    AND term.authority_kind = 'authoritative'
+    AND term.status = 'draft'
+    AND term.archived_at IS NULL
+  ORDER BY term.term_sequence DESC
+  LIMIT 1;
+
+  PERFORM set_config(
+    'app.lease_scope_terminal_recovery_context',
+    'checked-lease-lifecycle-v1',
+    true
+  );
+  PERFORM public.correct_authoritative_lease_term(
+    v_state.organization_id,
+    (v_state.draft_creation_result ->> 'leaseId')::uuid,
+    v_term.id,
+    v_term.start_date,
+    v_term.end_date,
+    v_term.rent_amount,
+    v_term.rent_currency,
+    v_term.rent_due_day,
+    v_term.payment_frequency,
+    'terminated',
+    'lease-archive-forged-correction-v1'
+  );
+  RAISE EXCEPTION 'forged correction unexpectedly succeeded'
+    USING ERRCODE = '22000';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.attempt_forged_term_update()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_state lease_archive_scope_state%ROWTYPE;
+  v_term public.lease_terms%ROWTYPE;
+BEGIN
+  SELECT * INTO STRICT v_state FROM lease_archive_scope_state;
+  SELECT *
+  INTO STRICT v_term
+  FROM public.lease_terms AS term
+  WHERE term.lease_id = (v_state.draft_creation_result ->> 'leaseId')::uuid
+    AND term.authority_kind = 'authoritative'
+    AND term.status = 'draft'
+    AND term.archived_at IS NULL
+  ORDER BY term.term_sequence DESC
+  LIMIT 1;
+
+  PERFORM set_config(
+    'app.lease_scope_terminal_recovery_context',
+    'checked-lease-lifecycle-v1',
+    true
+  );
+  PERFORM public.update_lease_with_authoritative_term(
+    (v_state.draft_creation_result ->> 'leaseId')::uuid,
+    v_state.organization_id,
+    v_state.draft_property_id,
+    v_state.draft_unit_id,
+    v_state.draft_tenant_id,
+    v_term.start_date,
+    v_term.end_date,
+    v_term.rent_amount,
+    v_term.rent_currency,
+    v_term.rent_due_day,
+    v_term.payment_frequency,
+    'terminated',
+    350,
+    'USD',
+    'draft',
+    'lease-archive-forged-update-v1'
+  );
+  RAISE EXCEPTION 'forged update unexpectedly succeeded'
+    USING ERRCODE = '22000';
+END;
+$$;
+
+SELECT throws_ok(
+  'SELECT pg_temp.attempt_forged_term_correction()',
+  '23503',
+  'Lease scope is not supported or no longer exists',
+  'a caller-set recovery setting cannot bypass lifecycle through the correction wrapper'
+);
+
+SELECT throws_ok(
+  'SELECT pg_temp.attempt_forged_term_update()',
+  '23503',
+  'Lease scope is not supported or no longer exists',
+  'a caller-set recovery setting cannot bypass lifecycle through the Lease update wrapper'
+);
+
+SELECT ok(
+  NOT has_table_privilege(
+    'anon',
+    to_regclass('app_private.lease_scope_terminal_recovery_tokens'),
+    'SELECT'
+  )
+  AND NOT has_table_privilege(
+    'authenticated',
+    to_regclass('app_private.lease_scope_terminal_recovery_tokens'),
+    'SELECT'
+  )
+  AND NOT has_table_privilege(
+    'authenticated',
+    to_regclass('app_private.lease_scope_terminal_recovery_tokens'),
+    'INSERT'
+  )
+  AND NOT has_table_privilege(
+    'service_role',
+    to_regclass('app_private.lease_scope_terminal_recovery_tokens'),
+    'INSERT'
+  ),
+  'Data API roles cannot read or issue terminal recovery capabilities'
 );
 
 SELECT lives_ok(
