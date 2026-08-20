@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(5);
+SELECT plan(7);
 
 CREATE TEMP TABLE tenant_archive_cancel_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -12,7 +12,8 @@ CREATE TEMP TABLE tenant_archive_cancel_state (
   tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   creation_result jsonb,
   activation_result jsonb,
-  cancellation_result jsonb
+  cancellation_result jsonb,
+  repair_result jsonb
 ) ON COMMIT DROP;
 
 INSERT INTO tenant_archive_cancel_state DEFAULT VALUES;
@@ -176,10 +177,71 @@ SET cancellation_result = public.transition_lease_lifecycle(
   'tenant-archive-cancel-v1'
 );
 
+RESET ROLE;
+
+ALTER TABLE public.lease_occupancy_participants
+  DISABLE TRIGGER align_cancelled_lease_participant_lifecycle;
+ALTER TABLE public.lease_occupancy_participants
+  DISABLE TRIGGER validate_lease_participant_scope;
+SELECT set_config('app.people_leases_skip_sync', 'on', true);
+
+UPDATE public.lease_occupancy_participants AS participant
+SET
+  started_on = current_date,
+  ended_on = NULL,
+  business_lifecycle = 'present',
+  started_on_kind = 'known',
+  started_on_confidence = 'confirmed',
+  ended_on_kind = 'open_current',
+  ended_on_confidence = 'confirmed'
+FROM tenant_archive_cancel_state AS state
+WHERE participant.lease_occupancy_id =
+    (state.cancellation_result ->> 'occupancyId')::uuid
+  AND participant.evidence_state = 'accepted';
+
+SELECT set_config('app.people_leases_skip_sync', 'off', true);
+ALTER TABLE public.lease_occupancy_participants
+  ENABLE TRIGGER validate_lease_participant_scope;
+ALTER TABLE public.lease_occupancy_participants
+  ENABLE TRIGGER align_cancelled_lease_participant_lifecycle;
+
+UPDATE public.lease_activation_schedules AS schedule
+SET
+  status = 'failed',
+  cancelled_at = NULL,
+  failure_code = '40001',
+  failure_message = 'Legacy activation failure'
+FROM tenant_archive_cancel_state AS state
+WHERE schedule.lease_id = (state.creation_result ->> 'leaseId')::uuid;
+
+UPDATE tenant_archive_cancel_state
+SET repair_result = app_private.repair_cancelled_lease_artifacts();
+
+SET LOCAL ROLE authenticated;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM tenant_archive_cancel_state),
+  true
+);
+
 SELECT is(
   (SELECT cancellation_result ->> 'status' FROM tenant_archive_cancel_state),
   'cancelled',
   'checked cancellation closes the Draft Lease'
+);
+
+SELECT is(
+  (SELECT (repair_result ->> 'participantRows')::integer
+   FROM tenant_archive_cancel_state),
+  1,
+  'migration repair closes participant evidence from earlier cancellations'
+);
+
+SELECT is(
+  (SELECT (repair_result ->> 'scheduleRows')::integer
+   FROM tenant_archive_cancel_state),
+  1,
+  'migration repair closes activation work from earlier cancellations'
 );
 
 SELECT is(
