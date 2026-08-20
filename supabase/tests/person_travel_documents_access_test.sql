@@ -66,7 +66,7 @@ INSERT INTO public.organization_members (organization_id, user_id, role)
 SELECT organization_id, admin_id, 'super_admin'
 FROM travel_document_access_state
 UNION ALL
-SELECT organization_id, member_id, 'operations_manager'
+SELECT organization_id, member_id, 'finance_member'
 FROM travel_document_access_state;
 
 INSERT INTO public.people (id, organization_id, display_name, party_type)
