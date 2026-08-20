@@ -7807,6 +7807,80 @@ export type Database = {
           },
         ]
       }
+      tenant_commercial_document_artifacts: {
+        Row: {
+          content_type: string | null
+          created_at: string
+          document_number: string
+          failure_message: string | null
+          filename: string | null
+          id: string
+          organization_id: string
+          presentation_snapshot: Json | null
+          publication_status: string
+          published_at: string | null
+          published_by: string | null
+          renderer_version: string | null
+          sha256: string | null
+          size_bytes: number | null
+          source_id: string
+          source_kind: string
+          storage_object_id: string | null
+          storage_object_version: string | null
+          storage_path: string | null
+        }
+        Insert: {
+          content_type?: string | null
+          created_at?: string
+          document_number: string
+          failure_message?: string | null
+          filename?: string | null
+          id?: string
+          organization_id: string
+          presentation_snapshot?: Json | null
+          publication_status: string
+          published_at?: string | null
+          published_by?: string | null
+          renderer_version?: string | null
+          sha256?: string | null
+          size_bytes?: number | null
+          source_id: string
+          source_kind: string
+          storage_object_id?: string | null
+          storage_object_version?: string | null
+          storage_path?: string | null
+        }
+        Update: {
+          content_type?: string | null
+          created_at?: string
+          document_number?: string
+          failure_message?: string | null
+          filename?: string | null
+          id?: string
+          organization_id?: string
+          presentation_snapshot?: Json | null
+          publication_status?: string
+          published_at?: string | null
+          published_by?: string | null
+          renderer_version?: string | null
+          sha256?: string | null
+          size_bytes?: number | null
+          source_id?: string
+          source_kind?: string
+          storage_object_id?: string | null
+          storage_object_version?: string | null
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_commercial_document_artifacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_invoice_lines: {
         Row: {
           amount: number
@@ -9091,6 +9165,20 @@ export type Database = {
         }
         Returns: string
       }
+      attest_tenant_commercial_document_upload: {
+        Args: {
+          p_actor_id: string
+          p_organization_id: string
+          p_sha256: string
+          p_size_bytes: number
+          p_source_id: string
+          p_source_kind: string
+          p_storage_object_id: string
+          p_storage_object_version: string
+          p_storage_path: string
+        }
+        Returns: string
+      }
       begin_paid_cost_evidence_cleanup: {
         Args: { p_organization_id: string; p_storage_path: string }
         Returns: boolean
@@ -9969,6 +10057,31 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: Json
       }
+      get_tenant_commercial_document_artifact_download: {
+        Args: { p_artifact_id: string; p_organization_id: string }
+        Returns: {
+          content_type: string
+          document_number: string
+          filename: string
+          id: string
+          publication_status: string
+          renderer_version: string
+          sha256: string
+          size_bytes: number
+          source_id: string
+          source_kind: string
+          source_state: string
+          storage_path: string
+        }[]
+      }
+      get_tenant_commercial_document_publication_source: {
+        Args: {
+          p_organization_id: string
+          p_source_id: string
+          p_source_kind: string
+        }
+        Returns: Json
+      }
       list_paid_cost_evidence_orphans: {
         Args: { p_grace_seconds?: number }
         Returns: {
@@ -9990,6 +10103,15 @@ export type Database = {
           p_auth_user_id: string
           p_delivery_method: string
           p_invitation_id: string
+        }
+        Returns: string
+      }
+      mark_tenant_commercial_document_publication_failed: {
+        Args: {
+          p_failure_message: string
+          p_organization_id: string
+          p_source_id: string
+          p_source_kind: string
         }
         Returns: string
       }
@@ -10230,6 +10352,20 @@ export type Database = {
             }
             Returns: Json
           }
+      register_tenant_commercial_document_artifact: {
+        Args: {
+          p_document_number: string
+          p_organization_id: string
+          p_presentation_snapshot: Json
+          p_renderer_version: string
+          p_sha256: string
+          p_size_bytes: number
+          p_source_id: string
+          p_source_kind: string
+          p_storage_path: string
+        }
+        Returns: string
+      }
       remove_organization_member_access: {
         Args: { p_member_id: string; p_organization_id: string }
         Returns: string
