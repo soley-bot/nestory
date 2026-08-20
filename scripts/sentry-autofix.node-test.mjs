@@ -18,6 +18,7 @@ function runCli(args, environment = {}) {
         SENTRY_PROJECT: "",
         NESTORY_SENTRY_ORG: "",
         NESTORY_SENTRY_PROJECT: "",
+        NODE_ENV: "test",
         ...environment,
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -30,7 +31,8 @@ function runCli(args, environment = {}) {
   });
 }
 
-async function withFixtureServer(issue, callback) {
+async function withFixtureServer(issueOrIssues, callback) {
+  const issues = Array.isArray(issueOrIssues) ? issueOrIssues : [issueOrIssues];
   const requests = [];
   const server = createServer(async (request, response) => {
     let body = "";
@@ -39,13 +41,16 @@ async function withFixtureServer(issue, callback) {
     response.setHeader("content-type", "application/json");
 
     if (request.url?.includes("/issues/?")) {
-      response.end(JSON.stringify([issue]));
+      response.end(JSON.stringify(issues));
       return;
     }
     if (request.url?.includes("/events/latest/")) {
+      const eventIssue =
+        issues.find((candidate) => request.url?.includes(`/issues/${candidate.id}/`)) ??
+        issues[0];
       response.end(
         JSON.stringify({
-          entries: [
+          entries: eventIssue.noException ? [] : [
             {
               data: {
                 values: [
@@ -60,14 +65,15 @@ async function withFixtureServer(issue, callback) {
                       ],
                     },
                     type: "TypeError",
-                    value: issue.exception ?? "Cannot read properties of undefined",
+                    value:
+                      eventIssue.exception ?? "Cannot read properties of undefined",
                   },
                 ],
               },
               type: "exception",
             },
           ],
-          environment: "production",
+          environment: eventIssue.environment ?? "production",
           release: { version: "a".repeat(40) },
           request: { data: { password: "fixture-secret" } },
           tags: [{ key: "environment", value: "production" }],
@@ -76,8 +82,21 @@ async function withFixtureServer(issue, callback) {
       );
       return;
     }
-    if (request.method === "PUT" && request.url?.endsWith(`/issues/${issue.id}/`)) {
-      response.end(JSON.stringify({ id: issue.id, status: "resolved" }));
+    const matchedIssue = issues.find((candidate) =>
+      request.url?.endsWith(`/issues/${candidate.id}/`),
+    );
+    if (request.method === "GET" && matchedIssue) {
+      response.end(
+        JSON.stringify({
+          ...matchedIssue,
+          project: matchedIssue.project ?? { slug: "fixture-project" },
+          status: matchedIssue.status ?? "unresolved",
+        }),
+      );
+      return;
+    }
+    if (request.method === "PUT" && matchedIssue) {
+      response.end(JSON.stringify({ id: matchedIssue.id, status: "resolved" }));
       return;
     }
     response.statusCode = 404;
@@ -89,8 +108,8 @@ async function withFixtureServer(issue, callback) {
   const environment = {
     SENTRY_AUTOFIX_API_BASE: `http://127.0.0.1:${address.port}`,
     SENTRY_AUTOFIX_TOKEN: "fixture-token",
-    SENTRY_ORG: "fixture-org",
-    SENTRY_PROJECT: "fixture-project",
+    NESTORY_SENTRY_ORG: "fixture-org",
+    NESTORY_SENTRY_PROJECT: "fixture-project",
   };
   try {
     await callback({ environment, requests });
@@ -106,7 +125,7 @@ const issue = {
   firstSeen: "2026-08-20T01:00:00Z",
   id: "101",
   lastSeen: "2026-08-20T02:00:00Z",
-  permalink: "https://sentry.example/issues/101",
+  permalink: "https://sentry.io/organizations/fixture-org/issues/101?source=email#event",
   shortId: "NESTORY-1",
   title: "TypeError: Cannot read properties of undefined",
   userCount: 2,
@@ -127,6 +146,10 @@ test("next emits one redacted low-risk issue", async () => {
     assert.equal(candidate.id, "101");
     assert.equal(candidate.disposition, "candidate");
     assert.equal(candidate.frames[0].filename, "src/components/widget.tsx");
+    assert.equal(
+      candidate.permalink,
+      "https://sentry.io/organizations/fixture-org/issues/101",
+    );
     for (const field of ["culprit", "environment", "release", "title"]) {
       assert.equal(Object.hasOwn(candidate, field), false);
     }
@@ -138,9 +161,31 @@ test("next emits one redacted low-risk issue", async () => {
     );
     assert.equal(
       requests[1].url,
-      "/api/0/organizations/fixture-org/issues/101/events/latest/",
+      "/api/0/organizations/fixture-org/issues/101/events/latest/?environment=production",
     );
   });
+});
+
+test("next ignores an issue whose latest event is not production", async () => {
+  await withFixtureServer(
+    { ...issue, environment: "preview" },
+    async ({ environment }) => {
+      const result = await runCli(["next", "--dry-run"], environment);
+      assert.equal(result.code, 0, result.stderr);
+      assert.deepEqual(JSON.parse(result.stdout), { disposition: "no_candidate" });
+    },
+  );
+});
+
+test("next ignores an issue without usable exception context", async () => {
+  await withFixtureServer(
+    { ...issue, noException: true },
+    async ({ environment }) => {
+      const result = await runCli(["next", "--dry-run"], environment);
+      assert.equal(result.code, 0, result.stderr);
+      assert.deepEqual(JSON.parse(result.stdout), { disposition: "no_candidate" });
+    },
+  );
 });
 
 test("next prefers the provisioned Nestory project variables", async () => {
@@ -206,10 +251,89 @@ test("resolve marks one issue resolved in the exact release", async () => {
     const result = await runCli(["resolve", "101", "--release", release], environment);
     assert.equal(result.code, 0, result.stderr);
     assert.equal(JSON.parse(result.stdout).status, "resolved");
-    assert.equal(requests.length, 1);
-    assert.deepEqual(JSON.parse(requests[0].body), {
+    assert.equal(requests.length, 3);
+    assert.equal(requests[0].method, "GET");
+    assert.equal(
+      requests[1].url,
+      "/api/0/organizations/fixture-org/issues/101/events/latest/?environment=production",
+    );
+    assert.equal(requests[2].method, "PUT");
+    assert.deepEqual(JSON.parse(requests[2].body), {
       status: "resolved",
       statusDetails: { inRelease: release },
     });
   });
+});
+
+test("resolve refuses a protected issue before mutation", async () => {
+  await withFixtureServer(
+    { ...issue, title: "Payments failed" },
+    async ({ environment, requests }) => {
+      const result = await runCli(
+        ["resolve", "101", "--release", "b".repeat(40)],
+        environment,
+      );
+      assert.equal(result.code, 2);
+      assert.match(result.stderr, /protected-domain/);
+      assert.equal(requests.some((request) => request.method === "PUT"), false);
+    },
+  );
+});
+
+test("resolve refuses an issue outside the configured project before mutation", async () => {
+  await withFixtureServer(
+    { ...issue, project: { slug: "another-project" } },
+    async ({ environment, requests }) => {
+      const result = await runCli(
+        ["resolve", "101", "--release", "b".repeat(40)],
+        environment,
+      );
+      assert.equal(result.code, 2);
+      assert.match(result.stderr, /outside the configured Sentry project/);
+      assert.equal(requests.some((request) => request.method === "PUT"), false);
+    },
+  );
+});
+
+test("resolve refuses an already resolved issue before mutation", async () => {
+  await withFixtureServer(
+    { ...issue, status: "resolved" },
+    async ({ environment, requests }) => {
+      const result = await runCli(
+        ["resolve", "101", "--release", "b".repeat(40)],
+        environment,
+      );
+      assert.equal(result.code, 2);
+      assert.match(result.stderr, /not currently unresolved/);
+      assert.equal(requests.some((request) => request.method === "PUT"), false);
+    },
+  );
+});
+
+test("resolve refuses a preview event before mutation", async () => {
+  await withFixtureServer(
+    { ...issue, environment: "preview" },
+    async ({ environment, requests }) => {
+      const result = await runCli(
+        ["resolve", "101", "--release", "b".repeat(40)],
+        environment,
+      );
+      assert.equal(result.code, 2);
+      assert.match(result.stderr, /non-production/);
+      assert.equal(requests.some((request) => request.method === "PUT"), false);
+    },
+  );
+});
+
+test("refuses to send the token to an untrusted API host", async () => {
+  const result = await runCli(["next", "--dry-run"], {
+    NODE_ENV: "production",
+    SENTRY_AUTOFIX_API_BASE: "https://attacker.example.invalid",
+    SENTRY_AUTOFIX_TOKEN: "fixture-token",
+    NESTORY_SENTRY_ORG: "fixture-org",
+    NESTORY_SENTRY_PROJECT: "fixture-project",
+  });
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /untrusted API host/);
 });

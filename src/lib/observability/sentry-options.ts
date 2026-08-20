@@ -13,16 +13,20 @@ const SAFE_TAGS = new Set(["organization_id", "role", "route"]);
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function buildSentryOptions(runtime: SentryRuntime) {
-  void runtime;
   const dsn = process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN;
+  const clientRuntime = runtime === "client";
 
   return {
     beforeSend: scrubSentryEvent,
     debug: false,
     dsn,
     enabled: Boolean(dsn),
-    environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
-    release: process.env.VERCEL_GIT_COMMIT_SHA,
+    environment: clientRuntime
+      ? (process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV ?? "unknown")
+      : (process.env.VERCEL_ENV ?? process.env.NODE_ENV),
+    release: clientRuntime
+      ? process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
+      : process.env.VERCEL_GIT_COMMIT_SHA,
     sendDefaultPii: false,
     tracesSampleRate: 0,
   };
@@ -33,6 +37,8 @@ export function scrubSentryEvent(event: ErrorEvent): ErrorEvent | null {
 
   delete scrubbed.contexts;
   delete scrubbed.extra;
+  delete scrubbed.fingerprint;
+  delete scrubbed.logentry;
 
   delete scrubbed.message;
 
@@ -42,6 +48,16 @@ export function scrubSentryEvent(event: ErrorEvent): ErrorEvent | null {
       values: scrubbed.exception.values.map((value) => {
         const safe = { ...value };
         delete safe.value;
+        if (safe.stacktrace) {
+          safe.stacktrace = {
+            ...safe.stacktrace,
+            frames: safe.stacktrace.frames?.map((frame) => {
+              const safeFrame = { ...frame };
+              Reflect.deleteProperty(safeFrame, "vars");
+              return safeFrame;
+            }),
+          };
+        }
         return safe;
       }),
     };

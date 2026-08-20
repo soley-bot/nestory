@@ -27,11 +27,22 @@ describe("Sentry event privacy", () => {
       exception: {
         values: [
           {
+            stacktrace: {
+              frames: [
+                {
+                  filename: "src/components/widget.tsx",
+                  function: "Widget",
+                  vars: { owner: "Private Owner", rent: "100.00" },
+                },
+              ],
+            },
             type: "Error",
             value: "Property Riverside failed for USD 100.00",
           },
         ],
       },
+      fingerprint: ["Private Owner", "100.00"],
+      logentry: { message: "Private Owner owes 100.00" },
       message: "Failed for operator@example.com with Bearer abc123",
       request: {
         cookies: { session: "secret" },
@@ -61,7 +72,21 @@ describe("Sentry event privacy", () => {
     expect(event).toEqual(
       expect.objectContaining({
         breadcrumbs: [{ category: "ui.click", type: "user" }],
-        exception: { values: [{ type: "Error" }] },
+        exception: {
+          values: [
+            {
+              stacktrace: {
+                frames: [
+                  {
+                    filename: "src/components/widget.tsx",
+                    function: "Widget",
+                  },
+                ],
+              },
+              type: "Error",
+            },
+          ],
+        },
         request: {
           headers: { "user-agent": "browser" },
           url: "/properties/[propertyId]",
@@ -75,13 +100,17 @@ describe("Sentry event privacy", () => {
       }),
     );
     expect(event).not.toHaveProperty("extra");
+    expect(event).not.toHaveProperty("fingerprint");
+    expect(event).not.toHaveProperty("logentry");
     expect(event).not.toHaveProperty("message");
   });
 
   it("disables performance sampling and default PII", () => {
     process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN = "https://public@example.invalid/1";
-    process.env.VERCEL_ENV = "production";
-    process.env.VERCEL_GIT_COMMIT_SHA = "a".repeat(40);
+    process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA = "a".repeat(40);
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_GIT_COMMIT_SHA = "b".repeat(40);
 
     expect(buildSentryOptions("client")).toMatchObject({
       debug: false,
@@ -97,6 +126,14 @@ describe("Sentry event privacy", () => {
   it("disables delivery when the DSN is absent", () => {
     delete process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN;
     expect(buildSentryOptions("server").enabled).toBe(false);
+  });
+
+  it("keeps standalone production browser errors visible without Vercel metadata", () => {
+    process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN = "https://public@example.invalid/1";
+    delete process.env.NEXT_PUBLIC_VERCEL_ENV;
+    process.env = { ...process.env, NODE_ENV: "production" };
+
+    expect(buildSentryOptions("client").environment).toBe("production");
   });
 });
 
