@@ -532,6 +532,23 @@ async function enrichLeaseSummaries({
     ? await supabase.from("lease_deposit_events").select("id, lease_deposit_id, event_type, event_date, amount, currency, reference, reversal_of_id").eq("organization_id", organizationId).in("lease_deposit_id", depositIds).order("event_date", { ascending: false })
     : { data: [], error: null };
   if (depositEventsResult.error) throw new Error(`Could not load lease deposit events: ${depositEventsResult.error.message}`);
+  const depositLedgerEvidenceResult = depositIds.length
+    ? await supabase
+        .from("ledger_entries")
+        .select("source_id")
+        .eq("organization_id", organizationId)
+        .in("source_id", depositIds)
+    : { data: [], error: null };
+  if (depositLedgerEvidenceResult.error) {
+    throw new Error(
+      `Could not load deposit ledger evidence: ${depositLedgerEvidenceResult.error.message}`,
+    );
+  }
+  const depositLedgerEvidenceIds = new Set(
+    (depositLedgerEvidenceResult.data ?? [])
+      .map((entry) => entry.source_id)
+      .filter((sourceId): sourceId is string => Boolean(sourceId)),
+  );
   const eventsByDepositId = new Map<string, Array<{ id: string; event_type: string; event_date: string; amount: number; currency: CurrencyCode; reference: string | null; reversal_of_id: string | null }>>();
   for (const event of depositEventsResult.data ?? []) {
     const rows = eventsByDepositId.get(event.lease_deposit_id) ?? [];
@@ -629,6 +646,7 @@ async function enrichLeaseSummaries({
     return buildLeaseSummary({
       activationSchedule: activationScheduleByLeaseId.get(lease.id),
       activity: activityByLeaseId.get(lease.id) ?? [],
+      depositLedgerEvidenceIds,
       documents: documentsByLeaseId.get(lease.id) ?? [],
       ledgerEntryCount: countRelatedLedgerRows(lease, ledgerRows),
       lease: leaseRow,

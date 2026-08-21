@@ -193,6 +193,37 @@ describe("buildLeaseSummary", () => {
     expect(summary.deposits[0]).toMatchObject({ statusLabel: "Needs review" });
   });
 
+  it("surfaces zero-value deposit ledger evidence for review", () => {
+    const summary = buildLeaseSummary({
+      depositLedgerEvidenceIds: new Set(["deposit-zero-with-ledger"]),
+      deposits: [
+        {
+          amount: 0,
+          archived_at: null,
+          currency: "USD",
+          deposit_type: "security",
+          events: [],
+          id: "deposit-zero-with-ledger",
+          lease_id: "lease-1",
+          status: "pending",
+        },
+      ],
+      lease: {
+        ...lease,
+        deposit_amount: 0,
+        deposit_currency: "USD",
+      },
+      property,
+      unit,
+    });
+
+    expect(summary.deposits[0]).toMatchObject({ statusLabel: "Needs review" });
+    expect(summary.riskIndicators.find((risk) => risk.id === "deposit")).toMatchObject({
+      label: "Deposit needs review",
+      tone: "warning",
+    });
+  });
+
   it("surfaces exact term authority and rent readiness without fallback inference", () => {
     const summary = buildLeaseSummary({
       lease,

@@ -152,6 +152,7 @@ export type LeaseTimelineRow = {
 type BuildLeaseSummaryInput = {
   activationSchedule?: LeaseSummary["activationSchedule"];
   activity?: RecentChange[];
+  depositLedgerEvidenceIds?: ReadonlySet<string>;
   documents?: LeaseDocumentRow[];
   ledgerEntryCount?: number;
   lease: LeaseRow;
@@ -168,6 +169,7 @@ type BuildLeaseSummaryInput = {
 export function buildLeaseSummary({
   activationSchedule,
   activity = [],
+  depositLedgerEvidenceIds = new Set<string>(),
   documents = [],
   ledgerEntryCount = 0,
   lease,
@@ -227,7 +229,8 @@ export function buildLeaseSummary({
     (deposit) =>
       !deposit.archived_at &&
       Number(deposit.amount) === 0 &&
-      (deposit.events?.length ?? 0) > 0,
+      ((deposit.events?.length ?? 0) > 0 ||
+        depositLedgerEvidenceIds.has(deposit.id)),
   );
   const formValues: LeaseFormValues = {
     depositAmount,
@@ -277,9 +280,14 @@ export function buildLeaseSummary({
     depositLabel: hasDeposit
       ? formatMoney(depositAmount, depositCurrency)
       : "No deposit required",
-    deposits: deposits.filter((deposit) => !deposit.archived_at).map((deposit) =>
-      toDepositContext(deposit),
-    ),
+    deposits: deposits
+      .filter((deposit) => !deposit.archived_at)
+      .map((deposit) =>
+        toDepositContext(
+          deposit,
+          depositLedgerEvidenceIds.has(deposit.id),
+        ),
+      ),
     documents: activeDocuments.map(toDocumentContext),
     endDateLabel: formatDate(displayEndDate),
     formValues,
@@ -652,11 +660,16 @@ function formatOccupancyEvidenceRange({
   return `${formatDate(startDate)} - ${endLabel}`;
 }
 
-function toDepositContext(deposit: LeaseDepositRow): LeaseDepositContext {
+function toDepositContext(
+  deposit: LeaseDepositRow,
+  hasLedgerEvidence = false,
+): LeaseDepositContext {
   const reversedIds = new Set((deposit.events ?? []).filter((event) => event.reversal_of_id).map((event) => event.reversal_of_id!));
   const held = (deposit.events ?? []).filter((event) => !event.reversal_of_id && !reversedIds.has(event.id)).reduce((sum, event) => sum + (event.event_type === "received" ? Number(event.amount) : -Number(event.amount)), 0);
   const isZeroDeposit = Number(deposit.amount) === 0;
-  const zeroDepositHasEvidence = isZeroDeposit && (deposit.events?.length ?? 0) > 0;
+  const zeroDepositHasEvidence =
+    isZeroDeposit &&
+    ((deposit.events?.length ?? 0) > 0 || hasLedgerEvidence);
   return {
     amount: Number(deposit.amount),
     amountDisplay: formatMoneyDisplay(deposit.amount, deposit.currency),
