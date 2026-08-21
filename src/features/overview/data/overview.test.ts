@@ -130,6 +130,14 @@ describe("getOverviewScreenData", () => {
               property_id: "archived-property",
               unit_id: "archived-unit",
             },
+            {
+              lease_end_date: "2099-01-01",
+              monthly_rent_amount: 1200,
+              monthly_rent_currency: "USD",
+              primary_tenant_person_id: "person-3",
+              property_id: "inactive-property",
+              unit_id: null,
+            },
           ],
         },
         properties: {
@@ -139,6 +147,14 @@ describe("getOverviewScreenData", () => {
               id: "prop-1",
               name: "Central Residence",
               rental_structure: "multi_unit",
+              status: "active",
+            },
+            {
+              code: "OLD",
+              id: "inactive-property",
+              name: "Inactive House",
+              rental_structure: "single_space",
+              status: "inactive",
             },
           ],
         },
@@ -162,7 +178,7 @@ describe("getOverviewScreenData", () => {
     expect(data.metrics.find((metric) => metric.label === "Occupancy")?.value).toBe("100%");
     expect(data.attentionItems).toContainEqual(
       expect.objectContaining({
-        count: 1,
+        count: 2,
         id: "lease-scope-review",
         label: "Leases need placement review",
       }),

@@ -35,6 +35,7 @@ type PropertyRow = {
   id: string;
   name: string;
   rental_structure: string;
+  status: string;
 };
 
 type UnitRow = {
@@ -143,15 +144,17 @@ export async function getOverviewScreenData(
 
   let propertiesQuery = supabase
     .from("properties")
-    .select("id, code, name, rental_structure")
+    .select("id, code, name, rental_structure, status")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
+    .neq("status", "inactive")
     .order("code", { ascending: true });
   const propertyOptionsQuery = supabase
     .from("properties")
-    .select("id, code, name, rental_structure")
+    .select("id, code, name, rental_structure, status")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
+    .neq("status", "inactive")
     .order("code", { ascending: true });
   let unitsQuery = supabase
     .from("units")
@@ -282,7 +285,9 @@ export async function getOverviewScreenData(
   assertNoError(recentActivityResult.error, "overview activity");
 
   const properties = (propertiesResult.data ?? []) as PropertyRow[];
-  const propertyOptions = (propertyOptionsResult.data ?? []) as PropertyRow[];
+  const propertyOptions = (
+    (propertyOptionsResult.data ?? []) as PropertyRow[]
+  ).filter((property) => property.status !== "inactive");
   const operationalUnits = (unitsResult.data ?? []) as UnitRow[];
   const currentLeases = (leasesResult.data ?? []) as LeaseRow[];
   const ledgerRows = (ledgerWindowResult.data ?? []) as LedgerWindowRow[];
@@ -291,7 +296,9 @@ export async function getOverviewScreenData(
   const roles = (rolesResult.data ?? []) as PersonRoleRow[];
   const contacts = (contactsResult.data ?? []) as PersonContactRow[];
   const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
-  const activeProperties = properties;
+  const activeProperties = properties.filter(
+    (property) => property.status !== "inactive",
+  );
   const operationalLeaseScope = splitOperationalLeases({
     activeProperties,
     currentLeases,
