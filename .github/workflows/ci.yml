@@ -164,11 +164,13 @@ jobs:
         run: npm ci
 
       - name: Verify exact merged main SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          git fetch --no-tags origin main
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$MAIN_SHA" = "$GITHUB_SHA"
 
       - name: Verify production database credentials are configured
         env:

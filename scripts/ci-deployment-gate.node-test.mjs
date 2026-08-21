@@ -117,9 +117,17 @@ test("production database release is serialized and runs only from exact merged 
   }
 
   const shaCheck = getStep(release, "Verify exact merged main SHA");
-  assert.match(shaCheck, /git fetch --no-tags origin main/);
+  assert.match(
+    shaCheck,
+    /^          GH_TOKEN: \$\{\{ github\.token \}\}$/m,
+  );
+  assert.match(
+    shaCheck,
+    /gh api "repos\/\$GITHUB_REPOSITORY\/commits\/main" --jq '\.sha'/,
+  );
+  assert.doesNotMatch(shaCheck, /git fetch/);
   assert.match(shaCheck, /test "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA"/);
-  assert.match(shaCheck, /test "\$\(git rev-parse origin\/main\)" = "\$GITHUB_SHA"/);
+  assert.match(shaCheck, /test "\$MAIN_SHA" = "\$GITHUB_SHA"/);
 
   for (const stepName of [
     "Verify production database credentials are configured",
