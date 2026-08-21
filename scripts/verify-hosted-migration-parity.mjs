@@ -5,6 +5,7 @@ import {
   evaluateHostedMigrationHashes,
   evaluateHostedMigrationParity,
   hashGitMigrationBody,
+  isMigrationBodyEffectivelyEmpty,
   readHostedMigrationHashOutput,
   readMigrationListOutput,
   resolvePinnedSupabaseCliBinary,
@@ -46,6 +47,14 @@ try {
 }
 
 const parity = evaluateHostedMigrationParity({ ...versions, phase });
+for (const version of parity.pendingVersions) {
+  const migration = localMigrations.find((candidate) => candidate.version === version);
+  if (migration && isMigrationBodyEffectivelyEmpty(migration.body)) {
+    parity.issues.push(
+      `pending local migration is empty or comment-only: ${version}`,
+    );
+  }
+}
 const hashResult = await runCommandWithBoundedOutput(
   supabaseCli,
   [
@@ -140,21 +149,27 @@ migration_hashes as (
     migration.version,
     migration.name,
     count(statement.ordinality)::integer as statement_count,
-    sum(statement.byte_length)::bigint as statement_bytes,
-    jsonb_agg(
-      jsonb_build_object(
-        'byteLength', statement.byte_length,
-        'sha256', statement.statement_sha256
-      )
-      order by statement.ordinality
+    coalesce(sum(statement.byte_length), 0)::bigint as statement_bytes,
+    coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'byteLength', statement.byte_length,
+          'sha256', statement.statement_sha256
+        )
+        order by statement.ordinality
+      ) filter (where statement.ordinality is not null),
+      '[]'::jsonb
     ) as statement_descriptors,
-    string_agg(
-      's' || statement.byte_length || ':' || statement.statement_sha256,
+    coalesce(
+      string_agg(
+        's' || statement.byte_length || ':' || statement.statement_sha256,
+        ''
+        order by statement.ordinality
+      ),
       ''
-      order by statement.ordinality
     ) as descriptor_stream
   from supabase_migrations.schema_migrations as migration
-  join statement_hashes as statement
+  left join statement_hashes as statement
     on statement.version = migration.version
    and statement.name = migration.name
   group by migration.version, migration.name
@@ -184,9 +199,12 @@ select
           'version', migration.version,
           'name', migration.name,
           'statements', (
-            select jsonb_agg(
-              replace(replace(item.statement, E'\\r\\n', E'\\n'), E'\\r', E'\\n')
-              order by item.ordinality
+            select coalesce(
+              jsonb_agg(
+                replace(replace(item.statement, E'\\r\\n', E'\\n'), E'\\r', E'\\n')
+                order by item.ordinality
+              ),
+              '[]'::jsonb
             )
             from unnest(migration.statements)
               with ordinality as item(statement, ordinality)

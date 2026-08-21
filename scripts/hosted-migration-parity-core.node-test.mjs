@@ -9,6 +9,7 @@ import {
   evaluateHostedMigrationHashes,
   evaluateHostedMigrationParity,
   hashGitMigrationBody,
+  isMigrationBodyEffectivelyEmpty,
   readHostedMigrationHashOutput,
   readMigrationListOutput,
   readMigrationVersions,
@@ -183,6 +184,37 @@ test("a one-byte SQL change changes the canonical hash and fails closed", () => 
   );
 });
 
+test("empty migrations are detected before push and zero-statement rows remain hashable", () => {
+  assert.equal(isMigrationBodyEffectivelyEmpty("\uFEFF; -- note\n/* outer /* nested */ note */\n"), true);
+  assert.equal(isMigrationBodyEffectivelyEmpty("/* note */\nselect 1;\n"), false);
+
+  const version = "20260801000000";
+  const name = "empty_example";
+  const canonicalSha256 = canonicalMigrationHash({
+    version,
+    name,
+    statements: [],
+  });
+  const [parsed] = readHostedMigrationHashOutput(
+    JSON.stringify({
+      rows: [
+        {
+          version,
+          name,
+          statement_count: 0,
+          statement_bytes: 0,
+          statement_descriptors: [],
+          canonical_sha256: canonicalSha256,
+          hosted_ledger_db_sha256:
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
+      ],
+    }),
+  );
+  assert.equal(parsed.statementCount, 0);
+  assert.equal(parsed.canonicalSha256, canonicalSha256);
+});
+
 test("legacy exceptions require separately pinned Git and hosted hashes", () => {
   const local = {
     version: "20260801000000",
@@ -331,6 +363,8 @@ test("production verifier forces agent JSON and never transports raw statements"
     "utf8",
   );
   assert.match(source, /"--agent",\s*"yes"/);
+  assert.match(source, /left join statement_hashes as statement/i);
+  assert.match(source, /pending local migration is empty or comment-only/);
   assert.doesNotMatch(source, /select version, name, statements from/i);
 });
 

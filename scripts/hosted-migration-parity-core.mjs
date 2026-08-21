@@ -349,7 +349,6 @@ export function canonicalMigrationHash({ version, name, statements }) {
     !migrationVersionPattern.test(normalizedVersion) ||
     !migrationNamePattern.test(normalizedName) ||
     !Array.isArray(statements) ||
-    statements.length === 0 ||
     statements.some((statement) => !isStatementDescriptor(statement))
   ) {
     throw new Error("cannot hash malformed migration descriptors");
@@ -442,6 +441,44 @@ export function readMigrationListOutput(output) {
 
 export function hashGitMigrationBody(body) {
   return sha256(normalizeMigrationText(body).replace(/^\uFEFF/, ""));
+}
+
+export function isMigrationBodyEffectivelyEmpty(body) {
+  const text = normalizeMigrationText(body).replace(/^\uFEFF/, "");
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const separator = separatorPattern.exec(text.slice(cursor))?.[0] ?? "";
+    cursor += separator.length;
+    if (cursor >= text.length) return true;
+
+    if (text.startsWith("--", cursor)) {
+      const newline = text.indexOf("\n", cursor + 2);
+      cursor = newline === -1 ? text.length : newline + 1;
+      continue;
+    }
+
+    if (text.startsWith("/*", cursor)) {
+      cursor += 2;
+      let depth = 1;
+      while (cursor < text.length && depth > 0) {
+        if (text.startsWith("/*", cursor)) {
+          depth += 1;
+          cursor += 2;
+        } else if (text.startsWith("*/", cursor)) {
+          depth -= 1;
+          cursor += 2;
+        } else {
+          cursor += 1;
+        }
+      }
+      continue;
+    }
+
+    return false;
+  }
+
+  return true;
 }
 
 function readLocalMigrationMap(localMigrations, issues) {
@@ -546,9 +583,9 @@ function isRemoteMigrationHash(migration) {
     migrationVersionPattern.test(String(migration.version ?? "")) &&
     migrationNamePattern.test(String(migration.name ?? "")) &&
     Number.isSafeInteger(migration.statementCount) &&
-    migration.statementCount > 0 &&
+    migration.statementCount >= 0 &&
     Number.isSafeInteger(migration.statementBytes) &&
-    migration.statementBytes > 0 &&
+    migration.statementBytes >= 0 &&
     Array.isArray(migration.statements) &&
     migration.statements.length === migration.statementCount &&
     migration.statements.every(isStatementDescriptor) &&
