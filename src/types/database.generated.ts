@@ -9595,19 +9595,31 @@ export type Database = {
         }
         Returns: string
       }
-      create_unit: {
-        Args: {
-          p_bathroom_count: number
-          p_bedroom_count: number
-          p_floor: string
-          p_organization_id: string
-          p_property_id: string
-          p_size_sqm: number
-          p_status: string
-          p_unit_number: string
-        }
-        Returns: string
-      }
+      create_unit:
+        | {
+            Args: {
+              p_bathroom_count: number
+              p_bedroom_count: number
+              p_floor: string
+              p_organization_id: string
+              p_property_id: string
+              p_size_sqm: number
+              p_status: string
+              p_unit_number: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_floor: string
+              p_organization_id: string
+              p_property_id: string
+              p_size_sqm: number
+              p_status: string
+              p_unit_number: string
+            }
+            Returns: string
+          }
       execute_assigned_maintenance_task: {
         Args: {
           p_action: string
@@ -11109,20 +11121,33 @@ export type Database = {
         }
         Returns: string
       }
-      update_unit: {
-        Args: {
-          p_bathroom_count: number
-          p_bedroom_count: number
-          p_floor: string
-          p_organization_id: string
-          p_property_id: string
-          p_size_sqm: number
-          p_status: string
-          p_unit_id: string
-          p_unit_number: string
-        }
-        Returns: string
-      }
+      update_unit:
+        | {
+            Args: {
+              p_bathroom_count: number
+              p_bedroom_count: number
+              p_floor: string
+              p_organization_id: string
+              p_property_id: string
+              p_size_sqm: number
+              p_status: string
+              p_unit_id: string
+              p_unit_number: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_floor: string
+              p_organization_id: string
+              p_property_id: string
+              p_size_sqm: number
+              p_status: string
+              p_unit_id: string
+              p_unit_number: string
+            }
+            Returns: string
+          }
       void_petty_cash_entry: {
         Args: {
           p_entry_id: string

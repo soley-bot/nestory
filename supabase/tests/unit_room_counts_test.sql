@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(33);
+SELECT plan(41);
 
 SELECT has_column('public', 'units', 'bedroom_count', 'units store bedroom counts');
 SELECT has_column('public', 'units', 'bathroom_count', 'units store bathroom counts');
@@ -51,18 +51,76 @@ SELECT has_function(
   'checked unit editing accepts optional room counts'
 );
 
-SELECT hasnt_function(
+SELECT has_function(
   'public',
   'create_unit',
   ARRAY['uuid', 'uuid', 'text', 'text', 'numeric', 'text'],
-  'the room-count-bypassing create signature is absent'
+  'the previous create signature remains available for rollback'
 );
 
-SELECT hasnt_function(
+SELECT has_function(
   'public',
   'update_unit',
   ARRAY['uuid', 'uuid', 'uuid', 'text', 'text', 'numeric', 'text'],
-  'the room-count-bypassing update signature is absent'
+  'the previous update signature remains available for rollback'
+);
+
+SELECT ok(
+  has_function_privilege(
+    'authenticated',
+    'public.create_unit(uuid,uuid,text,text,numeric,text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    'authenticated',
+    'public.create_unit(uuid,uuid,text,text,numeric,numeric,numeric,text)',
+    'EXECUTE'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc function_record
+    CROSS JOIN LATERAL aclexplode(
+      coalesce(function_record.proacl, acldefault('f', function_record.proowner))
+    ) AS privilege_record
+    WHERE function_record.oid = ANY (
+      ARRAY[
+        to_regprocedure('public.create_unit(uuid,uuid,text,text,numeric,text)'),
+        to_regprocedure('public.create_unit(uuid,uuid,text,text,numeric,numeric,numeric,text)')
+      ]
+    )
+      AND privilege_record.grantee = 0
+      AND privilege_record.privilege_type = 'EXECUTE'
+  ),
+  'both create overloads grant authenticated execution without PUBLIC execution'
+);
+
+SELECT ok(
+  has_function_privilege(
+    'authenticated',
+    'public.update_unit(uuid,uuid,uuid,text,text,numeric,text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    'authenticated',
+    'public.update_unit(uuid,uuid,uuid,text,text,numeric,numeric,numeric,text)',
+    'EXECUTE'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc function_record
+    CROSS JOIN LATERAL aclexplode(
+      coalesce(function_record.proacl, acldefault('f', function_record.proowner))
+    ) AS privilege_record
+    WHERE function_record.oid = ANY (
+      ARRAY[
+        to_regprocedure('public.update_unit(uuid,uuid,uuid,text,text,numeric,text)'),
+        to_regprocedure('public.update_unit(uuid,uuid,uuid,text,text,numeric,numeric,numeric,text)')
+      ]
+    )
+      AND privilege_record.grantee = 0
+      AND privilege_record.privilege_type = 'EXECUTE'
+  ),
+  'both update overloads grant authenticated execution without PUBLIC execution'
 );
 
 SELECT throws_ok(
@@ -88,11 +146,35 @@ SELECT throws_ok(
   'anonymous callers cannot update unit room counts'
 );
 
+SELECT throws_ok(
+  $$
+    SELECT public.create_unit(
+      gen_random_uuid(), gen_random_uuid(), '1A', '1', 48, 'vacant'
+    )
+  $$,
+  '28000',
+  'Not authenticated',
+  'the rollback create overload preserves the authentication check'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.update_unit(
+      gen_random_uuid(), gen_random_uuid(), gen_random_uuid(),
+      '1A', '1', 48, 'vacant'
+    )
+  $$,
+  '28000',
+  'Not authenticated',
+  'the rollback update overload preserves the authentication check'
+);
+
 CREATE TEMP TABLE unit_room_count_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
   unauthorized_id uuid NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
   property_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  legacy_unit_id uuid,
   null_unit_id uuid,
   zero_unit_id uuid,
   unit_id uuid
@@ -191,6 +273,34 @@ SELECT results_eq(
 );
 
 UPDATE unit_room_count_state
+SET legacy_unit_id = public.create_unit(
+  organization_id, property_id, 'LEGACY', '1', 48, 'vacant'
+);
+
+SELECT results_eq(
+  $$
+    SELECT bedroom_count, bathroom_count
+    FROM public.units
+    WHERE id = (SELECT legacy_unit_id FROM unit_room_count_state)
+  $$,
+  $$ VALUES (NULL::smallint, NULL::smallint) $$,
+  'the rollback create overload persists unknown room counts'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      jsonb_typeof(new_values -> 'bedroom_count'),
+      jsonb_typeof(new_values -> 'bathroom_count')
+    FROM public.activity_logs
+    WHERE entity_id = (SELECT legacy_unit_id FROM unit_room_count_state)
+      AND action = 'unit_created'
+  $$,
+  $$ VALUES ('null'::text, 'null'::text) $$,
+  'the rollback create overload keeps room-count keys in activity evidence'
+);
+
+UPDATE unit_room_count_state
 SET zero_unit_id = public.create_unit(
   organization_id, property_id, 'ZERO', '1', 48, 0, 0, 'vacant'
 );
@@ -260,6 +370,42 @@ SELECT results_eq(
   $$ VALUES ('3'::text, '2'::text, '4'::text, '3'::text) $$,
   'unit editing records previous and new counts in activity evidence'
 );
+
+SELECT public.update_unit(
+  unit_id, organization_id, property_id, 'ROOMS', '2', 72, 'vacant'
+)
+FROM unit_room_count_state;
+
+SELECT results_eq(
+  $$
+    SELECT bedroom_count, bathroom_count
+    FROM public.units
+    WHERE id = (SELECT unit_id FROM unit_room_count_state)
+  $$,
+  $$ VALUES (NULL::smallint, NULL::smallint) $$,
+  'the rollback update overload persists unknown room counts'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      previous_values ->> 'bedroom_count',
+      previous_values ->> 'bathroom_count',
+      jsonb_typeof(new_values -> 'bedroom_count'),
+      jsonb_typeof(new_values -> 'bathroom_count')
+    FROM public.activity_logs
+    WHERE entity_id = (SELECT unit_id FROM unit_room_count_state)
+      AND action = 'unit_updated'
+      AND previous_values ->> 'bedroom_count' = '4'
+  $$,
+  $$ VALUES ('4'::text, '3'::text, 'null'::text, 'null'::text) $$,
+  'the rollback update overload records the compatible change in activity evidence'
+);
+
+SELECT public.update_unit(
+  unit_id, organization_id, property_id, 'ROOMS', '2', 72, 5, 4, 'vacant'
+)
+FROM unit_room_count_state;
 
 SELECT public.update_unit(
   unit_id, organization_id, property_id, 'ROOMS', '2', 72, NULL, NULL, 'vacant'

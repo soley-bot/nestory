@@ -158,6 +158,46 @@ GRANT EXECUTE ON FUNCTION public.create_unit(
 )
   TO authenticated;
 
+-- Preserve the pre-room-count overload during the database-first deployment
+-- window and for application rollback. It intentionally records unknown
+-- counts while delegating every authorization and audit check to the new RPC.
+CREATE FUNCTION public.create_unit(
+  p_organization_id uuid,
+  p_property_id uuid,
+  p_unit_number text,
+  p_floor text,
+  p_size_sqm numeric,
+  p_status text
+)
+RETURNS uuid
+LANGUAGE sql
+SET search_path TO public, app_private
+AS $$
+  SELECT public.create_unit(
+    p_organization_id,
+    p_property_id,
+    p_unit_number,
+    p_floor,
+    p_size_sqm,
+    NULL::numeric,
+    NULL::numeric,
+    p_status
+  );
+$$;
+
+ALTER FUNCTION public.create_unit(
+  uuid, uuid, text, text, numeric, text
+)
+  OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.create_unit(
+  uuid, uuid, text, text, numeric, text
+)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_unit(
+  uuid, uuid, text, text, numeric, text
+)
+  TO authenticated;
+
 DROP FUNCTION IF EXISTS public.update_unit(
   uuid, uuid, uuid, text, text, numeric, text
 );
@@ -325,6 +365,47 @@ GRANT EXECUTE ON FUNCTION public.update_unit(
 )
   TO authenticated;
 
+-- Keep the former edit contract callable until the application release is
+-- proven and for rollback. Unknown room counts remain distinct from zero.
+CREATE FUNCTION public.update_unit(
+  p_unit_id uuid,
+  p_organization_id uuid,
+  p_property_id uuid,
+  p_unit_number text,
+  p_floor text,
+  p_size_sqm numeric,
+  p_status text
+)
+RETURNS uuid
+LANGUAGE sql
+SET search_path TO public, app_private
+AS $$
+  SELECT public.update_unit(
+    p_unit_id,
+    p_organization_id,
+    p_property_id,
+    p_unit_number,
+    p_floor,
+    p_size_sqm,
+    NULL::numeric,
+    NULL::numeric,
+    p_status
+  );
+$$;
+
+ALTER FUNCTION public.update_unit(
+  uuid, uuid, uuid, text, text, numeric, text
+)
+  OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.update_unit(
+  uuid, uuid, uuid, text, text, numeric, text
+)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.update_unit(
+  uuid, uuid, uuid, text, text, numeric, text
+)
+  TO authenticated;
+
 COMMENT ON COLUMN public.units.bedroom_count IS
   'Optional whole-number bedroom count. NULL means unknown; zero is intentional.';
 COMMENT ON COLUMN public.units.bathroom_count IS
@@ -337,3 +418,11 @@ COMMENT ON FUNCTION public.update_unit(
   uuid, uuid, uuid, text, text, numeric, numeric, numeric, text
 ) IS
   'Updates unit identity and physical details, including optional room counts, without changing authoritative rent.';
+COMMENT ON FUNCTION public.create_unit(
+  uuid, uuid, text, text, numeric, text
+) IS
+  'Compatibility overload for application rollback; creates Units with unknown bedroom and bathroom counts.';
+COMMENT ON FUNCTION public.update_unit(
+  uuid, uuid, uuid, text, text, numeric, text
+) IS
+  'Compatibility overload for application rollback; edits Units with unknown bedroom and bathroom counts.';
