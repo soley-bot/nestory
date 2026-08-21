@@ -325,7 +325,7 @@ function leaseAuthorityRpcPayload(
     p_rent_currency: "USD",
     p_rent_due_day: Number(values.rentDueDay),
     p_term_status: values.termStatus,
-    p_unit_id: values.unitId,
+    p_unit_id: (values.unitId || null) as string,
   } as const;
 }
 
