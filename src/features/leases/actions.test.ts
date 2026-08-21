@@ -1,7 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireLeaseConfigurationContext, revalidatePath, rpc } = vi.hoisted(
+const {
+  from,
+  leasePathQuery,
+  requireLeaseConfigurationContext,
+  revalidatePath,
+  rpc,
+} = vi.hoisted(
   () => ({
+    from: vi.fn(),
+    leasePathQuery: {
+      eq: vi.fn(),
+      maybeSingle: vi.fn(),
+      select: vi.fn(),
+    },
     requireLeaseConfigurationContext: vi.fn(),
     revalidatePath: vi.fn(),
     rpc: vi.fn(),
@@ -11,7 +23,7 @@ const { requireLeaseConfigurationContext, revalidatePath, rpc } = vi.hoisted(
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({ requireLeaseConfigurationContext }));
 vi.mock("@/lib/db/server", () => ({
-  createSupabaseServerClient: async () => ({ rpc }),
+  createSupabaseServerClient: async () => ({ from, rpc }),
 }));
 
 import {
@@ -21,6 +33,7 @@ import {
   reverseLeaseDepositEventAction,
   scheduleLeaseActivationAction,
   transitionLeaseLifecycleAction,
+  updateLeaseAction,
 } from "@/features/leases/actions";
 
 const leaseId = "30000000-0000-0000-0000-000000000001";
@@ -31,9 +44,20 @@ const unitId = "20000000-0000-0000-0000-000000000001";
 
 describe("Lease occupancy evidence input", () => {
   beforeEach(() => {
+    from.mockReset();
+    leasePathQuery.eq.mockReset();
+    leasePathQuery.maybeSingle.mockReset();
+    leasePathQuery.select.mockReset();
     requireLeaseConfigurationContext.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
+    from.mockReturnValue(leasePathQuery);
+    leasePathQuery.eq.mockReturnValue(leasePathQuery);
+    leasePathQuery.maybeSingle.mockResolvedValue({
+      data: { property_id: propertyId, unit_id: unitId },
+      error: null,
+    });
+    leasePathQuery.select.mockReturnValue(leasePathQuery);
     requireLeaseConfigurationContext.mockResolvedValue({ organizationId });
     rpc.mockResolvedValue({ data: { leaseId }, error: null });
   });
@@ -123,6 +147,32 @@ describe("Lease occupancy evidence input", () => {
       p_rent_due_day: 1,
       p_term_status: "draft",
     });
+  });
+
+  it("updates a whole-property draft with a nullable Unit RPC argument", async () => {
+    const formData = leaseForm();
+    formData.set("leaseId", leaseId);
+    formData.set("status", "draft");
+    formData.set("termStatus", "draft");
+    formData.set("unitId", "");
+    formData.set("rentDueDay", "22");
+    leasePathQuery.maybeSingle.mockResolvedValueOnce({
+      data: { property_id: propertyId, unit_id: null },
+      error: null,
+    });
+
+    await expect(updateLeaseAction({}, formData)).resolves.toMatchObject({
+      leaseId,
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "update_lease_with_authoritative_term",
+      expect.objectContaining({
+        p_lease_id: leaseId,
+        p_rent_due_day: 22,
+        p_unit_id: null,
+      }),
+    );
   });
 
   it("records current occupancy through the narrow append-only repair RPC", async () => {
