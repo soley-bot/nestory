@@ -733,6 +733,16 @@ SELECT is(
   'Finance Manager can load the authoritative issued Invoice publication source'
 );
 
+SELECT is(
+  public.get_tenant_commercial_document_publication_source(
+    'a0000000-0000-4000-8000-000000000001',
+    'receipt',
+    'a9000000-0000-4000-8000-000000000001'
+  )->'payment'->>'amount_previously_paid',
+  '0.00',
+  'the first Receipt publication source preserves exact two-decimal money'
+);
+
 SELECT throws_ok(
   $$
     SELECT public.get_tenant_commercial_document_publication_source(

@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import type { AnchorHTMLAttributes } from "react";
 
 const financeActionMocks = vi.hoisted(() => ({
   publishTenantInvoicePdfAction: vi.fn(),
@@ -27,6 +28,14 @@ vi.mock("../actions", async (importOriginal) => {
     retryTenantReceiptPdfAction: financeActionMocks.retryTenantReceiptPdfAction,
   };
 });
+
+vi.mock("next/link", () => ({
+  default: ({ children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a {...props} data-next-link="true">
+      {children}
+    </a>
+  ),
+}));
 
 import { FinanceOperationsScreen } from "./finance-operations-screen";
 import type { FinanceOperationsData } from "../finance-operations.types";
@@ -1447,11 +1456,13 @@ describe("FinanceOperationsScreen", () => {
     );
     const details = screen.getByRole("dialog", { name: "Invoice details" });
     expect(within(details).getByText("Reversed")).not.toBeNull();
-    expect(
-      within(details).getByRole("link", { name: "Download receipt" }).getAttribute(
-        "href",
-      ),
-    ).toBe("/api/finance/documents/receipt-artifact");
+    const receiptDownload = within(details).getByRole("link", {
+      name: "Download receipt",
+    });
+    expect(receiptDownload.getAttribute("href")).toBe(
+      "/api/finance/documents/receipt-artifact",
+    );
+    expect(receiptDownload.getAttribute("data-next-link")).toBeNull();
 
     const failedInvoice = tenantInvoice();
     failedInvoice.collectionRoute = "through_ips";
@@ -1605,11 +1616,13 @@ describe("FinanceOperationsScreen", () => {
     await user.click(
       within(paymentDialog).getByRole("button", { name: "Record payment" }),
     );
-    expect(
-      (await screen.findByRole("link", { name: "Download receipt" })).getAttribute(
-        "href",
-      ),
-    ).toBe("/api/finance/documents/new-receipt");
+    const immediateReceiptDownload = await screen.findByRole("link", {
+      name: "Download receipt",
+    });
+    expect(immediateReceiptDownload.getAttribute("href")).toBe(
+      "/api/finance/documents/new-receipt",
+    );
+    expect(immediateReceiptDownload.getAttribute("data-next-link")).toBeNull();
 
     cleanup();
     financeActionMocks.recordTenantInvoicePaymentAction.mockResolvedValueOnce({

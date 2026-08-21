@@ -302,12 +302,12 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" role="status">
               <span>{statusMessage}</span>
               {receiptResult?.href ? (
-                <Link
+                <a
                   className="font-medium text-primary underline-offset-2 hover:underline"
                   href={receiptResult.href}
                 >
                   Download receipt
-                </Link>
+                </a>
               ) : receiptResult?.unavailable && receiptResult.paymentId ? (
                 <ReceiptAction
                   canRetry={props.canRecordPayments}
@@ -1965,12 +1965,12 @@ function ReceiptAction({
 
   if (href) {
     return (
-      <Link
+      <a
         className="font-medium text-primary underline-offset-2 hover:underline"
         href={href}
       >
         Download receipt
-      </Link>
+      </a>
     );
   }
 
