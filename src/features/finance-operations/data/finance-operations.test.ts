@@ -417,10 +417,19 @@ describe("commercial document links", () => {
 
   it("uses one organization-scoped artifact read for every loaded invoice and IPS payment id", async () => {
     // Break caught: N+1 artifact reads or a query that can return another organization's rows.
+    let selectedIds: readonly string[] = [];
     const query = {
       eq: vi.fn().mockReturnThis(),
-      in: vi.fn().mockResolvedValue({ data: [], error: null }),
+      in: vi.fn((_column: string, ids: readonly string[]) => {
+        selectedIds = ids;
+        return query;
+      }),
+      order: vi.fn().mockReturnThis(),
+      range: vi.fn().mockResolvedValue({ data: [], error: null }),
       select: vi.fn().mockReturnThis(),
+      then: vi.fn((resolve: (value: unknown) => unknown) =>
+        resolve({ data: selectedIds.length > 0 ? [] : null, error: null }),
+      ),
     };
     const client = { from: vi.fn().mockReturnValue(query) };
 
@@ -446,6 +455,71 @@ describe("commercial document links", () => {
       paymentId,
       "99999999-9999-4999-8999-999999999999",
     ]);
+    expect(query.range).toHaveBeenCalledWith(0, 499);
+  });
+
+  it("loads published artifacts beyond the Data API row cap in bounded source batches", async () => {
+    // Break caught: one unpaginated .in() query silently dropping artifacts after max_rows.
+    const invoiceIds = Array.from(
+      { length: 1205 },
+      (_, index) => `invoice-${index.toString().padStart(4, "0")}`,
+    );
+    const rows = invoiceIds.map((sourceId, index) => ({
+      document_number: `INV-${index.toString().padStart(4, "0")}`,
+      id: `artifact-${index.toString().padStart(4, "0")}`,
+      organization_id: organizationId,
+      presentation_snapshot: null,
+      publication_status: "published",
+      published_at: "2026-08-20T11:00:00Z",
+      source_id: sourceId,
+      source_kind: "invoice",
+    }));
+    let selectedIds: readonly string[] = [];
+    const queries: Array<{
+      range: ReturnType<typeof vi.fn>;
+    }> = [];
+    const client = {
+      from: vi.fn(() => {
+        const query = {
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn((_column: string, ids: readonly string[]) => {
+            selectedIds = ids;
+            return query;
+          }),
+          order: vi.fn().mockReturnThis(),
+          range: vi.fn((from: number, to: number) =>
+            Promise.resolve({
+              data: rows
+                .filter((row) => selectedIds.includes(row.source_id))
+                .slice(from, to + 1),
+              error: null,
+            }),
+          ),
+          select: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (value: unknown) => unknown) =>
+            resolve({ data: rows.slice(0, 1000), error: null }),
+          ),
+        };
+        queries.push(query);
+        return query;
+      }),
+    };
+
+    const links = await loadCommercialDocumentLinks(
+      client as never,
+      organizationId,
+      invoiceIds,
+      [],
+    );
+
+    expect(links.invoices.get(invoiceIds.at(-1)!)).toMatchObject({
+      artifactId: rows.at(-1)!.id,
+      publicationStatus: "published",
+    });
+    expect(client.from).toHaveBeenCalledTimes(13);
+    expect(queries.every((query) => query.range.mock.calls.length === 1)).toBe(
+      true,
+    );
   });
 });
 

@@ -271,8 +271,8 @@ SELECT results_eq(
     GROUP BY cmd
     ORDER BY cmd
   $$,
-  $$VALUES ('INSERT'::text, 1::bigint), ('SELECT'::text, 1::bigint)$$,
-  'commercial-document Storage has create and read policies but no update or delete path'
+  $$VALUES ('SELECT'::text, 1::bigint)$$,
+  'commercial-document Storage is readable by finance roles but writable only by the trusted server path'
 );
 
 SELECT ok(
@@ -675,53 +675,71 @@ SELECT pg_catalog.set_config(
   true
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   $$
     INSERT INTO storage.objects (id, bucket_id, name, owner_id, metadata, version)
-    VALUES
-      (
-        'c0000000-0000-4000-8000-000000000001',
-        'tenant-commercial-documents',
-        'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000001/INV-1001.pdf',
-        'a1000000-0000-4000-8000-000000000001',
-        '{"mimetype":"application/pdf","size":1024}'::jsonb,
-        'tenant-commercial-document-v1-invoice-current'
-      ),
-      (
-        'c0000000-0000-4000-8000-000000000002',
-        'tenant-commercial-documents',
-        'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000001/RCP-1001.pdf',
-        'a1000000-0000-4000-8000-000000000001',
-        '{"mimetype":"application/pdf","size":2048}'::jsonb,
-        'tenant-commercial-document-v1-receipt-current'
-      ),
-      (
-        'c0000000-0000-4000-8000-000000000003',
-        'tenant-commercial-documents',
-        'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000002/INV-VOID-1002.pdf',
-        'a1000000-0000-4000-8000-000000000001',
-        '{"mimetype":"application/pdf","size":1024}'::jsonb,
-        'tenant-commercial-document-v1-invoice-void'
-      ),
-      (
-        'c0000000-0000-4000-8000-000000000004',
-        'tenant-commercial-documents',
-        'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000002/RCP-REV-1002.pdf',
-        'a1000000-0000-4000-8000-000000000001',
-        '{"mimetype":"application/pdf","size":2048}'::jsonb,
-        'tenant-commercial-document-v1-receipt-reversal'
-      ),
-      (
-        'c0000000-0000-4000-8000-000000000005',
-        'tenant-commercial-documents',
-        'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000003/RCP-OWNER-1003.pdf',
-        'a1000000-0000-4000-8000-000000000001',
-        '{"mimetype":"application/pdf","size":2048}'::jsonb,
-        'tenant-commercial-document-v1-receipt-direct-owner'
-      )
+    VALUES (
+      'c0000000-0000-4000-8000-000000000099',
+      'tenant-commercial-documents',
+      'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000001/BLOCKED.pdf',
+      'a1000000-0000-4000-8000-000000000001',
+      '{"mimetype":"application/pdf","size":1024}'::jsonb,
+      'tenant-commercial-document-blocked'
+    )
   $$,
-  'Finance Manager can upload create-only PDFs inside valid organization/source paths'
+  '42501',
+  'new row violates row-level security policy for table "objects"',
+  'Finance Manager cannot reserve a tenant commercial document Storage path'
 );
+
+RESET ROLE;
+SET LOCAL ROLE service_role;
+
+INSERT INTO storage.objects (id, bucket_id, name, owner_id, metadata, version)
+VALUES
+  (
+    'c0000000-0000-4000-8000-000000000001',
+    'tenant-commercial-documents',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000001/INV-1001.pdf',
+    'a1000000-0000-4000-8000-000000000001',
+    '{"mimetype":"application/pdf","size":1024}'::jsonb,
+    'tenant-commercial-document-v1-invoice-current'
+  ),
+  (
+    'c0000000-0000-4000-8000-000000000002',
+    'tenant-commercial-documents',
+    'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000001/RCP-1001.pdf',
+    'a1000000-0000-4000-8000-000000000001',
+    '{"mimetype":"application/pdf","size":2048}'::jsonb,
+    'tenant-commercial-document-v1-receipt-current'
+  ),
+  (
+    'c0000000-0000-4000-8000-000000000003',
+    'tenant-commercial-documents',
+    'a0000000-0000-4000-8000-000000000001/invoice/a7000000-0000-4000-8000-000000000002/INV-VOID-1002.pdf',
+    'a1000000-0000-4000-8000-000000000001',
+    '{"mimetype":"application/pdf","size":1024}'::jsonb,
+    'tenant-commercial-document-v1-invoice-void'
+  ),
+  (
+    'c0000000-0000-4000-8000-000000000004',
+    'tenant-commercial-documents',
+    'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000002/RCP-REV-1002.pdf',
+    'a1000000-0000-4000-8000-000000000001',
+    '{"mimetype":"application/pdf","size":2048}'::jsonb,
+    'tenant-commercial-document-v1-receipt-reversal'
+  ),
+  (
+    'c0000000-0000-4000-8000-000000000005',
+    'tenant-commercial-documents',
+    'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000003/RCP-OWNER-1003.pdf',
+    'a1000000-0000-4000-8000-000000000001',
+    '{"mimetype":"application/pdf","size":2048}'::jsonb,
+    'tenant-commercial-document-v1-receipt-direct-owner'
+  );
+
+RESET ROLE;
+SET LOCAL ROLE authenticated;
 
 SELECT is(
   public.get_tenant_commercial_document_publication_source(
@@ -1420,7 +1438,7 @@ SELECT throws_ok(
   'published artifacts cannot be deleted'
 );
 
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE service_role;
 SELECT pg_catalog.set_config(
   'request.jwt.claim.sub',
   'a1000000-0000-4000-8000-000000000001',
@@ -1440,7 +1458,7 @@ SELECT lives_ok(
       'tenant-commercial-document-v1-invoice-short-safe-number'
     )
   $$,
-  'Storage accepts a one-character basename derived from an authoritative number'
+  'the trusted server upload path accepts a one-character authoritative basename'
 );
 
 RESET ROLE;

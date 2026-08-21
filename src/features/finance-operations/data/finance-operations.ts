@@ -782,19 +782,28 @@ export async function loadCommercialDocumentLinks(
     };
   }
 
-  const { data, error } = await supabase
-    .from("tenant_commercial_document_artifacts")
-    .select(
-      "id, organization_id, source_kind, source_id, document_number, publication_status, published_at, presentation_snapshot",
-    )
-    .eq("organization_id", organizationId)
-    .in("source_id", sourceIds);
-  if (error) {
+  const result = await fetchRowsByIdBatches<CommercialDocumentArtifactRow>(
+    sourceIds,
+    async (batchIds, from, to) => {
+      const { data, error } = await supabase
+        .from("tenant_commercial_document_artifacts")
+        .select(
+          "id, organization_id, source_kind, source_id, document_number, publication_status, published_at, presentation_snapshot",
+        )
+        .eq("organization_id", organizationId)
+        .in("source_id", [...batchIds])
+        .order("source_id")
+        .order("source_kind")
+        .range(from, to);
+      return { data, error };
+    },
+  );
+  if (result.error) {
     throw new Error("Could not load commercial document status.");
   }
   return mapCommercialDocumentLinks(
     organizationId,
-    (data ?? []) as CommercialDocumentArtifactRow[],
+    result.data ?? [],
     invoiceIds,
     ipsPaymentIds,
   );
