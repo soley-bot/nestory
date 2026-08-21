@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -7,6 +8,7 @@ import {
   readHostedMigrationLedgerOutput,
   readMigrationListOutput,
   readMigrationVersions,
+  resolvePinnedSupabaseCliBinary,
   runCommandWithBoundedOutput,
 } from "./hosted-migration-parity-core.mjs";
 
@@ -286,4 +288,11 @@ test("streams CLI output while enforcing an explicit capture limit", async () =>
     result.error?.message ?? "",
     /stdout exceeded 1024 byte capture limit/,
   );
+});
+
+test("resolves the pinned native Supabase CLI without the npm exec shim", () => {
+  const binary = resolvePinnedSupabaseCliBinary();
+
+  assert.match(path.basename(binary), /^supabase(?:\.exe)?$/);
+  assert.doesNotMatch(binary, /[\\/]supabase[\\/]dist[\\/]supabase\.js$/);
 });

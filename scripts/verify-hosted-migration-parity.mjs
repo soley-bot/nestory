@@ -1,22 +1,20 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   evaluateHostedMigrationContent,
   evaluateHostedMigrationParity,
   readHostedMigrationLedgerOutput,
   readMigrationListOutput,
+  resolvePinnedSupabaseCliBinary,
   runCommandWithBoundedOutput,
 } from "./hosted-migration-parity-core.mjs";
 
 const phase = readPhase(process.argv.slice(2));
-const supabaseCli = fileURLToPath(
-  new URL("../node_modules/supabase/dist/supabase.js", import.meta.url),
-);
+const supabaseCli = resolvePinnedSupabaseCliBinary();
 const result = await runCommandWithBoundedOutput(
-  process.execPath,
-  [supabaseCli, "--output-format", "json", "migration", "list", "--linked"],
+  supabaseCli,
+  ["--output-format", "json", "migration", "list", "--linked"],
   {
     cwd: process.cwd(),
     encoding: "utf8",
@@ -53,9 +51,8 @@ try {
 
 const parity = evaluateHostedMigrationParity({ ...versions, phase });
 const ledgerResult = await runCommandWithBoundedOutput(
-  process.execPath,
+  supabaseCli,
   [
-    supabaseCli,
     "--output-format",
     "json",
     "db",
