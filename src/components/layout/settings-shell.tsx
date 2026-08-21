@@ -35,7 +35,7 @@ export function SettingsShell({
                 items={[{ href: "/settings/organization", label: "Settings" }]}
               />
             }
-            description="Workspace identity, structure, access, and operating rules."
+            description="Workspace and access."
             navigation={<SettingsTabs activeHref={activeHref} role={role} />}
             title="Settings"
           />

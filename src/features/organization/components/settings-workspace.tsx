@@ -16,6 +16,7 @@ import type {
   OrganizationBranch,
   OrganizationPersonOption,
   OrganizationTeam,
+  OrganizationWorkspaceSetup,
 } from "@/features/organization/data";
 import {
   DEFAULT_ORGANIZATION_THEME,
@@ -43,6 +44,7 @@ type SettingsWorkspaceProps = {
   section: SettingsSection;
   staff: OrganizationPersonOption[];
   teams: OrganizationTeam[];
+  workspaceSetup: OrganizationWorkspaceSetup;
   workspaceUrl?: string;
 };
 
@@ -71,6 +73,7 @@ function SettingsWorkspaceContent({
   section,
   staff,
   teams,
+  workspaceSetup,
   workspaceUrl,
 }: SettingsWorkspaceProps) {
   const guard = useSettingsNavigationGuard();
@@ -104,6 +107,7 @@ function SettingsWorkspaceContent({
             organizationSlug={organizationSlug}
             ref={editorRef}
             teamCount={teams.length}
+            workspaceSetup={workspaceSetup}
             workspaceUrl={workspaceUrl}
           />
         ) : section === "appearance" ? (

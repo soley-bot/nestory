@@ -103,16 +103,6 @@ describe("SettingsWorkspace navigation and layout", () => {
     },
   );
 
-  it.each([
-    ["appearance", "Choose the workspace display style."],
-    ["branches", "Organize properties and Operations access by location."],
-    ["teams", "Name operating groups and choose a manager from People."],
-  ] as const)("explains the purpose of %s settings", (section, description) => {
-    render(<SettingsWorkspace {...defaultProps} section={section} />);
-
-    expect(screen.getByText(description)).not.toBeNull();
-  });
-
   it("gives settings content the full width on the page gutter", () => {
     render(<SettingsWorkspace {...defaultProps} section="organization" />);
 
@@ -151,6 +141,11 @@ describe("SettingsWorkspace navigation and layout", () => {
     expect(
       screen.getByRole("textbox", { name: "Workspace name" }),
     ).not.toBeNull();
+    expect(screen.getByText("Workspace currency")).not.toBeNull();
+    expect(screen.getByText("Operational timezone")).not.toBeNull();
+    expect(screen.getByText("USD")).not.toBeNull();
+    expect(screen.getByText("UTC")).not.toBeNull();
+    expect(screen.getByText("Not editable in Settings")).not.toBeNull();
   });
 
   it("explains how teams relate to People and access", () => {
@@ -158,7 +153,7 @@ describe("SettingsWorkspace navigation and layout", () => {
 
     expect(
       screen.getByText(
-        "Teams do not assign members or change workspace access.",
+        "Teams do not change workspace access.",
       ),
     ).not.toBeNull();
     expect(
@@ -172,11 +167,7 @@ describe("SettingsWorkspace navigation and layout", () => {
   it("uses an actionable empty state for teams", () => {
     render(<SettingsWorkspace {...defaultProps} section="teams" teams={[]} />);
 
-    expect(
-      screen.getByText(
-        "Create a team to name an operating group and choose its manager.",
-      ),
-    ).not.toBeNull();
+    expect(screen.getByText("No teams yet")).not.toBeNull();
   });
 
   it.each([

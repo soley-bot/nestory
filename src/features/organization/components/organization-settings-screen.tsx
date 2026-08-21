@@ -12,6 +12,7 @@ import type {
   OrganizationBranch,
   OrganizationPersonOption,
   OrganizationTeam,
+  OrganizationWorkspaceSetup,
 } from "@/features/organization/data";
 import type { OrganizationTheme } from "@/lib/theme/organization-theme";
 
@@ -27,6 +28,7 @@ export function OrganizationSettingsScreen({
   section,
   staff,
   teams,
+  workspaceSetup,
   workspaceUrl,
 }: {
   appearance?: OrganizationTheme;
@@ -40,6 +42,7 @@ export function OrganizationSettingsScreen({
   section: SettingsSection;
   staff: OrganizationPersonOption[];
   teams: OrganizationTeam[];
+  workspaceSetup: OrganizationWorkspaceSetup;
   workspaceUrl?: string;
 }) {
   return (
@@ -56,6 +59,7 @@ export function OrganizationSettingsScreen({
           section={section}
           staff={staff}
           teams={teams}
+          workspaceSetup={workspaceSetup}
           workspaceUrl={workspaceUrl}
         />
       </WorkspacePage>

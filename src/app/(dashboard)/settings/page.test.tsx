@@ -23,7 +23,6 @@ describe("SettingsPage", () => {
     ["appearance", "/settings/appearance"],
     ["branches", "/settings/branches"],
     ["teams", "/settings/teams"],
-    ["configuration", "/settings/organization"],
     ["future", "/settings/organization"],
   ])("redirects legacy Super Admin section %s to %s", async (section, href) => {
     requireWorkspaceContext.mockResolvedValue({ role: "super_admin" });

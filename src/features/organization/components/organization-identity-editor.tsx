@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { updateOrganizationIdentityAction } from "@/features/organization/actions";
 import type { SettingsEditorHandle } from "@/features/organization/components/branch-editor";
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
+import type { OrganizationWorkspaceSetup } from "@/features/organization/data";
 import { SettingsSaveBar } from "@/features/organization/components/settings-save-bar";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ export const OrganizationIdentityEditor = forwardRef<
     organizationName: string;
     organizationSlug?: string;
     teamCount: number;
+    workspaceSetup: OrganizationWorkspaceSetup;
     workspaceUrl?: string;
   }
 >(function OrganizationIdentityEditor(
@@ -38,6 +40,7 @@ export const OrganizationIdentityEditor = forwardRef<
     organizationName,
     organizationSlug,
     teamCount,
+    workspaceSetup,
     workspaceUrl,
   },
   controllerRef,
@@ -83,14 +86,8 @@ export const OrganizationIdentityEditor = forwardRef<
   return (
     <Card className="min-w-0 overflow-hidden" data-testid="settings-editor" size="sm">
       <CardContent className="p-0">
-        <div className="border-b px-5 py-5 sm:px-6">
-          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Workspace profile
-          </p>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight">Organization</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">
-            Control the name people see across this workspace. Its address remains fixed.
-          </p>
+        <div className="border-b px-5 py-4 sm:px-6">
+          <h2 className="text-base font-semibold tracking-tight">Organization</h2>
         </div>
 
         <form
@@ -121,7 +118,7 @@ export const OrganizationIdentityEditor = forwardRef<
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground" id="organization-name-help">
-                  Used in navigation, invitations, and workspace emails.
+                  Shown in navigation, invitations, and emails.
                 </p>
               )}
             </div>
@@ -134,9 +131,7 @@ export const OrganizationIdentityEditor = forwardRef<
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">Workspace address</p>
                   <p className="mt-0.5 break-all font-mono text-sm text-foreground">{address}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Locked after provisioning to keep tenant links and sign-in routing stable.
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">Locked after provisioning.</p>
                 </div>
                 <Button
                   disabled={!copyableWorkspaceUrl}
@@ -165,6 +160,27 @@ export const OrganizationIdentityEditor = forwardRef<
                     : null}
               </p>
             </div>
+
+            <section className="overflow-hidden rounded-lg border">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2.5">
+                <h3 className="text-sm font-semibold">
+                  Workspace setup
+                </h3>
+                <span className="text-xs text-muted-foreground">
+                  Not editable in Settings
+                </span>
+              </div>
+              <dl className="divide-y divide-border">
+                <SetupRow
+                  label="Workspace currency"
+                  value={workspaceSetup.preferredCurrency}
+                />
+                <SetupRow
+                  label="Operational timezone"
+                  value={workspaceSetup.operationalTimezone}
+                />
+              </dl>
+            </section>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <ContextLink
@@ -199,6 +215,21 @@ export const OrganizationIdentityEditor = forwardRef<
     </Card>
   );
 });
+
+function SetupRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid min-w-0 gap-1 px-3 py-2.5 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
+      <dt className="font-medium">{label}</dt>
+      <dd className="min-w-0 break-words font-mono text-muted-foreground">
+        {value}
+      </dd>
+      <dd className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+        <LockKeyhole aria-hidden="true" className="size-3" />
+        Locked
+      </dd>
+    </div>
+  );
+}
 
 function ContextLink({
   href,

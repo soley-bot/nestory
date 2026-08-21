@@ -40,6 +40,10 @@ describe("OrganizationIdentityEditor", () => {
         onDraftStatusChange={() => undefined}
         organizationName="Soley Property Management"
         teamCount={3}
+        workspaceSetup={{
+          operationalTimezone: "Asia/Phnom_Penh",
+          preferredCurrency: "USD",
+        }}
         workspaceUrl="https://spm.nestory-kh.com/"
       />,
     );
@@ -75,6 +79,10 @@ describe("OrganizationIdentityEditor", () => {
         onDraftStatusChange={() => undefined}
         organizationName="Nestory Test"
         teamCount={0}
+        workspaceSetup={{
+          operationalTimezone: "UTC",
+          preferredCurrency: "USD",
+        }}
         workspaceUrl="https://nestory-test.nestory-kh.com/"
       />,
     );
@@ -92,6 +100,10 @@ describe("OrganizationIdentityEditor", () => {
         organizationName="Soley Property Management"
         organizationSlug="spm"
         teamCount={0}
+        workspaceSetup={{
+          operationalTimezone: "UTC",
+          preferredCurrency: "USD",
+        }}
         workspaceUrl="/"
       />,
     );
@@ -101,5 +113,30 @@ describe("OrganizationIdentityEditor", () => {
       (screen.getByRole("button", { name: "Copy workspace address" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+  });
+
+  it("shows stored currency and operational timezone as locked setup values", () => {
+    render(
+      <OrganizationIdentityEditor
+        branchCount={0}
+        onDraftStatusChange={() => undefined}
+        organizationName="Soley Property Management"
+        teamCount={0}
+        workspaceSetup={{
+          operationalTimezone: "Asia/Phnom_Penh",
+          preferredCurrency: "USD",
+        }}
+        workspaceUrl="https://spm.nestory-kh.com/"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Workspace setup" })).not.toBeNull();
+    expect(screen.getByText("Workspace currency")).not.toBeNull();
+    expect(screen.getByText("USD")).not.toBeNull();
+    expect(screen.getByText("Operational timezone")).not.toBeNull();
+    expect(screen.getByText("Asia/Phnom_Penh")).not.toBeNull();
+    expect(screen.getByText("Not editable in Settings")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /edit.*currency/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /edit.*timezone/i })).toBeNull();
   });
 });

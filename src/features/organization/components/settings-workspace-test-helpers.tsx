@@ -43,6 +43,10 @@ export const defaultSettingsWorkspaceProps = {
   organizationSlug: "nestory-test",
   staff,
   teams,
+  workspaceSetup: {
+    operationalTimezone: "UTC",
+    preferredCurrency: "USD",
+  },
   workspaceUrl: "https://nestory-test.nestory-kh.com/",
 } as const;
 
