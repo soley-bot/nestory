@@ -6,10 +6,20 @@ import { evaluateMigrationChanges } from "./migration-discipline-core.mjs";
 
 const projectRoot = process.cwd();
 const migrationRoot = resolve(projectRoot, "supabase", "migrations");
+const reconciliationRoot = resolve(
+  projectRoot,
+  "supabase",
+  "migration-reconciliations",
+);
 const baseRef = resolveBaseRef();
 const baseFiles = readBaseFiles(baseRef);
 const currentFiles = await readCurrentFiles();
-const issues = evaluateMigrationChanges({ baseFiles, currentFiles });
+const reconciliations = await readReconciliations();
+const issues = evaluateMigrationChanges({
+  baseFiles,
+  currentFiles,
+  reconciliations,
+});
 
 if (issues.length > 0) {
   process.stderr.write(
@@ -23,7 +33,7 @@ if (issues.length > 0) {
 process.stdout.write(
   `Migration discipline passed: ${baseFiles.size} immutable base migrations and ${
     currentFiles.size - baseFiles.size
-  } forward migrations checked against ${baseRef}.\n`,
+  } forward migrations checked against ${baseRef}; ${reconciliations.length} historical reconciliation declarations validated.\n`,
 );
 
 function git(args) {
@@ -92,4 +102,27 @@ async function readCurrentFiles() {
       paths.map(async (path) => [path, await readFile(resolve(migrationRoot, path), "utf8")]),
     ),
   );
+}
+
+async function readReconciliations() {
+  let entries;
+  try {
+    entries = await readdir(reconciliationRoot, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+
+  const declarations = [];
+  for (const entry of entries
+    .filter((candidate) => candidate.isFile() && candidate.name.endsWith(".json"))
+    .sort((left, right) => left.name.localeCompare(right.name))) {
+    const path = resolve(reconciliationRoot, entry.name);
+    const manifest = JSON.parse(await readFile(path, "utf8"));
+    if (!Array.isArray(manifest.entries)) {
+      throw new Error(`Migration reconciliation manifest has no entries array: ${path}`);
+    }
+    declarations.push(...manifest.entries);
+  }
+  return declarations;
 }

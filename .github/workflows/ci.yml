@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -135,9 +135,76 @@ jobs:
               target_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             });
 
-  database_gate:
-    name: Report Database deployment gate
+  production_database:
+    name: Production Database
     needs: database
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production-database
+    concurrency:
+      group: production-supabase
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - name: Check out exact merged main SHA
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify exact merged main SHA
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+
+      - name: Verify production database credentials are configured
+        shell: bash
+        run: |
+          test -n "${SUPABASE_ACCESS_TOKEN:-}"
+          test -n "${SUPABASE_DB_PASSWORD:-}"
+          test -n "${SUPABASE_PROJECT_ID:-}"
+
+      - name: Link exact production project
+        run: npm exec -- supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Verify hosted migration preflight
+        run: npm run db:hosted-preflight
+
+      - name: Dry-run production migrations
+        run: npm exec -- supabase db push --linked --dry-run
+
+      - name: Apply production migrations
+        run: npm exec -- supabase db push --linked
+
+      - name: Verify hosted migration postflight
+        run: npm run db:hosted-postflight
+
+      - name: Lint linked database
+        run: npm exec -- supabase db lint --linked --level error --fail-on error
+
+      - name: Confirm no pending production migrations
+        run: npm exec -- supabase db push --linked --dry-run
+
+  production_database_gate:
+    name: Report Database deployment gate
+    needs: production_database
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -147,13 +214,13 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const state = "${{ needs.database.result }}" === "success" ? "success" : "failure";
+            const state = "${{ needs.production_database.result }}" === "success" ? "success" : "failure";
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
               sha: context.sha,
               state,
               context: "Vercel - nestory: Database",
-              description: `Database CI ${state === "success" ? "passed" : "failed"}`,
+              description: `Hosted database release ${state === "success" ? "passed" : "failed"}`,
               target_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             });
