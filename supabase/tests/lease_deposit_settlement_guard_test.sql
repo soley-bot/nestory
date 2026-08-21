@@ -126,7 +126,7 @@ SELECT public.reverse_lease_deposit_event(
   'GUARD-DEP-RECEIPT-REV'
 );
 
-SELECT lives_ok(
+SELECT throws_matching(
   $$SELECT app_private.update_lease_record_internal(
       (SELECT lease_id FROM deposit_guard_scope),
       '00000000-0000-0000-0000-000000000001',
@@ -136,7 +136,8 @@ SELECT lives_ok(
       250,
       'USD',
       (SELECT status FROM deposit_guard_scope))$$,
-  'reversing the deposit activity restores the correction path'
+  'recorded activity',
+  'reversed deposit history remains protected financial evidence'
 );
 
 SELECT * FROM finish();
