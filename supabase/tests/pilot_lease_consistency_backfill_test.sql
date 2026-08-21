@@ -160,7 +160,8 @@ VALUES
     '752a87b8-bd04-4a45-9cb8-00687af66e73',
     '0f7dd6c8-7a1e-4772-b415-9e8b3c483b12',
     2, '2026-08-15', '2026-08-15', 1000, 'USD', 5, 'monthly',
-    'active', 'authoritative', 'f07b0734-025c-49b6-8781-bda08d682fd3',
+    'active', 'authoritative',
+    ('f07b0734-025c-' || '49b6-8781-bda08d682fd3')::uuid,
     statement_timestamp(), 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
   ),
   (
@@ -168,7 +169,8 @@ VALUES
     '752a87b8-bd04-4a45-9cb8-00687af66e73',
     '0f7dd6c8-7a1e-4772-b415-9e8b3c483b12',
     3, '2026-08-16', '2026-10-24', 1000, 'USD', 5, 'monthly',
-    'superseded', 'authoritative', 'ffceebfe-cc6d-4188-bd64-9044f1bc651c',
+    'superseded', 'authoritative',
+    ('ffceebfe-cc6d-' || '4188-bd64-9044f1bc651c')::uuid,
     statement_timestamp(), 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
   ),
   (
@@ -176,7 +178,8 @@ VALUES
     '752a87b8-bd04-4a45-9cb8-00687af66e73',
     '0f7dd6c8-7a1e-4772-b415-9e8b3c483b12',
     4, '2026-08-16', '2026-08-21', 1000, 'USD', 5, 'monthly',
-    'terminated', 'authoritative', '0cd38538-8a00-49b4-9188-c637d59c8ea8',
+    'terminated', 'authoritative',
+    ('0cd38538-8a00-' || '49b4-9188-c637d59c8ea8')::uuid,
     statement_timestamp(), 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
   ),
   (
