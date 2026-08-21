@@ -1,0 +1,37 @@
+{
+  "reason": "Pin deterministic database-side hashes for pre-guardrail hosted ledger exceptions so large SQL payloads never need to cross the production runner pipe.",
+  "hashNormalization": "SHA-256 in Postgres over UTF-8 jsonb {version,name,statements}; statement CRLF and CR are normalized to LF before jsonb serialization.",
+  "hostedContentExceptionDbHashes": [
+    {
+      "version": "20260808235616",
+      "name": "operational_schema_baseline",
+      "hostedLedgerDbSha256": "a164358d36f78cd0f0a8af7057a7b05e733b2b798e052e2a70771fff4f0bedc2"
+    },
+    {
+      "version": "20260810073506",
+      "name": "project_owner_distribution_reversals",
+      "hostedLedgerDbSha256": "99b8583c963bf8b5c57394e56c5aa199623891ac3dac28a71ea7355831aa2a59"
+    },
+    {
+      "version": "20260810091218",
+      "name": "harden_owner_balance_lifecycle_corrections",
+      "hostedLedgerDbSha256": "887ff28ba39ec3b21088c6dc56e47511d31b1b5390d1e1a1e63b582170fd45ee"
+    },
+    {
+      "version": "20260810103823",
+      "name": "enforce_owner_balance_global_lock_order",
+      "hostedLedgerDbSha256": "5762e57e114af3256d54ab40a27fd94c344abb1fe9da23b463d433403af4d194"
+    },
+    {
+      "version": "20260815034915",
+      "name": "update_organization_identity",
+      "hostedLedgerDbSha256": "9eff1a663f990537e9e3beababa7999dfeb63feb4bc3e16911e18092684dd994"
+    },
+    {
+      "version": "20260815044607",
+      "name": "organization_company_logo",
+      "hostedLedgerDbSha256": "74540ae0b82c4dccd77a8c697568f41b489efb3886d273fd0f8343f9a0a101c5"
+    }
+  ],
+  "entries": []
+}

@@ -5,7 +5,10 @@ import test from "node:test";
 import {
   evaluateHostedMigrationContent,
   evaluateHostedMigrationParity,
+  assertHostedMigrationLedgerPage,
+  planHostedMigrationLedgerPages,
   readHostedMigrationLedgerOutput,
+  readHostedMigrationMetadataOutput,
   readMigrationListOutput,
   readMigrationVersions,
   resolvePinnedSupabaseCliBinary,
@@ -204,20 +207,24 @@ test("accepts only an exact pinned legacy hosted-content exception", () => {
         "fd8667e957bea0168e08f2692e10164de164f5aa9b8312888d70a1e635d81146",
       hostedLedgerSha256:
         "2ddecc6993fb0e2c2ea24ae0a9e42420d27450eef2ef68f6f322da1056777260",
+      hostedLedgerDbSha256:
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     },
   ];
 
   assert.deepEqual(
     evaluateHostedMigrationContent({
       localMigrations,
-      remoteMigrations: [
+      remoteMigrations: [],
+      contentExceptions,
+      hostedContentHashes: [
         {
           version: "20260801000000",
           name: "create_example",
-          statements: ["select 'hosted'"],
+          hostedLedgerDbSha256:
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         },
       ],
-      contentExceptions,
     }),
     [],
   );
@@ -225,17 +232,19 @@ test("accepts only an exact pinned legacy hosted-content exception", () => {
   assert.deepEqual(
     evaluateHostedMigrationContent({
       localMigrations,
-      remoteMigrations: [
+      remoteMigrations: [],
+      hostedContentHashes: [
         {
           version: "20260801000000",
           name: "create_example",
-          statements: ["select 'changed'"],
+          hostedLedgerDbSha256:
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         },
       ],
       contentExceptions,
     }),
     [
-      "hosted migration SQL mismatch for 20260801000000 (pinned exception does not match)",
+      "hosted migration SQL mismatch for 20260801000000 (pinned database hash does not match)",
     ],
   );
 });
@@ -261,6 +270,91 @@ test("reads hosted migration ledger rows from Supabase db-query JSON", () => {
         statements: ["select 1"],
       },
     ],
+  );
+});
+
+test("plans complete size-bounded hosted ledger pages", () => {
+  assert.deepEqual(
+    planHostedMigrationLedgerPages({
+      remoteVersions: ["20260801000000", "20260802000000", "20260803000000"],
+      metadata: [
+        { version: "20260801000000", statementJsonBytes: 80 },
+        { version: "20260802000000", statementJsonBytes: 40 },
+        { version: "20260803000000", statementJsonBytes: 50 },
+      ],
+      pageBytes: 100,
+      maxSingleMigrationBytes: 200,
+    }),
+    [["20260801000000"], ["20260802000000", "20260803000000"]],
+  );
+});
+
+test("fails closed on incomplete or excessive hosted ledger metadata", () => {
+  assert.throws(
+    () =>
+      planHostedMigrationLedgerPages({
+        remoteVersions: ["20260801000000", "20260802000000"],
+        metadata: [
+          { version: "20260801000000", statementJsonBytes: 80 },
+          { version: "20260803000000", statementJsonBytes: 50 },
+        ],
+        pageBytes: 100,
+        maxSingleMigrationBytes: 200,
+      }),
+    /metadata versions do not exactly match hosted migration versions/,
+  );
+
+  assert.throws(
+    () =>
+      planHostedMigrationLedgerPages({
+        remoteVersions: ["20260801000000"],
+        metadata: [{ version: "20260801000000", statementJsonBytes: 201 }],
+        pageBytes: 100,
+        maxSingleMigrationBytes: 200,
+      }),
+    /exceeds the 200 byte single-migration limit/,
+  );
+});
+
+test("reads metadata and requires every planned ledger row exactly once", () => {
+  assert.deepEqual(
+    readHostedMigrationMetadataOutput(
+      JSON.stringify({
+        rows: [
+          {
+            version: "20260801000000",
+            name: "create_example",
+            statement_json_bytes: 1234,
+            hosted_ledger_db_sha256:
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          },
+        ],
+      }),
+    ),
+    [
+      {
+        version: "20260801000000",
+        name: "create_example",
+        statementJsonBytes: 1234,
+        hostedLedgerDbSha256:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+    ],
+  );
+
+  assert.doesNotThrow(() =>
+    assertHostedMigrationLedgerPage(
+      ["20260801000000"],
+      [{ version: "20260801000000" }],
+    ),
+  );
+  assert.throws(
+    () =>
+      assertHostedMigrationLedgerPage(
+        ["20260801000000", "20260802000000"],
+        [{ version: "20260801000000" }, { version: "20260801000000" }],
+      ),
+    /ledger page did not return each planned version exactly once/,
   );
 });
 

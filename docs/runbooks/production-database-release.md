@@ -29,7 +29,7 @@ The `Production Database` job runs after local database CI and performs this fai
 
 1. Check out `github.sha`, query the current `main` SHA with a step-scoped GitHub token, and prove both values equal without persisting checkout credentials.
 2. Link the pinned project Supabase CLI using protected environment secrets.
-3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions. Each hosted name and recorded statement payload must reconstruct the corresponding Git migration, except for an exact immutable legacy content-exception hash pair. Any unknown, out-of-order, renamed, or content-mismatched remote row stops the release.
+3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions. Each hosted name and recorded statement payload must reconstruct the corresponding Git migration. Raw undeclared payloads are fetched in size-bounded pages; the six legacy exceptions must match both their immutable Git/hosted hash evidence and their independently pinned database-side content hashes. Any unknown, missing, duplicated, out-of-order, renamed, oversized, or content-mismatched remote row stops the release.
 4. Run a linked `db push --dry-run`.
 5. Run the single production `db push`.
 6. Run `npm run db:hosted-postflight`. Git and hosted ledgers must now be exactly equal.

@@ -172,6 +172,7 @@ export function evaluateHostedMigrationContent({
   localMigrations,
   remoteMigrations,
   contentExceptions = [],
+  hostedContentHashes = [],
 }) {
   if (!Array.isArray(localMigrations)) {
     throw new Error("local migrations must be an array");
@@ -181,6 +182,9 @@ export function evaluateHostedMigrationContent({
   }
   if (!Array.isArray(contentExceptions)) {
     throw new Error("hosted migration content exceptions must be an array");
+  }
+  if (!Array.isArray(hostedContentHashes)) {
+    throw new Error("hosted migration content hashes must be an array");
   }
 
   const issues = [];
@@ -218,7 +222,8 @@ export function evaluateHostedMigrationContent({
       !migrationVersionPattern.test(version) ||
       !migrationNamePattern.test(name) ||
       !isSha256(exception?.gitSqlSha256) ||
-      !isSha256(exception?.hostedLedgerSha256)
+      !isSha256(exception?.hostedLedgerSha256) ||
+      !isSha256(exception?.hostedLedgerDbSha256)
     ) {
       issues.push(
         "hosted migration content exceptions contain a malformed entry",
@@ -233,6 +238,43 @@ export function evaluateHostedMigrationContent({
     }
     exceptionsByVersion.set(version, exception);
     exceptionStates.set(version, "unseen");
+  }
+
+  const hostedHashesByVersion = new Map();
+  for (const row of hostedContentHashes) {
+    const version = String(row?.version ?? "");
+    const name = String(row?.name ?? "");
+    const hostedLedgerDbSha256 = String(row?.hostedLedgerDbSha256 ?? "");
+    if (
+      !migrationVersionPattern.test(version) ||
+      !migrationNamePattern.test(name) ||
+      !isSha256(hostedLedgerDbSha256) ||
+      hostedHashesByVersion.has(version)
+    ) {
+      issues.push("hosted migration content hashes contain malformed rows");
+      continue;
+    }
+    hostedHashesByVersion.set(version, { name, hostedLedgerDbSha256 });
+  }
+
+  for (const [version, exception] of exceptionsByVersion) {
+    const local = localByVersion.get(version);
+    const hosted = hostedHashesByVersion.get(version);
+    if (!hosted) continue;
+    if (
+      local &&
+      exception.name === local.name &&
+      hosted.name === local.name &&
+      exception.gitSqlSha256 === hashGitMigrationBody(local.body) &&
+      exception.hostedLedgerDbSha256 === hosted.hostedLedgerDbSha256
+    ) {
+      exceptionStates.set(version, "used");
+    } else {
+      exceptionStates.set(version, "mismatch");
+      issues.push(
+        `hosted migration SQL mismatch for ${version} (pinned database hash does not match)`,
+      );
+    }
   }
 
   const seenRemote = new Set();
@@ -338,6 +380,130 @@ export function readHostedMigrationLedgerOutput(output) {
   });
 }
 
+export function readHostedMigrationMetadataOutput(output) {
+  let payload;
+  try {
+    payload = JSON.parse(String(output ?? ""));
+  } catch (error) {
+    throw new Error(`Supabase db-query output is not JSON: ${error.message}`);
+  }
+  if (!payload || !Array.isArray(payload.rows)) {
+    throw new Error("Supabase db-query metadata JSON has no rows array");
+  }
+
+  return payload.rows.map((row) => {
+    const version = String(row?.version ?? "");
+    const name = String(row?.name ?? "");
+    const statementJsonBytes = Number(row?.statement_json_bytes);
+    const hostedLedgerDbSha256 = String(row?.hosted_ledger_db_sha256 ?? "");
+    if (
+      !migrationVersionPattern.test(version) ||
+      !migrationNamePattern.test(name) ||
+      !Number.isSafeInteger(statementJsonBytes) ||
+      statementJsonBytes <= 0 ||
+      !isSha256(hostedLedgerDbSha256)
+    ) {
+      throw new Error("Supabase migration metadata contains a malformed row");
+    }
+    return { version, name, statementJsonBytes, hostedLedgerDbSha256 };
+  });
+}
+
+export function planHostedMigrationLedgerPages({
+  remoteVersions,
+  metadata,
+  pageBytes,
+  maxSingleMigrationBytes,
+}) {
+  if (
+    !Number.isSafeInteger(pageBytes) ||
+    pageBytes <= 0 ||
+    !Number.isSafeInteger(maxSingleMigrationBytes) ||
+    maxSingleMigrationBytes < pageBytes
+  ) {
+    throw new Error("hosted migration ledger page limits are invalid");
+  }
+
+  const expectedVersions = validateExactVersionArray(
+    "hosted migration",
+    remoteVersions,
+  );
+  if (!Array.isArray(metadata)) {
+    throw new Error("hosted migration metadata must be an array");
+  }
+
+  const metadataByVersion = new Map();
+  for (const row of metadata) {
+    const version = String(row?.version ?? "");
+    const statementJsonBytes = Number(row?.statementJsonBytes);
+    if (
+      !migrationVersionPattern.test(version) ||
+      !Number.isSafeInteger(statementJsonBytes) ||
+      statementJsonBytes <= 0 ||
+      metadataByVersion.has(version)
+    ) {
+      throw new Error("hosted migration metadata contains malformed rows");
+    }
+    metadataByVersion.set(version, statementJsonBytes);
+  }
+
+  if (
+    metadataByVersion.size !== expectedVersions.length ||
+    expectedVersions.some((version) => !metadataByVersion.has(version))
+  ) {
+    throw new Error(
+      "hosted migration metadata versions do not exactly match hosted migration versions",
+    );
+  }
+
+  const pages = [];
+  let currentPage = [];
+  let currentBytes = 0;
+  for (const version of expectedVersions) {
+    const statementJsonBytes = metadataByVersion.get(version);
+    if (statementJsonBytes > maxSingleMigrationBytes) {
+      throw new Error(
+        `hosted migration ${version} exceeds the ${maxSingleMigrationBytes} byte single-migration limit`,
+      );
+    }
+    if (
+      currentPage.length > 0 &&
+      currentBytes + statementJsonBytes > pageBytes
+    ) {
+      pages.push(currentPage);
+      currentPage = [];
+      currentBytes = 0;
+    }
+    if (statementJsonBytes > pageBytes) {
+      pages.push([version]);
+      continue;
+    }
+    currentPage.push(version);
+    currentBytes += statementJsonBytes;
+  }
+  if (currentPage.length > 0) pages.push(currentPage);
+  return pages;
+}
+
+export function assertHostedMigrationLedgerPage(expectedVersions, migrations) {
+  const expected = validateExactVersionArray(
+    "planned hosted migration page",
+    expectedVersions,
+  );
+  if (
+    !Array.isArray(migrations) ||
+    migrations.length !== expected.length ||
+    migrations.some(
+      (migration, index) =>
+        String(migration?.version ?? "") !== expected[index],
+    )
+  ) {
+    throw new Error(
+      "hosted migration ledger page did not return each planned version exactly once",
+    );
+  }
+}
+
 export function readMigrationVersions(payload) {
   if (!payload || !Array.isArray(payload.migrations)) {
     throw new Error("Supabase migration list JSON has no migrations array");
@@ -408,6 +574,21 @@ function validateVersions(label, values) {
 
   versions.sort();
   return { issues, versions };
+}
+
+function validateExactVersionArray(label, values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    throw new Error(`${label} versions must be a non-empty array`);
+  }
+  const seen = new Set();
+  return values.map((rawVersion) => {
+    const version = String(rawVersion);
+    if (!migrationVersionPattern.test(version) || seen.has(version)) {
+      throw new Error(`${label} versions are malformed or duplicated`);
+    }
+    seen.add(version);
+    return version;
+  });
 }
 
 function migrationBodyMatchesStatements(body, statements) {
