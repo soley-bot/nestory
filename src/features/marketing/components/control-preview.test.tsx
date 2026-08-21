@@ -16,7 +16,8 @@ describe("ControlPreview", () => {
       name: "Portfolio operating work",
     });
 
-    expect(within(dashboard).getByRole("heading", { name: "Portfolio cash flow" })).toBeTruthy();
+    expect(within(dashboard).getByRole("heading", { name: "Actual cash flow" })).toBeTruthy();
+    expect(within(dashboard).getByRole("heading", { name: "Expected rent" })).toBeTruthy();
     expect(within(dashboard).getByRole("heading", { name: "Properties" })).toBeTruthy();
     expect(preview.querySelector("[inert]")).not.toBeNull();
   });

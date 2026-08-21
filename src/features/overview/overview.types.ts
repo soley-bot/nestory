@@ -86,6 +86,11 @@ export type OverviewLedgerPoint = {
   net: number;
 };
 
+export type OverviewExpectedRent = {
+  leaseCount: number;
+  monthly: MoneyDisplayValue | null;
+};
+
 export type OverviewLeaseEndingPoint = {
   count: number;
   href: string;
@@ -138,6 +143,7 @@ export type OverviewScreenData = {
   attentionItems: OverviewAttentionItem[];
   attentionTotal: number;
   dashboardSummary: OverviewDashboardSummary;
+  expectedRent: OverviewExpectedRent;
   leaseEndings: OverviewLeaseEndingPoint[];
   leaseRiskCount: number;
   ledgerCurrency: CurrencyCode;

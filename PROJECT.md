@@ -189,6 +189,11 @@ frequency, due day, and effective dates.
 - Accepted effective ranges cannot overlap where the database contract forbids
   it.
 - Material term changes supersede history; they do not rewrite it.
+- Ending, terminating, or cancelling a Lease supersedes every remaining
+  non-terminal authoritative term while retaining all term and lifecycle rows.
+- A zero deposit means no deposit is required. The checked write boundary
+  stores it as no deposit and never creates a pending zero-value artifact;
+  any zero-value record with financial evidence remains visible for review.
 - Historical approved rent-policy versions are complete and immutable. No
   surface authors new ones.
 - New Lease readiness resolves the effective Lease billing term and its visible
@@ -279,6 +284,12 @@ never enter source, documentation, logs, screenshots, or chat.
 
 Authenticated Nestory is quiet, neutral, dense operating software:
 
+- Dashboard active-Lease and occupancy metrics include only operational,
+  non-archived Property and Unit scope. Open Leases outside that scope appear
+  as a short attention item, not as healthy activity.
+- Dashboard cash flow shows actual Ledger activity only. Contractual expected
+  rent is a separate labeled view, and a period with no Ledger activity shows
+  an empty state rather than a zero-valued chart.
 - Keep one visible workspace title/action composition and one dominant work
   surface. Use no more than one secondary controls row below it.
 - Keep primary search visible. Disclose advanced URL-backed filters instead of

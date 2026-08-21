@@ -306,13 +306,17 @@ function leaseAuthorityRpcPayload(
   values: z.infer<typeof leaseMutationSchema>,
   idempotencyKey: string,
 ) {
+  const enteredDepositAmount = nullableNumber(values.depositAmount);
+  const depositAmount =
+    enteredDepositAmount !== null && enteredDepositAmount > 0
+      ? enteredDepositAmount
+      : null;
+
   return {
     // Supabase's generated RPC signature cannot express nullable SQL
     // parameters, but the database contract intentionally accepts NULL here.
-    p_deposit_amount: nullableNumber(values.depositAmount) as number,
-    p_deposit_currency: (
-      values.depositAmount.length > 0 ? "USD" : null
-    ) as "USD",
+    p_deposit_amount: depositAmount as number,
+    p_deposit_currency: (depositAmount === null ? null : "USD") as "USD",
     p_idempotency_key: idempotencyKey,
     p_lease_end_date: values.leaseEndDate,
     p_lease_start_date: values.leaseStartDate,

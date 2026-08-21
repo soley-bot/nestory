@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(18);
+SELECT plan(20);
 
 CREATE TEMP TABLE lease_archive_scope_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -227,6 +227,14 @@ RESET ROLE;
 
 SET LOCAL session_replication_role = replica;
 
+UPDATE public.lease_terms AS term
+SET start_date = current_date - 60,
+    end_date = current_date - 59,
+    status = 'active'
+FROM lease_archive_scope_state AS state
+WHERE term.lease_id = (state.active_creation_result ->> 'leaseId')::uuid
+  AND term.term_sequence = 1;
+
 UPDATE public.units
 SET archived_at = statement_timestamp(), archived_by = admin_id, updated_by = admin_id
 FROM lease_archive_scope_state
@@ -424,6 +432,29 @@ SELECT ok(
       AND event.to_status = 'ended'
   ),
   'ending an orphaned active Lease preserves its lifecycle event history'
+);
+
+SELECT is(
+  (
+    SELECT status
+    FROM public.lease_terms AS term
+    JOIN lease_archive_scope_state AS state
+      ON term.lease_id = (state.active_creation_result ->> 'leaseId')::uuid
+    WHERE term.term_sequence = 1
+  ),
+  'superseded',
+  'ending a Lease closes an older stale active term without deleting it'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.lease_terms AS term
+    JOIN lease_archive_scope_state AS state
+      ON term.lease_id = (state.active_creation_result ->> 'leaseId')::uuid
+  ),
+  3,
+  'ending a Lease preserves every historical term while appending the terminal term'
 );
 
 CREATE OR REPLACE FUNCTION pg_temp.attempt_forged_term_correction()

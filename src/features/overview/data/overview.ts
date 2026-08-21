@@ -34,6 +34,7 @@ type PropertyRow = {
   code: string;
   id: string;
   name: string;
+  rental_structure: string;
 };
 
 type UnitRow = {
@@ -44,9 +45,11 @@ type UnitRow = {
 
 type LeaseRow = {
   lease_end_date: string;
+  monthly_rent_amount: number;
+  monthly_rent_currency: CurrencyCode;
   primary_tenant_person_id: string | null;
+  property_id: string;
   unit_id: string | null;
-  units: { property_id: string } | null;
 };
 
 type LedgerWindowRow = {
@@ -140,13 +143,13 @@ export async function getOverviewScreenData(
 
   let propertiesQuery = supabase
     .from("properties")
-    .select("id, code, name")
+    .select("id, code, name, rental_structure")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .order("code", { ascending: true });
   const propertyOptionsQuery = supabase
     .from("properties")
-    .select("id, code, name")
+    .select("id, code, name, rental_structure")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .order("code", { ascending: true });
@@ -158,7 +161,7 @@ export async function getOverviewScreenData(
     .neq("status", "inactive");
   let leasesQuery = supabase
     .from("current_leases")
-    .select("unit_id, property_id, lease_end_date, primary_tenant_person_id")
+    .select("unit_id, property_id, lease_end_date, monthly_rent_amount, monthly_rent_currency, primary_tenant_person_id")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .in("status", [...activeLeaseStatuses]);
@@ -289,6 +292,13 @@ export async function getOverviewScreenData(
   const contacts = (contactsResult.data ?? []) as PersonContactRow[];
   const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
   const activeProperties = properties;
+  const operationalLeaseScope = splitOperationalLeases({
+    activeProperties,
+    currentLeases,
+    operationalUnits,
+  });
+  const operationalCurrentLeases = operationalLeaseScope.operational;
+  const invalidScopeLeases = operationalLeaseScope.needsReview;
   const documents = (documentsResult.data ?? []) as Array<{
     ledger_entry_id: string | null;
     property_id: string | null;
@@ -310,7 +320,9 @@ export async function getOverviewScreenData(
     .filter(({ facts }) => facts.isOpen);
   const openMaintenanceCount = openMaintenanceTasks.length;
   const currentLeasedUnitIds = new Set(
-    currentLeases.flatMap((lease) => (lease.unit_id ? [lease.unit_id] : [])),
+    operationalCurrentLeases.flatMap((lease) =>
+      lease.unit_id ? [lease.unit_id] : [],
+    ),
   );
   const occupiedUnits = operationalUnits.filter(
     (unit) =>
@@ -344,8 +356,8 @@ export async function getOverviewScreenData(
   const peopleWithoutRoles = activePeople.filter(
     (person) => !activeRolePersonIds.has(person.id),
   );
-  const leasesEndingSoon = getLeasesEndingSoon(currentLeases, businessToday);
-  const missingTenantLeases = currentLeases.filter(
+  const leasesEndingSoon = getLeasesEndingSoon(operationalCurrentLeases, businessToday);
+  const missingTenantLeases = operationalCurrentLeases.filter(
     (lease) => !lease.primary_tenant_person_id,
   );
   const largeRecentExpenses = getLargeRecentExpenses({
@@ -363,6 +375,7 @@ export async function getOverviewScreenData(
       : "0%";
   const attentionItems = buildAttentionItems({
     largeRecentExpenses,
+    invalidScopeLeases,
     leaseGapUnits: nonVacantLeaseGapUnits,
     leasesEndingSoon,
     missingTenantLeases,
@@ -392,7 +405,8 @@ export async function getOverviewScreenData(
       peopleWithoutRoles,
       vacantUnits,
     }),
-    leaseEndings: buildLeaseEndingsChart(currentLeases, currentMonthStart),
+    expectedRent: buildExpectedRent(operationalCurrentLeases),
+    leaseEndings: buildLeaseEndingsChart(operationalCurrentLeases, currentMonthStart),
     leaseRiskCount: leasesEndingSoon.length,
     ledgerCurrency: "USD",
     ledgerFlow: buildLedgerFlowChart({
@@ -404,7 +418,7 @@ export async function getOverviewScreenData(
       tasks: openMaintenanceTasks,
     }),
     metrics: buildMetrics({
-      activeLeaseCount: currentLeases.length,
+      activeLeaseCount: operationalCurrentLeases.length,
       attentionItems,
       mtdLedgerRows,
       occupancyRate,
@@ -439,7 +453,7 @@ export async function getOverviewScreenData(
     ],
     recentChanges,
     workspaceSetup: {
-      activeLeaseCount: currentLeases.length,
+      activeLeaseCount: operationalCurrentLeases.length,
       hasAnyOperatingData:
         activeProperties.length > 0 ||
         operationalUnits.length > 0 ||
@@ -654,6 +668,7 @@ function buildMetrics({
 }
 
 function buildAttentionItems({
+  invalidScopeLeases,
   largeRecentExpenses,
   leaseGapUnits,
   leasesEndingSoon,
@@ -664,6 +679,7 @@ function buildAttentionItems({
   peopleWithoutRoles,
   vacantUnits,
 }: {
+  invalidScopeLeases: LeaseRow[];
   largeRecentExpenses: LedgerWindowRow[];
   leaseGapUnits: UnitRow[];
   leasesEndingSoon: LeaseRow[];
@@ -675,6 +691,19 @@ function buildAttentionItems({
   vacantUnits: UnitRow[];
 }): OverviewAttentionItem[] {
   const items: Array<OverviewAttentionItem | null> = [
+    invalidScopeLeases.length > 0
+      ? {
+          actionLabel: "Review leases",
+          count: invalidScopeLeases.length,
+          helper: "Property or unit is not available",
+          href: "/leases?archiveState=all&status=current",
+          id: "lease-scope-review",
+          kind: "data-quality",
+          label: "Leases need placement review",
+          priority: 50,
+          tone: "warning",
+        }
+      : null,
     leasesEndingSoon.length > 0
       ? {
           actionLabel: "Review expiries",
@@ -914,7 +943,7 @@ function buildRecordsByProperty({
     documents.flatMap((document) => document.property_id ? [document.property_id] : []),
   );
   const missingTenantLinksByProperty = countBy(
-    missingTenantLeases.flatMap((lease) => lease.units?.property_id ? [lease.units.property_id] : []),
+    missingTenantLeases.map((lease) => lease.property_id),
   );
   const missingOwnerIds = new Set(missingOwnerLinks.map((property) => property.id));
   const unitCountByProperty = countBy(
@@ -975,6 +1004,10 @@ function buildLedgerFlowChart({
   ledgerRows: LedgerWindowRow[];
   monthStart: Date;
 }): OverviewLedgerPoint[] {
+  if (ledgerRows.length === 0) {
+    return [];
+  }
+
   const months = Array.from({ length: 6 }, (_, index) => addMonths(monthStart, index));
   const points = new Map(
     months.map((month) => [
@@ -1008,6 +1041,54 @@ function buildLedgerFlowChart({
   }
 
   return Array.from(points.values());
+}
+
+function buildExpectedRent(currentLeases: LeaseRow[]) {
+  if (currentLeases.length === 0) {
+    return { leaseCount: 0, monthly: null };
+  }
+
+  return {
+    leaseCount: currentLeases.length,
+    monthly: formatMoneyTotalsDisplay(
+      currentLeases.map((lease) => ({
+        amount: Number(lease.monthly_rent_amount),
+        currency: lease.monthly_rent_currency,
+      })),
+    ),
+  };
+}
+
+function splitOperationalLeases({
+  activeProperties,
+  currentLeases,
+  operationalUnits,
+}: {
+  activeProperties: PropertyRow[];
+  currentLeases: LeaseRow[];
+  operationalUnits: UnitRow[];
+}) {
+  const propertiesById = new Map(
+    activeProperties.map((property) => [property.id, property]),
+  );
+  const unitsById = new Map(operationalUnits.map((unit) => [unit.id, unit]));
+  const operational: LeaseRow[] = [];
+  const needsReview: LeaseRow[] = [];
+
+  for (const lease of currentLeases) {
+    const property = propertiesById.get(lease.property_id);
+    const unit = lease.unit_id ? unitsById.get(lease.unit_id) : undefined;
+    const hasOperationalScope =
+      property?.rental_structure === "single_space"
+        ? lease.unit_id === null
+        : property?.rental_structure === "multi_unit"
+          ? Boolean(unit && unit.property_id === property.id)
+          : false;
+
+    (hasOperationalScope ? operational : needsReview).push(lease);
+  }
+
+  return { needsReview, operational };
 }
 
 function buildLeaseEndingsChart(

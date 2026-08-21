@@ -29,6 +29,19 @@ const crlfPettyBlock = crlfMigration.slice(
   ),
 );
 
+test("keeps migration SQL and reconciliation manifests LF-only across platforms", () => {
+  const attributes = fs.readFileSync(
+    path.join(repositoryRoot, ".gitattributes"),
+    "utf8",
+  );
+
+  assert.match(attributes, /^supabase\/migrations\/\*\.sql text eol=lf$/m);
+  assert.match(
+    attributes,
+    /^supabase\/migration-reconciliations\/\*\.json text eol=lf$/m,
+  );
+});
+
 test("normalizes LF and CRLF predecessor bodies before exact-one Petty Cash rewrites", () => {
   const normalization =
     "v_definition := replace(v_definition, E'\\r\\n', E'\\n');";

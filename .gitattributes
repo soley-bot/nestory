@@ -1,1 +1,2 @@
 supabase/migrations/*.sql text eol=lf
+supabase/migration-reconciliations/*.json text eol=lf
