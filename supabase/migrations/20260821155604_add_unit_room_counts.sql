@@ -366,7 +366,9 @@ GRANT EXECUTE ON FUNCTION public.update_unit(
   TO authenticated;
 
 -- Keep the former edit contract callable until the application release is
--- proven and for rollback. Unknown room counts remain distinct from zero.
+-- proven and for rollback. Lock and forward the current counts so an older
+-- client editing another field cannot erase room-count data saved by the new
+-- application.
 CREATE FUNCTION public.update_unit(
   p_unit_id uuid,
   p_organization_id uuid,
@@ -377,20 +379,32 @@ CREATE FUNCTION public.update_unit(
   p_status text
 )
 RETURNS uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 SET search_path TO public, app_private
 AS $$
-  SELECT public.update_unit(
+DECLARE
+  existing_bathroom_count smallint;
+  existing_bedroom_count smallint;
+BEGIN
+  SELECT unit_record.bedroom_count, unit_record.bathroom_count
+  INTO existing_bedroom_count, existing_bathroom_count
+  FROM public.units AS unit_record
+  WHERE unit_record.id = p_unit_id
+    AND unit_record.organization_id = p_organization_id
+  FOR UPDATE;
+
+  RETURN public.update_unit(
     p_unit_id,
     p_organization_id,
     p_property_id,
     p_unit_number,
     p_floor,
     p_size_sqm,
-    NULL::numeric,
-    NULL::numeric,
+    existing_bedroom_count,
+    existing_bathroom_count,
     p_status
   );
+END;
 $$;
 
 ALTER FUNCTION public.update_unit(
@@ -425,4 +439,4 @@ COMMENT ON FUNCTION public.create_unit(
 COMMENT ON FUNCTION public.update_unit(
   uuid, uuid, uuid, text, text, numeric, text
 ) IS
-  'Compatibility overload for application rollback; edits Units with unknown bedroom and bathroom counts.';
+  'Compatibility overload for application rollback; edits Units without changing existing bedroom or bathroom counts.';

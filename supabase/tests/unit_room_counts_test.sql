@@ -372,7 +372,7 @@ SELECT results_eq(
 );
 
 SELECT public.update_unit(
-  unit_id, organization_id, property_id, 'ROOMS', '2', 72, 'vacant'
+  unit_id, organization_id, property_id, 'ROOMS-LEGACY', '3', 73, 'maintenance'
 )
 FROM unit_room_count_state;
 
@@ -382,8 +382,8 @@ SELECT results_eq(
     FROM public.units
     WHERE id = (SELECT unit_id FROM unit_room_count_state)
   $$,
-  $$ VALUES (NULL::smallint, NULL::smallint) $$,
-  'the rollback update overload persists unknown room counts'
+  $$ VALUES (4::smallint, 3::smallint) $$,
+  'the rollback update overload preserves existing room counts'
 );
 
 SELECT results_eq(
@@ -391,15 +391,16 @@ SELECT results_eq(
     SELECT
       previous_values ->> 'bedroom_count',
       previous_values ->> 'bathroom_count',
-      jsonb_typeof(new_values -> 'bedroom_count'),
-      jsonb_typeof(new_values -> 'bathroom_count')
+      new_values ->> 'bedroom_count',
+      new_values ->> 'bathroom_count'
     FROM public.activity_logs
     WHERE entity_id = (SELECT unit_id FROM unit_room_count_state)
       AND action = 'unit_updated'
       AND previous_values ->> 'bedroom_count' = '4'
+      AND new_values ->> 'unit_number' = 'ROOMS-LEGACY'
   $$,
-  $$ VALUES ('4'::text, '3'::text, 'null'::text, 'null'::text) $$,
-  'the rollback update overload records the compatible change in activity evidence'
+  $$ VALUES ('4'::text, '3'::text, '4'::text, '3'::text) $$,
+  'the rollback update overload records the compatible edit without room-count loss'
 );
 
 SELECT public.update_unit(
