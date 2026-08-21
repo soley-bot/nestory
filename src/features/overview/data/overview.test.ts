@@ -173,6 +173,11 @@ describe("getOverviewScreenData", () => {
               property_id: "inactive-property",
               status: "vacant",
             },
+            {
+              id: "inactive-status-unit",
+              property_id: "prop-1",
+              status: "inactive",
+            },
           ],
         },
         lease_terms: {
@@ -236,6 +241,15 @@ describe("getOverviewScreenData", () => {
               property_id: "prop-1",
               unit_id: "unit-2",
             },
+            {
+              id: "conflicting-lease",
+              lease_end_date: "2099-01-01",
+              monthly_rent_amount: 2300,
+              monthly_rent_currency: "USD",
+              primary_tenant_person_id: "person-3",
+              property_id: "prop-1",
+              unit_id: "unit-3",
+            },
           ],
         },
         lease_terms: {
@@ -261,6 +275,20 @@ describe("getOverviewScreenData", () => {
               rent_currency: "USD",
               status: "draft",
             },
+            {
+              lease_id: "conflicting-lease",
+              payment_frequency: "monthly",
+              rent_amount: 1100,
+              rent_currency: "USD",
+              status: "active",
+            },
+            {
+              lease_id: "conflicting-lease",
+              payment_frequency: "monthly",
+              rent_amount: 1200,
+              rent_currency: "USD",
+              status: "terminated",
+            },
           ],
         },
         properties: {
@@ -278,6 +306,7 @@ describe("getOverviewScreenData", () => {
           data: [
             { id: "unit-1", property_id: "prop-1", status: "occupied" },
             { id: "unit-2", property_id: "prop-1", status: "occupied" },
+            { id: "unit-3", property_id: "prop-1", status: "occupied" },
           ],
         },
       }),

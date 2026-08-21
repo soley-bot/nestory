@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(6);
+SELECT plan(7);
 
 -- A deposit holding unreversed activity owns real cash evidence. The Lease
 -- header edit path must not rewrite its obligation or archive it away from
@@ -53,6 +53,41 @@ SELECT
 FROM deposit_guard_scope AS scope;
 
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
+
+INSERT INTO public.ledger_entries (
+  id, organization_id, property_id, unit_id, transaction_date, direction,
+  category, amount, currency, source_type, source_id
+)
+SELECT
+  '88000000-0000-0000-0000-000000000010',
+  '00000000-0000-0000-0000-000000000001',
+  scope.property_id,
+  scope.unit_id,
+  current_date,
+  'income',
+  'security_deposit',
+  500,
+  'USD',
+  'manual',
+  '88000000-0000-0000-0000-000000000009'
+FROM deposit_guard_scope AS scope;
+
+SELECT throws_matching(
+  $$SELECT app_private.update_lease_record_internal(
+      (SELECT lease_id FROM deposit_guard_scope),
+      '00000000-0000-0000-0000-000000000001',
+      (SELECT property_id FROM deposit_guard_scope),
+      (SELECT unit_id FROM deposit_guard_scope),
+      (SELECT primary_tenant_person_id FROM deposit_guard_scope),
+      NULL,
+      NULL,
+      (SELECT status FROM deposit_guard_scope))$$,
+  'recorded activity',
+  'deposit-linked Ledger evidence blocks archival even without a deposit event'
+);
+
+DELETE FROM public.ledger_entries
+WHERE id = '88000000-0000-0000-0000-000000000010';
 
 SELECT public.record_lease_deposit_event(
   '00000000-0000-0000-0000-000000000001',

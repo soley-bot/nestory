@@ -84,9 +84,19 @@ $anchor$, E'\r\n', E'\n');
   v_replacement constant text := pg_catalog.replace($replacement$
     SELECT count(*)
     INTO v_settled_event_count
-    FROM public.lease_deposit_events AS event
-    WHERE event.organization_id = p_organization_id
-      AND event.lease_deposit_id = v_deposit_id;
+    FROM (
+      SELECT event.id
+      FROM public.lease_deposit_events AS event
+      WHERE event.organization_id = p_organization_id
+        AND event.lease_deposit_id = v_deposit_id
+
+      UNION ALL
+
+      SELECT entry.id
+      FROM public.ledger_entries AS entry
+      WHERE entry.organization_id = p_organization_id
+        AND entry.source_id = v_deposit_id
+    ) AS evidence;
 $replacement$, E'\r\n', E'\n');
 BEGIN
   SELECT pg_get_functiondef(
@@ -418,12 +428,13 @@ BEGIN
     AND term.authority_kind = 'authoritative'
     AND term.archived_at IS NULL;
 
-  IF v_manifest = v_after_manifest THEN
-    RETURN 'already_repaired';
+  IF v_manifest IS DISTINCT FROM v_before_manifest
+    AND v_manifest IS DISTINCT FROM v_after_manifest THEN
+    RAISE EXCEPTION 'Pilot stale-term history precondition changed'
+      USING ERRCODE = '55000', DETAIL = 'pilot_stale_term_history_shape_changed';
   END IF;
 
-  IF v_manifest IS DISTINCT FROM v_before_manifest
-    OR (
+  IF (
       SELECT count(*)
       FROM public.lease_terms AS term
       WHERE term.organization_id = v_organization_id
@@ -442,6 +453,10 @@ BEGIN
     ) THEN
     RAISE EXCEPTION 'Pilot stale-term history precondition changed'
       USING ERRCODE = '55000', DETAIL = 'pilot_stale_term_history_shape_changed';
+  END IF;
+
+  IF v_manifest = v_after_manifest THEN
+    RETURN 'already_repaired';
   END IF;
 
   UPDATE public.lease_terms

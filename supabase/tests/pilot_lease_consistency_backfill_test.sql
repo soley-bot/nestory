@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(17);
+SELECT plan(18);
 
 SET LOCAL session_replication_role = replica;
 
@@ -311,6 +311,42 @@ SELECT is(
   app_private.repair_pilot_stale_rent_term(),
   'already_repaired',
   'the stale-term repair is idempotent'
+);
+
+SET LOCAL session_replication_role = replica;
+
+DELETE FROM public.lease_lifecycle_events
+WHERE id = 'd62d7e16-1430-4da0-8022-bed51bb42512';
+
+SET LOCAL session_replication_role = origin;
+
+SELECT throws_ok(
+  'SELECT app_private.repair_pilot_stale_rent_term()',
+  '55000',
+  'Pilot stale-term history precondition changed',
+  'the already-repaired path fails closed when its termination event is missing'
+);
+
+SET LOCAL session_replication_role = replica;
+
+INSERT INTO public.lease_lifecycle_events(
+  id, organization_id, lease_id, transition, from_status, to_status,
+  expected_occupancy_id, occupancy_id, term_id, effective_date,
+  reason, idempotency_key
+)
+VALUES (
+  'd62d7e16-1430-4da0-8022-bed51bb42512',
+  '752a87b8-bd04-4a45-9cb8-00687af66e73',
+  '0f7dd6c8-7a1e-4772-b415-9e8b3c483b12',
+  'terminate',
+  'active',
+  'terminated',
+  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+  'ffffffff-ffff-4fff-8fff-ffffffffffff',
+  '980a5152-e5f5-478a-8e09-6129fb3a804f',
+  '2026-08-21',
+  'Pilot repair lifecycle fixture',
+  'pilot-repair-terminate-v1'
 );
 
 SET LOCAL session_replication_role = replica;

@@ -186,8 +186,7 @@ export async function getOverviewScreenData(
     .is("archived_at", null)
     .in("status", [...resolvedRentTermStatuses])
     .lte("start_date", businessToday)
-    .gte("end_date", businessToday)
-    .eq("payment_frequency", "monthly");
+    .gte("end_date", businessToday);
   let ledgerWindowQuery = supabase
     .from("ledger_entries")
     .select("transaction_date, direction, amount, currency")
@@ -316,7 +315,8 @@ export async function getOverviewScreenData(
   );
   const activePropertyIds = new Set(activeProperties.map((property) => property.id));
   const operationalUnits = ((unitsResult.data ?? []) as UnitRow[]).filter(
-    (unit) => activePropertyIds.has(unit.property_id),
+    (unit) =>
+      unit.status !== "inactive" && activePropertyIds.has(unit.property_id),
   );
   const currentLeases = (leasesResult.data ?? []) as LeaseRow[];
   const currentRentTerms = (rentTermsResult.data ?? []) as LeaseRentTermRow[];
@@ -1081,15 +1081,21 @@ function buildExpectedRent(
   currentLeases: LeaseRow[],
   currentRentTerms: LeaseRentTermRow[],
 ) {
-  const operationalLeaseIds = new Set(currentLeases.map((lease) => lease.id));
-  const monthlyTerms = currentRentTerms.filter(
-    (term) =>
-      term.payment_frequency === "monthly" &&
+  const resolvedTermsByLease = groupBy(
+    currentRentTerms.filter((term) =>
       resolvedRentTermStatuses.includes(
         term.status as (typeof resolvedRentTermStatuses)[number],
-      ) &&
-      operationalLeaseIds.has(term.lease_id),
+      ),
+    ),
+    (term) => term.lease_id,
   );
+  const monthlyTerms = currentLeases.flatMap((lease) => {
+    const resolvedTerms = resolvedTermsByLease.get(lease.id) ?? [];
+    return resolvedTerms.length === 1 &&
+      resolvedTerms[0].payment_frequency === "monthly"
+      ? resolvedTerms
+      : [];
+  });
 
   if (monthlyTerms.length === 0) {
     return { leaseCount: 0, monthly: null };
