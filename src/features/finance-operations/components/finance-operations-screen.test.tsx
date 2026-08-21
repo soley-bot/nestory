@@ -1532,6 +1532,66 @@ describe("FinanceOperationsScreen", () => {
     ).toBe("/api/finance/documents/retried-receipt");
   });
 
+  it("allows an operator to retry a committed IPS payment without a persisted failure artifact", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    invoice.balanceDue = 0;
+    invoice.paidThroughIps = 640;
+    invoice.paymentStatus = "paid";
+    invoice.settlements = [
+      {
+        amount: 640,
+        date: "2026-08-08",
+        id: "payment-without-failure-artifact",
+        isReversed: false,
+        receipt: {
+          artifactId: null,
+          href: null,
+          publicationStatus: "not_published",
+          publishedAt: null,
+        },
+        receiptNumber: null,
+        reference: "Bank transfer",
+        reversalReason: null,
+        route: "through_ips",
+      },
+    ];
+    input.tenantInvoices = [invoice];
+    financeActionMocks.retryTenantReceiptPdfAction.mockResolvedValueOnce({
+      artifactHref: "/api/finance/documents/recovered-receipt",
+      message: "Receipt published.",
+      publicationStatus: "published",
+      status: "success",
+    });
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Retry receipt" }));
+
+    await waitFor(() =>
+      expect(financeActionMocks.retryTenantReceiptPdfAction).toHaveBeenCalledOnce(),
+    );
+    const retryFormData = financeActionMocks.retryTenantReceiptPdfAction.mock
+      .calls[0]?.[1] as FormData;
+    expect(retryFormData.get("paymentId")).toBe(
+      "payment-without-failure-artifact",
+    );
+    expect(
+      screen.getByRole("link", { name: "Download receipt" }).getAttribute("href"),
+    ).toBe("/api/finance/documents/recovered-receipt");
+  });
+
   it("keeps failed receipt retry announced and usable with its exact payment", async () => {
     const user = userEvent.setup();
     const input = data();

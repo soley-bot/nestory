@@ -481,6 +481,20 @@ describe("tenant commercial document publication actions", () => {
     });
   });
 
+  it("accepts Next action metadata without weakening invoice field validation", async () => {
+    const formData = invoicePublicationForm();
+    formData.set("$ACTION_ID_publish", "framework-action");
+    formData.set("$ACTION_REF_publish", "framework-reference");
+
+    await expect(publishTenantInvoicePdfAction({}, formData)).resolves.toMatchObject({
+      artifactId: publishedInvoice.artifactId,
+      publicationStatus: "published",
+      status: "success",
+    });
+    expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
+    expect(publishTenantInvoiceArtifact).toHaveBeenCalledOnce();
+  });
+
   it("rejects invalid invoice publication fields before authorization", async () => {
     const formData = invoicePublicationForm();
     formData.set("contactEmail", "not-an-email");
@@ -662,6 +676,20 @@ describe("tenant commercial document publication actions", () => {
       paymentId: submissionId,
     });
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("accepts Next action metadata without weakening receipt retry validation", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", submissionId);
+    formData.set("$ACTION_ID_retry", "framework-action");
+
+    await expect(retryTenantReceiptPdfAction({}, formData)).resolves.toMatchObject({
+      artifactId: publishedReceipt.artifactId,
+      publicationStatus: "published",
+      status: "success",
+    });
+    expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
+    expect(publishTenantReceiptArtifact).toHaveBeenCalledOnce();
   });
 
   it("rejects an invalid receipt retry before authorization", async () => {

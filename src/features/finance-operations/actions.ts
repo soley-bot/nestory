@@ -150,6 +150,14 @@ const invoicePublicationSchema = z.object({
 }).strict();
 
 const receiptPublicationRetrySchema = z.object({ paymentId: uuid }).strict();
+
+function formDataWithoutActionMetadata(formData: FormData) {
+  return Object.fromEntries(
+    Array.from(formData.entries()).filter(
+      ([key]) => !key.startsWith("$ACTION_"),
+    ),
+  );
+}
 const RECEIPT_PUBLICATION_FAILURE_CATEGORY = "storage_unavailable";
 
 const settlementReversalSchema = z.object({
@@ -426,7 +434,9 @@ export async function publishTenantInvoicePdfAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = invoicePublicationSchema.safeParse(Object.fromEntries(formData));
+  const parsed = invoicePublicationSchema.safeParse(
+    formDataWithoutActionMetadata(formData),
+  );
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceOperationContext();
@@ -461,7 +471,9 @@ export async function retryTenantReceiptPdfAction(
   _state: FinanceOperationsActionState,
   formData: FormData,
 ): Promise<FinanceOperationsActionState> {
-  const parsed = receiptPublicationRetrySchema.safeParse(Object.fromEntries(formData));
+  const parsed = receiptPublicationRetrySchema.safeParse(
+    formDataWithoutActionMetadata(formData),
+  );
   if (!parsed.success) return validationError(parsed.error);
 
   const context = await requireFinanceOperationContext();

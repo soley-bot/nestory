@@ -1954,7 +1954,10 @@ function ReceiptAction({
     state.status === "success" && state.artifactHref
       ? state.artifactHref
       : settlement.receipt?.href;
-  const failed = !href && settlement.receipt?.publicationStatus === "failed";
+  const unavailable =
+    !href &&
+    (settlement.receipt?.publicationStatus === "failed" ||
+      settlement.receipt?.publicationStatus === "not_published");
   const handledStateRef = useRef<FinanceOperationsActionState | null>(null);
 
   useEffect(() => {
@@ -1974,7 +1977,7 @@ function ReceiptAction({
     );
   }
 
-  if (!failed) return null;
+  if (!unavailable) return null;
 
   return (
     <form action={formAction} className="flex flex-wrap items-center justify-end gap-2">
