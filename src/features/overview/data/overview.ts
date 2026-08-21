@@ -24,6 +24,7 @@ import type { CurrencyCode } from "@/lib/money/format";
 import { formatMoneyTotalsDisplay } from "@/lib/money/totals";
 
 const activeLeaseStatuses = ["active", "notice_given"] as const;
+const resolvedRentTermStatuses = ["active", "expired", "terminated", "upcoming"] as const;
 const largeExpenseReviewThreshold = 1000;
 const largeExpenseReviewHref = `/ledger?direction=expense&sort=amount_desc&period=last_30_days&minAmount=${largeExpenseReviewThreshold}`;
 const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
@@ -59,6 +60,7 @@ type LeaseRentTermRow = {
   payment_frequency: string;
   rent_amount: number;
   rent_currency: CurrencyCode;
+  status: string;
 };
 
 type LedgerWindowRow = {
@@ -178,11 +180,11 @@ export async function getOverviewScreenData(
     .in("status", [...activeLeaseStatuses]);
   const rentTermsQuery = supabase
     .from("lease_terms")
-    .select("lease_id, rent_amount, rent_currency, payment_frequency")
+    .select("lease_id, rent_amount, rent_currency, payment_frequency, status")
     .eq("organization_id", organizationId)
     .eq("authority_kind", "authoritative")
     .is("archived_at", null)
-    .neq("status", "superseded")
+    .in("status", [...resolvedRentTermStatuses])
     .lte("start_date", businessToday)
     .gte("end_date", businessToday)
     .eq("payment_frequency", "monthly");
@@ -1082,7 +1084,11 @@ function buildExpectedRent(
   const operationalLeaseIds = new Set(currentLeases.map((lease) => lease.id));
   const monthlyTerms = currentRentTerms.filter(
     (term) =>
-      term.payment_frequency === "monthly" && operationalLeaseIds.has(term.lease_id),
+      term.payment_frequency === "monthly" &&
+      resolvedRentTermStatuses.includes(
+        term.status as (typeof resolvedRentTermStatuses)[number],
+      ) &&
+      operationalLeaseIds.has(term.lease_id),
   );
 
   if (monthlyTerms.length === 0) {
