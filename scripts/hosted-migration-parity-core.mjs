@@ -1,9 +1,51 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+import path from "node:path";
 
 const migrationVersionPattern = /^\d{14}$/;
 const migrationNamePattern = /^[a-z0-9_]+$/;
 const hostedLedgerMaxBufferBytes = 64 * 1024 * 1024;
+const supabaseCliPackages = {
+  darwin: {
+    arm64: ["@supabase/cli-darwin-arm64"],
+    x64: ["@supabase/cli-darwin-x64"],
+  },
+  linux: {
+    arm64: ["@supabase/cli-linux-arm64", "@supabase/cli-linux-arm64-musl"],
+    x64: ["@supabase/cli-linux-x64", "@supabase/cli-linux-x64-musl"],
+  },
+  win32: {
+    arm64: ["@supabase/cli-windows-arm64"],
+    x64: ["@supabase/cli-windows-x64"],
+  },
+};
+
+export function resolvePinnedSupabaseCliBinary() {
+  const candidates = supabaseCliPackages[process.platform]?.[process.arch];
+  if (!candidates) {
+    throw new Error(
+      `unsupported platform for pinned Supabase CLI: ${process.platform}-${process.arch}`,
+    );
+  }
+
+  const require = createRequire(import.meta.url);
+  const extension = process.platform === "win32" ? ".exe" : "";
+  for (const packageName of candidates) {
+    try {
+      const packageJson = require.resolve(`${packageName}/package.json`);
+      return path.join(
+        path.dirname(packageJson),
+        "bin",
+        `supabase${extension}`,
+      );
+    } catch {}
+  }
+
+  throw new Error(
+    `pinned Supabase CLI binary package is unavailable for ${process.platform}-${process.arch}`,
+  );
+}
 
 export function runCommandWithBoundedOutput(command, args, options = {}) {
   const {
