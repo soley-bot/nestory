@@ -45,12 +45,20 @@ type UnitRow = {
 };
 
 type LeaseRow = {
+  id: string;
   lease_end_date: string;
   monthly_rent_amount: number;
   monthly_rent_currency: CurrencyCode;
   primary_tenant_person_id: string | null;
   property_id: string;
   unit_id: string | null;
+};
+
+type LeaseRentTermRow = {
+  lease_id: string;
+  payment_frequency: string;
+  rent_amount: number;
+  rent_currency: CurrencyCode;
 };
 
 type LedgerWindowRow = {
@@ -164,10 +172,20 @@ export async function getOverviewScreenData(
     .neq("status", "inactive");
   let leasesQuery = supabase
     .from("current_leases")
-    .select("unit_id, property_id, lease_end_date, monthly_rent_amount, monthly_rent_currency, primary_tenant_person_id")
+    .select("id, unit_id, property_id, lease_end_date, monthly_rent_amount, monthly_rent_currency, primary_tenant_person_id")
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .in("status", [...activeLeaseStatuses]);
+  const rentTermsQuery = supabase
+    .from("lease_terms")
+    .select("lease_id, rent_amount, rent_currency, payment_frequency")
+    .eq("organization_id", organizationId)
+    .eq("authority_kind", "authoritative")
+    .is("archived_at", null)
+    .neq("status", "superseded")
+    .lte("start_date", businessToday)
+    .gte("end_date", businessToday)
+    .eq("payment_frequency", "monthly");
   let ledgerWindowQuery = supabase
     .from("ledger_entries")
     .select("transaction_date, direction, amount, currency")
@@ -235,6 +253,7 @@ export async function getOverviewScreenData(
     propertyOptionsResult,
     unitsResult,
     leasesResult,
+    rentTermsResult,
     ledgerWindowResult,
     ledgerNetResult,
     peopleResult,
@@ -249,6 +268,7 @@ export async function getOverviewScreenData(
     loadAllRows(pageFactory(propertyOptionsQuery), "overview property options"),
     loadAllRows(pageFactory(unitsQuery), "overview units"),
     loadAllRows(pageFactory(leasesQuery), "overview leases"),
+    loadAllRows(pageFactory(rentTermsQuery), "overview rent terms"),
     loadAllRows(pageFactory(ledgerWindowQuery), "overview ledger window"),
     loadAllRows(pageFactory(ledgerNetQuery), "overview property ledger net"),
     loadAllRows(pageFactory(peopleQuery), "overview people"),
@@ -274,6 +294,7 @@ export async function getOverviewScreenData(
   assertNoError(propertyOptionsResult.error, "overview property options");
   assertNoError(unitsResult.error, "overview units");
   assertNoError(leasesResult.error, "overview leases");
+  assertNoError(rentTermsResult.error, "overview rent terms");
   assertNoError(ledgerWindowResult.error, "overview ledger window");
   assertNoError(ledgerNetResult.error, "overview property ledger net");
   assertNoError(peopleResult.error, "overview people");
@@ -288,17 +309,21 @@ export async function getOverviewScreenData(
   const propertyOptions = (
     (propertyOptionsResult.data ?? []) as PropertyRow[]
   ).filter((property) => property.status !== "inactive");
-  const operationalUnits = (unitsResult.data ?? []) as UnitRow[];
+  const activeProperties = properties.filter(
+    (property) => property.status !== "inactive",
+  );
+  const activePropertyIds = new Set(activeProperties.map((property) => property.id));
+  const operationalUnits = ((unitsResult.data ?? []) as UnitRow[]).filter(
+    (unit) => activePropertyIds.has(unit.property_id),
+  );
   const currentLeases = (leasesResult.data ?? []) as LeaseRow[];
+  const currentRentTerms = (rentTermsResult.data ?? []) as LeaseRentTermRow[];
   const ledgerRows = (ledgerWindowResult.data ?? []) as LedgerWindowRow[];
   const ledgerNetRows = (ledgerNetResult.data ?? []) as LedgerNetRow[];
   const activePeople = (peopleResult.data ?? []) as PersonRow[];
   const roles = (rolesResult.data ?? []) as PersonRoleRow[];
   const contacts = (contactsResult.data ?? []) as PersonContactRow[];
   const propertyOwners = (propertyOwnersResult.data ?? []) as PropertyOwnerRow[];
-  const activeProperties = properties.filter(
-    (property) => property.status !== "inactive",
-  );
   const operationalLeaseScope = splitOperationalLeases({
     activeProperties,
     currentLeases,
@@ -412,7 +437,7 @@ export async function getOverviewScreenData(
       peopleWithoutRoles,
       vacantUnits,
     }),
-    expectedRent: buildExpectedRent(operationalCurrentLeases),
+    expectedRent: buildExpectedRent(operationalCurrentLeases, currentRentTerms),
     leaseEndings: buildLeaseEndingsChart(operationalCurrentLeases, currentMonthStart),
     leaseRiskCount: leasesEndingSoon.length,
     ledgerCurrency: "USD",
@@ -1050,17 +1075,26 @@ function buildLedgerFlowChart({
   return Array.from(points.values());
 }
 
-function buildExpectedRent(currentLeases: LeaseRow[]) {
-  if (currentLeases.length === 0) {
+function buildExpectedRent(
+  currentLeases: LeaseRow[],
+  currentRentTerms: LeaseRentTermRow[],
+) {
+  const operationalLeaseIds = new Set(currentLeases.map((lease) => lease.id));
+  const monthlyTerms = currentRentTerms.filter(
+    (term) =>
+      term.payment_frequency === "monthly" && operationalLeaseIds.has(term.lease_id),
+  );
+
+  if (monthlyTerms.length === 0) {
     return { leaseCount: 0, monthly: null };
   }
 
   return {
-    leaseCount: currentLeases.length,
+    leaseCount: new Set(monthlyTerms.map((term) => term.lease_id)).size,
     monthly: formatMoneyTotalsDisplay(
-      currentLeases.map((lease) => ({
-        amount: Number(lease.monthly_rent_amount),
-        currency: lease.monthly_rent_currency,
+      monthlyTerms.map((term) => ({
+        amount: Number(term.rent_amount),
+        currency: term.rent_currency,
       })),
     ),
   };

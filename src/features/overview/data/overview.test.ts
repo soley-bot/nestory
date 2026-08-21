@@ -115,6 +115,7 @@ describe("getOverviewScreenData", () => {
         current_leases: {
           data: [
             {
+              id: "lease-1",
               lease_end_date: "2099-01-01",
               monthly_rent_amount: 900,
               monthly_rent_currency: "USD",
@@ -123,6 +124,7 @@ describe("getOverviewScreenData", () => {
               unit_id: "unit-1",
             },
             {
+              id: "archived-lease",
               lease_end_date: "2099-01-01",
               monthly_rent_amount: 1500,
               monthly_rent_currency: "USD",
@@ -131,6 +133,7 @@ describe("getOverviewScreenData", () => {
               unit_id: "archived-unit",
             },
             {
+              id: "inactive-lease",
               lease_end_date: "2099-01-01",
               monthly_rent_amount: 1200,
               monthly_rent_currency: "USD",
@@ -163,7 +166,22 @@ describe("getOverviewScreenData", () => {
             {
               id: "unit-1",
               property_id: "prop-1",
+              status: "occupied",
+            },
+            {
+              id: "inactive-unit",
+              property_id: "inactive-property",
               status: "vacant",
+            },
+          ],
+        },
+        lease_terms: {
+          data: [
+            {
+              lease_id: "lease-1",
+              payment_frequency: "monthly",
+              rent_amount: 900,
+              rent_currency: "USD",
             },
           ],
         },
@@ -176,6 +194,8 @@ describe("getOverviewScreenData", () => {
 
     expect(data.metrics.find((metric) => metric.label === "Active leases")?.value).toBe("1");
     expect(data.metrics.find((metric) => metric.label === "Occupancy")?.value).toBe("100%");
+    expect(data.workspaceSetup.unitCount).toBe(1);
+    expect(data.attentionItems.find((item) => item.id === "vacant-units")).toBeUndefined();
     expect(data.attentionItems).toContainEqual(
       expect.objectContaining({
         count: 2,
@@ -187,6 +207,77 @@ describe("getOverviewScreenData", () => {
       (data as unknown as { expectedRent: { leaseCount: number; monthly: { primary: string } } })
         .expectedRent,
     ).toMatchObject({
+      leaseCount: 1,
+      monthly: { primary: "USD 900.00" },
+    });
+  });
+
+  it("excludes non-monthly terms from the monthly expected-rent forecast", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        current_leases: {
+          data: [
+            {
+              id: "monthly-lease",
+              lease_end_date: "2099-01-01",
+              monthly_rent_amount: 900,
+              monthly_rent_currency: "USD",
+              primary_tenant_person_id: "person-1",
+              property_id: "prop-1",
+              unit_id: "unit-1",
+            },
+            {
+              id: "quarterly-lease",
+              lease_end_date: "2099-01-01",
+              monthly_rent_amount: 3000,
+              monthly_rent_currency: "USD",
+              primary_tenant_person_id: "person-2",
+              property_id: "prop-1",
+              unit_id: "unit-2",
+            },
+          ],
+        },
+        lease_terms: {
+          data: [
+            {
+              lease_id: "monthly-lease",
+              payment_frequency: "monthly",
+              rent_amount: 900,
+              rent_currency: "USD",
+            },
+            {
+              lease_id: "quarterly-lease",
+              payment_frequency: "quarterly",
+              rent_amount: 3000,
+              rent_currency: "USD",
+            },
+          ],
+        },
+        properties: {
+          data: [
+            {
+              code: "CTR",
+              id: "prop-1",
+              name: "Central Residence",
+              rental_structure: "multi_unit",
+              status: "active",
+            },
+          ],
+        },
+        units: {
+          data: [
+            { id: "unit-1", property_id: "prop-1", status: "occupied" },
+            { id: "unit-2", property_id: "prop-1", status: "occupied" },
+          ],
+        },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+    );
+
+    expect(data.expectedRent).toMatchObject({
       leaseCount: 1,
       monthly: { primary: "USD 900.00" },
     });
@@ -275,6 +366,7 @@ function createQuery(result: SupabaseResult) {
     is: chain,
     limit: chain,
     lt: chain,
+    lte: chain,
     neq: chain,
     or: chain,
     order: chain,
