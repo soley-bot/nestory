@@ -28,6 +28,9 @@ export type CommercialPdfIdentityField = {
 
 export const commercialA4Portrait = { height: 842, width: 595 } as const;
 
+const commercialPdfSupportMessage =
+  "Tenant commercial PDFs support basic Latin text and USD only.";
+
 export const commercialPdfColors = {
   border: "#c8cdd2",
   ink: "#202428",
@@ -194,7 +197,9 @@ export function drawCommercialText(
 ) {
   const fontSize = options.fontSize ?? 9;
   const text = sanitizeCommercialText(value);
-  const unicode = /[^\x20-\x7e]/.test(text);
+  if (/[^\x20-\x7e]/.test(text)) {
+    throw new Error(commercialPdfSupportMessage);
+  }
   const width = options.width ?? 0;
   const offset =
     options.align === "right"
@@ -207,11 +212,8 @@ export function drawCommercialText(
         : 0;
   commands.push(
     `${toRgb(options.color ?? commercialPdfColors.ink)} rg`,
-    unicode
-      ? `BT /F3 ${round(fontSize)} Tf 1 0 0 1 ${round(x + offset)} ${round(y)} Tm ` +
-        `${unicodePdfHex(text)} Tj ET`
-      : `BT /${options.bold ? "F2" : "F1"} ${round(fontSize)} Tf 1 0 0 1 ` +
-        `${round(x + offset)} ${round(y)} Tm (${escapePdfString(text)}) Tj ET`,
+    `BT /${options.bold ? "F2" : "F1"} ${round(fontSize)} Tf 1 0 0 1 ` +
+      `${round(x + offset)} ${round(y)} Tm (${escapePdfString(text)}) Tj ET`,
   );
 }
 
@@ -451,6 +453,9 @@ export function formatCommercialMoney(
   amount: string,
   currency: "KHR" | "USD",
 ) {
+  if (currency !== "USD") {
+    throw new Error(commercialPdfSupportMessage);
+  }
   const match = /^(-?)(\d+)(\.\d+)?$/.exec(amount.trim());
   if (!match) return `${currency} ${amount}`;
   const grouped = match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -535,10 +540,6 @@ function escapePdfString(value: string) {
     .replace(/\\/g, "\\\\")
     .replace(/\(/g, "\\(")
     .replace(/\)/g, "\\)");
-}
-
-function unicodePdfHex(value: string) {
-  return `<${Buffer.from(value, "utf16le").swap16().toString("hex").toUpperCase()}>`;
 }
 
 function validateCommercialImage(image: CommercialPdfImage) {

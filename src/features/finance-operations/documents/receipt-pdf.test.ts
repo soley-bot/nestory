@@ -127,7 +127,7 @@ describe("tenant receipt PDF", () => {
     expect(text).toContain("FINAL-UNIT-MARKER");
   });
 
-  it("preserves Khmer commercial identity and allocation text deterministically", () => {
+  it("rejects unsupported non-Latin commercial text", () => {
     const model: TenantReceiptPdfModel = {
       ...receiptModel(),
       allocations: [{ amount: "500.00", label: "ថ្លៃជួលប្រចាំខែសីហា" }],
@@ -136,15 +136,18 @@ describe("tenant receipt PDF", () => {
       recipientLabel: "សុខា ចាន់",
       unitLabel: "បន្ទប់ ២៨០៧",
     };
-    const first = buildTenantReceiptPdf(model);
-    const second = buildTenantReceiptPdf(model);
-    const text = pdfText(first);
 
-    expect(first).toEqual(second);
-    expect(text).toContain(pdfUnicodeHex("សេវាកម្មអចលនទ្រព្យឯករាជ្យ"));
-    expect(text).toContain(pdfUnicodeHex("សុខា ចាន់"));
-    expect(text).toContain(pdfUnicodeHex("អគារដឹភីក / បន្ទប់ ២៨០៧"));
-    expect(text).toContain(pdfUnicodeHex("ថ្លៃជួលប្រចាំខែសីហា"));
+    expect(() => buildTenantReceiptPdf(model)).toThrow(
+      "Tenant commercial PDFs support basic Latin text and USD only.",
+    );
+  });
+
+  it("rejects unsupported KHR currency", () => {
+    expect(() =>
+      buildTenantReceiptPdf({ ...receiptModel(), currency: "KHR" }),
+    ).toThrow(
+      "Tenant commercial PDFs support basic Latin text and USD only.",
+    );
   });
 
   it("renders a visible reversed label without creating a cancellation document", () => {
@@ -196,8 +199,4 @@ function pdfPageCount(text: string) {
 
 function occurrences(text: string, value: string) {
   return text.split(value).length - 1;
-}
-
-function pdfUnicodeHex(value: string) {
-  return `<${Buffer.from(value, "utf16le").swap16().toString("hex").toUpperCase()}>`;
 }

@@ -736,6 +736,14 @@ VALUES
     'a1000000-0000-4000-8000-000000000001',
     '{"mimetype":"application/pdf","size":2048}'::jsonb,
     'tenant-commercial-document-v1-receipt-direct-owner'
+  ),
+  (
+    'c0000000-0000-4000-8000-000000000012',
+    'tenant-commercial-documents',
+    'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000004/RCP-NON-IPS-1004.pdf',
+    'a1000000-0000-4000-8000-000000000001',
+    '{"mimetype":"application/pdf","size":2048}'::jsonb,
+    'tenant-commercial-document-v1-receipt-alternative-source'
   );
 
 RESET ROLE;
@@ -787,17 +795,14 @@ SELECT throws_ok(
   'a direct-to-owner payment is not a normal Receipt publication source'
 );
 
-SELECT throws_ok(
-  $$
-    SELECT public.get_tenant_commercial_document_publication_source(
-      'a0000000-0000-4000-8000-000000000001',
-      'receipt',
-      'a9000000-0000-4000-8000-000000000004'
-    )
-  $$,
-  '23503',
-  'tenant_commercial_document_source_not_found',
-  'a payment outside the IPS reconciliation source is not a Receipt publication source'
+SELECT is(
+  public.get_tenant_commercial_document_publication_source(
+    'a0000000-0000-4000-8000-000000000001',
+    'receipt',
+    'a9000000-0000-4000-8000-000000000004'
+  )->>'document_number',
+  'RCP-NON-IPS-1004',
+  'a through-IPS payment can publish from any configured receiving source'
 );
 
 SELECT throws_ok(
@@ -878,35 +883,68 @@ SELECT throws_ok(
   'a direct-to-owner payment cannot create a failed Receipt publication row'
 );
 
-SELECT throws_ok(
+SAVEPOINT alternative_receiving_source_registration;
+
+RESET ROLE;
+SET LOCAL ROLE service_role;
+
+SELECT lives_ok(
   $$
-    SELECT public.register_tenant_commercial_document_artifact(
+    SELECT public.attest_tenant_commercial_document_upload(
       'a0000000-0000-4000-8000-000000000001',
       'receipt',
       'a9000000-0000-4000-8000-000000000004',
+      'a1000000-0000-4000-8000-000000000001',
       'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000004/RCP-NON-IPS-1004.pdf',
-      repeat('8', 64), 2048, 'commercial-pdf-v1', 'RCP-NON-IPS-1004',
-      '{"kind":"receipt"}'::jsonb
+      'c0000000-0000-4000-8000-000000000012',
+      'tenant-commercial-document-v1-receipt-alternative-source',
+      repeat('8', 64),
+      2048,
+      'commercial-pdf-v1',
+      '{"amount":"100.00","kind":"receipt"}'::jsonb
     )
   $$,
-  '23503',
-  'tenant_commercial_document_source_not_found',
-  'a non-IPS payment cannot register a normal Receipt artifact'
+  'service_role can attest a Receipt uploaded for an alternative configured source'
 );
 
-SELECT throws_ok(
-  $$
-    SELECT public.mark_tenant_commercial_document_publication_failed(
-      'a0000000-0000-4000-8000-000000000001',
-      'receipt',
-      'a9000000-0000-4000-8000-000000000004',
-      'storage_unavailable'
-    )
-  $$,
-  '23503',
-  'tenant_commercial_document_source_not_found',
-  'a non-IPS payment cannot create a failed Receipt publication row'
+SET LOCAL ROLE authenticated;
+SELECT pg_catalog.set_config(
+  'request.jwt.claim.sub',
+  'a1000000-0000-4000-8000-000000000001',
+  true
 );
+
+SELECT isnt(
+  public.register_tenant_commercial_document_artifact(
+    'a0000000-0000-4000-8000-000000000001',
+    'receipt',
+    'a9000000-0000-4000-8000-000000000004',
+    'a0000000-0000-4000-8000-000000000001/receipt/a9000000-0000-4000-8000-000000000004/RCP-NON-IPS-1004.pdf',
+    repeat('8', 64), 2048, 'commercial-pdf-v1', 'RCP-NON-IPS-1004',
+    '{"kind":"receipt","amount":"100.00"}'::jsonb
+  ),
+  NULL::uuid,
+  'a Receipt from an alternative configured source can be registered'
+);
+
+ROLLBACK TO SAVEPOINT alternative_receiving_source_registration;
+RELEASE SAVEPOINT alternative_receiving_source_registration;
+
+SAVEPOINT alternative_receiving_source_failure;
+
+SELECT isnt(
+  public.mark_tenant_commercial_document_publication_failed(
+    'a0000000-0000-4000-8000-000000000001',
+    'receipt',
+    'a9000000-0000-4000-8000-000000000004',
+    'storage_unavailable'
+  ),
+  NULL::uuid,
+  'an alternative configured source retains retryable failure state'
+);
+
+ROLLBACK TO SAVEPOINT alternative_receiving_source_failure;
+RELEASE SAVEPOINT alternative_receiving_source_failure;
 
 SELECT throws_ok(
   $$

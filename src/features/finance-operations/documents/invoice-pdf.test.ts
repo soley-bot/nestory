@@ -117,7 +117,7 @@ describe("tenant invoice PDF", () => {
     expect(text).toContain("FINAL-OCCUPANT-MARKER");
   });
 
-  it("preserves Khmer commercial identity and line text deterministically", () => {
+  it("rejects unsupported non-Latin commercial text", () => {
     const model: TenantInvoicePdfModel = {
       ...invoiceModel(),
       issuer: { name: "សេវាកម្មអចលនទ្រព្យឯករាជ្យ" },
@@ -133,16 +133,17 @@ describe("tenant invoice PDF", () => {
       recipientLabel: "សុខា ចាន់",
       unitLabel: "បន្ទប់ ២៨០៧",
     };
-    const first = buildTenantInvoicePdf(model);
-    const second = buildTenantInvoicePdf(model);
-    const text = pdfText(first);
 
-    expect(first).toEqual(second);
-    expect(text).toContain(pdfUnicodeHex("សេវាកម្មអចលនទ្រព្យឯករាជ្យ"));
-    expect(text).toContain(pdfUnicodeHex("សុខា ចាន់"));
-    expect(text).toContain(pdfUnicodeHex("អគារដឹភីក / បន្ទប់ ២៨០៧"));
-    expect(text).toContain(
-      pdfUnicodeHex("ថ្លៃជួល - ថ្លៃជួលប្រចាំខែសីហា"),
+    expect(() => buildTenantInvoicePdf(model)).toThrow(
+      "Tenant commercial PDFs support basic Latin text and USD only.",
+    );
+  });
+
+  it("rejects unsupported KHR currency", () => {
+    expect(() =>
+      buildTenantInvoicePdf({ ...invoiceModel(), currency: "KHR" }),
+    ).toThrow(
+      "Tenant commercial PDFs support basic Latin text and USD only.",
     );
   });
 
@@ -227,8 +228,4 @@ function pdfPageCount(text: string) {
 
 function occurrences(text: string, value: string) {
   return text.split(value).length - 1;
-}
-
-function pdfUnicodeHex(value: string) {
-  return `<${Buffer.from(value, "utf16le").swap16().toString("hex").toUpperCase()}>`;
 }
