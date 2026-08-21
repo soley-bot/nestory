@@ -63,6 +63,46 @@ BEGIN
 END;
 $$;
 
+-- Any deposit event is retained financial evidence, including a receipt that
+-- was later reversed. A normal Lease edit must never archive that history.
+DO $$
+DECLARE
+  v_definition text;
+  v_anchor constant text := pg_catalog.replace($anchor$
+    SELECT count(*)
+    INTO v_settled_event_count
+    FROM public.lease_deposit_events AS event
+    WHERE event.organization_id = p_organization_id
+      AND event.lease_deposit_id = v_deposit_id
+      AND event.reversal_of_id IS NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.lease_deposit_events AS reversal
+        WHERE reversal.reversal_of_id = event.id
+      );
+$anchor$, E'\r\n', E'\n');
+  v_replacement constant text := pg_catalog.replace($replacement$
+    SELECT count(*)
+    INTO v_settled_event_count
+    FROM public.lease_deposit_events AS event
+    WHERE event.organization_id = p_organization_id
+      AND event.lease_deposit_id = v_deposit_id;
+$replacement$, E'\r\n', E'\n');
+BEGIN
+  SELECT pg_get_functiondef(
+    'app_private.update_lease_record_internal(uuid,uuid,uuid,uuid,uuid,numeric,public.currency_code,text)'::regprocedure
+  )
+  INTO v_definition;
+  v_definition := pg_catalog.replace(v_definition, E'\r\n', E'\n');
+
+  IF strpos(v_definition, v_anchor) = 0 THEN
+    RAISE EXCEPTION 'Expected Lease deposit-evidence guard was not found';
+  END IF;
+
+  EXECUTE pg_catalog.replace(v_definition, v_anchor, v_replacement);
+END;
+$$;
+
 -- Terminal lifecycle transitions used to supersede only the newest selected
 -- term. Close every remaining non-terminal authoritative term while retaining
 -- every row and the appended terminal event/term lineage.

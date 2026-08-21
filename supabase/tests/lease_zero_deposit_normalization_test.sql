@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(7);
+SELECT plan(12);
 
 CREATE TEMP TABLE zero_deposit_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -198,6 +198,93 @@ SELECT is(
   ),
   500::numeric,
   'the unrelated positive deposit is unchanged'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.record_lease_deposit_event(
+      state.organization_id,
+      deposit.id,
+      'received',
+      current_date,
+      500,
+      'ZERO-DEPOSIT-RECEIPT'
+    )
+    FROM zero_deposit_state AS state
+    JOIN public.lease_deposits AS deposit
+      ON deposit.lease_id = (state.funded_result ->> 'leaseId')::uuid
+  $$,
+  'the positive deposit can record receipt evidence'
+);
+
+SELECT lives_ok(
+  $$
+    SELECT public.reverse_lease_deposit_event(
+      state.organization_id,
+      event.id,
+      current_date,
+      'ZERO-DEPOSIT-RECEIPT-REVERSAL'
+    )
+    FROM zero_deposit_state AS state
+    JOIN public.lease_deposits AS deposit
+      ON deposit.lease_id = (state.funded_result ->> 'leaseId')::uuid
+    JOIN public.lease_deposit_events AS event
+      ON event.lease_deposit_id = deposit.id
+     AND event.reference = 'ZERO-DEPOSIT-RECEIPT'
+  $$,
+  'the receipt can be fully reversed while preserving event history'
+);
+
+SELECT throws_ok(
+  $$
+    SELECT public.update_lease_with_authoritative_term(
+      (state.funded_result ->> 'leaseId')::uuid,
+      state.organization_id,
+      state.property_id,
+      state.funded_unit_id,
+      state.tenant_id,
+      current_date + 30,
+      current_date + 395,
+      950,
+      'USD',
+      1,
+      'monthly',
+      'draft',
+      0,
+      'USD',
+      'draft',
+      'funded-to-zero-update-v1'
+    )
+    FROM zero_deposit_state AS state
+  $$,
+  '55000',
+  'Deposit already has recorded activity and cannot be changed here',
+  'zero normalization cannot archive a deposit with reversed evidence'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM public.lease_deposits AS deposit
+    JOIN zero_deposit_state AS state
+      ON deposit.lease_id = (state.funded_result ->> 'leaseId')::uuid
+    WHERE deposit.archived_at IS NULL
+      AND deposit.amount = 500
+  ),
+  'the deposit row remains visible after the blocked zero update'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.lease_deposit_events AS event
+    JOIN public.lease_deposits AS deposit
+      ON deposit.id = event.lease_deposit_id
+    JOIN zero_deposit_state AS state
+      ON deposit.lease_id = (state.funded_result ->> 'leaseId')::uuid
+  ),
+  2,
+  'the receipt and reversal history remain unchanged'
 );
 
 SELECT lives_ok(
