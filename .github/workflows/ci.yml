@@ -94,6 +94,33 @@ jobs:
       - name: Lint database
         run: npm run db:lint
 
+      # Supabase CLI 2.108.0 hard-codes public ECR for this image during
+      # local type generation. Pre-seed the identical official GHCR
+      # image while supabase/cli#5785 is unresolved.
+      - name: Seed pinned postgres-meta image for type generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly source_digest="sha256:2559d20aaa50f2eb86a6cb2e5af4e847e87139673bc214b4655c126d96c160b2"
+          readonly source_image="ghcr.io/supabase/postgres-meta@${source_digest}"
+          readonly target_image="public.ecr.aws/supabase/postgres-meta:v0.96.1"
+
+          for attempt in 1 2 3; do
+            if docker pull "${source_image}"; then
+              break
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+
+          test "$(docker image inspect "${source_image}" --format '{{.Os}}')" = "linux"
+          test "$(docker image inspect "${source_image}" --format '{{.Architecture}}')" = "amd64"
+          readonly source_id="$(docker image inspect "${source_image}" --format '{{.Id}}')"
+          docker tag "${source_image}" "${target_image}"
+          test "$(docker image inspect "${target_image}" --format '{{.Id}}')" = "${source_id}"
+
       - name: Verify generated database types
         run: |
           npm run db:types
