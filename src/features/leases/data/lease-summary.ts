@@ -215,13 +215,23 @@ export function buildLeaseSummary({
   const displayStartDate = resolvedTerm?.start_date ?? lease.lease_start_date;
   const displayEndDate = resolvedTerm?.end_date ?? lease.lease_end_date;
   const rentUsd = rentAmount;
-  const depositAmount =
+  const storedDepositAmount =
     lease.deposit_amount === null ? null : Number(lease.deposit_amount);
+  const depositAmount =
+    storedDepositAmount !== null && storedDepositAmount > 0
+      ? storedDepositAmount
+      : null;
   const depositCurrency = lease.deposit_currency ?? rentCurrency;
   const hasDeposit = depositAmount !== null;
+  const zeroDepositNeedsReview = deposits.some(
+    (deposit) =>
+      !deposit.archived_at &&
+      Number(deposit.amount) === 0 &&
+      (deposit.events?.length ?? 0) > 0,
+  );
   const formValues: LeaseFormValues = {
     depositAmount,
-    depositCurrency: lease.deposit_currency,
+    depositCurrency: hasDeposit ? lease.deposit_currency : null,
     leaseEndDate: formTerm?.end_date ?? lease.lease_end_date,
     leaseStartDate: formTerm?.start_date ?? lease.lease_start_date,
     monthlyRentAmount: formTerm
@@ -266,7 +276,7 @@ export function buildLeaseSummary({
       : undefined,
     depositLabel: hasDeposit
       ? formatMoney(depositAmount, depositCurrency)
-      : "No deposit recorded",
+      : "No deposit required",
     deposits: deposits.filter((deposit) => !deposit.archived_at).map((deposit) =>
       toDepositContext(deposit),
     ),
@@ -302,6 +312,7 @@ export function buildLeaseSummary({
     riskIndicators: buildLeaseRiskIndicators({
       endRisk,
       hasDeposit,
+      zeroDepositNeedsReview,
       hasDocuments: recordCounts.documents > 0,
       hasParties: activeParties.length > 0,
       placement: isWholePropertyLease
@@ -644,6 +655,8 @@ function formatOccupancyEvidenceRange({
 function toDepositContext(deposit: LeaseDepositRow): LeaseDepositContext {
   const reversedIds = new Set((deposit.events ?? []).filter((event) => event.reversal_of_id).map((event) => event.reversal_of_id!));
   const held = (deposit.events ?? []).filter((event) => !event.reversal_of_id && !reversedIds.has(event.id)).reduce((sum, event) => sum + (event.event_type === "received" ? Number(event.amount) : -Number(event.amount)), 0);
+  const isZeroDeposit = Number(deposit.amount) === 0;
+  const zeroDepositHasEvidence = isZeroDeposit && (deposit.events?.length ?? 0) > 0;
   return {
     amount: Number(deposit.amount),
     amountDisplay: formatMoneyDisplay(deposit.amount, deposit.currency),
@@ -652,7 +665,11 @@ function toDepositContext(deposit: LeaseDepositRow): LeaseDepositContext {
     currency: deposit.currency,
     heldBalanceDisplay: formatMoneyDisplay(held, deposit.currency),
     events: (deposit.events ?? []).map((event) => ({ id: event.id, eventDate: event.event_date, eventType: event.event_type, amountDisplay: formatMoneyDisplay(event.amount, event.currency), reference: event.reference ?? "", reversible: !event.reversal_of_id && !reversedIds.has(event.id) })),
-    statusLabel: formatStoredLabel(deposit.status),
+    statusLabel: isZeroDeposit
+      ? zeroDepositHasEvidence
+        ? "Needs review"
+        : "No deposit required"
+      : formatStoredLabel(deposit.status),
     typeLabel: formatStoredLabel(deposit.deposit_type),
   };
 }
@@ -690,6 +707,7 @@ function buildLeaseRiskIndicators({
   hasParties,
   placement,
   statusValue,
+  zeroDepositNeedsReview,
 }: {
   endRisk: ReturnType<typeof getLeaseEndRisk>;
   hasDeposit: boolean;
@@ -697,6 +715,7 @@ function buildLeaseRiskIndicators({
   hasParties: boolean;
   placement: "missing" | "unit" | "whole_property";
   statusValue: LeaseStatusValue;
+  zeroDepositNeedsReview: boolean;
 }): LeaseRiskIndicator[] {
   return [
     {
@@ -730,12 +749,18 @@ function buildLeaseRiskIndicators({
       tone: endRisk.tone,
     },
     {
-      description: hasDeposit
-        ? "A deposit amount is available for this lease."
-        : "No deposit amount is recorded.",
+      description: zeroDepositNeedsReview
+        ? "Deposit activity needs a closer look."
+        : hasDeposit
+          ? "A deposit amount is available for this lease."
+          : "No deposit is required for this lease.",
       id: "deposit",
-      label: hasDeposit ? "Deposit recorded" : "Deposit missing",
-      tone: hasDeposit ? "success" : "warning",
+      label: zeroDepositNeedsReview
+        ? "Deposit needs review"
+        : hasDeposit
+          ? "Deposit recorded"
+          : "No deposit required",
+      tone: zeroDepositNeedsReview ? "warning" : "success",
     },
     {
       description: hasDocuments

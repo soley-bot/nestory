@@ -149,6 +149,23 @@ describe("Lease occupancy evidence input", () => {
     });
   });
 
+  it("normalizes a zero deposit to no deposit before the checked mutation", async () => {
+    const formData = leaseForm();
+    formData.set("depositAmount", "0");
+
+    await expect(createLeaseAction({}, formData)).resolves.toMatchObject({
+      leaseId,
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "create_simplified_unit_lease",
+      expect.objectContaining({
+        p_deposit_amount: null,
+        p_deposit_currency: null,
+      }),
+    );
+  });
+
   it("updates a whole-property draft with a nullable Unit RPC argument", async () => {
     const formData = leaseForm();
     formData.set("leaseId", leaseId);

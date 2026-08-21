@@ -78,7 +78,18 @@ describe("getOverviewScreenData", () => {
             {
               lease_end_date: "2099-01-01",
               primary_tenant_person_id: null,
+              property_id: "prop-1",
               unit_id: null,
+            },
+          ],
+        },
+        properties: {
+          data: [
+            {
+              code: "CTR",
+              id: "prop-1",
+              name: "Central Residence",
+              rental_structure: "single_space",
             },
           ],
         },
@@ -96,6 +107,83 @@ describe("getOverviewScreenData", () => {
         id: "missing-tenant-links",
       }),
     );
+  });
+
+  it("counts only leases with an operational property and unit", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(
+      createSupabaseStub({
+        current_leases: {
+          data: [
+            {
+              lease_end_date: "2099-01-01",
+              monthly_rent_amount: 900,
+              monthly_rent_currency: "USD",
+              primary_tenant_person_id: "person-1",
+              property_id: "prop-1",
+              unit_id: "unit-1",
+            },
+            {
+              lease_end_date: "2099-01-01",
+              monthly_rent_amount: 1500,
+              monthly_rent_currency: "USD",
+              primary_tenant_person_id: "person-2",
+              property_id: "archived-property",
+              unit_id: "archived-unit",
+            },
+          ],
+        },
+        properties: {
+          data: [
+            {
+              code: "CTR",
+              id: "prop-1",
+              name: "Central Residence",
+              rental_structure: "multi_unit",
+            },
+          ],
+        },
+        units: {
+          data: [
+            {
+              id: "unit-1",
+              property_id: "prop-1",
+              status: "vacant",
+            },
+          ],
+        },
+      }),
+    );
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+    );
+
+    expect(data.metrics.find((metric) => metric.label === "Active leases")?.value).toBe("1");
+    expect(data.metrics.find((metric) => metric.label === "Occupancy")?.value).toBe("100%");
+    expect(data.attentionItems).toContainEqual(
+      expect.objectContaining({
+        count: 1,
+        id: "lease-scope-review",
+        label: "Leases need placement review",
+      }),
+    );
+    expect(
+      (data as unknown as { expectedRent: { leaseCount: number; monthly: { primary: string } } })
+        .expectedRent,
+    ).toMatchObject({
+      leaseCount: 1,
+      monthly: { primary: "USD 900.00" },
+    });
+  });
+
+  it("returns no cash-flow points when the ledger has no activity", async () => {
+    vi.mocked(createSupabaseServerClient).mockResolvedValue(createSupabaseStub());
+
+    const data = await getOverviewScreenData(
+      "11111111-1111-4111-8111-111111111111",
+    );
+
+    expect(data.ledgerFlow).toEqual([]);
   });
 
   it("builds the six-month cash-flow series from ledger entries", async () => {
