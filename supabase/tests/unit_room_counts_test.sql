@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(41);
+SELECT plan(42);
 
 SELECT has_column('public', 'units', 'bedroom_count', 'units store bedroom counts');
 SELECT has_column('public', 'units', 'bathroom_count', 'units store bathroom counts');
@@ -298,6 +298,27 @@ SELECT results_eq(
   $$,
   $$ VALUES ('null'::text, 'null'::text) $$,
   'the rollback create overload keeps room-count keys in activity evidence'
+);
+
+SELECT public.update_unit(
+  legacy_unit_id,
+  organization_id,
+  property_id,
+  'LEGACY-EDIT',
+  '2',
+  49,
+  'maintenance'
+)
+FROM unit_room_count_state;
+
+SELECT results_eq(
+  $$
+    SELECT bedroom_count, bathroom_count
+    FROM public.units
+    WHERE id = (SELECT legacy_unit_id FROM unit_room_count_state)
+  $$,
+  $$ VALUES (NULL::smallint, NULL::smallint) $$,
+  'the rollback update overload preserves unknown counts as unknown'
 );
 
 UPDATE unit_room_count_state
