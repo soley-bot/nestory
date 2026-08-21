@@ -120,6 +120,13 @@ describe("buildFinanceWorkspaceData", () => {
             occupantLabels: ["Mina Chen"],
             paidThroughIps: 0,
             paymentStatus: "unpaid",
+            pdf: {
+              artifactId: null,
+              href: null,
+              publicationStatus: "not_published",
+              publishedAt: null,
+            },
+            publicationSnapshot: null,
             propertyId: "property-1",
             propertyLabel: "Garden Court",
             recipientLabel: "Mina Chen",

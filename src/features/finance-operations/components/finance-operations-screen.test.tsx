@@ -5,10 +5,38 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import type { AnchorHTMLAttributes } from "react";
+
+const financeActionMocks = vi.hoisted(() => ({
+  publishTenantInvoicePdfAction: vi.fn(),
+  recordTenantInvoicePaymentAction: vi.fn(),
+  retryTenantReceiptPdfAction: vi.fn(),
+}));
+
+vi.mock("../actions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../actions")>();
+  return {
+    ...actual,
+    publishTenantInvoicePdfAction: financeActionMocks.publishTenantInvoicePdfAction,
+    recordTenantInvoicePaymentAction:
+      financeActionMocks.recordTenantInvoicePaymentAction,
+    retryTenantReceiptPdfAction: financeActionMocks.retryTenantReceiptPdfAction,
+  };
+});
+
+vi.mock("next/link", () => ({
+  default: ({ children, ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a {...props} data-next-link="true">
+      {children}
+    </a>
+  ),
+}));
+
 import { FinanceOperationsScreen } from "./finance-operations-screen";
 import type { FinanceOperationsData } from "../finance-operations.types";
 
@@ -27,7 +55,12 @@ beforeAll(() => {
   }
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  financeActionMocks.publishTenantInvoicePdfAction.mockReset();
+  financeActionMocks.recordTenantInvoicePaymentAction.mockReset();
+  financeActionMocks.retryTenantReceiptPdfAction.mockReset();
+});
 
 class ResizeObserverStub {
   disconnect() {}
@@ -329,6 +362,13 @@ describe("FinanceOperationsScreen", () => {
           id: "payment-late",
           isReversed: false,
           reference: "Bank receipt",
+          receipt: {
+            artifactId: null,
+            href: null,
+            publicationStatus: "not_published",
+            publishedAt: null,
+          },
+          receiptNumber: null,
           reversalReason: null,
           route: "through_ips",
         },
@@ -1136,6 +1176,597 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
+  it("keeps invoice PDF publication compact, capability-gated, and focus-safe", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    input.tenantInvoices = [invoice];
+
+    const member = render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Publish PDF" }),
+    ).toBeNull();
+    member.unmount();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    const trigger = within(
+      screen.getByRole("dialog", { name: "Invoice details" }),
+    ).getByRole("button", { name: "Publish PDF" });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+
+    const drawer = screen.getByRole("dialog", { name: "Publish invoice PDF" });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(drawer).getByLabelText("Payment instructions"),
+      ),
+    );
+    await user.tab();
+    expect(drawer.contains(document.activeElement)).toBe(true);
+    expect(
+      within(drawer)
+        .getAllByRole("textbox")
+        .map((field) => field.getAttribute("name")),
+    ).toEqual(["paymentInstructions", "contactEmail", "contactPhone", "note"]);
+    expect(
+      within(drawer).getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(expect.arrayContaining(["Cancel", "Publish PDF"]));
+    expect(within(drawer).queryByText(/this will|use this|choose/i)).toBeNull();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Publish invoice PDF" }),
+      ).toBeNull(),
+    );
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Publish invoice PDF" })).getByRole(
+        "button",
+        { name: "Cancel" },
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Publish invoice PDF" }),
+      ).toBeNull(),
+    );
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+
+    financeActionMocks.publishTenantInvoicePdfAction.mockResolvedValueOnce({
+      artifactHref: "/api/finance/documents/invoice-artifact",
+      message: "Invoice published.",
+      publicationStatus: "published",
+      status: "success",
+    });
+    await user.click(trigger);
+    const publicationDrawer = screen.getByRole("dialog", {
+      name: "Publish invoice PDF",
+    });
+    await user.type(
+      within(publicationDrawer).getByLabelText("Payment instructions"),
+      "Bank transfer to IPS operating account.",
+    );
+    await user.type(
+      within(publicationDrawer).getByLabelText("Email"),
+      "billing@ips.example",
+    );
+    await user.type(
+      within(publicationDrawer).getByLabelText("Phone"),
+      "+855 12 345 678",
+    );
+    await user.click(
+      within(publicationDrawer).getByRole("button", { name: "Publish PDF" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Publish invoice PDF" }),
+      ).toBeNull(),
+    );
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    expect(
+      financeActionMocks.publishTenantInvoicePdfAction,
+    ).toHaveBeenCalledOnce();
+    const downloads = screen.getAllByRole("link", { name: "Download PDF" });
+    expect(downloads).toHaveLength(1);
+    expect(downloads[0]).toBe(trigger);
+    expect(downloads[0]?.getAttribute("href")).toBe(
+      "/api/finance/documents/invoice-artifact",
+    );
+    expect(screen.queryByRole("button", { name: "Publish PDF" })).toBeNull();
+  });
+
+  it("keeps publication failures in the drawer with a concise usable error", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    input.tenantInvoices = [invoice];
+    financeActionMocks.publishTenantInvoicePdfAction.mockResolvedValueOnce({
+      message: "Invoice PDF unavailable.",
+      status: "error",
+    });
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Publish PDF" }));
+    const drawer = screen.getByRole("dialog", { name: "Publish invoice PDF" });
+    await user.type(
+      within(drawer).getByLabelText("Payment instructions"),
+      "Bank transfer to IPS operating account.",
+    );
+    await user.type(
+      within(drawer).getByLabelText("Email"),
+      "billing@ips.example",
+    );
+    await user.type(
+      within(drawer).getByLabelText("Phone"),
+      "+855 12 345 678",
+    );
+    await user.click(
+      within(drawer).getByRole("button", { name: "Publish PDF" }),
+    );
+
+    expect((await within(drawer).findByRole("alert")).textContent).toContain(
+      "Invoice PDF unavailable.",
+    );
+    expect(
+      (within(drawer).getByLabelText("Note") as HTMLTextAreaElement).disabled,
+    ).toBe(false);
+  });
+
+  it("keeps a published invoice PDF download-only for a Finance Member", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    invoice.pdf = {
+      artifactId: "invoice-artifact",
+      href: "/api/finance/documents/invoice-artifact",
+      publicationStatus: "published",
+      publishedAt: "2026-08-08T10:00:00Z",
+    };
+    invoice.publicationSnapshot = {
+      contactEmail: "billing@ips.example",
+      contactPhone: "+855 12 345 678",
+      note: "Include the invoice number with payment.",
+      paymentInstructions: "Bank transfer to IPS operating account.",
+    };
+    input.tenantInvoices = [invoice];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    const drawer = screen.getByRole("dialog", { name: "Invoice details" });
+    expect(
+      within(drawer).getByRole("link", { name: "Download PDF" }).getAttribute(
+        "href",
+      ),
+    ).toBe("/api/finance/documents/invoice-artifact");
+    expect(within(drawer).queryByRole("button", { name: "Publish PDF" })).toBeNull();
+    expect(within(drawer).queryByLabelText("Payment instructions")).toBeNull();
+    expect(within(drawer).getByText("Published 08 Aug 2026")).not.toBeNull();
+    expect(
+      within(drawer).getByText("Bank transfer to IPS operating account."),
+    ).not.toBeNull();
+    expect(within(drawer).getByText("billing@ips.example")).not.toBeNull();
+  });
+
+  it("does not offer invoice publication for a voided invoice without an artifact", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    invoice.paymentStatus = "voided";
+    input.tenantInvoices = [invoice];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    expect(screen.queryByRole("button", { name: "Publish PDF" })).toBeNull();
+  });
+
+  it("shows immutable receipt history and keeps retry limited to payment operators", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    invoice.balanceDue = 0;
+    invoice.paidThroughIps = 640;
+    invoice.paymentStatus = "paid";
+    invoice.settlements = [
+      {
+        amount: 640,
+        date: "2026-08-08",
+        id: "payment-1",
+        isReversed: true,
+        receipt: {
+          artifactId: "receipt-artifact",
+          href: "/api/finance/documents/receipt-artifact",
+          publicationStatus: "published",
+          publishedAt: "2026-08-08T10:00:00Z",
+        },
+        receiptNumber: "RCT-2026-0042",
+        reference: "Bank transfer",
+        reversalReason: "Duplicate payment",
+        route: "through_ips",
+      },
+    ];
+    input.tenantInvoices = [invoice];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    const details = screen.getByRole("dialog", { name: "Invoice details" });
+    expect(within(details).getByText("Reversed")).not.toBeNull();
+    const receiptDownload = within(details).getByRole("link", {
+      name: "Download receipt",
+    });
+    expect(receiptDownload.getAttribute("href")).toBe(
+      "/api/finance/documents/receipt-artifact",
+    );
+    expect(receiptDownload.getAttribute("data-next-link")).toBeNull();
+
+    const failedInvoice = tenantInvoice();
+    failedInvoice.collectionRoute = "through_ips";
+    failedInvoice.balanceDue = 0;
+    failedInvoice.paidThroughIps = 640;
+    failedInvoice.paymentStatus = "paid";
+    failedInvoice.settlements = [
+      {
+        amount: 640,
+        date: "2026-08-08",
+        id: "payment-failed",
+        isReversed: false,
+        receipt: {
+          artifactId: "failed-artifact",
+          href: null,
+          publicationStatus: "failed",
+          publishedAt: null,
+        },
+        receiptNumber: null,
+        reference: null,
+        reversalReason: null,
+        route: "through_ips",
+      },
+    ];
+    input.tenantInvoices = [failedInvoice];
+    cleanup();
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    expect(screen.getByText("Receipt unavailable")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry receipt" })).toBeNull();
+    cleanup();
+    financeActionMocks.retryTenantReceiptPdfAction.mockResolvedValueOnce({
+      artifactHref: "/api/finance/documents/retried-receipt",
+      message: "Receipt published.",
+      publicationStatus: "published",
+      status: "success",
+    });
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Retry receipt" }));
+    await waitFor(() =>
+      expect(financeActionMocks.retryTenantReceiptPdfAction).toHaveBeenCalledOnce(),
+    );
+    const retryFormData = financeActionMocks.retryTenantReceiptPdfAction.mock
+      .calls[0]?.[1] as FormData;
+    expect(retryFormData.get("paymentId")).toBe("payment-failed");
+    expect(
+      screen.getByRole("link", { name: "Download receipt" }).getAttribute("href"),
+    ).toBe("/api/finance/documents/retried-receipt");
+  });
+
+  it("allows an operator to retry a committed IPS payment without a persisted failure artifact", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    invoice.balanceDue = 0;
+    invoice.paidThroughIps = 640;
+    invoice.paymentStatus = "paid";
+    invoice.settlements = [
+      {
+        amount: 640,
+        date: "2026-08-08",
+        id: "payment-without-failure-artifact",
+        isReversed: false,
+        receipt: {
+          artifactId: null,
+          href: null,
+          publicationStatus: "not_published",
+          publishedAt: null,
+        },
+        receiptNumber: null,
+        reference: "Bank transfer",
+        reversalReason: null,
+        route: "through_ips",
+      },
+    ];
+    input.tenantInvoices = [invoice];
+    financeActionMocks.retryTenantReceiptPdfAction.mockResolvedValueOnce({
+      artifactHref: "/api/finance/documents/recovered-receipt",
+      message: "Receipt published.",
+      publicationStatus: "published",
+      status: "success",
+    });
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Retry receipt" }));
+
+    await waitFor(() =>
+      expect(financeActionMocks.retryTenantReceiptPdfAction).toHaveBeenCalledOnce(),
+    );
+    const retryFormData = financeActionMocks.retryTenantReceiptPdfAction.mock
+      .calls[0]?.[1] as FormData;
+    expect(retryFormData.get("paymentId")).toBe(
+      "payment-without-failure-artifact",
+    );
+    expect(
+      screen.getByRole("link", { name: "Download receipt" }).getAttribute("href"),
+    ).toBe("/api/finance/documents/recovered-receipt");
+  });
+
+  it("keeps failed receipt retry announced and usable with its exact payment", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    invoice.balanceDue = 0;
+    invoice.paidThroughIps = 640;
+    invoice.paymentStatus = "paid";
+    invoice.settlements = [
+      {
+        amount: 640,
+        date: "2026-08-08",
+        id: "payment-retry-failed",
+        isReversed: false,
+        receipt: {
+          artifactId: "failed-artifact",
+          href: null,
+          publicationStatus: "failed",
+          publishedAt: null,
+        },
+        receiptNumber: null,
+        reference: null,
+        reversalReason: null,
+        route: "through_ips",
+      },
+    ];
+    input.tenantInvoices = [invoice];
+    financeActionMocks.retryTenantReceiptPdfAction.mockResolvedValueOnce({
+      message: "Receipt PDF unavailable.",
+      status: "error",
+    });
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    const retry = screen.getByRole("button", { name: "Retry receipt" });
+    await user.click(retry);
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Receipt PDF unavailable.",
+    );
+    retry.focus();
+    expect(document.activeElement).toBe(retry);
+    const retryFormData = financeActionMocks.retryTenantReceiptPdfAction.mock
+      .calls[0]?.[1] as FormData;
+    expect(retryFormData.get("paymentId")).toBe("payment-retry-failed");
+  });
+
+  it("shows the receipt result immediately after an IPS payment and no receipt for owner collection", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    const invoice = tenantInvoice();
+    invoice.collectionRoute = "through_ips";
+    input.tenantInvoices = [invoice];
+    financeActionMocks.recordTenantInvoicePaymentAction.mockResolvedValueOnce({
+      artifactHref: "/api/finance/documents/new-receipt",
+      message: "Payment recorded.",
+      publicationStatus: "published",
+      status: "success",
+    });
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Record payment" }));
+    const paymentDialog = screen.getByRole("dialog", { name: "Record payment" });
+    await user.click(
+      within(paymentDialog).getByRole("button", { name: "Record payment" }),
+    );
+    const immediateReceiptDownload = await screen.findByRole("link", {
+      name: "Download receipt",
+    });
+    expect(immediateReceiptDownload.getAttribute("href")).toBe(
+      "/api/finance/documents/new-receipt",
+    );
+    expect(immediateReceiptDownload.getAttribute("data-next-link")).toBeNull();
+
+    cleanup();
+    financeActionMocks.recordTenantInvoicePaymentAction.mockResolvedValueOnce({
+      message: "Payment recorded. Receipt unavailable.",
+      paymentId: "payment-immediate-failed",
+      publicationStatus: "failed",
+      status: "success",
+    });
+    financeActionMocks.retryTenantReceiptPdfAction.mockResolvedValueOnce({
+      artifactHref: "/api/finance/documents/immediate-retried-receipt",
+      message: "Receipt published.",
+      publicationStatus: "published",
+      status: "success",
+    });
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Record payment" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Record payment" })).getByRole(
+        "button",
+        { name: "Record payment" },
+      ),
+    );
+    expect(await screen.findByText("Receipt unavailable")).not.toBeNull();
+    const immediateRetry = screen.getByRole("button", { name: "Retry receipt" });
+    await user.click(immediateRetry);
+    const immediateRetryFormData = financeActionMocks.retryTenantReceiptPdfAction.mock
+      .calls[0]?.[1] as FormData;
+    expect(immediateRetryFormData.get("paymentId")).toBe("payment-immediate-failed");
+    expect(
+      (await screen.findByRole("link", { name: "Download receipt" })).getAttribute(
+        "href",
+      ),
+    ).toBe("/api/finance/documents/immediate-retried-receipt");
+    expect(screen.queryByText("Receipt unavailable")).toBeNull();
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Receipt published.",
+    );
+
+    const ownerInvoice = tenantInvoice();
+    ownerInvoice.collectionRoute = "direct_to_owner";
+    ownerInvoice.balanceDue = 0;
+    ownerInvoice.collectedByOwner = 640;
+    ownerInvoice.paymentStatus = "paid";
+    ownerInvoice.settlements = [
+      {
+        amount: 640,
+        date: "2026-08-08",
+        id: "owner-confirmation",
+        isReversed: false,
+        receipt: null,
+        receiptNumber: null,
+        reference: "Owner transfer",
+        reversalReason: null,
+        route: "direct_to_owner",
+      },
+    ];
+    cleanup();
+    input.tenantInvoices = [ownerInvoice];
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "View invoice INV-202608-001" }),
+    );
+    expect(screen.queryByRole("link", { name: "Download receipt" })).toBeNull();
+    expect(screen.queryByText("Receipt unavailable")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry receipt" })).toBeNull();
+  });
+
   it("keeps append-only settlement correction separate from ordinary payment authority", async () => {
     const user = userEvent.setup();
     const input = data();
@@ -1150,6 +1781,8 @@ describe("FinanceOperationsScreen", () => {
         id: "confirmation-1",
         isReversed: false,
         reference: "Owner transfer",
+        receipt: null,
+        receiptNumber: null,
         reversalReason: null,
         route: "direct_to_owner",
       },
@@ -1749,6 +2382,13 @@ function tenantInvoice(): FinanceOperationsData["tenantInvoices"][number] {
     occupantLabels: ["Dara Tenant"],
     paidThroughIps: 0,
     paymentStatus: "unpaid",
+    pdf: {
+      artifactId: null,
+      href: null,
+      publicationStatus: "not_published",
+      publishedAt: null,
+    },
+    publicationSnapshot: null,
     propertyId: "property-1",
     propertyLabel: "HOME — Riverside Home",
     recipientLabel: "Sokha Trading Co.",

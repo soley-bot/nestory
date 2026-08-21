@@ -5,6 +5,9 @@ const {
   adminFrom,
   adminRpc,
   adminUpload,
+  markReceiptPublicationFailed,
+  publishTenantInvoiceArtifact,
+  publishTenantReceiptArtifact,
   requireCurrentRentRetryContext,
   requireFinanceCorrectionContext,
   requireFinanceOperationContext,
@@ -21,6 +24,9 @@ const {
   adminFrom: vi.fn(),
   adminRpc: vi.fn(),
   adminUpload: vi.fn(),
+  markReceiptPublicationFailed: vi.fn(),
+  publishTenantInvoiceArtifact: vi.fn(),
+  publishTenantReceiptArtifact: vi.fn(),
   requireCurrentRentRetryContext: vi.fn(),
   requireFinanceCorrectionContext: vi.fn(),
   requireFinanceOperationContext: vi.fn(),
@@ -55,10 +61,16 @@ vi.mock("@/lib/db/admin", () => ({
     storage: { from: adminFrom },
   }),
 }));
+vi.mock("@/features/finance-operations/documents/commercial-document-artifacts", () => ({
+  markReceiptPublicationFailed,
+  publishTenantInvoiceArtifact,
+  publishTenantReceiptArtifact,
+}));
 
 import {
   confirmOwnerCollectionAction,
   createManualTenantChargeAction,
+  publishTenantInvoicePdfAction,
   recordOwnerPaymentAction,
   recordTenantInvoicePaymentAction,
   recordWithdrawalAction,
@@ -68,6 +80,7 @@ import {
   reverseTenantInvoicePaymentAction,
   reverseExpenseAction,
   reviewExpenseAction,
+  retryTenantReceiptPdfAction,
   saveLeaseBillingAction,
   submitExpenseAction,
 } from "@/features/finance-operations/actions";
@@ -81,6 +94,8 @@ const submissionId = "00000000-0000-4000-8000-000000000005";
 const actorId = "00000000-0000-4000-8000-000000000007";
 const evidenceDocumentId = "00000000-0000-4000-8000-000000000008";
 const evidenceObjectId = "00000000-0000-4000-8000-000000000009";
+const foreignOrganizationId = "00000000-0000-4000-8000-000000000012";
+const foreignInvoiceId = "00000000-0000-4000-8000-000000000013";
 
 describe("rent generation recovery action", () => {
   beforeEach(() => {
@@ -419,6 +434,314 @@ describe("ordinary finance operation actions", () => {
   );
 });
 
+describe("tenant commercial document publication actions", () => {
+  const publishedInvoice = {
+    artifactId: "00000000-0000-4000-8000-000000000010",
+    documentNumber: "INV-2026-0042",
+    href: "/api/finance/documents/00000000-0000-4000-8000-000000000010",
+  };
+  const publishedReceipt = {
+    artifactId: "00000000-0000-4000-8000-000000000011",
+    documentNumber: "RCT-2026-0042",
+    href: "/api/finance/documents/00000000-0000-4000-8000-000000000011",
+  };
+
+  beforeEach(() => {
+    markReceiptPublicationFailed.mockReset();
+    publishTenantInvoiceArtifact.mockReset();
+    publishTenantReceiptArtifact.mockReset();
+    requireFinanceOperationContext.mockReset();
+    revalidatePath.mockReset();
+    rpc.mockReset();
+    requireFinanceOperationContext.mockResolvedValue({ organizationId });
+    rpc.mockResolvedValue({ data: submissionId, error: null });
+    publishTenantInvoiceArtifact.mockResolvedValue(publishedInvoice);
+    publishTenantReceiptArtifact.mockResolvedValue(publishedReceipt);
+  });
+
+  it("publishes a valid tenant invoice with the current organization context", async () => {
+    await expect(publishTenantInvoicePdfAction({}, invoicePublicationForm())).resolves.toEqual({
+      artifactHref: publishedInvoice.href,
+      artifactId: publishedInvoice.artifactId,
+      message: "Invoice published.",
+      publicationStatus: "published",
+      status: "success",
+    });
+    expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
+    expect(publishTenantInvoiceArtifact).toHaveBeenCalledWith({
+      client: expect.anything(),
+      invoiceId: exceptionId,
+      organizationId,
+      publicationInput: {
+        contactEmail: "billing@ips.example",
+        contactPhone: "+855 12 345 678",
+        note: "Include the invoice number.",
+        paymentInstructions: "Bank transfer to IPS operating account.",
+      },
+    });
+  });
+
+  it("accepts Next action metadata without weakening invoice field validation", async () => {
+    const formData = invoicePublicationForm();
+    formData.set("$ACTION_ID_publish", "framework-action");
+    formData.set("$ACTION_REF_publish", "framework-reference");
+
+    await expect(publishTenantInvoicePdfAction({}, formData)).resolves.toMatchObject({
+      artifactId: publishedInvoice.artifactId,
+      publicationStatus: "published",
+      status: "success",
+    });
+    expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
+    expect(publishTenantInvoiceArtifact).toHaveBeenCalledOnce();
+  });
+
+  it("rejects invalid invoice publication fields before authorization", async () => {
+    const formData = invoicePublicationForm();
+    formData.set("contactEmail", "not-an-email");
+    formData.set("paymentInstructions", "no");
+
+    await expect(publishTenantInvoicePdfAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+    });
+    expect(requireFinanceOperationContext).not.toHaveBeenCalled();
+    expect(publishTenantInvoiceArtifact).not.toHaveBeenCalled();
+  });
+
+  it("rejects undeclared invoice publication fields before authorization", async () => {
+    const formData = invoicePublicationForm();
+    formData.set("organizationId", foreignOrganizationId);
+    formData.set("record_tenant_invoice_payment", submissionId);
+
+    await expect(publishTenantInvoicePdfAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+    });
+    expect(requireFinanceOperationContext).not.toHaveBeenCalled();
+    expect(publishTenantInvoiceArtifact).not.toHaveBeenCalled();
+  });
+
+  it("does not publish when finance context rejects the request", async () => {
+    requireFinanceOperationContext.mockRejectedValueOnce(new Error("Forbidden"));
+
+    await expect(
+      publishTenantInvoicePdfAction({}, invoicePublicationForm()),
+    ).rejects.toThrow("Forbidden");
+    expect(publishTenantInvoiceArtifact).not.toHaveBeenCalled();
+  });
+
+  it("delegates a foreign invoice organization check to the publisher", async () => {
+    const formData = invoicePublicationForm();
+    formData.set("invoiceId", foreignInvoiceId);
+    publishTenantInvoiceArtifact.mockRejectedValueOnce(
+      new Error("Tenant Invoice source is unavailable."),
+    );
+
+    await expect(publishTenantInvoicePdfAction({}, formData)).resolves.toEqual({
+      message: "Invoice PDF unavailable.",
+      status: "error",
+    });
+    expect(publishTenantInvoiceArtifact).toHaveBeenCalledWith(expect.objectContaining({
+      invoiceId: foreignInvoiceId,
+      organizationId,
+    }));
+  });
+
+  it("returns the publisher's existing invoice artifact on duplicate publication", async () => {
+    const existingArtifact = { ...publishedInvoice };
+    publishTenantInvoiceArtifact
+      .mockResolvedValueOnce(publishedInvoice)
+      .mockResolvedValueOnce(existingArtifact);
+
+    await expect(publishTenantInvoicePdfAction({}, invoicePublicationForm())).resolves.toMatchObject({
+      artifactId: publishedInvoice.artifactId,
+      publicationStatus: "published",
+    });
+    await expect(publishTenantInvoicePdfAction({}, invoicePublicationForm())).resolves.toMatchObject({
+      artifactHref: existingArtifact.href,
+      artifactId: existingArtifact.artifactId,
+      publicationStatus: "published",
+    });
+    expect(publishTenantInvoiceArtifact).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns a concise invoice publication failure without internal details", async () => {
+    publishTenantInvoiceArtifact.mockRejectedValueOnce(
+      new Error("Storage request failed with service-role-secret"),
+    );
+
+    await expect(publishTenantInvoicePdfAction({}, invoicePublicationForm())).resolves.toEqual({
+      message: "Invoice PDF unavailable.",
+      status: "error",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/finance");
+  });
+
+  it("publishes the receipt for the payment UUID returned by financial authority", async () => {
+    rpc.mockResolvedValueOnce({ data: submissionId, error: null });
+
+    await expect(recordTenantInvoicePaymentAction({}, tenantPaymentForm())).resolves.toEqual({
+      artifactHref: publishedReceipt.href,
+      artifactId: publishedReceipt.artifactId,
+      message: "Payment recorded.",
+      paymentId: submissionId,
+      publicationStatus: "published",
+      status: "success",
+    });
+    expect(publishTenantReceiptArtifact).toHaveBeenCalledWith({
+      client: expect.anything(),
+      organizationId,
+      paymentId: submissionId,
+    });
+    expect(markReceiptPublicationFailed).not.toHaveBeenCalled();
+  });
+
+  it("uses the replayed payment UUID for an idempotent payment receipt", async () => {
+    rpc.mockResolvedValueOnce({ data: evidenceDocumentId, error: null });
+
+    await recordTenantInvoicePaymentAction({}, tenantPaymentForm());
+
+    expect(publishTenantReceiptArtifact).toHaveBeenCalledWith(expect.objectContaining({
+      paymentId: evidenceDocumentId,
+    }));
+  });
+
+  it("keeps a committed payment successful when receipt publication fails", async () => {
+    publishTenantReceiptArtifact.mockRejectedValueOnce(
+      new Error("storage failure with signed-url-token"),
+    );
+
+    await expect(recordTenantInvoicePaymentAction({}, tenantPaymentForm())).resolves.toEqual({
+      message: "Payment recorded. Receipt unavailable.",
+      paymentId: submissionId,
+      publicationStatus: "failed",
+      status: "success",
+    });
+    expect(markReceiptPublicationFailed).toHaveBeenCalledWith(
+      expect.anything(),
+      organizationId,
+      submissionId,
+      "storage_unavailable",
+    );
+  });
+
+  it("keeps a committed payment successful when receipt failure marking also fails", async () => {
+    publishTenantReceiptArtifact.mockRejectedValueOnce(new Error("provider failed"));
+    markReceiptPublicationFailed.mockRejectedValueOnce(new Error("marker failed"));
+
+    await expect(recordTenantInvoicePaymentAction({}, tenantPaymentForm())).resolves.toEqual({
+      message: "Payment recorded. Receipt unavailable.",
+      paymentId: submissionId,
+      publicationStatus: "failed",
+      status: "success",
+    });
+  });
+
+  it("does not publish or mark a receipt when payment authority fails", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "payment rejected" } });
+
+    const result = await recordTenantInvoicePaymentAction({}, tenantPaymentForm());
+
+    expect(result).toMatchObject({
+      status: "error",
+    });
+    expect(result).not.toHaveProperty("paymentId");
+    expect(publishTenantReceiptArtifact).not.toHaveBeenCalled();
+    expect(markReceiptPublicationFailed).not.toHaveBeenCalled();
+  });
+
+  it("never publishes a receipt for a direct owner collection", async () => {
+    await expect(confirmOwnerCollectionAction({}, ownerCollectionForm())).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(publishTenantReceiptArtifact).not.toHaveBeenCalled();
+    expect(markReceiptPublicationFailed).not.toHaveBeenCalled();
+  });
+
+  it("returns an already-published receipt for its original payment without finance authority", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", submissionId);
+    const existingArtifact = { ...publishedReceipt };
+    publishTenantReceiptArtifact.mockResolvedValueOnce(existingArtifact);
+
+    await expect(retryTenantReceiptPdfAction({}, formData)).resolves.toEqual({
+      artifactHref: existingArtifact.href,
+      artifactId: existingArtifact.artifactId,
+      message: "Receipt published.",
+      publicationStatus: "published",
+      status: "success",
+    });
+    expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
+    expect(publishTenantReceiptArtifact).toHaveBeenCalledWith({
+      client: expect.anything(),
+      organizationId,
+      paymentId: submissionId,
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("accepts Next action metadata without weakening receipt retry validation", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", submissionId);
+    formData.set("$ACTION_ID_retry", "framework-action");
+
+    await expect(retryTenantReceiptPdfAction({}, formData)).resolves.toMatchObject({
+      artifactId: publishedReceipt.artifactId,
+      publicationStatus: "published",
+      status: "success",
+    });
+    expect(requireFinanceOperationContext).toHaveBeenCalledOnce();
+    expect(publishTenantReceiptArtifact).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an invalid receipt retry before authorization", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", "not-a-payment");
+
+    await expect(retryTenantReceiptPdfAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+    });
+    expect(requireFinanceOperationContext).not.toHaveBeenCalled();
+    expect(publishTenantReceiptArtifact).not.toHaveBeenCalled();
+  });
+
+  it("rejects undeclared receipt retry fields before authorization", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", submissionId);
+    formData.set("organizationId", foreignOrganizationId);
+    formData.set("p_allocations", JSON.stringify([{ lineId: exceptionId, amount: 100 }]));
+
+    await expect(retryTenantReceiptPdfAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+    });
+    expect(requireFinanceOperationContext).not.toHaveBeenCalled();
+    expect(publishTenantReceiptArtifact).not.toHaveBeenCalled();
+  });
+
+  it("does not retry a receipt when finance context rejects the request", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", submissionId);
+    requireFinanceOperationContext.mockRejectedValueOnce(new Error("Forbidden"));
+
+    await expect(retryTenantReceiptPdfAction({}, formData)).rejects.toThrow("Forbidden");
+    expect(publishTenantReceiptArtifact).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("returns a concise error when receipt retry publication fails", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", submissionId);
+    publishTenantReceiptArtifact.mockRejectedValueOnce(
+      new Error("provider failure with token"),
+    );
+
+    await expect(retryTenantReceiptPdfAction({}, formData)).resolves.toEqual({
+      message: "Receipt PDF unavailable.",
+      status: "error",
+    });
+    expect(markReceiptPublicationFailed).not.toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/finance");
+  });
+});
+
 describe("expense approval actions", () => {
   beforeEach(() => {
     requireFinanceReviewContext.mockReset();
@@ -657,6 +980,16 @@ function expenseDecisionForm(decision: "approve" | "reject", reason: string) {
 function tenantPaymentForm() {
   const formData = ownerCollectionForm();
   formData.set("reconciliationSourceId", sourceId);
+  return formData;
+}
+
+function invoicePublicationForm() {
+  const formData = new FormData();
+  formData.set("contactEmail", "billing@ips.example");
+  formData.set("contactPhone", "+855 12 345 678");
+  formData.set("invoiceId", exceptionId);
+  formData.set("note", "Include the invoice number.");
+  formData.set("paymentInstructions", "Bank transfer to IPS operating account.");
   return formData;
 }
 

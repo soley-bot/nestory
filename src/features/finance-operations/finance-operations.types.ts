@@ -43,6 +43,20 @@ export type TenantInvoiceLine = {
   lineType: string;
 };
 
+export type CommercialDocumentLink = {
+  artifactId: string | null;
+  href: string | null;
+  publicationStatus: "failed" | "not_published" | "published";
+  publishedAt: string | null;
+};
+
+export type TenantInvoicePublicationSnapshot = {
+  contactEmail: string | null;
+  contactPhone: string | null;
+  note: string | null;
+  paymentInstructions: string;
+};
+
 export type TenantInvoiceSettlement = {
   amount: number;
   date: string;
@@ -50,6 +64,8 @@ export type TenantInvoiceSettlement = {
   isReversed: boolean;
   reference: string | null;
   reversalReason: string | null;
+  receipt: CommercialDocumentLink | null;
+  receiptNumber: string | null;
   route: "direct_to_owner" | "through_ips";
 };
 
@@ -74,6 +90,8 @@ export type TenantInvoiceSummary = {
   occupantLabels: string[];
   paidThroughIps: number;
   paymentStatus: "paid" | "partly_paid" | "unpaid" | "voided";
+  pdf: CommercialDocumentLink;
+  publicationSnapshot: TenantInvoicePublicationSnapshot | null;
   propertyId: string;
   propertyLabel: string;
   recipientLabel: string;
@@ -196,6 +214,10 @@ export type FinanceOperationsData = {
 };
 
 export type FinanceOperationsActionState = {
+  artifactHref?: string;
+  artifactId?: string;
   message?: string;
+  paymentId?: string;
+  publicationStatus?: "failed" | "published";
   status?: "error" | "success";
 };

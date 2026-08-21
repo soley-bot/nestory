@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildSettlementsByInvoiceId,
   fetchAllActionableRows,
   fetchRowsByIdBatches,
   isRentGenerationSource,
+  loadCommercialDocumentLinks,
+  mapCommercialDocumentLinks,
   mergeRowsById,
   toExpenseSubmissionSummary,
+  toTenantInvoice,
 } from "@/features/finance-operations/data/finance-operations";
 import type { Database } from "@/types/database";
 
@@ -241,5 +245,417 @@ describe("toExpenseSubmissionSummary", () => {
       propertyLabel: "Property unavailable",
       unitLabel: "Unit unavailable",
     });
+  });
+});
+
+describe("commercial document links", () => {
+  const organizationId = "11111111-1111-4111-8111-111111111111";
+  const invoiceId = "22222222-2222-4222-8222-222222222222";
+  const paymentId = "33333333-3333-4333-8333-333333333333";
+  const artifactId = "44444444-4444-4444-8444-444444444444";
+
+  it("maps a published invoice and a historically reversed IPS receipt without storage metadata", () => {
+    // Break caught: leaking private artifact fields or hiding immutable published history.
+    const links = mapCommercialDocumentLinks(organizationId, [
+      {
+        document_number: "INV-2026-0042",
+        id: artifactId,
+        organization_id: organizationId,
+        publication_status: "published",
+        published_at: "2026-08-20T10:00:00Z",
+        presentation_snapshot: {
+          issuer: {
+            contactEmail: "billing@ips.example",
+            contactPhone: "+855 12 345 678",
+          },
+          note: "Include the invoice number with payment.",
+          paymentInstructions: "Bank transfer to IPS operating account.",
+        },
+        source_id: invoiceId,
+        source_kind: "invoice",
+        storage_path: "private/path.pdf",
+      },
+      {
+        document_number: "RCT-2026-004182",
+        id: "55555555-5555-4555-8555-555555555555",
+        organization_id: organizationId,
+        publication_status: "published",
+        published_at: "2026-08-20T11:00:00Z",
+        source_id: paymentId,
+        source_kind: "receipt",
+        storage_path: "private/receipt.pdf",
+      },
+    ] as never, [invoiceId], [paymentId]);
+
+    expect(links.invoices.get(invoiceId)).toEqual({
+      artifactId,
+      href: `/api/finance/documents/${artifactId}`,
+      publicationStatus: "published",
+      publishedAt: "2026-08-20T10:00:00Z",
+    });
+    expect(links.receipts.get(paymentId)).toEqual({
+      artifactId: "55555555-5555-4555-8555-555555555555",
+      href: "/api/finance/documents/55555555-5555-4555-8555-555555555555",
+      publicationStatus: "published",
+      publishedAt: "2026-08-20T11:00:00Z",
+    });
+    expect(links.receiptNumbers.get(paymentId)).toBe("RCT-2026-004182");
+    expect(links.invoicePublicationSnapshots.get(invoiceId)).toEqual({
+      contactEmail: "billing@ips.example",
+      contactPhone: "+855 12 345 678",
+      note: "Include the invoice number with payment.",
+      paymentInstructions: "Bank transfer to IPS operating account.",
+    });
+    expect(Object.keys(links.invoices.get(invoiceId) ?? {})).toEqual([
+      "artifactId",
+      "href",
+      "publicationStatus",
+      "publishedAt",
+    ]);
+  });
+
+  it("does not create a receipt link for direct-to-owner settlements", () => {
+    // Break caught: treating an owner confirmation as an IPS-issued tenant receipt.
+    const links = mapCommercialDocumentLinks(organizationId, [
+      {
+        document_number: "RCT-2026-004182",
+        id: artifactId,
+        organization_id: organizationId,
+        publication_status: "published",
+        published_at: "2026-08-20T11:00:00Z",
+        source_id: paymentId,
+        source_kind: "receipt",
+      },
+    ] as never, [invoiceId], []);
+
+    expect(links.receipts.get(paymentId)).toBeUndefined();
+    expect(links.receiptNumbers.get(paymentId)).toBeUndefined();
+  });
+
+  it("maps failed and missing artifacts without download hrefs and excludes a foreign organization row", () => {
+    // Break caught: a failure, missing document, or cross-org row becoming downloadable.
+    const links = mapCommercialDocumentLinks(organizationId, [
+      {
+        document_number: "INV-2026-0042",
+        id: artifactId,
+        organization_id: organizationId,
+        publication_status: "failed",
+        published_at: null,
+        presentation_snapshot: {
+          issuer: { contactEmail: "billing@ips.example" },
+          paymentInstructions: "Bank transfer to IPS operating account.",
+        },
+        source_id: invoiceId,
+        source_kind: "invoice",
+      },
+      {
+        document_number: "RCT-foreign",
+        id: "66666666-6666-4666-8666-666666666666",
+        organization_id: "77777777-7777-4777-8777-777777777777",
+        publication_status: "published",
+        published_at: "2026-08-20T11:00:00Z",
+        source_id: paymentId,
+        source_kind: "receipt",
+      },
+    ] as never, [invoiceId], [paymentId]);
+
+    expect(links.invoices.get(invoiceId)).toEqual({
+      artifactId,
+      href: null,
+      publicationStatus: "failed",
+      publishedAt: null,
+    });
+    expect(links.receipts.get(paymentId)).toEqual({
+      artifactId: null,
+      href: null,
+      publicationStatus: "not_published",
+      publishedAt: null,
+    });
+    expect(links.invoicePublicationSnapshots.get(invoiceId)).toBeNull();
+  });
+
+  it("normalizes only complete published invoice snapshots", () => {
+    // Break caught: receipt or malformed artifact JSON leaking into immutable invoice details.
+    const malformed = mapCommercialDocumentLinks(organizationId, [
+      {
+        document_number: "INV-2026-0042",
+        id: artifactId,
+        organization_id: organizationId,
+        publication_status: "published",
+        published_at: "2026-08-20T10:00:00Z",
+        presentation_snapshot: {
+          issuer: { contactEmail: "billing@ips.example" },
+          paymentInstructions: 42,
+        },
+        source_id: invoiceId,
+        source_kind: "invoice",
+      },
+      {
+        document_number: "RCT-2026-004182",
+        id: "55555555-5555-4555-8555-555555555555",
+        organization_id: organizationId,
+        publication_status: "published",
+        published_at: "2026-08-20T11:00:00Z",
+        presentation_snapshot: {
+          issuer: {
+            contactEmail: "billing@ips.example",
+            contactPhone: "+855 12 345 678",
+          },
+          note: "Receipt-only note",
+          paymentInstructions: "Receipt-only instructions",
+        },
+        source_id: paymentId,
+        source_kind: "receipt",
+      },
+    ] as never, [invoiceId], [paymentId]);
+    const missing = mapCommercialDocumentLinks(organizationId, [], [invoiceId], [paymentId]);
+
+    expect(malformed.invoicePublicationSnapshots.get(invoiceId)).toBeNull();
+    expect(malformed.invoicePublicationSnapshots.get(paymentId)).toBeUndefined();
+    expect(missing.invoicePublicationSnapshots.get(invoiceId)).toBeNull();
+  });
+
+  it("uses one organization-scoped artifact read for every loaded invoice and IPS payment id", async () => {
+    // Break caught: N+1 artifact reads or a query that can return another organization's rows.
+    let selectedIds: readonly string[] = [];
+    const query = {
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn((_column: string, ids: readonly string[]) => {
+        selectedIds = ids;
+        return query;
+      }),
+      order: vi.fn().mockReturnThis(),
+      range: vi.fn().mockResolvedValue({ data: [], error: null }),
+      select: vi.fn().mockReturnThis(),
+      then: vi.fn((resolve: (value: unknown) => unknown) =>
+        resolve({ data: selectedIds.length > 0 ? [] : null, error: null }),
+      ),
+    };
+    const client = { from: vi.fn().mockReturnValue(query) };
+
+    const links = await loadCommercialDocumentLinks(
+      client as never,
+      organizationId,
+      [invoiceId, "88888888-8888-4888-8888-888888888888"],
+      [paymentId, "99999999-9999-4999-8999-999999999999"],
+    );
+
+    expect(links.invoices).toHaveLength(2);
+    expect(links.receipts).toHaveLength(2);
+
+    expect(client.from).toHaveBeenCalledTimes(1);
+    expect(client.from).toHaveBeenCalledWith("tenant_commercial_document_artifacts");
+    expect(query.select).toHaveBeenCalledWith(
+      "id, organization_id, source_kind, source_id, document_number, publication_status, published_at, presentation_snapshot",
+    );
+    expect(query.eq).toHaveBeenCalledWith("organization_id", organizationId);
+    expect(query.in).toHaveBeenCalledWith("source_id", [
+      invoiceId,
+      "88888888-8888-4888-8888-888888888888",
+      paymentId,
+      "99999999-9999-4999-8999-999999999999",
+    ]);
+    expect(query.range).toHaveBeenCalledWith(0, 499);
+  });
+
+  it("loads published artifacts beyond the Data API row cap in bounded source batches", async () => {
+    // Break caught: one unpaginated .in() query silently dropping artifacts after max_rows.
+    const invoiceIds = Array.from(
+      { length: 1205 },
+      (_, index) => `invoice-${index.toString().padStart(4, "0")}`,
+    );
+    const rows = invoiceIds.map((sourceId, index) => ({
+      document_number: `INV-${index.toString().padStart(4, "0")}`,
+      id: `artifact-${index.toString().padStart(4, "0")}`,
+      organization_id: organizationId,
+      presentation_snapshot: null,
+      publication_status: "published",
+      published_at: "2026-08-20T11:00:00Z",
+      source_id: sourceId,
+      source_kind: "invoice",
+    }));
+    let selectedIds: readonly string[] = [];
+    const queries: Array<{
+      range: ReturnType<typeof vi.fn>;
+    }> = [];
+    const client = {
+      from: vi.fn(() => {
+        const query = {
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn((_column: string, ids: readonly string[]) => {
+            selectedIds = ids;
+            return query;
+          }),
+          order: vi.fn().mockReturnThis(),
+          range: vi.fn((from: number, to: number) =>
+            Promise.resolve({
+              data: rows
+                .filter((row) => selectedIds.includes(row.source_id))
+                .slice(from, to + 1),
+              error: null,
+            }),
+          ),
+          select: vi.fn().mockReturnThis(),
+          then: vi.fn((resolve: (value: unknown) => unknown) =>
+            resolve({ data: rows.slice(0, 1000), error: null }),
+          ),
+        };
+        queries.push(query);
+        return query;
+      }),
+    };
+
+    const links = await loadCommercialDocumentLinks(
+      client as never,
+      organizationId,
+      invoiceIds,
+      [],
+    );
+
+    expect(links.invoices.get(invoiceIds.at(-1)!)).toMatchObject({
+      artifactId: rows.at(-1)!.id,
+      publicationStatus: "published",
+    });
+    expect(client.from).toHaveBeenCalledTimes(13);
+    expect(queries.every((query) => query.range.mock.calls.length === 1)).toBe(
+      true,
+    );
+  });
+});
+
+describe("commercial document summary composition", () => {
+  const invoiceId = "22222222-2222-4222-8222-222222222222";
+  const paymentId = "33333333-3333-4333-8333-333333333333";
+  const publishedReceipt = {
+    artifactId: "55555555-5555-4555-8555-555555555555",
+    href: "/api/finance/documents/55555555-5555-4555-8555-555555555555",
+    publicationStatus: "published" as const,
+    publishedAt: "2026-08-20T11:00:00Z",
+  };
+
+  it("keeps a published PDF on a voided invoice", () => {
+    // Break caught: voiding an invoice removing its immutable published evidence.
+    const invoice = toTenantInvoice(
+      {
+        balance_due: 0,
+        billing_period_start: "2026-08-01",
+        collected_by_owner: 0,
+        collection_route: "through_ips",
+        due_date: "2026-08-05",
+        id: invoiceId,
+        invoice_number: "INV-2026-0042",
+        issue_date: "2026-08-01",
+        lease_id: "lease-1",
+        occupant_labels: ["Dara Tenant"],
+        paid_through_ips: 125,
+        payment_status: "voided",
+        property_id: "property-1",
+        recipient_label: "Dara Tenant",
+        total_amount: 125,
+        unit_id: "unit-1",
+      } as never,
+      new Map([["property-1", { code: "HOME", id: "property-1", name: "Riverside Home" }]]),
+      new Map([["unit-1", { id: "unit-1", property_id: "property-1", unit_number: "A-01" }]]),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map([[invoiceId, publishedReceipt]]),
+      new Map([
+        [
+          invoiceId,
+          {
+            contactEmail: "billing@ips.example",
+            contactPhone: "+855 12 345 678",
+            note: "Include the invoice number with payment.",
+            paymentInstructions: "Bank transfer to IPS operating account.",
+          },
+        ],
+      ]),
+    )[0];
+
+    expect(invoice).toMatchObject({
+      paymentStatus: "voided",
+      pdf: {
+        href: "/api/finance/documents/55555555-5555-4555-8555-555555555555",
+        publicationStatus: "published",
+      },
+      publicationSnapshot: {
+        contactEmail: "billing@ips.example",
+        contactPhone: "+855 12 345 678",
+        note: "Include the invoice number with payment.",
+        paymentInstructions: "Bank transfer to IPS operating account.",
+      },
+    });
+  });
+
+  it("keeps an immutable receipt and number on an original IPS payment later reversed", () => {
+    // Break caught: reversal hiding the original IPS receipt or replacing its receipt number.
+    const settlements = buildSettlementsByInvoiceId(
+      [
+        {
+          amount: 125,
+          date: "2026-08-10",
+          id: paymentId,
+          invoiceId,
+          reference: "BANK-001",
+          reversalOfId: null,
+          reversalReason: null,
+          route: "through_ips",
+        },
+        {
+          amount: -125,
+          date: "2026-08-12",
+          id: "66666666-6666-4666-8666-666666666666",
+          invoiceId,
+          reference: "REV-001",
+          reversalOfId: paymentId,
+          reversalReason: "Duplicate payment",
+          route: "through_ips",
+        },
+      ],
+      {
+        invoices: new Map(),
+        invoicePublicationSnapshots: new Map(),
+        receiptNumbers: new Map([[paymentId, "RCT-2026-004182"]]),
+        receipts: new Map([[paymentId, publishedReceipt]]),
+      },
+    );
+
+    expect(settlements.get(invoiceId)).toEqual([
+      expect.objectContaining({
+        id: paymentId,
+        isReversed: true,
+        receipt: publishedReceipt,
+        receiptNumber: "RCT-2026-004182",
+      }),
+    ]);
+  });
+
+  it("emits explicit null receipt fields for a direct-to-owner settlement", () => {
+    // Break caught: direct-owner confirmations inheriting an IPS receipt state.
+    const settlements = buildSettlementsByInvoiceId(
+      [
+        {
+          amount: 125,
+          date: "2026-08-10",
+          id: "77777777-7777-4777-8777-777777777777",
+          invoiceId,
+          reference: "OWNER-001",
+          reversalOfId: null,
+          reversalReason: null,
+          route: "direct_to_owner",
+        },
+      ],
+      {
+        invoices: new Map(),
+        invoicePublicationSnapshots: new Map(),
+        receiptNumbers: new Map(),
+        receipts: new Map(),
+      },
+    );
+
+    expect(settlements.get(invoiceId)).toEqual([
+      expect.objectContaining({ receipt: null, receiptNumber: null, route: "direct_to_owner" }),
+    ]);
   });
 });
