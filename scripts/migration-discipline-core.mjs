@@ -106,10 +106,36 @@ function evaluateReconciliations({ baseFiles, currentFiles, reconciliations }) {
     declaredSources.add(from);
     declaredTargets.add(to);
 
-    // Once the reconciliation is merged, future bases contain the canonical
-    // destination rather than the historical source. The declaration remains
-    // audit evidence but no longer needs an exception.
-    if (!baseFiles.has(from) && baseFiles.has(to)) continue;
+    const expectedSuffix = `_${name}.sql`;
+    if (!from.endsWith(expectedSuffix) || !to.endsWith(expectedSuffix)) {
+      issues.push(
+        `reconciliation name does not match paths: ${name} (${label})`,
+      );
+      continue;
+    }
+
+    // Once merged, the canonical destination is immutable base history. Keep
+    // validating the declaration against that file so the proof cannot drift.
+    if (!baseFiles.has(from) && baseFiles.has(to)) {
+      if (!currentFiles.has(to)) {
+        issues.push(`reconciliation target not found in current history: ${to}`);
+        continue;
+      }
+      if (currentFiles.has(from)) {
+        issues.push(`reconciliation source reappeared in current history: ${from}`);
+        continue;
+      }
+
+      const currentContent = currentFiles.get(to);
+      if (sha256(currentContent) !== entry.gitSha256) {
+        issues.push(`reconciled migration Git hash mismatch: ${label}`);
+        continue;
+      }
+      if (sha256(trimTrailingNewlines(currentContent)) !== entry.sqlSha256) {
+        issues.push(`reconciled migration SQL hash mismatch: ${label}`);
+      }
+      continue;
+    }
 
     if (!baseFiles.has(from)) {
       issues.push(`reconciliation source not found in base: ${from}`);
@@ -121,14 +147,6 @@ function evaluateReconciliations({ baseFiles, currentFiles, reconciliations }) {
     }
     if (currentFiles.has(from)) {
       issues.push(`reconciliation source still exists in current history: ${from}`);
-      continue;
-    }
-
-    const expectedSuffix = `_${name}.sql`;
-    if (!from.endsWith(expectedSuffix) || !to.endsWith(expectedSuffix)) {
-      issues.push(
-        `reconciliation name does not match paths: ${name} (${label})`,
-      );
       continue;
     }
 

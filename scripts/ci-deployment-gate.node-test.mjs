@@ -99,18 +99,7 @@ test("production database release is serialized and runs only from exact merged 
   assert.match(release, /^    environment: production-database$/m);
   assert.match(release, /^      group: production-supabase$/m);
   assert.match(release, /^      cancel-in-progress: false$/m);
-  assert.match(
-    release,
-    /^      SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}$/m,
-  );
-  assert.match(
-    release,
-    /^      SUPABASE_DB_PASSWORD: \$\{\{ secrets\.SUPABASE_DB_PASSWORD \}\}$/m,
-  );
-  assert.match(
-    release,
-    /^      SUPABASE_PROJECT_ID: \$\{\{ secrets\.SUPABASE_PROJECT_ID \}\}$/m,
-  );
+  assert.doesNotMatch(release, /^    env:$/m);
 
   const checkout = getStep(release, "Check out exact merged main SHA");
   assert.match(checkout, /^        uses: actions\/checkout@v6$/m);
@@ -118,10 +107,29 @@ test("production database release is serialized and runs only from exact merged 
   assert.match(checkout, /^          fetch-depth: 0$/m);
   assert.match(checkout, /^          persist-credentials: false$/m);
 
+  for (const stepName of [
+    "Check out exact merged main SHA",
+    "Set up Node.js",
+    "Install dependencies",
+    "Verify exact merged main SHA",
+  ]) {
+    assert.doesNotMatch(getStep(release, stepName), /SUPABASE_/);
+  }
+
   const shaCheck = getStep(release, "Verify exact merged main SHA");
   assert.match(shaCheck, /git fetch --no-tags origin main/);
   assert.match(shaCheck, /test "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA"/);
   assert.match(shaCheck, /test "\$\(git rev-parse origin\/main\)" = "\$GITHUB_SHA"/);
+
+  for (const stepName of [
+    "Verify production database credentials are configured",
+    "Link exact production project",
+  ]) {
+    const step = getStep(release, stepName);
+    assertStepHasSecret(step, "SUPABASE_ACCESS_TOKEN");
+    assertStepHasSecret(step, "SUPABASE_DB_PASSWORD");
+    assertStepHasSecret(step, "SUPABASE_PROJECT_ID");
+  }
 
   const expectedReleaseSteps = [
     ["Verify hosted migration preflight", "npm run db:hosted-preflight"],
@@ -136,9 +144,22 @@ test("production database release is serialized and runs only from exact merged 
     const position = release.indexOf(`      - name: ${stepName}\n`);
     assert.ok(position > previousPosition, `${stepName} must remain ordered`);
     previousPosition = position;
-    assert.match(getStep(release, stepName), new RegExp(escapeRegExp(command)));
+    const step = getStep(release, stepName);
+    assert.match(step, new RegExp(escapeRegExp(command)));
+    assertStepHasSecret(step, "SUPABASE_ACCESS_TOKEN");
+    assertStepHasSecret(step, "SUPABASE_DB_PASSWORD");
   }
 });
+
+function assertStepHasSecret(step, name) {
+  assert.match(
+    step,
+    new RegExp(
+      `^          ${name}: \\$\\{\\{ secrets\\.${name} \\}\\}$`,
+      "m",
+    ),
+  );
+}
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

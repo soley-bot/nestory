@@ -114,3 +114,47 @@ test("rejects a reconciliation when the migration bytes or declared identity dif
     ),
   );
 });
+
+test("keeps validating reconciliation evidence after the destination is in the base", () => {
+  const oldPath = "20260813090000_example.sql";
+  const newPath = "20260814090000_example.sql";
+  const content = "select 1;\n";
+  const declaration = {
+    from: oldPath,
+    to: newPath,
+    name: "example",
+    gitSha256:
+      "4a45092ccf992ea92250053a80b931b787924ba61648f420555511b84f10ab6c",
+    sqlSha256:
+      "354b7196c9ba5fb4b21cf615bb6ec4cd5c07503c34229feef033fc081a8c03f4",
+  };
+  const mergedBase = new Map([[newPath, content]]);
+  const currentFiles = new Map([[newPath, content]]);
+
+  assert.deepEqual(
+    evaluateMigrationChanges({
+      baseFiles: mergedBase,
+      currentFiles,
+      reconciliations: [declaration],
+    }),
+    [],
+  );
+  assert.ok(
+    evaluateMigrationChanges({
+      baseFiles: mergedBase,
+      currentFiles,
+      reconciliations: [{ ...declaration, gitSha256: "0".repeat(64) }],
+    }).includes(
+      `reconciled migration Git hash mismatch: ${oldPath} -> ${newPath}`,
+    ),
+  );
+  assert.ok(
+    evaluateMigrationChanges({
+      baseFiles: mergedBase,
+      currentFiles,
+      reconciliations: [{ ...declaration, name: "different" }],
+    }).includes(
+      `reconciliation name does not match paths: different (${oldPath} -> ${newPath})`,
+    ),
+  );
+});
