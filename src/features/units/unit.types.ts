@@ -68,6 +68,8 @@ export type UnitPropertyOption = {
 };
 
 export type UnitFormValues = {
+  bathroomCount?: number | null;
+  bedroomCount?: number | null;
   floor?: string | null;
   propertyId: string;
   sizeSqm?: number | null;
@@ -215,6 +217,8 @@ export type UnitViewQuery = {
 };
 
 export type UnitSummary = {
+  bathroomCountLabel: string;
+  bedroomCountLabel: string;
   draftLease?: UnitLeaseSummary;
   id: string;
   formValues: UnitFormValues;

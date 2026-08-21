@@ -8609,6 +8609,8 @@ export type Database = {
         Row: {
           archived_at: string | null
           archived_by: string | null
+          bathroom_count: number | null
+          bedroom_count: number | null
           created_at: string
           created_by: string | null
           current_rent_amount: number | null
@@ -8628,6 +8630,8 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           archived_by?: string | null
+          bathroom_count?: number | null
+          bedroom_count?: number | null
           created_at?: string
           created_by?: string | null
           current_rent_amount?: number | null
@@ -8647,6 +8651,8 @@ export type Database = {
         Update: {
           archived_at?: string | null
           archived_by?: string | null
+          bathroom_count?: number | null
+          bedroom_count?: number | null
           created_at?: string
           created_by?: string | null
           current_rent_amount?: number | null
@@ -9591,6 +9597,8 @@ export type Database = {
       }
       create_unit: {
         Args: {
+          p_bathroom_count: number
+          p_bedroom_count: number
           p_floor: string
           p_organization_id: string
           p_property_id: string
@@ -11103,6 +11111,8 @@ export type Database = {
       }
       update_unit: {
         Args: {
+          p_bathroom_count: number
+          p_bedroom_count: number
           p_floor: string
           p_organization_id: string
           p_property_id: string

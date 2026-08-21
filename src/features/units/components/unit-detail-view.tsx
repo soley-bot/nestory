@@ -194,7 +194,8 @@ function UnitOverviewPanel({
             /
           </span>
           <p className="text-muted-foreground">
-            Floor {unit.floorLabel} · {unit.sizeLabel}
+            Floor {unit.floorLabel} · {unit.sizeLabel} · {unit.bedroomCountLabel} ·{" "}
+            {unit.bathroomCountLabel}
           </p>
           {unit.activeLease ? (
             <>

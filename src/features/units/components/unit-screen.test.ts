@@ -282,6 +282,22 @@ describe("UnitScreen redesign contract", () => {
         "Create a unit record under an active property.",
       ),
     ).toBeNull();
+
+    const bedrooms = within(drawer).getByRole<HTMLInputElement>("textbox", {
+      name: /^Bedrooms/,
+    });
+    const bathrooms = within(drawer).getByRole<HTMLInputElement>("textbox", {
+      name: /^Bathrooms/,
+    });
+
+    expect(bedrooms.name).toBe("bedroomCount");
+    expect(bedrooms.getAttribute("min")).toBe("0");
+    expect(bedrooms.getAttribute("max")).toBe("100");
+    expect(bedrooms.getAttribute("step")).toBe("1");
+    expect(bathrooms.name).toBe("bathroomCount");
+    expect(bathrooms.getAttribute("min")).toBe("0");
+    expect(bathrooms.getAttribute("max")).toBe("100");
+    expect(bathrooms.getAttribute("step")).toBe("1");
   });
 
   it("keeps operational-state selection concise without a readiness explainer", async () => {
@@ -413,6 +429,8 @@ function makeUnit(
     property: { code: propertyCode, id: propertyId, name: propertyName },
     unit: {
       archived_at: null,
+      bathroom_count: 1,
+      bedroom_count: 2,
       current_rent_amount: 900,
       current_rent_currency: "USD",
       floor: "1",

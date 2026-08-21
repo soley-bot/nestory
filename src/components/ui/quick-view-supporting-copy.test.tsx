@@ -66,6 +66,8 @@ describe("quick-view supporting copy", () => {
       },
       unit: {
         archived_at: null,
+        bathroom_count: null,
+        bedroom_count: null,
         current_rent_amount: 900,
         current_rent_currency: "USD",
         floor: "1",
