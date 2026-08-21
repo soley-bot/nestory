@@ -1,0 +1,596 @@
+{
+  "reason": "Pin the deterministic hash-only hosted migration baseline after repository and hosted ledger reconciliation. No raw hosted SQL is transported through the production runner.",
+  "canonicalRepresentation": "SHA-256 over UTF-8 length-prefixed version and name plus ordered statement descriptors: v<byteLength>:<version>n<byteLength>:<name>c<count>:s<byteLength>:<statementSha256>... . Hosted statements normalize CRLF/CR to LF and trim only ASCII whitespace at statement boundaries.",
+  "baselineBehavior": "These 97 rows must remain an exact prefix of Git and hosted history. Later forward-only rows are accepted only after the same live hosted descriptor reconstruction proves exact ordinary SQL equality.",
+  "hostedMigrationHashes": [
+    {
+      "version": "20260808235616",
+      "name": "operational_schema_baseline",
+      "gitSqlSha256": "a1dc0277a32c3de6c612cc509610e99dcf28adeec09e2dbb36e67ffb64275496",
+      "canonicalSha256": "4cabdb554d639a8c2dc7e66caed0ce4a3a68ae1008fa7ff8d89b5deefab08ca3",
+      "legacyException": true
+    },
+    {
+      "version": "20260808235721",
+      "name": "operational_runtime_bootstrap",
+      "gitSqlSha256": "b65190689ec81e32e8f3ee8d0292924200ab98f58b8ce67c50f56df5df1c5f41",
+      "canonicalSha256": "634ef6b89c9cb3887efbc936b84a5692af663cdef063d55f846e5ea076dbd458"
+    },
+    {
+      "version": "20260809003518",
+      "name": "organization_appearance",
+      "gitSqlSha256": "9f353c988daecd77cf937873e4e827e33fe19729ad8ac8de79120da18e1feda5",
+      "canonicalSha256": "d68a974b35c3c41796c480fe3fd2200636a4edd765946336e895391805f784cc"
+    },
+    {
+      "version": "20260809072422",
+      "name": "granular_finance_operation_authority",
+      "gitSqlSha256": "c24432017ae6c5ecdfba201c97b384775ff2b8a221f95567f8c464f78ad57def",
+      "canonicalSha256": "f29e1178baf2811d00571c4a0d4f935dfd1727442f1e68ef7ff1dca7ca28896b"
+    },
+    {
+      "version": "20260809075032",
+      "name": "delegate_safe_finance_operations",
+      "gitSqlSha256": "2ec616bae352d826a331b7bee7e52c60a2c98ab5b834de6805f46d6ef74f312c",
+      "canonicalSha256": "d3f846dbf18441f7be3bebf1249a91c3541b96040e7c2a12d3e257c5a205ec33"
+    },
+    {
+      "version": "20260809085306",
+      "name": "finance_manager_daily_controls",
+      "gitSqlSha256": "78ba4139f8b0822eb39a5f524d39c8eae700f3ddbc3485f257af10b82135783b",
+      "canonicalSha256": "078e9f1ee5144b8f1312423083ff5ffa628ce2a0338f26437ba8a043afb39cdd"
+    },
+    {
+      "version": "20260809100624",
+      "name": "harden_finance_manager_daily_controls",
+      "gitSqlSha256": "c3f2448fbd1d0dbc0c7a5f1b2e1236add2fb4c9ee75aa6e7fa116458180ef580",
+      "canonicalSha256": "97ab509ee25169e7cb3df635766a99aa96a857755bc37634a54c0617f0d8984b"
+    },
+    {
+      "version": "20260809122054",
+      "name": "owner_opening_ownership_readiness",
+      "gitSqlSha256": "0faa27dc155044eecb3b5a89032b32e870ebf8e107708970cbdac890b87a07c5",
+      "canonicalSha256": "fb13f52350155f9ed6dbb62326dafd9c300c855a42464f7bdafa6b6eada32795"
+    },
+    {
+      "version": "20260809154455",
+      "name": "owner_opening_balance_request_schema",
+      "gitSqlSha256": "4f40ff2dccde66526f407108233833f69a47740bd6f17f2c8a2f7422d0a51613",
+      "canonicalSha256": "1f160c528b4c9fa92e4d5d47b9339818a0a54fd631541be8dd9b42e936520be4"
+    },
+    {
+      "version": "20260809155506",
+      "name": "owner_opening_balance_entry_authority",
+      "gitSqlSha256": "4a414e3b4e579fc6d6899b970b60fc2178cceef9ffbdd58b7d97e35a05612696",
+      "canonicalSha256": "c0548ba1178228d7e183d446b36a5035c85c911d533a36143f7fc2f141e2386a"
+    },
+    {
+      "version": "20260809162546",
+      "name": "harden_owner_opening_balance_authority",
+      "gitSqlSha256": "7c4c1ddb6fe981beb1ef4d200379c5abce4a4ca25420e990cb0e5a04a51380a6",
+      "canonicalSha256": "40d0b2754ed11a68e86d7174b6d8f0688a47a1eab1cff3cf85c9c6eb561b6055"
+    },
+    {
+      "version": "20260809164508",
+      "name": "serialize_owner_opening_correction_review",
+      "gitSqlSha256": "2fef3b16966d0875299cad97c4c739035569785e079986b9d667a3a676db5347",
+      "canonicalSha256": "cc17c45ddc5cb538b18012d34d0d20d28591b016efea4bda61b8236767851969"
+    },
+    {
+      "version": "20260809170336",
+      "name": "owner_opening_evidence_fingerprints",
+      "gitSqlSha256": "00da8ac04e4f263aafecec612277d231102d86f8c781e8f7083fec2034d508b0",
+      "canonicalSha256": "ca9b939715cf98e5994e53cb3b899e77a1870135fa517031e0cd21ca5f1c4f45"
+    },
+    {
+      "version": "20260809174950",
+      "name": "harden_atomic_document_replacement",
+      "gitSqlSha256": "cb375523c1af3163d144c16b74f6c9fa8218640742e27c087f62f1fb46f072db",
+      "canonicalSha256": "4a2b72c72726159e8e95e477ae3b3c18b2256817e3e844eba57ccbd6c0a1a0e2"
+    },
+    {
+      "version": "20260809181823",
+      "name": "lock_document_storage_object_lifecycle",
+      "gitSqlSha256": "b62688a9f6f6810b4eb8afb97cc6a23da44e5561af87074761a1c369eebbc3ca",
+      "canonicalSha256": "6869452e2677ed021de94b386fad7672b3e07450b5877cb5b16216077754886f"
+    },
+    {
+      "version": "20260809185753",
+      "name": "owner_opening_submit_reject_resubmit",
+      "gitSqlSha256": "d485f02d436e076d5774a2e09f90b4fff94600f50e494d5c662b2967715085ad",
+      "canonicalSha256": "16159ee0fc45c54df71bbf4d8cb6fda6b3bb481779abd7490110e2c3991cccb9"
+    },
+    {
+      "version": "20260809193527",
+      "name": "owner_opening_rejection_activity_payload_hash",
+      "gitSqlSha256": "791adbca2f45ebcb74db7f2f7365c2d5577aeabd6d813f7f4348030a42a0881b",
+      "canonicalSha256": "925a1858aa666a958277a348aaca83552eaf504de3c3935c683cd0b21285a056"
+    },
+    {
+      "version": "20260809195225",
+      "name": "owner_opening_approval_correction",
+      "gitSqlSha256": "dc3eddaa4c78ad31634d8ec4420b66942ee6d3829f94a6bfd1375dc3de02630a",
+      "canonicalSha256": "2ef34683029b9105f2cf5ab13a45cff27bc1de699d261df24e18c1cfc13408a2"
+    },
+    {
+      "version": "20260809203301",
+      "name": "owner_opening_roster_serialization",
+      "gitSqlSha256": "3994e8029805f65aa46fe2f38a160c65f153342d60d1999aa8f7f859199bdcf2",
+      "canonicalSha256": "c8ddf4db0da13267f61df6d58e00152376d1985bda905b5e7f07183570b5c3a9"
+    },
+    {
+      "version": "20260809211719",
+      "name": "owner_opening_roster_input_prelocks",
+      "gitSqlSha256": "515a59c888a71acba9a998981c030824fa354ff5bd9d3db2890b1dd0eca11d64",
+      "canonicalSha256": "2747a6e11801917fe1aa70ea2b8fc9e587c354fbe1081863bbf10415106b9d6a"
+    },
+    {
+      "version": "20260810010801",
+      "name": "owner_opening_atomic_evidence_submission",
+      "gitSqlSha256": "62fa898fa40b6ddab5784c77c460cd3088b839378bb085f880e5d2191e69a10f",
+      "canonicalSha256": "0636121af994f84b4529caa88d3eeeefd14bb7698a6b1f9ec2e6cfa5ef08f11d"
+    },
+    {
+      "version": "20260810051018",
+      "name": "owner_balance_lifecycle_schema",
+      "gitSqlSha256": "dbddaaecf8833b74630e1b255f37de393216d1b011629b8cc9de8a899cbfc368",
+      "canonicalSha256": "2657571ca668e56d727f851ead6d8067d2a93c8310cd40d326fa2312dd6f9901"
+    },
+    {
+      "version": "20260810051854",
+      "name": "owner_event_allocation_and_component_movement",
+      "gitSqlSha256": "9c74e5c6636f278d0c55381f18f3c86c5e0fdb3bc300a4d15a2b32aaad399973",
+      "canonicalSha256": "0073a4f1601762499eb8487c1a20eea902d00640376c809dde6a81add9c5d616"
+    },
+    {
+      "version": "20260810053145",
+      "name": "owner_cash_reversal_and_held_cash_guards",
+      "gitSqlSha256": "42ea4e40ef5901a67596a9a8b7dc2c5bcf05f19982b87177c1efe444fc63c032",
+      "canonicalSha256": "d7d72f17d70a7c2aa08a0831f468f92bbe24e2c8b75ac7411570e03a96796bdf"
+    },
+    {
+      "version": "20260810053705",
+      "name": "owner_balance_rollforward_authority",
+      "gitSqlSha256": "d0fb275e09e2df9606dc6db1ddeab55730cae9d09076f6029c6150aa943c7711",
+      "canonicalSha256": "e8a111a76c90a2d52f7ec2788393d99409e564cdc463c94603ae1bcac56c04e7"
+    },
+    {
+      "version": "20260810055616",
+      "name": "owner_balance_source_drillthrough",
+      "gitSqlSha256": "3b21f81d5e70d31a20e70da3d6f323ef17b083da27f77f8c74d3da86dca1a4e2",
+      "canonicalSha256": "e3c5696634464211df9d4d26494f76d71e03550bb0d402cda0e0abfb8a52e1fe"
+    },
+    {
+      "version": "20260810060827",
+      "name": "owner_balance_transfer_remediation",
+      "gitSqlSha256": "4c7a67567d06f8c2a88ce8510b90860f77582f8a5c61a341f9d6ee38cd861d16",
+      "canonicalSha256": "cf0596b7556ec73881f80ed39f4ce78121b9b332699f8a927ed839b5ec211e74"
+    },
+    {
+      "version": "20260810062903",
+      "name": "allow_zero_cent_owner_allocations",
+      "gitSqlSha256": "ab2856a411a259501781730db1486a4474282ec86ef4bd676e094bd26dbae40b",
+      "canonicalSha256": "148a39ba182acd3b866f0228b8af2381015c09367f7753391ad61332484d1947"
+    },
+    {
+      "version": "20260810065711",
+      "name": "delegate_safe_finance_corrections",
+      "gitSqlSha256": "fc19151dd0eddb53e7a10eab383ba3b8bda59df6b8a054abb265f720744a2024",
+      "canonicalSha256": "739038bafbf0bc0442e9085c3b5a35cc9e38d0e4c747dcf95f09914fb2f9607d"
+    },
+    {
+      "version": "20260810070356",
+      "name": "enforce_unresolved_owner_transfer_period_block",
+      "gitSqlSha256": "1ff727a2aceba782303ebc4f1598e4281d7ccebe6f09546f38fac40e07f646d9",
+      "canonicalSha256": "dfa587410e3ef7afce6505c3d0c6f974f09b3712892280075078b9e22683c66d"
+    },
+    {
+      "version": "20260810073324",
+      "name": "owner_distribution_ledger_activity_parity",
+      "gitSqlSha256": "6d3535b37c2e95291e90a213ddf6a47f5452682e8290d0e9ce636e192221604c",
+      "canonicalSha256": "26cdcb2453d240e64013246f155086bd46fea90fc60334c4f81de9ee48e6bd74"
+    },
+    {
+      "version": "20260810073506",
+      "name": "project_owner_distribution_reversals",
+      "gitSqlSha256": "74a9f517edd74edda3d9de1ebad542055500edd9b5d72086053fdfac0f8f48ef",
+      "canonicalSha256": "8a6abe1daeb2f1fa6a678ff08e564b3c2aec61f00733b3b947b71838f98b4ee2",
+      "legacyException": true
+    },
+    {
+      "version": "20260810091218",
+      "name": "harden_owner_balance_lifecycle_corrections",
+      "gitSqlSha256": "00fb0b43a9b85ef5876275a8663c079f9097793594ef514b3a086883198d3458",
+      "canonicalSha256": "d064ea8a87b8ed5ebcb38a751c1d89b283fe7c718126f237f63358ae16ac8458",
+      "legacyException": true
+    },
+    {
+      "version": "20260810103823",
+      "name": "enforce_owner_balance_global_lock_order",
+      "gitSqlSha256": "a3a5784f8c37f367d6fa61e8f010aaa788977243ec8c6d606d33646fd4274ba1",
+      "canonicalSha256": "ebaff060475f6b4d49ca6ceea78e9d2754586dde5d962fc5966b49ecde6b0bfb",
+      "legacyException": true
+    },
+    {
+      "version": "20260810110520",
+      "name": "owner_close_authority",
+      "gitSqlSha256": "eeac7c465a7ad1423bb38b39f8fd5f3e37a613610b5a082483d7e130bf97f984",
+      "canonicalSha256": "7ce745622fd7879850214c4b39a35ae0bfe22a65dc72955b68743cf268195a30"
+    },
+    {
+      "version": "20260810120053",
+      "name": "owner_cash_tenant_adjustment_lock_scope",
+      "gitSqlSha256": "39f3d3a54ec2a5c537d8917c5342b567e1948ed53e8be138723b3a9444e939f1",
+      "canonicalSha256": "0f1ef3615acf79b363c8aa9c0e6978fa3c8fe17765bd9716fb99af52c882cd65"
+    },
+    {
+      "version": "20260810131852",
+      "name": "owner_close_correction_round",
+      "gitSqlSha256": "c2807a7b12c48f01119433b4042d1f99a11ece0b29547d8c4eae74e48f78f362",
+      "canonicalSha256": "e3e86a2611476ed0e55d5641061527516725f090a20fc7ad0cdff3a36270e6ff"
+    },
+    {
+      "version": "20260810135907",
+      "name": "owner_close_predecessor_authority",
+      "gitSqlSha256": "180b08fb15f7f7519b049a3ef01e7472b2a07bc082938210969e81b3ded16681",
+      "canonicalSha256": "d6d233d573ba7a24dd7db803c71bc1647c6cb80313ed45c9b5e8457827a98fb6"
+    },
+    {
+      "version": "20260810142220",
+      "name": "owner_close_downstream_viability",
+      "gitSqlSha256": "46af0e92b39aef3375e908db0fe51c07d7d8f5e4518940cf624b23a028a4dd4a",
+      "canonicalSha256": "debeb46aa59cbc8f25701d42312f87ac7760be26051133f60284e7f89524fbee"
+    },
+    {
+      "version": "20260810144252",
+      "name": "owner_close_movement_only_scope",
+      "gitSqlSha256": "bafc2c14128006421e1bcdb7007ec3f3c4035ea74a04ac6e890b28280c9e8c5e",
+      "canonicalSha256": "7a99a615adb16f3f0233af66af56fe227bcdec3e91f3f74a29acdd7d0f12e3dd"
+    },
+    {
+      "version": "20260810150838",
+      "name": "owner_statement_publication",
+      "gitSqlSha256": "9423c0aa1940291bc9073602366331bb56fbbca3db1352f2d440aeb2d71ec481",
+      "canonicalSha256": "196a66e590102b52e3f0810ec8afb3eaa49cc17222ff77733859958551c8a8c6"
+    },
+    {
+      "version": "20260810153022",
+      "name": "guard_owner_statement_completion_before_reopen",
+      "gitSqlSha256": "8ceb36ad5a4da2a6669dec1a069c4e10427350c925afcd13de2b31a0f7a83bee",
+      "canonicalSha256": "1e1c533834c161cf0dd6207c3c3b1b0d3b85333652cbe12e68afab5417577e48"
+    },
+    {
+      "version": "20260810160045",
+      "name": "scope_owner_statement_storage_policy_check",
+      "gitSqlSha256": "946f698d442bad0b489e1561c5b89b1256bc807561fc84a8bc546e66f9d5c08c",
+      "canonicalSha256": "11aa8cdd440b0ecbdb0778b29cb529b6831f4438e67e9a13d6807f25a7f178e7"
+    },
+    {
+      "version": "20260810164308",
+      "name": "harden_owner_statement_publication_recovery",
+      "gitSqlSha256": "df30292a139462e6214988ef8f761c3669e2f704201bb36c3e85defaf6621444",
+      "canonicalSha256": "6988f49d2756d36d40f8441a74846bf6895bb20f0c2c0edc5d6685f143b3a8f2"
+    },
+    {
+      "version": "20260811015837",
+      "name": "forbid_owner_statement_authenticated_deletion",
+      "gitSqlSha256": "c64e33581b552ad6e267ff8d2362722d51766ab87252cb932b0c0645d7223194",
+      "canonicalSha256": "a529eb4b4698e6e63d42c550db5a8cc353e47e1f56bb441363be70265c77faa0"
+    },
+    {
+      "version": "20260811023549",
+      "name": "support_mid_period_rent_change_segments",
+      "gitSqlSha256": "2227daeecb8e28e5630eacbb7b0a68edf296d6fe5789f8639d0efa10b34e9370",
+      "canonicalSha256": "b41ee5215ffc3a36eb3f820737c708a69d56bb33b328e8fb1a849502620aa13f"
+    },
+    {
+      "version": "20260811040806",
+      "name": "enforce_rent_generation_global_lock_order",
+      "gitSqlSha256": "6af1e1f16decb3dc39dcfc8ba5ce0d6d3c6a9fbde9121045e0c2485c4e9b5f58",
+      "canonicalSha256": "883ff5521dd075e02993883c8ec3e8a6fda9d1ff4400f98f39a3b6a14276ad2c"
+    },
+    {
+      "version": "20260811043206",
+      "name": "ips_cutover_batches",
+      "gitSqlSha256": "0f44057a1b37fe64d925699c553075048884f7968d73a50277c817a48313884e",
+      "canonicalSha256": "b7ae5de94cf87d77f9e73a586a488c035bb5668f96b2616ea9c7569f63f0166f"
+    },
+    {
+      "version": "20260811045049",
+      "name": "harden_ips_cutover_reconciliation",
+      "gitSqlSha256": "3858a6f2a3f755ea8f109c01e4d0d39e6f2a9f173901aa6d19563e55cf53fea4",
+      "canonicalSha256": "f50b95c09a87647301d8c453a15a0e5831982baae0354edf279f1c04b6a92148"
+    },
+    {
+      "version": "20260811062724",
+      "name": "harden_ips_cutover_multi_scope",
+      "gitSqlSha256": "450b4d06f429793b230819d5cf969aed3160d5f9a46719bfb844d072089b5659",
+      "canonicalSha256": "df473e7525cb5efb43c1cf428b2efdacc2d16c3d2cb5a5ebed9ebf0cdbc2eb20"
+    },
+    {
+      "version": "20260811070217",
+      "name": "harden_paid_cost_evidence",
+      "gitSqlSha256": "b734197658247dd9db0c64a4d0f7cbae363224045b5b7d6d49e117211d1d93e5",
+      "canonicalSha256": "e0233dd98521c8ee9ca2bb31bdcdd6efe7b55a8176144fb67462e407a95fc77a"
+    },
+    {
+      "version": "20260811071944",
+      "name": "expose_paid_cost_evidence_fingerprint",
+      "gitSqlSha256": "c7484327ce4a7496fe6be8184a09c2ee6b0102cc811cfc415764b2e9f40693ac",
+      "canonicalSha256": "9ad8afe04fb46ac74046c0c0c97956a07a0d023e88d6dd760f5ed81c6a5bd20c"
+    },
+    {
+      "version": "20260811084825",
+      "name": "restore_general_financial_evidence_storage_lock",
+      "gitSqlSha256": "340f1bd18d994effb7469f583eb68773f25dbd5b27e3a925cb42e76c8b322d1b",
+      "canonicalSha256": "e27a7accf42057f06a6755ececb7a6bc3ca8621ec5689f23c250a9d0b795ae5a"
+    },
+    {
+      "version": "20260811102356",
+      "name": "bind_paid_cost_evidence_authority",
+      "gitSqlSha256": "b54f1371eb82ea3142e205958c0d3b388c39b9002d5eff29d0413e667502382a",
+      "canonicalSha256": "f3ec83588371170c5020a3ab2499f0022db7da30fc8c5aa357592de6bd4780ce"
+    },
+    {
+      "version": "20260811112839",
+      "name": "bind_paid_cost_exclusive_registrar",
+      "gitSqlSha256": "4c9dc9092f554e8623aaf3ec7ab0ee14553e4c0af3f6d10a9f3d5f954bc567a5",
+      "canonicalSha256": "f72d7c9134fac901c29bb0a228fbf7d785cfca36c90bfab10bc6b24f507530f2"
+    },
+    {
+      "version": "20260811124438",
+      "name": "ips_operational_readiness_batch",
+      "gitSqlSha256": "493ca25165a852ca1761dbb78efb17bc89d41f494faa03eceff7b03f72dd018a",
+      "canonicalSha256": "9d7054dff24fd9c6bf7e5f0d46620fe9026f74bbf2dbb1c5fbe4a447330be5ae"
+    },
+    {
+      "version": "20260811150108",
+      "name": "ips_occupancy_readiness_evidence",
+      "gitSqlSha256": "e48ffe57768825ca028162b779eb170ed8fd61c22793bbd3a2845bd41226eb4a",
+      "canonicalSha256": "4f72ca2daae53177341d6b7841fa78a98b7503e032e292cb857fcf30ddf2514c"
+    },
+    {
+      "version": "20260811152636",
+      "name": "ips_occupancy_evidence_repair",
+      "gitSqlSha256": "6d8ec8fad67fe9ff4546dd07cbdd8db5a312623788099446e47fc83217c6516f",
+      "canonicalSha256": "7b8fe406786b11a24a1a8dbc61c5a4d82cfb6e45c875ea8c2e9f3f6a4fd30b68"
+    },
+    {
+      "version": "20260812032337",
+      "name": "align_hosted_rehearsal_contracts",
+      "gitSqlSha256": "9794e52cc74ad4aa2dba831805d874c9f4827a79230469db4dae9331e7433652",
+      "canonicalSha256": "dba26e8142096bda5c7a734da403c54068c9937d04cc1d3aab52482dd8c304c0"
+    },
+    {
+      "version": "20260812040230",
+      "name": "fix_missing_owner_close_period_readiness",
+      "gitSqlSha256": "997330c1e85e965f45dfb20525414e2de8923b74890abf4b5cb6be2139823f11",
+      "canonicalSha256": "1d5ee00aa7d27181fc6ea52f9293a8e4ed04a05cd55ea93c96ccadb9fa49ae90"
+    },
+    {
+      "version": "20260812083346",
+      "name": "expose_finance_submission_actor_labels",
+      "gitSqlSha256": "6f753a4c25975ff67a9364a8aecc9333903b6ba2973d5f393aec6bf6ad5f54bb",
+      "canonicalSha256": "dc826ecb1b8820367bab06bcad6143204c9777bca8ad13bd232fbdd30da57417"
+    },
+    {
+      "version": "20260813052758",
+      "name": "delegate_routine_finance_authority",
+      "gitSqlSha256": "bb7fde0bec7909301fd831ea6bb6c6ab8aaf1867169b8475ad2dab6e40579152",
+      "canonicalSha256": "9d3960d17a54273248898d7c979a4f9bf8b5fa554e8bedd0c98b88c48bcc7a34"
+    },
+    {
+      "version": "20260814060430",
+      "name": "paid_cost_evidence_orphan_cleanup",
+      "gitSqlSha256": "99a6088c2b0bbb658c641384a5ad625b81de5b77ce120f49030977adfc4ec95f",
+      "canonicalSha256": "48b565d4e6832eda5b4ad1a4b5e7a68136103d2ecb4d3fe774d15ec64cd7e025"
+    },
+    {
+      "version": "20260814062342",
+      "name": "allow_claimed_paid_cost_evidence_cleanup",
+      "gitSqlSha256": "d2f0c9ecb6e8e4a575859720d06417f96b2efeac1eac43096654489a1cf20dba",
+      "canonicalSha256": "fbfd7d360e89b354e40cb7de587cb65cc26aec11c45db351bbe91b1b54428949"
+    },
+    {
+      "version": "20260814080228",
+      "name": "remove_unit_rent_write_authority",
+      "gitSqlSha256": "049ec608f0a3e429132290d862d23290c2c6bcf7cf259811f1218e6500c9a4cc",
+      "canonicalSha256": "e6d5be7083df60925d34676bee45c7e1c02d836680187e2d606861932bc953bd"
+    },
+    {
+      "version": "20260814120047",
+      "name": "add_checked_lease_lifecycle",
+      "gitSqlSha256": "b43dae76e439f83ff42bbc13425a5c71b0d3b900bb40aeae07b1bbd5f36ba095",
+      "canonicalSha256": "22f7f8e3dabd2d56ff9bac071b7e63cd2ff603b3345b9d28e3f35801253973e3"
+    },
+    {
+      "version": "20260814133259",
+      "name": "enforce_lease_unit_term_availability",
+      "gitSqlSha256": "64552535eb38221e8d77c8c7afb0d11a2e5f6773259a0bc889722262db5d6973",
+      "canonicalSha256": "e8269c8c46ed5bb640db28bbd17bc9898fdc8d305cabfd01e9a34fe1469c97b6"
+    },
+    {
+      "version": "20260815022556",
+      "name": "resume_client_workspace_provisioning",
+      "gitSqlSha256": "d2512b785bc6591b939e47aa30020969047d27e55977526c6efd0bfaa43b31a0",
+      "canonicalSha256": "7c787cbde8e8dbf2d4572164e543e06e4a7ec1e1ed70dd58e4b2ffaf8c248b68"
+    },
+    {
+      "version": "20260815034915",
+      "name": "update_organization_identity",
+      "gitSqlSha256": "60856dc7281346b835b4d0c63724da679c461a013eb36bd11cd71430c0b81320",
+      "canonicalSha256": "df4ac93f1ca8eb5a800b46b1e37cdb3b7d0f8436d213f4461a2026db15eaf874",
+      "legacyException": true
+    },
+    {
+      "version": "20260815044607",
+      "name": "organization_company_logo",
+      "gitSqlSha256": "4a321c575fd034c7e73e078acac978e57df543c3b95dc81b5f2536e1a807ef54",
+      "canonicalSha256": "b840ab5c6bb432d0edbdff1af6c368c0bd44237b608e756c0bb1182dbf67a08a",
+      "legacyException": true
+    },
+    {
+      "version": "20260818221053",
+      "name": "property_rental_structure",
+      "gitSqlSha256": "dc09c8e9b4fe90b6f45c8bd5ac744689c4242b625534158905b93289c0584acc",
+      "canonicalSha256": "4bec469b56d04345fdb8bd76983b62b2b663a1ac7301f4d97f96da20d5456db1"
+    },
+    {
+      "version": "20260818221055",
+      "name": "property_only_leases",
+      "gitSqlSha256": "0aedfbee90b641c90b8af5f47f00ffccf386e58e546991ffa08835d644a87056",
+      "canonicalSha256": "8e94f61b5a459f51cd8559ff7588a56460e3cf6aa2927963a6d26445402a27d4"
+    },
+    {
+      "version": "20260818221057",
+      "name": "lease_billing_rule_snapshots",
+      "gitSqlSha256": "3efd8886ba37a856a344c1ef31ed3296521226a3736758b1dfff50b44636d6d6",
+      "canonicalSha256": "51028e89cbc33f193bb3c3902423d2670447fc523b029870dc3a8551e308bda5"
+    },
+    {
+      "version": "20260818221059",
+      "name": "lease_activation_schedules",
+      "gitSqlSha256": "1e07171d8f6e3cbdfcb09569661cb981f4487fecd3805bce804f60ae94b345a7",
+      "canonicalSha256": "dd6622927f56446b79612e7404b94836b30b0facd1f8d1edf44879bf99dbf858"
+    },
+    {
+      "version": "20260818221101",
+      "name": "simple_lease_rent_charges",
+      "gitSqlSha256": "16a2f2c6930abe6e026828c9d6f44ad4fa74db5bb4d0266e5d46a40a0a174b67",
+      "canonicalSha256": "e0c2db13ed7c53b44f1e2427cb3ceeeb4d63846830cac2a8e355da3713e5da2e"
+    },
+    {
+      "version": "20260818221103",
+      "name": "lease_owned_rent_readiness",
+      "gitSqlSha256": "36f3ba4787e58dae30015adef4e8e749ebb11fbd478a8a4cdac7d6589d1ad03b",
+      "canonicalSha256": "fc02c6c8ea891f4822dec56a003cd0ae0394fb11f63a5275a015b4734bc7607e"
+    },
+    {
+      "version": "20260818221105",
+      "name": "preserve_legacy_lease_billing",
+      "gitSqlSha256": "49bfee7c8bfab9212b7c604e0a1dbbfee1f41d384671bdce9b84f3783ae10539",
+      "canonicalSha256": "2a41c419165b919d27b137189b1b22cb33757f4c7f4dee6b18737950c6e00bcf"
+    },
+    {
+      "version": "20260818221107",
+      "name": "property_owner_at_creation_and_due_date_floor",
+      "gitSqlSha256": "316e330f3279b4aae0b5e80ea7502b9cdfc8f862a119af736e38ff91bd3156fd",
+      "canonicalSha256": "084e893bc2c0178d7ac7eaf3bed6f3247e1d7eb2d797955ddba58044326e86aa"
+    },
+    {
+      "version": "20260818221109",
+      "name": "retire_global_rent_policy_surface",
+      "gitSqlSha256": "d792c43a4aa00a92ccf62e5097eabea29a0c669e47db3639ce64c42fa8877100",
+      "canonicalSha256": "9ca5ed950a050e835ca279b491e530c1d6eb76d2becc725be7441c2abe4413ef"
+    },
+    {
+      "version": "20260818221111",
+      "name": "simplify_rental_setup_readiness",
+      "gitSqlSha256": "86cfa2469be187b354bdb6590180d292e6a4da458d193442822e294cd0dd1e94",
+      "canonicalSha256": "28a9626fbe682e32ad856567b7dd88445868cfebcac6e8757f5fb0d4425ee7c7"
+    },
+    {
+      "version": "20260818221113",
+      "name": "use_operational_date_for_lease_terms",
+      "gitSqlSha256": "dfea8c965d6ea7417402df13f5b5842ef86f0c86dddfaeabc3db9683c1e8733d",
+      "canonicalSha256": "3652184e086a31f995b6ed06f60188704e7563aea75fc18b9c7e153b836dd99f"
+    },
+    {
+      "version": "20260818221116",
+      "name": "process_scheduled_lease_activations",
+      "gitSqlSha256": "70fef75b78d454fb64603cec4127f384cb941bd9e4608ad01e0eef1576b49ddd",
+      "canonicalSha256": "ebda8e0983fb6cfcf985cf58e00fa725a3eff6fab949aaff3178a3a2337ca4b4"
+    },
+    {
+      "version": "20260818221119",
+      "name": "guard_manual_charges_in_locked_months",
+      "gitSqlSha256": "60ca36aa007fcc2221a8736ce913c03760bafe2706a9efbf5b2fdd6892ce30f7",
+      "canonicalSha256": "a50da57da7b5624703268a0e9a2a4f693ca0dfb0c4e10f73a95d5e4eacc52bb4"
+    },
+    {
+      "version": "20260818221121",
+      "name": "complete_mid_month_rent_segments",
+      "gitSqlSha256": "6c77e16b931400d004cde43f1a91d17ffb795666173c34c590a00ebaeeba1c31",
+      "canonicalSha256": "762bc11b231357d9e546ac9b2cdb856572ab113e577707491a4a547cdb144af7"
+    },
+    {
+      "version": "20260820044500",
+      "name": "close_draft_cancellation_relationships",
+      "gitSqlSha256": "b4f8955b966a4509fda839502dff28adbe10c3e61c6145f2648278fe7ec6df5f",
+      "canonicalSha256": "1737e8f5bc8de5c30db29686591b1058157dfe952199203c9a6dcdfccf21da57"
+    },
+    {
+      "version": "20260820050827",
+      "name": "protect_settled_lease_deposits",
+      "gitSqlSha256": "8d53df9222afab25e097d43527b33c492b74007e2793e8ca9c12f483da750f39",
+      "canonicalSha256": "7c34bd7241de16702bbdfdc28232529d2345707ac84b71fe1747e9d039b90423"
+    },
+    {
+      "version": "20260820050901",
+      "name": "support_whole_property_lifecycle_and_person_travel_documents",
+      "gitSqlSha256": "e4b2bfd24d8bfd290445e113af8175ca7f75e8a5bf91b8d5dac1e2cae2aa32d7",
+      "canonicalSha256": "1c7a33cd60f757def0c1c14b08f20f6355c7bed3f2b6d111a59cd2cd351895ef"
+    },
+    {
+      "version": "20260820054419",
+      "name": "secure_person_travel_documents",
+      "gitSqlSha256": "7283d19b7115c3d413e3318366bc09892487280915b336521edaa3d95b6b9bc8",
+      "canonicalSha256": "cb96eae443f5a646f4ee4f422b3a1eccec7d38bd1d004daa6289fb4cc6b7ea1d"
+    },
+    {
+      "version": "20260820055038",
+      "name": "index_person_travel_documents_organization",
+      "gitSqlSha256": "4c2ed6f0e05dbb505bccab848e22491fb9bf022937ee8c13bebb80df85b532e8",
+      "canonicalSha256": "f3cabd9dc66076c0e88bb5c8d71fa34daf1edc0bd7e7c9736c96206c1fe92a6c"
+    },
+    {
+      "version": "20260820060845",
+      "name": "audit_person_travel_document_revisions",
+      "gitSqlSha256": "807d89d8b5f1f813b3a55524f1162d7e8c9ed1a15842824efac7313ed87f82fa",
+      "canonicalSha256": "fbe5758fe28377c9901f75b875e71711f34dee4aaccdf82e6425c24e0d0a29b5"
+    },
+    {
+      "version": "20260820103556",
+      "name": "protect_open_lease_scope_and_allow_terminal_recovery",
+      "gitSqlSha256": "9785792ac233928ac7198f11b15ca736a590433972da66a37eada8aadbe21314",
+      "canonicalSha256": "fb726d20384477f1dc83918e5d0e8e8b94fa3264a9029b7e4aa2e09628b037eb"
+    },
+    {
+      "version": "20260820105144",
+      "name": "restrict_authoritative_lease_term_rpc",
+      "gitSqlSha256": "b62f3793af4050ddeb198635c4404d63b64b140848452d0c4c9eeac7d66a0488",
+      "canonicalSha256": "c8e1506b88ef4c3c98b7d45ef2ecd8c53954cd4d85f33443f541248f37adf08d"
+    },
+    {
+      "version": "20260820114448",
+      "name": "harden_lease_scope_recovery_and_archive_serialization",
+      "gitSqlSha256": "9614d5b49214eb387127f4042ca2e73d36994e7c7e8c00038fb9ef0835aef8bc",
+      "canonicalSha256": "1c4f2d723da1c873d6940306d140702fffddb9e867eca8b8aef10278c16f7a1b"
+    },
+    {
+      "version": "20260820194951",
+      "name": "tenant_commercial_document_artifacts",
+      "gitSqlSha256": "bfc494778e64b4f71d68b95b59fa30a6eb8a2a0d9e30387e887d2a1efa82287a",
+      "canonicalSha256": "5813d7055aeb3cf370edc7603dc204f2ca8d5a3906fc591fa3153a7c79548f1a"
+    },
+    {
+      "version": "20260821004455",
+      "name": "normalize_tenant_commercial_document_money",
+      "gitSqlSha256": "530f2417f3ad17de39614b2488dca8b6137506af3d0ce4ab29837446f4afa7bc",
+      "canonicalSha256": "bf6c0584b8518735e8b709e6f76724233fff6ec0993b064278e2672c97f4cb39"
+    },
+    {
+      "version": "20260821054500",
+      "name": "restrict_tenant_commercial_document_uploads",
+      "gitSqlSha256": "f0204733e3085823bb802b2b950d288515176beaf16c696d06953e1b947bbfd6",
+      "canonicalSha256": "ca1ac486bec72d98141a10c045fdbbec1a4122aa16b6468a3fae1fca6f7ed1a0"
+    },
+    {
+      "version": "20260821060326",
+      "name": "allow_configured_receipt_sources",
+      "gitSqlSha256": "84413b6e9bb3a1d8bc22a790125478b1ddaf777314501cb87a93168021c08e26",
+      "canonicalSha256": "ead8d64d2f1b9ddd544fabcd757c132b20fb6e5e1c50e1d723347565b8b510df"
+    }
+  ],
+  "entries": []
+}
