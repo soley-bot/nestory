@@ -29,6 +29,11 @@ export type OrganizationTeam = {
   name: string;
 };
 
+export type OrganizationWorkspaceSetup = {
+  operationalTimezone: string;
+  preferredCurrency: string;
+};
+
 export type OrganizationPersonOption = {
   id: string;
   label: string;
@@ -82,10 +87,13 @@ async function loadOrganizationAppearance(
   appearance: OrganizationTheme;
   logoStoragePath: string | null;
   logoUrl: string | null;
+  workspaceSetup: OrganizationWorkspaceSetup;
 }> {
   const { data, error } = await supabase
     .from("organizations")
-    .select("theme_mode, accent_preset, accent_seed, logo_storage_path")
+    .select(
+      "theme_mode, accent_preset, accent_seed, logo_storage_path, preferred_currency, operational_timezone",
+    )
     .eq("id", organizationId)
     .single();
   if (error || !data) {
@@ -105,6 +113,10 @@ async function loadOrganizationAppearance(
     }),
     logoStoragePath,
     logoUrl: signedLogo?.error ? null : signedLogo?.data.signedUrl ?? null,
+    workspaceSetup: {
+      operationalTimezone: data.operational_timezone,
+      preferredCurrency: data.preferred_currency,
+    },
   };
 }
 

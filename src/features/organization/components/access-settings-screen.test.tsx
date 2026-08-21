@@ -146,7 +146,7 @@ describe("AccessSettingsScreen protected access rows", () => {
     expect(screen.getByRole("heading", { name: "Workspace access" })).toBeTruthy();
     expect(
       screen.getByText(
-        "Manage who can sign in, what they can do, and which branch they can access.",
+        "Sign-in, role, and branch scope.",
       ),
     ).toBeTruthy();
   });

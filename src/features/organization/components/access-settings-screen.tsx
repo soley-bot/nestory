@@ -10,7 +10,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { ChevronDown, ShieldCheck, UserPlus } from "lucide-react";
+import { ChevronDown, UserPlus } from "lucide-react";
 import {
   AddMemberDialog,
   type AddMemberDefaults,
@@ -276,19 +276,14 @@ function AccessWorkspace({
         the top. Needs access and Pending are exception states — they take up
         the page only when they have something in them.
       */}
-      <div className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card px-4 py-4 shadow-xs sm:flex-row sm:items-start sm:justify-between sm:px-5">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <ShieldCheck aria-hidden="true" className="size-4.5" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="font-heading text-lg font-semibold tracking-tight">
-              Workspace access
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">
-              Manage who can sign in, what they can do, and which branch they can access.
-            </p>
-          </div>
+      <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="min-w-0">
+          <h2 className="font-heading text-base font-semibold tracking-tight">
+            Workspace access
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Sign-in, role, and branch scope.
+          </p>
         </div>
         <Button
           className="w-full sm:mt-0.5 sm:w-auto"

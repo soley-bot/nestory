@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { Palette } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -129,8 +128,7 @@ export const AppearanceEditor = forwardRef<
       <Card className="min-w-0" data-testid="settings-editor" size="sm">
         <CardHeader className="border-b">
           <SettingsSectionHeader
-            description="Choose the workspace display style."
-            icon={Palette}
+            description="Workspace default and accent."
             title="Appearance"
           />
         </CardHeader>

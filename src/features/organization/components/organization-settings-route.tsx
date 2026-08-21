@@ -29,6 +29,7 @@ export async function OrganizationSettingsRoute({
         section={section}
         staff={data.staff}
         teams={data.teams}
+        workspaceSetup={data.workspaceSetup}
         workspaceUrl={getOrganizationWorkspaceUrl(
           context.organizationSlug,
           "/",

@@ -113,8 +113,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
               action={
                 <Button onClick={() => setDrawerOpen(true)}>Add team</Button>
               }
-              description="Name operating groups and choose a manager from People."
-              icon={UsersRound}
+              description="Operating groups and managers."
               title="Teams"
             />
           </CardHeader>
@@ -122,7 +121,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
           <CardContent className="p-0">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-2.5 text-sm">
               <p className="text-muted-foreground">
-                Teams do not assign members or change workspace access.
+                Teams do not change workspace access.
               </p>
               <Link
                 className="font-medium text-primary hover:underline"
@@ -166,10 +165,6 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
                   className="mx-auto mb-3 size-6 opacity-50"
                 />
                 <p className="font-medium text-foreground">No teams yet</p>
-                <p className="mt-1">
-                  Create a team to name an operating group and choose its
-                  manager.
-                </p>
               </div>
             )}
           </CardContent>
@@ -295,7 +290,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
                   { label: "Access changes", value: "None" },
                   { label: "Draft", value: draftStatusLabel(draft.status) },
                 ]}
-                summary="Saving adds one team record and an optional manager link. Existing teams and access remain unchanged."
+                summary="Adds one team and an optional manager link. Access stays unchanged."
                 title="Team impact"
                 variant="inline"
               />

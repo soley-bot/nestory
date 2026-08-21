@@ -113,8 +113,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
         <CardHeader className="border-b">
           <SettingsSectionHeader
             action={<Button onClick={() => setDrawerOpen(true)}>Add branch</Button>}
-            description="Organize properties and Operations access by location."
-            icon={Building2}
+            description="Properties and work by location."
             title="Branches"
           />
         </CardHeader>
@@ -143,7 +142,6 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             <Building2 aria-hidden="true" className="mx-auto mb-3 size-6 opacity-50" />
             <p className="font-medium text-foreground">No branches yet</p>
-            <p className="mt-1">Add a branch to scope Operations work by location.</p>
           </CardContent>
         )}
       </Card>
@@ -216,7 +214,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
                 { label: "Affected records", value: "New branch only" },
                 { label: "Draft", value: draftStatusLabel(draft.status) },
               ]}
-              summary="Saving adds one branch record. Existing branches remain unchanged."
+              summary="Adds one branch only."
               title="Branch impact"
               variant="inline"
             />

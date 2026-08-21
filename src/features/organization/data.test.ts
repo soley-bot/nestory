@@ -22,6 +22,8 @@ describe("getOrganizationSettingsData", () => {
           accent_preset: "custom",
           accent_seed: "#2563EB",
           logo_storage_path: "organization-1/logos/logo.png",
+          operational_timezone: "Asia/Phnom_Penh",
+          preferred_currency: "USD",
           theme_mode: "dark",
         },
         error: null,
@@ -58,7 +60,14 @@ describe("getOrganizationSettingsData", () => {
       logoUrl: "https://storage.test/company-logo",
       staff: [],
       teams: [],
+      workspaceSetup: {
+        operationalTimezone: "Asia/Phnom_Penh",
+        preferredCurrency: "USD",
+      },
     });
+    expect(appearanceQuery.select).toHaveBeenCalledWith(
+      "theme_mode, accent_preset, accent_seed, logo_storage_path, preferred_currency, operational_timezone",
+    );
     expect(createSignedUrl).toHaveBeenCalledWith(
       "organization-1/logos/logo.png",
       3600,

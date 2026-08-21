@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
-import { Building2, ImageUp } from "lucide-react";
+import { ImageUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -49,8 +49,7 @@ export function CompanyLogoEditor({
     <Card className="min-w-0" size="sm">
       <CardHeader className="border-b">
         <SettingsSectionHeader
-          description="Used on reports and company documents."
-          icon={Building2}
+          description="Reports and company documents."
           title="Company logo"
         />
       </CardHeader>
