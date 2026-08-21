@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { evaluateMigrationChanges } from "./migration-discipline-core.mjs";
+import {
+  evaluateMigrationChanges,
+  evaluateReconciliationManifestChanges,
+} from "./migration-discipline-core.mjs";
 
 const baseFiles = new Map([
   ["20260813090000_create_lease_record.sql", "select 1;\n"],
@@ -156,5 +159,36 @@ test("keeps validating reconciliation evidence after the destination is in the b
     }).includes(
       `reconciliation name does not match paths: different (${oldPath} -> ${newPath})`,
     ),
+  );
+});
+
+test("preserves reconciliation manifests once they reach the base", () => {
+  const manifestPath = "20260821-hosted-ledger.json";
+  const manifest = '{"entries":[{"from":"old","to":"new"}]}\n';
+  const baseManifests = new Map([[manifestPath, manifest]]);
+
+  assert.deepEqual(
+    evaluateReconciliationManifestChanges({
+      baseFiles: baseManifests,
+      currentFiles: new Map([
+        [manifestPath, manifest],
+        ["20260901-new-reconciliation.json", '{"entries":[]}\n'],
+      ]),
+    }),
+    [],
+  );
+  assert.deepEqual(
+    evaluateReconciliationManifestChanges({
+      baseFiles: baseManifests,
+      currentFiles: new Map(),
+    }),
+    [`migration reconciliation manifest was deleted: ${manifestPath}`],
+  );
+  assert.deepEqual(
+    evaluateReconciliationManifestChanges({
+      baseFiles: baseManifests,
+      currentFiles: new Map([[manifestPath, '{"entries":[]}\n']]),
+    }),
+    [`migration reconciliation manifest was modified: ${manifestPath}`],
   );
 });

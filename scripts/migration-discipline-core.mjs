@@ -75,6 +75,21 @@ export function evaluateMigrationChanges({
   ];
 }
 
+export function evaluateReconciliationManifestChanges({
+  baseFiles,
+  currentFiles,
+}) {
+  const issues = [];
+  for (const [path, baseContent] of baseFiles) {
+    if (!currentFiles.has(path)) {
+      issues.push(`migration reconciliation manifest was deleted: ${path}`);
+    } else if (currentFiles.get(path) !== baseContent) {
+      issues.push(`migration reconciliation manifest was modified: ${path}`);
+    }
+  }
+  return issues;
+}
+
 function evaluateReconciliations({ baseFiles, currentFiles, reconciliations }) {
   const approvedSources = new Set();
   const approvedTargets = new Set();

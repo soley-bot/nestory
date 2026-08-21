@@ -2,7 +2,10 @@ import { execFileSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { evaluateMigrationChanges } from "./migration-discipline-core.mjs";
+import {
+  evaluateMigrationChanges,
+  evaluateReconciliationManifestChanges,
+} from "./migration-discipline-core.mjs";
 
 const projectRoot = process.cwd();
 const migrationRoot = resolve(projectRoot, "supabase", "migrations");
@@ -13,13 +16,21 @@ const reconciliationRoot = resolve(
 );
 const baseRef = resolveBaseRef();
 const baseFiles = readBaseFiles(baseRef);
+const baseReconciliationFiles = readBaseReconciliationFiles(baseRef);
 const currentFiles = await readCurrentFiles();
-const reconciliations = await readReconciliations();
-const issues = evaluateMigrationChanges({
-  baseFiles,
-  currentFiles,
-  reconciliations,
-});
+const reconciliationState = await readReconciliations();
+const reconciliations = reconciliationState.declarations;
+const issues = [
+  ...evaluateMigrationChanges({
+    baseFiles,
+    currentFiles,
+    reconciliations,
+  }),
+  ...evaluateReconciliationManifestChanges({
+    baseFiles: baseReconciliationFiles,
+    currentFiles: reconciliationState.files,
+  }),
+];
 
 if (issues.length > 0) {
   process.stderr.write(
@@ -104,25 +115,49 @@ async function readCurrentFiles() {
   );
 }
 
+function readBaseReconciliationFiles(ref) {
+  const prefix = "supabase/migration-reconciliations/";
+  const paths = git(["ls-tree", "-r", "--name-only", ref, "--", prefix])
+    .split(/\r?\n/)
+    .filter((path) => path.endsWith(".json"));
+
+  return new Map(
+    paths.map((path) => [
+      path.slice(prefix.length),
+      execFileSync("git", ["show", `${ref}:${path}`], {
+        cwd: projectRoot,
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+    ]),
+  );
+}
+
 async function readReconciliations() {
   let entries;
   try {
     entries = await readdir(reconciliationRoot, { withFileTypes: true });
   } catch (error) {
-    if (error?.code === "ENOENT") return [];
+    if (error?.code === "ENOENT") {
+      return { declarations: [], files: new Map() };
+    }
     throw error;
   }
 
   const declarations = [];
+  const files = new Map();
   for (const entry of entries
     .filter((candidate) => candidate.isFile() && candidate.name.endsWith(".json"))
     .sort((left, right) => left.name.localeCompare(right.name))) {
     const path = resolve(reconciliationRoot, entry.name);
-    const manifest = JSON.parse(await readFile(path, "utf8"));
+    const content = await readFile(path, "utf8");
+    files.set(entry.name, content);
+    const manifest = JSON.parse(content);
     if (!Array.isArray(manifest.entries)) {
       throw new Error(`Migration reconciliation manifest has no entries array: ${path}`);
     }
     declarations.push(...manifest.entries);
   }
-  return declarations;
+  return { declarations, files };
 }
