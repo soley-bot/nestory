@@ -1,0 +1,187 @@
+{
+  "reconciledAt": "2026-08-21",
+  "reason": "Accept byte-identical hosted apply_migration timestamps as the canonical forward history without mutating the hosted ledger.",
+  "sqlHashNormalization": "UTF-8 migration text with trailing CR and LF characters removed only.",
+  "hostedContentExceptionReason": "Pin six pre-guardrail rows whose hosted ledger statements do not reconstruct the corresponding Git migration. These exceptions acknowledge ledger-content divergence only; they do not claim SQL identity or authorize hosted history mutation.",
+  "hostedContentHashNormalization": "Git SQL: UTF-8 with BOM removed and CRLF/CR normalized to LF. Hosted ledger: SHA-256 of JSON {version,name,statements} with statement CRLF/CR normalized to LF.",
+  "hostedContentExceptions": [
+    {
+      "version": "20260808235616",
+      "name": "operational_schema_baseline",
+      "gitSqlSha256": "a1dc0277a32c3de6c612cc509610e99dcf28adeec09e2dbb36e67ffb64275496",
+      "hostedLedgerSha256": "0b34b12a422fe3da3ce7f4d2400c616fdbabe8d42a6ae74840ea35b02f8a2bd6"
+    },
+    {
+      "version": "20260810073506",
+      "name": "project_owner_distribution_reversals",
+      "gitSqlSha256": "74a9f517edd74edda3d9de1ebad542055500edd9b5d72086053fdfac0f8f48ef",
+      "hostedLedgerSha256": "2c56b86de14826e6361278d8150d3843ec47758e62d103de2de40aa15dfd3ba8"
+    },
+    {
+      "version": "20260810091218",
+      "name": "harden_owner_balance_lifecycle_corrections",
+      "gitSqlSha256": "00fb0b43a9b85ef5876275a8663c079f9097793594ef514b3a086883198d3458",
+      "hostedLedgerSha256": "9859fb8aee9c845e9bf877766ed8d5f2d37edf34afcbe9cbb92c7bfc6084ba8f"
+    },
+    {
+      "version": "20260810103823",
+      "name": "enforce_owner_balance_global_lock_order",
+      "gitSqlSha256": "a3a5784f8c37f367d6fa61e8f010aaa788977243ec8c6d606d33646fd4274ba1",
+      "hostedLedgerSha256": "2804d65c984a10a224be76a085502efa19e37df3c3624cd73d9cc169cf8df856"
+    },
+    {
+      "version": "20260815034915",
+      "name": "update_organization_identity",
+      "gitSqlSha256": "60856dc7281346b835b4d0c63724da679c461a013eb36bd11cd71430c0b81320",
+      "hostedLedgerSha256": "62edac6846538f95ccdebc3375e316c8f05f21a5818696d2ec6aa48d02944695"
+    },
+    {
+      "version": "20260815044607",
+      "name": "organization_company_logo",
+      "gitSqlSha256": "4a321c575fd034c7e73e078acac978e57df543c3b95dc81b5f2536e1a807ef54",
+      "hostedLedgerSha256": "0049c8954d2e144ef1d3ee8db2442435830f1fb9fd6548d32e84412159fe98ab"
+    }
+  ],
+  "entries": [
+    {
+      "from": "20260815022051_resume_client_workspace_provisioning.sql",
+      "to": "20260815022556_resume_client_workspace_provisioning.sql",
+      "name": "resume_client_workspace_provisioning",
+      "gitSha256": "d2512b785bc6591b939e47aa30020969047d27e55977526c6efd0bfaa43b31a0",
+      "sqlSha256": "25f66c7e8d4914bcee6db5c8e41d3da4d7aee6918c168645242918b5d0bf314a"
+    },
+    {
+      "from": "20260817075414_property_rental_structure.sql",
+      "to": "20260818221053_property_rental_structure.sql",
+      "name": "property_rental_structure",
+      "gitSha256": "dc09c8e9b4fe90b6f45c8bd5ac744689c4242b625534158905b93289c0584acc",
+      "sqlSha256": "a62d15c35598b680e25f43556e1464e80f1edbf9d19908548cb2bf3b1713549d"
+    },
+    {
+      "from": "20260817082456_property_only_leases.sql",
+      "to": "20260818221055_property_only_leases.sql",
+      "name": "property_only_leases",
+      "gitSha256": "0aedfbee90b641c90b8af5f47f00ffccf386e58e546991ffa08835d644a87056",
+      "sqlSha256": "15126ed3214e406715770a401eb2ad845809e00c6b67e9ccfd4e1a8327bbdf9b"
+    },
+    {
+      "from": "20260817083118_lease_billing_rule_snapshots.sql",
+      "to": "20260818221057_lease_billing_rule_snapshots.sql",
+      "name": "lease_billing_rule_snapshots",
+      "gitSha256": "3efd8886ba37a856a344c1ef31ed3296521226a3736758b1dfff50b44636d6d6",
+      "sqlSha256": "6bb73b5be285f6580c6be7a7b8b44d5898eea5176fa39d23a8b698fc9b387824"
+    },
+    {
+      "from": "20260817084230_lease_activation_schedules.sql",
+      "to": "20260818221059_lease_activation_schedules.sql",
+      "name": "lease_activation_schedules",
+      "gitSha256": "1e07171d8f6e3cbdfcb09569661cb981f4487fecd3805bce804f60ae94b345a7",
+      "sqlSha256": "8f6110faefa17b9d81f6f32d8b924252aac86e0c6f6acd880d218a7ea299c9b7"
+    },
+    {
+      "from": "20260817090100_simple_lease_rent_charges.sql",
+      "to": "20260818221101_simple_lease_rent_charges.sql",
+      "name": "simple_lease_rent_charges",
+      "gitSha256": "16a2f2c6930abe6e026828c9d6f44ad4fa74db5bb4d0266e5d46a40a0a174b67",
+      "sqlSha256": "02ae60f20cf6851d39a37393ad68e6d25b6328fc925d8b4a779a6876bf9ef8ee"
+    },
+    {
+      "from": "20260817090724_lease_owned_rent_readiness.sql",
+      "to": "20260818221103_lease_owned_rent_readiness.sql",
+      "name": "lease_owned_rent_readiness",
+      "gitSha256": "36f3ba4787e58dae30015adef4e8e749ebb11fbd478a8a4cdac7d6589d1ad03b",
+      "sqlSha256": "9c27c60bb21c5ff12d08b1e8108973747bf81d4df190432e451d776a42e5bb9d"
+    },
+    {
+      "from": "20260817091232_preserve_legacy_lease_billing.sql",
+      "to": "20260818221105_preserve_legacy_lease_billing.sql",
+      "name": "preserve_legacy_lease_billing",
+      "gitSha256": "49bfee7c8bfab9212b7c604e0a1dbbfee1f41d384671bdce9b84f3783ae10539",
+      "sqlSha256": "53306c6afbafe2b3799e230306c8558e7ccb8d8b776c3f72a853fb6fd59fba3d"
+    },
+    {
+      "from": "20260818130000_property_owner_at_creation_and_due_date_floor.sql",
+      "to": "20260818221107_property_owner_at_creation_and_due_date_floor.sql",
+      "name": "property_owner_at_creation_and_due_date_floor",
+      "gitSha256": "316e330f3279b4aae0b5e80ea7502b9cdfc8f862a119af736e38ff91bd3156fd",
+      "sqlSha256": "da58781176e720c78f63c89f2ffd76bf938861d6ecb4e850abeb121b9b0d9db9"
+    },
+    {
+      "from": "20260818140000_retire_global_rent_policy_surface.sql",
+      "to": "20260818221109_retire_global_rent_policy_surface.sql",
+      "name": "retire_global_rent_policy_surface",
+      "gitSha256": "d792c43a4aa00a92ccf62e5097eabea29a0c669e47db3639ce64c42fa8877100",
+      "sqlSha256": "c389e561e1707ce5729a8a14e3b82e8132efadb5a4101212f93a3371d006cdbc"
+    },
+    {
+      "from": "20260818163739_simplify_rental_setup_readiness.sql",
+      "to": "20260818221111_simplify_rental_setup_readiness.sql",
+      "name": "simplify_rental_setup_readiness",
+      "gitSha256": "86cfa2469be187b354bdb6590180d292e6a4da458d193442822e294cd0dd1e94",
+      "sqlSha256": "869cf72c0c9d1f9e3f3368182760d16d49623f4342b75e51b1e56f5a9a74926c"
+    },
+    {
+      "from": "20260819040000_use_operational_date_for_lease_terms.sql",
+      "to": "20260818221113_use_operational_date_for_lease_terms.sql",
+      "name": "use_operational_date_for_lease_terms",
+      "gitSha256": "dfea8c965d6ea7417402df13f5b5842ef86f0c86dddfaeabc3db9683c1e8733d",
+      "sqlSha256": "9f3967fc50141ce0cfca3e2657747eb901aeb0e35edc1841e7a114250deaa4a4"
+    },
+    {
+      "from": "20260819050000_process_scheduled_lease_activations.sql",
+      "to": "20260818221116_process_scheduled_lease_activations.sql",
+      "name": "process_scheduled_lease_activations",
+      "gitSha256": "70fef75b78d454fb64603cec4127f384cb941bd9e4608ad01e0eef1576b49ddd",
+      "sqlSha256": "23fbbb99287eecdaacaae1f756e565960b882ce628ca3a77d0c806fccac31e7c"
+    },
+    {
+      "from": "20260819060000_guard_manual_charges_in_locked_months.sql",
+      "to": "20260818221119_guard_manual_charges_in_locked_months.sql",
+      "name": "guard_manual_charges_in_locked_months",
+      "gitSha256": "60ca36aa007fcc2221a8736ce913c03760bafe2706a9efbf5b2fdd6892ce30f7",
+      "sqlSha256": "1e8c44f2b557b320241641646b8fc2c60d3e2a5aaa363a94e70bcc0bc0a65eb0"
+    },
+    {
+      "from": "20260819070000_complete_mid_month_rent_segments.sql",
+      "to": "20260818221121_complete_mid_month_rent_segments.sql",
+      "name": "complete_mid_month_rent_segments",
+      "gitSha256": "6c77e16b931400d004cde43f1a91d17ffb795666173c34c590a00ebaeeba1c31",
+      "sqlSha256": "2d06b360ec0143188e35f19881183f7b49dcad5d6d01393ada8619186f1ef73c"
+    },
+    {
+      "from": "20260819080000_protect_settled_lease_deposits.sql",
+      "to": "20260820050827_protect_settled_lease_deposits.sql",
+      "name": "protect_settled_lease_deposits",
+      "gitSha256": "8d53df9222afab25e097d43527b33c492b74007e2793e8ca9c12f483da750f39",
+      "sqlSha256": "d06b71847b337d508e9dfb7dfa679cf421b188e6488b30f62d5755256405d9a0"
+    },
+    {
+      "from": "20260820052000_support_whole_property_lifecycle_and_person_travel_documents.sql",
+      "to": "20260820050901_support_whole_property_lifecycle_and_person_travel_documents.sql",
+      "name": "support_whole_property_lifecycle_and_person_travel_documents",
+      "gitSha256": "e4b2bfd24d8bfd290445e113af8175ca7f75e8a5bf91b8d5dac1e2cae2aa32d7",
+      "sqlSha256": "af04746049ef7a031adb0d5fb924a820ac857fa53bcb9773bdb1d871ed420386"
+    },
+    {
+      "from": "20260820052100_secure_person_travel_documents.sql",
+      "to": "20260820054419_secure_person_travel_documents.sql",
+      "name": "secure_person_travel_documents",
+      "gitSha256": "7283d19b7115c3d413e3318366bc09892487280915b336521edaa3d95b6b9bc8",
+      "sqlSha256": "3e62908edb50c2a126fed3ff9b672b71466e66056d914db0d798ff136f1e09ad"
+    },
+    {
+      "from": "20260820054500_index_person_travel_documents_organization.sql",
+      "to": "20260820055038_index_person_travel_documents_organization.sql",
+      "name": "index_person_travel_documents_organization",
+      "gitSha256": "4c2ed6f0e05dbb505bccab848e22491fb9bf022937ee8c13bebb80df85b532e8",
+      "sqlSha256": "5fc30afab67196cf2ab47346a52c66e81d5aa845adc336a1aeedc4d42abf3655"
+    },
+    {
+      "from": "20260820055200_audit_person_travel_document_revisions.sql",
+      "to": "20260820060845_audit_person_travel_document_revisions.sql",
+      "name": "audit_person_travel_document_revisions",
+      "gitSha256": "807d89d8b5f1f813b3a55524f1162d7e8c9ed1a15842824efac7313ed87f82fa",
+      "sqlSha256": "a5dd38594a2471396cf4e3dbe09d46c54801891a5d07e6e82f6a9a3e5d6f3175"
+    }
+  ]
+}

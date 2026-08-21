@@ -411,8 +411,11 @@ local browser smoke with disposable credentials.
 Local success does not prove hosted readiness. A release claim must separately
 verify exact Git SHA and divergence, CI for that SHA, linked Supabase migration
 parity and lint, deployment SHA/alias/runtime health, protected-route behavior,
-and backup expectations. Hosted migration, Cron activation, user invitation,
-deployment, and production smoke always require explicit authorization.
+and backup expectations. Production migrations run only through the serialized,
+protected GitHub environment from the exact merged `main` SHA; merging that pull
+request authorizes this lane, never a developer checkout or connector write.
+Cron activation, user invitation, deployment outside the protected release lane,
+and production smoke always require explicit authorization.
 
 Every handoff reports changed behavior, passed and failed checks, checks not
 run, remaining limitations, exact branch/commit state, and hosted state when it
