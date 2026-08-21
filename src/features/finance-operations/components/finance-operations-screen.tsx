@@ -35,6 +35,7 @@ import { FinanceWorkspaceNavigation } from "@/features/finance/components/financ
 import {
   confirmOwnerCollectionAction,
   createManualTenantChargeAction,
+  publishTenantInvoicePdfAction,
   recordOwnerPaymentAction,
   recordTenantInvoicePaymentAction,
   recordWithdrawalAction,
@@ -43,11 +44,13 @@ import {
   reverseExpenseAction,
   reverseOwnerCollectionConfirmationAction,
   reverseTenantInvoicePaymentAction,
+  retryTenantReceiptPdfAction,
   reviewExpenseAction,
   saveLeaseBillingAction,
   submitExpenseAction,
 } from "@/features/finance-operations/actions";
 import type {
+  CommercialDocumentLink,
   ExpenseSubmissionSummary,
   FinanceLease,
   FinanceOperationsActionState,
@@ -170,17 +173,42 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
         : null,
   );
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [invoicePdfResultHref, setInvoicePdfResultHref] = useState<string | null>(
+    null,
+  );
+  const [invoicePdfPublicationOpen, setInvoicePdfPublicationOpen] =
+    useState(false);
+  const pdfDrawerTriggerRef = useRef<HTMLElement | null>(null);
+  const [receiptResult, setReceiptResult] = useState<{
+    href: string | null;
+    unavailable: boolean;
+    paymentId: string | null;
+  } | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const closeDrawer = () => setDrawer(null);
   const closeModal = () => setModal(null);
+  const closeInvoicePdfPublication = () => setInvoicePdfPublicationOpen(false);
+  useEffect(() => {
+    if (invoicePdfPublicationOpen) return;
+    const trigger = pdfDrawerTriggerRef.current;
+    if (!trigger) return;
+    window.setTimeout(() => {
+      if (trigger.isConnected) trigger.focus();
+    }, 0);
+  }, [invoicePdfPublicationOpen]);
   const openDrawer = (next: DrawerState) => {
     setStatusMessage(null);
+    setInvoicePdfResultHref(null);
+    setReceiptResult(null);
     setModal(null);
     setDrawer(next);
   };
   const openModal = (next: ModalState) => {
     setStatusMessage(null);
+    setInvoicePdfResultHref(null);
+    setReceiptResult(null);
     setDrawer(null);
+    setInvoicePdfPublicationOpen(false);
     setModal(next);
   };
   const onActionSuccess = (message: string) => {
@@ -271,9 +299,47 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
       <div className="flex min-w-0 flex-col">
         {statusMessage ? (
           <div className="shrink-0 border-b border-border bg-card px-4 py-2 sm:px-6">
-            <p className="text-sm" role="status">
-              {statusMessage}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" role="status">
+              <span>{statusMessage}</span>
+              {receiptResult?.href ? (
+                <Link
+                  className="font-medium text-primary underline-offset-2 hover:underline"
+                  href={receiptResult.href}
+                >
+                  Download receipt
+                </Link>
+              ) : receiptResult?.unavailable && receiptResult.paymentId ? (
+                <ReceiptAction
+                  canRetry={props.canRecordPayments}
+                  onSuccess={(state) => {
+                    setReceiptResult({
+                      href: state.artifactHref ?? null,
+                      paymentId: receiptResult.paymentId,
+                      unavailable: state.publicationStatus === "failed",
+                    });
+                    setStatusMessage(state.message ?? null);
+                  }}
+                  settlement={{
+                    amount: 0,
+                    date: "",
+                    id: receiptResult.paymentId,
+                    isReversed: false,
+                    receipt: {
+                      artifactId: null,
+                      href: null,
+                      publicationStatus: "failed",
+                      publishedAt: null,
+                    },
+                    receiptNumber: null,
+                    reference: null,
+                    reversalReason: null,
+                    route: "through_ips",
+                  }}
+                />
+              ) : receiptResult?.unavailable ? (
+                <span>Receipt unavailable</span>
+              ) : null}
+            </div>
           </div>
         ) : null}
         {screen.body}
@@ -310,15 +376,27 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
 
       {visibleDetailDrawer ? (
         <SideDrawer
-          onClose={closeModal}
+          onClose={
+            visibleDetailDrawer.mode === "invoice-details" &&
+            invoicePdfPublicationOpen
+              ? closeInvoicePdfPublication
+              : closeModal
+          }
           open
-          title={getModalTitle(visibleDetailDrawer)}
+          title={
+            visibleDetailDrawer.mode === "invoice-details" &&
+            invoicePdfPublicationOpen
+              ? "Publish invoice PDF"
+              : getModalTitle(visibleDetailDrawer)
+          }
         >
           {visibleDetailDrawer.mode === "invoice-details" ? (
             <InvoiceDetails
               canCorrectFinance={props.canCorrectFinance}
               canRecordPayments={props.canRecordPayments}
               invoice={visibleDetailDrawer.invoice}
+              pdf={visibleDetailDrawer.invoice.pdf}
+              pdfResultHref={invoicePdfResultHref}
               onClose={closeModal}
               onCorrect={() =>
                 setModal({
@@ -332,6 +410,17 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
                   mode: "payment",
                 })
               }
+              onPublishPdf={(trigger) => {
+                pdfDrawerTriggerRef.current = trigger;
+                setInvoicePdfPublicationOpen(true);
+              }}
+              onPublicationClose={closeInvoicePdfPublication}
+              onPublicationSuccess={(state) => {
+                setInvoicePdfResultHref(state.artifactHref ?? null);
+                setStatusMessage(state.message ?? null);
+                closeInvoicePdfPublication();
+              }}
+              publicationOpen={invoicePdfPublicationOpen}
               organizationName={organizationName}
             />
           ) : visibleDetailDrawer.mode === "expense-details" ? (
@@ -415,6 +504,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
                     ? () => setModal({ mode: "payment" })
                     : undefined
                 }
+                onReceiptResult={setReceiptResult}
                 onSuccess={onActionSuccess}
                 reconciliationSources={props.reconciliationSources}
               />
@@ -459,6 +549,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
           ) : null}
         </Modal>
       ) : null}
+
     </WorkspacePage>
   );
 }
@@ -1565,23 +1656,40 @@ function InvoiceDetails({
   invoice,
   onClose,
   onCorrect,
+  onPublicationClose,
+  onPublicationSuccess,
+  onPublishPdf,
   onRecordPayment,
   organizationName,
+  pdf,
+  pdfResultHref,
+  publicationOpen,
 }: {
   canCorrectFinance: boolean;
   canRecordPayments: boolean;
   invoice: TenantInvoiceSummary;
   onClose: () => void;
   onCorrect: () => void;
+  onPublicationClose: () => void;
+  onPublicationSuccess: (state: FinanceOperationsActionState) => void;
+  onPublishPdf: (trigger: HTMLElement) => void;
   onRecordPayment: () => void;
   organizationName: string;
+  pdf: CommercialDocumentLink;
+  pdfResultHref: string | null;
+  publicationOpen: boolean;
 }) {
   const canCorrect =
     canCorrectFinance &&
     invoice.settlements.some((settlement) => !settlement.isReversed);
+  const publishButtonRef = useRef<HTMLAnchorElement | null>(null);
+  const pdfHref = pdf.href ?? pdfResultHref;
+  const canPublishPdf =
+    canRecordPayments && invoice.paymentStatus !== "voided" && !pdfHref;
 
   return (
-    <div className="space-y-4 p-4">
+    <>
+      <div className="space-y-4 p-4" hidden={publicationOpen}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-semibold">{invoice.invoiceNumber}</p>
@@ -1635,6 +1743,25 @@ function InvoiceDetails({
         ]}
       />
       {invoice.isProrated ? <Badge tone="accent">Prorated</Badge> : null}
+      <SettlementHistory
+        canRetryReceipt={canRecordPayments}
+        settlements={invoice.settlements}
+      />
+      {pdf.publicationStatus === "published" && pdf.publishedAt ? (
+        <p className="text-xs text-muted-foreground">
+          Published {formatDate(pdf.publishedAt)}
+        </p>
+      ) : null}
+      {invoice.publicationSnapshot ? (
+        <DefinitionRows
+          rows={[
+            ["Payment instructions", invoice.publicationSnapshot.paymentInstructions],
+            ["Email", invoice.publicationSnapshot.contactEmail ?? "—"],
+            ["Phone", invoice.publicationSnapshot.contactPhone ?? "—"],
+            ["Note", invoice.publicationSnapshot.note ?? "—"],
+          ]}
+        />
+      ) : null}
       <FormFooter>
         <Button onClick={onClose} variant="outline">
           Close
@@ -1657,6 +1784,29 @@ function InvoiceDetails({
               Correct settlement
             </Button>
           ) : null}
+          {pdfHref || canPublishPdf ? (
+            <Button asChild variant="outline">
+              <a
+                href={pdfHref ?? undefined}
+                onClick={(event) => {
+                  if (pdfHref) return;
+                  event.preventDefault();
+                  onPublishPdf(event.currentTarget);
+                }}
+                onKeyDown={(event) => {
+                  if (!pdfHref && (event.key === "Enter" || event.key === " ")) {
+                    event.preventDefault();
+                    event.currentTarget.click();
+                  }
+                }}
+                ref={publishButtonRef}
+                role={pdfHref ? undefined : "button"}
+                tabIndex={0}
+              >
+                {pdfHref ? "Download PDF" : "Publish PDF"}
+              </a>
+            </Button>
+          ) : null}
           {canRecordPayments && invoice.balanceDue > 0 ? (
             <Button onClick={onRecordPayment}>
               {invoice.collectionRoute === "through_ips"
@@ -1666,7 +1816,173 @@ function InvoiceDetails({
           ) : null}
         </div>
       </FormFooter>
-    </div>
+      </div>
+      {canPublishPdf ? (
+        <InvoicePdfPublicationForm
+          hidden={!publicationOpen}
+          invoice={invoice}
+          onClose={onPublicationClose}
+          onSuccess={(state) => {
+            onPublicationSuccess(state);
+            window.setTimeout(() => publishButtonRef.current?.focus(), 0);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function InvoicePdfPublicationForm({
+  hidden,
+  invoice,
+  onClose,
+  onSuccess,
+}: {
+  hidden: boolean;
+  invoice: TenantInvoiceSummary;
+  onClose: () => void;
+  onSuccess: (state: FinanceOperationsActionState) => void;
+}) {
+  const [state, formAction] = useActionState(
+    publishTenantInvoicePdfAction,
+    actionInitialState,
+  );
+  const handledStateRef = useRef<FinanceOperationsActionState | null>(null);
+  const paymentInstructionsRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (state.status !== "success" || handledStateRef.current === state) return;
+    handledStateRef.current = state;
+    onSuccess(state);
+  }, [onSuccess, state]);
+
+  useEffect(() => {
+    if (hidden) return;
+    window.setTimeout(() => paymentInstructionsRef.current?.focus(), 0);
+  }, [hidden]);
+
+  return (
+    <form action={formAction} className="space-y-4 p-4" hidden={hidden}>
+      <input name="invoiceId" type="hidden" value={invoice.id} />
+      <Field label="Payment instructions">
+        <textarea
+          className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          name="paymentInstructions"
+          ref={paymentInstructionsRef}
+          required
+        />
+      </Field>
+      <Field label="Email">
+        <Input name="contactEmail" required type="email" />
+      </Field>
+      <Field label="Phone">
+        <Input name="contactPhone" required />
+      </Field>
+      <Field label="Note">
+        <textarea
+          className="min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          name="note"
+        />
+      </Field>
+      <ActionMessage state={state} />
+      <FormFooter>
+        <Button onClick={onClose} type="button" variant="outline">
+          Cancel
+        </Button>
+        <SubmitButton label="Publish PDF" />
+      </FormFooter>
+    </form>
+  );
+}
+
+function SettlementHistory({
+  canRetryReceipt,
+  settlements,
+}: {
+  canRetryReceipt: boolean;
+  settlements: TenantInvoiceSettlement[];
+}) {
+  const ipsSettlements = settlements.filter(
+    (settlement) => settlement.route === "through_ips",
+  );
+  if (ipsSettlements.length === 0) return null;
+
+  return (
+    <section aria-labelledby="settlement-history-heading">
+      <h3 className="text-sm font-semibold" id="settlement-history-heading">
+        Settlement history
+      </h3>
+      <div className="mt-2 divide-y divide-border border-y border-border">
+        {ipsSettlements.map((settlement) => (
+          <div
+            className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
+            key={settlement.id}
+          >
+            <div className="min-w-0">
+              <p className="font-medium">
+                {settlement.receiptNumber ?? formatDate(settlement.date)}
+              </p>
+              {settlement.isReversed ? (
+                <Badge tone="warning">Reversed</Badge>
+              ) : null}
+            </div>
+            <ReceiptAction
+              canRetry={canRetryReceipt}
+              settlement={settlement}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ReceiptAction({
+  canRetry,
+  onSuccess,
+  settlement,
+}: {
+  canRetry: boolean;
+  onSuccess?: (state: FinanceOperationsActionState) => void;
+  settlement: TenantInvoiceSettlement;
+}) {
+  const [state, formAction] = useActionState(
+    retryTenantReceiptPdfAction,
+    actionInitialState,
+  );
+  const href =
+    state.status === "success" && state.artifactHref
+      ? state.artifactHref
+      : settlement.receipt?.href;
+  const failed = !href && settlement.receipt?.publicationStatus === "failed";
+  const handledStateRef = useRef<FinanceOperationsActionState | null>(null);
+
+  useEffect(() => {
+    if (state.status !== "success" || handledStateRef.current === state) return;
+    handledStateRef.current = state;
+    onSuccess?.(state);
+  }, [onSuccess, state]);
+
+  if (href) {
+    return (
+      <Link
+        className="font-medium text-primary underline-offset-2 hover:underline"
+        href={href}
+      >
+        Download receipt
+      </Link>
+    );
+  }
+
+  if (!failed) return null;
+
+  return (
+    <form action={formAction} className="flex flex-wrap items-center justify-end gap-2">
+      <input name="paymentId" type="hidden" value={settlement.id} />
+      <span className="text-muted-foreground">Receipt unavailable</span>
+      {canRetry ? <SubmitButton label="Retry receipt" /> : null}
+      <ActionMessage state={state} />
+    </form>
   );
 }
 
@@ -2334,11 +2650,17 @@ function PaymentChooser({
 function SettleInvoiceForm({
   invoice,
   onChooseAnother,
+  onReceiptResult,
   onSuccess,
   reconciliationSources,
 }: {
   invoice: TenantInvoiceSummary;
   onChooseAnother?: () => void;
+  onReceiptResult: (result: {
+    href: string | null;
+    paymentId: string | null;
+    unavailable: boolean;
+  }) => void;
   onSuccess: (message: string) => void;
   reconciliationSources: FinanceOperationsData["reconciliationSources"];
 }) {
@@ -2353,7 +2675,17 @@ function SettleInvoiceForm({
   const sources = reconciliationSources.filter(
     (source) => !source.propertyId || source.propertyId === invoice.propertyId,
   );
-  useSuccess(state, onSuccess);
+  useEffect(() => {
+    if (state.status !== "success" || !state.message) return;
+    if (invoice.collectionRoute === "through_ips") {
+      onReceiptResult({
+        href: state.artifactHref ?? null,
+        paymentId: state.paymentId ?? null,
+        unavailable: state.publicationStatus === "failed",
+      });
+    }
+    onSuccess(state.message);
+  }, [invoice.collectionRoute, onReceiptResult, onSuccess, state]);
   return (
     <form action={formAction} className="space-y-4 p-4">
       <DefinitionRows

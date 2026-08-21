@@ -568,6 +568,7 @@ describe("tenant commercial document publication actions", () => {
       artifactHref: publishedReceipt.href,
       artifactId: publishedReceipt.artifactId,
       message: "Payment recorded.",
+      paymentId: submissionId,
       publicationStatus: "published",
       status: "success",
     });
@@ -596,6 +597,7 @@ describe("tenant commercial document publication actions", () => {
 
     await expect(recordTenantInvoicePaymentAction({}, tenantPaymentForm())).resolves.toEqual({
       message: "Payment recorded. Receipt unavailable.",
+      paymentId: submissionId,
       publicationStatus: "failed",
       status: "success",
     });
@@ -613,6 +615,7 @@ describe("tenant commercial document publication actions", () => {
 
     await expect(recordTenantInvoicePaymentAction({}, tenantPaymentForm())).resolves.toEqual({
       message: "Payment recorded. Receipt unavailable.",
+      paymentId: submissionId,
       publicationStatus: "failed",
       status: "success",
     });
@@ -621,9 +624,12 @@ describe("tenant commercial document publication actions", () => {
   it("does not publish or mark a receipt when payment authority fails", async () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: "payment rejected" } });
 
-    await expect(recordTenantInvoicePaymentAction({}, tenantPaymentForm())).resolves.toMatchObject({
+    const result = await recordTenantInvoicePaymentAction({}, tenantPaymentForm());
+
+    expect(result).toMatchObject({
       status: "error",
     });
+    expect(result).not.toHaveProperty("paymentId");
     expect(publishTenantReceiptArtifact).not.toHaveBeenCalled();
     expect(markReceiptPublicationFailed).not.toHaveBeenCalled();
   });

@@ -126,6 +126,7 @@ describe("buildFinanceWorkspaceData", () => {
               publicationStatus: "not_published",
               publishedAt: null,
             },
+            publicationSnapshot: null,
             propertyId: "property-1",
             propertyLabel: "Garden Court",
             recipientLabel: "Mina Chen",

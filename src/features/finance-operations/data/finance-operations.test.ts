@@ -263,6 +263,14 @@ describe("commercial document links", () => {
         organization_id: organizationId,
         publication_status: "published",
         published_at: "2026-08-20T10:00:00Z",
+        presentation_snapshot: {
+          issuer: {
+            contactEmail: "billing@ips.example",
+            contactPhone: "+855 12 345 678",
+          },
+          note: "Include the invoice number with payment.",
+          paymentInstructions: "Bank transfer to IPS operating account.",
+        },
         source_id: invoiceId,
         source_kind: "invoice",
         storage_path: "private/path.pdf",
@@ -292,6 +300,12 @@ describe("commercial document links", () => {
       publishedAt: "2026-08-20T11:00:00Z",
     });
     expect(links.receiptNumbers.get(paymentId)).toBe("RCT-2026-004182");
+    expect(links.invoicePublicationSnapshots.get(invoiceId)).toEqual({
+      contactEmail: "billing@ips.example",
+      contactPhone: "+855 12 345 678",
+      note: "Include the invoice number with payment.",
+      paymentInstructions: "Bank transfer to IPS operating account.",
+    });
     expect(Object.keys(links.invoices.get(invoiceId) ?? {})).toEqual([
       "artifactId",
       "href",
@@ -327,6 +341,10 @@ describe("commercial document links", () => {
         organization_id: organizationId,
         publication_status: "failed",
         published_at: null,
+        presentation_snapshot: {
+          issuer: { contactEmail: "billing@ips.example" },
+          paymentInstructions: "Bank transfer to IPS operating account.",
+        },
         source_id: invoiceId,
         source_kind: "invoice",
       },
@@ -353,6 +371,48 @@ describe("commercial document links", () => {
       publicationStatus: "not_published",
       publishedAt: null,
     });
+    expect(links.invoicePublicationSnapshots.get(invoiceId)).toBeNull();
+  });
+
+  it("normalizes only complete published invoice snapshots", () => {
+    // Break caught: receipt or malformed artifact JSON leaking into immutable invoice details.
+    const malformed = mapCommercialDocumentLinks(organizationId, [
+      {
+        document_number: "INV-2026-0042",
+        id: artifactId,
+        organization_id: organizationId,
+        publication_status: "published",
+        published_at: "2026-08-20T10:00:00Z",
+        presentation_snapshot: {
+          issuer: { contactEmail: "billing@ips.example" },
+          paymentInstructions: 42,
+        },
+        source_id: invoiceId,
+        source_kind: "invoice",
+      },
+      {
+        document_number: "RCT-2026-004182",
+        id: "55555555-5555-4555-8555-555555555555",
+        organization_id: organizationId,
+        publication_status: "published",
+        published_at: "2026-08-20T11:00:00Z",
+        presentation_snapshot: {
+          issuer: {
+            contactEmail: "billing@ips.example",
+            contactPhone: "+855 12 345 678",
+          },
+          note: "Receipt-only note",
+          paymentInstructions: "Receipt-only instructions",
+        },
+        source_id: paymentId,
+        source_kind: "receipt",
+      },
+    ] as never, [invoiceId], [paymentId]);
+    const missing = mapCommercialDocumentLinks(organizationId, [], [invoiceId], [paymentId]);
+
+    expect(malformed.invoicePublicationSnapshots.get(invoiceId)).toBeNull();
+    expect(malformed.invoicePublicationSnapshots.get(paymentId)).toBeUndefined();
+    expect(missing.invoicePublicationSnapshots.get(invoiceId)).toBeNull();
   });
 
   it("uses one organization-scoped artifact read for every loaded invoice and IPS payment id", async () => {
@@ -376,6 +436,9 @@ describe("commercial document links", () => {
 
     expect(client.from).toHaveBeenCalledTimes(1);
     expect(client.from).toHaveBeenCalledWith("tenant_commercial_document_artifacts");
+    expect(query.select).toHaveBeenCalledWith(
+      "id, organization_id, source_kind, source_id, document_number, publication_status, published_at, presentation_snapshot",
+    );
     expect(query.eq).toHaveBeenCalledWith("organization_id", organizationId);
     expect(query.in).toHaveBeenCalledWith("source_id", [
       invoiceId,
@@ -423,6 +486,17 @@ describe("commercial document summary composition", () => {
       new Map(),
       new Map(),
       new Map([[invoiceId, publishedReceipt]]),
+      new Map([
+        [
+          invoiceId,
+          {
+            contactEmail: "billing@ips.example",
+            contactPhone: "+855 12 345 678",
+            note: "Include the invoice number with payment.",
+            paymentInstructions: "Bank transfer to IPS operating account.",
+          },
+        ],
+      ]),
     )[0];
 
     expect(invoice).toMatchObject({
@@ -430,6 +504,12 @@ describe("commercial document summary composition", () => {
       pdf: {
         href: "/api/finance/documents/55555555-5555-4555-8555-555555555555",
         publicationStatus: "published",
+      },
+      publicationSnapshot: {
+        contactEmail: "billing@ips.example",
+        contactPhone: "+855 12 345 678",
+        note: "Include the invoice number with payment.",
+        paymentInstructions: "Bank transfer to IPS operating account.",
       },
     });
   });
@@ -461,6 +541,7 @@ describe("commercial document summary composition", () => {
       ],
       {
         invoices: new Map(),
+        invoicePublicationSnapshots: new Map(),
         receiptNumbers: new Map([[paymentId, "RCT-2026-004182"]]),
         receipts: new Map([[paymentId, publishedReceipt]]),
       },
@@ -491,7 +572,12 @@ describe("commercial document summary composition", () => {
           route: "direct_to_owner",
         },
       ],
-      { invoices: new Map(), receiptNumbers: new Map(), receipts: new Map() },
+      {
+        invoices: new Map(),
+        invoicePublicationSnapshots: new Map(),
+        receiptNumbers: new Map(),
+        receipts: new Map(),
+      },
     );
 
     expect(settlements.get(invoiceId)).toEqual([

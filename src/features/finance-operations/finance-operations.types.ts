@@ -50,6 +50,13 @@ export type CommercialDocumentLink = {
   publishedAt: string | null;
 };
 
+export type TenantInvoicePublicationSnapshot = {
+  contactEmail: string | null;
+  contactPhone: string | null;
+  note: string | null;
+  paymentInstructions: string;
+};
+
 export type TenantInvoiceSettlement = {
   amount: number;
   date: string;
@@ -84,6 +91,7 @@ export type TenantInvoiceSummary = {
   paidThroughIps: number;
   paymentStatus: "paid" | "partly_paid" | "unpaid" | "voided";
   pdf: CommercialDocumentLink;
+  publicationSnapshot: TenantInvoicePublicationSnapshot | null;
   propertyId: string;
   propertyLabel: string;
   recipientLabel: string;
@@ -209,6 +217,7 @@ export type FinanceOperationsActionState = {
   artifactHref?: string;
   artifactId?: string;
   message?: string;
+  paymentId?: string;
   publicationStatus?: "failed" | "published";
   status?: "error" | "success";
 };

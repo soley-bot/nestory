@@ -402,6 +402,7 @@ export async function recordTenantInvoicePaymentAction(
       artifactHref: artifact.href,
       artifactId: artifact.artifactId,
       message: "Payment recorded.",
+      paymentId,
       publicationStatus: "published",
       status: "success",
     };
@@ -417,7 +418,7 @@ export async function recordTenantInvoicePaymentAction(
       // Receipt failure persistence must not change the committed payment result.
     }
     revalidateFinance();
-    return receiptUnavailableState();
+    return receiptUnavailableState(paymentId);
   }
 }
 
@@ -742,9 +743,10 @@ function validationError(error: z.ZodError): FinanceOperationsActionState {
   );
 }
 
-function receiptUnavailableState(): FinanceOperationsActionState {
+function receiptUnavailableState(paymentId?: string): FinanceOperationsActionState {
   return {
     message: "Payment recorded. Receipt unavailable.",
+    ...(paymentId ? { paymentId } : {}),
     publicationStatus: "failed",
     status: "success",
   };

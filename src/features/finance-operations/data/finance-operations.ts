@@ -16,6 +16,7 @@ import type {
   PropertyFinancePosition,
   RentGenerationException,
   TenantInvoiceLine,
+  TenantInvoicePublicationSnapshot,
   TenantInvoiceSettlement,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
@@ -66,12 +67,17 @@ type CommercialDocumentArtifactRow = Pick<
   | "id"
   | "organization_id"
   | "publication_status"
+  | "presentation_snapshot"
   | "published_at"
   | "source_id"
   | "source_kind"
 >;
 type CommercialDocumentLinks = {
   invoices: Map<string, CommercialDocumentLink>;
+  invoicePublicationSnapshots: Map<
+    string,
+    TenantInvoicePublicationSnapshot | null
+  >;
   receiptNumbers: Map<string, string>;
   receipts: Map<string, CommercialDocumentLink>;
 };
@@ -626,6 +632,7 @@ export async function getFinanceOperationsData(
         generationByInvoiceId,
         settlementsByInvoiceId,
         commercialDocuments.invoices,
+        commercialDocuments.invoicePublicationSnapshots,
       ),
     ),
     unitOptions: units.flatMap((unit) => {
@@ -767,13 +774,18 @@ export async function loadCommercialDocumentLinks(
 ): Promise<CommercialDocumentLinks> {
   const sourceIds = [...new Set([...invoiceIds, ...ipsPaymentIds])];
   if (sourceIds.length === 0) {
-    return { invoices: new Map(), receiptNumbers: new Map(), receipts: new Map() };
+    return {
+      invoices: new Map(),
+      invoicePublicationSnapshots: new Map(),
+      receiptNumbers: new Map(),
+      receipts: new Map(),
+    };
   }
 
   const { data, error } = await supabase
     .from("tenant_commercial_document_artifacts")
     .select(
-      "id, organization_id, source_kind, source_id, document_number, publication_status, published_at",
+      "id, organization_id, source_kind, source_id, document_number, publication_status, published_at, presentation_snapshot",
     )
     .eq("organization_id", organizationId)
     .in("source_id", sourceIds);
@@ -797,11 +809,16 @@ export function mapCommercialDocumentLinks(
   const invoiceIdSet = new Set(invoiceIds);
   const ipsPaymentIdSet = new Set(ipsPaymentIds);
   const invoices = new Map<string, CommercialDocumentLink>();
+  const invoicePublicationSnapshots = new Map<
+    string,
+    TenantInvoicePublicationSnapshot | null
+  >();
   const receiptNumbers = new Map<string, string>();
   const receipts = new Map<string, CommercialDocumentLink>();
 
   for (const invoiceId of invoiceIdSet) {
     invoices.set(invoiceId, notPublishedCommercialDocument());
+    invoicePublicationSnapshots.set(invoiceId, null);
   }
   for (const paymentId of ipsPaymentIdSet) {
     receipts.set(paymentId, notPublishedCommercialDocument());
@@ -816,6 +833,10 @@ export function mapCommercialDocumentLinks(
     const link = toCommercialDocumentLink(row);
     if (isInvoice) {
       invoices.set(row.source_id, link);
+      invoicePublicationSnapshots.set(
+        row.source_id,
+        toTenantInvoicePublicationSnapshot(row),
+      );
     } else {
       receipts.set(row.source_id, link);
       if (link.publicationStatus === "published") {
@@ -824,7 +845,7 @@ export function mapCommercialDocumentLinks(
     }
   }
 
-  return { invoices, receiptNumbers, receipts };
+  return { invoices, invoicePublicationSnapshots, receiptNumbers, receipts };
 }
 
 function notPublishedCommercialDocument(): CommercialDocumentLink {
@@ -846,6 +867,35 @@ function toCommercialDocumentLink(
     publicationStatus: published ? "published" : "failed",
     publishedAt: published ? row.published_at : null,
   };
+}
+
+function toTenantInvoicePublicationSnapshot(
+  row: CommercialDocumentArtifactRow,
+): TenantInvoicePublicationSnapshot | null {
+  if (row.publication_status !== "published") return null;
+  const snapshot = row.presentation_snapshot;
+  if (!isRecord(snapshot)) return null;
+  const paymentInstructions = snapshot.paymentInstructions;
+  const issuer = snapshot.issuer;
+  if (typeof paymentInstructions !== "string" || !isRecord(issuer)) return null;
+
+  const contactEmail = nullableString(issuer.contactEmail);
+  const contactPhone = nullableString(issuer.contactPhone);
+  const note = nullableString(snapshot.note);
+  if (contactEmail === undefined || contactPhone === undefined || note === undefined) {
+    return null;
+  }
+
+  return { contactEmail, contactPhone, note, paymentInstructions };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function nullableString(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  return typeof value === "string" ? value : undefined;
 }
 
 export function buildSettlementsByInvoiceId(
@@ -1173,6 +1223,10 @@ export function toTenantInvoice(
   >,
   settlementsByInvoiceId: Map<string, TenantInvoiceSettlement[]>,
   commercialDocumentsByInvoiceId: Map<string, CommercialDocumentLink>,
+  publicationSnapshotsByInvoiceId: Map<
+    string,
+    TenantInvoicePublicationSnapshot | null
+  >,
 ): TenantInvoiceSummary[] {
   if (
     !row.id ||
@@ -1216,6 +1270,7 @@ export function toTenantInvoice(
       pdf:
         commercialDocumentsByInvoiceId.get(row.id) ??
         notPublishedCommercialDocument(),
+      publicationSnapshot: publicationSnapshotsByInvoiceId.get(row.id) ?? null,
       propertyId: row.property_id,
       propertyLabel: propertyLabel(property),
       recipientLabel: row.recipient_label ?? "Unknown",
