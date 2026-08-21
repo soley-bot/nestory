@@ -29,7 +29,7 @@ The `Production Database` job runs after local database CI and performs this fai
 
 1. Check out `github.sha`, query the current `main` SHA with a step-scoped GitHub token, and prove both values equal without persisting checkout credentials.
 2. Link the pinned project Supabase CLI using protected environment secrets.
-3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions. Each hosted name and recorded statement payload must reconstruct the corresponding Git migration. Raw undeclared payloads are fetched in size-bounded pages; the six legacy exceptions must match both their immutable Git/hosted hash evidence and their independently pinned database-side content hashes. Any unknown, missing, duplicated, out-of-order, renamed, oversized, or content-mismatched remote row stops the release.
+3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions. A single read-only Postgres query computes deterministic SHA-256 descriptors for every hosted row and returns only version, name, statement count, statement byte counts, per-statement hashes, and the canonical row hash. No raw hosted SQL crosses the runner. Every ordinary row must reconstruct from Git and match exactly; the 97-row baseline must remain an exact prefix; and the six legacy exceptions must match their separately pinned Git, hosted, database-side, and canonical hashes. Any unknown, missing, duplicated, out-of-order, renamed, or content-mismatched remote row stops the release.
 4. Run a linked `db push --dry-run`.
 5. Run the single production `db push`.
 6. Run `npm run db:hosted-postflight`. Git and hosted ledgers must now be exactly equal.
@@ -55,7 +55,7 @@ If the SQL is exactly equivalent and clean replay proves the hosted timestamp or
 
 ### Preflight reports a hosted name or SQL-content mismatch
 
-Stop before any write. Compare the exact Git migration with the hosted ledger's `name` and `statements` payload and probe the resulting hosted objects read-only. Do not treat matching versions as proof that the SQL ran, and do not add a routine exception merely to make the gate pass. A legacy exception is acceptable only for independently verified pre-guardrail history and must immutably pin both hashes while stating that SQL identity is not proven. New migrations must match exactly. Any hosted history mutation still requires explicit approval and a recovery plan.
+Stop before any write. Compare the exact Git migration with the hosted ledger identity, statement counts, byte lengths, and hashes, then probe the resulting hosted objects read-only. Retrieve raw hosted SQL only in a controlled operator investigation when the hash evidence cannot locate the mismatch; never add raw SQL transport to the routine GitHub runner. Do not treat matching versions as proof that the SQL ran, and do not add a routine exception merely to make the gate pass. A legacy exception is acceptable only for independently verified pre-guardrail history and must immutably pin both sides while stating that SQL identity is not proven. New migrations must match exactly. Any hosted history mutation still requires explicit approval and a recovery plan.
 
 ### Dry-run fails
 

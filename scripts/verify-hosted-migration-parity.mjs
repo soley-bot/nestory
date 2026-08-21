@@ -2,195 +2,91 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
-  assertHostedMigrationLedgerPage,
-  evaluateHostedMigrationContent,
+  evaluateHostedMigrationHashes,
   evaluateHostedMigrationParity,
-  planHostedMigrationLedgerPages,
-  readHostedMigrationLedgerOutput,
-  readHostedMigrationMetadataOutput,
+  hashGitMigrationBody,
+  isMigrationBodyEffectivelyEmpty,
+  readHostedMigrationHashOutput,
   readMigrationListOutput,
   resolvePinnedSupabaseCliBinary,
   runCommandWithBoundedOutput,
 } from "./hosted-migration-parity-core.mjs";
 
 const phase = readPhase(process.argv.slice(2));
+const emitHashManifest = process.argv.includes("--emit-hash-manifest");
 const supabaseCli = resolvePinnedSupabaseCliBinary();
-const result = await runCommandWithBoundedOutput(
+const supabaseArgsPrefix = ["--agent", "yes", "--output-format", "json"];
+const commandOptions = {
+  cwd: process.cwd(),
+  encoding: "utf8",
+  env: { ...process.env, SUPABASE_TELEMETRY_DISABLED: "1" },
+  windowsHide: true,
+};
+
+const listResult = await runCommandWithBoundedOutput(
   supabaseCli,
-  ["--output-format", "json", "migration", "list", "--linked"],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    env: { ...process.env, SUPABASE_TELEMETRY_DISABLED: "1" },
-    windowsHide: true,
-  },
+  [...supabaseArgsPrefix, "migration", "list", "--linked"],
+  commandOptions,
 );
-
-if (result.error) {
-  console.error(
-    `Unable to start the pinned Supabase CLI: ${result.error.message}`,
-  );
-  process.exit(1);
-}
-
-if (result.status !== 0) {
-  console.error(
-    `Supabase migration list failed with exit code ${result.status ?? "unknown"}.`,
-  );
-  const detail = redactCliOutput(result.stderr);
-  if (detail) console.error(detail);
-  process.exit(1);
-}
+assertSuccessfulCommand(listResult, "Supabase migration list");
 
 let versions;
+let localMigrations;
+let evidence;
 try {
-  versions = readMigrationListOutput(result.stdout);
-} catch (error) {
-  console.error(
-    `Unable to read Supabase migration-list JSON: ${error.message}`,
+  versions = readMigrationListOutput(listResult.stdout);
+  localMigrations = readLocalMigrations(
+    path.join(process.cwd(), "supabase", "migrations"),
   );
+  evidence = readHostedHashEvidence(
+    path.join(process.cwd(), "supabase", "migration-reconciliations"),
+  );
+} catch (error) {
+  console.error(`Unable to read migration evidence: ${error.message}`);
   process.exit(1);
 }
 
 const parity = evaluateHostedMigrationParity({ ...versions, phase });
-let localMigrations;
-let contentExceptions;
-try {
-  localMigrations = readLocalMigrations(
-    path.join(process.cwd(), "supabase", "migrations"),
-  );
-  contentExceptions = readHostedContentExceptions(
-    path.join(process.cwd(), "supabase", "migration-reconciliations"),
-  );
-} catch (error) {
-  console.error(`Unable to read Git migration evidence: ${error.message}`);
-  process.exit(1);
+for (const version of parity.pendingVersions) {
+  const migration = localMigrations.find((candidate) => candidate.version === version);
+  if (migration && isMigrationBodyEffectivelyEmpty(migration.body)) {
+    parity.issues.push(
+      `pending local migration is empty or comment-only: ${version}`,
+    );
+  }
 }
-
-const metadataResult = await runCommandWithBoundedOutput(
+const hashResult = await runCommandWithBoundedOutput(
   supabaseCli,
   [
-    "--output-format",
-    "json",
+    ...supabaseArgsPrefix,
     "db",
     "query",
     "--linked",
-    "select version, name, octet_length(array_to_json(statements)::text) as statement_json_bytes, encode(extensions.digest(convert_to(jsonb_build_object('version', version, 'name', name, 'statements', (select jsonb_agg(replace(replace(statement, E'\\r\\n', E'\\n'), E'\\r', E'\\n') order by ordinality) from unnest(statements) with ordinality as item(statement, ordinality)))::text, 'UTF8'), 'sha256'), 'hex') as hosted_ledger_db_sha256 from supabase_migrations.schema_migrations order by version;",
+    hostedMigrationHashQuery(),
   ],
-  {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    env: { ...process.env, SUPABASE_TELEMETRY_DISABLED: "1" },
-    windowsHide: true,
-  },
+  commandOptions,
 );
+assertSuccessfulCommand(hashResult, "Hosted migration hash query");
 
-if (metadataResult.error) {
-  console.error(
-    `Unable to start the hosted migration metadata query: ${metadataResult.error.message}`,
-  );
-  process.exit(1);
-}
-if (metadataResult.status !== 0) {
-  console.error(
-    `Hosted migration metadata query failed with exit code ${metadataResult.status ?? "unknown"}.`,
-  );
-  const detail = redactCliOutput(metadataResult.stderr);
-  if (detail) console.error(detail);
-  process.exit(1);
-}
-
-let ledgerPages;
-let hostedContentHashes;
+let remoteMigrations;
 try {
-  const metadata = readHostedMigrationMetadataOutput(metadataResult.stdout);
-  planHostedMigrationLedgerPages({
-    remoteVersions: versions.remoteVersions,
-    metadata,
-    pageBytes: 8 * 1024 * 1024,
-    maxSingleMigrationBytes: 8 * 1024 * 1024,
-  });
-  const exceptionVersions = new Set(
-    contentExceptions.map((exception) => exception.version),
-  );
-  const rawRemoteVersions = versions.remoteVersions.filter(
-    (version) => !exceptionVersions.has(version),
-  );
-  ledgerPages = planHostedMigrationLedgerPages({
-    remoteVersions: rawRemoteVersions,
-    metadata: metadata.filter((row) => !exceptionVersions.has(row.version)),
-    pageBytes: 512 * 1024,
-    maxSingleMigrationBytes: 8 * 1024 * 1024,
-  });
-  hostedContentHashes = metadata
-    .filter((row) => exceptionVersions.has(row.version))
-    .map((row) => ({
-      version: row.version,
-      name: row.name,
-      hostedLedgerDbSha256: row.hostedLedgerDbSha256,
-    }));
+  remoteMigrations = readHostedMigrationHashOutput(hashResult.stdout);
 } catch (error) {
-  console.error(
-    `Unable to plan hosted migration ledger pages: ${error.message}`,
-  );
+  console.error(`Unable to read hosted migration hashes: ${error.message}`);
   process.exit(1);
 }
 
-const remoteMigrations = [];
-for (const pageVersions of ledgerPages) {
-  const versionLiterals = pageVersions
-    .map((version) => `'${version}'`)
-    .join(",");
-  const ledgerResult = await runCommandWithBoundedOutput(
-    supabaseCli,
-    [
-      "--output-format",
-      "json",
-      "db",
-      "query",
-      "--linked",
-      `select version, name, statements from supabase_migrations.schema_migrations where version in (${versionLiterals}) order by version;`,
-    ],
-    {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      env: { ...process.env, SUPABASE_TELEMETRY_DISABLED: "1" },
-      windowsHide: true,
-    },
-  );
-  if (ledgerResult.error) {
-    console.error(
-      `Unable to start a hosted migration ledger page query: ${ledgerResult.error.message}`,
-    );
-    process.exit(1);
-  }
-  if (ledgerResult.status !== 0) {
-    console.error(
-      `Hosted migration ledger page query failed with exit code ${ledgerResult.status ?? "unknown"}.`,
-    );
-    const detail = redactCliOutput(ledgerResult.stderr);
-    if (detail) console.error(detail);
-    process.exit(1);
-  }
-  try {
-    const pageMigrations = readHostedMigrationLedgerOutput(ledgerResult.stdout);
-    assertHostedMigrationLedgerPage(pageVersions, pageMigrations);
-    remoteMigrations.push(...pageMigrations);
-  } catch (error) {
-    console.error(
-      `Unable to read hosted migration ledger page: ${error.message}`,
-    );
-    process.exit(1);
-  }
-}
-
-const contentIssues = evaluateHostedMigrationContent({
+const manifestEntries = emitHashManifest
+  ? buildHashManifest(localMigrations, remoteMigrations, evidence.contentExceptions)
+  : evidence.hostedMigrationHashes;
+const hashIssues = evaluateHostedMigrationHashes({
   localMigrations,
+  remoteVersions: versions.remoteVersions,
   remoteMigrations,
-  contentExceptions,
-  hostedContentHashes,
+  manifestEntries,
+  contentExceptions: evidence.contentExceptions,
 });
-const issues = [...parity.issues, ...contentIssues];
+const issues = [...parity.issues, ...hashIssues];
 if (issues.length > 0) {
   console.error(
     `Hosted migration ${phase} failed (${parity.localCount} local, ${parity.remoteCount} remote):`,
@@ -199,13 +95,148 @@ if (issues.length > 0) {
   process.exit(1);
 }
 
+if (emitHashManifest) {
+  if (phase !== "postflight" || parity.pendingVersions.length > 0) {
+    console.error(
+      "Hash manifest emission requires an exact zero-pending postflight.",
+    );
+    process.exit(1);
+  }
+  console.log(
+    JSON.stringify({ hostedMigrationHashes: manifestEntries, entries: [] }, null, 2),
+  );
+  process.exit(0);
+}
+
 console.log(
-  `Hosted migration ${phase} passed: ${parity.localCount} local, ${parity.remoteCount} remote, ${parity.pendingVersions.length} pending, ${contentExceptions.length} pinned legacy content exceptions, ${ledgerPages.length} content pages.`,
+  `Hosted migration ${phase} passed: ${parity.localCount} local, ${parity.remoteCount} remote, ${parity.pendingVersions.length} pending, ${remoteMigrations.length} deterministic hosted hashes, ${evidence.contentExceptions.length} pinned legacy exceptions.`,
 );
 if (parity.pendingVersions.length > 0) {
   console.log(
     `Pending migration versions: ${parity.pendingVersions.join(", ")}`,
   );
+}
+
+function hostedMigrationHashQuery() {
+  return `
+with normalized_statements as (
+  select
+    migration.version,
+    migration.name,
+    item.ordinality,
+    btrim(
+      replace(replace(item.statement, E'\\r\\n', E'\\n'), E'\\r', E'\\n'),
+      E' \\t\\n\\r\\f' || chr(11)
+    ) as statement
+  from supabase_migrations.schema_migrations as migration
+  cross join lateral unnest(migration.statements)
+    with ordinality as item(statement, ordinality)
+),
+statement_hashes as (
+  select
+    version,
+    name,
+    ordinality,
+    octet_length(statement) as byte_length,
+    encode(
+      extensions.digest(convert_to(statement, 'UTF8'), 'sha256'),
+      'hex'
+    ) as statement_sha256
+  from normalized_statements
+),
+migration_hashes as (
+  select
+    migration.version,
+    migration.name,
+    count(statement.ordinality)::integer as statement_count,
+    coalesce(sum(statement.byte_length), 0)::bigint as statement_bytes,
+    coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'byteLength', statement.byte_length,
+          'sha256', statement.statement_sha256
+        )
+        order by statement.ordinality
+      ) filter (where statement.ordinality is not null),
+      '[]'::jsonb
+    ) as statement_descriptors,
+    coalesce(
+      string_agg(
+        's' || statement.byte_length || ':' || statement.statement_sha256,
+        ''
+        order by statement.ordinality
+      ),
+      ''
+    ) as descriptor_stream
+  from supabase_migrations.schema_migrations as migration
+  left join statement_hashes as statement
+    on statement.version = migration.version
+   and statement.name = migration.name
+  group by migration.version, migration.name
+)
+select
+  hashed.version,
+  hashed.name,
+  hashed.statement_count,
+  hashed.statement_bytes,
+  hashed.statement_descriptors,
+  encode(
+    extensions.digest(
+      convert_to(
+        'v' || octet_length(hashed.version) || ':' || hashed.version ||
+        'n' || octet_length(hashed.name) || ':' || hashed.name ||
+        'c' || hashed.statement_count || ':' || hashed.descriptor_stream,
+        'UTF8'
+      ),
+      'sha256'
+    ),
+    'hex'
+  ) as canonical_sha256,
+  encode(
+    extensions.digest(
+      convert_to(
+        jsonb_build_object(
+          'version', migration.version,
+          'name', migration.name,
+          'statements', (
+            select coalesce(
+              jsonb_agg(
+                replace(replace(item.statement, E'\\r\\n', E'\\n'), E'\\r', E'\\n')
+                order by item.ordinality
+              ),
+              '[]'::jsonb
+            )
+            from unnest(migration.statements)
+              with ordinality as item(statement, ordinality)
+          )
+        )::text,
+        'UTF8'
+      ),
+      'sha256'
+    ),
+    'hex'
+  ) as hosted_ledger_db_sha256
+from migration_hashes as hashed
+join supabase_migrations.schema_migrations as migration
+  on migration.version = hashed.version
+ and migration.name = hashed.name
+order by hashed.version;
+`;
+}
+
+function assertSuccessfulCommand(result, label) {
+  if (result.error) {
+    console.error(`Unable to start ${label}: ${result.error.message}`);
+    process.exit(1);
+  }
+  if (result.status !== 0) {
+    console.error(
+      `${label} failed with exit code ${result.status ?? "unknown"}.`,
+    );
+    const detail = redactCliOutput(result.stderr);
+    if (detail) console.error(detail);
+    process.exit(1);
+  }
 }
 
 function readPhase(args) {
@@ -246,43 +277,46 @@ function readLocalMigrations(migrationsDirectory) {
     });
 }
 
-function readHostedContentExceptions(reconciliationDirectory) {
-  const exceptions = [];
-  const dbHashes = [];
+function readHostedHashEvidence(reconciliationDirectory) {
+  const contentExceptions = [];
+  const exceptionDbHashes = [];
+  const hostedMigrationHashes = [];
   for (const filename of readdirSync(reconciliationDirectory)
     .filter((name) => name.endsWith(".json"))
     .sort()) {
     const manifest = JSON.parse(
       readFileSync(path.join(reconciliationDirectory, filename), "utf8"),
     );
-    if ("hostedContentExceptions" in manifest) {
-      if (!Array.isArray(manifest.hostedContentExceptions)) {
-        throw new Error(
-          `hosted content exceptions are not an array in ${filename}`,
-        );
-      }
-      exceptions.push(...manifest.hostedContentExceptions);
-    }
-    if ("hostedContentExceptionDbHashes" in manifest) {
-      if (!Array.isArray(manifest.hostedContentExceptionDbHashes)) {
-        throw new Error(
-          `hosted content exception database hashes are not an array in ${filename}`,
-        );
-      }
-      dbHashes.push(...manifest.hostedContentExceptionDbHashes);
-    }
+    appendManifestArray(
+      manifest,
+      "hostedContentExceptions",
+      contentExceptions,
+      filename,
+    );
+    appendManifestArray(
+      manifest,
+      "hostedContentExceptionDbHashes",
+      exceptionDbHashes,
+      filename,
+    );
+    appendManifestArray(
+      manifest,
+      "hostedMigrationHashes",
+      hostedMigrationHashes,
+      filename,
+    );
   }
 
   const dbHashesByVersion = new Map();
-  for (const row of dbHashes) {
+  for (const row of exceptionDbHashes) {
     if (dbHashesByVersion.has(row?.version)) {
       throw new Error("duplicate hosted content exception database hash");
     }
     dbHashesByVersion.set(row?.version, row);
   }
   if (
-    dbHashesByVersion.size !== exceptions.length ||
-    exceptions.some(
+    dbHashesByVersion.size !== contentExceptions.length ||
+    contentExceptions.some(
       (exception) =>
         dbHashesByVersion.get(exception.version)?.name !== exception.name,
     )
@@ -291,9 +325,40 @@ function readHostedContentExceptions(reconciliationDirectory) {
       "hosted content exception database hashes do not exactly match exceptions",
     );
   }
-  return exceptions.map((exception) => ({
-    ...exception,
-    hostedLedgerDbSha256: dbHashesByVersion.get(exception.version)
-      .hostedLedgerDbSha256,
-  }));
+
+  return {
+    contentExceptions: contentExceptions.map((exception) => ({
+      ...exception,
+      hostedLedgerDbSha256: dbHashesByVersion.get(exception.version)
+        .hostedLedgerDbSha256,
+    })),
+    hostedMigrationHashes,
+  };
+}
+
+function appendManifestArray(manifest, field, target, filename) {
+  if (!(field in manifest)) return;
+  if (!Array.isArray(manifest[field])) {
+    throw new Error(`${field} is not an array in ${filename}`);
+  }
+  target.push(...manifest[field]);
+}
+
+function buildHashManifest(localMigrations, remoteMigrations, exceptions) {
+  const localByVersion = new Map(
+    localMigrations.map((migration) => [migration.version, migration]),
+  );
+  const exceptionVersions = new Set(
+    exceptions.map((exception) => exception.version),
+  );
+  return remoteMigrations.map((remote) => {
+    const local = localByVersion.get(remote.version);
+    return {
+      version: remote.version,
+      name: remote.name,
+      gitSqlSha256: hashGitMigrationBody(local?.body ?? ""),
+      canonicalSha256: remote.canonicalSha256,
+      ...(exceptionVersions.has(remote.version) ? { legacyException: true } : {}),
+    };
+  });
 }
