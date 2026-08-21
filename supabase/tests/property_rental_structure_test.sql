@@ -116,7 +116,7 @@ SELECT throws_ok($$
     (SELECT id FROM public.properties
      WHERE organization_id = '71000000-0000-4000-8000-000000000001'
        AND name = 'Riverside House'),
-    'HOUSE-UNIT', NULL, NULL, 'vacant'
+    'HOUSE-UNIT', NULL, NULL, NULL, NULL, 'vacant'
   )
 $$, '23514', 'Whole-property rentals cannot contain Units',
   'a whole-property rental cannot create a fake or accidental Unit');
@@ -145,7 +145,7 @@ SELECT lives_ok($$
     (SELECT id FROM public.properties
      WHERE organization_id = '71000000-0000-4000-8000-000000000001'
        AND name = 'Apartment Building'),
-    'A-01', '1', 45.00, 'vacant'
+    'A-01', '1', 45.00, NULL, NULL, 'vacant'
   )
 $$, 'a multi-unit Property can create its first Unit');
 

@@ -31,6 +31,8 @@ import type {
 
 export type UnitRecord = {
   archived_at: string | null;
+  bathroom_count: number | null;
+  bedroom_count: number | null;
   current_rent_amount: number | null;
   current_rent_currency: CurrencyCode | null;
   floor: string | null;
@@ -152,8 +154,12 @@ export function buildUnitSummary({
   const relevantLease = activeLease ?? draftLease;
 
   return {
+    bathroomCountLabel: formatRoomCount(unit.bathroom_count, "bathroom"),
+    bedroomCountLabel: formatRoomCount(unit.bedroom_count, "bedroom"),
     draftLease: draftLease ? toLeaseSummary(draftLease) : undefined,
     formValues: {
+      bathroomCount: unit.bathroom_count,
+      bedroomCount: unit.bedroom_count,
       floor: unit.floor,
       propertyId: unit.property_id,
       sizeSqm: unit.size_sqm,
@@ -1169,6 +1175,14 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatRoomCount(count: number | null, room: "bathroom" | "bedroom") {
+  if (count === null) {
+    return `${room === "bedroom" ? "Bedrooms" : "Bathrooms"} not recorded`;
+  }
+
+  return `${count} ${room}${count === 1 ? "" : "s"}`;
 }
 
 export function formatUnitTimelineContext(event: UnitTimelineContext) {

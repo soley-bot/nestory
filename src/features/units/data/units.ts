@@ -36,7 +36,7 @@ import type {
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 
 const unitSelect =
-  "id, property_id, unit_number, floor, size_sqm, status, current_rent_amount, current_rent_currency, archived_at";
+  "id, property_id, unit_number, floor, size_sqm, bedroom_count, bathroom_count, status, current_rent_amount, current_rent_currency, archived_at";
 const propertySelect = "id, code, name";
 const unitWithPropertySelect = `${unitSelect}, property:properties!units_property_id_fkey(${propertySelect})`;
 const leaseSelect =

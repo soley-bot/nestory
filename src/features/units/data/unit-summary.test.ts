@@ -20,6 +20,8 @@ const property = {
 
 const unit = {
   archived_at: null,
+  bathroom_count: 2,
+  bedroom_count: 3,
   current_rent_amount: 850,
   current_rent_currency: "USD" as const,
   floor: "12",
@@ -80,6 +82,8 @@ describe("buildUnitSummary", () => {
       }),
     ).toMatchObject({
       formValues: {
+        bathroomCount: 2,
+        bedroomCount: 3,
         floor: "12",
         propertyId: property.id,
         sizeSqm: 55.25,
@@ -87,6 +91,8 @@ describe("buildUnitSummary", () => {
         unitNumber: "12A",
       },
       floorLabel: "12",
+      bathroomCountLabel: "2 bathrooms",
+      bedroomCountLabel: "3 bedrooms",
       isArchived: false,
       ledgerNetLabel: "USD 875.00",
       leaseLabel: "Dara Tenant / Active",
@@ -129,6 +135,30 @@ describe("buildUnitSummary", () => {
     ).toMatchObject({
       rentLabel: "USD 900.00",
       rentUsd: 900,
+    });
+  });
+
+  it("distinguishes unknown, zero, and singular room counts", () => {
+    const unknown = buildUnitSummary({
+      ledgerEntries: [],
+      property,
+      unit: { ...unit, bathroom_count: null, bedroom_count: null },
+    });
+    const zeroAndOne = buildUnitSummary({
+      ledgerEntries: [],
+      property,
+      unit: { ...unit, bathroom_count: 1, bedroom_count: 0 },
+    });
+
+    expect(unknown).toMatchObject({
+      bathroomCountLabel: "Bathrooms not recorded",
+      bedroomCountLabel: "Bedrooms not recorded",
+      formValues: { bathroomCount: null, bedroomCount: null },
+    });
+    expect(zeroAndOne).toMatchObject({
+      bathroomCountLabel: "1 bathroom",
+      bedroomCountLabel: "0 bedrooms",
+      formValues: { bathroomCount: 1, bedroomCount: 0 },
     });
   });
 

@@ -7,14 +7,14 @@ SELECT plan(6);
 SELECT has_function(
   'public',
   'create_unit',
-  ARRAY['uuid', 'uuid', 'text', 'text', 'numeric', 'text'],
+  ARRAY['uuid', 'uuid', 'text', 'text', 'numeric', 'numeric', 'numeric', 'text'],
   'unit creation does not accept rent authority'
 );
 
 SELECT has_function(
   'public',
   'update_unit',
-  ARRAY['uuid', 'uuid', 'uuid', 'text', 'text', 'numeric', 'text'],
+  ARRAY['uuid', 'uuid', 'uuid', 'text', 'text', 'numeric', 'numeric', 'numeric', 'text'],
   'unit editing does not accept rent authority'
 );
 
@@ -98,6 +98,8 @@ SET unit_id = public.create_unit(
   '1A',
   '1',
   48,
+  2,
+  1,
   'vacant'
 );
 
@@ -128,6 +130,8 @@ SELECT public.update_unit(
   '1A',
   '2',
   48,
+  2,
+  1,
   'vacant'
 )
 FROM unit_rent_authority_state;

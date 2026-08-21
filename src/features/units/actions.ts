@@ -8,6 +8,8 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 type UnitFieldErrors = {
+  bathroomCount?: string[];
+  bedroomCount?: string[];
   document?: string[];
   floor?: string[];
   operationalState?: string[];
@@ -29,6 +31,8 @@ const unitOperationalStateSchema = z.enum(["active", "maintenance", "inactive"])
 
 const unitMutationSchema = z
   .object({
+    bathroomCount: z.string().trim(),
+    bedroomCount: z.string().trim(),
     floor: z
       .string()
       .trim()
@@ -55,6 +59,23 @@ const unitMutationSchema = z
       }
     }
 
+    for (const field of ["bedroomCount", "bathroomCount"] as const) {
+      const value = data[field];
+
+      if (value.length === 0) {
+        continue;
+      }
+
+      const count = Number(value);
+
+      if (!Number.isInteger(count) || count < 0 || count > 100) {
+        context.addIssue({
+          code: "custom",
+          message: "Enter a whole number from 0 to 100.",
+          path: [field],
+        });
+      }
+    }
   });
 
 const unitIdSchema = postgresUuid("Choose a unit.");
@@ -123,6 +144,8 @@ export async function createUnitAction(
 
   const supabase = await createSupabaseServerClient();
   const { data: unitId, error } = await supabase.rpc("create_unit", {
+    p_bathroom_count: nullableNumber(parsed.data.bathroomCount),
+    p_bedroom_count: nullableNumber(parsed.data.bedroomCount),
     p_floor: nullableString(parsed.data.floor),
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
@@ -208,6 +231,8 @@ export async function updateUnitAction(
   }
 
   const { error } = await supabase.rpc("update_unit", {
+    p_bathroom_count: nullableNumber(parsed.data.bathroomCount),
+    p_bedroom_count: nullableNumber(parsed.data.bedroomCount),
     p_floor: nullableString(parsed.data.floor),
     p_organization_id: context.organizationId,
     p_property_id: parsed.data.propertyId,
@@ -329,6 +354,8 @@ export async function restoreUnitAction(
 
 function readUnitMutationInput(formData: FormData) {
   return {
+    bathroomCount: readString(formData, "bathroomCount"),
+    bedroomCount: readString(formData, "bedroomCount"),
     floor: readString(formData, "floor"),
     propertyId: readString(formData, "propertyId"),
     sizeSqm: readString(formData, "sizeSqm"),

@@ -158,7 +158,7 @@ export function UnitForm({
       </FormSection>
 
       <FormSection step="02" title="Unit details">
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_128px_140px]">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
           <RecordField
             error={state.fieldErrors?.unitNumber?.[0]}
             label="Unit number"
@@ -200,6 +200,36 @@ export function UnitForm({
               step="0.01"
             />
           </RecordField>
+
+          <RecordField
+            error={state.fieldErrors?.bedroomCount?.[0]}
+            label="Bedrooms"
+            name="bedroomCount"
+          >
+            <NumberInput
+              defaultValue={defaults.bedroomCount}
+              max="100"
+              min="0"
+              name="bedroomCount"
+              placeholder="2"
+              step="1"
+            />
+          </RecordField>
+
+          <RecordField
+            error={state.fieldErrors?.bathroomCount?.[0]}
+            label="Bathrooms"
+            name="bathroomCount"
+          >
+            <NumberInput
+              defaultValue={defaults.bathroomCount}
+              max="100"
+              min="0"
+              name="bathroomCount"
+              placeholder="1"
+              step="1"
+            />
+          </RecordField>
         </div>
       </FormSection>
 
@@ -230,6 +260,8 @@ function getUnitDefaults(
     formValues?.status ?? normalizeStoredValue(unit?.statusLabel ?? "");
 
   return {
+    bathroomCount: toInputNumber(formValues?.bathroomCount),
+    bedroomCount: toInputNumber(formValues?.bedroomCount),
     floor:
       formValues?.floor ??
       (unit?.floorLabel && unit.floorLabel !== "Not set" ? unit.floorLabel : ""),

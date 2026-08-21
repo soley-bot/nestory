@@ -119,6 +119,8 @@ describe("unit rent authority", () => {
       unitId,
     });
     expect(rpc).toHaveBeenCalledWith("create_unit", {
+      p_bathroom_count: 1,
+      p_bedroom_count: 2,
       p_floor: "1",
       p_organization_id: organizationId,
       p_property_id: propertyId,
@@ -138,6 +140,8 @@ describe("unit rent authority", () => {
       unitId,
     });
     expect(rpc).toHaveBeenCalledWith("update_unit", {
+      p_bathroom_count: 1,
+      p_bedroom_count: 2,
       p_floor: "1",
       p_organization_id: organizationId,
       p_property_id: propertyId,
@@ -147,6 +151,70 @@ describe("unit rent authority", () => {
       p_unit_number: "1A",
     });
   });
+
+  it("preserves zero and blank room counts through the checked create RPC", async () => {
+    const formData = unitForm();
+    formData.set("bedroomCount", "0");
+    formData.set("bathroomCount", "");
+
+    await expect(createUnitAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+      unitId,
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "create_unit",
+      expect.objectContaining({
+        p_bathroom_count: null,
+        p_bedroom_count: 0,
+      }),
+    );
+  });
+
+  it("sends saved room counts through the checked update RPC", async () => {
+    const formData = unitForm();
+    formData.set("bathroomCount", "3");
+    formData.set("bedroomCount", "4");
+    formData.set("unitId", unitId);
+
+    await expect(updateUnitAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+      unitId,
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "update_unit",
+      expect.objectContaining({
+        p_bathroom_count: 3,
+        p_bedroom_count: 4,
+      }),
+    );
+  });
+
+  it.each([
+    ["bedroomCount", "-1", "create"],
+    ["bathroomCount", "1.5", "create"],
+    ["bedroomCount", "101", "edit"],
+    ["bathroomCount", "not-a-count", "edit"],
+  ] as const)(
+    "rejects invalid %s value %s before the %s RPC",
+    async (field, value, mode) => {
+      const formData = unitForm();
+      formData.set(field, value);
+
+      const state =
+        mode === "create"
+          ? await createUnitAction({}, formData)
+          : await updateUnitAction(
+              {},
+              withValue(formData, "unitId", unitId),
+            );
+
+      expect(state).toMatchObject({
+        fieldErrors: { [field]: expect.any(Array) },
+        status: "error",
+      });
+      expect(rpc).not.toHaveBeenCalled();
+    },
+  );
 
   it("directs the operator to close an open lease before archiving its unit", async () => {
     rpc.mockResolvedValueOnce({
@@ -165,10 +233,17 @@ describe("unit rent authority", () => {
 
 function unitForm(selectedPropertyId = propertyId) {
   const formData = new FormData();
+  formData.set("bathroomCount", "1");
+  formData.set("bedroomCount", "2");
   formData.set("floor", "1");
   formData.set("propertyId", selectedPropertyId);
   formData.set("sizeSqm", "48");
   formData.set("operationalState", "active");
   formData.set("unitNumber", "1A");
+  return formData;
+}
+
+function withValue(formData: FormData, key: string, value: string) {
+  formData.set(key, value);
   return formData;
 }

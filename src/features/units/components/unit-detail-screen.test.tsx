@@ -69,6 +69,7 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(within(panel).queryByRole("heading", { name: "Record quality" })).toBeNull();
     expect(within(panel).queryByText(/recent profile changes/i)).toBeNull();
     expect(within(panel).queryByText(/ledger \/ .* timeline/i)).toBeNull();
+    expect(within(panel).getByText(/3 bedrooms · 2 bathrooms/)).toBeTruthy();
   });
 
   it("consolidates photos and documents into Files and uploads against this unit locally", () => {
@@ -242,6 +243,14 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(within(dialog).queryByRole("combobox", { name: "Status" })).toBeNull();
     expect(within(dialog).queryByText("Occupied", { selector: "[role=option]" })).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Close drawer" })).toBeTruthy();
+    expect(
+      within(dialog).getByRole<HTMLInputElement>("textbox", { name: /^Bedrooms/ })
+        .value,
+    ).toBe("3");
+    expect(
+      within(dialog).getByRole<HTMLInputElement>("textbox", { name: /^Bathrooms/ })
+        .value,
+    ).toBe("2");
 
     const save = within(dialog).getByRole<HTMLButtonElement>("button", {
       name: "Save changes",
@@ -374,6 +383,8 @@ const unitDetail = buildUnitDetail({
   recentTimelineEvents: [],
   unit: {
     archived_at: null,
+    bathroom_count: 2,
+    bedroom_count: 3,
     current_rent_amount: 850,
     current_rent_currency: "USD",
     floor: "12",
@@ -425,6 +436,8 @@ function buildLeasePanelUnitDetail(
     recentTimelineEvents: [],
     unit: {
       archived_at: null,
+      bathroom_count: null,
+      bedroom_count: null,
       current_rent_amount: 900,
       current_rent_currency: "USD",
       floor: "12",
