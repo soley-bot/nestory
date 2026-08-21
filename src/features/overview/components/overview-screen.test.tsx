@@ -170,7 +170,7 @@ describe("OverviewScreen", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Expected rent" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Current expected rent" })).toBeTruthy();
     expect(screen.getByText("USD 850.00")).toBeTruthy();
     expect(screen.getByText("1 active lease term")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Actual cash flow" })).toBeTruthy();

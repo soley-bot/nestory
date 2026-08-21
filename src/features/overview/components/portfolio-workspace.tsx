@@ -86,7 +86,7 @@ export function PortfolioWorkspace({
               <p className="mt-1 text-xs text-muted-foreground">Ledger activity only</p>
             </div>
             <div className="mt-3 border-t border-border pt-3 sm:mt-0 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
-              <h3 className="text-xs font-medium text-muted-foreground">Expected rent</h3>
+              <h3 className="text-xs font-medium text-muted-foreground">Current expected rent</h3>
               <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
                 {data.expectedRent.monthly?.primary ?? "No monthly rent forecast"}
               </p>

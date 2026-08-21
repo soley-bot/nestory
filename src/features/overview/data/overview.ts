@@ -186,7 +186,8 @@ export async function getOverviewScreenData(
     .is("archived_at", null)
     .in("status", [...resolvedRentTermStatuses])
     .lte("start_date", businessToday)
-    .gte("end_date", businessToday);
+    .gte("end_date", businessToday)
+    .order("id", { ascending: true });
   let ledgerWindowQuery = supabase
     .from("ledger_entries")
     .select("transaction_date, direction, amount, currency")
