@@ -7,23 +7,16 @@ import {
   evaluateHostedMigrationParity,
   readHostedMigrationLedgerOutput,
   readMigrationListOutput,
-  runCommandWithCapturedOutput,
+  runCommandWithBoundedOutput,
 } from "./hosted-migration-parity-core.mjs";
 
 const phase = readPhase(process.argv.slice(2));
 const supabaseCli = fileURLToPath(
   new URL("../node_modules/supabase/dist/supabase.js", import.meta.url),
 );
-const result = runCommandWithCapturedOutput(
+const result = await runCommandWithBoundedOutput(
   process.execPath,
-  [
-    supabaseCli,
-    "--output-format",
-    "json",
-    "migration",
-    "list",
-    "--linked",
-  ],
+  [supabaseCli, "--output-format", "json", "migration", "list", "--linked"],
   {
     cwd: process.cwd(),
     encoding: "utf8",
@@ -33,7 +26,9 @@ const result = runCommandWithCapturedOutput(
 );
 
 if (result.error) {
-  console.error(`Unable to start the pinned Supabase CLI: ${result.error.message}`);
+  console.error(
+    `Unable to start the pinned Supabase CLI: ${result.error.message}`,
+  );
   process.exit(1);
 }
 
@@ -50,12 +45,14 @@ let versions;
 try {
   versions = readMigrationListOutput(result.stdout);
 } catch (error) {
-  console.error(`Unable to read Supabase migration-list JSON: ${error.message}`);
+  console.error(
+    `Unable to read Supabase migration-list JSON: ${error.message}`,
+  );
   process.exit(1);
 }
 
 const parity = evaluateHostedMigrationParity({ ...versions, phase });
-const ledgerResult = runCommandWithCapturedOutput(
+const ledgerResult = await runCommandWithBoundedOutput(
   process.execPath,
   [
     supabaseCli,
@@ -93,7 +90,9 @@ let remoteMigrations;
 try {
   remoteMigrations = readHostedMigrationLedgerOutput(ledgerResult.stdout);
 } catch (error) {
-  console.error(`Unable to read hosted migration ledger JSON: ${error.message}`);
+  console.error(
+    `Unable to read hosted migration ledger JSON: ${error.message}`,
+  );
   process.exit(1);
 }
 
@@ -129,14 +128,18 @@ console.log(
   `Hosted migration ${phase} passed: ${parity.localCount} local, ${parity.remoteCount} remote, ${parity.pendingVersions.length} pending, ${contentExceptions.length} pinned legacy content exceptions.`,
 );
 if (parity.pendingVersions.length > 0) {
-  console.log(`Pending migration versions: ${parity.pendingVersions.join(", ")}`);
+  console.log(
+    `Pending migration versions: ${parity.pendingVersions.join(", ")}`,
+  );
 }
 
 function readPhase(args) {
   const phaseIndex = args.indexOf("--phase");
   const value = phaseIndex === -1 ? undefined : args[phaseIndex + 1];
   if (value !== "preflight" && value !== "postflight") {
-    console.error("Usage: node scripts/verify-hosted-migration-parity.mjs --phase <preflight|postflight>");
+    console.error(
+      "Usage: node scripts/verify-hosted-migration-parity.mjs --phase <preflight|postflight>",
+    );
     process.exit(2);
   }
   return value;
@@ -145,7 +148,10 @@ function readPhase(args) {
 function redactCliOutput(value) {
   return String(value ?? "")
     .replace(/postgres(?:ql)?:\/\/\S+/gi, "[redacted database URL]")
-    .replace(/(access_token|password|service_role)\s*[=:]\s*\S+/gi, "$1=[redacted]")
+    .replace(
+      /(access_token|password|service_role)\s*[=:]\s*\S+/gi,
+      "$1=[redacted]",
+    )
     .trim();
 }
 

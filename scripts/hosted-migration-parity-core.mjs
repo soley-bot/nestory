@@ -1,15 +1,68 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 
 const migrationVersionPattern = /^\d{14}$/;
 const migrationNamePattern = /^[a-z0-9_]+$/;
 const hostedLedgerMaxBufferBytes = 64 * 1024 * 1024;
 
-export function runCommandWithCapturedOutput(command, args, options = {}) {
-  return spawnSync(command, args, {
-    ...options,
-    encoding: options.encoding ?? "utf8",
-    maxBuffer: hostedLedgerMaxBufferBytes,
+export function runCommandWithBoundedOutput(command, args, options = {}) {
+  const {
+    encoding = "utf8",
+    maxBuffer = hostedLedgerMaxBufferBytes,
+    ...spawnOptions
+  } = options;
+  if (!Number.isSafeInteger(maxBuffer) || maxBuffer <= 0) {
+    throw new Error("command capture limit must be a positive safe integer");
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      ...spawnOptions,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdout = [];
+    const stderr = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let captureError;
+    let settled = false;
+
+    const finish = (status, error, signal = null) => {
+      if (settled) return;
+      settled = true;
+      resolve({
+        status,
+        signal,
+        error,
+        stdout: Buffer.concat(stdout).toString(encoding),
+        stderr: Buffer.concat(stderr).toString(encoding),
+      });
+    };
+
+    const capture = (label, chunks, chunk) => {
+      if (captureError) return;
+      const nextBytes =
+        label === "stdout"
+          ? stdoutBytes + chunk.length
+          : stderrBytes + chunk.length;
+      if (nextBytes > maxBuffer) {
+        captureError = new Error(
+          `${label} exceeded ${maxBuffer} byte capture limit`,
+        );
+        child.kill();
+        return;
+      }
+      if (label === "stdout") stdoutBytes = nextBytes;
+      else stderrBytes = nextBytes;
+      chunks.push(chunk);
+    };
+
+    child.stdout.on("data", (chunk) => capture("stdout", stdout, chunk));
+    child.stderr.on("data", (chunk) => capture("stderr", stderr, chunk));
+    child.once("error", (error) => finish(null, error));
+    child.once("close", (status, signal) =>
+      finish(status, captureError, signal),
+    );
   });
 }
 
@@ -44,7 +97,8 @@ export function evaluateHostedMigrationParity({
   }
 
   if (!prefixMatches) {
-    const position = mismatchIndex === -1 ? local.versions.length : mismatchIndex;
+    const position =
+      mismatchIndex === -1 ? local.versions.length : mismatchIndex;
     issues.push(
       `remote migration history is not an exact Git prefix at position ${
         position + 1
@@ -124,11 +178,15 @@ export function evaluateHostedMigrationContent({
       !isSha256(exception?.gitSqlSha256) ||
       !isSha256(exception?.hostedLedgerSha256)
     ) {
-      issues.push("hosted migration content exceptions contain a malformed entry");
+      issues.push(
+        "hosted migration content exceptions contain a malformed entry",
+      );
       continue;
     }
     if (exceptionsByVersion.has(version)) {
-      issues.push(`duplicate hosted migration content exception for ${version}`);
+      issues.push(
+        `duplicate hosted migration content exception for ${version}`,
+      );
       continue;
     }
     exceptionsByVersion.set(version, exception);
@@ -168,7 +226,9 @@ export function evaluateHostedMigrationContent({
 
     const local = localByVersion.get(version);
     if (!local) {
-      issues.push(`hosted migration content has no Git migration for ${version}`);
+      issues.push(
+        `hosted migration content has no Git migration for ${version}`,
+      );
       continue;
     }
     if (local.name !== name) {

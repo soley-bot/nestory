@@ -7,7 +7,7 @@ import {
   readHostedMigrationLedgerOutput,
   readMigrationListOutput,
   readMigrationVersions,
-  runCommandWithCapturedOutput,
+  runCommandWithBoundedOutput,
 } from "./hosted-migration-parity-core.mjs";
 
 test("preflight accepts only an ordered pending Git suffix", () => {
@@ -34,20 +34,14 @@ test("preflight fails closed on unknown hosted versions", () => {
   });
 
   assert.ok(
-    result.issues.includes(
-      "unknown remote migration version: 20260803000000",
-    ),
+    result.issues.includes("unknown remote migration version: 20260803000000"),
   );
   assert.deepEqual(result.pendingVersions, []);
 });
 
 test("preflight rejects a hosted history hole even when every version exists in Git", () => {
   const result = evaluateHostedMigrationParity({
-    localVersions: [
-      "20260801000000",
-      "20260802000000",
-      "20260803000000",
-    ],
+    localVersions: ["20260801000000", "20260802000000", "20260803000000"],
     remoteVersions: ["20260801000000", "20260803000000"],
     phase: "preflight",
   });
@@ -96,10 +90,7 @@ test("fails closed when either migration history is empty", () => {
       remoteVersions: [],
       phase: "preflight",
     }).issues,
-    [
-      "no local migration versions found",
-      "no remote migration versions found",
-    ],
+    ["no local migration versions found", "no remote migration versions found"],
   );
 });
 
@@ -271,9 +262,9 @@ test("reads hosted migration ledger rows from Supabase db-query JSON", () => {
   );
 });
 
-test("captures hosted ledger payloads larger than the Node default buffer", () => {
+test("streams hosted ledger payloads larger than the Node default buffer", async () => {
   const expectedBytes = 2 * 1024 * 1024;
-  const result = runCommandWithCapturedOutput(
+  const result = await runCommandWithBoundedOutput(
     process.execPath,
     ["-e", `process.stdout.write("x".repeat(${expectedBytes}))`],
     { cwd: process.cwd(), env: process.env },
@@ -282,4 +273,17 @@ test("captures hosted ledger payloads larger than the Node default buffer", () =
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0);
   assert.equal(result.stdout.length, expectedBytes);
+});
+
+test("streams CLI output while enforcing an explicit capture limit", async () => {
+  const result = await runCommandWithBoundedOutput(
+    process.execPath,
+    ["-e", 'process.stdout.write("x".repeat(2048))'],
+    { cwd: process.cwd(), env: process.env, maxBuffer: 1024 },
+  );
+
+  assert.match(
+    result.error?.message ?? "",
+    /stdout exceeded 1024 byte capture limit/,
+  );
 });
