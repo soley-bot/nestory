@@ -80,23 +80,40 @@ export function PortfolioWorkspace({
         data-slot="dashboard-primary-stack"
       >
         <Card data-slot="dashboard-cash-flow" size="sm">
-          <CardHeader className="border-b">
-            <CardTitle><h2>Portfolio cash flow</h2></CardTitle>
+          <CardHeader className="border-b sm:grid-cols-[1fr_auto]">
+            <div>
+              <CardTitle><h2>Actual cash flow</h2></CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">Ledger activity only</p>
+            </div>
+            <div className="mt-3 border-t border-border pt-3 sm:mt-0 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+              <h3 className="text-xs font-medium text-muted-foreground">Current expected rent</h3>
+              <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+                {data.expectedRent.monthly?.primary ?? "No monthly rent forecast"}
+              </p>
+              {data.expectedRent.monthly ? (
+                <p className="text-xs text-muted-foreground">
+                  {data.expectedRent.leaseCount} active lease {data.expectedRent.leaseCount === 1 ? "term" : "terms"}
+                </p>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="h-[280px]" data-slot="dashboard-cash-flow-chart">
-              {data.ledgerFlow.length > 0 ? (
+            {data.ledgerFlow.length > 0 ? (
+              <div className="h-[280px]" data-slot="dashboard-cash-flow-chart">
                 <OverviewLedgerAreaChart
                   className="h-full"
                   currency={data.ledgerCurrency}
                   points={data.ledgerFlow}
                 />
-              ) : (
-                <div className="flex h-full items-center justify-center rounded-lg bg-muted/30 text-sm text-muted-foreground">
-                  Add ledger entries to populate the cash-flow chart.
-                </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div
+                className="flex min-h-40 items-center justify-center rounded-lg bg-muted/30 px-4 text-center text-sm text-muted-foreground"
+                data-slot="dashboard-cash-flow-empty"
+              >
+                No ledger activity in this period.
+              </div>
+            )}
           </CardContent>
         </Card>
 

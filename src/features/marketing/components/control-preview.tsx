@@ -60,6 +60,10 @@ const previewData = {
     headline: "Needs review",
     tone: "warning",
   },
+  expectedRent: {
+    leaseCount: 39,
+    monthly: { primary: "USD 39,250.00" },
+  },
   leaseEndings: [],
   leaseRiskCount: 4,
   ledgerCurrency: "USD",

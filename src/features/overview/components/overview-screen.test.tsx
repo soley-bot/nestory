@@ -147,11 +147,35 @@ describe("OverviewScreen", () => {
     expect(within(toolbar).getByRole("button", { name: "Change property, currently All properties" })).toBeTruthy();
     expect(within(toolbar).getByRole("button", { name: "Change reporting month, currently August 2026" })).toBeTruthy();
     expect(classTokens(within(toolbar).getByRole("button", { name: "Change property, currently All properties" }))).toContain("w-64");
-    expect(classTokens(cashFlow.querySelector('[data-slot="dashboard-cash-flow-chart"]')!)).toContain("h-[280px]");
+    expect(cashFlow.querySelector('[data-slot="dashboard-cash-flow-chart"]')).toBeNull();
+    expect(classTokens(cashFlow.querySelector('[data-slot="dashboard-cash-flow-empty"]')!)).toContain("min-h-40");
     expect(within(properties).getByRole("link", { name: "View all properties" }).getAttribute("href")).toBe("/properties");
     expect(within(properties).queryByText(/open checks need attention/i)).toBeNull();
     expect(screen.queryByText("Occupancy and current operating records.")).toBeNull();
     expect(screen.queryByText("Income and expenses across the recent operating period.")).toBeNull();
+  });
+
+  it("separates expected rent from actual cash and uses an empty state", () => {
+    render(
+      <OverviewScreen
+        data={{
+          ...data,
+          expectedRent: {
+            leaseCount: 1,
+            monthly: { primary: "USD 850.00" },
+          },
+          ledgerFlow: [],
+        } as OverviewScreenData}
+        query={query}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Current expected rent" })).toBeTruthy();
+    expect(screen.getByText("USD 850.00")).toBeTruthy();
+    expect(screen.getByText("1 active lease term")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Actual cash flow" })).toBeTruthy();
+    expect(screen.getByText("No ledger activity in this period.")).toBeTruthy();
+    expect(document.querySelector('[data-slot="dashboard-cash-flow-chart"]')).toBeNull();
   });
 
   it("uses the inline summary for operating lenses instead of a metric-card region", () => {
@@ -209,6 +233,10 @@ const data = {
     detail: "Two checks",
     headline: "Needs review",
     tone: "warning",
+  },
+  expectedRent: {
+    leaseCount: 0,
+    monthly: null,
   },
   leaseEndings: [],
   leaseRiskCount: 0,

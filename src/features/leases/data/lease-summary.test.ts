@@ -112,7 +112,116 @@ describe("buildLeaseSummary", () => {
     });
 
     expect(summary.depositDisplay).toBeUndefined();
-    expect(summary.depositLabel).toBe("No deposit recorded");
+    expect(summary.depositLabel).toBe("No deposit required");
+  });
+
+  it("treats an empty zero-value deposit artifact as no deposit required", () => {
+    const summary = buildLeaseSummary({
+      deposits: [
+        {
+          amount: 0,
+          archived_at: null,
+          currency: "USD",
+          deposit_type: "security",
+          events: [],
+          id: "deposit-zero",
+          lease_id: "lease-1",
+          status: "pending",
+        },
+      ],
+      lease: {
+        ...lease,
+        deposit_amount: 0,
+        deposit_currency: "USD",
+      },
+      property,
+      unit,
+    });
+
+    expect(summary.depositDisplay).toBeUndefined();
+    expect(summary.depositLabel).toBe("No deposit required");
+    expect(summary.formValues).toMatchObject({
+      depositAmount: null,
+      depositCurrency: null,
+    });
+    expect(summary.deposits).toEqual([
+      expect.objectContaining({
+        amount: 0,
+        statusLabel: "No deposit required",
+      }),
+    ]);
+    expect(summary.riskIndicators.find((risk) => risk.id === "deposit")).toMatchObject({
+      label: "No deposit required",
+      tone: "success",
+    });
+  });
+
+  it("surfaces zero-value deposit activity for review instead of calling it pending", () => {
+    const summary = buildLeaseSummary({
+      deposits: [
+        {
+          amount: 0,
+          archived_at: null,
+          currency: "USD",
+          deposit_type: "security",
+          events: [
+            {
+              amount: 100,
+              currency: "USD",
+              event_date: "2026-07-01",
+              event_type: "received",
+              id: "deposit-event-1",
+              reference: "Receipt 1001",
+              reversal_of_id: null,
+            },
+          ],
+          id: "deposit-zero-with-evidence",
+          lease_id: "lease-1",
+          status: "pending",
+        },
+      ],
+      lease: {
+        ...lease,
+        deposit_amount: 0,
+        deposit_currency: "USD",
+      },
+      property,
+      unit,
+    });
+
+    expect(summary.depositLabel).toBe("No deposit required");
+    expect(summary.deposits[0]).toMatchObject({ statusLabel: "Needs review" });
+  });
+
+  it("surfaces zero-value deposit ledger evidence for review", () => {
+    const summary = buildLeaseSummary({
+      depositLedgerEvidenceIds: new Set(["deposit-zero-with-ledger"]),
+      deposits: [
+        {
+          amount: 0,
+          archived_at: null,
+          currency: "USD",
+          deposit_type: "security",
+          events: [],
+          id: "deposit-zero-with-ledger",
+          lease_id: "lease-1",
+          status: "pending",
+        },
+      ],
+      lease: {
+        ...lease,
+        deposit_amount: 0,
+        deposit_currency: "USD",
+      },
+      property,
+      unit,
+    });
+
+    expect(summary.deposits[0]).toMatchObject({ statusLabel: "Needs review" });
+    expect(summary.riskIndicators.find((risk) => risk.id === "deposit")).toMatchObject({
+      label: "Deposit needs review",
+      tone: "warning",
+    });
   });
 
   it("surfaces exact term authority and rent readiness without fallback inference", () => {
