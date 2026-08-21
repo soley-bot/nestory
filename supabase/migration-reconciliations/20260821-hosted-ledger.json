@@ -2,6 +2,46 @@
   "reconciledAt": "2026-08-21",
   "reason": "Accept byte-identical hosted apply_migration timestamps as the canonical forward history without mutating the hosted ledger.",
   "sqlHashNormalization": "UTF-8 migration text with trailing CR and LF characters removed only.",
+  "hostedContentExceptionReason": "Pin six pre-guardrail rows whose hosted ledger statements do not reconstruct the corresponding Git migration. These exceptions acknowledge ledger-content divergence only; they do not claim SQL identity or authorize hosted history mutation.",
+  "hostedContentHashNormalization": "Git SQL: UTF-8 with BOM removed and CRLF/CR normalized to LF. Hosted ledger: SHA-256 of JSON {version,name,statements} with statement CRLF/CR normalized to LF.",
+  "hostedContentExceptions": [
+    {
+      "version": "20260808235616",
+      "name": "operational_schema_baseline",
+      "gitSqlSha256": "a1dc0277a32c3de6c612cc509610e99dcf28adeec09e2dbb36e67ffb64275496",
+      "hostedLedgerSha256": "0b34b12a422fe3da3ce7f4d2400c616fdbabe8d42a6ae74840ea35b02f8a2bd6"
+    },
+    {
+      "version": "20260810073506",
+      "name": "project_owner_distribution_reversals",
+      "gitSqlSha256": "74a9f517edd74edda3d9de1ebad542055500edd9b5d72086053fdfac0f8f48ef",
+      "hostedLedgerSha256": "2c56b86de14826e6361278d8150d3843ec47758e62d103de2de40aa15dfd3ba8"
+    },
+    {
+      "version": "20260810091218",
+      "name": "harden_owner_balance_lifecycle_corrections",
+      "gitSqlSha256": "00fb0b43a9b85ef5876275a8663c079f9097793594ef514b3a086883198d3458",
+      "hostedLedgerSha256": "9859fb8aee9c845e9bf877766ed8d5f2d37edf34afcbe9cbb92c7bfc6084ba8f"
+    },
+    {
+      "version": "20260810103823",
+      "name": "enforce_owner_balance_global_lock_order",
+      "gitSqlSha256": "a3a5784f8c37f367d6fa61e8f010aaa788977243ec8c6d606d33646fd4274ba1",
+      "hostedLedgerSha256": "2804d65c984a10a224be76a085502efa19e37df3c3624cd73d9cc169cf8df856"
+    },
+    {
+      "version": "20260815034915",
+      "name": "update_organization_identity",
+      "gitSqlSha256": "60856dc7281346b835b4d0c63724da679c461a013eb36bd11cd71430c0b81320",
+      "hostedLedgerSha256": "62edac6846538f95ccdebc3375e316c8f05f21a5818696d2ec6aa48d02944695"
+    },
+    {
+      "version": "20260815044607",
+      "name": "organization_company_logo",
+      "gitSqlSha256": "4a321c575fd034c7e73e078acac978e57df543c3b95dc81b5f2536e1a807ef54",
+      "hostedLedgerSha256": "0049c8954d2e144ef1d3ee8db2442435830f1fb9fd6548d32e84412159fe98ab"
+    }
+  ],
   "entries": [
     {
       "from": "20260815022051_resume_client_workspace_provisioning.sql",

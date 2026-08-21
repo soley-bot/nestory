@@ -141,11 +141,11 @@ test("production database release is serialized and runs only from exact merged 
 
   const expectedReleaseSteps = [
     ["Verify hosted migration preflight", "npm run db:hosted-preflight"],
-    ["Dry-run production migrations", "npm exec -- supabase db push --linked --dry-run"],
-    ["Apply production migrations", "npm exec -- supabase db push --linked"],
+    ["Dry-run production migrations", "npm exec -- supabase db push --linked --dry-run --yes"],
+    ["Apply production migrations", "npm exec -- supabase db push --linked --yes"],
     ["Verify hosted migration postflight", "npm run db:hosted-postflight"],
     ["Lint linked database", "npm exec -- supabase db lint --linked --level error --fail-on error"],
-    ["Confirm no pending production migrations", "npm exec -- supabase db push --linked --dry-run"],
+    ["Confirm no pending production migrations", "npm exec -- supabase db push --linked --dry-run --yes"],
   ];
   let previousPosition = -1;
   for (const [stepName, command] of expectedReleaseSteps) {

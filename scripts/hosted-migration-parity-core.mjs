@@ -1,4 +1,17 @@
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+
 const migrationVersionPattern = /^\d{14}$/;
+const migrationNamePattern = /^[a-z0-9_]+$/;
+const hostedLedgerMaxBufferBytes = 64 * 1024 * 1024;
+
+export function runCommandWithCapturedOutput(command, args, options = {}) {
+  return spawnSync(command, args, {
+    ...options,
+    encoding: options.encoding ?? "utf8",
+    maxBuffer: hostedLedgerMaxBufferBytes,
+  });
+}
 
 export function evaluateHostedMigrationParity({
   localVersions,
@@ -57,6 +70,170 @@ export function evaluateHostedMigrationParity({
     remoteCount: remote.versions.length,
     pendingVersions,
   };
+}
+
+export function evaluateHostedMigrationContent({
+  localMigrations,
+  remoteMigrations,
+  contentExceptions = [],
+}) {
+  if (!Array.isArray(localMigrations)) {
+    throw new Error("local migrations must be an array");
+  }
+  if (!Array.isArray(remoteMigrations)) {
+    throw new Error("hosted migrations must be an array");
+  }
+  if (!Array.isArray(contentExceptions)) {
+    throw new Error("hosted migration content exceptions must be an array");
+  }
+
+  const issues = [];
+  const localByVersion = new Map();
+  for (const migration of localMigrations) {
+    if (!migration || typeof migration !== "object") {
+      issues.push("local migration content contains a non-object row");
+      continue;
+    }
+    const version = String(migration.version ?? "");
+    if (!migrationVersionPattern.test(version)) {
+      issues.push("local migration content contains an invalid version");
+      continue;
+    }
+    if (
+      !migrationNamePattern.test(String(migration.name ?? "")) ||
+      typeof migration.body !== "string"
+    ) {
+      issues.push(`local migration content is malformed for ${version}`);
+      continue;
+    }
+    if (localByVersion.has(version)) {
+      issues.push(`duplicate local migration content for ${version}`);
+      continue;
+    }
+    localByVersion.set(version, migration);
+  }
+
+  const exceptionsByVersion = new Map();
+  const exceptionStates = new Map();
+  for (const exception of contentExceptions) {
+    const version = String(exception?.version ?? "");
+    const name = String(exception?.name ?? "");
+    if (
+      !migrationVersionPattern.test(version) ||
+      !migrationNamePattern.test(name) ||
+      !isSha256(exception?.gitSqlSha256) ||
+      !isSha256(exception?.hostedLedgerSha256)
+    ) {
+      issues.push("hosted migration content exceptions contain a malformed entry");
+      continue;
+    }
+    if (exceptionsByVersion.has(version)) {
+      issues.push(`duplicate hosted migration content exception for ${version}`);
+      continue;
+    }
+    exceptionsByVersion.set(version, exception);
+    exceptionStates.set(version, "unseen");
+  }
+
+  const seenRemote = new Set();
+  for (const migration of remoteMigrations) {
+    if (!migration || typeof migration !== "object") {
+      issues.push("hosted migration ledger contains a non-object row");
+      continue;
+    }
+    const version = String(migration.version ?? "");
+    if (!migrationVersionPattern.test(version)) {
+      issues.push("hosted migration ledger contains an invalid version");
+      continue;
+    }
+    if (seenRemote.has(version)) {
+      issues.push(`duplicate hosted migration ledger content for ${version}`);
+      continue;
+    }
+    seenRemote.add(version);
+
+    const name = String(migration.name ?? "");
+    if (!migrationNamePattern.test(name)) {
+      issues.push(`hosted migration name is malformed for ${version}`);
+      continue;
+    }
+    if (
+      !Array.isArray(migration.statements) ||
+      migration.statements.length === 0 ||
+      migration.statements.some((statement) => typeof statement !== "string")
+    ) {
+      issues.push(`hosted migration statements are malformed for ${version}`);
+      continue;
+    }
+
+    const local = localByVersion.get(version);
+    if (!local) {
+      issues.push(`hosted migration content has no Git migration for ${version}`);
+      continue;
+    }
+    if (local.name !== name) {
+      issues.push(
+        `hosted migration name mismatch for ${version}: expected ${local.name}, found ${name}`,
+      );
+    }
+    if (!migrationBodyMatchesStatements(local.body, migration.statements)) {
+      const exception = exceptionsByVersion.get(version);
+      if (
+        exception &&
+        exception.name === local.name &&
+        exception.gitSqlSha256 === hashGitMigrationBody(local.body) &&
+        exception.hostedLedgerSha256 === hashHostedMigrationLedger(migration)
+      ) {
+        exceptionStates.set(version, "used");
+      } else if (exception) {
+        exceptionStates.set(version, "mismatch");
+        issues.push(
+          `hosted migration SQL mismatch for ${version} (pinned exception does not match)`,
+        );
+      } else {
+        issues.push(`hosted migration SQL mismatch for ${version}`);
+      }
+    } else if (exceptionsByVersion.has(version)) {
+      exceptionStates.set(version, "exact");
+    }
+  }
+
+  for (const [version, state] of exceptionStates) {
+    if (state === "unseen") {
+      issues.push(
+        `hosted migration content exception has no hosted migration for ${version}`,
+      );
+    } else if (state === "exact") {
+      issues.push(
+        `hosted migration content exception is no longer required for ${version}`,
+      );
+    }
+  }
+
+  return issues;
+}
+
+export function readHostedMigrationLedgerOutput(output) {
+  let payload;
+  try {
+    payload = JSON.parse(String(output ?? ""));
+  } catch (error) {
+    throw new Error(`Supabase db-query output is not JSON: ${error.message}`);
+  }
+  if (!payload || !Array.isArray(payload.rows)) {
+    throw new Error("Supabase db-query JSON has no rows array");
+  }
+
+  return payload.rows.map((row) => {
+    if (!row || typeof row !== "object") {
+      throw new Error("Supabase migration ledger contains a non-object row");
+    }
+    return {
+      version: String(row.version ?? ""),
+      name: String(row.name ?? ""),
+      statements: row.statements,
+    };
+  });
 }
 
 export function readMigrationVersions(payload) {
@@ -129,4 +306,48 @@ function validateVersions(label, values) {
 
   versions.sort();
   return { issues, versions };
+}
+
+function migrationBodyMatchesStatements(body, statements) {
+  const normalizedBody = normalizeMigrationText(body).replace(/^\uFEFF/, "");
+  let cursor = 0;
+
+  for (const rawStatement of statements) {
+    const statement = normalizeMigrationText(rawStatement).trim();
+    if (!statement) return false;
+    const position = normalizedBody.indexOf(statement, cursor);
+    if (position === -1) return false;
+    if (!/^[\s;]*$/.test(normalizedBody.slice(cursor, position))) return false;
+    cursor = position + statement.length;
+  }
+
+  return /^[\s;]*$/.test(normalizedBody.slice(cursor));
+}
+
+function normalizeMigrationText(value) {
+  return String(value).replace(/\r\n?/g, "\n");
+}
+
+export function hashGitMigrationBody(body) {
+  return sha256(normalizeMigrationText(body).replace(/^\uFEFF/, ""));
+}
+
+export function hashHostedMigrationLedger(migration) {
+  return sha256(
+    JSON.stringify({
+      version: String(migration.version),
+      name: String(migration.name),
+      statements: migration.statements.map((statement) =>
+        normalizeMigrationText(statement),
+      ),
+    }),
+  );
+}
+
+function isSha256(value) {
+  return /^[a-f0-9]{64}$/.test(String(value ?? ""));
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }

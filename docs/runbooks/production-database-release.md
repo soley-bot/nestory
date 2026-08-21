@@ -27,9 +27,9 @@ Merging is authorization for the protected workflow to release that exact main S
 
 The `Production Database` job runs after local database CI and performs this fail-closed sequence:
 
-1. Check out `github.sha`, fetch `origin/main`, and prove both references equal that SHA.
+1. Check out `github.sha`, query the current `main` SHA with a step-scoped GitHub token, and prove both values equal without persisting checkout credentials.
 2. Link the pinned project Supabase CLI using protected environment secrets.
-3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions; any unknown or out-of-order remote version stops the release.
+3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions. Each hosted name and recorded statement payload must reconstruct the corresponding Git migration, except for an exact immutable legacy content-exception hash pair. Any unknown, out-of-order, renamed, or content-mismatched remote row stops the release.
 4. Run a linked `db push --dry-run`.
 5. Run the single production `db push`.
 6. Run `npm run db:hosted-postflight`. Git and hosted ledgers must now be exactly equal.
@@ -52,6 +52,10 @@ The final release record must include the merged SHA, workflow run, local/remote
 Stop before any write. Capture the Git and hosted version sets, names, normalized and exact hashes, dependency order, linked schema probes, and the workflow SHA. Determine how the remote change was applied. Do not run `migration repair`.
 
 If the SQL is exactly equivalent and clean replay proves the hosted timestamp order, propose a repository-only identity reconciliation with a manifest. If hosted history must be mutated, obtain explicit approval first with a backup/recovery plan, exact commands, affected versions, and rollback implications.
+
+### Preflight reports a hosted name or SQL-content mismatch
+
+Stop before any write. Compare the exact Git migration with the hosted ledger's `name` and `statements` payload and probe the resulting hosted objects read-only. Do not treat matching versions as proof that the SQL ran, and do not add a routine exception merely to make the gate pass. A legacy exception is acceptable only for independently verified pre-guardrail history and must immutably pin both hashes while stating that SQL identity is not proven. New migrations must match exactly. Any hosted history mutation still requires explicit approval and a recovery plan.
 
 ### Dry-run fails
 
