@@ -242,9 +242,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/normalize-hosted-function-newlines.sql
-          readonly output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/verify-hosted-function-newline-recovery.sql)"
-          jq -ce '.rows | select(length == 1) | .[0].recovery_descriptor | select(.hosted_ledger_count == 103 and .hosted_ledger_head == "20260822045638" and .target_count == 5 and .normalization == "CRLF to LF only")' <<<"$output"
+          readonly state_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/classify-hosted-function-newline-recovery.sql)"
+          readonly recovery_state="$(jq -er '.rows | select(length == 1) | .[0].recovery_state | select(. == "required" or . == "complete")' <<<"$state_output")"
+          case "$recovery_state" in
+            required)
+              npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/normalize-hosted-function-newlines.sql
+              readonly output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/verify-hosted-function-newline-recovery.sql)"
+              jq -ce '.rows | select(length == 1) | .[0].recovery_descriptor | select(.hosted_ledger_count == 103 and .hosted_ledger_head == "20260822045638" and .target_count == 5 and .normalization == "CRLF to LF only")' <<<"$output"
+              ;;
+            complete)
+              printf 'Approved hosted function newline recovery already complete.\n'
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
 
       - name: Dry-run production migrations
         env:

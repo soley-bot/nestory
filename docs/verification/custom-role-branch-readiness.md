@@ -25,6 +25,9 @@ forbidden.
 - The approved recovery pins the five raw definitions and their LF-normalized
   hashes, changes CRLF to LF only, and verifies unchanged function identity,
   ownership, ACLs, and execution/planner metadata before migration apply.
+- Its checkpoint classifier runs normalization only at 103, rejects partial
+  package ledgers, and becomes a verified skip after all four migrations exist
+  so later production releases remain available.
 
 ## Approved transition inventory
 

@@ -12,6 +12,10 @@ const newlineRecoveryVerificationPath = new URL(
   "./verify-hosted-function-newline-recovery.sql",
   import.meta.url,
 );
+const newlineRecoveryClassifierPath = new URL(
+  "./classify-hosted-function-newline-recovery.sql",
+  import.meta.url,
+);
 
 function getJob(workflow, jobName) {
   const normalized = workflow.replace(/\r\n/g, "\n");
@@ -179,6 +183,13 @@ test("production database release is serialized and runs only from exact merged 
   );
   assert.match(
     recovery,
+    /db query --linked --file scripts\/classify-hosted-function-newline-recovery\.sql/,
+  );
+  assert.match(recovery, /case "\$recovery_state" in/);
+  assert.match(recovery, /^            required\)$/m);
+  assert.match(recovery, /^            complete\)$/m);
+  assert.match(
+    recovery,
     /db query --linked --file scripts\/normalize-hosted-function-newlines\.sql/,
   );
   assert.match(
@@ -238,6 +249,18 @@ test("production recovery is limited to five hash-pinned newline normalizations"
 
   assert.doesNotMatch(query, /migration\s+repair/i);
   assert.doesNotMatch(query, /\b(?:delete|truncate|drop)\b/i);
+});
+
+test("production recovery runs only at the exact checkpoint and skips completed releases", async () => {
+  const query = await readFile(newlineRecoveryClassifierPath, "utf8");
+
+  assert.match(query, /hosted_ledger_count = 103/);
+  assert.match(query, /hosted_ledger_head = '20260822045638'/);
+  assert.match(query, /package_versions_present = 0/);
+  assert.match(query, /package_versions_present = 4/);
+  assert.match(query, /THEN 'required'/);
+  assert.match(query, /THEN 'complete'/);
+  assert.match(query, /ELSE NULL/);
 });
 
 test("production release compares an aggregate-only Pilot preservation snapshot", async () => {
