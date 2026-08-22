@@ -13,7 +13,13 @@ describe("AccessSettingsScreen server rendering", () => {
   it("renders the closed invite drawer without browser globals", () => {
     expect(() =>
       renderToString(
-        <AccessSettingsScreen branches={[]} invitations={[]} members={[]} people={[]} />,
+        <AccessSettingsScreen
+          branches={[]}
+          invitations={[]}
+          members={[]}
+          people={[]}
+          role="super_admin"
+        />,
       ),
     ).not.toThrow();
   });

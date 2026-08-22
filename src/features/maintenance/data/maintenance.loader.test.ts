@@ -18,7 +18,7 @@ describe("getMaintenanceScreenData reference loading", () => {
     const result = await getMaintenanceScreenData(
       "org-1",
       makeViewQuery(),
-      { role: "super_admin" },
+      { dataScope: "organization", workflowMode: "coordinator" },
     );
 
     expect(
@@ -64,7 +64,7 @@ describe("getMaintenanceScreenData reference loading", () => {
     const result = await getMaintenanceScreenData(
       "org-1",
       makeViewQuery(),
-      { role: "super_admin" },
+      { dataScope: "organization", workflowMode: "coordinator" },
     );
 
     const peopleIdCalls = supabase.inCalls.filter(
@@ -100,7 +100,7 @@ describe("getMaintenanceScreenData reference loading", () => {
     const result = await getMaintenanceScreenData(
       "org-1",
       makeViewQuery(),
-      { branchId: "branch-visible", role: "operations_manager" },
+      { branchId: "branch-visible", dataScope: "branch", workflowMode: "coordinator" },
     );
 
     expect(supabase.client.rpc).toHaveBeenCalledWith(
@@ -142,8 +142,9 @@ describe("getMaintenanceScreenData reference loading", () => {
       makeViewQuery(),
       {
         branchId: "branch-visible",
+        dataScope: "assigned",
         personId: "visible-assignee",
-        role: "operations_member",
+        workflowMode: "assigned",
       },
     );
 
@@ -164,21 +165,21 @@ describe("getMaintenanceScreenData reference loading", () => {
 
   it.each([
     {
-      actor: { role: "super_admin" } as MaintenanceActor,
+      actor: { dataScope: "organization", workflowMode: "coordinator" } as MaintenanceActor,
       excludedColumns: ["assignee_person_id", "branch_id"],
       expectedFilter: undefined,
     },
     {
-      actor: { branchId: "branch-visible", role: "operations_manager" } as MaintenanceActor,
+      actor: { branchId: "branch-visible", dataScope: "branch", workflowMode: "coordinator" } as MaintenanceActor,
       excludedColumns: ["assignee_person_id"],
       expectedFilter: ["branch_id", "branch-visible"] as const,
     },
     {
-      actor: { personId: "visible-assignee", role: "operations_member" } as MaintenanceActor,
-      excludedColumns: ["branch_id"],
+      actor: { branchId: "branch-visible", dataScope: "assigned", personId: "visible-assignee", workflowMode: "assigned" } as MaintenanceActor,
+      excludedColumns: [],
       expectedFilter: ["assignee_person_id", "visible-assignee"] as const,
     },
-  ])("preserves $actor.role task scoping", async ({ actor, excludedColumns, expectedFilter }) => {
+  ])("preserves $actor.dataScope task scoping", async ({ actor, excludedColumns, expectedFilter }) => {
     const supabase = createMaintenanceSupabaseStub();
     vi.mocked(createSupabaseServerClient).mockResolvedValue(supabase.client);
 
@@ -199,7 +200,7 @@ describe("getMaintenanceScreenData reference loading", () => {
         call.filters.every(([filterColumn]) => filterColumn !== column),
       )).toBe(true);
     }
-    if (actor.role === "operations_member") {
+    if (actor.dataScope === "assigned") {
       expect(result.summary.propertyStats).toContainEqual(
         expect.objectContaining({
           propertyId: "property-off-page",

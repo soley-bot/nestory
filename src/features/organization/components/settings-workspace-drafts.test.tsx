@@ -12,20 +12,38 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  archiveOrganizationBranchAction,
+  archiveOrganizationTeamAction,
   createBranchAction,
   createTeamAction,
   navigation,
+  restoreOrganizationBranchAction,
+  restoreOrganizationTeamAction,
+  updateOrganizationBranchAction,
+  updateOrganizationTeamAction,
   updateOrganizationAppearanceAction,
 } = vi.hoisted(() => ({
+  archiveOrganizationBranchAction: vi.fn(),
+  archiveOrganizationTeamAction: vi.fn(),
   createBranchAction: vi.fn(),
   createTeamAction: vi.fn(),
   navigation: { push: vi.fn() },
+  restoreOrganizationBranchAction: vi.fn(),
+  restoreOrganizationTeamAction: vi.fn(),
+  updateOrganizationBranchAction: vi.fn(),
+  updateOrganizationTeamAction: vi.fn(),
   updateOrganizationAppearanceAction: vi.fn(),
 }));
 
 vi.mock("@/features/organization/actions", () => ({
+  archiveOrganizationBranchAction,
+  archiveOrganizationTeamAction,
   createBranchAction,
   createTeamAction,
+  restoreOrganizationBranchAction,
+  restoreOrganizationTeamAction,
+  updateOrganizationBranchAction,
+  updateOrganizationTeamAction,
   updateOrganizationAppearanceAction,
 }));
 
@@ -41,9 +59,15 @@ import {
 } from "@/features/organization/components/settings-workspace-test-helpers";
 
 beforeEach(() => {
+  archiveOrganizationBranchAction.mockReset();
+  archiveOrganizationTeamAction.mockReset();
   createBranchAction.mockReset();
   createTeamAction.mockReset();
   navigation.push.mockReset();
+  restoreOrganizationBranchAction.mockReset();
+  restoreOrganizationTeamAction.mockReset();
+  updateOrganizationBranchAction.mockReset();
+  updateOrganizationTeamAction.mockReset();
   installSettingsWorkspaceDomStubs();
 });
 
@@ -97,6 +121,43 @@ describe("SettingsWorkspace drafts", () => {
     expect(drawerContent?.contains(impact)).toBe(true);
     expect(drawerContent?.contains(actionBar)).toBe(true);
     expect(actionBar.parentElement?.className).toContain("w-full");
+  });
+
+  it("opens one compact branch Manage drawer with exact archive consequences", async () => {
+    const user = userEvent.setup();
+    render(<SettingsWorkspace {...defaultProps} section="branches" />);
+
+    await user.click(screen.getByRole("button", { name: "Manage branch Bangkok" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage Bangkok" });
+
+    expect((within(drawer).getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("Bangkok");
+    expect((within(drawer).getByRole("textbox", { name: "Code" }) as HTMLInputElement).value).toBe("BKK");
+    expect(within(drawer).getByText("Archiving is blocked while this branch has assigned access, active properties, teams, person links, maintenance work, recurrence, or pending scoped records. Nothing is deleted.")).not.toBeNull();
+    expect(within(drawer).getByRole("button", { name: "Archive branch" })).not.toBeNull();
+  });
+
+  it("keeps archived branches visible and offers Restore without relabeling their scope", async () => {
+    const user = userEvent.setup();
+    const archivedBranch = {
+      address: null,
+      archivedAt: "2026-08-22T00:00:00.000Z",
+      code: "OLD",
+      id: "55555555-5555-4555-8555-555555555555",
+      name: "Former Office",
+      status: "inactive",
+    };
+    render(
+      <SettingsWorkspace
+        {...defaultProps}
+        branches={[...defaultProps.branches, archivedBranch]}
+        section="branches"
+      />,
+    );
+
+    expect(screen.getByText("Former Office")).not.toBeNull();
+    expect(screen.getByText("Archived")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Manage branch Former Office" }));
+    expect(screen.getByRole("button", { name: "Restore branch" })).not.toBeNull();
   });
 
   it.each(["close button", "Escape", "backdrop"] as const)(
@@ -154,6 +215,22 @@ describe("SettingsWorkspace drafts", () => {
     expect(within(editor).getByText("Field Operations")).not.toBeNull();
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
     expect(screen.queryByRole("button", { name: /edit team/i })).toBeNull();
+    const header = within(editor).getByText("Team").parentElement;
+    const row = within(editor).getByText("Field Operations").parentElement;
+    expect(Array.from(header?.children ?? []).map((cell) => cell.textContent)).toEqual([
+      "Team",
+      "Scope",
+      "Manager",
+      "Status",
+      "Action",
+    ]);
+    expect(Array.from(row?.children ?? []).map((cell) => cell.textContent)).toEqual([
+      "Field Operations",
+      "BKK",
+      "Mina Chen",
+      "Active",
+      "Manage",
+    ]);
 
     const drawer = await openTeamDrawer(user);
     expect(
@@ -175,6 +252,40 @@ describe("SettingsWorkspace drafts", () => {
     expect(drawerContent?.contains(impact)).toBe(true);
     expect(drawerContent?.contains(actionBar)).toBe(true);
     expect(actionBar.parentElement?.className).toContain("w-full");
+  });
+
+  it("shows archived branch labels for historical teams and manages a team in one drawer", async () => {
+    const user = userEvent.setup();
+    const archivedBranch = {
+      address: null,
+      archivedAt: "2026-08-22T00:00:00.000Z",
+      code: "OLD",
+      id: "55555555-5555-4555-8555-555555555555",
+      name: "Former Office",
+      status: "inactive",
+    };
+    const historicalTeam = {
+      archivedAt: null,
+      branchId: archivedBranch.id,
+      id: "66666666-6666-4666-8666-666666666666",
+      managerPersonId: null,
+      name: "Historical Team",
+    };
+    render(
+      <SettingsWorkspace
+        {...defaultProps}
+        branches={[...defaultProps.branches, archivedBranch]}
+        section="teams"
+        teams={[historicalTeam]}
+      />,
+    );
+
+    expect(screen.getByText("OLD")).not.toBeNull();
+    expect(screen.queryByText("All branches")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Manage team Historical Team" }));
+    const drawer = screen.getByRole("dialog", { name: "Manage Historical Team" });
+    expect((within(drawer).getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("Historical Team");
+    expect(within(drawer).getByRole("button", { name: "Archive team" })).not.toBeNull();
   });
 
   it("keeps Branch and Manager listboxes in the team drawer portal focus scope", async () => {

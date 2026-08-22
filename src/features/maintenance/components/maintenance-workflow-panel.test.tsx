@@ -2,7 +2,9 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
+import {
+  getMaintenanceCapabilities as getPermissionMaintenanceCapabilities,
+} from "@/features/maintenance/maintenance.capabilities";
 import { MaintenanceInspector } from "@/features/maintenance/components/maintenance-screen";
 import { MaintenanceWorkflowPanel } from "@/features/maintenance/components/maintenance-workflow-panel";
 import type { MaintenanceCase } from "@/features/maintenance/maintenance.types";
@@ -15,11 +17,26 @@ vi.mock("next/navigation", () => ({
 
 afterEach(cleanup);
 
+function getMaintenanceCapabilities(
+  role: "operations_manager" | "operations_member" | "super_admin",
+) {
+  return getPermissionMaintenanceCapabilities({
+    isSuperAdmin: role === "super_admin",
+    permissionKeys: new Set(
+      role === "operations_manager"
+        ? ["maintenance.create_assign", "maintenance.review"] as const
+        : role === "operations_member"
+          ? ["maintenance.complete"] as const
+          : [],
+    ),
+  });
+}
+
 describe("MaintenanceInspector role-safe workflow", () => {
   it("shows coordinated controls without admin links or upload for a manager", () => {
     render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" } as never}
         capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={makeCase()}
         onArchive={vi.fn()}
@@ -43,7 +60,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
     try {
       render(
         <MaintenanceInspector
-          actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" } as never}
           capabilities={getMaintenanceCapabilities("operations_manager")}
           maintenanceCase={{
             ...makeCase(),
@@ -77,7 +94,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("keeps manager transition consequences beside coordinated actions", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" } as never}
         capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={makeCase()}
         onStatusMessage={vi.fn()}
@@ -100,7 +117,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("lets an Operations Manager hand a recorded cost to Finance", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" } as never}
         capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={{
           ...makeCase(),
@@ -138,7 +155,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("shows a submitted maintenance cost as locked and awaiting Finance", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" } as never}
         capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={{
           ...makeCase(),
@@ -164,7 +181,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("keeps technical identifiers out of ordinary activity details", () => {
     render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" } as never}
         capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={{
           ...makeCase(),
@@ -207,7 +224,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("shows the safe append-only Finance status history without funding details", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" } as never}
         capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={{
           ...makeCase(),
@@ -252,7 +269,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
     };
     const { container, rerender } = render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" } as never}
         capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={baseCase}
         onStatusMessage={vi.fn()}
@@ -264,7 +281,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
 
     rerender(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", role: "operations_manager" } as never}
         capabilities={getMaintenanceCapabilities("operations_manager")}
         maintenanceCase={{
           ...baseCase,
@@ -294,7 +311,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("shows the member submission handoff without manager-only controls", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", personId: "person-1", role: "operations_member" }}
+        actor={{ branchId: "branch-1", personId: "person-1", role: "operations_member" } as never}
         capabilities={getMaintenanceCapabilities("operations_member")}
         maintenanceCase={{
           ...makeCase(),
@@ -325,7 +342,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("states approval and return outcomes before completion review", () => {
     render(
       <MaintenanceWorkflowPanel
-        actor={{ branchId: "branch-1", role: "super_admin" }}
+        actor={{ branchId: "branch-1", role: "super_admin" } as never}
         capabilities={getMaintenanceCapabilities("super_admin")}
         maintenanceCase={{
           ...makeCase(),
@@ -350,7 +367,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
   it("keeps inspector mutations aligned to admin and member capabilities", () => {
     const admin = render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", role: "super_admin" }}
+        actor={{ branchId: "branch-1", role: "super_admin" } as never}
         capabilities={getMaintenanceCapabilities("super_admin")}
         maintenanceCase={{
           ...makeCase(),
@@ -370,7 +387,7 @@ describe("MaintenanceInspector role-safe workflow", () => {
 
     render(
       <MaintenanceInspector
-        actor={{ branchId: "branch-1", personId: "person-1", role: "operations_member" }}
+        actor={{ branchId: "branch-1", personId: "person-1", role: "operations_member" } as never}
         capabilities={getMaintenanceCapabilities("operations_member")}
         maintenanceCase={{
           ...makeCase(),

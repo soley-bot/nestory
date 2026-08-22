@@ -68,11 +68,15 @@ CREATE TEMP TABLE maintenance_cost_state (
   operations_member_id uuid NOT NULL DEFAULT 'c1000000-0000-0000-0000-000000000104',
   branch_id uuid NOT NULL DEFAULT 'c8000000-0000-0000-0000-000000000001',
   other_branch_id uuid NOT NULL DEFAULT 'c8000000-0000-0000-0000-000000000002',
+  finance_role_id uuid NOT NULL DEFAULT 'c8100000-0000-0000-0000-000000000001',
+  operations_manager_role_id uuid NOT NULL DEFAULT 'c8100000-0000-0000-0000-000000000002',
+  operations_member_role_id uuid NOT NULL DEFAULT 'c8100000-0000-0000-0000-000000000003',
   property_id uuid NOT NULL DEFAULT 'c2000000-0000-0000-0000-000000000001',
   alternate_property_id uuid NOT NULL DEFAULT 'c2000000-0000-0000-0000-000000000003',
   cross_property_id uuid NOT NULL DEFAULT 'c2000000-0000-0000-0000-000000000002',
   unit_id uuid NOT NULL DEFAULT 'c3000000-0000-0000-0000-000000000001',
   alternate_unit_id uuid NOT NULL DEFAULT 'c3000000-0000-0000-0000-000000000002',
+  same_branch_unit_id uuid NOT NULL DEFAULT 'c3000000-0000-0000-0000-000000000003',
   owner_id uuid NOT NULL DEFAULT 'c4000000-0000-0000-0000-000000000001',
   vendor_id uuid NOT NULL DEFAULT 'c4000000-0000-0000-0000-000000000002',
   operations_manager_person_id uuid NOT NULL DEFAULT 'c4000000-0000-0000-0000-000000000003',
@@ -164,6 +168,41 @@ UNION ALL
 SELECT other_branch_id, organization_id, 'Operations South', 'OPS-S'
 FROM maintenance_cost_state;
 
+INSERT INTO public.organization_roles (
+  id, organization_id, name, created_by, updated_by
+)
+SELECT finance_role_id, organization_id, 'Finance Manager', super_admin_id, super_admin_id
+FROM maintenance_cost_state
+UNION ALL
+SELECT operations_manager_role_id, organization_id, 'Operations Manager', super_admin_id, super_admin_id
+FROM maintenance_cost_state
+UNION ALL
+SELECT operations_member_role_id, organization_id, 'Operations Member', super_admin_id, super_admin_id
+FROM maintenance_cost_state;
+
+INSERT INTO public.organization_role_permissions (
+  organization_id, role_id, permission_key, granted_by
+)
+SELECT state.organization_id, state.finance_role_id, permission_key, state.super_admin_id
+FROM maintenance_cost_state AS state
+CROSS JOIN unnest(ARRAY[
+  'finance.view','finance.approve_expenses','finance.correct_records',
+  'finance.close_periods','finance.publish'
+]::public.organization_permission_key[]) AS permission_key
+UNION ALL
+SELECT state.organization_id, state.operations_manager_role_id, permission_key, state.super_admin_id
+FROM maintenance_cost_state AS state
+CROSS JOIN unnest(ARRAY[
+  'maintenance.view','maintenance.create_assign',
+  'maintenance.complete','maintenance.review'
+]::public.organization_permission_key[]) AS permission_key
+UNION ALL
+SELECT state.organization_id, state.operations_member_role_id, permission_key, state.super_admin_id
+FROM maintenance_cost_state AS state
+CROSS JOIN unnest(ARRAY[
+  'maintenance.view','maintenance.complete'
+]::public.organization_permission_key[]) AS permission_key;
+
 INSERT INTO public.people (id, organization_id, display_name, party_type)
 SELECT owner_id, organization_id, 'Maintenance Owner', 'individual'
 FROM maintenance_cost_state
@@ -190,38 +229,52 @@ UNION ALL
 SELECT organization_id, operations_member_person_id, 'staff', 'active'
 FROM maintenance_cost_state;
 
+INSERT INTO public.person_branch_relationships (
+  organization_id, person_id, branch_id, created_by
+)
+SELECT organization_id, operations_manager_person_id, branch_id, super_admin_id
+FROM maintenance_cost_state
+UNION ALL
+SELECT organization_id, operations_member_person_id, branch_id, super_admin_id
+FROM maintenance_cost_state;
+
 INSERT INTO public.organization_members (
   organization_id,
   user_id,
   role,
   person_id,
-  branch_id
+  branch_id,
+  custom_role_id
 )
-SELECT organization_id, super_admin_id, 'super_admin', NULL::uuid, NULL::uuid
+SELECT organization_id, super_admin_id, 'super_admin', NULL::uuid, NULL::uuid, NULL::uuid
 FROM maintenance_cost_state
 UNION ALL
-SELECT organization_id, finance_manager_id, 'finance_manager', NULL::uuid, NULL::uuid
+SELECT organization_id, finance_manager_id, 'custom', NULL::uuid, branch_id, finance_role_id
 FROM maintenance_cost_state
 UNION ALL
 SELECT
   organization_id,
   operations_manager_id,
-  'operations_manager',
+  'custom',
   operations_manager_person_id,
-  branch_id
+  branch_id,
+  operations_manager_role_id
 FROM maintenance_cost_state
 UNION ALL
 SELECT
   organization_id,
   operations_member_id,
-  'operations_member',
+  'custom',
   operations_member_person_id,
-  branch_id
+  branch_id,
+  operations_member_role_id
 FROM maintenance_cost_state;
 
+SET LOCAL session_replication_role = replica;
 INSERT INTO public.properties (
   id,
   organization_id,
+  branch_id,
   name,
   code,
   property_type,
@@ -230,6 +283,7 @@ INSERT INTO public.properties (
 SELECT
   property_id,
   organization_id,
+  branch_id,
   'Maintenance cost property',
   'MC-001',
   'apartment',
@@ -239,6 +293,7 @@ UNION ALL
 SELECT
   alternate_property_id,
   organization_id,
+  other_branch_id,
   'Alternate maintenance property',
   'MC-003',
   'apartment',
@@ -248,11 +303,13 @@ UNION ALL
 SELECT
   cross_property_id,
   cross_organization_id,
+  NULL::uuid,
   'Cross maintenance property',
   'MC-002',
   'apartment',
   'active'
 FROM maintenance_cost_state;
+SET LOCAL session_replication_role = origin;
 
 INSERT INTO public.units (
   id,
@@ -264,7 +321,10 @@ INSERT INTO public.units (
 SELECT unit_id, organization_id, property_id, 'MC-A1', 'vacant'
 FROM maintenance_cost_state
 UNION ALL
-SELECT alternate_unit_id, organization_id, property_id, 'MC-A2', 'vacant'
+SELECT alternate_unit_id, organization_id, alternate_property_id, 'MC-A2', 'vacant'
+FROM maintenance_cost_state
+UNION ALL
+SELECT same_branch_unit_id, organization_id, property_id, 'MC-A3', 'vacant'
 FROM maintenance_cost_state;
 
 INSERT INTO public.property_owners (
@@ -325,8 +385,8 @@ UNION ALL
 SELECT
   other_branch_request_id,
   organization_id,
-  property_id,
-  unit_id,
+  alternate_property_id,
+  alternate_unit_id,
   'Other branch repair',
   'Repairs',
   'open',
@@ -393,8 +453,8 @@ SELECT
   other_branch_task_id,
   organization_id,
   other_branch_request_id,
-  property_id,
-  unit_id,
+  alternate_property_id,
+  alternate_unit_id,
   other_branch_id,
   NULL,
   'Other branch repair',
@@ -412,6 +472,7 @@ SET LOCAL session_replication_role = replica;
 INSERT INTO public.documents (
   id,
   organization_id,
+  branch_id,
   property_id,
   unit_id,
   task_id,
@@ -426,6 +487,7 @@ INSERT INTO public.documents (
 SELECT
   document_id,
   organization_id,
+  branch_id,
   property_id,
   unit_id,
   task_id,
@@ -441,8 +503,9 @@ UNION ALL
 SELECT
   other_branch_document_id,
   organization_id,
-  property_id,
-  unit_id,
+  other_branch_id,
+  alternate_property_id,
+  alternate_unit_id,
   other_branch_task_id,
   'Maintenance',
   'other-branch-receipt.pdf',
@@ -456,6 +519,7 @@ UNION ALL
 SELECT
   adjustment_document_id,
   organization_id,
+  branch_id,
   property_id,
   unit_id,
   task_id,
@@ -471,6 +535,7 @@ UNION ALL
 SELECT
   rejected_document_id,
   organization_id,
+  branch_id,
   property_id,
   unit_id,
   rejected_task_id,
@@ -486,6 +551,7 @@ UNION ALL
 SELECT
   resubmission_document_id,
   organization_id,
+  branch_id,
   property_id,
   unit_id,
   rejected_task_id,
@@ -746,6 +812,13 @@ BEGIN
   );
 END;
 $$;
+
+UPDATE public.organization_authorization_states AS authorization_state
+SET ordinary_access_enabled=true,
+    transition_manifest_required=false,
+    updated_by=state.super_admin_id
+FROM maintenance_cost_state AS state
+WHERE authorization_state.organization_id=state.organization_id;
 
 SELECT set_config(
   'request.jwt.claim.sub',
@@ -1184,9 +1257,9 @@ SELECT throws_ok(
         unit_id = NULL
     WHERE id = (SELECT task_id FROM maintenance_cost_state)
   $$,
-  '22023',
-  'Submitted maintenance cost fields are locked',
-  'submitted maintenance property cannot change while Finance is reviewing it'
+  '42501',
+  'permission denied for table tasks',
+  'direct task scope changes remain denied while Finance is reviewing the cost'
 );
 
 SELECT set_config(
@@ -1214,8 +1287,8 @@ SELECT throws_ok(
     )
     FROM maintenance_cost_state
   $$,
-  '23514',
-  'Maintenance paid cost evidence document is required',
+  '42501',
+  'Not authorized',
   'Operations Manager cannot submit another branch cost'
 );
 
@@ -1584,7 +1657,7 @@ SELECT throws_ok(
   $$SELECT pg_temp.update_maintenance_cost(
     'c6000000-0000-0000-0000-000000000001',
     125.50,
-    (SELECT alternate_unit_id FROM maintenance_cost_state)
+    (SELECT same_branch_unit_id FROM maintenance_cost_state)
   )$$,
   '22023',
   'Approved maintenance cost scope requires reversal before changing property, unit, currency, or vendor',
@@ -1606,9 +1679,9 @@ SELECT throws_ok(
         unit_id = NULL
     WHERE id = (SELECT task_id FROM maintenance_cost_state)
   $$,
-  '22023',
-  'Approved maintenance cost scope requires reversal before changing property, unit, currency, or vendor',
-  'approved maintenance property cannot change before reversal'
+  '42501',
+  'permission denied for table tasks',
+  'direct approved task scope changes remain denied before reversal'
 );
 
 SELECT set_config(

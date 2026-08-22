@@ -277,20 +277,37 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(property.className).toContain("sm:col-span-2");
     expect(property.parentElement?.className).toContain("sm:grid-cols-2");
   });
+
+  it("keeps Unit write and archive controls behind their exact Property permissions", async () => {
+    renderUnitDetail({ canArchive: false, canWrite: false });
+
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+    expect(screen.queryByRole("button", { name: "Add unit photo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add unit document" })).toBeNull();
+  });
 });
 
 function renderUnitDetail({
+  canArchive = true,
+  canWrite = true,
   initialSection = "overview",
   unit = unitDetail,
 }: {
+  canArchive?: boolean;
+  canWrite?: boolean;
   initialSection?: "overview" | "lease" | "finance" | "maintenance" | "files";
   unit?: typeof unitDetail;
 } = {}) {
   return render(
     <UnitDetailScreen
       activeSection={initialSection}
+      canArchive={canArchive}
+      canWrite={canWrite}
       maintenanceFormOptions={{
-        actor: { role: "super_admin" },
+        actor: { dataScope: "organization", workflowMode: "coordinator" },
         branches: [],
         canRecordActualCost: true,
         properties: [{ id: "property-1", label: "CTR / Central Residence" }],

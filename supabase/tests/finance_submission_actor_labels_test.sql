@@ -172,7 +172,7 @@ FROM finance_actor_label_state;
 
 SELECT set_config(
   'request.jwt.claim.sub',
-  (SELECT manager_id::text FROM finance_actor_label_state),
+  (SELECT admin_id::text FROM finance_actor_label_state),
   true
 );
 
@@ -192,7 +192,7 @@ SELECT results_eq(
     SELECT member_id, 'finance.member@actor-label.test'::text
     FROM finance_actor_label_state
   $$,
-  'Finance sees a human label only for an actual paid-cost submitter'
+  'Super Admin can resolve a human label only for an actual paid-cost submitter'
 );
 
 SELECT set_config(

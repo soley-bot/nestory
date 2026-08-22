@@ -94,7 +94,7 @@ describe("commercial document artifact publication", () => {
       p_storage_path: invoicePath,
     });
     expect(onlyEvent(harness.events, "client.register").args).toEqual({
-      p_document_number: "INV / 2026 #0042",
+      p_filename: "invoice-INV-2026-0042.pdf",
       p_organization_id: organizationId,
       p_presentation_snapshot: expectedInvoiceSnapshot(),
       p_renderer_version: "commercial-pdf-v1",
@@ -732,7 +732,7 @@ describe("commercial document failure and download boundaries", () => {
     );
 
     expect(onlyEvent(harness.events, "client.mark-failed").args).toEqual({
-      p_failure_message: "storage_unavailable",
+      p_failure_reason: "storage_unavailable",
       p_organization_id: organizationId,
       p_source_id: paymentId,
       p_source_kind: "receipt",

@@ -1,4 +1,4 @@
-import type { WorkspaceRole } from "@/lib/auth/context";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 export const WORKSPACE_SEARCH_RESULT_LIMIT = 20;
 export const WORKSPACE_SEARCH_MIN_QUERY_LENGTH = 2;
@@ -23,7 +23,8 @@ export type WorkspaceSearchResult = {
 
 export type WorkspaceSearchContext = {
   branchId?: string;
+  isSuperAdmin: boolean;
   organizationId: string;
+  permissionKeys: ReadonlySet<PermissionKey>;
   personId?: string;
-  role: WorkspaceRole;
 };

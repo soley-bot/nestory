@@ -23,9 +23,11 @@ export default async function PettyCashPage({
   return (
     <PettyCashScreen
       {...data}
-      canManageFinance={context.capabilities.canManageFinanceOperations}
-      canManagePettyCash={context.capabilities.canManagePettyCash}
+      canAdministerAccounts={context.isSuperAdmin}
+      canApproveExpenses={context.permissionKeys.has("finance.approve_expenses")}
+      canCorrectFinance={context.permissionKeys.has("finance.correct_records")}
       canReadFinanceReports={context.capabilities.canReadFinanceReports}
+      canSubmitExpenses={context.permissionKeys.has("finance.submit_expenses")}
     />
   );
 }

@@ -644,19 +644,24 @@ SELECT throws_ok(
     'fixture-denied-ops-submit-v1'
   )$$,
   '42501',
-  'Not authorized to submit owner opening balances',
-  'operations manager cannot submit owner opening authority'
+  'Not authorized',
+  'the scoped wrapper rejects an operations manager before opening-balance mutation'
 );
 RESET ROLE;
 
-INSERT INTO public.properties (id, organization_id, name, code, property_type)
+SET LOCAL session_replication_role = replica;
+INSERT INTO public.properties (
+  id, organization_id, branch_id, name, code, property_type
+)
 VALUES (
   'f5500000-0000-4000-8000-000000000002',
   '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000211',
   'Self-review authority property',
   'SELF-REVIEW',
   'Apartment'
 );
+SET LOCAL session_replication_role = origin;
 
 INSERT INTO public.people (id, organization_id, display_name)
 VALUES (

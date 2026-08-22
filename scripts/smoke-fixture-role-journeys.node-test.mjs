@@ -24,22 +24,22 @@ test("defines the five local fixture role journeys with stable story records", (
     },
     {
       email: "finance.manager@nestory.com",
-      expectedRecord: "Maintenance cost",
+      expectedRecord: "Rent generation needs attention",
       route: "/finance",
     },
     {
       email: "finance.member@nestory.com",
       expectedAction: {
-        heading: "Record paid cost",
-        href: "/bills-expenses?action=create",
-        label: "Record paid cost",
+        heading: "Expenses",
+        href: "/bills-expenses",
+        label: "Expenses",
       },
-      expectedRecord: "Khmer Home Services",
+      expectedRecord: "No finance work",
       route: "/finance",
     },
     {
       email: "operations.manager@nestory.com",
-      expectedRecord: "Riverside drainage access blocked",
+      expectedRecord: "Garden Court pump replacement",
       route: "/maintenance",
     },
     {
@@ -53,17 +53,17 @@ test("defines the five local fixture role journeys with stable story records", (
 test("formats a concise diagnostic without accepting credential data", () => {
   assert.equal(
     formatFixtureRoleJourneyFailure(fixtureRoleJourneys[1], "record not visible"),
-    "finance.manager@nestory.com /finance expected Maintenance cost: record not visible",
+    "finance.manager@nestory.com /finance expected Rent generation needs attention: record not visible",
   );
   assert.equal(
     formatFixtureRoleJourneyFailure(fixtureRoleJourneys[1], "password=secret"),
-    "finance.manager@nestory.com /finance expected Maintenance cost: journey failed",
+    "finance.manager@nestory.com /finance expected Rent generation needs attention: journey failed",
   );
   assert.equal(
     formatFixtureRoleJourneyFailure(
       fixtureRoleJourneys[2],
       "action did not complete",
     ),
-    "finance.member@nestory.com /finance expected Khmer Home Services: action did not complete",
+    "finance.member@nestory.com /finance expected No finance work: action did not complete",
   );
 });

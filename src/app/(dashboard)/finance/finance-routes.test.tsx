@@ -2,16 +2,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  buildFinanceWorkspaceData,
-  financeManagerWorkspaceSpy,
-  financeMemberWorkspaceSpy,
   getFinanceOperationsData,
   requireFinanceContext,
   screenSpy,
 } = vi.hoisted(() => ({
-    buildFinanceWorkspaceData: vi.fn(),
-    financeManagerWorkspaceSpy: vi.fn(),
-    financeMemberWorkspaceSpy: vi.fn(),
     getFinanceOperationsData: vi.fn(),
     requireFinanceContext: vi.fn(),
     screenSpy: vi.fn(),
@@ -21,22 +15,6 @@ vi.mock("@/lib/auth/context", () => ({ requireFinanceContext }));
 vi.mock("@/features/finance-operations/data/finance-operations", () => ({
   getFinanceOperationsData,
 }));
-vi.mock("@/features/workspace-operations/finance-workspace", () => ({
-  buildFinanceWorkspaceData,
-}));
-vi.mock(
-  "@/features/workspace-operations/components/finance-workspace-screen",
-  () => ({
-    FinanceManagerWorkspace: (props: Record<string, unknown>) => {
-      financeManagerWorkspaceSpy(props);
-      return <div>Finance manager workspace</div>;
-    },
-    FinanceMemberWorkspace: (props: Record<string, unknown>) => {
-      financeMemberWorkspaceSpy(props);
-      return <div>Finance member workspace</div>;
-    },
-  }),
-);
 vi.mock(
   "@/features/finance-operations/components/finance-operations-screen",
   () => ({
@@ -56,9 +34,6 @@ describe("finance routes", () => {
     getFinanceOperationsData.mockReset();
     requireFinanceContext.mockReset();
     screenSpy.mockReset();
-    buildFinanceWorkspaceData.mockReset();
-    financeManagerWorkspaceSpy.mockReset();
-    financeMemberWorkspaceSpy.mockReset();
     getFinanceOperationsData.mockResolvedValue({
       rentGenerationExceptions: [],
       tenantInvoices: [],
@@ -66,132 +41,8 @@ describe("finance routes", () => {
   });
 
   it.each([
-    ["finance_manager", "Finance manager workspace", financeManagerWorkspaceSpy],
-    ["finance_member", "Finance member workspace", financeMemberWorkspaceSpy],
-  ] as const)(
-    "uses the %s projection as the /finance operating surface",
-    async (role, expectedText, workspaceSpy) => {
-      const financeData = {
-        expenseSubmissions: [],
-        ownerInvoices: [],
-        rentGenerationExceptions: [],
-        tenantInvoices: [],
-      };
-      const workspaceData =
-        role === "finance_manager"
-          ? {
-              queue: [],
-              role,
-              totals: {
-                awaitingReview: 0,
-                maintenanceHandoffs: 0,
-                missingEvidence: 0,
-                rentExceptions: 0,
-              },
-            }
-          : {
-              primaryAction: {
-                href: "/bills-expenses?action=create",
-                intent: "record-paid-cost",
-                label: "Record paid cost",
-              },
-              queue: [],
-              role,
-              totals: {
-                approvedRecently: 0,
-                awaitingReview: 0,
-                rejected: 0,
-              },
-            };
-      getFinanceOperationsData.mockResolvedValue(financeData);
-      requireFinanceContext.mockResolvedValue({
-        capabilities: {},
-        organizationId: "organization-1",
-        organizationName: "Nestory Test",
-        role,
-        userId: "user-1",
-      });
-      buildFinanceWorkspaceData.mockReturnValue(workspaceData);
-
-      const html = renderToStaticMarkup(await FinancePage());
-
-      expect(html).toContain(expectedText);
-      expect(html).toContain(
-        role === "finance_manager" ? "Review queue" : "My submissions",
-      );
-      expect(buildFinanceWorkspaceData).toHaveBeenCalledWith({
-        data: financeData,
-        role,
-        userId: "user-1",
-      });
-      expect(workspaceSpy).toHaveBeenCalledWith({ data: workspaceData });
-      expect(screenSpy).not.toHaveBeenCalled();
-    },
-  );
-
-  it("keeps Finance Manager transaction work reachable from the review queue", async () => {
-    const financeData = {
-      expenseSubmissions: [],
-      ownerInvoices: [],
-      rentGenerationExceptions: [],
-      tenantInvoices: [],
-    };
-    const capabilities = {
-      canConfigureLeases: true,
-      canCorrectFinance: true,
-      canOperateFinance: true,
-      canReadFinanceReports: true,
-      canRecoverHistoricalRent: false,
-      canReviewExpense: true,
-      canReverseExpense: false,
-      canRetryCurrentRent: true,
-      canSubmitExpense: false,
-    };
-    getFinanceOperationsData.mockResolvedValue(financeData);
-    requireFinanceContext.mockResolvedValue({
-      capabilities,
-      organizationId: "organization-1",
-      organizationName: "Nestory Test",
-      role: "finance_manager",
-      userId: "user-1",
-    });
-    buildFinanceWorkspaceData.mockReturnValue({
-      queue: [],
-      role: "finance_manager",
-      totals: {
-        awaitingReview: 0,
-        maintenanceHandoffs: 0,
-        missingEvidence: 0,
-        rentExceptions: 0,
-      },
-    });
-
-    const queueHtml = renderToStaticMarkup(await FinancePage());
-    expect(queueHtml).toContain("Transactions");
-    expect(queueHtml).toContain("/finance?view=transactions");
-
-    const workHtml = renderToStaticMarkup(
-      await FinancePage({
-        searchParams: Promise.resolve({ view: "transactions" }),
-      }),
-    );
-    expect(workHtml).toContain("Finance route");
-    expect(screenSpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        canConfigureRent: true,
-        canCorrectFinance: true,
-        canRecordOwnerCash: true,
-        canRecordPayments: true,
-        canRecoverRent: false,
-        canRetryCurrentRent: true,
-        view: "work",
-      }),
-    );
-  });
-
-  it.each([
-    ["finance_member", RentIncomePage, "rent", false, true, false, false],
-    ["finance_member", BillsExpensesPage, "expenses", false, true, false, false],
+    ["custom", RentIncomePage, "rent", false, true, false, false],
+    ["custom", BillsExpensesPage, "expenses", false, true, false, false],
   ] as const)(
     "keeps %s domain routes behind explicit capabilities",
     async (
@@ -218,6 +69,7 @@ describe("finance routes", () => {
         },
         organizationId: "organization-1",
         organizationName: "Nestory Test",
+        permissionKeys: new Set(["finance.view", "finance.submit_expenses"]),
         role,
       });
 
@@ -260,6 +112,11 @@ describe("finance routes", () => {
       },
       organizationId: "organization-1",
       organizationName: "Nestory Test",
+      permissionKeys: new Set([
+        "finance.view",
+        "finance.record_payments",
+        "leases.change_terms",
+      ]),
       role: "super_admin",
     });
 
@@ -296,7 +153,8 @@ describe("finance routes", () => {
       },
       organizationId: "organization-1",
       organizationName: "Nestory Test",
-      role: "finance_member",
+      permissionKeys: new Set(["finance.view", "finance.submit_expenses"]),
+      role: "custom",
     });
 
     renderToStaticMarkup(

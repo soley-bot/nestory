@@ -21,7 +21,7 @@ export type MaintenanceHrefTask = {
 };
 
 type MaintenanceHrefAccess =
-  | Pick<MaintenanceActor, "role">
+  | Pick<MaintenanceActor, "dataScope">
   | Pick<MaintenanceCapabilities, "canUploadMaintenanceEvidence">;
 
 export function buildMaintenanceHrefs(
@@ -32,8 +32,8 @@ export function buildMaintenanceHrefs(
     archiveState: "all",
     taskId: task.id,
   });
-  const hasAdminRecordAccess = "role" in access
-    ? access.role === "super_admin"
+  const hasAdminRecordAccess = "dataScope" in access
+    ? access.dataScope === "organization"
     : access.canUploadMaintenanceEvidence;
 
   if (!hasAdminRecordAccess) {

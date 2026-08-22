@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   requireCorrection: vi.fn(),
+  requireOwnerClose: vi.fn(),
   requireOperation: vi.fn(),
   requireSuperAdmin: vi.fn(),
   revalidatePath: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
   requireFinanceCorrectionContext: mocks.requireCorrection,
   requireFinanceOperationContext: mocks.requireOperation,
+  requireOwnerCloseContext: mocks.requireOwnerClose,
   requireSuperAdminContext: mocks.requireSuperAdmin,
 }));
 vi.mock("@/lib/db/server", () => ({
@@ -40,12 +42,13 @@ describe("owner balance lifecycle actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireOperation.mockResolvedValue({ organizationId });
+    mocks.requireOwnerClose.mockResolvedValue({ organizationId });
     mocks.requireCorrection.mockResolvedValue({ organizationId });
     mocks.requireSuperAdmin.mockResolvedValue({ organizationId });
     mocks.rpc.mockResolvedValue({ data: { status: "completed" }, error: null });
   });
 
-  it("allocates one source and generates a month through Finance operation authority", async () => {
+  it("separates source allocation from close-period generation authority", async () => {
     await allocateOwnerEventAction(form({
       idempotencyKey: "allocate-source-0001",
       sourceLineId,
@@ -59,7 +62,8 @@ describe("owner balance lifecycle actions", () => {
       propertyId,
     }));
 
-    expect(mocks.requireOperation).toHaveBeenCalledTimes(2);
+    expect(mocks.requireOperation).toHaveBeenCalledOnce();
+    expect(mocks.requireOwnerClose).toHaveBeenCalledOnce();
     expect(mocks.rpc).toHaveBeenNthCalledWith(1, "allocate_owner_event", {
       p_idempotency_key: "allocate-source-0001",
       p_organization_id: organizationId,

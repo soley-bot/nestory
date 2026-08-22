@@ -29,9 +29,11 @@ describe("ReportBuilderPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireFinanceReportContext.mockResolvedValue({
+      isSuperAdmin: false,
       organizationId: "organization-1",
       organizationName: "IPS",
-      role: "finance_manager",
+      permissionKeys: new Set(["finance.view", "finance.publish"]),
+      role: "custom",
     });
     mocks.getReportsScreenData.mockResolvedValue({
       trustedReport: { rows: [] },

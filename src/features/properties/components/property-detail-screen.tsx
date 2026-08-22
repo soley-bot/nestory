@@ -42,6 +42,9 @@ type ConfirmationState = {
 };
 
 type PropertyDetailScreenProps = {
+  canArchive?: boolean;
+  canCreateLease?: boolean;
+  canWrite?: boolean;
   initialSection?: Exclude<PropertyRecordSection, "account">;
   ownerOptions: PropertyOwnerOption[];
   property: PropertyDetail;
@@ -49,6 +52,9 @@ type PropertyDetailScreenProps = {
 };
 
 export function PropertyDetailScreen({
+  canArchive = true,
+  canCreateLease = true,
+  canWrite = true,
   initialSection = "overview",
   ownerOptions,
   property,
@@ -70,7 +76,7 @@ export function PropertyDetailScreen({
       <PageHeader
         className="px-4 sm:px-6 2xl:px-8"
         actions={
-          property.isArchived ? (
+          property.isArchived && canArchive ? (
             <Button
               ref={confirmationTriggerRef}
               onClick={() => {
@@ -82,17 +88,19 @@ export function PropertyDetailScreen({
               <RotateCcw size={15} />
               Restore
             </Button>
-          ) : (
+          ) : !property.isArchived ? (
             <>
-              <Button
-                onClick={() => {
-                  setStatusMessage(null);
-                  setDrawer({ mode: "edit", property });
-                }}
-              >
-                <Pencil size={15} />
-                Edit
-              </Button>
+              {canWrite ? (
+                <Button
+                  onClick={() => {
+                    setStatusMessage(null);
+                    setDrawer({ mode: "edit", property });
+                  }}
+                >
+                  <Pencil size={15} />
+                  Edit
+                </Button>
+              ) : null}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -111,21 +119,23 @@ export function PropertyDetailScreen({
                       View history
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      setStatusMessage(null);
-                      setConfirmation({ mode: "archive", property });
-                    }}
-                    variant="destructive"
-                  >
-                    <Archive size={15} />
-                    Archive
-                  </DropdownMenuItem>
+                  {canArchive ? <DropdownMenuSeparator /> : null}
+                  {canArchive ? (
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        setStatusMessage(null);
+                        setConfirmation({ mode: "archive", property });
+                      }}
+                      variant="destructive"
+                    >
+                      <Archive size={15} />
+                      Archive
+                    </DropdownMenuItem>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
-          )
+          ) : null
         }
         breadcrumb={
           <PageBreadcrumb
@@ -155,24 +165,25 @@ export function PropertyDetailScreen({
       ) : null}
 
       <PropertyDetailView
+        canArchiveFiles={canArchive}
         initialSection={initialSection}
         key={`${property.id}:${initialSection}`}
-        onAddDocument={() => {
+        onAddDocument={canWrite ? () => {
           setStatusMessage(null);
           setDrawer({ mode: "create-document", property });
-        }}
-        onAddUnit={() => {
+        } : undefined}
+        onAddUnit={canWrite ? () => {
           setStatusMessage(null);
           setDrawer({ mode: "create-unit", property });
-        }}
-        onAssignOwner={() => {
+        } : undefined}
+        onAssignOwner={canWrite ? () => {
           setStatusMessage(null);
           setOwnerAssignmentOpen(true);
-        }}
-        onCreateLease={() => {
+        } : undefined}
+        onCreateLease={canCreateLease ? () => {
           setStatusMessage(null);
           setDrawer({ mode: "create-lease", property });
-        }}
+        } : undefined}
         property={property}
       />
 

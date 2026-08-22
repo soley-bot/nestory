@@ -12,22 +12,22 @@ export const fixtureRoleJourneys = [
   },
   {
     email: "finance.manager@nestory.com",
-    expectedRecord: "Maintenance cost",
+    expectedRecord: "Rent generation needs attention",
     route: "/finance",
   },
   {
     email: "finance.member@nestory.com",
     expectedAction: {
-      heading: "Record paid cost",
-      href: "/bills-expenses?action=create",
-      label: "Record paid cost",
+      heading: "Expenses",
+      href: "/bills-expenses",
+      label: "Expenses",
     },
-    expectedRecord: "Khmer Home Services",
+    expectedRecord: "No finance work",
     route: "/finance",
   },
   {
     email: "operations.manager@nestory.com",
-    expectedRecord: "Riverside drainage access blocked",
+    expectedRecord: "Garden Court pump replacement",
     route: "/maintenance",
   },
   {

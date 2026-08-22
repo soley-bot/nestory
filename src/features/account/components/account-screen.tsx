@@ -3,13 +3,14 @@ import { KeyRound, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { signOutAction } from "@/features/auth/actions";
 import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
-import type { WorkspaceRole } from "@/lib/auth/context";
+import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/context";
 
 export type AccountIdentity = {
   branchLabel: string;
   email: string;
   organizationName: string;
-  role: WorkspaceRole;
+  role: WorkspaceRole | WorkspaceRoleKind;
+  roleName?: string;
 };
 
 export type AccountProfile = {
@@ -112,7 +113,14 @@ export function AccountScreen({
           {roleEffect(identity.role)}
         </p>
         <dl className="mt-3 divide-y divide-border border-y border-border">
-          <AccessFact label="Access level" value={formatWorkspaceAccessRole(identity.role)} />
+          <AccessFact
+            label="Access level"
+            value={
+              identity.role === "custom"
+                ? (identity.roleName ?? "Custom role")
+                : formatWorkspaceAccessRole(identity.role)
+            }
+          />
           <AccessFact
             label="Access scope"
             value={roleScope(identity.role, identity.branchLabel)}
@@ -182,7 +190,11 @@ function AccessFact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function roleScope(role: WorkspaceRole, branchLabel: string) {
+function roleScope(
+  role: WorkspaceRole | WorkspaceRoleKind,
+  branchLabel: string,
+) {
+  if (role === "custom") return branchLabel;
   if (
     role === "super_admin" ||
     role === "finance_manager" ||
@@ -193,8 +205,9 @@ function roleScope(role: WorkspaceRole, branchLabel: string) {
   return "Assigned work";
 }
 
-function roleEffect(role: WorkspaceRole) {
+function roleEffect(role: WorkspaceRole | WorkspaceRoleKind) {
   if (role === "super_admin") return "Full workspace and settings access.";
+  if (role === "custom") return "Access within the assigned branch.";
   if (role === "finance_manager")
     return "Organization-wide Finance read and expense review access.";
   if (role === "finance_member")

@@ -3,9 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sha256Hex } from "@/features/documents/content-fingerprint";
+import {
+  getDocumentAuthorityDomain,
+  getDocumentPermission,
+} from "@/features/documents/document-authority";
 import { removeUnregisteredDocumentObject } from "@/features/documents/storage-cleanup";
 import { Constants } from "@/types/database";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requirePermission, requireWorkspaceContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type TimelineFieldErrors = {
@@ -98,7 +102,7 @@ export async function createTimelineEventAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.write");
   const parsed = createTimelineEventSchema.safeParse({
     costAmount: readString(formData, "costAmount"),
     description: readString(formData, "description"),
@@ -152,7 +156,7 @@ export async function updateTimelineEventAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.write");
   const parsedEventId = timelineEventIdSchema.safeParse(
     readString(formData, "eventId"),
   );
@@ -222,7 +226,7 @@ export async function archiveTimelineEventAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.archive");
   const parsedEventId = timelineEventIdSchema.safeParse(
     readString(formData, "eventId"),
   );
@@ -267,7 +271,7 @@ export async function restoreTimelineEventAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.archive");
   const parsedEventId = timelineEventIdSchema.safeParse(
     readString(formData, "eventId"),
   );
@@ -312,7 +316,7 @@ export async function attachTimelineDocumentAction(
   _state: TimelineActionState,
   formData: FormData,
 ): Promise<TimelineActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireWorkspaceContext();
   const parsedEventId = timelineEventIdSchema.safeParse(
     readString(formData, "eventId"),
   );
@@ -349,7 +353,7 @@ export async function attachTimelineDocumentAction(
   const supabase = await createSupabaseServerClient();
   const { data: event, error: eventError } = await supabase
     .from("timeline_events")
-    .select("id, property_id, unit_id, ledger_entry_id")
+    .select("id, property_id, unit_id, ledger_entry_id, lease_id, event_type")
     .eq("id", parsedEventId.data)
     .eq("organization_id", context.organizationId)
     .is("archived_at", null)
@@ -362,9 +366,43 @@ export async function attachTimelineDocumentAction(
     };
   }
 
+  await requirePermission(
+    getDocumentPermission(
+      getDocumentAuthorityDomain({
+        leaseId: event.lease_id,
+        ledgerEntryId: event.ledger_entry_id,
+        propertyId: event.property_id,
+        timelineEvent: {
+          eventType: event.event_type,
+          leaseId: event.lease_id,
+          ledgerEntryId: event.ledger_entry_id,
+        },
+      }),
+      "write",
+    ),
+  );
+
+  const { data: property } = await supabase
+    .from("properties")
+    .select("branch_id")
+    .eq("organization_id", context.organizationId)
+    .eq("id", event.property_id)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (
+    !property?.branch_id ||
+    (!context.isSuperAdmin && context.branchId !== property.branch_id)
+  ) {
+    return {
+      message: "We could not find that active timeline event.",
+      status: "error",
+    };
+  }
+
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
   const contentSha256 = await sha256Hex(await file.arrayBuffer());
-  const storagePath = `${context.organizationId}/timeline/${parsedEventId.data}/${crypto.randomUUID()}-${safeFileName}`;
+  const storagePath = `${context.organizationId}/branches/${property.branch_id}/timeline/${parsedEventId.data}/${crypto.randomUUID()}-${safeFileName}`;
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
     .upload(storagePath, file, {

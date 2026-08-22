@@ -12,6 +12,7 @@ CREATE TEMP TABLE financial_month_lock_test_state (
   operations_member_id uuid NOT NULL DEFAULT gen_random_uuid(),
   unaffiliated_user_id uuid NOT NULL DEFAULT gen_random_uuid(),
   branch_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  close_period_role_id uuid NOT NULL DEFAULT gen_random_uuid(),
   operations_manager_person_id uuid NOT NULL DEFAULT gen_random_uuid(),
   operations_member_person_id uuid NOT NULL DEFAULT gen_random_uuid(),
   current_month_start date,
@@ -100,13 +101,6 @@ SELECT
   'financial-month-lock-cross-' || left(cross_organization_id::text, 8)
 FROM financial_month_lock_test_state;
 
-INSERT INTO public.organization_members (organization_id, user_id, role)
-SELECT organization_id, super_admin_id, 'super_admin'
-FROM financial_month_lock_test_state
-UNION ALL
-SELECT organization_id, finance_manager_id, 'finance_manager'
-FROM financial_month_lock_test_state;
-
 UPDATE financial_month_lock_test_state
 SET current_month_start = date_trunc(
   'month',
@@ -116,6 +110,36 @@ SET current_month_start = date_trunc(
 INSERT INTO public.organization_branches (id, organization_id, name, code)
 SELECT branch_id, organization_id, 'Month lock branch', 'LOCK'
 FROM financial_month_lock_test_state;
+
+INSERT INTO public.organization_roles (id, organization_id, name)
+SELECT close_period_role_id, organization_id, 'Close periods'
+FROM financial_month_lock_test_state;
+
+INSERT INTO public.organization_role_permissions (
+  organization_id,
+  role_id,
+  permission_key
+)
+SELECT organization_id, close_period_role_id, 'finance.close_periods'
+FROM financial_month_lock_test_state;
+
+INSERT INTO public.organization_members (
+  organization_id,
+  user_id,
+  role,
+  branch_id,
+  custom_role_id
+)
+SELECT organization_id, super_admin_id, 'super_admin', NULL::uuid, NULL::uuid
+FROM financial_month_lock_test_state
+UNION ALL
+SELECT organization_id, finance_manager_id, 'custom', branch_id, close_period_role_id
+FROM financial_month_lock_test_state;
+
+UPDATE public.organization_authorization_states AS authorization_state
+SET ordinary_access_enabled = true
+FROM financial_month_lock_test_state AS test_state
+WHERE authorization_state.organization_id = test_state.organization_id;
 
 INSERT INTO public.people (id, organization_id, display_name)
 SELECT operations_manager_person_id, organization_id, 'Month Lock Operations Manager'
@@ -129,22 +153,6 @@ SELECT organization_id, operations_manager_person_id, 'staff', 'active'
 FROM financial_month_lock_test_state
 UNION ALL
 SELECT organization_id, operations_member_person_id, 'staff', 'active'
-FROM financial_month_lock_test_state;
-
-INSERT INTO public.organization_members (
-  organization_id,
-  user_id,
-  role,
-  person_id,
-  branch_id
-)
-SELECT organization_id, finance_member_id, 'finance_member', NULL::uuid, NULL::uuid
-FROM financial_month_lock_test_state
-UNION ALL
-SELECT organization_id, operations_manager_id, 'operations_manager', operations_manager_person_id, branch_id
-FROM financial_month_lock_test_state
-UNION ALL
-SELECT organization_id, operations_member_id, 'operations_member', operations_member_person_id, branch_id
 FROM financial_month_lock_test_state;
 
 SELECT has_table(
@@ -250,7 +258,7 @@ SELECT throws_ok(
     (SELECT organization_id FROM financial_month_lock_test_state),
     '2026-08-31'
   ),
-  '22023',
+  '55000',
   'Financial month is locked',
   'the private write guard rejects a locked month'
 );
@@ -293,11 +301,11 @@ SELECT throws_ok(
     'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
     (SELECT organization_id FROM financial_month_lock_test_state),
     (SELECT current_month_start - interval '1 month' FROM financial_month_lock_test_state),
-    'Finance Manager past lock'
+    'Close-period role past lock'
   ),
   '22023',
-  'Finance Manager can lock only the current operational month',
-  'Finance Manager cannot lock a past operational month'
+  'Choose the current operational month.',
+  'assigned close-period role cannot lock a past operational month'
 );
 
 SELECT throws_ok(
@@ -305,11 +313,11 @@ SELECT throws_ok(
     'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
     (SELECT organization_id FROM financial_month_lock_test_state),
     (SELECT current_month_start + interval '1 month' FROM financial_month_lock_test_state),
-    'Finance Manager future lock'
+    'Close-period role future lock'
   ),
   '22023',
-  'Finance Manager can lock only the current operational month',
-  'Finance Manager cannot lock a future operational month'
+  'Choose the current operational month.',
+  'assigned close-period role cannot lock a future operational month'
 );
 
 SELECT throws_ok(
@@ -320,8 +328,8 @@ SELECT throws_ok(
     '   '
   ),
   '22023',
-  'Finance Manager lock reason is required',
-  'Finance Manager cannot lock without a trimmed reason'
+  'Enter a reason to lock this month.',
+  'assigned close-period role cannot lock without a trimmed reason'
 );
 
 SELECT lives_ok(
@@ -329,9 +337,9 @@ SELECT lives_ok(
     'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
     (SELECT organization_id FROM financial_month_lock_test_state),
     (SELECT current_month_start FROM financial_month_lock_test_state),
-    'Finance Manager month-end lock'
+    'Close-period role month-end lock'
   ),
-  'Finance Manager can lock the current open operational month'
+  'assigned close-period role can lock its current open operational month'
 );
 
 SELECT throws_ok(
@@ -339,11 +347,11 @@ SELECT throws_ok(
     'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
     (SELECT organization_id FROM financial_month_lock_test_state),
     (SELECT current_month_start FROM financial_month_lock_test_state),
-    'Finance Manager duplicate lock'
+    'Close-period role duplicate lock'
   ),
   '22023',
   'Financial month is already locked',
-  'Finance Manager cannot lock an already locked operational month'
+  'assigned close-period role cannot lock an already locked operational month'
 );
 
 SELECT throws_ok(
@@ -351,10 +359,10 @@ SELECT throws_ok(
     'SELECT public.set_financial_month_lock(%L,%L,false,%L)',
     (SELECT organization_id FROM financial_month_lock_test_state),
     (SELECT current_month_start FROM financial_month_lock_test_state),
-    'Finance Manager cannot reopen'
+    'Close-period role cannot reopen'
   ),
   '42501', 'Not authorized',
-  'Finance Manager cannot unlock an operational month'
+  'assigned close-period role cannot unlock an operational month'
 );
 
 SELECT throws_ok(
@@ -362,29 +370,29 @@ SELECT throws_ok(
     'SELECT public.set_financial_month_lock(%L,%L,true,%L)',
     (SELECT cross_organization_id FROM financial_month_lock_test_state),
     (SELECT current_month_start FROM financial_month_lock_test_state),
-    'Finance Manager cross organization attempt'
+    'Close-period role cross organization attempt'
   ),
   '42501',
   'Not authorized',
-  'Finance Manager cannot lock another organization current month'
+  'assigned close-period role cannot lock another organization current month'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT finance_member_id::text FROM financial_month_lock_test_state), true);
 SELECT throws_ok(
   format('SELECT public.set_financial_month_lock(%L,%L,true,%L)', (SELECT organization_id FROM financial_month_lock_test_state), '2026-10-01', 'Denied'),
-  '42501', 'Not authorized', 'Finance Member cannot lock a month'
+  '42501', 'Not authorized', 'user without close-period permission cannot lock a month'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT operations_manager_id::text FROM financial_month_lock_test_state), true);
 SELECT throws_ok(
   format('SELECT public.set_financial_month_lock(%L,%L,true,%L)', (SELECT organization_id FROM financial_month_lock_test_state), '2026-10-01', 'Denied'),
-  '42501', 'Not authorized', 'Operations Manager cannot lock a month'
+  '42501', 'Not authorized', 'unassigned operations user cannot lock a month'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT operations_member_id::text FROM financial_month_lock_test_state), true);
 SELECT throws_ok(
   format('SELECT public.set_financial_month_lock(%L,%L,true,%L)', (SELECT organization_id FROM financial_month_lock_test_state), '2026-10-01', 'Denied'),
-  '42501', 'Not authorized', 'Operations Member cannot lock a month'
+  '42501', 'Not authorized', 'unassigned operations user cannot lock a month'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT unaffiliated_user_id::text FROM financial_month_lock_test_state), true);

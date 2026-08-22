@@ -53,6 +53,60 @@ type WithReturns<Name extends keyof GeneratedFunctions, Returns> = Omit<
   Returns: Returns;
 };
 
+type CreateUnitRpc =
+  | {
+      Args: {
+        p_bathroom_count: number | null;
+        p_bedroom_count: number | null;
+        p_floor: string | null;
+        p_organization_id: string;
+        p_property_id: string;
+        p_size_sqm: number | null;
+        p_status: string;
+        p_unit_number: string;
+      };
+      Returns: GeneratedFunctions["create_unit"]["Returns"];
+    }
+  | {
+      Args: {
+        p_floor: string | null;
+        p_organization_id: string;
+        p_property_id: string;
+        p_size_sqm: number | null;
+        p_status: string;
+        p_unit_number: string;
+      };
+      Returns: GeneratedFunctions["create_unit"]["Returns"];
+    };
+
+type UpdateUnitRpc =
+  | {
+      Args: {
+        p_bathroom_count: number | null;
+        p_bedroom_count: number | null;
+        p_floor: string | null;
+        p_organization_id: string;
+        p_property_id: string;
+        p_size_sqm: number | null;
+        p_status: string;
+        p_unit_id: string;
+        p_unit_number: string;
+      };
+      Returns: GeneratedFunctions["update_unit"]["Returns"];
+    }
+  | {
+      Args: {
+        p_floor: string | null;
+        p_organization_id: string;
+        p_property_id: string;
+        p_size_sqm: number | null;
+        p_status: string;
+        p_unit_id: string;
+        p_unit_number: string;
+      };
+      Returns: GeneratedFunctions["update_unit"]["Returns"];
+    };
+
 type RpcFunctionOverrides = {
   close_owner_month: WithArgs<
     "close_owner_month",
@@ -617,17 +671,7 @@ type RpcFunctionOverrides = {
       p_unit_id: string | null;
     }
   >;
-  create_unit: WithArgs<
-    "create_unit",
-    {
-      p_floor: string | null;
-      p_organization_id: string;
-      p_property_id: string;
-      p_size_sqm: number | null;
-      p_status: string;
-      p_unit_number: string;
-    }
-  >;
+  create_unit: CreateUnitRpc;
   review_maintenance_task_completion: WithArgs<
     "review_maintenance_task_completion",
     {
@@ -752,18 +796,7 @@ type RpcFunctionOverrides = {
       p_unit_id: string | null;
     }
   >;
-  update_unit: WithArgs<
-    "update_unit",
-    {
-      p_floor: string | null;
-      p_organization_id: string;
-      p_property_id: string;
-      p_size_sqm: number | null;
-      p_status: string;
-      p_unit_id: string;
-      p_unit_number: string;
-    }
-  >;
+  update_unit: UpdateUnitRpc;
 };
 
 type PublicFunctions = Omit<GeneratedFunctions, keyof RpcFunctionOverrides> &

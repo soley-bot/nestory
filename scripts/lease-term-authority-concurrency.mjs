@@ -252,12 +252,10 @@ WHERE id = '${ids.archiveRaceProperty}'::uuid;`);
 BEGIN;
 SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
 SET LOCAL ROLE authenticated;
-UPDATE public.properties
-SET archived_at = statement_timestamp(),
-    archived_by = '${ids.admin}'::uuid,
-    updated_by = '${ids.admin}'::uuid
-WHERE organization_id = '${ids.organization}'::uuid
-  AND id = '${ids.archiveRaceProperty}'::uuid;
+SELECT public.archive_unit(
+  '${ids.archiveRaceUnit}'::uuid,
+  '${ids.organization}'::uuid
+);
 COMMIT;
 `);
 
@@ -271,19 +269,19 @@ COMMIT;
 
   if (
     archiverResult.code === 0 ||
-    !archiverResult.output.includes("Property has an open Lease")
+    !archiverResult.output.includes("Unit has an open Lease")
   ) {
     throw new Error(
-      `Concurrent Property archive did not fail after Lease creation committed.\n${archiverResult.output}`,
+      `Concurrent Unit archive did not fail after Lease creation committed.\n${archiverResult.output}`,
     );
   }
 
   const archivedAt = queryScalar(`
 SELECT archived_at IS NULL
-FROM public.properties
-WHERE id = '${ids.archiveRaceProperty}'::uuid;`);
+FROM public.units
+WHERE id = '${ids.archiveRaceUnit}'::uuid;`);
   if (archivedAt !== "t") {
-    throw new Error("Rejected concurrent archive changed the Property record.");
+    throw new Error("Rejected concurrent archive changed the Unit record.");
   }
 
   cleanup();
@@ -294,17 +292,15 @@ WHERE id = '${ids.archiveRaceProperty}'::uuid;`);
 BEGIN;
 SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
 SET LOCAL ROLE authenticated;
-UPDATE public.properties
-SET archived_at = statement_timestamp(),
-    archived_by = '${ids.admin}'::uuid,
-    updated_by = '${ids.admin}'::uuid
-WHERE organization_id = '${ids.organization}'::uuid
-  AND id = '${ids.archiveRaceProperty}'::uuid;
-\\echo PROPERTY_ARCHIVED
+SELECT public.archive_unit(
+  '${ids.archiveRaceUnit}'::uuid,
+  '${ids.organization}'::uuid
+);
+\\echo UNIT_ARCHIVED
 `,
     true,
   );
-  await firstArchiver.waitFor("PROPERTY_ARCHIVED");
+  await firstArchiver.waitFor("UNIT_ARCHIVED");
 
   const blockedCreator = startPsql(
     unitLeaseCreationSql("archive-race-archiver-wins", false),
@@ -315,14 +311,14 @@ WHERE organization_id = '${ids.organization}'::uuid
     firstArchiver.result,
     blockedCreator.result,
   ]);
-  assertSucceeded("concurrent Property archive", firstArchiverResult);
+  assertSucceeded("concurrent Unit archive", firstArchiverResult);
 
   if (
     blockedCreatorResult.code === 0 ||
     !blockedCreatorResult.output.includes("Unit not found under selected property")
   ) {
     throw new Error(
-      `Concurrent Lease creation did not fail after Property archive committed.\n${blockedCreatorResult.output}`,
+      `Concurrent Lease creation did not fail after Unit archive committed.\n${blockedCreatorResult.output}`,
     );
   }
 
@@ -424,6 +420,9 @@ VALUES (
   'Lease term concurrency',
   'lease-term-concurrency'
 );
+INSERT INTO public.organization_authorization_states(organization_id)
+VALUES ('${ids.organization}'::uuid)
+ON CONFLICT (organization_id) DO NOTHING;
 INSERT INTO public.organization_members(organization_id, user_id, role)
 VALUES ('${ids.organization}'::uuid, '${ids.admin}'::uuid, 'super_admin');
 INSERT INTO public.properties(

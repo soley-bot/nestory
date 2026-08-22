@@ -39,6 +39,7 @@ export function TimelineInspector({
   }
 
   const isLedgerLinked = Boolean(event.ledgerEntryId);
+  const isSourceLinked = event.sources.length > 0;
   const isArchived = Boolean(event.archivedAt);
   const isDisabled = event.isLocked || archiveDisabled;
 
@@ -189,7 +190,7 @@ export function TimelineInspector({
               Ledger
             </Link>
           ) : null}
-          {isArchived ? (
+          {isArchived && onRestore ? (
             <Button
               aria-label="Restore timeline record"
               className={isLedgerLinked ? "sm:col-span-2" : "sm:col-span-3"}
@@ -206,9 +207,9 @@ export function TimelineInspector({
               <RotateCcw size={15} />
               Restore
             </Button>
-          ) : (
+          ) : !isArchived ? (
             <>
-              <Button
+              {onAttachDocument ? <Button
                 aria-label="Attach document"
                 className="px-2"
                 onClick={() => onAttachDocument?.(event)}
@@ -218,10 +219,10 @@ export function TimelineInspector({
               >
                 <Upload size={15} />
                 Attach
-              </Button>
-              {!isLedgerLinked ? (
+              </Button> : null}
+              {!isLedgerLinked && !isSourceLinked ? (
                 <>
-                  <Button
+                  {onEdit ? <Button
                     aria-label="Edit timeline record"
                     className="px-2"
                     disabled={isDisabled}
@@ -236,8 +237,8 @@ export function TimelineInspector({
                   >
                     <Pencil size={15} />
                     Edit
-                  </Button>
-                  <Button
+                  </Button> : null}
+                  {onArchive ? <Button
                     aria-label="Archive timeline record"
                     className="border-danger/40 px-2 text-danger hover:bg-muted"
                     disabled={isDisabled}
@@ -252,11 +253,11 @@ export function TimelineInspector({
                   >
                     <Archive size={15} />
                     Archive
-                  </Button>
+                  </Button> : null}
                 </>
               ) : null}
             </>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

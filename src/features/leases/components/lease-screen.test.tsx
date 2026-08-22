@@ -466,14 +466,14 @@ describe("LeaseScreen redesign contract", () => {
     ).toBe("/leases");
     filtered.unmount();
 
-    renderLeases({ canConfigure: false, leases: [] });
+    renderLeases({ canPrepare: false, leases: [] });
     expect(screen.getByText("No leases yet")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Add lease" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Generate rent" })).toBeNull();
   });
 
   it("keeps Finance lease inspection read-only", () => {
-    renderLeases({ canConfigure: false });
+    renderLeases({ canPrepare: false });
 
     fireEvent.click(screen.getAllByRole("row")[1]!);
     const quickView = screen.getByRole("dialog", {
@@ -511,7 +511,7 @@ describe("LeaseScreen redesign contract", () => {
 
   it("does not open action=create when creation is unauthorized", () => {
     navigation.searchParams = new URLSearchParams("action=create");
-    renderLeases({ canConfigure: false, leases: [] });
+    renderLeases({ canPrepare: false, leases: [] });
 
     expect(screen.queryByRole("dialog", { name: "Add lease" })).toBeNull();
   });
@@ -542,14 +542,14 @@ describe("LeaseScreen redesign contract", () => {
 });
 
 function renderLeases({
-  canConfigure = true,
+  canPrepare = true,
   leases: nextLeases = leases,
   pagination,
   propertyOptions,
   unitOptions,
   viewQuery = defaultViewQuery,
 }: {
-  canConfigure?: boolean;
+  canPrepare?: boolean;
   leases?: typeof leases;
   pagination?: {
     from: number;
@@ -565,7 +565,7 @@ function renderLeases({
 } = {}) {
   return render(
     <LeaseScreen
-      canConfigure={canConfigure}
+      canPrepare={canPrepare}
       leases={nextLeases}
       pagination={
         pagination ?? {

@@ -1,4 +1,4 @@
-import type { WorkspaceRole } from "@/lib/auth/context";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 export type MaintenanceCapabilities = {
   canArchiveCase: boolean;
@@ -13,64 +13,43 @@ export type MaintenanceCapabilities = {
   canUploadMaintenanceEvidence: boolean;
 };
 
-const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, MaintenanceCapabilities> = {
-  super_admin: {
-    canArchiveCase: true,
-    canAssignCase: true,
-    canCreateCase: true,
-    canEditCaseStructure: true,
-    canExecuteAssignedCase: false,
-    canManageCaseState: true,
-    canSubmitMaintenanceCost: true,
-    canRecordActualCost: true,
-    canReviewCompletion: true,
-    canUploadMaintenanceEvidence: true,
-  },
-  operations_manager: {
-    canArchiveCase: false,
-    canAssignCase: true,
-    canCreateCase: true,
-    canEditCaseStructure: true,
-    canExecuteAssignedCase: false,
-    canManageCaseState: true,
-    canSubmitMaintenanceCost: true,
-    canRecordActualCost: true,
-    canReviewCompletion: true,
-    canUploadMaintenanceEvidence: false,
-  },
-  operations_member: {
-    canArchiveCase: false,
-    canAssignCase: false,
-    canCreateCase: false,
-    canEditCaseStructure: false,
-    canExecuteAssignedCase: true,
-    canManageCaseState: false,
-    canSubmitMaintenanceCost: false,
-    canRecordActualCost: false,
-    canReviewCompletion: false,
-    canUploadMaintenanceEvidence: false,
-  },
-  finance_manager: noMaintenanceCapabilities(),
-  finance_member: noMaintenanceCapabilities(),
+type MaintenanceAuthority = {
+  isSuperAdmin: boolean;
+  permissionKeys: ReadonlySet<PermissionKey>;
 };
 
-function noMaintenanceCapabilities(): MaintenanceCapabilities {
+export function getMaintenanceCapabilities({
+  isSuperAdmin,
+  permissionKeys,
+}: MaintenanceAuthority): MaintenanceCapabilities {
+  if (isSuperAdmin) {
+    return {
+      canArchiveCase: true,
+      canAssignCase: true,
+      canCreateCase: true,
+      canEditCaseStructure: true,
+      canExecuteAssignedCase: false,
+      canManageCaseState: true,
+      canSubmitMaintenanceCost: true,
+      canRecordActualCost: true,
+      canReviewCompletion: true,
+      canUploadMaintenanceEvidence: true,
+    };
+  }
+
+  const canCreateAssign = permissionKeys.has("maintenance.create_assign");
+  const canReview = permissionKeys.has("maintenance.review");
+
   return {
     canArchiveCase: false,
-    canAssignCase: false,
-    canCreateCase: false,
-    canEditCaseStructure: false,
-    canExecuteAssignedCase: false,
-    canManageCaseState: false,
-    canSubmitMaintenanceCost: false,
-    canRecordActualCost: false,
-    canReviewCompletion: false,
+    canAssignCase: canCreateAssign,
+    canCreateCase: canCreateAssign,
+    canEditCaseStructure: canCreateAssign,
+    canExecuteAssignedCase: permissionKeys.has("maintenance.complete"),
+    canManageCaseState: canCreateAssign,
+    canSubmitMaintenanceCost: canReview,
+    canRecordActualCost: canCreateAssign,
+    canReviewCompletion: canReview,
     canUploadMaintenanceEvidence: false,
   };
-}
-
-export function getMaintenanceCapabilities(
-  role: WorkspaceRole,
-): MaintenanceCapabilities {
-  return CAPABILITIES_BY_ROLE[role];
 }

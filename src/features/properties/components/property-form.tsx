@@ -32,6 +32,7 @@ import {
 } from "@/features/properties/actions";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
+  PropertyBranchOption,
   PropertyFormValues,
   PropertyOwnerOption,
   PropertyStatusValue,
@@ -64,6 +65,7 @@ type PropertyFormProps = {
   closeOnCreateSuccess?: boolean;
   /** Basic registration stays identity-only; guided setup opts in. */
   collectOwnership?: boolean;
+  creationBranchOptions?: PropertyBranchOption[];
   initialValues?: Partial<Pick<PropertyFormValues, "ownerPersonId">>;
   mode?: "create" | "edit";
   onClose: () => void;
@@ -76,6 +78,7 @@ type PropertyFormProps = {
 export function PropertyForm({
   closeOnCreateSuccess = false,
   collectOwnership = false,
+  creationBranchOptions,
   initialValues,
   mode = "create",
   onClose,
@@ -244,6 +247,27 @@ export function PropertyForm({
 
       {!isOwnerScope ? (
       <FormSection step="01" title="Property details">
+        {!isEditMode && creationBranchOptions !== undefined ? (
+          <RecordField
+            error={state.fieldErrors?.branchId?.[0]}
+            label="Branch"
+            name="branchId"
+            required
+          >
+            <SelectControl
+              ariaLabel="Branch"
+              name="branchId"
+              options={[
+                { label: "Select branch", value: "" },
+                ...creationBranchOptions.map((branch) => ({
+                  label: branch.label,
+                  value: branch.id,
+                })),
+              ]}
+              required
+            />
+          </RecordField>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_132px]">
           <RecordField
             error={state.fieldErrors?.name?.[0]}

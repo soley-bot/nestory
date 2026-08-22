@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useSettingsNavigationGuard } from "@/components/layout/settings-navigation-guard";
 import { getSettingsDestinations } from "@/features/organization/settings-navigation";
-import type { WorkspaceRole } from "@/lib/auth/capabilities";
+import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/capabilities";
 import { cn } from "@/lib/utils";
 
 const iconByHref = {
@@ -24,7 +24,7 @@ export function SettingsSectionNav({
   role,
 }: {
   activeHref: string;
-  role: WorkspaceRole;
+  role: WorkspaceRole | WorkspaceRoleKind;
 }) {
   const navigationGuard = useSettingsNavigationGuard();
   const destinations = getSettingsDestinations(role).filter(

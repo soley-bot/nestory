@@ -13,6 +13,7 @@ import {
 const branches = [
   {
     address: "12 River Road",
+    archivedAt: null,
     code: "BKK",
     id: "11111111-1111-4111-8111-111111111111",
     name: "Bangkok",
@@ -22,6 +23,7 @@ const branches = [
 
 const staff = [
   {
+    archivedAt: null,
     id: "22222222-2222-4222-8222-222222222222",
     label: "Mina Chen",
   },
@@ -87,7 +89,7 @@ export function cleanupSettingsWorkspaceTest() {
 export function renderSettingsPage(section: SettingsSection) {
   return render(
     <SettingsNavigationGuardProvider>
-      <SettingsTabs activeHref={`/settings/${section}`} />
+      <SettingsTabs activeHref={`/settings/${section}`} role="super_admin" />
       <SettingsSectionNav
         activeHref={`/settings/${section}`}
         role="super_admin"

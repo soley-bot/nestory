@@ -25,6 +25,24 @@ afterEach(() => {
 });
 
 describe("PropertyDetailScreen task-first detail contract", () => {
+  it("keeps a view-only property record free of write and archive controls", () => {
+    renderPropertyDetail({
+      canArchive: false,
+      canCreateLease: false,
+      canWrite: false,
+      propertyOverride: propertyWithMaintenance,
+    });
+
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Add unit/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Create lease/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+    expect(screen.queryByRole("button", { name: "Add property photo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add property document" })).toBeNull();
+  });
+
   it("uses a concise rental-structure control before exposing Lease or Unit setup", () => {
     const undecidedProperty = buildPropertyDetail({
       ledgerEntries: [],
@@ -514,14 +532,23 @@ describe("PropertyDetailScreen task-first detail contract", () => {
 });
 
 function renderPropertyDetail({
+  canArchive,
+  canCreateLease,
+  canWrite,
   initialSection,
   propertyOverride = property,
 }: {
+  canArchive?: boolean;
+  canCreateLease?: boolean;
+  canWrite?: boolean;
   initialSection?: "overview" | "units" | "maintenance" | "files";
   propertyOverride?: PropertyDetail;
 } = {}) {
   return render(
     <PropertyDetailScreen
+      canArchive={canArchive}
+      canCreateLease={canCreateLease}
+      canWrite={canWrite}
       initialSection={initialSection}
       ownerOptions={[]}
       property={propertyOverride}

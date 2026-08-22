@@ -25,8 +25,8 @@ import {
   type WorkspaceSearchResult,
   type WorkspaceSearchResultKind,
 } from "@/features/workspace-search/workspace-search.types";
-import type { WorkspaceRole } from "@/lib/auth/context";
 import { cn } from "@/lib/utils";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 const SEARCH_DEBOUNCE_MS = 500;
 const SEARCH_QUERY_MAX_LENGTH = 120;
@@ -89,7 +89,13 @@ const RESULT_KIND_PRESENTATION: Record<
   unit: { icon: LayoutGrid, label: "Unit" },
 };
 
-export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
+export function WorkspaceCommandPalette({
+  isSuperAdmin = false,
+  permissionKeys = [],
+}: {
+  isSuperAdmin?: boolean;
+  permissionKeys?: readonly PermissionKey[];
+}) {
   const router = useRouter();
   const componentId = useId();
   const dialogTitleId = `${componentId}-title`;
@@ -120,12 +126,19 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
     Array.from(normalizedQuery).length >= WORKSPACE_SEARCH_MIN_QUERY_LENGTH;
   const isShortRecordQuery =
     normalizedQuery.length > 0 && !isPageMode && !isRecordQuery;
+  const resolvedPermissionKeys = useMemo(
+    () => new Set(permissionKeys),
+    [permissionKeys],
+  );
 
   const localActions = useMemo(() => {
-    const actions = getWorkspaceSearchActions(role);
+    const actions = getWorkspaceSearchActions({
+      isSuperAdmin,
+      permissionKeys: resolvedPermissionKeys,
+    });
 
     if (!normalizedQuery) {
-      return getQuickAccessActions(actions, role);
+      return getQuickAccessActions(actions);
     }
 
     if (!isPageMode && !isRecordQuery) {
@@ -136,16 +149,19 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
       0,
       isPageMode ? MAX_VISIBLE_RESULTS : MAX_PAGE_RESULTS,
     );
-  }, [isPageMode, isRecordQuery, normalizedQuery, pageQuery, role]);
+  }, [isPageMode, isRecordQuery, isSuperAdmin, normalizedQuery, pageQuery, resolvedPermissionKeys]);
 
   const entityResults = useMemo(
     () =>
       entityState.query === normalizedQuery
         ? entityState.results.filter((result) =>
-            isPermittedEntityResult(role, result),
+            isPermittedEntityResult(result, {
+              isSuperAdmin,
+              permissionKeys: resolvedPermissionKeys,
+            }),
           )
         : [],
-    [entityState, normalizedQuery, role],
+    [entityState, isSuperAdmin, normalizedQuery, resolvedPermissionKeys],
   );
   const availableResults = useMemo(
     () => (isPageMode ? localActions : [...entityResults, ...localActions]),
@@ -292,7 +308,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
         }
 
         const payload: unknown = await response.json();
-        const results = parseEntityResults(payload, role);
+        const results = parseEntityResults(payload);
 
         if (controller.signal.aborted || sequence !== requestSequenceRef.current) {
           return;
@@ -314,7 +330,7 @@ export function WorkspaceCommandPalette({ role }: { role: WorkspaceRole }) {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [isOpen, isRecordQuery, normalizedQuery, role]);
+  }, [isOpen, isRecordQuery, normalizedQuery]);
 
   useEffect(() => {
     if (!isOpen || !activeOptionId) {
@@ -639,19 +655,13 @@ function groupResults(results: readonly WorkspaceSearchResult[]): ResultGroup[] 
 
 function getQuickAccessActions(
   actions: readonly WorkspaceSearchAction[],
-  role: WorkspaceRole,
 ) {
-  const preferredIds =
-    role === "super_admin"
-      ? [
-          "action:properties",
-          "action:people",
-          "action:rent-income",
-          "action:maintenance",
-        ]
-      : role === "operations_manager"
-        ? ["action:maintenance", "action:tasks"]
-        : ["action:tasks"];
+  const preferredIds = [
+    "action:properties",
+    "action:people",
+    "action:rent-income",
+    "action:maintenance",
+  ];
   const preferred = preferredIds.flatMap((id) => {
     const action = actions.find((candidate) => candidate.id === id);
     return action ? [action] : [];
@@ -717,7 +727,6 @@ function limitResultGroups(groups: readonly ResultGroup[], limit: number) {
 
 function parseEntityResults(
   payload: unknown,
-  role: WorkspaceRole,
 ): WorkspaceSearchResult[] {
   if (!isObject(payload) || !Array.isArray(payload.results)) {
     throw new Error("Invalid search response");
@@ -731,7 +740,7 @@ function parseEntityResults(
     if (
       !isWorkspaceSearchResult(candidate) ||
       candidate.kind === "action" ||
-      !isPermittedEntityResult(role, candidate)
+      !isSupportedEntityResultRoute(candidate)
     ) {
       continue;
     }
@@ -804,20 +813,37 @@ function normalizeSearchText(value: string) {
 }
 
 function isPermittedEntityResult(
-  role: WorkspaceRole,
   result: WorkspaceSearchResult,
+  authority: {
+    isSuperAdmin: boolean;
+    permissionKeys: ReadonlySet<PermissionKey>;
+  },
 ) {
+  if (!isSupportedEntityResultRoute(result)) return false;
+  if (authority.isSuperAdmin) return true;
+
+  switch (result.kind) {
+    case "property":
+    case "unit":
+      return authority.permissionKeys.has("properties.view");
+    case "person":
+      return authority.permissionKeys.has("people.view");
+    case "lease":
+      return authority.permissionKeys.has("leases.view");
+    case "maintenance":
+    case "task":
+      return authority.permissionKeys.has("maintenance.view");
+    case "document":
+    case "action":
+    default:
+      return false;
+  }
+}
+
+function isSupportedEntityResultRoute(result: WorkspaceSearchResult) {
   const pathname = getSafePathname(result.href);
   if (!pathname) {
     return false;
-  }
-
-  if (role === "operations_member") {
-    return result.kind === "task" && pathname === "/tasks";
-  }
-
-  if (role === "operations_manager") {
-    return result.kind === "maintenance" && pathname === "/maintenance";
   }
 
   switch (result.kind) {
@@ -833,8 +859,9 @@ function isPermittedEntityResult(
       return pathname === "/maintenance";
     case "document":
       return pathname === "/documents";
-    case "action":
     case "task":
+      return pathname === "/tasks";
+    case "action":
       return false;
     default:
       return false;

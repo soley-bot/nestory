@@ -61,7 +61,9 @@ describe("Finance read routes", () => {
           canReadFinanceReports: role === "finance_manager",
           canUnlockFinancialMonth: false,
         },
+        isSuperAdmin: false,
         organizationId: "organization-1",
+        permissionKeys: new Set(),
         role,
       });
 
@@ -80,9 +82,10 @@ describe("Finance read routes", () => {
               canUnlockFinancialMonth: false,
             }
           : {
-              canManageFinance: false,
-              canManagePettyCash: false,
+              canApproveExpenses: false,
+              canCorrectFinance: false,
               canReadFinanceReports: false,
+              canSubmitExpenses: false,
             },
       ));
     },
@@ -97,7 +100,13 @@ describe("Finance read routes", () => {
         canReadFinanceReports: true,
         canUnlockFinancialMonth: true,
       },
+      isSuperAdmin: true,
       organizationId: "organization-1",
+      permissionKeys: new Set([
+        "finance.approve_expenses",
+        "finance.correct_records",
+        "finance.submit_expenses",
+      ]),
       role: "super_admin",
     });
 
@@ -118,9 +127,11 @@ describe("Finance read routes", () => {
     );
     expect(pettyCashScreenSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        canManageFinance: true,
-        canManagePettyCash: true,
+        canAdministerAccounts: true,
+        canApproveExpenses: true,
+        canCorrectFinance: true,
         canReadFinanceReports: true,
+        canSubmitExpenses: true,
       }),
     );
   });

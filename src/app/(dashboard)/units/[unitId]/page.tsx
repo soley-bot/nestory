@@ -6,7 +6,7 @@ import { getPropertySummaries } from "@/features/properties/data/properties";
 import { getUnitDetail } from "@/features/units/data/units";
 import { parseUnitDetailQuery } from "@/features/units/unit-detail-route";
 import type { UnitPropertyOption } from "@/features/units/unit.types";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import UnitNotFound from "./not-found";
@@ -19,7 +19,7 @@ type UnitPageProps = {
 export default async function UnitPage({ params, searchParams }: UnitPageProps) {
   const [{ unitId }, rawSearchParams] = await Promise.all([params, searchParams]);
   const { section, sourceTaskId } = parseUnitDetailQuery(rawSearchParams);
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.view");
   const [unit, properties, tenantOptions] = await Promise.all([
     getUnitDetail(context.organizationId, unitId),
     getPropertySummaries(context.organizationId),
@@ -35,8 +35,9 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
 
   const maintenanceActor = {
     branchId: context.branchId,
+    dataScope: context.isSuperAdmin ? "organization" : "branch",
     personId: context.personId,
-    role: context.role,
+    workflowMode: "coordinator",
   } as const;
   const maintenanceData = await getMaintenanceScreenData(
     context.organizationId,
@@ -51,10 +52,12 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
   return (
     <UnitDetailScreen
       activeSection={section}
+      canArchive={context.permissionKeys.has("properties.archive")}
+      canWrite={context.permissionKeys.has("properties.write")}
       maintenanceFormOptions={{
         actor: maintenanceActor,
         branches: maintenanceData.branchOptions,
-        canRecordActualCost: getMaintenanceCapabilities(context.role)
+        canRecordActualCost: getMaintenanceCapabilities(context)
           .canRecordActualCost,
         properties: maintenanceData.propertyOptions,
         staff: maintenanceData.staffOptions,

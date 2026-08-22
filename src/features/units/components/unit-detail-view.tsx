@@ -36,6 +36,8 @@ const unitRecordSections: Array<{
 ];
 
 export function UnitDetailView({
+  canArchiveFiles = false,
+  canWriteFiles = false,
   initialSection = "overview",
   onAddDocument,
   onCreateLease,
@@ -46,8 +48,10 @@ export function UnitDetailView({
   sourceTaskId,
   unit,
 }: {
+  canArchiveFiles?: boolean;
+  canWriteFiles?: boolean;
   initialSection?: UnitRecordSection;
-  onAddDocument: () => void;
+  onAddDocument?: () => void;
   onCreateLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
@@ -75,6 +79,8 @@ export function UnitDetailView({
       <div className="flex-1">
         <UnitRecordPanel
           activeSection={activeSection}
+          canArchiveFiles={canArchiveFiles}
+          canWriteFiles={canWriteFiles}
           onAddDocument={onAddDocument}
           onCreateLease={onCreateLease}
           onNewMaintenanceCase={onNewMaintenanceCase}
@@ -90,6 +96,8 @@ export function UnitDetailView({
 
 function UnitRecordPanel({
   activeSection,
+  canArchiveFiles,
+  canWriteFiles,
   onAddDocument,
   onCreateLease,
   onNewMaintenanceCase,
@@ -99,7 +107,9 @@ function UnitRecordPanel({
   unit,
 }: {
   activeSection: UnitRecordSection;
-  onAddDocument: () => void;
+  canArchiveFiles: boolean;
+  canWriteFiles: boolean;
+  onAddDocument?: () => void;
   onCreateLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
@@ -116,6 +126,8 @@ function UnitRecordPanel({
     >
       {getUnitRecordPanelContent({
         activeSection,
+        canArchiveFiles,
+        canWriteFiles,
         onAddDocument,
         onCreateLease,
         onNewMaintenanceCase,
@@ -130,6 +142,8 @@ function UnitRecordPanel({
 
 function getUnitRecordPanelContent({
   activeSection,
+  canArchiveFiles,
+  canWriteFiles,
   onAddDocument,
   onCreateLease,
   onNewMaintenanceCase,
@@ -139,7 +153,9 @@ function getUnitRecordPanelContent({
   unit,
 }: {
   activeSection: UnitRecordSection;
-  onAddDocument: () => void;
+  canArchiveFiles: boolean;
+  canWriteFiles: boolean;
+  onAddDocument?: () => void;
   onCreateLease: () => void;
   onNewMaintenanceCase: () => void;
   onOpenLease: () => void;
@@ -166,7 +182,14 @@ function getUnitRecordPanelContent({
   }
 
   if (activeSection === "files") {
-    return <UnitFilesPanel onAddDocument={onAddDocument} unit={unit} />;
+      return (
+        <UnitFilesPanel
+          canArchive={canArchiveFiles}
+          canWrite={canWriteFiles}
+          onAddDocument={onAddDocument}
+          unit={unit}
+        />
+      );
   }
 
   return <UnitOverviewPanel onCreateLease={onCreateLease} unit={unit} />;
@@ -510,15 +533,21 @@ function UnitMaintenancePanel({
 }
 
 function UnitFilesPanel({
+  canArchive,
+  canWrite,
   onAddDocument,
   unit,
 }: {
-  onAddDocument: () => void;
+  canArchive: boolean;
+  canWrite: boolean;
+  onAddDocument?: () => void;
   unit: UnitDetail;
 }) {
   return (
     <>
       <PhotoGallery
+        canArchive={canArchive}
+        canWrite={canWrite}
         emptyLabel="No unit photos yet."
         photos={unit.photos}
         propertyId={unit.propertyId}
@@ -528,12 +557,12 @@ function UnitFilesPanel({
       />
       <section id="unit-documents">
         <SectionTitle
-          actions={
+          actions={onAddDocument ? (
             <Button onClick={onAddDocument} size="sm" variant="outline">
               <FileText size={14} />
               Add unit document
             </Button>
-          }
+          ) : undefined}
           title="Unit documents"
         />
         <div className="divide-y divide-border">

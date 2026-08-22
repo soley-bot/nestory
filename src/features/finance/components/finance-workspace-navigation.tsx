@@ -2,64 +2,80 @@
 
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 
-const financeDestinations = [
-  {
+const financeDestinations = {
+  advanced: {
+    href: "/finance/advanced",
+    label: "Advanced",
+    route: "/finance/advanced",
+  },
+  balances: {
+    href: "/balances",
+    label: "Owner accounts",
+    route: "/balances",
+  },
+  expenses: {
+    href: "/bills-expenses",
+    label: "Expenses",
+    route: "/bills-expenses",
+  },
+  finance: {
     href: "/finance",
     label: "Portfolio review",
     route: "/finance",
   },
-  {
+  rent: {
     href: "/rent-income",
     label: "Rent & collections",
     route: "/rent-income",
   },
-  { href: "/bills-expenses", label: "Expenses", route: "/bills-expenses" },
-  { href: "/balances", label: "Owner accounts", route: "/balances" },
-  { href: "/finance/advanced", label: "Advanced", route: "/finance/advanced" },
-] as const;
-
-const financeManagerDestinations = [
-  { href: "/finance", label: "Review queue", route: "/finance" },
-  ...financeDestinations.slice(1),
-] as const;
-
-const financeMemberDestinations = [
-  { href: "/finance", label: "My submissions", route: "/finance" },
-  { href: "/bills-expenses", label: "Expenses", route: "/bills-expenses" },
-] as const;
+} as const;
 
 export type FinanceWorkspaceRoute =
-  | (typeof financeDestinations)[number]["route"]
+  | (typeof financeDestinations)[keyof typeof financeDestinations]["route"]
   | "/ledger"
   | "/petty-cash"
   | "/reports";
 
 export function FinanceWorkspaceNavigation({
   activeRoute,
+  canClosePeriods = false,
+  canCorrectFinance = false,
   canReadFinanceReports = false,
-  role = "super_admin",
+  canRecordPayments = false,
+  canReviewExpense = false,
+  canSubmitExpense = false,
 }: {
   activeRoute: FinanceWorkspaceRoute;
+  canClosePeriods?: boolean;
+  canCorrectFinance?: boolean;
   canReadFinanceReports?: boolean;
-  role?: "super_admin" | "finance_manager" | "finance_member";
+  canRecordPayments?: boolean;
+  canReviewExpense?: boolean;
+  canSubmitExpense?: boolean;
 }) {
-  const roleDestinations =
-    role === "finance_member"
-      ? financeMemberDestinations
-      : role === "finance_manager"
-        ? financeManagerDestinations
-        : financeDestinations;
-  const destinations = canReadFinanceReports
+  const destinations: Array<
+    (typeof financeDestinations)[keyof typeof financeDestinations]
+  > = [financeDestinations.finance];
+  if (canRecordPayments) destinations.push(financeDestinations.rent);
+  if (canSubmitExpense || canReviewExpense || canCorrectFinance) {
+    destinations.push(financeDestinations.expenses);
+  }
+  destinations.push(financeDestinations.balances);
+  if (canCorrectFinance || canClosePeriods) {
+    destinations.push(financeDestinations.advanced);
+  }
+
+  const visibleDestinations = canReadFinanceReports
     ? [
-        ...roleDestinations,
+        ...destinations,
         { href: "/reports", label: "Reports", route: "/reports" } as const,
       ]
-    : roleDestinations;
+    : destinations;
 
   return (
     <LocalWorkspaceNav
       className="py-1 md:hidden"
-      items={destinations.map((destination) => ({
+      items={visibleDestinations.map((destination) => ({
         active: activeRoute === destination.route,
         href: destination.href,
         label: destination.label,

@@ -1,3 +1,5 @@
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
+
 export const WORKSPACE_ROLES = [
   "super_admin",
   "finance_manager",
@@ -5,6 +7,10 @@ export const WORKSPACE_ROLES = [
   "operations_manager",
   "operations_member",
 ] as const;
+
+export const CURRENT_WORKSPACE_ROLE_KINDS = ["super_admin", "custom"] as const;
+
+export type WorkspaceRoleKind = (typeof CURRENT_WORKSPACE_ROLE_KINDS)[number];
 
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
@@ -35,6 +41,11 @@ export type WorkspaceCapabilities = {
   canSubmitExpense: boolean;
   canSubmitOwnerOpeningBalance: boolean;
   canUnlockFinancialMonth: boolean;
+};
+
+type PermissionAuthority = {
+  isSuperAdmin: boolean;
+  permissionKeys: ReadonlySet<PermissionKey>;
 };
 
 const CAPABILITIES_BY_ROLE: Record<WorkspaceRole, WorkspaceCapabilities> = {
@@ -186,9 +197,65 @@ export function getWorkspaceCapabilities(
   return CAPABILITIES_BY_ROLE[role];
 }
 
+/**
+ * Compatibility projection for existing screens that have not yet moved to
+ * operation-level permission checks. The current workspace context always
+ * uses this database-backed projection; legacy fixed-role maps are retained
+ * only for the contained pre-transition fixtures and tests.
+ */
+export function getWorkspaceCapabilitiesFromPermissions(
+  authority: PermissionAuthority,
+): WorkspaceCapabilities {
+  if (authority.isSuperAdmin) {
+    return CAPABILITIES_BY_ROLE.super_admin;
+  }
+
+  const has = (permission: PermissionKey) =>
+    authority.permissionKeys.has(permission);
+
+  return {
+    canConfigureLeases:
+      has("leases.prepare") && has("leases.change_terms"),
+    canCorrectFinance: has("finance.correct_records"),
+    canExecuteOperations: has("maintenance.complete"),
+    canLockFinancialMonth: has("finance.close_periods"),
+    canManageAccess: false,
+    canManageFinanceOperations: false,
+    canManageOperations:
+      has("maintenance.create_assign") || has("maintenance.review"),
+    canManagePettyCash: has("finance.approve_expenses"),
+    canManageReconciliationSources: false,
+    canOperateFinance: has("finance.record_payments"),
+    canCloseOwnerMonth: has("finance.close_periods"),
+    canInspectOwnerCloseReadiness: has("finance.view"),
+    canPublishOwnerStatement: has("finance.publish"),
+    canReadFinance: has("finance.view"),
+    canReadFinanceReports: has("finance.publish"),
+    canRecoverHistoricalRent: false,
+    canReadOwnerBalanceAuthority: has("finance.view"),
+    canReopenOwnerMonth: false,
+    canRequestOwnerOpeningBalanceCorrection:
+      has("finance.submit_expenses") || has("finance.correct_records"),
+    canReviewExpense: has("finance.approve_expenses"),
+    canReviewOwnerOpeningBalance: has("finance.approve_expenses"),
+    canReverseExpense: false,
+    canRetryCurrentRent: has("finance.record_payments"),
+    canSubmitExpense: has("finance.submit_expenses"),
+    canSubmitOwnerOpeningBalance: has("finance.submit_expenses"),
+    canUnlockFinancialMonth: false,
+  };
+}
+
 export function isWorkspaceRole(role: unknown): role is WorkspaceRole {
   return (
     typeof role === "string" &&
     (WORKSPACE_ROLES as readonly string[]).includes(role)
+  );
+}
+
+export function isWorkspaceRoleKind(role: unknown): role is WorkspaceRoleKind {
+  return (
+    typeof role === "string" &&
+    (CURRENT_WORKSPACE_ROLE_KINDS as readonly string[]).includes(role)
   );
 }

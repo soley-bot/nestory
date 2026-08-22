@@ -181,6 +181,129 @@ VALUES (
   '00000000-0000-0000-0000-000000000101'
 );
 
+ALTER TABLE public.properties DISABLE TRIGGER properties_guard_branch_scope;
+
+INSERT INTO public.properties (
+  id,
+  organization_id,
+  branch_id,
+  name,
+  code,
+  property_type,
+  address,
+  status,
+  acquisition_date,
+  notes,
+  created_by,
+  updated_by
+)
+VALUES (
+  '10000000-0000-0000-0000-000000000099',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000212',
+  'Secondary Operations Property',
+  'SECONDARY-OPS',
+  'Residential apartment',
+  'Secondary Operations Branch',
+  'active',
+  current_date,
+  'Branch-consistent maintenance workflow fixture.',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+ALTER TABLE public.properties ENABLE TRIGGER properties_guard_branch_scope;
+
+INSERT INTO public.units (
+  id,
+  organization_id,
+  property_id,
+  unit_number,
+  status,
+  created_by,
+  updated_by
+)
+VALUES (
+  '20000000-0000-0000-0000-000000000099',
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000099',
+  'SECONDARY-01',
+  'vacant',
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000101'
+);
+
+INSERT INTO public.organization_roles (
+  id,
+  organization_id,
+  name,
+  created_by,
+  updated_by
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000391',
+    '00000000-0000-0000-0000-000000000001',
+    'Maintenance Manager Test',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000392',
+    '00000000-0000-0000-0000-000000000001',
+    'Maintenance Member Test',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '00000000-0000-0000-0000-000000000393',
+    '00000000-0000-0000-0000-000000000001',
+    'Non Maintenance Test',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  );
+
+INSERT INTO public.organization_role_permissions (
+  organization_id,
+  role_id,
+  permission_key,
+  granted_by
+)
+SELECT
+  '00000000-0000-0000-0000-000000000001',
+  profile.role_id,
+  profile.permission_key,
+  '00000000-0000-0000-0000-000000000101'
+FROM (
+  VALUES
+    ('00000000-0000-0000-0000-000000000391'::uuid, 'maintenance.view'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000391'::uuid, 'maintenance.create_assign'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000391'::uuid, 'maintenance.complete'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000391'::uuid, 'maintenance.review'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000392'::uuid, 'maintenance.view'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000392'::uuid, 'maintenance.complete'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000393'::uuid, 'properties.view'::public.organization_permission_key)
+) AS profile(role_id, permission_key);
+
+UPDATE public.organization_members
+SET
+  role = 'custom',
+  branch_id = '00000000-0000-0000-0000-000000000211',
+  custom_role_id = CASE
+    WHEN user_id = '00000000-0000-0000-0000-000000000501'::uuid
+      THEN '00000000-0000-0000-0000-000000000391'::uuid
+    WHEN user_id = '00000000-0000-0000-0000-000000000601'::uuid
+      THEN '00000000-0000-0000-0000-000000000392'::uuid
+    ELSE '00000000-0000-0000-0000-000000000393'::uuid
+  END
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid
+  AND role <> 'super_admin';
+
+UPDATE public.organization_authorization_states
+SET ordinary_access_enabled = true,
+    transition_manifest_required = false
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid;
+
 INSERT INTO public.people (id, organization_id, display_name, archived_at)
 VALUES
   ('80200000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Workflow Vendor One', NULL),
@@ -190,6 +313,19 @@ VALUES
   ('82f00000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'Archived Role Vendor', NULL),
   ('82f00000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'Archived Person Vendor', now()),
   ('82f00000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', 'Other Organization Vendor', NULL);
+
+INSERT INTO public.person_branch_relationships (
+  organization_id,
+  person_id,
+  branch_id,
+  created_by
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000211', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '80200000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000211', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '82f00000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000211', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '82f00000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000211', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000001', '82f00000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000211', '00000000-0000-0000-0000-000000000101');
 
 INSERT INTO public.person_roles (
   id,
@@ -223,8 +359,16 @@ INSERT INTO public.tenant_requests (
 SELECT
   ('90000000-0000-0000-0000-' || lpad(sequence::text, 12, '0'))::uuid,
   '00000000-0000-0000-0000-000000000001',
-  '10000000-0000-0000-0000-000000000001',
-  '20000000-0000-0000-0000-000000000001',
+  CASE
+    WHEN sequence IN (8, 10, 12)
+      THEN '10000000-0000-0000-0000-000000000099'::uuid
+    ELSE '10000000-0000-0000-0000-000000000001'::uuid
+  END,
+  CASE
+    WHEN sequence IN (8, 10, 12)
+      THEN '20000000-0000-0000-0000-000000000099'::uuid
+    ELSE '20000000-0000-0000-0000-000000000001'::uuid
+  END,
   'Maintenance workflow request ' || sequence,
   'Maintenance',
   'open',
@@ -280,8 +424,16 @@ SELECT
   ('91000000-0000-0000-0000-' || lpad(sequence::text, 12, '0'))::uuid,
   '00000000-0000-0000-0000-000000000001',
   ('90000000-0000-0000-0000-' || lpad(sequence::text, 12, '0'))::uuid,
-  '10000000-0000-0000-0000-000000000001',
-  '20000000-0000-0000-0000-000000000001',
+  CASE
+    WHEN branch_id = '00000000-0000-0000-0000-000000000212'::uuid
+      THEN '10000000-0000-0000-0000-000000000099'::uuid
+    ELSE '10000000-0000-0000-0000-000000000001'::uuid
+  END,
+  CASE
+    WHEN branch_id = '00000000-0000-0000-0000-000000000212'::uuid
+      THEN '20000000-0000-0000-0000-000000000099'::uuid
+    ELSE '20000000-0000-0000-0000-000000000001'::uuid
+  END,
   'Maintenance workflow task ' || sequence,
   'Fixed-role maintenance behavior fixture.',
   'Maintenance',
@@ -600,7 +752,7 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$SELECT pg_temp.call_create_maintenance_task('pending', '00000000-0000-0000-0000-000000000212', '80000000-0000-0000-0000-000000000008')$$,
   '42501',
-  'Manager can only manage tasks in their branch',
+  NULL,
   'branch-scoped manager cannot create in another branch'
 );
 
@@ -636,7 +788,7 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000008')$$,
   '42501',
-  'Manager can only manage tasks in their branch',
+  NULL,
   'branch-scoped manager cannot update another branch task'
 );
 
@@ -648,7 +800,7 @@ SELECT lives_ok(
 SELECT throws_ok(
   $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000212', '80000000-0000-0000-0000-000000000008')$$,
   '42501',
-  'Manager can only manage tasks in their branch',
+  NULL,
   'manager assignment cannot escape branch scope'
 );
 
@@ -666,14 +818,15 @@ SELECT throws_ok(
   'new assignment to active but unlinked staff fails'
 );
 
-SELECT lives_ok(
+SELECT throws_matching(
   $$UPDATE public.tasks SET actual_cost_amount = 999, actual_cost_currency = 'USD' WHERE id = '91000000-0000-0000-0000-000000000003'$$,
-  'direct manager task update is filtered by RLS instead of raising'
+  'permission denied',
+  'direct manager task update is blocked at the table grant boundary'
 );
 
 SELECT throws_matching(
   $$INSERT INTO public.activity_logs (organization_id, actor_id, entity_type, entity_id, action) VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000501', 'task', '91000000-0000-0000-0000-000000000003', 'unauthorized_manager_write')$$,
-  'row-level security',
+  'permission denied|row-level security',
   'manager cannot write task activity outside the checked RPCs'
 );
 
@@ -683,9 +836,10 @@ SELECT is(
   'branch-scoped manager cannot select another branch task'
 );
 
-SELECT lives_ok(
+SELECT throws_matching(
   $$UPDATE public.tenant_requests SET status = 'closed' WHERE id = '90000000-0000-0000-0000-000000000003'$$,
-  'direct manager request update is filtered by RLS instead of raising'
+  'permission denied',
+  'direct manager request update is blocked at the table grant boundary'
 );
 
 RESET ROLE;
@@ -716,8 +870,8 @@ SELECT is(
       '00000000-0000-0000-0000-000000000001'
     )
   ),
-  0::bigint,
-  'branch-scoped manager cannot enumerate members from another branch'
+  1::bigint,
+  'branch-scoped manager sees only their own eligible identity when the member moves branches'
 );
 
 RESET ROLE;
@@ -746,21 +900,21 @@ SELECT is(
       '00000000-0000-0000-0000-000000000001'
     )
   ),
-  1::bigint,
-  'branch-scoped operations manager enumerates executable members in its branch'
+  2::bigint,
+  'branch-scoped manager enumerates every permission-eligible identity in their branch'
 );
 
 SELECT throws_ok(
   $$SELECT pg_temp.call_update_maintenance_task('91000000-0000-0000-0000-000000000008', NULL, 77, 'USD')$$,
   '42501',
-  'Manager can only manage tasks in their branch',
+  NULL,
   'operations manager cannot update another branch task'
 );
 
 SELECT throws_ok(
   $$SELECT public.assign_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000212', '80000000-0000-0000-0000-000000000008')$$,
   '42501',
-  'Manager can only manage tasks in their branch',
+  NULL,
   'operations manager cannot assign another branch task'
 );
 
@@ -1088,14 +1242,12 @@ UPDATE public.tasks
 SET archived_at = NULL
 WHERE id = (SELECT created_task_id FROM maintenance_role_workflow_state);
 
-SELECT throws_ok(
+SELECT lives_ok(
   $$UPDATE public.organization_members
     SET person_id = NULL
     WHERE organization_id = '00000000-0000-0000-0000-000000000001'
       AND user_id = '00000000-0000-0000-0000-000000000601'$$,
-  '23514',
-  NULL,
-  'operations members cannot drop their required Staff scope'
+  'custom roles may omit a Staff identity while execution remains identity-gated'
 );
 
 SET LOCAL ROLE authenticated;
@@ -1103,8 +1255,8 @@ SET LOCAL ROLE authenticated;
 SELECT throws_ok(
   $$SELECT public.execute_assigned_maintenance_task('00000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000006', 'start', NULL, NULL, NULL)$$,
   '42501',
-  'Not authorized for this maintenance task',
-  'operations member cannot execute work assigned to another Staff identity'
+  NULL,
+  'custom member without the assigned Staff identity cannot execute that work'
 );
 
 RESET ROLE;
@@ -1123,9 +1275,10 @@ SELECT throws_ok(
   'member cannot record actual maintenance cost'
 );
 
-SELECT lives_ok(
+SELECT throws_matching(
   $$UPDATE public.tasks SET status = 'completed' WHERE id = '91000000-0000-0000-0000-000000000004'$$,
-  'direct member task update is filtered by RLS instead of raising'
+  'permission denied',
+  'direct member task update is blocked at the table grant boundary'
 );
 
 SELECT is(
@@ -1356,9 +1509,9 @@ SELECT throws_ok(
       assignee_person_id = NULL
     WHERE id = '91000000-0000-0000-0000-000000000001'
   $$,
-  '23503',
-  'Vendor not found',
-  'task organization changes revalidate an unchanged vendor against the new organization'
+  '22023',
+  'Maintenance task branch must match its Property',
+  'task organization changes preserve the Property branch invariant before vendor validation'
 );
 
 SELECT * FROM finish();

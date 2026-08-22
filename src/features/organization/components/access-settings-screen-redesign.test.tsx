@@ -104,6 +104,7 @@ function renderScreen(overrides: Partial<React.ComponentProps<typeof AccessSetti
       invitations={[invitation]}
       members={[admin]}
       people={[adminPerson, noAccess]}
+      role="super_admin"
       staff={[adminPerson, noAccess]}
       {...overrides}
     />,

@@ -1,6 +1,6 @@
 import type { WorkspaceRole } from "@/lib/auth/context";
 
-export type WorkspaceAccessRole = WorkspaceRole;
+export type WorkspaceAccessRole = WorkspaceRole | "custom";
 
 export function isOrganizationWideRole(role: WorkspaceAccessRole | string) {
   return (
@@ -10,7 +10,10 @@ export function isOrganizationWideRole(role: WorkspaceAccessRole | string) {
   );
 }
 
-export function formatWorkspaceAccessRole(role: WorkspaceAccessRole | string) {
+export function formatWorkspaceAccessRole(
+  role: WorkspaceAccessRole | string,
+  customRoleName?: string | null,
+) {
   if (role === "super_admin") {
     return "Super Admin";
   }
@@ -27,6 +30,10 @@ export function formatWorkspaceAccessRole(role: WorkspaceAccessRole | string) {
     return "Operations Manager";
   }
 
+  if (role === "custom") {
+    return customRoleName ?? "Custom role";
+  }
+
   return "Operations Member";
 }
 
@@ -36,6 +43,8 @@ type MembershipAccessSource = {
   id: string;
   personId: string | null;
   role: WorkspaceAccessRole;
+  customRoleId?: string | null;
+  customRoleName?: string | null;
 };
 
 type InvitationAccessSource = {
@@ -47,6 +56,8 @@ type InvitationAccessSource = {
   lastSentAt: string | null;
   personId: string | null;
   role: WorkspaceAccessRole;
+  customRoleId?: string | null;
+  customRoleName?: string | null;
   status: "expired" | "pending" | "send_failed";
 };
 
@@ -68,6 +79,8 @@ export type OrganizationPersonAccessStatus =
       lastSentAt: string | null;
       primaryAction: "review_invitation";
       role: WorkspaceAccessRole;
+      customRoleId?: string | null;
+      customRoleName?: string | null;
       scopeLabel: string;
       state: "invitation_pending";
     }
@@ -79,6 +92,8 @@ export type OrganizationPersonAccessStatus =
       lastSentAt: string | null;
       primaryAction: "retry_invitation";
       role: WorkspaceAccessRole;
+      customRoleId?: string | null;
+      customRoleName?: string | null;
       scopeLabel: string;
       state: "delivery_failed";
     }
@@ -90,6 +105,8 @@ export type OrganizationPersonAccessStatus =
       lastSentAt: string | null;
       primaryAction: "review_invitation";
       role: WorkspaceAccessRole;
+      customRoleId?: string | null;
+      customRoleName?: string | null;
       scopeLabel: string;
       state: "expired";
     }
@@ -99,6 +116,8 @@ export type OrganizationPersonAccessStatus =
       membershipId: string;
       primaryAction: "manage_access";
       role: WorkspaceAccessRole;
+      customRoleId?: string | null;
+      customRoleName?: string | null;
       scopeLabel: string;
       state: "active_workspace_access";
     };
@@ -174,6 +193,8 @@ export function buildAccessByPersonId(
       membershipId: membership.id,
       primaryAction: "manage_access",
       role: membership.role,
+      customRoleId: membership.customRoleId,
+      customRoleName: membership.customRoleName,
       scopeLabel: getScopeLabel(membership.branchId, membership.role, branches),
       state: "active_workspace_access",
     };
@@ -215,6 +236,8 @@ function toInvitationStatus(
     invitationId: invitation.id,
     lastSentAt: invitation.lastSentAt,
     role: invitation.role,
+    customRoleId: invitation.customRoleId,
+    customRoleName: invitation.customRoleName,
     scopeLabel: getScopeLabel(invitation.branchId, invitation.role, branches),
   };
 

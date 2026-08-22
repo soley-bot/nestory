@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type PhotoFieldErrors = {
@@ -23,6 +23,11 @@ export type PhotoActionState = {
 type PhotoPathContext = {
   property_id: string;
   unit_id: string | null;
+};
+
+type PropertyBranchContext = {
+  branch_id: string;
+  id: string;
 };
 
 const photoMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -69,7 +74,7 @@ export async function createAssetPhotoAction(
   _state: PhotoActionState,
   formData: FormData,
 ): Promise<PhotoActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.write");
   const parsed = photoInputSchema.safeParse({
     caption: readString(formData, "caption"),
     propertyId: readString(formData, "propertyId"),
@@ -106,7 +111,25 @@ export async function createAssetPhotoAction(
 
   const supabase = await createSupabaseServerClient();
   const unitId = parsed.data.unitId || null;
+  const property = await getPropertyBranchContext(
+    supabase,
+    context.organizationId,
+    parsed.data.propertyId,
+  );
+
+  if (
+    !property ||
+    (!context.isSuperAdmin && context.branchId !== property.branch_id)
+  ) {
+    return {
+      fieldErrors: { propertyId: ["Choose an active property."] },
+      message: "Choose an active property before uploading a photo.",
+      status: "error",
+    };
+  }
+
   const storagePath = getPhotoStoragePath({
+    branchId: property.branch_id,
     fileName: file.name,
     organizationId: context.organizationId,
     propertyId: parsed.data.propertyId,
@@ -161,7 +184,7 @@ export async function createAssetPhotoAction(
 }
 
 export async function setAssetPhotoCoverAction(formData: FormData) {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.write");
   const parsedPhotoId = photoIdSchema.safeParse(readString(formData, "photoId"));
 
   if (!parsedPhotoId.success) {
@@ -193,7 +216,7 @@ export async function setAssetPhotoCoverAction(formData: FormData) {
 }
 
 export async function archiveAssetPhotoAction(formData: FormData) {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.archive");
   const parsedPhotoId = photoIdSchema.safeParse(readString(formData, "photoId"));
 
   if (!parsedPhotoId.success) {
@@ -239,12 +262,30 @@ async function getPhotoPathContext(
   return data as PhotoPathContext | null;
 }
 
+async function getPropertyBranchContext(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  propertyId: string,
+) {
+  const { data } = await supabase
+    .from("properties")
+    .select("id, branch_id")
+    .eq("organization_id", organizationId)
+    .eq("id", propertyId)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  return data as PropertyBranchContext | null;
+}
+
 function getPhotoStoragePath({
+  branchId,
   fileName,
   organizationId,
   propertyId,
   unitId,
 }: {
+  branchId: string;
   fileName: string;
   organizationId: string;
   propertyId: string;
@@ -253,7 +294,7 @@ function getPhotoStoragePath({
   const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]+/g, "-");
   const scope = unitId ? `units/${unitId}` : `properties/${propertyId}`;
 
-  return `${organizationId}/photos/${scope}/${crypto.randomUUID()}-${safeFileName}`;
+  return `${organizationId}/branches/${branchId}/photos/${scope}/${crypto.randomUUID()}-${safeFileName}`;
 }
 
 function validatePhotoFile(file: File) {

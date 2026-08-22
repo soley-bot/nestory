@@ -318,6 +318,7 @@ RESET ROLE;
 
 INSERT INTO public.financial_month_locks (
   organization_id,
+  branch_id,
   month_start,
   is_locked,
   locked_at,
@@ -326,13 +327,17 @@ INSERT INTO public.financial_month_locks (
 )
 SELECT
   organization_id,
+  (SELECT property.branch_id
+   FROM public.tenant_invoices AS invoice
+   JOIN public.properties AS property ON property.id=invoice.property_id
+   WHERE invoice.id=owner_account_state.through_invoice_id),
   date_trunc('month', current_date)::date,
   true,
   now(),
   admin_id,
   'Completed tenant-payment replay must remain immutable'
 FROM owner_account_state
-ON CONFLICT (organization_id, month_start) DO UPDATE
+ON CONFLICT (organization_id, branch_id, month_start) WHERE branch_id IS NOT NULL DO UPDATE
 SET is_locked = EXCLUDED.is_locked,
     locked_at = EXCLUDED.locked_at,
     locked_by = EXCLUDED.locked_by,
@@ -363,7 +368,7 @@ SELECT throws_ok(
     ))::text,
     'account-through-payment-0001'
   ),
-  '22023',
+  '55000',
   'Financial month is locked',
   'a later month lock remains authoritative before tenant-payment replay'
 )
@@ -459,7 +464,7 @@ SELECT set_config(
   '00000000-0000-0000-0000-000000000701',
   true
 );
-SET LOCAL ROLE authenticated;
+RESET ROLE;
 
 SELECT results_eq(
   $$
@@ -671,6 +676,8 @@ SELECT lives_ok(
       (
         SELECT id FROM public.owner_invoice_balances
         WHERE property_id = direct_property_id AND balance_due > 0
+        ORDER BY issue_date DESC, id DESC
+        LIMIT 1
       ),
       65,
       current_date,
@@ -681,11 +688,15 @@ SELECT lives_ok(
   'Finance Manager can record an owner payment when no rent cash is held'
 );
 
+RESET ROLE;
+
 SELECT is(
   (SELECT created_by FROM public.owner_payments WHERE id = (SELECT owner_payment_id FROM owner_account_state)),
   '00000000-0000-0000-0000-000000000701'::uuid,
   'owner payment records the Finance Manager actor'
 );
+
+SET LOCAL ROLE authenticated;
 
 SELECT is(
   pg_temp.try_uuid(format(
@@ -699,6 +710,8 @@ SELECT is(
   'an exact Finance Manager owner-payment retry returns the original record'
 )
 FROM owner_account_state;
+
+RESET ROLE;
 
 SELECT results_eq(
   $$

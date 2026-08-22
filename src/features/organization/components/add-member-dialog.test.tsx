@@ -44,6 +44,17 @@ const mina = {
   roles: ["staff" as const],
 };
 
+const roles = [
+  {
+    id: "55555555-5555-4555-8555-555555555555",
+    name: "Caretaker",
+  },
+  {
+    id: "66666666-6666-4666-8666-666666666666",
+    name: "Finance desk",
+  },
+];
+
 beforeEach(() => {
   createStaff.mockReset();
   inviteMember.mockReset();
@@ -97,6 +108,7 @@ function DialogHarness({
         onReviewDuplicate={onReviewDuplicate}
         open={open}
         people={[mina]}
+        roles={roles}
         returnFocusRef={triggerRef}
       />
     </>
@@ -135,20 +147,20 @@ describe("AddMemberDialog", () => {
     expect(dialog.querySelector("[data-slot='drawer-content']")).toBeNull();
   });
 
-  it("skips the Staff step for organization-wide access", async () => {
+  it("offers only protected Super Admin and active custom roles", async () => {
     const user = userEvent.setup();
     render(<DialogHarness />);
     const dialog = await openDialog(user);
 
-    await user.type(within(dialog).getByLabelText("Invitation email"), "finance@example.com");
-    await choose(user, "Access level", "Finance Manager");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
-
-    expect(within(dialog).getByRole("heading", { level: 3, name: "Review invitation" })).toBeTruthy();
-    expect(within(dialog).queryByRole("combobox", { name: "Staff member" })).toBeNull();
+    await user.click(within(dialog).getByRole("combobox", { name: "Access level" }));
+    expect(screen.getByRole("option", { name: "Super Admin" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Caretaker" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Finance desk" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Finance Manager" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Operations Member" })).toBeNull();
   });
 
-  it("requires branch scope before an Operations invitation can continue", async () => {
+  it("requires branch scope before a custom-role invitation can continue", async () => {
     const user = userEvent.setup();
     render(<DialogHarness />);
     const dialog = await openDialog(user);
@@ -174,7 +186,7 @@ describe("AddMemberDialog", () => {
     expect(within(dialog).getByText("Not Mina Chen's Staff email.")).toBeTruthy();
   });
 
-  it("creates a Staff record before sending its Operations invitation", async () => {
+  it("creates a Staff record before sending its custom-role invitation", async () => {
     const user = userEvent.setup();
     render(<DialogHarness />);
     await openDialog(user);
@@ -204,10 +216,14 @@ describe("AddMemberDialog", () => {
       Object.fromEntries((inviteMember.mock.calls[0][1] as FormData).entries()),
     ).toMatchObject({
       branchId: branches[0]!.id,
+      customRoleId: roles[0]!.id,
       email: "ops@example.com",
       personId: "44444444-4444-4444-8444-444444444444",
-      role: "operations_member",
+      roleKind: "custom",
     });
+    expect(
+      Object.fromEntries((inviteMember.mock.calls[0][1] as FormData).entries()),
+    ).not.toHaveProperty("role");
   });
 
   it("retries only the invitation after Staff persistence succeeds", async () => {

@@ -72,8 +72,8 @@ describe("owner balance authority contexts", () => {
     });
   });
 
-  it("lets Finance Manager review, close, and publish while reserving submission and reopen", async () => {
-    const allowedContexts = [
+  it("contains legacy Finance Manager owner-balance authority", async () => {
+    const legacyContexts = [
       authContext.requireOwnerBalanceReadContext,
       authContext.requireOwnerOpeningBalanceCorrectionContext,
       authContext.requireOwnerOpeningBalanceReviewContext,
@@ -87,19 +87,12 @@ describe("owner balance authority contexts", () => {
     ];
 
     expect(
-      [...allowedContexts, ...deniedContexts].every(
+      [...legacyContexts, ...deniedContexts].every(
         (context) => typeof context === "function",
       ),
     ).toBe(true);
 
-    for (const requireContext of allowedContexts) {
-      await expect(requireContext()).resolves.toMatchObject({
-        organizationId: "org-1",
-        role: "finance_manager",
-      });
-    }
-
-    for (const requireContext of deniedContexts) {
+    for (const requireContext of [...legacyContexts, ...deniedContexts]) {
       await expect(requireContext()).rejects.toThrow("REDIRECT:/no-access");
     }
     expect(mocks.redirect).toHaveBeenCalledWith("/no-access");

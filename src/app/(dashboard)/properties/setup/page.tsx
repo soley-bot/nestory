@@ -1,11 +1,12 @@
 import { PropertySetupScreen } from "@/features/property-setup/components/property-setup-screen";
 import { getPropertySetupData } from "@/features/property-setup/data/property-setup";
+import { getActivePropertyBranchOptions } from "@/features/properties/data/property-branches";
 import {
   normalizePropertySetupStep,
   propertySetupRequiresUnit,
 } from "@/features/property-setup/property-setup";
 import type { PropertySetupSelection } from "@/features/property-setup/property-setup.types";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 import { getFirstSearchParam, getUuidSearchParam } from "@/lib/validation/search-params";
 
 type PropertySetupPageProps = {
@@ -13,7 +14,8 @@ type PropertySetupPageProps = {
 };
 
 export default async function PropertySetupPage({ searchParams }: PropertySetupPageProps) {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.view");
+  await requirePermission("leases.activate");
   const params = await searchParams;
   const requestedSelection: PropertySetupSelection = {
     leaseId: getUuidSearchParam(params.leaseId) ?? null,
@@ -22,10 +24,15 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
     tenantId: getUuidSearchParam(params.tenantId) ?? null,
     unitId: getUuidSearchParam(params.unitId) ?? null,
   };
-  const data = await getPropertySetupData({
-    organizationId: context.organizationId,
-    requestedSelection,
-  });
+  const [data, creationBranchOptions] = await Promise.all([
+    getPropertySetupData({
+      organizationId: context.organizationId,
+      requestedSelection,
+    }),
+    context.isSuperAdmin
+      ? getActivePropertyBranchOptions(context.organizationId)
+      : Promise.resolve(undefined),
+  ]);
   const requestedStep = Number(getFirstSearchParam(params.step) ?? 1);
   const requiresUnit = propertySetupRequiresUnit(data.properties, data.selection);
   const step = normalizePropertySetupStep(requestedStep, data.selection, {
@@ -33,5 +40,11 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
     requiresUnit,
   });
 
-  return <PropertySetupScreen data={data} step={step} />;
+  return (
+    <PropertySetupScreen
+      creationBranchOptions={creationBranchOptions}
+      data={data}
+      step={step}
+    />
+  );
 }

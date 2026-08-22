@@ -216,6 +216,12 @@ SELECT lives_ok(
   'an IPS collection source can be selected'
 );
 
+INSERT INTO public.person_branch_relationships (organization_id,person_id,branch_id)
+VALUES
+  ('00000000-0000-0000-0000-000000000001','80000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000211'),
+  ('00000000-0000-0000-0000-000000000001','80000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000211')
+ON CONFLICT DO NOTHING;
+
 SELECT set_config(
   'request.jwt.claim.sub',
   '00000000-0000-0000-0000-000000000701',
@@ -438,6 +444,8 @@ SELECT throws_ok(
   'a changed tenant-payment reversal cannot reuse its key'
 );
 
+RESET ROLE;
+
 SELECT results_eq(
   $$
     SELECT paid_through_ips, balance_due, payment_status
@@ -577,11 +585,15 @@ SELECT lives_ok(
   'Finance Manager can confirm the owner collected the full invoice'
 );
 
+RESET ROLE;
+
 SELECT is(
   (SELECT created_by FROM public.owner_collection_confirmations WHERE id = (SELECT confirmation_id FROM tenant_invoice_state)),
   '00000000-0000-0000-0000-000000000701'::uuid,
   'owner collection confirmation records the Finance Manager actor'
 );
+
+SET LOCAL ROLE authenticated;
 
 SELECT is(
   pg_temp.try_uuid(format(
@@ -663,7 +675,7 @@ SELECT set_config(
   '00000000-0000-0000-0000-000000000701',
   true
 );
-SET LOCAL ROLE authenticated;
+RESET ROLE;
 
 SELECT public.allocate_owner_event(
   state.organization_id,
@@ -676,6 +688,8 @@ JOIN public.owner_collection_confirmation_allocations AS allocation
   ON allocation.organization_id = state.organization_id
   AND allocation.confirmation_id = state.confirmation_id
   AND allocation.reversal_of_allocation_id IS NULL;
+
+SET LOCAL ROLE authenticated;
 
 SELECT lives_ok(
   $$
@@ -704,6 +718,8 @@ SELECT is(
   'an exact owner-confirmation reversal retry returns the first result'
 )
 FROM tenant_invoice_state;
+
+RESET ROLE;
 
 SELECT results_eq(
   $$

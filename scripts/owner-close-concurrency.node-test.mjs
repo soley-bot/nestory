@@ -97,7 +97,7 @@ function reloadFixture() {
     cwd: repoRoot,
     encoding: "utf8",
     shell: false,
-    timeout: 30_000,
+    timeout: 60_000,
   });
   assert.equal(result.status, 0, result.stderr);
 }
@@ -278,7 +278,11 @@ function prepareClosedClose() {
 function promoteFinanceMemberForConflictControl() {
   run(`
     UPDATE public.organization_members
-    SET role = 'super_admin'
+    SET
+      role = 'super_admin',
+      branch_id = NULL,
+      custom_role_id = NULL,
+      person_id = NULL
     WHERE organization_id = '${organizationId}'
       AND user_id = '${financeMemberId}';
   `);

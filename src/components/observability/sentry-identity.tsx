@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
 
-import type { WorkspaceRole } from "@/lib/auth/context";
+import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/context";
 import { buildScopedSentryIdentity } from "@/lib/observability/sentry-identity";
 
 export function SentryIdentity({
@@ -12,7 +12,7 @@ export function SentryIdentity({
   userId,
 }: {
   organizationId: string;
-  role: WorkspaceRole;
+  role: WorkspaceRole | WorkspaceRoleKind;
   userId: string;
 }) {
   useEffect(() => {

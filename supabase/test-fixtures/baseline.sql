@@ -245,6 +245,48 @@ VALUES (
   '00000000-0000-0000-0000-000000000101'
 );
 
+INSERT INTO public.organization_roles (
+  id, organization_id, name, created_by, updated_by
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000311', '00000000-0000-0000-0000-000000000001', 'Finance Manager', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000312', '00000000-0000-0000-0000-000000000001', 'Finance Member', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000313', '00000000-0000-0000-0000-000000000001', 'Operations Manager', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101'),
+  ('00000000-0000-0000-0000-000000000314', '00000000-0000-0000-0000-000000000001', 'Operations Member', '00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000101');
+
+INSERT INTO public.organization_role_permissions (
+  organization_id, role_id, permission_key, granted_by
+)
+SELECT
+  '00000000-0000-0000-0000-000000000001',
+  profile.role_id,
+  profile.permission_key,
+  '00000000-0000-0000-0000-000000000101'
+FROM (
+  VALUES
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'leases.view'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'leases.prepare'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'leases.activate'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'leases.change_terms'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'leases.close'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'leases.archive'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.view'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.record_payments'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.approve_expenses'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.correct_records'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.close_periods'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000311'::uuid, 'finance.publish'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000312'::uuid, 'leases.view'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000312'::uuid, 'finance.view'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000312'::uuid, 'finance.submit_expenses'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000313'::uuid, 'maintenance.view'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000313'::uuid, 'maintenance.create_assign'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000313'::uuid, 'maintenance.complete'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000313'::uuid, 'maintenance.review'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000314'::uuid, 'maintenance.view'::public.organization_permission_key),
+    ('00000000-0000-0000-0000-000000000314'::uuid, 'maintenance.complete'::public.organization_permission_key)
+) AS profile(role_id, permission_key);
+
 INSERT INTO public.properties (
   id,
   organization_id,
@@ -295,6 +337,19 @@ VALUES
     'active',
     '2023-09-01',
     'Compact residential property used for open operational work.',
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000101'
+  ),
+  (
+    '10000000-0000-0000-0000-000000000004',
+    '00000000-0000-0000-0000-000000000001',
+    'Close Readiness House',
+    'CLS-RDY',
+    'Residential house',
+    'Street 95, Boeung Trabek, Phnom Penh',
+    'active',
+    DATE '2024-01-01',
+    'Isolated guarded fixture for immutable owner-close revision acceptance.',
     '00000000-0000-0000-0000-000000000101',
     '00000000-0000-0000-0000-000000000101'
   );
@@ -598,37 +653,44 @@ INSERT INTO public.organization_members (
   user_id,
   role,
   person_id,
-  branch_id
+  branch_id,
+  custom_role_id
 )
 VALUES
   (
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000101',
-    'super_admin', NULL, NULL
+    'super_admin', NULL, NULL, NULL
   ),
   (
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000701',
-    'finance_manager', NULL, NULL
+    'custom', NULL,
+    '00000000-0000-0000-0000-000000000211',
+    '00000000-0000-0000-0000-000000000311'
   ),
   (
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000801',
-    'finance_member', NULL, NULL
+    'custom', NULL,
+    '00000000-0000-0000-0000-000000000211',
+    '00000000-0000-0000-0000-000000000312'
   ),
   (
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000501',
-    'operations_manager',
+    'custom',
     '80000000-0000-0000-0000-000000000007',
-    '00000000-0000-0000-0000-000000000211'
+    '00000000-0000-0000-0000-000000000211',
+    '00000000-0000-0000-0000-000000000313'
   ),
   (
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000601',
-    'operations_member',
+    'custom',
     '80000000-0000-0000-0000-000000000008',
-    '00000000-0000-0000-0000-000000000211'
+    '00000000-0000-0000-0000-000000000211',
+    '00000000-0000-0000-0000-000000000314'
   );
 
 CREATE TEMP TABLE fixture_runtime (
@@ -797,6 +859,24 @@ SELECT set_config(
   '00000000-0000-0000-0000-000000000101',
   true
 );
+SET LOCAL ROLE authenticated;
+
+SELECT public.assign_property_branch(
+  '00000000-0000-0000-0000-000000000001',
+  property_id,
+  '00000000-0000-0000-0000-000000000211'
+)
+FROM unnest(ARRAY[
+  '10000000-0000-0000-0000-000000000001'::uuid,
+  '10000000-0000-0000-0000-000000000002'::uuid,
+  '10000000-0000-0000-0000-000000000003'::uuid,
+  '10000000-0000-0000-0000-000000000004'::uuid
+]) AS property_scope(property_id);
+
+RESET ROLE;
+UPDATE public.organization_authorization_states
+SET ordinary_access_enabled = true
+WHERE organization_id = '00000000-0000-0000-0000-000000000001';
 SET LOCAL ROLE authenticated;
 
 UPDATE fixture_runtime
@@ -2196,19 +2276,6 @@ SELECT public.generate_owner_balance_period(
 -- Its month is deliberately 24 months ahead so the retained locked close story
 -- cannot contaminate current operating-month regression fixtures.
 RESET ROLE;
-
-INSERT INTO public.properties (
-  id, organization_id, name, code, property_type, address, status,
-  acquisition_date, notes, created_by, updated_by
-) VALUES (
-  '10000000-0000-0000-0000-000000000004',
-  '00000000-0000-0000-0000-000000000001',
-  'Close Readiness House', 'CLS-RDY', 'Residential house',
-  'Street 95, Boeung Trabek, Phnom Penh', 'active', DATE '2024-01-01',
-  'Isolated guarded fixture for immutable owner-close revision acceptance.',
-  '00000000-0000-0000-0000-000000000101',
-  '00000000-0000-0000-0000-000000000101'
-);
 
 INSERT INTO public.people (
   id, organization_id, display_name, legal_name, party_type, primary_email,

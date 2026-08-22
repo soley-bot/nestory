@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   requireFinancialMonthLockContext: vi.fn(),
   requireFinancialMonthUnlockContext: vi.fn(),
+  requirePermission: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -12,26 +13,36 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
   requireFinancialMonthLockContext: mocks.requireFinancialMonthLockContext,
   requireFinancialMonthUnlockContext: mocks.requireFinancialMonthUnlockContext,
+  requirePermission: mocks.requirePermission,
   requireSuperAdminContext: mocks.requireSuperAdminContext,
 }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({ rpc: mocks.rpc })),
 }));
 
-import { setLedgerPeriodLockAction } from "@/features/ledger/actions";
+import {
+  attachLedgerReceiptAction,
+  setLedgerPeriodLockAction,
+} from "@/features/ledger/actions";
 
 describe("financial month lock action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireFinancialMonthLockContext.mockResolvedValue({
+      isSuperAdmin: false,
       organizationId: "org-1",
-      role: "finance_manager",
+      role: "custom",
     });
     mocks.requireFinancialMonthUnlockContext.mockResolvedValue({
+      isSuperAdmin: true,
       organizationId: "org-1",
       role: "super_admin",
     });
     mocks.requireSuperAdminContext.mockResolvedValue({ organizationId: "org-1" });
+    mocks.requirePermission.mockResolvedValue({
+      branchId: "branch-1",
+      organizationId: "org-1",
+    });
     mocks.rpc.mockResolvedValue({ data: "lock-1", error: null });
   });
 
@@ -73,7 +84,7 @@ describe("financial month lock action", () => {
     expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
   });
 
-  it("rejects a blank Finance Manager operational-lock reason before the RPC", async () => {
+  it("rejects a blank ordinary operational-lock reason before the RPC", async () => {
     const formData = new FormData();
     formData.set("lockState", "locked");
     formData.set("periodStart", "2026-08");
@@ -90,6 +101,7 @@ describe("financial month lock action", () => {
 
   it("preserves Super Admin lock handling for an empty optional reason", async () => {
     mocks.requireFinancialMonthLockContext.mockResolvedValue({
+      isSuperAdmin: true,
       organizationId: "org-1",
       role: "super_admin",
     });
@@ -117,5 +129,18 @@ describe("financial month lock action", () => {
     expect(mocks.requireFinancialMonthLockContext).not.toHaveBeenCalled();
     expect(mocks.requireFinancialMonthUnlockContext).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("requires correction authority before handling a ledger receipt", async () => {
+    const result = await attachLedgerReceiptAction({}, new FormData());
+
+    expect(result).toEqual({
+      fieldErrors: { entryId: ["Choose a ledger entry."] },
+      status: "error",
+    });
+    expect(mocks.requirePermission).toHaveBeenCalledWith(
+      "finance.correct_records",
+    );
+    expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
   });
 });

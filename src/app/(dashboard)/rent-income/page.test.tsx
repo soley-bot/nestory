@@ -49,6 +49,7 @@ describe("RentIncomePage repair routing", () => {
       },
       organizationId: "organization-1",
       organizationName: "IPS",
+      permissionKeys: new Set(["leases.change_terms"]),
     });
     mocks.financeData.mockResolvedValue({});
   });

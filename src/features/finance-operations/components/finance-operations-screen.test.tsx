@@ -304,14 +304,28 @@ describe("FinanceOperationsScreen", () => {
     expect(within(dialog).queryByText("INV-UNRELATED")).toBeNull();
   });
 
-  it("keeps manual tenant charges available from the general rent workspace", async () => {
+  it("keeps manual tenant charges behind payment-recording authority", async () => {
     const user = userEvent.setup();
     const input = data();
+
+    const leaseTermsOnly = render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Add tenant charge" }),
+    ).toBeNull();
+    leaseTermsOnly.unmount();
 
     render(
       <FinanceOperationsScreen
         {...input}
-        {...financeCapabilities({ canConfigureRent: true })}
+        {...financeCapabilities({ canRecordPayments: true })}
         organizationName="Sokha Property Services"
         view="rent"
       />,
@@ -459,7 +473,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...input}
-        {...financeCapabilities({ canConfigureRent: true })}
+        {...financeCapabilities({ canRecordPayments: true })}
         organizationName="Sokha Property Services"
         scope={{
           id: "unit-1",
@@ -495,7 +509,7 @@ describe("FinanceOperationsScreen", () => {
     render(
       <FinanceOperationsScreen
         {...data()}
-        {...financeCapabilities({ canConfigureRent: true })}
+        {...financeCapabilities({ canRecordPayments: true })}
         organizationName="Sokha Property Services"
         scope={{
           id: "property-1",

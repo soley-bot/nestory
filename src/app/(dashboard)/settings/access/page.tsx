@@ -61,6 +61,10 @@ export default async function AccessSettingsPage({
         invitations={data.invitations}
         members={data.members}
         people={data.linkedPeople ?? data.staff}
+        role={context.role}
+        roles={data.roles.filter(
+          (role) => role.status === "active" && role.permissions.length > 0,
+        )}
         requestedStaffId={selectedStaff?.id}
         staff={data.staff}
       />

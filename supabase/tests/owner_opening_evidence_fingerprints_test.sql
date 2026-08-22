@@ -198,15 +198,25 @@ SELECT ok(
   'direct document mutations are revoked from all app roles while authenticated keeps scoped read access'
 );
 
-SELECT is(
-  (
-    SELECT jsonb_agg(jsonb_build_array(policyname, cmd) ORDER BY policyname)
+SELECT ok(
+  EXISTS (
+    SELECT 1
     FROM pg_policies
     WHERE schemaname = 'public'
       AND tablename = 'documents'
+      AND policyname = 'documents_branch_scoped_select'
+      AND cmd = 'SELECT'
+      AND roles = ARRAY['authenticated']::name[]
+      AND qual LIKE '%can_access_document%'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'documents'
+      AND cmd <> 'SELECT'
   ),
-  '[["Admins can read documents","SELECT"]]'::jsonb,
-  'documents expose one organization-scoped authenticated read policy and no write policy'
+  'documents expose one authenticated branch-scoped read path and no write policy'
 );
 
 SELECT ok(
@@ -337,8 +347,8 @@ SELECT ok(
       WHERE schemaname = 'storage'
         AND tablename = 'objects'
         AND policyname IN (
-          'Admins can delete Nestory documents',
-          'Admins can update Nestory documents'
+          'nestory_documents_branch_delete',
+          'nestory_documents_branch_update'
         )
     ) AS storage_policy
   ),

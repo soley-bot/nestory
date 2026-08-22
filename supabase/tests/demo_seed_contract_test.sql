@@ -49,23 +49,20 @@ SELECT results_eq(
   $$,
   $$
     VALUES
-      ('finance_manager'::text, 1),
-      ('finance_member'::text, 1),
-      ('operations_manager'::text, 1),
-      ('operations_member'::text, 1),
+      ('custom'::text, 4),
       ('super_admin'::text, 1)
   $$,
-  'the company has exactly one membership for each fixed role'
+  'the company has four approved custom memberships and one Super Admin'
 );
 
 SELECT ok(
   NOT EXISTS (
     SELECT 1
     FROM public.organization_members
-    WHERE role IN ('super_admin', 'finance_manager', 'finance_member')
-      AND (person_id IS NOT NULL OR branch_id IS NOT NULL)
+    WHERE role = 'super_admin'
+      AND (person_id IS NOT NULL OR branch_id IS NOT NULL OR custom_role_id IS NOT NULL)
   ),
-  'company-wide roles do not carry operational person or branch scope'
+  'Super Admin remains organization-wide without ordinary branch or role scope'
 );
 
 SELECT ok(

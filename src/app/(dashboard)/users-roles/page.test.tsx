@@ -45,7 +45,7 @@ describe("AccessSettingsPage", () => {
       role: "super_admin",
       userId: "user-1",
     });
-    getAccessSettingsData.mockResolvedValue({ branches: [], invitations: [], members: [], staff: [] });
+    getAccessSettingsData.mockResolvedValue({ branches: [], invitations: [], members: [], roles: [], staff: [] });
   });
 
   it("loads access data only after admin authorization and identifies the current user", async () => {
@@ -95,6 +95,7 @@ describe("AccessSettingsPage", () => {
         role: "operations_member",
         userId: "88888888-8888-4888-8888-888888888888",
       }],
+      roles: [],
       staff: [{
         archived: false,
         description: "Staff · staff@example.com",
@@ -144,6 +145,7 @@ describe("AccessSettingsPage", () => {
         status: "pending",
       }],
       members: [],
+      roles: [],
       staff: [{
         archived: false,
         description: "Staff · staff@example.com",
@@ -183,6 +185,7 @@ describe("AccessSettingsPage", () => {
         role: "operations_member",
         userId: "55555555-5555-4555-8555-555555555555",
       }],
+      roles: [],
       staff: [],
     });
 
@@ -227,6 +230,7 @@ describe("AccessSettingsPage", () => {
       invitations: [],
       linkedPeople: [activeStaff, archivedLinked],
       members: [],
+      roles: [],
       staff: [activeStaff],
     });
 

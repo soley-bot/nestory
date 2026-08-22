@@ -279,9 +279,12 @@ describe("maintenance status recovery", () => {
 function makeMaintenanceStatusScreen(cases: MaintenanceCase[]) {
   return (
     <MaintenanceScreen
-      actor={{ branchId: "branch-1", personId: "person-1", role: "operations_manager" }}
+      actor={{ branchId: "branch-1", dataScope: "branch", personId: "person-1", workflowMode: "coordinator" }}
       branchOptions={[]}
-      capabilities={getMaintenanceCapabilities("operations_manager")}
+      capabilities={getMaintenanceCapabilities({
+        isSuperAdmin: false,
+        permissionKeys: new Set(["maintenance.create_assign"]),
+      })}
       cases={cases}
       pagination={{
         from: cases.length ? 1 : 0,

@@ -291,7 +291,7 @@ function CoordinatedExecutionPanel({
     initialState,
   );
   const availableActions = getCoordinatedMaintenanceActions(maintenanceCase, {
-    role: "operations_manager",
+    workflowMode: "coordinator",
   });
 
   useEffect(() => {

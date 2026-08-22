@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
-  requireFinancePettyCashContext: vi.fn(),
+  requirePermission: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
-  requireFinancePettyCashContext: mocks.requireFinancePettyCashContext,
+  requirePermission: mocks.requirePermission,
   requireSuperAdminContext: mocks.requireSuperAdminContext,
 }));
 vi.mock("@/lib/db/server", () => ({
@@ -35,8 +35,9 @@ const nextPropertyId = "66666666-6666-4666-8666-666666666666";
 describe("petty cash actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireFinancePettyCashContext.mockResolvedValue({
+    mocks.requirePermission.mockResolvedValue({
       organizationId: "org-1",
+      branchId: "branch-1",
     });
     mocks.requireSuperAdminContext.mockResolvedValue({ organizationId: "org-1" });
     mocks.rpc.mockResolvedValue({ data: null, error: null });
@@ -77,7 +78,9 @@ describe("petty cash actions", () => {
       }),
     );
     expect(result.status).toBe("success");
-    expect(mocks.requireFinancePettyCashContext).toHaveBeenCalledOnce();
+    expect(mocks.requirePermission).toHaveBeenCalledWith(
+      "finance.submit_expenses",
+    );
     expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
   });
 
@@ -90,7 +93,9 @@ describe("petty cash actions", () => {
       status: "success",
     });
 
-    expect(mocks.requireFinancePettyCashContext).toHaveBeenCalledOnce();
+    expect(mocks.requirePermission).toHaveBeenCalledWith(
+      "finance.approve_expenses",
+    );
     expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
     expect(mocks.rpc).toHaveBeenCalledWith("post_petty_cash_entry", {
       p_entry_id: entryId,
@@ -98,7 +103,7 @@ describe("petty cash actions", () => {
     });
   });
 
-  it("retains Super Admin authority for account, correction, void, and rollover commands", async () => {
+  it("keeps account lifecycle Super Admin-only while corrections use their exact permission", async () => {
     const accountForm = new FormData();
     accountForm.set("accountNumber", "pm-cash-02");
     accountForm.set("name", "Front desk cash");
@@ -121,8 +126,16 @@ describe("petty cash actions", () => {
     rolloverForm.set("advanceAmount", "100");
     await openNextPettyCashPeriodAction({}, rolloverForm);
 
-    expect(mocks.requireSuperAdminContext).toHaveBeenCalledTimes(4);
-    expect(mocks.requireFinancePettyCashContext).not.toHaveBeenCalled();
+    expect(mocks.requireSuperAdminContext).toHaveBeenCalledTimes(2);
+    expect(mocks.requirePermission).toHaveBeenCalledTimes(2);
+    expect(mocks.requirePermission).toHaveBeenNthCalledWith(
+      1,
+      "finance.correct_records",
+    );
+    expect(mocks.requirePermission).toHaveBeenNthCalledWith(
+      2,
+      "finance.correct_records",
+    );
   });
 
   it("requires and sends a transaction-time external party name", async () => {

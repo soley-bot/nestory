@@ -72,8 +72,8 @@ describe("granular Finance contexts", () => {
     });
   });
 
-  it("allows Finance Manager through ordinary Finance contexts but never month unlock", async () => {
-    const allowedContexts = [
+  it("contains a legacy Finance Manager instead of recreating fixed authority", async () => {
+    const legacyContexts = [
       authContext.requireFinanceCorrectionContext,
       authContext.requireFinanceOperationContext,
       authContext.requireFinancePettyCashContext,
@@ -83,24 +83,18 @@ describe("granular Finance contexts", () => {
     ];
 
     expect(
-      [...allowedContexts, authContext.requireFinancialMonthUnlockContext].every(
+      [...legacyContexts, authContext.requireFinancialMonthUnlockContext].every(
         (context) => typeof context === "function",
       ),
     ).toBe(true);
 
-    for (const requireContext of allowedContexts) {
-      await expect(requireContext()).resolves.toMatchObject({
-        organizationId: "org-1",
-        role: "finance_manager",
-      });
+    for (const requireContext of [
+      ...legacyContexts,
+      authContext.requireFinancialMonthUnlockContext,
+      authContext.requireHistoricalRentRecoveryContext,
+    ]) {
+      await expect(requireContext()).rejects.toThrow("REDIRECT:/no-access");
     }
-
-    await expect(
-      authContext.requireFinancialMonthUnlockContext(),
-    ).rejects.toThrow("REDIRECT:/no-access");
-    await expect(
-      authContext.requireHistoricalRentRecoveryContext(),
-    ).rejects.toThrow("REDIRECT:/no-access");
     expect(mocks.redirect).toHaveBeenCalledWith("/no-access");
   });
 });

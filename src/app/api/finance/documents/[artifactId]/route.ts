@@ -3,7 +3,6 @@ import {
   getCurrentUser,
   getWorkspaceMembershipForUser,
 } from "@/lib/auth/context";
-import { getWorkspaceCapabilities } from "@/lib/auth/capabilities";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +22,7 @@ export async function GET(
 
   const client = await createSupabaseServerClient();
   const membership = await getWorkspaceMembershipForUser(user.id, client);
-  if (!membership || !getWorkspaceCapabilities(membership.role).canReadFinance) {
+  if (!membership || !membership.permissionKeys.has("finance.view")) {
     return textResponse("Forbidden", 403);
   }
 

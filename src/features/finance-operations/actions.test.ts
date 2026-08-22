@@ -16,7 +16,7 @@ const {
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
-  requireLeaseConfigurationContext,
+  requirePermission,
   revalidatePath,
   rpc,
 } = vi.hoisted(() => ({
@@ -35,7 +35,7 @@ const {
   requireFinanceReversalContext: vi.fn(),
   requireFinanceSubmissionContext: vi.fn(),
   requireHistoricalRentRecoveryContext: vi.fn(),
-  requireLeaseConfigurationContext: vi.fn(),
+  requirePermission: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -50,7 +50,7 @@ vi.mock("@/lib/auth/context", () => ({
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
-  requireLeaseConfigurationContext,
+  requirePermission,
 }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ rpc }),
@@ -110,10 +110,10 @@ describe("rent generation recovery action", () => {
     requireFinanceReversalContext.mockReset();
     requireFinanceSubmissionContext.mockReset();
     requireHistoricalRentRecoveryContext.mockReset();
-    requireLeaseConfigurationContext.mockReset();
+    requirePermission.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireLeaseConfigurationContext.mockResolvedValue({ organizationId });
+    requirePermission.mockResolvedValue({ organizationId });
     requireCurrentRentRetryContext.mockResolvedValue({ organizationId });
     requireFinanceOperationContext.mockResolvedValue({ organizationId });
     requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
@@ -123,7 +123,7 @@ describe("rent generation recovery action", () => {
   });
 
   it("adds a manual tenant charge through the canonical checked invoice RPC", async () => {
-    requireLeaseConfigurationContext.mockResolvedValue({ organizationId });
+    requirePermission.mockResolvedValue({ organizationId });
     rpc.mockResolvedValueOnce({
       data: { invoiceId: sourceId, leaseId, lineId: submissionId },
       error: null,
@@ -151,6 +151,7 @@ describe("rent generation recovery action", () => {
       p_lease_id: leaseId,
       p_organization_id: organizationId,
     });
+    expect(requirePermission).toHaveBeenCalledWith("finance.record_payments");
   });
 
   it("uses the current-rent retry context and retries only the selected exception", async () => {
@@ -168,7 +169,7 @@ describe("rent generation recovery action", () => {
       status: "success",
     });
     expect(requireCurrentRentRetryContext).toHaveBeenCalledOnce();
-    expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
+    expect(requirePermission).not.toHaveBeenCalled();
     expect(requireSuperAdminContext).not.toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith("recover_rent_generation_exception", {
       p_exception_id: exceptionId,
@@ -212,7 +213,7 @@ describe("rent generation recovery action", () => {
       status: "success",
     });
     expect(requireHistoricalRentRecoveryContext).toHaveBeenCalledOnce();
-    expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
+    expect(requirePermission).not.toHaveBeenCalled();
     expect(rpc).toHaveBeenCalledWith("recover_lease_rent_period", {
       p_billing_period_start: "2026-07-01",
       p_lease_id: leaseId,
@@ -243,7 +244,7 @@ describe("rent generation recovery action", () => {
     await expect(
       recoverRentGenerationExceptionAction({}, formData),
     ).resolves.toMatchObject({ status: "error" });
-    expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
+    expect(requirePermission).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
 
@@ -261,7 +262,7 @@ describe("rent generation recovery action", () => {
     await expect(saveLeaseBillingAction({}, formData)).resolves.toMatchObject({
       status: "error",
     });
-    expect(requireLeaseConfigurationContext).not.toHaveBeenCalled();
+    expect(requirePermission).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
 
@@ -289,6 +290,7 @@ describe("rent generation recovery action", () => {
         p_full_management_fee_during_proration: false,
       }),
     );
+    expect(requirePermission).toHaveBeenCalledWith("leases.change_terms");
   });
 });
 

@@ -38,17 +38,25 @@ const sections: Array<{ id: LeaseRecordSection; label: string }> = [
   { id: "files", label: "Files & history" },
 ];
 
+type LeaseActionPermissions = {
+  canActivate: boolean;
+  canArchive: boolean;
+  canChangeTerms: boolean;
+  canClose: boolean;
+  canPrepare: boolean;
+};
+
 export function LeaseDetailView({
   activeSection,
-  canConfigure,
   lease,
+  permissions,
   onAttachFile,
   onLifecycleChange,
   onScheduleTerm,
 }: {
   activeSection: LeaseRecordSection;
-  canConfigure: boolean;
   lease: LeaseSummary;
+  permissions: LeaseActionPermissions;
   onAttachFile: () => void;
   onLifecycleChange: (
     transition: "activate" | "cancel" | "end" | "give_notice" | "terminate",
@@ -62,21 +70,21 @@ export function LeaseDetailView({
       <div aria-label="Lease record details" className="min-w-0" role="region">
         {activeSection === "overview" ? (
           <LeaseOverview
-            canConfigure={canConfigure}
             lease={lease}
+            permissions={permissions}
             onLifecycleChange={onLifecycleChange}
             onScheduleTerm={onScheduleTerm}
           />
         ) : null}
         {activeSection === "rent" ? (
           <LeaseRentAndDeposit
-            canConfigure={canConfigure}
             lease={lease}
+            permissions={permissions}
             onScheduleTerm={onScheduleTerm}
           />
         ) : null}
         {activeSection === "occupancy" ? (
-          <LeaseOccupancy canConfigure={canConfigure} lease={lease} />
+          <LeaseOccupancy canRecord={permissions.canActivate} lease={lease} />
         ) : null}
         {activeSection === "files" ? (
           <LeaseFilesAndHistory lease={lease} onAttachFile={onAttachFile} />
@@ -117,13 +125,13 @@ function LeaseRecordNav({
 }
 
 function LeaseOverview({
-  canConfigure,
   lease,
+  permissions,
   onLifecycleChange,
   onScheduleTerm,
 }: {
-  canConfigure: boolean;
   lease: LeaseSummary;
+  permissions: LeaseActionPermissions;
   onLifecycleChange: (
     transition: "activate" | "cancel" | "end" | "give_notice" | "terminate",
   ) => void;
@@ -175,29 +183,32 @@ function LeaseOverview({
 
       <section aria-label="Lease actions">
         <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
-          {canConfigure &&
-          !lease.isArchived &&
-          lease.statusValue === "draft" ? (
+          {!lease.isArchived && lease.statusValue === "draft" ? (
             <>
+              {permissions.canActivate ? (
               <Button onClick={() => onLifecycleChange("activate")}>
                 Activate lease
               </Button>
-              <Button
-                onClick={() => onLifecycleChange("cancel")}
-                variant="destructive"
-              >
-                Cancel draft
-              </Button>
+              ) : null}
+              {permissions.canClose ? (
+                <Button
+                  onClick={() => onLifecycleChange("cancel")}
+                  variant="destructive"
+                >
+                  Cancel draft
+                </Button>
+              ) : null}
             </>
           ) : null}
-          {canConfigure &&
+          {permissions.canChangeTerms &&
           !lease.isArchived &&
           lease.statusValue === "active" ? (
             <Button onClick={() => onScheduleTerm("renewal")}>
               Renew lease
             </Button>
           ) : null}
-          {canConfigure && !lease.isArchived && lease.statusValue !== "draft" ? (
+          {(permissions.canChangeTerms || permissions.canClose) &&
+          !lease.isArchived && lease.statusValue !== "draft" ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline">
@@ -206,13 +217,15 @@ function LeaseOverview({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-48">
-                {lease.statusValue === "active" ? (
+                {permissions.canChangeTerms && lease.statusValue === "active" ? (
                   <>
                     <DropdownMenuItem onSelect={() => onScheduleTerm("rent_change")}>Change rent</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>Record notice</DropdownMenuItem>
+                    {permissions.canClose ? (
+                      <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>Record notice</DropdownMenuItem>
+                    ) : null}
                   </>
                 ) : null}
-                {["active", "notice_given"].includes(lease.statusValue) ? (
+                {permissions.canClose && ["active", "notice_given"].includes(lease.statusValue) ? (
                   <>
                     <DropdownMenuItem onSelect={() => onLifecycleChange("end")}>Complete move-out</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => onLifecycleChange("terminate")} variant="destructive">Terminate lease</DropdownMenuItem>
@@ -228,13 +241,13 @@ function LeaseOverview({
 }
 
 function LeaseRentAndDeposit({
-  canConfigure,
   lease,
   onScheduleTerm,
+  permissions,
 }: {
-  canConfigure: boolean;
   lease: LeaseSummary;
   onScheduleTerm: (mode: "renewal" | "rent_change") => void;
+  permissions: LeaseActionPermissions;
 }) {
   const [depositState, recordDepositEvent, depositPending] = useActionState(
     recordLeaseDepositEventAction,
@@ -264,7 +277,7 @@ function LeaseRentAndDeposit({
       <section aria-labelledby="rent-terms-heading">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SectionHeading id="rent-terms-heading" title="Rent schedule" />
-          {canConfigure && activeTerm && !lease.isArchived ? (
+          {permissions.canChangeTerms && activeTerm && !lease.isArchived ? (
             <Button
               onClick={() => onScheduleTerm("rent_change")}
               variant="outline"
@@ -348,7 +361,7 @@ function LeaseRentAndDeposit({
                             </span>
                           ) : null}
                         </span>
-                        {canConfigure && event.reversible ? (
+                        {permissions.canChangeTerms && event.reversible ? (
                           <form action={reverseDepositEvent}>
                             <input
                               name="eventId"
@@ -373,14 +386,14 @@ function LeaseRentAndDeposit({
                     ))}
                   </div>
                 ) : null}
-                {canConfigure ? (
+                {permissions.canChangeTerms ? (
                   <div className="mt-3">
                     <Button onClick={() => setShowDepositForm((visible) => !visible)} variant="outline">
                       Record deposit activity
                     </Button>
                   </div>
                 ) : null}
-                {canConfigure && showDepositForm ? (
+                {permissions.canChangeTerms && showDepositForm ? (
                   <form
                     action={recordDepositEvent}
                     className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-5"
@@ -439,10 +452,10 @@ function LeaseRentAndDeposit({
 }
 
 function LeaseOccupancy({
-  canConfigure,
+  canRecord: canRecordEvidence,
   lease,
 }: {
-  canConfigure: boolean;
+  canRecord: boolean;
   lease: LeaseSummary;
 }) {
   const [state, recordEvidence, pending] = useActionState(
@@ -458,7 +471,7 @@ function LeaseOccupancy({
   );
   const [showOccupancyHistory, setShowOccupancyHistory] = useState(false);
   const canRecord =
-    canConfigure &&
+    canRecordEvidence &&
     !lease.isArchived &&
     ["active", "notice_given"].includes(lease.statusValue) &&
     currentOccupancy?.actualLabel === "Not recorded";

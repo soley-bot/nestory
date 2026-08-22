@@ -5,7 +5,7 @@ const {
   eq,
   from,
   maybeSingle,
-  requireSuperAdminContext,
+  requirePermission,
   revalidatePath,
   rpc,
   select,
@@ -20,7 +20,7 @@ const {
     eq,
     from,
     maybeSingle,
-    requireSuperAdminContext: vi.fn(),
+    requirePermission: vi.fn(),
     revalidatePath: vi.fn(),
     rpc: vi.fn(),
     select,
@@ -29,7 +29,7 @@ const {
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/features/documents/actions", () => ({ createDocumentAction }));
-vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ from, rpc }),
 }));
@@ -37,6 +37,7 @@ vi.mock("@/lib/db/server", () => ({
 import {
   archiveUnitAction,
   createUnitAction,
+  restoreUnitAction,
   updateUnitAction,
 } from "@/features/units/actions";
 
@@ -52,12 +53,12 @@ describe("unit rent authority", () => {
     eq.mockClear();
     from.mockClear();
     maybeSingle.mockReset();
-    requireSuperAdminContext.mockReset();
+    requirePermission.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
     select.mockClear();
 
-    requireSuperAdminContext.mockResolvedValue({ organizationId });
+    requirePermission.mockResolvedValue({ organizationId });
     maybeSingle.mockResolvedValue({ data: { property_id: propertyId }, error: null });
     rpc.mockResolvedValue({ data: unitId, error: null });
   });
@@ -128,6 +129,7 @@ describe("unit rent authority", () => {
       p_status: "vacant",
       p_unit_number: "1A",
     });
+    expect(requirePermission).toHaveBeenCalledWith("properties.write");
   });
 
   it("does not accept a rent override while editing a unit", async () => {
@@ -150,6 +152,7 @@ describe("unit rent authority", () => {
       p_unit_id: unitId,
       p_unit_number: "1A",
     });
+    expect(requirePermission).toHaveBeenCalledWith("properties.write");
   });
 
   it("preserves zero and blank room counts through the checked create RPC", async () => {
@@ -228,6 +231,46 @@ describe("unit rent authority", () => {
       message: "End or cancel the open lease before archiving this unit.",
       status: "error",
     });
+    expect(requirePermission).toHaveBeenCalledWith("properties.archive");
+  });
+
+  it("uses properties.archive for restore through the checked RPC", async () => {
+    const formData = new FormData();
+    formData.set("unitId", unitId);
+
+    await expect(restoreUnitAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith("properties.archive");
+    expect(rpc).toHaveBeenCalledWith("restore_unit", {
+      p_organization_id: organizationId,
+      p_unit_id: unitId,
+    });
+  });
+
+  it("fails a guessed or cross-branch unit through the checked update RPC", async () => {
+    maybeSingle.mockResolvedValue({ data: null, error: null });
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: "Not authorized" },
+    });
+    const formData = unitForm();
+    formData.set("unitId", unitId);
+
+    await expect(updateUnitAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith("properties.write");
+    expect(rpc).toHaveBeenCalledWith(
+      "update_unit",
+      expect.objectContaining({
+        p_organization_id: organizationId,
+        p_property_id: propertyId,
+        p_unit_id: unitId,
+      }),
+    );
   });
 });
 

@@ -26,6 +26,7 @@ export default async function AccountPage() {
           email: context.userEmail ?? "Email unavailable",
           organizationName: context.organizationName,
           role: context.role,
+          roleName: context.roleName,
         }}
         profile={person}
       />

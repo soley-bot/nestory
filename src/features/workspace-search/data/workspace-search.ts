@@ -52,11 +52,11 @@ export async function searchWorkspace({
 
   const supabase = client ?? (await createSupabaseServerClient());
   const pattern = buildIlikePattern(normalizedQuery);
-  const recordSearches = getWorkspaceSearchScopes(context.role).map((scope) =>
+  const recordSearches = getWorkspaceSearchScopes(context).map((scope) =>
     searchWorkspaceScope(scope, supabase, context, pattern),
   );
   const recordGroups = await Promise.all(recordSearches);
-  const scopedActions = getWorkspaceSearchActions(context.role);
+  const scopedActions = getWorkspaceSearchActions(context);
   const actions = scopedActions.map(
     (action): WorkspaceSearchCandidate => ({
       result: {
@@ -307,7 +307,7 @@ async function searchTasks(
   context: WorkspaceSearchContext,
   pattern: string,
 ): Promise<WorkspaceSearchCandidate[]> {
-  if (context.role === "operations_member" && !context.personId) {
+  if (isAssignmentOnly(context) && !context.personId) {
     return [];
   }
 
@@ -321,9 +321,9 @@ async function searchTasks(
   return dedupeRows([...(titleResult.data ?? []), ...(descriptionResult.data ?? [])]).map(
     (task) => ({
       result: {
-        href: buildTaskHref(context.role, task.id),
+        href: buildTaskHref(context, task.id),
         id: task.id,
-        kind: context.role === "operations_member" ? "task" : "maintenance",
+        kind: isAssignmentOnly(context) ? "task" : "maintenance",
         label: task.title,
         meta: [formatStoredLabel(task.status), formatStoredLabel(task.category)].join(
           " · ",
@@ -347,15 +347,12 @@ function createTaskSearchQuery(
     .is("archived_at", null)
     .ilike(field, pattern);
 
-  if (context.role === "operations_manager" && context.branchId) {
+  if (!context.isSuperAdmin && context.branchId) {
     query = query.eq("branch_id", context.branchId);
   }
 
-  if (context.role === "operations_member") {
+  if (isAssignmentOnly(context)) {
     query = query.eq("assignee_person_id", context.personId!);
-    query = context.branchId
-      ? query.eq("branch_id", context.branchId)
-      : query.is("branch_id", null);
   }
 
   return query
@@ -420,9 +417,18 @@ function getMatchRank(
   return Number.POSITIVE_INFINITY;
 }
 
-function buildTaskHref(role: WorkspaceSearchContext["role"], taskId: string) {
-  const route = role === "operations_member" ? "/tasks" : "/maintenance";
+function buildTaskHref(context: WorkspaceSearchContext, taskId: string) {
+  const route = isAssignmentOnly(context) ? "/tasks" : "/maintenance";
   return `${route}?archiveState=all&taskId=${encodeURIComponent(taskId)}`;
+}
+
+function isAssignmentOnly(context: WorkspaceSearchContext) {
+  return (
+    !context.isSuperAdmin &&
+    context.permissionKeys.has("maintenance.complete") &&
+    !context.permissionKeys.has("maintenance.create_assign") &&
+    !context.permissionKeys.has("maintenance.review")
+  );
 }
 
 function dedupeRows<T extends { id: string }>(rows: readonly T[]) {

@@ -15,6 +15,7 @@ import type {
   OrganizationWorkspaceSetup,
 } from "@/features/organization/data";
 import type { OrganizationTheme } from "@/lib/theme/organization-theme";
+import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/capabilities";
 
 export function OrganizationSettingsScreen({
   appearance,
@@ -25,6 +26,7 @@ export function OrganizationSettingsScreen({
   logoUrl = null,
   organizationName,
   organizationSlug,
+  role,
   section,
   staff,
   teams,
@@ -39,6 +41,7 @@ export function OrganizationSettingsScreen({
   logoUrl?: string | null;
   organizationName: string;
   organizationSlug?: string;
+  role: WorkspaceRole | WorkspaceRoleKind;
   section: SettingsSection;
   staff: OrganizationPersonOption[];
   teams: OrganizationTeam[];
@@ -47,7 +50,9 @@ export function OrganizationSettingsScreen({
 }) {
   return (
     <SettingsNavigationGuardProvider>
-      <WorkspacePage header={header ?? <SettingsTabs activeHref="/settings" />}>
+      <WorkspacePage
+        header={header ?? <SettingsTabs activeHref="/settings" role={role} />}
+      >
         <SettingsWorkspace
           appearance={appearance}
           branches={branches}

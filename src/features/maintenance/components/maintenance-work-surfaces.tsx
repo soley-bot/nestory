@@ -42,7 +42,7 @@ export type MaintenanceSurfaceVariant =
   | "workload";
 
 type MaintenanceWorkflowSurfaceProps = {
-  actorRole: MaintenanceActor["role"];
+  actorMode: MaintenanceActor["workflowMode"];
   cases: MaintenanceCase[];
   emptyLabel: string;
   month: string;
@@ -61,7 +61,7 @@ type MaintenanceWorkflowSurfaceProps = {
 };
 
 export function MaintenanceWorkflowSurface({
-  actorRole,
+  actorMode,
   cases,
   emptyLabel,
   month,
@@ -89,7 +89,7 @@ export function MaintenanceWorkflowSurface({
         />
       ) : variant === "board" ? (
         <BoardSurface
-          actorRole={actorRole}
+          actorMode={actorMode}
           cases={cases}
           emptyLabel={emptyLabel}
           onStatusChange={onStatusChange}

@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAssetPhotoAction } from "@/features/photos/actions";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 type PropertyFieldErrors = {
   acquisitionDate?: string[];
   address?: string[];
+  branchId?: string[];
   code?: string[];
   name?: string[];
   notes?: string[];
@@ -164,6 +165,7 @@ const propertyMutationSchema = z
   .superRefine(ownershipTrioRefinement);
 
 const propertyIdSchema = postgresUuid("Choose a property.");
+const propertyBranchIdSchema = postgresUuid("Choose a branch.");
 const propertyRentalStructureSchema = z.enum(["single_space", "multi_unit"]);
 
 function readString(formData: FormData, key: string) {
@@ -235,11 +237,30 @@ export async function createPropertyAction(
   _state: PropertyActionState,
   formData: FormData,
 ): Promise<PropertyActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.write");
   const parsed = propertyCreateSchema.safeParse(readPropertyCreateInput(formData));
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
+  }
+
+  const parsedBranchId = propertyBranchIdSchema.safeParse(
+    context.isSuperAdmin
+      ? readString(formData, "branchId")
+      : context.branchId ?? "",
+  );
+
+  if (!parsedBranchId.success) {
+    return {
+      fieldErrors: {
+        branchId: [
+          context.isSuperAdmin
+            ? "Choose a branch."
+            : "Your branch access is unavailable.",
+        ],
+      },
+      status: "error",
+    };
   }
 
   const photoError = validateInlinePhotoFile(formData);
@@ -252,9 +273,10 @@ export async function createPropertyAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: propertyId, error } = await supabase.rpc("create_property_minimal", {
+  const createPayload = {
     p_address: nullableString(parsed.data.address),
     p_code: nullableString(parsed.data.code),
+    p_branch_id: parsedBranchId.data,
     p_idempotency_key: parsed.data.idempotencyKey,
     p_name: parsed.data.name,
     p_organization_id: context.organizationId,
@@ -268,7 +290,11 @@ export async function createPropertyAction(
           p_owner_started_on: parsed.data.ownerStartedOn,
         }
       : {}),
-  });
+  };
+  const { data: propertyId, error } = await supabase.rpc(
+    "create_property_minimal",
+    createPayload,
+  );
 
   if (error) {
     return {
@@ -304,7 +330,7 @@ export async function updatePropertyAction(
   _state: PropertyActionState,
   formData: FormData,
 ): Promise<PropertyActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.write");
   const parsedPropertyId = propertyIdSchema.safeParse(
     readString(formData, "propertyId"),
   );
@@ -402,7 +428,7 @@ export async function setPropertyRentalStructureAction(
     };
   }
 
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.write");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("set_property_rental_structure", {
     p_organization_id: context.organizationId,
@@ -432,7 +458,7 @@ export async function archivePropertyAction(
   _state: PropertyActionState,
   formData: FormData,
 ): Promise<PropertyActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.archive");
   const parsedPropertyId = propertyIdSchema.safeParse(
     readString(formData, "propertyId"),
   );
@@ -469,7 +495,7 @@ export async function restorePropertyAction(
   _state: PropertyActionState,
   formData: FormData,
 ): Promise<PropertyActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.archive");
   const parsedPropertyId = propertyIdSchema.safeParse(
     readString(formData, "propertyId"),
   );

@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createAssetPhotoAction, requireSuperAdminContext, revalidatePath, rpc } =
+const { createAssetPhotoAction, requirePermission, revalidatePath, rpc } =
   vi.hoisted(() => ({
     createAssetPhotoAction: vi.fn(),
-    requireSuperAdminContext: vi.fn(),
+    requirePermission: vi.fn(),
     revalidatePath: vi.fn(),
     rpc: vi.fn(),
   }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/features/photos/actions", () => ({ createAssetPhotoAction }));
-vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ rpc }),
 }));
@@ -23,16 +23,21 @@ import {
 } from "@/features/properties/actions";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
+const branchId = "90000000-0000-4000-8000-000000000001";
+const otherBranchId = "90000000-0000-4000-8000-000000000002";
 const ownerPersonId = "80000000-0000-0000-0000-000000000004";
 const propertyId = "10000000-0000-0000-0000-000000000001";
 
 describe("property ownership authority inputs", () => {
   beforeEach(() => {
     createAssetPhotoAction.mockReset();
-    requireSuperAdminContext.mockReset();
+    requirePermission.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireSuperAdminContext.mockResolvedValue({ organizationId });
+    requirePermission.mockResolvedValue({
+      isSuperAdmin: true,
+      organizationId,
+    });
     rpc.mockResolvedValue({ data: propertyId, error: null });
   });
 
@@ -40,6 +45,7 @@ describe("property ownership authority inputs", () => {
     const formData = new FormData();
     formData.set("address", "10 Riverside Road");
     formData.set("code", "");
+    formData.set("branchId", branchId);
     formData.set("idempotencyKey", "property-create-0001");
     formData.set("name", "Riverside House");
     formData.set("propertyType", "House");
@@ -51,6 +57,7 @@ describe("property ownership authority inputs", () => {
     });
     expect(rpc).toHaveBeenCalledWith("create_property_minimal", {
       p_address: "10 Riverside Road",
+      p_branch_id: branchId,
       p_code: null,
       p_idempotency_key: "property-create-0001",
       p_name: "Riverside House",
@@ -58,12 +65,56 @@ describe("property ownership authority inputs", () => {
       p_property_type: "House",
       p_registered_date: "2026-08-17",
     });
+    expect(requirePermission).toHaveBeenCalledWith("properties.write");
+  });
+
+  it("uses the checked branch-aware overload for an ordinary writer", async () => {
+    requirePermission.mockResolvedValue({
+      branchId: "90000000-0000-4000-8000-000000000001",
+      isSuperAdmin: false,
+      organizationId,
+    });
+    const formData = new FormData();
+    formData.set("address", "10 Riverside Road");
+    formData.set("code", "");
+    formData.set("branchId", otherBranchId);
+    formData.set("idempotencyKey", "property-create-branch-0001");
+    formData.set("name", "Riverside House");
+    formData.set("propertyType", "House");
+    formData.set("registeredDate", "2026-08-17");
+
+    await createPropertyAction({}, formData);
+
+    expect(rpc).toHaveBeenCalledWith(
+      "create_property_minimal",
+      expect.objectContaining({
+        p_branch_id: "90000000-0000-4000-8000-000000000001",
+      }),
+    );
+  });
+
+  it("never falls back to an unscoped overload when ordinary branch scope is unavailable", async () => {
+    requirePermission.mockResolvedValue({
+      isSuperAdmin: false,
+      organizationId,
+    });
+    const formData = propertyCreateForm();
+    formData.set("branchId", otherBranchId);
+
+    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+      fieldErrors: {
+        branchId: ["Your branch access is unavailable."],
+      },
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("creates the property and its owner link in one call when guided setup supplies ownership", async () => {
     const formData = new FormData();
     formData.set("address", "10 Riverside Road");
     formData.set("code", "");
+    formData.set("branchId", branchId);
     formData.set("idempotencyKey", "property-create-0002");
     formData.set("name", "Riverside House");
     formData.set("ownerPersonId", ownerPersonId);
@@ -78,6 +129,7 @@ describe("property ownership authority inputs", () => {
     });
     expect(rpc).toHaveBeenCalledWith("create_property_minimal", {
       p_address: "10 Riverside Road",
+      p_branch_id: branchId,
       p_code: null,
       p_idempotency_key: "property-create-0002",
       p_name: "Riverside House",
@@ -93,6 +145,7 @@ describe("property ownership authority inputs", () => {
   it("rejects a creation owner selection without an explicit effective start and share", async () => {
     const formData = new FormData();
     formData.set("code", "");
+    formData.set("branchId", branchId);
     formData.set("idempotencyKey", "property-create-0003");
     formData.set("name", "Riverside House");
     formData.set("ownerPersonId", ownerPersonId);
@@ -108,6 +161,50 @@ describe("property ownership authority inputs", () => {
     });
     expect(rpc).not.toHaveBeenCalled();
   });
+
+  it("requires an explicit branch when Super Admin creates a Property", async () => {
+    const formData = propertyCreateForm();
+    formData.delete("branchId");
+
+    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+      fieldErrors: { branchId: ["Choose a branch."] },
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed Super Admin branch before the checked RPC", async () => {
+    const formData = propertyCreateForm();
+    formData.set("branchId", "not-a-branch");
+
+    await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+      fieldErrors: { branchId: ["Choose a branch."] },
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["inactive", "Branch is not active"],
+    ["cross-organization", "Not authorized"],
+  ])(
+    "fails closed when the selected Super Admin branch is %s",
+    async (_scope, message) => {
+      rpc.mockResolvedValueOnce({ data: null, error: { message } });
+      const formData = propertyCreateForm();
+      formData.set("idempotencyKey", `property-create-${_scope}`);
+
+      await expect(createPropertyAction({}, formData)).resolves.toMatchObject({
+        status: "error",
+      });
+
+      expect(rpc).toHaveBeenCalledTimes(1);
+      expect(rpc).toHaveBeenCalledWith(
+        "create_property_minimal",
+        expect.objectContaining({ p_branch_id: branchId }),
+      );
+    },
+  );
 
   it("persists the explicit rental placement choice through the checked RPC", async () => {
     const formData = new FormData();
@@ -168,6 +265,7 @@ describe("property ownership authority inputs", () => {
       p_registered_date: null,
       p_status: "active",
     });
+    expect(requirePermission).toHaveBeenCalledWith("properties.write");
   });
 
   it.each(["0", "-1", "100.001", "1.0000", "share"])(
@@ -244,6 +342,7 @@ describe("property ownership authority inputs", () => {
       message: "End or cancel open leases before archiving this property.",
       status: "error",
     });
+    expect(requirePermission).toHaveBeenCalledWith("properties.archive");
   });
 });
 
@@ -262,5 +361,17 @@ function propertyForm() {
   formData.set("propertyId", propertyId);
   formData.set("registeredDate", "");
   formData.set("status", "active");
+  return formData;
+}
+
+function propertyCreateForm() {
+  const formData = new FormData();
+  formData.set("address", "10 Riverside Road");
+  formData.set("branchId", branchId);
+  formData.set("code", "");
+  formData.set("idempotencyKey", "property-create-branch-choice");
+  formData.set("name", "Riverside House");
+  formData.set("propertyType", "House");
+  formData.set("registeredDate", "2026-08-17");
   return formData;
 }

@@ -5,10 +5,7 @@ import {
   rankWorkspaceSearchResults,
   searchWorkspace,
 } from "@/features/workspace-search/data/workspace-search";
-import {
-  getWorkspaceSearchActions,
-  getWorkspaceSearchScopes,
-} from "@/features/workspace-search/workspace-search.scopes";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 import type { WorkspaceSearchResult } from "@/features/workspace-search/workspace-search.types";
 
 type TableName =
@@ -170,53 +167,6 @@ function selectRecordedColumns(
   );
 }
 
-describe("workspace search scopes", () => {
-  it("matches the routes exposed by the role-aware shell", () => {
-    expect(getWorkspaceSearchScopes("super_admin")).toEqual([
-      "properties",
-      "units",
-      "people",
-      "leases",
-      "tasks",
-      "documents",
-    ]);
-    expect(getWorkspaceSearchScopes("operations_manager")).toEqual(["tasks"]);
-    expect(getWorkspaceSearchScopes("operations_member")).toEqual(["tasks"]);
-    expect(getWorkspaceSearchScopes("finance_manager")).toEqual(["leases"]);
-    expect(getWorkspaceSearchScopes("finance_member")).toEqual(["leases"]);
-
-    expect(getWorkspaceSearchActions("super_admin").map((action) => action.href)).toEqual(
-      expect.arrayContaining(["/tasks", "/work-orders", "/inspections"]),
-    );
-    expect(getWorkspaceSearchActions("super_admin")).toContainEqual(
-      expect.objectContaining({ href: "/settings/access", label: "Workspace Access" }),
-    );
-
-    expect(getWorkspaceSearchActions("operations_manager").map((action) => action.href)).toEqual([
-      "/maintenance",
-      "/tasks",
-    ]);
-    expect(getWorkspaceSearchActions("operations_member").map((action) => action.href)).toEqual([
-      "/tasks",
-    ]);
-    expect(getWorkspaceSearchActions("operations_member")).not.toContainEqual(
-      expect.objectContaining({ href: "/properties" }),
-    );
-    expect(getWorkspaceSearchActions("finance_manager").map((action) => action.href)).toEqual([
-      "/finance",
-      "/rent-income",
-      "/bills-expenses",
-      "/balances",
-      "/leases",
-      "/ledger",
-      "/petty-cash",
-    ]);
-    expect(getWorkspaceSearchActions("finance_member")).toEqual(
-      getWorkspaceSearchActions("finance_manager"),
-    );
-  });
-});
-
 describe("searchWorkspace", () => {
   it("trims the query, requires two characters, and does not touch data for short input", async () => {
     const { client, queries } = createSearchClient({});
@@ -224,7 +174,7 @@ describe("searchWorkspace", () => {
     await expect(
       searchWorkspace({
         client: client as never,
-        context: { organizationId: "org-1", role: "super_admin" },
+        context: superAdminContext(),
         query: "  a  ",
       }),
     ).resolves.toEqual([]);
@@ -237,7 +187,7 @@ describe("searchWorkspace", () => {
     await expect(
       searchWorkspace({
         client: client as never,
-        context: { organizationId: "org-1", role: "super_admin" },
+        context: superAdminContext(),
         query: "🧰",
       }),
     ).resolves.toEqual([]);
@@ -332,7 +282,7 @@ describe("searchWorkspace", () => {
 
     const results = await searchWorkspace({
       client: client as never,
-      context: { organizationId: "org-1", role: "super_admin" },
+      context: superAdminContext(),
       query: "  boiler  ",
     });
 
@@ -408,8 +358,13 @@ describe("searchWorkspace", () => {
       client: managerSearch.client as never,
       context: {
         branchId: "branch-a",
+        isSuperAdmin: false,
         organizationId: "org-1",
-        role: "operations_manager",
+        permissionKeys: permissions(
+          "maintenance.view",
+          "maintenance.create_assign",
+          "maintenance.review",
+        ),
       },
       query: "pump",
     });
@@ -430,9 +385,13 @@ describe("searchWorkspace", () => {
       client: memberSearch.client as never,
       context: {
         branchId: "branch-a",
+        isSuperAdmin: false,
         organizationId: "org-1",
+        permissionKeys: permissions(
+          "maintenance.view",
+          "maintenance.complete",
+        ),
         personId: "person-1",
-        role: "operations_member",
       },
       query: "pump",
     });
@@ -477,8 +436,12 @@ describe("searchWorkspace", () => {
       client: client as never,
       context: {
         branchId: "branch-a",
+        isSuperAdmin: false,
         organizationId: "org-1",
-        role: "operations_manager",
+        permissionKeys: permissions(
+          "maintenance.view",
+          "maintenance.create_assign",
+        ),
       },
       query: "boiler",
     });
@@ -512,12 +475,12 @@ describe("searchWorkspace", () => {
     const [firstResults, secondResults] = await Promise.all([
       searchWorkspace({
         client: firstSearch.client as never,
-        context: { organizationId: "org-1", role: "super_admin" },
+        context: superAdminContext(),
         query: "boiler",
       }),
       searchWorkspace({
         client: secondSearch.client as never,
-        context: { organizationId: "org-1", role: "super_admin" },
+        context: superAdminContext(),
         query: "boiler",
       }),
     ]);
@@ -551,7 +514,7 @@ describe("searchWorkspace", () => {
 
     await searchWorkspace({
       client: client as never,
-      context: { organizationId: "org-1", role: "super_admin" },
+      context: superAdminContext(),
       query: "boi%_(),\\",
     });
 
@@ -572,17 +535,37 @@ describe("searchWorkspace", () => {
     await expect(
       searchWorkspace({
         client: client as never,
-        context: { organizationId: "org-1", role: "operations_manager" },
+        context: {
+          branchId: "branch-a",
+          isSuperAdmin: false,
+          organizationId: "org-1",
+          permissionKeys: permissions(
+            "maintenance.view",
+            "maintenance.create_assign",
+          ),
+        },
         query: "work orders",
       }),
-    ).resolves.toEqual([
-      expect.objectContaining({ href: "/maintenance", kind: "action" }),
-    ]);
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ href: "/maintenance", kind: "action" }),
+        expect.objectContaining({ href: "/work-orders", kind: "action" }),
+      ]),
+    );
 
     await expect(
       searchWorkspace({
         client: client as never,
-        context: { organizationId: "org-1", role: "operations_member" },
+        context: {
+          branchId: "branch-a",
+          isSuperAdmin: false,
+          organizationId: "org-1",
+          permissionKeys: permissions(
+            "maintenance.view",
+            "maintenance.complete",
+          ),
+          personId: "person-1",
+        },
         query: "properties",
       }),
     ).resolves.toEqual([]);
@@ -609,3 +592,15 @@ describe("rankWorkspaceSearchResults", () => {
     expect(first[0]).toEqual(expect.objectContaining({ id: "24", label: "Boiler" }));
   });
 });
+
+function permissions(...permissionKeys: PermissionKey[]) {
+  return new Set(permissionKeys);
+}
+
+function superAdminContext() {
+  return {
+    isSuperAdmin: true,
+    organizationId: "org-1",
+    permissionKeys: permissions(),
+  };
+}

@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { from, requireSuperAdminContext, revalidatePath, rpc } = vi.hoisted(() => ({
+const { from, requirePermission, revalidatePath, rpc } = vi.hoisted(() => ({
   from: vi.fn(),
-  requireSuperAdminContext: vi.fn(),
+  requirePermission: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ from, rpc }),
 }));
@@ -23,10 +23,10 @@ const personId = "80000000-0000-0000-0000-000000000001";
 
 describe("person travel document inputs", () => {
   beforeEach(() => {
-    requireSuperAdminContext.mockReset();
+    requirePermission.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireSuperAdminContext.mockResolvedValue({ organizationId });
+    requirePermission.mockResolvedValue({ isSuperAdmin: true, organizationId });
     rpc.mockResolvedValue({ data: personId, error: null });
   });
 
@@ -62,6 +62,45 @@ describe("person travel document inputs", () => {
       p_tax_identifier: "TIN-123",
       p_visa_expiry_date: "2026-12-31",
     });
+    expect(requirePermission).toHaveBeenCalledWith("people.write");
+  });
+
+  it("creates an ordinary writer's person and branch relationship atomically", async () => {
+    const branchId = "90000000-0000-4000-8000-000000000001";
+    requirePermission.mockResolvedValue({
+      branchId,
+      isSuperAdmin: false,
+      organizationId,
+    });
+    const formData = new FormData();
+    formData.set("creationScope", "branch");
+    formData.set("displayName", "Branch Tenant");
+    formData.set("partyType", "individual");
+    formData.append("roles", "tenant");
+
+    await createPersonAction({}, formData);
+
+    expect(rpc).toHaveBeenCalledWith(
+      "create_person",
+      expect.objectContaining({ p_branch_id: branchId }),
+    );
+  });
+
+  it("fails closed on standalone ordinary-user person creation", async () => {
+    requirePermission.mockResolvedValue({
+      branchId: "90000000-0000-4000-8000-000000000001",
+      isSuperAdmin: false,
+      organizationId,
+    });
+    const formData = new FormData();
+    formData.set("displayName", "Unscoped Person");
+    formData.set("partyType", "individual");
+    formData.append("roles", "tenant");
+
+    await expect(createPersonAction({}, formData)).resolves.toMatchObject({
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
 
@@ -72,10 +111,10 @@ describe("guided tenant archive", () => {
 
   beforeEach(() => {
     from.mockReset();
-    requireSuperAdminContext.mockReset();
+    requirePermission.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
-    requireSuperAdminContext.mockResolvedValue({ organizationId });
+    requirePermission.mockResolvedValue({ isSuperAdmin: true, organizationId });
   });
 
   it("archives an unlinked tenant without invoking a lease transition", async () => {
@@ -96,6 +135,7 @@ describe("guided tenant archive", () => {
       p_organization_id: organizationId,
       p_person_id: tenantPersonId,
     });
+    expect(requirePermission).toHaveBeenCalledWith("people.archive");
   });
 
   it("does not invoke lifecycle or archive RPCs while a current lease is linked", async () => {

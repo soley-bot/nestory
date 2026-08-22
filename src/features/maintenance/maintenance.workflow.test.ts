@@ -15,12 +15,12 @@ describe("maintenance workflow", () => {
       status: "ready_for_review" as const,
     };
 
-    expect(getMaintenanceWorkflowState(maintenanceCase, { role: "operations_manager" })).toMatchObject({
+    expect(getMaintenanceWorkflowState(maintenanceCase, { dataScope: "branch", workflowMode: "coordinator" })).toMatchObject({
       currentOwnerLabel: "Manager review",
       isWaitingOnCurrentActor: true,
       nextActionLabel: "Review completion",
     });
-    expect(getMaintenanceWorkflowState(maintenanceCase, { role: "operations_member" })).toMatchObject({
+    expect(getMaintenanceWorkflowState(maintenanceCase, { dataScope: "assigned", workflowMode: "assigned" })).toMatchObject({
       isWaitingOnCurrentActor: false,
       nextActionLabel: "Waiting for review",
       stageLabel: "Waiting for review",
@@ -28,8 +28,8 @@ describe("maintenance workflow", () => {
   });
 
   it("keeps review and completion out of ordinary status changes", () => {
-    const memberAssigned = { actorRole: "operations_manager" as const, executionMode: "member_assigned" as const };
-    const coordinated = { actorRole: "operations_manager" as const, executionMode: "manager_coordinated" as const };
+    const memberAssigned = { actorMode: "coordinator" as const, executionMode: "member_assigned" as const };
+    const coordinated = { actorMode: "coordinator" as const, executionMode: "manager_coordinated" as const };
 
     expect(canTransitionMaintenanceStatus("pending", "scheduled", memberAssigned)).toBe(true);
     expect(canTransitionMaintenanceStatus("scheduled", "pending", memberAssigned)).toBe(true);
@@ -47,7 +47,7 @@ describe("maintenance workflow", () => {
     expect(canTransitionMaintenanceStatus("in_progress", "completed", coordinated)).toBe(false);
     expect(canTransitionMaintenanceStatus("blocked", "cancelled", coordinated)).toBe(true);
     expect(canTransitionMaintenanceStatus("pending", "scheduled", {
-      actorRole: "operations_member",
+      actorMode: "assigned",
       executionMode: "member_assigned",
     })).toBe(false);
   });
@@ -84,7 +84,7 @@ describe("maintenance workflow", () => {
       executionMode: "member_assigned",
       latestReviewInstruction: undefined,
       status: "blocked",
-    }, { role: "operations_member" })).toMatchObject({
+    }, { dataScope: "assigned", workflowMode: "assigned" })).toMatchObject({
       currentOwnerLabel: "Manager coordination",
       isWaitingOnCurrentActor: false,
       nextActionLabel: "Waiting for manager",
@@ -98,7 +98,7 @@ describe("maintenance workflow", () => {
       executionMode: "member_assigned",
       latestReviewInstruction: undefined,
       status: "blocked",
-    }, { role: "operations_manager" })).toMatchObject({
+    }, { dataScope: "branch", workflowMode: "coordinator" })).toMatchObject({
       currentOwnerLabel: "Manager coordination",
       isWaitingOnCurrentActor: true,
       nextActionLabel: "Resolve blocker",
@@ -114,7 +114,7 @@ describe("maintenance workflow", () => {
       executionMode: "manager_coordinated",
       latestReviewInstruction: undefined,
       status: "blocked",
-    }, { role: "operations_manager" })).toMatchObject({
+    }, { dataScope: "branch", workflowMode: "coordinator" })).toMatchObject({
       currentOwnerLabel: "Manager coordination",
       isWaitingOnCurrentActor: true,
       nextActionLabel: "Resolve blocker",
@@ -125,23 +125,23 @@ describe("maintenance workflow", () => {
     expect(getCoordinatedMaintenanceActions({
       executionMode: "manager_coordinated",
       status: "pending",
-    }, { role: "operations_manager" })).toEqual(["start"]);
+    }, { workflowMode: "coordinator" })).toEqual(["start"]);
     expect(getCoordinatedMaintenanceActions({
       executionMode: "manager_coordinated",
       status: "in_progress",
-    }, { role: "super_admin" })).toEqual(["block", "complete"]);
+    }, { workflowMode: "coordinator" })).toEqual(["block", "complete"]);
     expect(getCoordinatedMaintenanceActions({
       executionMode: "manager_coordinated",
       status: "blocked",
-    }, { role: "operations_manager" })).toEqual(["resume"]);
+    }, { workflowMode: "coordinator" })).toEqual(["resume"]);
     expect(getCoordinatedMaintenanceActions({
       executionMode: "member_assigned",
       status: "in_progress",
-    }, { role: "operations_manager" })).toEqual([]);
+    }, { workflowMode: "coordinator" })).toEqual([]);
     expect(getCoordinatedMaintenanceActions({
       executionMode: "manager_coordinated",
       status: "in_progress",
-    }, { role: "operations_member" })).toEqual([]);
+    }, { workflowMode: "assigned" })).toEqual([]);
   });
 
   it("returns the latest reopen instruction from activity", () => {
@@ -165,6 +165,6 @@ describe("maintenance workflow", () => {
       executionMode: "member_assigned",
       latestReviewInstruction: "Tighten the fitting",
       status: "in_progress",
-    }, { role: "operations_member" }).latestReviewInstruction).toBe("Tighten the fitting");
+    }, { dataScope: "assigned", workflowMode: "assigned" }).latestReviewInstruction).toBe("Tighten the fitting");
   });
 });

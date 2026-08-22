@@ -28,16 +28,23 @@ describe("GET /api/workspace-search", () => {
     vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1" });
     vi.mocked(getWorkspaceMembershipForUser).mockResolvedValue({
       branchId: "branch-a",
+      isSuperAdmin: false,
       organizationId: "org-1",
       organizationName: "Nestory",
+      permissionKeys: new Set([
+        "maintenance.view",
+        "maintenance.create_assign",
+      ]),
       personId: "person-1",
-      role: "operations_manager",
+      role: "custom",
+      roleKind: "custom",
+      roleName: "Maintenance Coordinator",
       theme: {
         accentPreset: "neutral",
         accentSeed: null,
         mode: "system",
       },
-    });
+    } as never);
     vi.mocked(searchWorkspace).mockResolvedValue([
       {
         href: "/maintenance?archiveState=all&taskId=task-1",
@@ -62,7 +69,7 @@ describe("GET /api/workspace-search", () => {
     expect(searchWorkspace).not.toHaveBeenCalled();
   });
 
-  it("derives organization and role from the signed-in membership", async () => {
+  it("derives organization, branch, and permissions from the signed-in membership", async () => {
     const response = await GET(
       new Request(
         "http://localhost/api/workspace-search?q=%20%20boiler%20%20&organizationId=org-evil&role=admin",
@@ -80,9 +87,13 @@ describe("GET /api/workspace-search", () => {
       expect.objectContaining({
         context: {
           branchId: "branch-a",
+          isSuperAdmin: false,
           organizationId: "org-1",
+          permissionKeys: new Set([
+            "maintenance.view",
+            "maintenance.create_assign",
+          ]),
           personId: "person-1",
-          role: "operations_manager",
         },
         query: "boiler",
       }),

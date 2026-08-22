@@ -4,14 +4,14 @@ import {
   getUnitsScreenData,
 } from "@/features/units/data/units";
 import { parseUnitSearchParams } from "@/features/units/unit.filters";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 
 type UnitsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function UnitsPage({ searchParams }: UnitsPageProps) {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.view");
   const params = await searchParams;
   const viewQuery = parseUnitSearchParams(params);
   const [{ pagination, units }, propertyOptions] = await Promise.all([
@@ -20,7 +20,7 @@ export default async function UnitsPage({ searchParams }: UnitsPageProps) {
   ]);
   return (
     <UnitScreen
-      canCreate
+      canCreate={context.permissionKeys.has("properties.write")}
       pagination={pagination}
       propertyOptions={propertyOptions}
       units={units}

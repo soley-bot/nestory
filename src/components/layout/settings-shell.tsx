@@ -8,7 +8,7 @@ import { SettingsSectionNav } from "@/components/layout/settings-section-nav";
 import { SettingsTabs } from "@/components/layout/settings-tabs";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { getSettingsDestinations } from "@/features/organization/settings-navigation";
-import type { WorkspaceRole } from "@/lib/auth/capabilities";
+import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/capabilities";
 
 export function SettingsShell({
   activeHref,
@@ -17,9 +17,10 @@ export function SettingsShell({
 }: {
   activeHref: string;
   children: ReactNode;
-  role: WorkspaceRole;
+  role: WorkspaceRole | WorkspaceRoleKind;
 }) {
-  const accessView = activeHref === "/settings/access";
+  const accessView =
+    activeHref === "/settings/access" || activeHref === "/settings/roles";
   const currentSection =
     getSettingsDestinations(role).find((destination) => destination.href === activeHref)
       ?.label ?? formatSettingsSection(activeHref);

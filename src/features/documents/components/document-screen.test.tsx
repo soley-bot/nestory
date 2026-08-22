@@ -240,6 +240,19 @@ describe("DocumentScreen workspace contract", () => {
       { scroll: false },
     );
   });
+
+  it("keeps write and archive controls hidden from a view-only user", async () => {
+    const user = userEvent.setup();
+    renderDocuments(documents, {}, undefined, []);
+
+    expect(screen.queryByRole("button", { name: "Upload document" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Preview lease.pdf" }));
+    const inspector = screen.getByRole("dialog", {
+      name: "lease.pdf document quick view",
+    });
+    expect(within(inspector).queryByRole("button", { name: "Edit document" })).toBeNull();
+    expect(within(inspector).queryByRole("button", { name: "Archive" })).toBeNull();
+  });
 });
 
 const defaultViewQuery: DocumentViewQuery = {
@@ -260,6 +273,7 @@ function renderDocuments(
   nextDocuments: DocumentSummary[] = documents,
   query: Partial<DocumentViewQuery> = {},
   initialDocumentId?: string,
+  permissionKeys?: Parameters<typeof DocumentScreen>[0]["permissionKeys"],
 ) {
   return render(
     <DocumentScreen
@@ -273,6 +287,7 @@ function renderDocuments(
         totalCount: nextDocuments.length,
         totalPages: nextDocuments.length ? 1 : 0,
       }}
+      permissionKeys={permissionKeys}
       propertyOptions={[{ id: "property-1", label: "HOME / Home" }]}
       unitOptions={[{ id: "unit-1", label: "HOME / Unit 1A", propertyId: "property-1" }]}
       viewQuery={{ ...defaultViewQuery, ...query }}
@@ -291,6 +306,7 @@ function makeDocument(
 
   return {
     activity: [],
+    authorityDomain: "property",
     category: "Lease",
     fileName,
     formValues: {

@@ -32,7 +32,7 @@ const leaseMonthFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 type LeaseScreenProps = {
-  canConfigure?: boolean;
+  canPrepare?: boolean;
   initialLeaseId?: string;
   leases: LeaseSummary[];
   pagination: LeasePagination;
@@ -43,7 +43,7 @@ type LeaseScreenProps = {
 };
 
 export function LeaseScreen({
-  canConfigure = true,
+  canPrepare = true,
   initialLeaseId,
   leases,
   pagination,
@@ -59,7 +59,7 @@ export function LeaseScreen({
   );
   const [compactInspectorOpen, setCompactInspectorOpen] = useState(
     Boolean(initialLeaseId) &&
-      (!canConfigure || searchParams.get("action") !== "create"),
+      (!canPrepare || searchParams.get("action") !== "create"),
   );
   const focusedLease = initialLeaseId
     ? leases.find((lease) => lease.id === initialLeaseId) ?? null

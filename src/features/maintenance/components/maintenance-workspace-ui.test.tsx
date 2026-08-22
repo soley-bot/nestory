@@ -614,7 +614,7 @@ describe("maintenance board accessible alternative", () => {
   it("keeps member work in the keyboard list without a misleading board switch", () => {
     render(
       <BoardSurface
-        actorRole="operations_member"
+        actorMode="assigned"
         cases={[makeCase()]}
         emptyLabel="No assigned work found."
         onSelect={vi.fn()}
@@ -632,7 +632,7 @@ describe("maintenance board accessible alternative", () => {
     const user = userEvent.setup();
     render(
       <BoardSurface
-        actorRole="operations_manager"
+        actorMode="coordinator"
         cases={[makeCase()]}
         emptyLabel="No work orders found."
         onSelect={vi.fn()}
@@ -661,7 +661,7 @@ describe("maintenance board accessible alternative", () => {
     const onSelect = vi.fn();
     const { container } = render(
       <BoardSurface
-        actorRole="operations_manager"
+        actorMode="coordinator"
         cases={[makeCase()]}
         emptyLabel="No work orders found."
         onStatusChange={vi.fn()}
@@ -694,7 +694,7 @@ describe("maintenance board accessible alternative", () => {
     const onSelect = vi.fn();
     render(
       <BoardSurface
-        actorRole="operations_manager"
+        actorMode="coordinator"
         cases={[makeCase()]}
         emptyLabel="No work orders found."
         onSelect={onSelect}
@@ -761,9 +761,29 @@ function renderMaintenance({
 } = {}) {
   return render(
     <MaintenanceScreen
-      actor={{ branchId: "branch-1", personId: "person-1", role: actorRole }}
+      actor={{
+        branchId: "branch-1",
+        dataScope:
+          actorRole === "super_admin"
+            ? "organization"
+            : actorRole === "operations_member"
+              ? "assigned"
+              : "branch",
+        personId: "person-1",
+        workflowMode:
+          actorRole === "operations_member" ? "assigned" : "coordinator",
+      }}
       branchOptions={[]}
-      capabilities={getMaintenanceCapabilities(actorRole)}
+      capabilities={getMaintenanceCapabilities({
+        isSuperAdmin: actorRole === "super_admin",
+        permissionKeys: new Set(
+          actorRole === "operations_manager"
+            ? ["maintenance.create_assign", "maintenance.review"] as const
+            : actorRole === "operations_member"
+              ? ["maintenance.complete"] as const
+              : [],
+        ),
+      })}
       cases={cases}
       createButtonLabel="New case"
       emptyLabel="No maintenance cases found."
@@ -798,7 +818,7 @@ function renderWorkflowSurface(
 ) {
   return render(
     <MaintenanceWorkflowSurface
-      actorRole="operations_manager"
+      actorMode="coordinator"
       cases={cases}
       emptyLabel="No maintenance cases found."
       month="2026-07"

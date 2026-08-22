@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  requirePermission: vi.fn(async () => ({
+    organizationId: "10000000-0000-0000-0000-000000000001",
+  })),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
-  requireLeaseConfigurationContext: vi.fn(async () => ({
-    organizationId: "10000000-0000-0000-0000-000000000001",
-  })),
+  requirePermission: mocks.requirePermission,
 }));
 vi.mock("@/lib/dates/business-date", () => ({
   getBusinessDateValue: () => "2026-08-18",
@@ -32,6 +33,7 @@ const activeOccupancyId = "30000000-0000-0000-0000-000000000002";
 let currentLeaseStatus = "draft";
 
 beforeEach(() => {
+  mocks.requirePermission.mockClear();
   mocks.revalidatePath.mockReset();
   mocks.rpc.mockReset();
   currentLeaseStatus = "draft";
@@ -62,6 +64,7 @@ describe("activateSetupLeaseAction", () => {
       }),
     );
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.requirePermission).toHaveBeenCalledWith("leases.activate");
     expect(result.status).toBe("success");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/properties/setup");
   });

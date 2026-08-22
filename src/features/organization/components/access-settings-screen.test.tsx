@@ -72,6 +72,16 @@ const admin = {
   userId: "44444444-4444-4444-8444-444444444444",
 };
 
+const customRole = {
+  assignedUserCount: 0,
+  id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  name: "Branch operator",
+  pendingInvitationCount: 0,
+  permissions: ["maintenance.view" as const],
+  status: "active" as const,
+  version: 1,
+};
+
 const pendingInvitation = {
   branchId: branch.id,
   email: "pending@example.com",
@@ -127,6 +137,8 @@ function renderScreen({
       invitations={invitations}
       members={members}
       people={people}
+      role="super_admin"
+      roles={[customRole]}
       staff={people}
     />,
   );
@@ -173,7 +185,9 @@ describe("AccessSettingsScreen protected access rows", () => {
       email: "unlinked@example.com",
       id: "99999999-9999-4999-8999-999999999999",
       personId: null,
-      role: "operations_member" as const,
+      customRoleId: customRole.id,
+      customRoleName: customRole.name,
+      role: "custom" as const,
       userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     };
     renderScreen({ members: [admin, unlinkedMember] });
@@ -201,7 +215,7 @@ describe("AccessSettingsScreen protected access rows", () => {
     const member = getExpandedMember(admin.id);
 
     await user.click(within(member).getByRole("combobox", { name: "Access level" }));
-    await user.click(screen.getByRole("option", { name: "Operations Manager" }));
+    await user.click(screen.getByRole("option", { name: customRole.name }));
     fireEvent.click(within(member).getByRole("button", { name: "Save access" }));
 
     await waitFor(() => expect(updateAccess).toHaveBeenCalledOnce());
@@ -209,9 +223,10 @@ describe("AccessSettingsScreen protected access rows", () => {
       Object.fromEntries((updateAccess.mock.calls[0][1] as FormData).entries()),
     ).toEqual({
       branchId: branch.id,
+      customRoleId: customRole.id,
       memberId: admin.id,
       personId: adminPerson.id,
-      role: "operations_manager",
+      roleKind: "custom",
     });
   });
 
@@ -262,7 +277,7 @@ describe("AccessSettingsScreen protected access rows", () => {
     const member = getExpandedMember(admin.id);
 
     await user.click(within(member).getByRole("combobox", { name: "Access level" }));
-    await user.click(screen.getByRole("option", { name: "Finance Manager" }));
+    await user.click(screen.getByRole("option", { name: customRole.name }));
     await user.click(within(member).getByRole("button", { name: /Close/ }));
 
     const dialog = within(member).getByRole("alertdialog");

@@ -15,9 +15,10 @@ type TasksPageProps = {
 
 export default async function TasksPage({ searchParams }: TasksPageProps) {
   const context = await requireOperationsExecutionContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const capabilities = getMaintenanceCapabilities(context);
+  const assignmentOnly = !context.isSuperAdmin;
 
-  if (context.role === "operations_member" && !context.personId) {
+  if (assignmentOnly && !context.personId) {
     return <UnlinkedMemberTasksState />;
   }
 
@@ -25,8 +26,9 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   const viewQuery = parseMaintenanceSearchParams({ review: "all", ...params });
   const actor = {
     branchId: context.branchId,
+    dataScope: context.isSuperAdmin ? "organization" as const : "assigned" as const,
     personId: context.personId,
-    role: context.role,
+    workflowMode: context.isSuperAdmin ? "coordinator" as const : "assigned" as const,
   };
   const [data, reminders] = await Promise.all([
     getMaintenanceScreenData(context.organizationId, viewQuery, actor),
@@ -43,12 +45,12 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       cases={data.cases}
       createButtonLabel="New task"
       description={
-        context.role === "operations_member"
+        assignmentOnly
           ? "Assigned work, due dates, checklists, and current status."
           : "Assign branch work, track staff load, and keep task follow-through visible."
       }
       emptyLabel={
-        context.role === "operations_member"
+        assignmentOnly
           ? "No assigned tasks found."
           : "No tasks found."
       }

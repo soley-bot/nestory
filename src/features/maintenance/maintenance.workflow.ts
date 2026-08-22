@@ -24,10 +24,10 @@ export type CoordinatedMaintenanceAction = "block" | "complete" | "resume" | "st
 
 export function getCoordinatedMaintenanceActions(
   maintenanceCase: Pick<MaintenanceCase, "executionMode" | "status">,
-  actor: Pick<MaintenanceActor, "role">,
+  actor: Pick<MaintenanceActor, "workflowMode">,
 ): CoordinatedMaintenanceAction[] {
   if (
-    actor.role === "operations_member" ||
+    actor.workflowMode === "assigned" ||
     maintenanceCase.executionMode !== "manager_coordinated"
   ) {
     return [];
@@ -51,13 +51,13 @@ export function getMaintenanceWorkflowState(
   actor: MaintenanceActor,
 ): MaintenanceWorkflowState {
   const latestReviewInstruction = maintenanceCase.latestReviewInstruction;
-  const isMember = actor.role === "operations_member";
+  const isMember = actor.workflowMode === "assigned";
   const executionMode = maintenanceCase.executionMode ?? "manager_coordinated";
 
   if (maintenanceCase.status === "ready_for_review") {
     return {
       currentOwnerLabel: "Manager review",
-      isWaitingOnCurrentActor: actor.role !== "operations_member",
+      isWaitingOnCurrentActor: actor.workflowMode !== "assigned",
       latestReviewInstruction,
       nextActionLabel: isMember ? "Waiting for review" : "Review completion",
       nextHandoffLabel: "Approve completion or return the work with instructions",
@@ -135,11 +135,11 @@ export function canTransitionMaintenanceStatus(
   from: MaintenanceStatus,
   to: MaintenanceStatus,
   context: {
-    actorRole: MaintenanceActor["role"];
+    actorMode: MaintenanceActor["workflowMode"];
     executionMode: MaintenanceExecutionMode;
   },
 ) {
-  if (context.actorRole === "operations_member") {
+  if (context.actorMode === "assigned") {
     return false;
   }
 

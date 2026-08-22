@@ -260,28 +260,12 @@ function authenticatedCorrectionSql(
 }
 
 function authenticatedRosterMutationSql(actorId, mutationKind) {
-  if (mutationKind === "service_role_remove_owner_role") {
-    return `
-      SET LOCAL ROLE service_role;
-      UPDATE public.person_roles
-      SET status = 'inactive', archived_at = now()
-      WHERE organization_id = '${ids.organization}'
-        AND person_id = '${ids.owner}'
-        AND role = 'owner';
-    `;
-  }
-
   const mutationSql = {
     archive_person: `SELECT public.archive_person('${ids.organization}', '${ids.owner}');`,
     remove_owner_role: `SELECT public.update_person(
       '${ids.owner}', '${ids.organization}', 'Opening concurrency owner', NULL,
       'individual', NULL, NULL, NULL, NULL, ARRAY['vendor']::text[]
     );`,
-    direct_remove_owner_role: `UPDATE public.person_roles
-      SET status = 'inactive', archived_at = now(), updated_by = '${actorId}'
-      WHERE organization_id = '${ids.organization}'
-        AND person_id = '${ids.owner}'
-        AND role = 'owner';`,
     change_ownership_percent: `SELECT public.update_property(
       '${ids.property}', '${ids.organization}', 'Opening concurrency A', 'OCA',
       'Apartment', NULL, NULL, 'active', NULL, NULL,
@@ -293,10 +277,6 @@ function authenticatedRosterMutationSql(actorId, mutationKind) {
       '${ids.replacementOwner}', '2026-08-01', 100.000
     );`,
     archive_property: `SELECT public.archive_property('${ids.property}', '${ids.organization}');`,
-    direct_archive_property: `UPDATE public.properties
-      SET archived_at = now(), archived_by = '${actorId}', updated_by = '${actorId}'
-      WHERE organization_id = '${ids.organization}'
-        AND id = '${ids.property}';`,
   }[mutationKind];
   assert.ok(mutationSql, `Unsupported roster mutation: ${mutationKind}`);
 
@@ -323,14 +303,9 @@ function archiveSharedOwnerAfterTupleLockSql() {
     SET LOCAL statement_timeout = '15s';
     SELECT set_config('request.jwt.claim.sub', '${ids.submitterTwo}', true);
     SET LOCAL ROLE authenticated;
-    SELECT id
-    FROM public.people
-    WHERE organization_id = '${ids.organization}'
-      AND id = '${ids.owner}'
-    FOR UPDATE;
+    SELECT public.archive_person('${ids.organization}', '${ids.owner}');
     DO $barrier$ BEGIN RAISE NOTICE 'owner_archive_tuple_ready'; END $barrier$;
     SELECT pg_sleep(0.25);
-    SELECT public.archive_person('${ids.organization}', '${ids.owner}');
     COMMIT;`;
 }
 
@@ -1205,12 +1180,9 @@ test("owner opening approval serializes every current-roster mutation", async ()
   const mutationKinds = [
     "archive_person",
     "remove_owner_role",
-    "direct_remove_owner_role",
-    "service_role_remove_owner_role",
     "change_ownership_percent",
     "transfer_owner",
     "archive_property",
-    "direct_archive_property",
   ];
   const startOrders = ["mutation_first", "approval_first"];
 

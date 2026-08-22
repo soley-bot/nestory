@@ -3,8 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sha256Hex } from "@/features/documents/content-fingerprint";
+import {
+  getDocumentAuthorityDomain,
+  getDocumentPermission,
+} from "@/features/documents/document-authority";
 import { removeUnregisteredDocumentObject } from "@/features/documents/storage-cleanup";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import {
+  requirePermission,
+  requireSuperAdminContext,
+  requireWorkspaceContext,
+} from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
 type DocumentFieldErrors = {
@@ -105,7 +113,7 @@ export async function createDocumentAction(
   _state: DocumentActionState,
   formData: FormData,
 ): Promise<DocumentActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireWorkspaceContext();
   const parsed = metadataSchema.safeParse({
     category: readString(formData, "category"),
     leaseId: readString(formData, "leaseId"),
@@ -152,8 +160,21 @@ export async function createDocumentAction(
     return validationState;
   }
 
+  await requirePermission(validationState.requiredPermission);
+
+  if (!context.isSuperAdmin && context.branchId !== validationState.branchId) {
+    return {
+      fieldErrors: { propertyId: ["Choose an active property."] },
+      status: "error",
+    };
+  }
+
   const contentSha256 = await sha256Hex(await file.arrayBuffer());
-  const storagePath = getDocumentStoragePath(context.organizationId, file.name);
+  const storagePath = getDocumentStoragePath(
+    context.organizationId,
+    validationState.branchId,
+    file.name,
+  );
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
     .upload(storagePath, file, {
@@ -211,7 +232,7 @@ export async function updateDocumentAction(
   _state: DocumentActionState,
   formData: FormData,
 ): Promise<DocumentActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireWorkspaceContext();
   const parsedDocumentId = documentIdSchema.safeParse(
     readString(formData, "documentId"),
   );
@@ -260,6 +281,25 @@ export async function updateDocumentAction(
     };
   }
 
+  const previousTimelineEvent = await getDocumentTimelineAuthoritySource(
+    supabase,
+    context.organizationId,
+    previous.timeline_event_id,
+  );
+  await requirePermission(
+    getDocumentPermission(
+      getDocumentAuthorityDomain({
+        leaseId: previous.lease_id,
+        ledgerEntryId: previous.ledger_entry_id,
+        propertyId: previous.property_id,
+        taskId: previous.task_id,
+        tenantRequestId: previous.tenant_request_id,
+        timelineEvent: previousTimelineEvent,
+      }),
+      "write",
+    ),
+  );
+
   const leaseId = parsed.data.leaseId || null;
   const taskId = parsed.data.taskId || null;
   const unitId = parsed.data.unitId || null;
@@ -276,8 +316,33 @@ export async function updateDocumentAction(
     return validationState;
   }
 
+  await requirePermission(
+    getDocumentPermission(
+      getDocumentAuthorityDomain({
+        leaseId,
+        ledgerEntryId: previous.ledger_entry_id,
+        propertyId: parsed.data.propertyId,
+        taskId,
+        tenantRequestId: previous.tenant_request_id,
+        timelineEvent: previousTimelineEvent,
+      }),
+      "write",
+    ),
+  );
+
+  if (!context.isSuperAdmin && context.branchId !== validationState.branchId) {
+    return {
+      fieldErrors: { propertyId: ["Choose an active property."] },
+      status: "error",
+    };
+  }
+
   const replacementPath = replacementFile
-    ? getDocumentStoragePath(context.organizationId, replacementFile.name)
+    ? getDocumentStoragePath(
+        context.organizationId,
+        validationState.branchId,
+        replacementFile.name,
+      )
     : null;
   const replacementSha256 = replacementFile
     ? await sha256Hex(await replacementFile.arrayBuffer())
@@ -471,7 +536,7 @@ async function updateDocumentArchiveState({
   fallbackMessage: string;
   formData: FormData;
 }): Promise<DocumentActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requireWorkspaceContext();
   const parsedDocumentId = documentIdSchema.safeParse(
     readString(formData, "documentId"),
   );
@@ -496,6 +561,25 @@ async function updateDocumentArchiveState({
       status: "error",
     };
   }
+
+  const timelineEvent = await getDocumentTimelineAuthoritySource(
+    supabase,
+    context.organizationId,
+    previous.timeline_event_id,
+  );
+  await requirePermission(
+    getDocumentPermission(
+      getDocumentAuthorityDomain({
+        leaseId: previous.lease_id,
+        ledgerEntryId: previous.ledger_entry_id,
+        propertyId: previous.property_id,
+        taskId: previous.task_id,
+        tenantRequestId: previous.tenant_request_id,
+        timelineEvent,
+      }),
+      "archive",
+    ),
+  );
 
   const { error } = await supabase.rpc(
     archived ? "archive_document" : "restore_document",
@@ -537,16 +621,23 @@ async function validateDocumentLink({
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   taskId: string | null;
   unitId: string | null;
-}): Promise<DocumentActionState> {
+}): Promise<
+  | (DocumentActionState & { status: "error" })
+  | {
+      branchId: string;
+      requiredPermission: ReturnType<typeof getDocumentPermission>;
+      status: "success";
+    }
+> {
   const propertyResult = await supabase
     .from("properties")
-    .select("id")
+    .select("id, branch_id")
     .eq("organization_id", organizationId)
     .eq("id", propertyId)
     .is("archived_at", null)
     .maybeSingle();
 
-  if (propertyResult.error || !propertyResult.data) {
+  if (propertyResult.error || !propertyResult.data?.branch_id) {
     return {
       fieldErrors: { propertyId: ["Choose an active property."] },
       status: "error",
@@ -643,7 +734,37 @@ async function validateDocumentLink({
     }
   }
 
-  return { status: "success" };
+  return {
+    branchId: propertyResult.data.branch_id,
+    requiredPermission: getDocumentPermission(
+      getDocumentAuthorityDomain({ leaseId, propertyId, taskId }),
+      "write",
+    ),
+    status: "success",
+  };
+}
+
+async function getDocumentTimelineAuthoritySource(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  organizationId: string,
+  timelineEventId: string | null,
+) {
+  if (!timelineEventId) return null;
+
+  const { data } = await supabase
+    .from("timeline_events")
+    .select("event_type, lease_id, ledger_entry_id")
+    .eq("organization_id", organizationId)
+    .eq("id", timelineEventId)
+    .maybeSingle();
+
+  return data
+    ? {
+        eventType: data.event_type,
+        leaseId: data.lease_id,
+        ledgerEntryId: data.ledger_entry_id,
+      }
+    : null;
 }
 
 async function getDocumentPathContext(
@@ -669,10 +790,14 @@ function getReplacementFile(formData: FormData) {
   return file instanceof File && file.size > 0 ? file : null;
 }
 
-function getDocumentStoragePath(organizationId: string, fileName: string) {
+function getDocumentStoragePath(
+  organizationId: string,
+  branchId: string,
+  fileName: string,
+) {
   const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]+/g, "-");
 
-  return `${organizationId}/documents/${crypto.randomUUID()}-${safeFileName}`;
+  return `${organizationId}/branches/${branchId}/documents/${crypto.randomUUID()}-${safeFileName}`;
 }
 
 function validateDocumentFile(file: File) {

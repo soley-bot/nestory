@@ -11,7 +11,7 @@ export default async function WorkspacePage() {
   redirect(
     getOrganizationWorkspaceUrl(
       context.organizationSlug,
-      getWorkspaceEntryPath(context.role),
+      getWorkspaceEntryPath(context.permissionContext),
     ),
   );
 }

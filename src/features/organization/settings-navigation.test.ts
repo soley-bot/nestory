@@ -14,6 +14,7 @@ describe("settings navigation", () => {
       "/settings/branches",
       "/settings/teams",
       "/settings/access",
+      "/settings/roles",
     ]);
     expect(getSettingsLandingHref("super_admin")).toBe(
       "/settings/organization",
@@ -30,9 +31,11 @@ describe("settings navigation", () => {
   });
 
   it("does not invent Settings access for roles without a Settings capability", () => {
+    expect(getSettingsDestinations("custom")).toEqual([]);
     expect(getSettingsDestinations("finance_member")).toEqual([]);
     expect(getSettingsDestinations("operations_manager")).toEqual([]);
     expect(getSettingsDestinations("operations_member")).toEqual([]);
     expect(getSettingsLandingHref("finance_member")).toBeNull();
+    expect(getSettingsLandingHref("custom")).toBeNull();
   });
 });

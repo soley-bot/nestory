@@ -13,8 +13,8 @@ import {
 } from "@/features/finance-operations/paid-cost-evidence";
 import type { Json } from "@/types/database";
 import {
-  requireOperationsExecutionContext,
-  requireOperationsManagementContext,
+  requirePermission,
+  requireSuperAdminContext,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -196,8 +196,8 @@ export async function createMaintenanceCaseAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireOperationsExecutionContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const context = await requirePermission("maintenance.create_assign");
+  const capabilities = getMaintenanceCapabilities(context);
 
   if (!capabilities.canCreateCase) {
     return { message: "You do not have access to create maintenance cases.", status: "error" };
@@ -265,8 +265,8 @@ export async function updateMaintenanceCaseAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireOperationsExecutionContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const context = await requirePermission("maintenance.create_assign");
+  const capabilities = getMaintenanceCapabilities(context);
 
   if (!capabilities.canEditCaseStructure) {
     return { message: "You do not have access to edit maintenance case details.", status: "error" };
@@ -356,7 +356,7 @@ export async function submitMaintenanceCostAction(
     return invalidFormState(parsed.error);
   }
 
-  const context = await requireOperationsManagementContext();
+  const context = await requirePermission("maintenance.review");
   const supabase = await createSupabaseServerClient();
   const pathContext = await getMaintenancePathContext(
     supabase,
@@ -419,8 +419,8 @@ export async function updateMaintenanceStatusAction(
   taskId: string,
   status: MaintenanceStatus,
 ): Promise<MaintenanceActionState> {
-  const context = await requireOperationsExecutionContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const context = await requirePermission("maintenance.create_assign");
+  const capabilities = getMaintenanceCapabilities(context);
 
   if (!capabilities.canManageCaseState) {
     return { message: "You do not have access to manage maintenance status.", status: "error" };
@@ -489,7 +489,7 @@ export async function updateMaintenanceStatusAction(
   if (!canTransitionMaintenanceStatus(
     task.status as MaintenanceStatus,
     parsedStatus.data,
-    { actorRole: context.role, executionMode },
+    { actorMode: "coordinator", executionMode },
   )) {
     return {
       message: "Use the assigned-member, coordinated-work, or review controls for execution transitions.",
@@ -571,8 +571,8 @@ async function updateMaintenanceArchiveState({
   fallbackMessage: string;
   formData: FormData;
 }): Promise<MaintenanceActionState> {
-  const context = await requireOperationsExecutionContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const context = await requireSuperAdminContext();
+  const capabilities = getMaintenanceCapabilities(context);
 
   if (!capabilities.canArchiveCase) {
     return {
@@ -626,8 +626,8 @@ export async function executeAssignedMaintenanceTaskAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireOperationsExecutionContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const context = await requirePermission("maintenance.complete");
+  const capabilities = getMaintenanceCapabilities(context);
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
   const parsedAction = executionActionSchema.safeParse(readString(formData, "executionAction"));
   const blockedReason = readString(formData, "blockedReason").trim();
@@ -692,8 +692,8 @@ export async function executeCoordinatedMaintenanceTaskAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireOperationsExecutionContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const context = await requirePermission("maintenance.create_assign");
+  const capabilities = getMaintenanceCapabilities(context);
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
   const parsedAction = coordinatedActionSchema.safeParse(
     readString(formData, "coordinatedAction"),
@@ -763,8 +763,8 @@ export async function reviewMaintenanceCompletionAction(
   _state: MaintenanceActionState,
   formData: FormData,
 ): Promise<MaintenanceActionState> {
-  const context = await requireOperationsExecutionContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const context = await requirePermission("maintenance.review");
+  const capabilities = getMaintenanceCapabilities(context);
   const parsedTaskId = uuidShapeSchema.safeParse(readString(formData, "taskId"));
   const parsedAction = reviewActionSchema.safeParse(readString(formData, "reviewAction"));
   const parsedNote = optionalReviewNoteSchema.safeParse(readString(formData, "reviewNote"));

@@ -100,27 +100,28 @@ SELECT ok(
   'cleanup claim RPCs are executable only by service_role'
 );
 
-SELECT is(
-  (
-    SELECT count(*)::integer
-    FROM pg_catalog.pg_proc AS function
-    JOIN pg_catalog.pg_namespace AS namespace
-      ON namespace.oid = function.pronamespace
-    WHERE namespace.nspname = 'public'
-      AND function.proname IN (
-        'attest_tenant_commercial_document_upload',
-        'register_tenant_commercial_document_artifact',
-        'mark_tenant_commercial_document_publication_failed',
-        'begin_tenant_commercial_document_cleanup',
-        'finish_tenant_commercial_document_cleanup'
-      )
-      AND pg_catalog.strpos(
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM (VALUES
+      ('public'::name, 'attest_tenant_commercial_document_upload'::name),
+      ('app_private'::name, 'register_tenant_commercial_document_artifact_baseline_branch106'::name),
+      ('app_private'::name, 'mark_tenant_commercial_document_publication_failed_baseline_bra'::name),
+      ('public'::name, 'begin_tenant_commercial_document_cleanup'::name),
+      ('public'::name, 'finish_tenant_commercial_document_cleanup'::name)
+    ) AS expected(schema_name,function_name)
+    LEFT JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.nspname=expected.schema_name
+    LEFT JOIN pg_catalog.pg_proc AS function
+      ON function.pronamespace=namespace.oid
+     AND function.proname=expected.function_name
+    WHERE function.oid IS NULL
+      OR pg_catalog.strpos(
         pg_catalog.pg_get_functiondef(function.oid),
         'tenant_commercial_document_source_v1'
-      ) > 0
+      )=0
   ),
-  5,
-  'attestation, registration, failure, and cleanup use the same source lock key'
+  'the named attestation, baseline registration, failure, and cleanup contracts share one source lock key'
 );
 
 SELECT has_function(
@@ -817,8 +818,8 @@ SELECT throws_ok(
     )
   $$,
   '42501',
-  'tenant_commercial_document_register_forbidden',
-  'cross-organization registration fails closed before source lookup'
+  'tenant_commercial_document_registration_forbidden',
+  'the scoped registration wrapper fails closed before cross-organization source lookup'
 );
 
 SELECT throws_ok(
@@ -1293,8 +1294,8 @@ SELECT throws_ok(
     )
   $$,
   '42501',
-  'tenant_commercial_document_register_forbidden',
-  'Finance Member cannot publish or retry a commercial document'
+  'Not authorized',
+  'the scoped registration wrapper rejects Finance Member publication authority'
 );
 
 SELECT throws_ok(
@@ -1368,8 +1369,8 @@ SELECT throws_ok(
     )
   $$,
   '42501',
-  'tenant_commercial_document_download_forbidden',
-  'cross-organization download resolution fails closed'
+  'Not authorized',
+  'the scoped download wrapper fails closed across organizations'
 );
 
 RESET ROLE;

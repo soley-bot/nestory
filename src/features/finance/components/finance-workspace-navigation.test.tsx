@@ -8,7 +8,16 @@ afterEach(cleanup);
 
 describe("FinanceWorkspaceNavigation", () => {
   it("remains a complete mobile fallback and stays hidden on desktop", () => {
-    render(<FinanceWorkspaceNavigation activeRoute="/finance/advanced" />);
+    render(
+      <FinanceWorkspaceNavigation
+        activeRoute="/finance/advanced"
+        canClosePeriods
+        canCorrectFinance
+        canRecordPayments
+        canReviewExpense
+        canSubmitExpense
+      />,
+    );
 
     const navigation = screen.getByRole("navigation", {
       name: "Finance workspace",
@@ -62,11 +71,11 @@ describe("FinanceWorkspaceNavigation", () => {
     expect(within(navigation).queryByRole("link", { name: "Reports" })).toBeNull();
   });
 
-  it("keeps the Finance Member mobile fallback focused on submissions", () => {
+  it("derives the ordinary mobile fallback from exact authority", () => {
     render(
       <FinanceWorkspaceNavigation
         activeRoute="/finance"
-        role="finance_member"
+        canSubmitExpense
       />,
     );
 
@@ -77,7 +86,7 @@ describe("FinanceWorkspaceNavigation", () => {
       within(navigation)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["My submissions", "Expenses"]);
+    ).toEqual(["Portfolio review", "Expenses", "Owner accounts"]);
     expect(within(navigation).queryByRole("link", { name: "Petty cash" })).toBeNull();
   });
 });

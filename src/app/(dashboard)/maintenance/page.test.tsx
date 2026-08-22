@@ -1,13 +1,15 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getMaintenanceScreenData, requireOperationsManagementContext } = vi.hoisted(() => ({
+const { getMaintenanceScreenData, requireOperationsManagementContext, requirePermission } = vi.hoisted(() => ({
   getMaintenanceScreenData: vi.fn(),
   requireOperationsManagementContext: vi.fn(),
+  requirePermission: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({
   requireOperationsManagementContext,
+  requirePermission,
 }));
 
 vi.mock("@/features/maintenance/data/maintenance", () => ({
@@ -24,15 +26,20 @@ describe("MaintenancePage", () => {
   beforeEach(() => {
     getMaintenanceScreenData.mockReset();
     requireOperationsManagementContext.mockReset();
+    requirePermission.mockReset();
   });
 
-  it("uses manager authority for the case-management surface", async () => {
-    requireOperationsManagementContext.mockResolvedValue({
+  it("allows branch-scoped maintenance readers onto the cases surface", async () => {
+    requirePermission.mockResolvedValue({
       branchId: "branch-1",
+      isSuperAdmin: false,
       organizationId: "organization-1",
       organizationName: "Nestory Test",
+      permissionKeys: new Set([
+        "maintenance.view",
+      ]),
       personId: "person-1",
-      role: "operations_manager",
+      role: "custom",
       userId: "user-1",
     });
     getMaintenanceScreenData.mockResolvedValue({
@@ -50,7 +57,8 @@ describe("MaintenancePage", () => {
     const html = renderToStaticMarkup(page);
 
     expect(html).toContain("Maintenance cases");
-    expect(requireOperationsManagementContext).toHaveBeenCalledOnce();
+    expect(requirePermission).toHaveBeenCalledWith("maintenance.view");
+    expect(requireOperationsManagementContext).not.toHaveBeenCalled();
     expect(getMaintenanceScreenData).toHaveBeenCalledOnce();
   });
 });

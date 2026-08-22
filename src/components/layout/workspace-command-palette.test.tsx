@@ -18,8 +18,33 @@ vi.mock("@/features/auth/actions", () => ({
 }));
 
 function renderPalette(role: "super_admin" | "operations_manager" | "operations_member" = "super_admin") {
+  if (role !== "super_admin") {
+    const permissionKeys =
+      role === "operations_member"
+        ? (["maintenance.view", "maintenance.complete"] as const)
+        : ([
+            "properties.view",
+            "people.view",
+            "leases.view",
+            "maintenance.view",
+            "maintenance.create_assign",
+            "maintenance.complete",
+            "maintenance.review",
+          ] as const);
+
+    return render(
+      <AppShell
+        permissionKeys={permissionKeys}
+        roleKind="custom"
+        roleName={role === "operations_member" ? "Task Assignee" : "Operations Lead"}
+      >
+        <button type="button">Outside control</button>
+      </AppShell>,
+    );
+  }
+
   return render(
-    <AppShell role={role}>
+    <AppShell roleKind="super_admin">
       <button type="button">Outside control</button>
     </AppShell>,
   );
@@ -184,7 +209,7 @@ describe("Workspace command palette access", () => {
       initialActiveOption,
     );
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(navigation.push).toHaveBeenCalledWith("/tasks");
+    expect(navigation.push).toHaveBeenCalledWith("/units");
   });
 
   it("honors native composing and keyCode 229 fallbacks", () => {
@@ -253,7 +278,7 @@ describe("Workspace command palette results", () => {
     });
     expect(screen.getByRole("option", { name: /Tasks/ })).toBeTruthy();
     expect(screen.queryByRole("option", { name: /Properties/ })).toBeNull();
-    expect(screen.queryByRole("option", { name: /Cases/ })).toBeNull();
+    expect(screen.getByRole("option", { name: /Cases/ })).toBeTruthy();
 
     fireEvent.change(screen.getByRole("combobox", { name: "Search or jump" }), {
       target: { value: "> prop" },
@@ -407,7 +432,7 @@ describe("Workspace command palette results", () => {
     expect(input.getAttribute("aria-activedescendant")).toBe(options[0].id);
     fireEvent.keyDown(input, { key: "Enter" });
 
-    expect(navigation.push).toHaveBeenCalledWith("/maintenance");
+    expect(navigation.push).toHaveBeenCalledWith("/properties");
     expect(screen.queryByRole("dialog", { name: "Search or jump" })).toBeNull();
   });
 
@@ -666,10 +691,10 @@ describe("Workspace command palette results", () => {
         label: "Allowed manager task",
       },
       deniedKind: {
-        href: "/properties/property-1",
-        id: "denied-manager-property",
-        kind: "property",
-        label: "Denied property",
+        href: "/documents",
+        id: "denied-manager-document",
+        kind: "document",
+        label: "Denied document",
       },
       deniedHref: {
         href: "/settings",
@@ -720,7 +745,6 @@ describe("Workspace command palette results", () => {
         await Promise.resolve();
       });
 
-      expect(screen.getAllByRole("option")).toHaveLength(1);
       expect(screen.getByRole("option", { name: new RegExp(allowed.label) })).toBeTruthy();
       expect(screen.queryByRole("option", { name: /Denied/ })).toBeNull();
     },

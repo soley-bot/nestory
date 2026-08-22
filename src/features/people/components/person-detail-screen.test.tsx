@@ -23,6 +23,15 @@ afterEach(() => {
 });
 
 describe("PersonDetailScreen", () => {
+  it("keeps a view-only person record free of edit and archive controls", () => {
+    render(
+      <PersonDetailScreen canArchive={false} canEdit={false} person={person} />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+  });
+
   it("keeps the person record focused on overview and related work", () => {
     render(<PersonDetailScreen person={person} />);
 

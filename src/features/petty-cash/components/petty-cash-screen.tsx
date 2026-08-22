@@ -90,9 +90,11 @@ type DrawerState =
 
 type PettyCashScreenProps = {
   accounts: PettyCashAccount[];
-  canManageFinance?: boolean;
-  canManagePettyCash?: boolean;
+  canAdministerAccounts?: boolean;
+  canApproveExpenses?: boolean;
+  canCorrectFinance?: boolean;
   canReadFinanceReports?: boolean;
+  canSubmitExpenses?: boolean;
   counterpartyOptions: PersonSelectOption[];
   entries: PettyCashEntry[];
   focusedEntryId?: string;
@@ -108,9 +110,11 @@ type PettyCashScreenProps = {
 
 export function PettyCashScreen({
   accounts,
-  canManageFinance = true,
-  canManagePettyCash = canManageFinance,
+  canAdministerAccounts = true,
+  canApproveExpenses = true,
+  canCorrectFinance = true,
   canReadFinanceReports = false,
+  canSubmitExpenses = true,
   counterpartyOptions,
   entries,
   focusedEntryId,
@@ -147,14 +151,18 @@ export function PettyCashScreen({
     (hasFocusedEntry ? null : entries[0]) ??
     null;
   const canAddEntry =
-    canManagePettyCash &&
+    canSubmitExpenses &&
     selectedAccount?.status === "active" &&
     period?.status === "open";
   const canRenderOverlay =
     drawerState &&
-    (canManageFinance ||
-      (canManagePettyCash &&
-        (drawerState.mode === "entry" || drawerState.mode === "post")));
+    ((drawerState.mode === "account" || drawerState.mode === "rollover")
+      ? canAdministerAccounts
+      : drawerState.mode === "entry"
+        ? canSubmitExpenses
+        : drawerState.mode === "post"
+          ? canApproveExpenses
+          : canCorrectFinance);
   const usesCompactModal =
     drawerState &&
     drawerState.mode !== "entry" &&
@@ -292,8 +300,8 @@ export function PettyCashScreen({
     selectedAccount && selectedEntry && period ? (
       <PettyCashInspector
         account={selectedAccount}
-        canManageFinance={canManageFinance}
-        canManagePettyCash={canManagePettyCash}
+        canApproveExpenses={canApproveExpenses}
+        canCorrectFinance={canCorrectFinance}
         entry={selectedEntry}
         onEdit={(entry) => openDrawer({ entry, mode: "edit" })}
         onPost={(entry) => openDrawer({ entry, mode: "post" })}
@@ -305,9 +313,10 @@ export function PettyCashScreen({
   return (
     <WorkspacePage
       actions={
-        !schemaStatus.isReady || (!canManageFinance && !canManagePettyCash) ? undefined : (
+        !schemaStatus.isReady ||
+        (!canAdministerAccounts && !canSubmitExpenses) ? undefined : (
           <div className="flex flex-wrap gap-2">
-            {canManageFinance ? (
+            {canAdministerAccounts ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button data-petty-cash-action="account" variant="outline">
@@ -366,6 +375,7 @@ export function PettyCashScreen({
       localNav={(
         <FinanceWorkspaceNavigation
           activeRoute="/petty-cash"
+          canCorrectFinance={canCorrectFinance}
           canReadFinanceReports={canReadFinanceReports}
         />
       )}
@@ -418,7 +428,7 @@ export function PettyCashScreen({
           ) : (
             <EmptyState
               action={
-                schemaStatus.isReady && canManageFinance ? (
+                schemaStatus.isReady && canAdministerAccounts ? (
                   <Button
                     onClick={() => openDrawer({ mode: "account" })}
                     variant="default"
@@ -430,7 +440,7 @@ export function PettyCashScreen({
               }
               body={
                 schemaStatus.isReady
-                  ? canManageFinance
+                  ? canAdministerAccounts
                     ? "Add the first petty cash account and opening float."
                     : "No petty cash account is configured for this workspace."
                   : (schemaStatus.message ??
@@ -739,8 +749,8 @@ function PettyCashTable({
 
 function PettyCashInspector({
   account,
-  canManageFinance,
-  canManagePettyCash,
+  canApproveExpenses,
+  canCorrectFinance,
   entry,
   onEdit,
   onPost,
@@ -748,8 +758,8 @@ function PettyCashInspector({
   period,
 }: {
   account: PettyCashAccount;
-  canManageFinance: boolean;
-  canManagePettyCash: boolean;
+  canApproveExpenses: boolean;
+  canCorrectFinance: boolean;
   entry: PettyCashEntry | null;
   onEdit: (entry: PettyCashEntry) => void;
   onPost: (entry: PettyCashEntry) => void;
@@ -765,7 +775,7 @@ function PettyCashInspector({
   }
 
   const canPost =
-    canManagePettyCash &&
+    canApproveExpenses &&
     !entry.archivedAt &&
     account.status === "active" &&
     entry.entryKind === "expense" &&
@@ -773,7 +783,7 @@ function PettyCashInspector({
     entry.status !== "void" &&
     period.status !== "closed";
   const canCorrect =
-    canManageFinance &&
+    canCorrectFinance &&
     !entry.archivedAt &&
     account.status === "active" &&
     (entry.status === "draft" || entry.status === "cleared") &&

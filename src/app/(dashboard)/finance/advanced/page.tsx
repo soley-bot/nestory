@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { WorkspacePage } from "@/components/layout/workspace-page";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
@@ -19,6 +20,13 @@ const advancedTools = [
 
 export default async function AdvancedFinancePage() {
   const context = await requireFinanceContext();
+  if (
+    !context.capabilities.canCorrectFinance &&
+    !context.capabilities.canLockFinancialMonth
+  ) {
+    redirect("/no-access");
+  }
+
   return (
     <WorkspacePage
       breadcrumbItems={[{ href: "/finance", label: "Finance" }]}
@@ -27,8 +35,9 @@ export default async function AdvancedFinancePage() {
       localNav={
         <FinanceWorkspaceNavigation
           activeRoute="/finance/advanced"
+          canClosePeriods={context.capabilities.canLockFinancialMonth}
+          canCorrectFinance={context.capabilities.canCorrectFinance}
           canReadFinanceReports={context.capabilities.canReadFinanceReports}
-          role={context.role}
         />
       }
       title="Advanced finance"

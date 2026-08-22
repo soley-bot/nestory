@@ -19,8 +19,8 @@ The implemented product includes:
 
 - A public product page and persisted information-request intake. The operating
   workspace remains invite-only.
-- Five fixed company roles with organization, branch, and assigned-person
-  boundaries.
+- Protected Super Admin access plus branch-scoped, organization-defined custom
+  roles built from Nestory's fixed permission catalogue.
 - Properties, units, people, ownership, vendors, staff, private documents,
   photos, and activity history.
 - Authoritative lease terms, parties, occupancy evidence, deposits, and
@@ -109,24 +109,21 @@ task cost into petty cash.
 
 ## Roles And Authorization
 
-One organization membership has exactly one role:
+`Super Admin` is the only protected built-in role. It is organization-wide,
+cannot be edited or archived, and exclusively manages branches, teams, users,
+roles, permissions, and cross-branch assignments.
 
-| Capability | Super Admin | Finance Manager | Finance Member | Operations Manager | Operations Member |
-| --- | --- | --- | --- | --- | --- |
-| Organization and access settings | Manage | No | No | No | No |
-| Lease and rent configuration | Manage | Manage | Read | Scoped context only | Assigned context only |
-| Finance, invoices, Ledger, petty cash | Read and manage allowed actions | Read and review | Read and submit expenses | No | No |
-| Approve or reject paid costs | Yes | Yes | No | No | No |
-| Reverse approved expense | Yes | No | No | No | No |
-| Owner opening balance | Submit, review, correct | Review and request correction | Submit and request correction | No | No |
-| Owner month close and statement publication | Close, reopen, publish | Close and publish | Inspect | No | No |
-| Submit maintenance cost | Yes | No | No | Yes, within branch | No |
-| Coordinate maintenance | Yes | No | No | Yes, within branch | Assigned work only |
+Every ordinary user has exactly one active branch and one active, non-empty
+organization-defined custom role. Nestory defines the stable permission keys
+and their semantics. Every non-View permission depends on its group's View
+permission: adding a dependent adds View, and removing View removes every
+dependent in that group. An empty or archived role cannot be assigned, and an
+assigned role cannot be archived.
 
-Super Admin and both Finance roles are organization-scoped. Operations roles
-must link to an active Staff person and one branch; Operations Member access is
-further limited to assigned work. Multiple simultaneous roles, custom
-permissions, amount thresholds, and team ACLs are not implemented.
+Permission is necessary, never sufficient, for maker-checker separation,
+assignee and execution-mode rules, period reopen or unlock, exceptional
+correction or reversal, historical recovery, immutable evidence, lease-owned
+rent, lifecycle, and audit invariants.
 
 Use capability-specific server contexts for protected routes and actions.
 Navigation and hidden controls are usability boundaries, not authorization:

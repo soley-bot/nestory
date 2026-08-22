@@ -3,7 +3,7 @@ import {
   getPropertyDetail,
   getPropertyOwnerOptions,
 } from "@/features/properties/data/properties";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import PropertyNotFound from "./not-found";
 
@@ -18,7 +18,7 @@ export default async function PropertyPage({
 }: PropertyPageProps) {
   const { propertyId } = await params;
   const { section } = await searchParams;
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("properties.view");
   const [property, ownerOptions, tenantOptions] = await Promise.all([
     getPropertyDetail(context.organizationId, propertyId),
     getPropertyOwnerOptions(context.organizationId),
@@ -34,6 +34,9 @@ export default async function PropertyPage({
 
   return (
     <PropertyDetailScreen
+      canArchive={context.permissionKeys.has("properties.archive")}
+      canCreateLease={context.permissionKeys.has("leases.prepare")}
+      canWrite={context.permissionKeys.has("properties.write")}
       initialSection={getInitialPropertySection(section)}
       ownerOptions={ownerOptions}
       property={property}

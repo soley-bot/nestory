@@ -118,6 +118,13 @@ export function PersonForm({
       {isEditMode && person ? (
         <input name="personId" type="hidden" value={person.id} />
       ) : null}
+      {!isEditMode ? (
+        <input
+          name="creationScope"
+          type="hidden"
+          value={roleContext ? "branch" : "standalone"}
+        />
+      ) : null}
 
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">

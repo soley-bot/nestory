@@ -7,7 +7,7 @@ import { removeUnregisteredDocumentObject } from "@/features/documents/storage-c
 import {
   requireFinancialMonthLockContext,
   requireFinancialMonthUnlockContext,
-  requireSuperAdminContext,
+  requirePermission,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -80,7 +80,7 @@ export async function setLedgerPeriodLockAction(
 
   if (
     parsed.data.lockState === "locked" &&
-    context.role === "finance_manager" &&
+    !context.isSuperAdmin &&
     parsed.data.reason.length === 0
   ) {
     return {
@@ -119,7 +119,7 @@ export async function attachLedgerReceiptAction(
   _state: LedgerActionState,
   formData: FormData,
 ): Promise<LedgerActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("finance.correct_records");
   const parsedEntryId = ledgerEntryIdSchema.safeParse(
     readString(formData, "entryId"),
   );
@@ -169,6 +169,24 @@ export async function attachLedgerReceiptAction(
     };
   }
 
+  const { data: property } = await supabase
+    .from("properties")
+    .select("branch_id")
+    .eq("organization_id", context.organizationId)
+    .eq("id", entry.property_id)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (
+    !property?.branch_id ||
+    (!context.isSuperAdmin && context.branchId !== property.branch_id)
+  ) {
+    return {
+      message: "We could not find that active ledger entry.",
+      status: "error",
+    };
+  }
+
   const { data: timelineEvent } = await supabase
     .from("timeline_events")
     .select("id")
@@ -181,7 +199,7 @@ export async function attachLedgerReceiptAction(
 
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
   const contentSha256 = await sha256Hex(await file.arrayBuffer());
-  const storagePath = `${context.organizationId}/ledger/${parsedEntryId.data}/${crypto.randomUUID()}-${safeFileName}`;
+  const storagePath = `${context.organizationId}/branches/${property.branch_id}/ledger/${parsedEntryId.data}/${crypto.randomUUID()}-${safeFileName}`;
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
     .upload(storagePath, file, {

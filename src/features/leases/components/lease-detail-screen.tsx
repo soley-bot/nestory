@@ -47,19 +47,27 @@ type LeaseTermChange = "renewal" | "rent_change";
 
 type DrawerState = { mode: "archive" } | { mode: "edit" } | { mode: "restore" };
 
+export type LeaseActionPermissions = {
+  canActivate: boolean;
+  canArchive: boolean;
+  canChangeTerms: boolean;
+  canClose: boolean;
+  canPrepare: boolean;
+};
+
 const initialActionState: LeaseActionState = {};
 
 export function LeaseDetailScreen({
   activeSection,
-  canConfigure,
   lease,
+  permissions,
   propertyOptions,
   tenantOptions,
   unitOptions,
 }: {
   activeSection: LeaseRecordSection;
-  canConfigure: boolean;
   lease: LeaseSummary;
+  permissions: LeaseActionPermissions;
   propertyOptions: LeasePropertyOption[];
   tenantOptions: LeaseTenantOption[];
   unitOptions: LeaseUnitOption[];
@@ -88,38 +96,42 @@ export function LeaseDetailScreen({
     <div className="lg:flex lg:flex-col">
       <PageHeader
         actions={
-          canConfigure ? (
-            lease.isArchived ? (
+          lease.isArchived ? (
+            permissions.canArchive ? (
               <Button
                 onClick={() => openDrawer({ mode: "restore" })}
                 variant="default"
               >
                 <RotateCcw aria-hidden size={15} /> Restore
               </Button>
-            ) : lease.statusValue === "draft" ? (
+            ) : null
+          ) : lease.statusValue === "draft" ? (
               <>
-                <Button
-                  onClick={() => openDrawer({ mode: "edit" })}
-                  variant="default"
-                >
-                  <Pencil aria-hidden size={15} /> Edit draft
-                </Button>
-                <Button
-                  onClick={() => openDrawer({ mode: "archive" })}
-                  variant="outline"
-                >
-                  <Archive aria-hidden size={15} /> Archive
-                </Button>
+                {permissions.canPrepare ? (
+                  <Button
+                    onClick={() => openDrawer({ mode: "edit" })}
+                    variant="default"
+                  >
+                    <Pencil aria-hidden size={15} /> Edit draft
+                  </Button>
+                ) : null}
+                {permissions.canArchive ? (
+                  <Button
+                    onClick={() => openDrawer({ mode: "archive" })}
+                    variant="outline"
+                  >
+                    <Archive aria-hidden size={15} /> Archive
+                  </Button>
+                ) : null}
               </>
-            ) : (
+            ) : permissions.canArchive ? (
               <Button
                 onClick={() => openDrawer({ mode: "archive" })}
                 variant="outline"
               >
                 <Archive aria-hidden size={15} /> Archive
               </Button>
-            )
-          ) : null
+            ) : null
         }
         breadcrumb={
           <PageBreadcrumb
@@ -162,6 +174,7 @@ export function LeaseDetailScreen({
 
       {lease.activationSchedule ? (
         <ScheduledActivationNotice
+          canCancel={permissions.canActivate}
           lease={lease}
           onSuccess={setStatusMessage}
         />
@@ -169,7 +182,7 @@ export function LeaseDetailScreen({
 
       <LeaseDetailView
         activeSection={activeSection}
-        canConfigure={canConfigure}
+        permissions={permissions}
         lease={lease}
         onAttachFile={() => {
           setStatusMessage(null);
@@ -550,9 +563,11 @@ function LeaseTransitionModal({
 }
 
 function ScheduledActivationNotice({
+  canCancel,
   lease,
   onSuccess,
 }: {
+  canCancel: boolean;
   lease: LeaseSummary;
   onSuccess: (message: string) => void;
 }) {
@@ -585,7 +600,7 @@ function ScheduledActivationNotice({
               : schedule.failureMessage ?? "Review the Lease and activate it again."}
           </p>
         </div>
-        {schedule.status === "pending" ? (
+        {canCancel && schedule.status === "pending" ? (
           <form action={action}>
             <input name="leaseId" type="hidden" value={lease.id} />
             <input name="scheduleId" type="hidden" value={schedule.id} />

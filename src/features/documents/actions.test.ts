@@ -6,7 +6,9 @@ const mocks = vi.hoisted(() => ({
   maybeSingleByTable: new Map<string, unknown>(),
   maybeSingleByStoragePath: new Map<string, unknown>(),
   remove: vi.fn(),
+  requirePermission: vi.fn(),
   requireSuperAdminContext: vi.fn(),
+  requireWorkspaceContext: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
   storageFrom: vi.fn(),
@@ -15,7 +17,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({
+  requirePermission: mocks.requirePermission,
   requireSuperAdminContext: mocks.requireSuperAdminContext,
+  requireWorkspaceContext: mocks.requireWorkspaceContext,
 }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({
@@ -26,13 +30,16 @@ vi.mock("@/lib/db/server", () => ({
 }));
 
 import {
+  archiveDocumentAction,
   createDocumentAction,
   fingerprintDocumentContentAction,
+  restoreDocumentAction,
   updateDocumentAction,
 } from "@/features/documents/actions";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "10000000-0000-4000-8000-000000000001";
+const branchId = "10000000-0000-4000-8000-000000000002";
 const documentId = "20000000-0000-4000-8000-000000000001";
 const generatedId = "30000000-0000-4000-8000-000000000001";
 const fileHash = "a76024b36f70838462fca9268bac5c13bf23ee0c6e0c6fa1b9dceb1d5a7f4aa6";
@@ -82,8 +89,14 @@ describe("document fingerprint actions", () => {
     mocks.maybeSingleByTable.clear();
     mocks.maybeSingleByStoragePath.clear();
     mocks.requireSuperAdminContext.mockResolvedValue({ organizationId });
+    mocks.requirePermission.mockResolvedValue({ branchId, organizationId });
+    mocks.requireWorkspaceContext.mockResolvedValue({
+      branchId,
+      isSuperAdmin: false,
+      organizationId,
+    });
     mocks.maybeSingleByTable.set("properties", {
-      data: { id: propertyId },
+      data: { branch_id: branchId, id: propertyId },
       error: null,
     });
     mocks.from.mockImplementation((table: string) => createQuery(table));
@@ -114,6 +127,12 @@ describe("document fingerprint actions", () => {
     });
 
     expect(mocks.upload).toHaveBeenCalledOnce();
+    expect(mocks.upload).toHaveBeenCalledWith(
+      `${organizationId}/branches/${branchId}/documents/${generatedId}-opening.pdf`,
+      expect.any(File),
+      expect.any(Object),
+    );
+    expect(mocks.requirePermission).toHaveBeenCalledWith("properties.write");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/balances");
     expect(mocks.rpc).toHaveBeenCalledWith(
       "create_document",
@@ -195,7 +214,7 @@ describe("document fingerprint actions", () => {
       status: "error",
     });
 
-    const replacementPath = `${organizationId}/documents/${generatedId}-opening.pdf`;
+    const replacementPath = `${organizationId}/branches/${branchId}/documents/${generatedId}-opening.pdf`;
     expect(mocks.rpc).toHaveBeenCalledOnce();
     expect(mocks.rpc).not.toHaveBeenCalledWith(
       "discard_unreferenced_document_upload",
@@ -212,7 +231,7 @@ describe("document fingerprint actions", () => {
       data: null,
       error: { message: "duplicate request" },
     });
-    const path = `${organizationId}/documents/${generatedId}-opening.pdf`;
+    const path = `${organizationId}/branches/${branchId}/documents/${generatedId}-opening.pdf`;
     mocks.maybeSingleByStoragePath.set(path, {
       data: { id: documentId },
       error: null,
@@ -293,5 +312,86 @@ describe("document fingerprint actions", () => {
       p_document_id: documentId,
       p_organization_id: organizationId,
     });
+    expect(mocks.requireSuperAdminContext).toHaveBeenCalledOnce();
+    expect(mocks.requirePermission).not.toHaveBeenCalled();
+  });
+
+  it("uses archive authority for both archive-state transitions", async () => {
+    const formData = new FormData();
+    formData.set("documentId", documentId);
+    mocks.maybeSingleByTable.set("documents", {
+      data: {
+        archived_at: null,
+        category: "property",
+        content_sha256: "1".repeat(64),
+        file_name: "record.pdf",
+        lease_id: null,
+        ledger_entry_id: null,
+        mime_type: "application/pdf",
+        property_id: propertyId,
+        size_bytes: 3,
+        storage_path: `${organizationId}/branches/${branchId}/documents/record.pdf`,
+        task_id: null,
+        tenant_request_id: null,
+        timeline_event_id: null,
+        unit_id: null,
+      },
+      error: null,
+    });
+
+    await archiveDocumentAction({}, formData);
+    await restoreDocumentAction({}, formData);
+
+    expect(mocks.requirePermission).toHaveBeenCalledTimes(2);
+    expect(mocks.requirePermission).toHaveBeenNthCalledWith(
+      1,
+      "properties.archive",
+    );
+    expect(mocks.requirePermission).toHaveBeenNthCalledWith(
+      2,
+      "properties.archive",
+    );
+    expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
+  });
+
+  it("requires both old and proposed parent-domain authority for a relink", async () => {
+    const taskId = "40000000-0000-4000-8000-000000000001";
+    mocks.maybeSingleByTable.set("documents", {
+      data: {
+        archived_at: null,
+        category: "lease",
+        content_sha256: "1".repeat(64),
+        file_name: "lease.pdf",
+        lease_id: "50000000-0000-4000-8000-000000000001",
+        ledger_entry_id: null,
+        mime_type: "application/pdf",
+        property_id: propertyId,
+        size_bytes: 3,
+        storage_path: `${organizationId}/branches/${branchId}/documents/lease.pdf`,
+        task_id: null,
+        tenant_request_id: null,
+        timeline_event_id: null,
+        unit_id: null,
+      },
+      error: null,
+    });
+    mocks.maybeSingleByTable.set("tasks", {
+      data: { id: taskId, property_id: propertyId, unit_id: null },
+      error: null,
+    });
+    const formData = documentForm();
+    formData.set("documentId", documentId);
+    formData.set("taskId", taskId);
+
+    await updateDocumentAction({}, formData);
+
+    expect(mocks.requirePermission).toHaveBeenNthCalledWith(
+      1,
+      "leases.change_terms",
+    );
+    expect(mocks.requirePermission).toHaveBeenNthCalledWith(
+      2,
+      "maintenance.create_assign",
+    );
   });
 });
