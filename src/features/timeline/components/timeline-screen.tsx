@@ -45,6 +45,11 @@ import type {
   TimelineUnitOption,
   TimelineViewQuery,
 } from "@/features/timeline/timeline.types";
+import {
+  getDocumentAuthorityDomain,
+  getDocumentPermission,
+} from "@/features/documents/document-authority";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 const archiveInitialState: TimelineActionState = {};
 const documentInitialState: TimelineActionState = {};
@@ -63,10 +68,13 @@ type DrawerState =
   | { mode: "activity"; change: RecentChange };
 
 type TimelineScreenProps = {
+  canArchive?: boolean;
+  canWrite?: boolean;
   eventTypes: TimelineEventType[];
   events: TimelineEvent[];
   initialEventId?: string;
   pagination: TimelinePagination;
+  permissionKeys?: PermissionKey[];
   propertyOptions: TimelinePropertyOption[];
   recentChanges: RecentChange[];
   scope: TimelineScope;
@@ -76,10 +84,18 @@ type TimelineScreenProps = {
 };
 
 export function TimelineScreen({
+  canArchive = true,
+  canWrite = true,
   eventTypes,
   events,
   initialEventId,
   pagination,
+  permissionKeys = [
+    "finance.correct_records",
+    "leases.change_terms",
+    "maintenance.create_assign",
+    "properties.write",
+  ],
   propertyOptions,
   recentChanges,
   scope,
@@ -87,6 +103,7 @@ export function TimelineScreen({
   unitOptions,
   viewQuery,
 }: TimelineScreenProps) {
+  const grantedPermissions = new Set(permissionKeys);
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -95,7 +112,7 @@ export function TimelineScreen({
     [propertyOptions, unitOptions, viewQuery],
   );
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create"
+    canWrite && searchParams.get("action") === "create"
       ? { event: null, initialValues: createInitialValues, mode: "create" }
       : null,
   );
@@ -204,12 +221,24 @@ export function TimelineScreen({
   const timelineInspector = selectedEvent ? (
     <TimelineInspector
       event={selectedEvent}
-      onAttachDocument={(event) =>
-        openTimelineAction({ event, mode: "document" })
-      }
-      onArchive={(event) => openTimelineAction({ event, mode: "archive" })}
-      onEdit={(event) => openTimelineAction({ event, mode: "edit" })}
-      onRestore={(event) => openTimelineAction({ event, mode: "restore" })}
+      onAttachDocument={grantedPermissions.has(
+        getDocumentPermission(
+          getDocumentAuthorityDomain({
+            leaseId: selectedEvent.relatedLeaseId,
+            ledgerEntryId: selectedEvent.ledgerEntryId,
+            propertyId: selectedEvent.propertyId,
+            timelineEvent: {
+              eventType: selectedEvent.eventType,
+              leaseId: selectedEvent.relatedLeaseId,
+              ledgerEntryId: selectedEvent.ledgerEntryId,
+            },
+          }),
+          "write",
+        ),
+      ) ? (event) => openTimelineAction({ event, mode: "document" }) : undefined}
+      onArchive={canArchive ? (event) => openTimelineAction({ event, mode: "archive" }) : undefined}
+      onEdit={canWrite ? (event) => openTimelineAction({ event, mode: "edit" }) : undefined}
+      onRestore={canArchive ? (event) => openTimelineAction({ event, mode: "restore" }) : undefined}
     />
   ) : null;
 
@@ -223,10 +252,12 @@ export function TimelineScreen({
               openTimelineAction({ change, mode: "activity" });
             }}
           />
-          <Button onClick={openCreate} variant="default">
-            <Plus size={15} />
-            Add event
-          </Button>
+          {canWrite ? (
+            <Button onClick={openCreate} variant="default">
+              <Plus size={15} />
+              Add event
+            </Button>
+          ) : null}
         </>
       }
       breadcrumbCurrent={pathname === "/timeline" ? "Records" : title}

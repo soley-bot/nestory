@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireLeaseConfigurationContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
@@ -23,7 +23,7 @@ export async function activateSetupLeaseAction(
     return { message: "Choose the lease to activate.", status: "error" };
   }
 
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.activate");
   const supabase = await createSupabaseServerClient();
   const leaseResult = await supabase
     .from("current_leases")

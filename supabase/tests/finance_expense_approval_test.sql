@@ -151,17 +151,26 @@ SELECT ok(
 SELECT ok(
   (
     SELECT
-      strpos(definition, 'financial_idempotency_v1') > 0
-      AND strpos(definition, 'financial_idempotency_v1')
-        < strpos(definition, ':owner-cash')
-      AND strpos(definition, ':owner-cash') < strpos(definition, 'SELECT invoice.*')
+      strpos(wrapper_definition, 'begin_finance_property_authority') > 0
+      AND strpos(wrapper_definition, 'lock_open_property_financial_month') > 0
+      AND strpos(wrapper_definition, 'lock_open_property_financial_month')
+        < strpos(wrapper_definition, 'record_owner_invoice_payment_branch106')
+      AND strpos(baseline_definition, 'financial_idempotency_v1') > 0
+      AND strpos(baseline_definition, 'financial_idempotency_v1')
+        < strpos(baseline_definition, ':owner-cash')
+      AND strpos(baseline_definition, ':owner-cash')
+        < strpos(baseline_definition, 'SELECT invoice.*')
     FROM (
-      SELECT pg_catalog.pg_get_functiondef(
-        'public.record_owner_invoice_payment(uuid,uuid,numeric,date,text,text)'::regprocedure
-      ) AS definition
+      SELECT
+        pg_catalog.pg_get_functiondef(
+          'public.record_owner_invoice_payment(uuid,uuid,numeric,date,text,text)'::regprocedure
+        ) AS wrapper_definition,
+        pg_catalog.pg_get_functiondef(
+          'public.record_owner_invoice_payment_branch106(uuid,uuid,numeric,date,text,text)'::regprocedure
+        ) AS baseline_definition
     ) AS reviewed
   ),
-  'owner payment serializes its request then locks owner cash before the invoice row'
+  'owner payment wrapper checks branch and month authority before its contained baseline preserves idempotency and cash lock order'
 );
 
 SELECT ok(
@@ -174,7 +183,7 @@ SELECT ok(
         < strpos(definition, 'record_tenant_invoice_payment_internal')
     FROM (
       SELECT pg_catalog.pg_get_functiondef(
-        'public.record_tenant_invoice_payment(uuid,uuid,numeric,date,uuid,text,jsonb,text)'::regprocedure
+        'public.record_tenant_invoice_payment_branch106(uuid,uuid,numeric,date,uuid,text,jsonb,text)'::regprocedure
       ) AS definition
     ) AS reviewed
   ),
@@ -191,7 +200,7 @@ SELECT ok(
         < strpos(definition, 'confirm_owner_collected_rent_internal')
     FROM (
       SELECT pg_catalog.pg_get_functiondef(
-        'public.confirm_owner_collected_rent(uuid,uuid,numeric,date,text,jsonb,text)'::regprocedure
+        'public.confirm_owner_collected_rent_branch106(uuid,uuid,numeric,date,text,jsonb,text)'::regprocedure
       ) AS definition
     ) AS reviewed
   ),
@@ -1996,7 +2005,7 @@ SELECT throws_ok(
     organization_id,
     locked_submission_id
   ),
-  '22023',
+  '55000',
   'Financial month is locked',
   'approval creates no partial effects in a locked period'
 )

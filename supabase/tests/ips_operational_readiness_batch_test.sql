@@ -77,6 +77,7 @@ SELECT col_is_unique(
 CREATE TEMP TABLE readiness_batch_ids AS
 SELECT organization.id AS organization_id,
   property.id AS property_id,
+  property.branch_id,
   task.created_by
 FROM public.organizations AS organization
 JOIN public.properties AS property
@@ -92,9 +93,9 @@ UPDATE public.maintenance_recurrence_series SET lifecycle = 'paused';
 
 WITH new_series AS (
   INSERT INTO public.maintenance_recurrence_series (
-    organization_id, property_id, lifecycle, created_by
+    organization_id, property_id, branch_id, lifecycle, created_by
   )
-  SELECT organization_id, property_id, 'active', created_by
+  SELECT organization_id, property_id, branch_id, 'active', created_by
   FROM readiness_batch_ids
   RETURNING id, organization_id, property_id, created_by
 )

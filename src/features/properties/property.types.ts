@@ -23,6 +23,11 @@ export type PropertyReviewFilter =
 
 export type PropertyDisplayMode = "table" | "cards";
 
+export type PropertyBranchOption = {
+  id: string;
+  label: string;
+};
+
 export type PropertyBadgeTone =
   | "neutral"
   | "success"

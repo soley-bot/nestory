@@ -3,6 +3,41 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 SELECT plan(60);
+UPDATE public.organization_authorization_states
+SET ordinary_access_enabled = false
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid;
+
+UPDATE public.organization_members
+SET
+  role = CASE user_id
+    WHEN '00000000-0000-0000-0000-000000000701'::uuid THEN 'finance_manager'
+    WHEN '00000000-0000-0000-0000-000000000801'::uuid THEN 'finance_member'
+    WHEN '00000000-0000-0000-0000-000000000501'::uuid THEN 'operations_manager'
+    WHEN '00000000-0000-0000-0000-000000000601'::uuid THEN 'operations_member'
+  END,
+  person_id = CASE user_id
+    WHEN '00000000-0000-0000-0000-000000000501'::uuid
+      THEN '80000000-0000-0000-0000-000000000007'::uuid
+    WHEN '00000000-0000-0000-0000-000000000601'::uuid
+      THEN '80000000-0000-0000-0000-000000000008'::uuid
+    ELSE NULL
+  END,
+  branch_id = CASE
+    WHEN user_id IN (
+      '00000000-0000-0000-0000-000000000501'::uuid,
+      '00000000-0000-0000-0000-000000000601'::uuid
+    ) THEN '00000000-0000-0000-0000-000000000211'::uuid
+    ELSE NULL
+  END,
+  custom_role_id = NULL
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'::uuid
+  AND user_id IN (
+    '00000000-0000-0000-0000-000000000501'::uuid,
+    '00000000-0000-0000-0000-000000000601'::uuid,
+    '00000000-0000-0000-0000-000000000701'::uuid,
+    '00000000-0000-0000-0000-000000000801'::uuid
+  );
+
 
 SELECT has_table('public', 'organization_invitations', 'invitation domain exists');
 SELECT has_table(
@@ -757,8 +792,8 @@ SELECT is(
 SET LOCAL ROLE authenticated;
 SELECT is(
   (SELECT count(*) FROM public.organizations WHERE id = '00000000-0000-0000-0000-000000000001'),
-  1::bigint,
-  'accepted membership grants access through organization RLS'
+  0::bigint,
+  'accepted legacy membership remains contained until scoped custom access is assigned'
 );
 RESET ROLE;
 

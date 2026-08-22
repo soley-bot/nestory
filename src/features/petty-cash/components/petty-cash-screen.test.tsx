@@ -350,9 +350,14 @@ describe("PettyCashScreen finance workspace contract", () => {
     expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
   });
 
-  it("keeps Finance roles read-only while preserving petty cash inspection", async () => {
+  it("keeps view-only users read-only while preserving petty cash inspection", async () => {
     const user = userEvent.setup();
-    renderPettyCash({ canManageFinance: false });
+    renderPettyCash({
+      canAdministerAccounts: false,
+      canApproveExpenses: false,
+      canCorrectFinance: false,
+      canSubmitExpenses: false,
+    });
 
     for (const action of ["Add account", "Open next month", "Add cash row"]) {
       expect(screen.queryByRole("button", { name: action })).toBeNull();
@@ -360,9 +365,7 @@ describe("PettyCashScreen finance workspace contract", () => {
     const financeNav = screen.getByRole("navigation", {
       name: "Finance workspace",
     });
-    expect(
-      within(financeNav).getByRole("link", { name: "Advanced" }).getAttribute("href"),
-    ).toBe("/finance/advanced");
+    expect(within(financeNav).queryByRole("link", { name: "Advanced" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
     const inspector = screen.getByRole("dialog", {
@@ -375,9 +378,14 @@ describe("PettyCashScreen finance workspace contract", () => {
     }
   });
 
-  it("lets a Finance Manager add and post rows without exposing structural or correction commands", async () => {
+  it("keeps petty-cash controls split across submit, approve, correct, and account authority", async () => {
     const user = userEvent.setup();
-    renderPettyCash({ canManageFinance: false, canManagePettyCash: true });
+    renderPettyCash({
+      canAdministerAccounts: false,
+      canApproveExpenses: false,
+      canCorrectFinance: false,
+      canSubmitExpenses: true,
+    });
 
     expect(screen.getByRole("button", { name: "Add cash row" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Add account" })).toBeNull();
@@ -394,9 +402,39 @@ describe("PettyCashScreen finance workspace contract", () => {
     const inspector = screen.getByRole("dialog", {
       name: "Cleaning cash quick view",
     });
-    expect(within(inspector).getByRole("button", { name: "Post to ledger" })).not.toBeNull();
+    expect(within(inspector).queryByRole("button", { name: "Post to ledger" })).toBeNull();
     expect(within(inspector).queryByRole("button", { name: "Edit" })).toBeNull();
     expect(within(inspector).queryByRole("button", { name: "Void" })).toBeNull();
+
+    cleanup();
+    renderPettyCash({
+      canAdministerAccounts: false,
+      canApproveExpenses: true,
+      canCorrectFinance: false,
+      canSubmitExpenses: false,
+    });
+    expect(screen.queryByRole("button", { name: "Add cash row" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
+    expect(
+      within(
+        screen.getByRole("dialog", { name: "Cleaning cash quick view" }),
+      ).getByRole("button", { name: "Post to ledger" }),
+    ).not.toBeNull();
+
+    cleanup();
+    renderPettyCash({
+      canAdministerAccounts: false,
+      canApproveExpenses: false,
+      canCorrectFinance: true,
+      canSubmitExpenses: false,
+    });
+    await user.click(screen.getByRole("button", { name: "Preview Cleaning" }));
+    const correctionInspector = screen.getByRole("dialog", {
+      name: "Cleaning cash quick view",
+    });
+    expect(within(correctionInspector).getByRole("button", { name: "Edit" })).not.toBeNull();
+    expect(within(correctionInspector).getByRole("button", { name: "Void" })).not.toBeNull();
+    expect(within(correctionInspector).queryByRole("button", { name: "Post to ledger" })).toBeNull();
   });
 
   it("opens the authoritative focused row and clears back to its account", () => {
@@ -529,8 +567,10 @@ const entries: PettyCashEntry[] = [
 
 function renderPettyCash({
   accounts = [account],
-  canManageFinance = true,
-  canManagePettyCash = canManageFinance,
+  canAdministerAccounts = true,
+  canApproveExpenses = true,
+  canCorrectFinance = true,
+  canSubmitExpenses = true,
   counterpartyOptions = [],
   entries: nextEntries = entries,
   period: nextPeriod = period,
@@ -540,8 +580,10 @@ function renderPettyCash({
   focusState = focusedEntryId ? "available" : "none",
 }: {
   accounts?: PettyCashAccount[];
-  canManageFinance?: boolean;
-  canManagePettyCash?: boolean;
+  canAdministerAccounts?: boolean;
+  canApproveExpenses?: boolean;
+  canCorrectFinance?: boolean;
+  canSubmitExpenses?: boolean;
   counterpartyOptions?: PersonSelectOption[];
   entries?: PettyCashEntry[];
   period?: PettyCashPeriod | null;
@@ -553,8 +595,10 @@ function renderPettyCash({
   return render(
     <PettyCashScreen
       accounts={accounts}
-      canManageFinance={canManageFinance}
-      canManagePettyCash={canManagePettyCash}
+      canAdministerAccounts={canAdministerAccounts}
+      canApproveExpenses={canApproveExpenses}
+      canCorrectFinance={canCorrectFinance}
+      canSubmitExpenses={canSubmitExpenses}
       counterpartyOptions={counterpartyOptions}
       entries={nextEntries}
       focusedEntryId={focusedEntryId}

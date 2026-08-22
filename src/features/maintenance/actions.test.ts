@@ -3,16 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   maybeSingle,
   preparePaidCostEvidence,
-  requireOperationsExecutionContext,
-  requireOperationsManagementContext,
+  requirePermission,
+  requireSuperAdminContext,
   revalidatePath,
   rpc,
 } =
   vi.hoisted(() => ({
     maybeSingle: vi.fn(),
     preparePaidCostEvidence: vi.fn(),
-    requireOperationsExecutionContext: vi.fn(),
-    requireOperationsManagementContext: vi.fn(),
+    requirePermission: vi.fn(),
+    requireSuperAdminContext: vi.fn(),
     revalidatePath: vi.fn(),
     rpc: vi.fn(),
   }));
@@ -24,8 +24,8 @@ vi.mock("@/features/finance-operations/paid-cost-evidence", () => ({
     value instanceof File && value.size > 0 ? null : "Choose a receipt evidence file.",
 }));
 vi.mock("@/lib/auth/context", () => ({
-  requireOperationsExecutionContext,
-  requireOperationsManagementContext,
+  requirePermission,
+  requireSuperAdminContext,
 }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: () => ({
@@ -50,8 +50,8 @@ import {
 
 describe("maintenance action capabilities", () => {
   beforeEach(() => {
-    requireOperationsExecutionContext.mockReset();
-    requireOperationsManagementContext.mockReset();
+    requirePermission.mockReset();
+    requireSuperAdminContext.mockReset();
     maybeSingle.mockReset();
     preparePaidCostEvidence.mockReset();
     revalidatePath.mockReset();
@@ -66,10 +66,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("updates maintenance details without a direct Ledger command", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_manager",
-    });
+    requirePermission.mockResolvedValue(
+      authority(["maintenance.create_assign"]),
+    );
     const formData = validMaintenanceForm();
 
     const result = await updateMaintenanceCaseAction({}, formData);
@@ -89,11 +88,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("submits the recorded cost to Finance through operations authority", async () => {
-    requireOperationsManagementContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_manager",
+    requirePermission.mockResolvedValue(authority(["maintenance.review"], {
       userId: "00000000-0000-4000-8000-000000000009",
-    });
+    }));
     maybeSingle.mockResolvedValue({
       data: {
         property_id: "00000000-0000-4000-8000-000000000002",
@@ -123,7 +120,7 @@ describe("maintenance action capabilities", () => {
       propertyId: "00000000-0000-4000-8000-000000000002",
       taskId: "00000000-0000-4000-8000-000000000003",
     });
-    expect(requireOperationsManagementContext).toHaveBeenCalledOnce();
+    expect(requirePermission).toHaveBeenCalledWith("maintenance.review");
     expect(rpc).toHaveBeenCalledWith("submit_maintenance_cost", {
       p_expense_date: "2026-08-08",
       p_idempotency_key: "maintenance-cost-submit-1",
@@ -150,15 +147,14 @@ describe("maintenance action capabilities", () => {
       },
       status: "error",
     });
-    expect(requireOperationsManagementContext).not.toHaveBeenCalled();
+    expect(requirePermission).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
   });
 
   it("requires a due date before creating a recurring series", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_manager",
-    });
+    requirePermission.mockResolvedValue(
+      authority(["maintenance.create_assign"]),
+    );
     const formData = validMaintenanceForm();
     formData.set("actualCostAmount", "");
     formData.set("dueDate", "");
@@ -175,10 +171,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("creates and assigns a maintenance case in one checked RPC", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_manager",
-    });
+    requirePermission.mockResolvedValue(
+      authority(["maintenance.create_assign"]),
+    );
     const formData = validMaintenanceForm();
     formData.set("actualCostAmount", "");
     formData.set("assigneePersonId", "00000000-0000-4000-8000-000000000004");
@@ -201,10 +196,7 @@ describe("maintenance action capabilities", () => {
   });
 
   it("sends a changed vendor through the checked update RPC", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "super_admin",
-    });
+    requirePermission.mockResolvedValue(superAdminAuthority());
     const formData = validMaintenanceForm();
     formData.set("vendorPersonId", "00000000-0000-4000-8000-000000000006");
 
@@ -220,10 +212,7 @@ describe("maintenance action capabilities", () => {
   });
 
   it("returns an operator-friendly error when a vendor is no longer eligible", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "super_admin",
-    });
+    requirePermission.mockResolvedValue(superAdminAuthority());
     rpc.mockResolvedValueOnce({
       data: null,
       error: { message: "Vendor not found" },
@@ -239,10 +228,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("rejects manager archive requests before calling the archive RPC", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_manager",
-    });
+    requireSuperAdminContext.mockResolvedValue(
+      authority(["maintenance.create_assign"]),
+    );
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
 
@@ -256,12 +244,10 @@ describe("maintenance action capabilities", () => {
   });
 
   it("routes member execution through the checked assignment RPC", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
+    requirePermission.mockResolvedValue(authority(["maintenance.complete"], {
       branchId: "00000000-0000-4000-8000-000000000005",
-      organizationId: "00000000-0000-4000-8000-000000000001",
       personId: "00000000-0000-4000-8000-000000000004",
-      role: "operations_member",
-    });
+    }));
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
     formData.set("executionAction", "submit_for_review");
@@ -279,10 +265,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("does not let a manager execute a member assignment", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_manager",
-    });
+    requirePermission.mockResolvedValue(
+      authority(["maintenance.create_assign"]),
+    );
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
     formData.set("executionAction", "start");
@@ -294,11 +279,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("routes manager-coordinated execution through its checked RPC", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
+    requirePermission.mockResolvedValue(authority(["maintenance.create_assign"], {
       branchId: "00000000-0000-4000-8000-000000000005",
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_manager",
-    });
+    }));
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
     formData.set("coordinatedAction", "complete");
@@ -318,10 +301,9 @@ describe("maintenance action capabilities", () => {
   });
 
   it("requires a coordinated block or completion note and rejects members", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_manager",
-    });
+    requirePermission.mockResolvedValue(
+      authority(["maintenance.create_assign"]),
+    );
     const invalid = new FormData();
     invalid.set("taskId", "00000000-0000-4000-8000-000000000003");
     invalid.set("coordinatedAction", "block");
@@ -333,10 +315,7 @@ describe("maintenance action capabilities", () => {
     });
     expect(rpc).not.toHaveBeenCalled();
 
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_member",
-    });
+    requirePermission.mockResolvedValue(authority(["maintenance.complete"]));
     const start = new FormData();
     start.set("taskId", "00000000-0000-4000-8000-000000000003");
     start.set("coordinatedAction", "start");
@@ -348,10 +327,7 @@ describe("maintenance action capabilities", () => {
   });
 
   it("requires and trims a 3 to 500 character reopen note", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "operations_manager",
-    });
+    requirePermission.mockResolvedValue(authority(["maintenance.review"]));
     const invalid = new FormData();
     invalid.set("taskId", "00000000-0000-4000-8000-000000000003");
     invalid.set("reviewAction", "reopen");
@@ -379,10 +355,7 @@ describe("maintenance action capabilities", () => {
   });
 
   it("keeps an approval note optional for admins", async () => {
-    requireOperationsExecutionContext.mockResolvedValue({
-      organizationId: "00000000-0000-4000-8000-000000000001",
-      role: "super_admin",
-    });
+    requirePermission.mockResolvedValue(superAdminAuthority());
     const formData = new FormData();
     formData.set("taskId", "00000000-0000-4000-8000-000000000003");
     formData.set("reviewAction", "approve");
@@ -394,6 +367,32 @@ describe("maintenance action capabilities", () => {
     );
   });
 });
+
+function authority(
+  permissionKeys: Array<
+    | "maintenance.complete"
+    | "maintenance.create_assign"
+    | "maintenance.review"
+  >,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    isSuperAdmin: false,
+    organizationId: "00000000-0000-4000-8000-000000000001",
+    permissionKeys: new Set(permissionKeys),
+    role: "custom",
+    ...overrides,
+  };
+}
+
+function superAdminAuthority() {
+  return {
+    isSuperAdmin: true,
+    organizationId: "00000000-0000-4000-8000-000000000001",
+    permissionKeys: new Set(),
+    role: "super_admin",
+  };
+}
 
 function validMaintenanceForm() {
   const formData = new FormData();

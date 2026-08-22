@@ -35,8 +35,11 @@ describe("TasksPage", () => {
 
   it("shows a setup-required state for a member without a linked staff profile", async () => {
     requireOperationsExecutionContext.mockResolvedValue({
+      branchId: "branch-1",
+      isSuperAdmin: false,
       organizationId: "organization-1",
       organizationName: "Nestory Test",
+      permissionKeys: new Set(["maintenance.complete"]),
       role: "operations_member",
       userId: "user-1",
     });
@@ -52,9 +55,12 @@ describe("TasksPage", () => {
 
   it("loads the assigned queue for a member with a linked staff profile", async () => {
     requireOperationsExecutionContext.mockResolvedValue({
+      branchId: "branch-1",
+      isSuperAdmin: false,
       organizationId: "organization-1",
       organizationName: "Nestory Test",
       personId: "person-1",
+      permissionKeys: new Set(["maintenance.complete"]),
       role: "operations_member",
       userId: "user-1",
     });
@@ -77,7 +83,12 @@ describe("TasksPage", () => {
     expect(getMaintenanceScreenData).toHaveBeenCalledWith(
       "organization-1",
       expect.any(Object),
-      expect.objectContaining({ personId: "person-1", role: "operations_member" }),
+      {
+        branchId: "branch-1",
+        dataScope: "assigned",
+        personId: "person-1",
+        workflowMode: "assigned",
+      },
     );
   });
 });

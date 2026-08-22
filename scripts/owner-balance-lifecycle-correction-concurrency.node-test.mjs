@@ -10,6 +10,7 @@ const organizationId = "00000000-0000-0000-0000-000000000001";
 const superAdminId = "00000000-0000-0000-0000-000000000101";
 const financeManagerId = "00000000-0000-0000-0000-000000000701";
 const financeMemberId = "00000000-0000-0000-0000-000000000801";
+const branchId = "00000000-0000-0000-0000-000000000211";
 const riversidePropertyId = "10000000-0000-0000-0000-000000000002";
 const riversideOwnerId = "80000000-0000-0000-0000-000000000005";
 const openingRacePropertyId = "c4000000-0000-4000-8000-000000000001";
@@ -317,11 +318,17 @@ function createRiversideDepositSource(reference) {
 
 function prepareOwnerBalanceLockOrderAuthority(suffix) {
   run(`
-    INSERT INTO public.properties (id, organization_id, name, code, property_type)
+    SELECT set_config(
+      'app.property_branch_assignment_context',
+      (SELECT capability_token FROM app_private.property_branch_assignment_context_capability WHERE singleton),
+      false
+    );
+    INSERT INTO public.properties (id, organization_id, branch_id, name, code, property_type)
     VALUES (
-      '${correctionChainPropertyId}', '${organizationId}',
+      '${correctionChainPropertyId}', '${organizationId}', '${branchId}',
       'Owner balance lock-order property', 'LOCK-ORDER', 'Apartment'
     );
+    SELECT set_config('app.property_branch_assignment_context', 'off', false);
     INSERT INTO public.people (id, organization_id, display_name)
     VALUES ('${correctionChainOwnerId}', '${organizationId}', 'Lock-order owner');
     INSERT INTO public.person_roles (organization_id, person_id, role, status)
@@ -366,11 +373,17 @@ function prepareOwnerBalanceLockOrderAuthority(suffix) {
 
 function prepareLateOpeningCorrection(suffix) {
   run(`
-    INSERT INTO public.properties (id, organization_id, name, code, property_type)
+    SELECT set_config(
+      'app.property_branch_assignment_context',
+      (SELECT capability_token FROM app_private.property_branch_assignment_context_capability WHERE singleton),
+      false
+    );
+    INSERT INTO public.properties (id, organization_id, branch_id, name, code, property_type)
     VALUES (
-      '${correctionChainPropertyId}', '${organizationId}',
+      '${correctionChainPropertyId}', '${organizationId}', '${branchId}',
       'Opening correction chain property', 'OPEN-CHAIN', 'Apartment'
     );
+    SELECT set_config('app.property_branch_assignment_context', 'off', false);
     INSERT INTO public.people (id, organization_id, display_name)
     VALUES ('${correctionChainOwnerId}', '${organizationId}', 'Opening correction chain owner');
     INSERT INTO public.person_roles (organization_id, person_id, role, status)
@@ -490,11 +503,17 @@ test("cross-month withdrawal race serializes the later consumer before the backd
 
 test("opening correction loses after a distribution commits exact opening-source use", async () => {
   run(`
-    INSERT INTO public.properties (id, organization_id, name, code, property_type)
+    SELECT set_config(
+      'app.property_branch_assignment_context',
+      (SELECT capability_token FROM app_private.property_branch_assignment_context_capability WHERE singleton),
+      false
+    );
+    INSERT INTO public.properties (id, organization_id, branch_id, name, code, property_type)
     VALUES (
-      '${openingRacePropertyId}', '${organizationId}',
+      '${openingRacePropertyId}', '${organizationId}', '${branchId}',
       'Opening correction race property', 'OPEN-CORR-RACE', 'Apartment'
     );
+    SELECT set_config('app.property_branch_assignment_context', 'off', false);
     INSERT INTO public.people (id, organization_id, display_name)
     VALUES ('${openingRaceOwnerId}', '${organizationId}', 'Opening correction race owner');
     INSERT INTO public.person_roles (organization_id, person_id, role, status)

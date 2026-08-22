@@ -29,12 +29,14 @@ The `Production Database` job runs after local database CI and performs this fai
 
 1. Check out `github.sha`, query the current `main` SHA with a step-scoped GitHub token, and prove both values equal without persisting checkout credentials.
 2. Link the pinned project Supabase CLI using protected environment secrets.
-3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions. A single read-only Postgres query computes deterministic SHA-256 descriptors for every hosted row and returns only version, name, statement count, statement byte counts, per-statement hashes, and the canonical row hash. No raw hosted SQL crosses the runner. Every ordinary row must reconstruct from Git and match exactly; the 97-row baseline must remain an exact prefix; and the six legacy exceptions must match their separately pinned Git, hosted, database-side, and canonical hashes. Any unknown, missing, duplicated, out-of-order, renamed, or content-mismatched remote row stops the release.
-4. Run a linked `db push --dry-run`.
-5. Run the single production `db push`.
-6. Run `npm run db:hosted-postflight`. Git and hosted ledgers must now be exactly equal.
-7. Run linked database lint at error level and a final linked dry-run proving no migration remains pending.
-8. Report `Vercel - nestory: Database` only from this hosted result. Vercel production promotion must not treat local database tests as a hosted release.
+3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions. A single read-only Postgres query computes deterministic SHA-256 descriptors for every hosted row and returns only version, name, statement count, statement byte counts, per-statement hashes, and the canonical row hash. No raw hosted SQL crosses the runner. Every ordinary row must reconstruct from Git and match exactly; the 99-row released baseline must remain an exact prefix; and all 20 historical reconciliation declarations must match their separately pinned Git, hosted, database-side, and canonical hashes. Any unknown, missing, duplicated, out-of-order, renamed, or content-mismatched remote row stops the release.
+4. Capture an aggregate-only Pilot preservation snapshot. It requires exactly one Pilot organization and four Super Admin memberships, and records critical entity and history counts without exposing user identity or row contents.
+5. Run a linked `db push --dry-run`.
+6. Run the single production `db push`.
+7. Run `npm run db:hosted-postflight`. Git and hosted ledgers must now be exactly equal.
+8. Recompute the Pilot snapshot and require byte-identical pre/post counts before continuing.
+9. Run linked database lint at error level and a final linked dry-run proving no migration remains pending.
+10. Report `Vercel - nestory: Database` only from this hosted result. Vercel production promotion must not treat local database tests as a hosted release.
 
 The final release record must include the merged SHA, workflow run, local/remote migration counts, linked lint, final dry-run, Vercel deployment ID and SHA, production aliases, runtime smoke, and worktree state.
 

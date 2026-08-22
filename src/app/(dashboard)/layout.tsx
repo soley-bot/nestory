@@ -31,7 +31,10 @@ export default async function DashboardLayout({
         defaultSidebarOpen={sidebarState !== "false"}
         organizationId={context.organizationId}
         organizationName={context.organizationName}
+        permissionKeys={[...context.permissionKeys]}
         role={context.role}
+        roleKind={context.roleKind}
+        roleName={context.roleName}
         theme={context.theme}
         userEmail={context.userEmail}
       >

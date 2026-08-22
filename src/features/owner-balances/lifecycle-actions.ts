@@ -7,6 +7,7 @@ import { OWNER_BALANCE_COMPONENTS } from "@/features/owner-balances/owner-balanc
 import {
   requireFinanceCorrectionContext,
   requireFinanceOperationContext,
+  requireOwnerCloseContext,
   requireSuperAdminContext,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
@@ -111,7 +112,7 @@ export async function allocateOwnerEventAction(formData: FormData): Promise<void
 
 export async function generateOwnerBalancePeriodAction(formData: FormData): Promise<void> {
   const input = parse(periodSchema, formData);
-  const context = await requireFinanceOperationContext();
+  const context = await requireOwnerCloseContext();
   const supabase = await createSupabaseServerClient();
   const result = await supabase.rpc("generate_owner_balance_period", {
     p_currency: input.currency,

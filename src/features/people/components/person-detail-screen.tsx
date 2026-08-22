@@ -62,9 +62,13 @@ const personRecordSections: Array<{
 
 export function PersonDetailScreen({
   accessStatus,
+  canArchive = true,
+  canEdit = true,
   person,
 }: {
   accessStatus?: OrganizationPersonAccessStatus;
+  canArchive?: boolean;
+  canEdit?: boolean;
   person: PeopleSummary;
 }) {
   const [activeSection, setActiveSection] =
@@ -101,7 +105,7 @@ export function PersonDetailScreen({
       <PageHeader
         className="px-4 sm:px-6 2xl:px-8"
         actions={
-          person.isArchived ? (
+          person.isArchived && canArchive ? (
             <Button
               ref={confirmationTriggerRef}
               onClick={() => {
@@ -113,29 +117,33 @@ export function PersonDetailScreen({
               <RotateCcw size={15} />
               Restore
             </Button>
-          ) : (
+          ) : !person.isArchived && (canEdit || canArchive) ? (
             <>
-              <Button
-                onClick={() => {
-                  setStatusMessage(null);
-                  setDialog({ mode: "edit", person });
-                }}
-              >
-                <Pencil size={15} />
-                Edit
-              </Button>
-              <Button
-                className="text-danger hover:text-danger"
-                onClick={() => {
-                  setStatusMessage(null);
-                  setConfirmation({ mode: "archive", person });
-                }}
-                ref={confirmationTriggerRef}
-                variant="outline"
-              >
-                <Archive size={15} />
-                Archive
-              </Button>
+              {canEdit ? (
+                <Button
+                  onClick={() => {
+                    setStatusMessage(null);
+                    setDialog({ mode: "edit", person });
+                  }}
+                >
+                  <Pencil size={15} />
+                  Edit
+                </Button>
+              ) : null}
+              {canArchive ? (
+                <Button
+                  className="text-danger hover:text-danger"
+                  onClick={() => {
+                    setStatusMessage(null);
+                    setConfirmation({ mode: "archive", person });
+                  }}
+                  ref={confirmationTriggerRef}
+                  variant="outline"
+                >
+                  <Archive size={15} />
+                  Archive
+                </Button>
+              ) : null}
               <DropdownMenu onOpenChange={setMoreOpen} open={moreOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -156,7 +164,7 @@ export function PersonDetailScreen({
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
-          )
+          ) : null
         }
         breadcrumb={
           <PageBreadcrumb

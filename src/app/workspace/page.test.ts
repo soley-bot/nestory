@@ -26,7 +26,10 @@ describe("WorkspacePage", () => {
     ["operations_manager", "/maintenance"],
     ["operations_member", "/tasks"],
   ] as const)("redirects %s users to %s", async (role, expectedPath) => {
-    requireWorkspaceContext.mockResolvedValue({ role });
+    requireWorkspaceContext.mockResolvedValue({
+      permissionContext: permissionContextForRole(role),
+      role,
+    });
 
     await WorkspacePage();
 
@@ -39,6 +42,7 @@ describe("WorkspacePage", () => {
     process.env.APP_ROOT_DOMAIN = "nestory-kh.com";
     requireWorkspaceContext.mockResolvedValue({
       organizationSlug: "example-pm",
+      permissionContext: permissionContextForRole("super_admin"),
       role: "super_admin",
     });
 
@@ -49,6 +53,21 @@ describe("WorkspacePage", () => {
     );
   });
 });
+
+function permissionContextForRole(role: string) {
+  const permissions = role.startsWith("finance_")
+    ? ["finance.view"]
+    : role === "operations_manager"
+      ? ["maintenance.create_assign"]
+      : role === "operations_member"
+        ? ["maintenance.complete"]
+        : [];
+
+  return {
+    isSuperAdmin: role === "super_admin",
+    permissionKeys: new Set(permissions),
+  };
+}
 
 afterAll(() => {
   if (originalRootDomain === undefined) {

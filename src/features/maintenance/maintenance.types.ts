@@ -326,6 +326,7 @@ export type MaintenanceScreenData = {
 
 export type MaintenanceActor = {
   branchId?: string;
+  dataScope: "assigned" | "branch" | "organization";
   personId?: string;
-  role: "super_admin" | "operations_manager" | "operations_member";
+  workflowMode: "assigned" | "coordinator";
 };

@@ -30,6 +30,8 @@ type PhotoPreview = {
 };
 
 export function PhotoGallery({
+  canArchive = true,
+  canWrite = true,
   emptyLabel,
   photos,
   propertyId,
@@ -37,6 +39,8 @@ export function PhotoGallery({
   unitId,
   uploadLabel = "Add photo",
 }: {
+  canArchive?: boolean;
+  canWrite?: boolean;
   emptyLabel: string;
   photos: AssetPhoto[];
   propertyId: string;
@@ -109,10 +113,12 @@ export function PhotoGallery({
           <ImageIcon className="text-muted-foreground" size={16} />
           <h2 className="text-sm font-semibold">{title}</h2>
         </div>
-        <Button onClick={() => setUploadOpen(true)} type="button" variant="outline">
-          <ImageIcon size={14} />
-          {uploadLabel}
-        </Button>
+        {canWrite ? (
+          <Button onClick={() => setUploadOpen(true)} type="button" variant="outline">
+            <ImageIcon size={14} />
+            {uploadLabel}
+          </Button>
+        ) : null}
       </div>
 
       {photos.length === 0 ? (
@@ -128,7 +134,12 @@ export function PhotoGallery({
               ) : null}
               <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                 {group.photos.map((photo) => (
-                  <PhotoCard key={photo.id} photo={photo} />
+                  <PhotoCard
+                    canArchive={canArchive}
+                    canWrite={canWrite}
+                    key={photo.id}
+                    photo={photo}
+                  />
                 ))}
               </div>
             </div>
@@ -136,7 +147,7 @@ export function PhotoGallery({
         </div>
       )}
 
-      {uploadOpen ? (
+      {canWrite && uploadOpen ? (
         <SideDrawer
           description="Upload a photo to this property."
           onClose={() => setUploadOpen(false)}
@@ -273,7 +284,15 @@ function SelectedPhotoPreview({
   );
 }
 
-function PhotoCard({ photo }: { photo: AssetPhoto }) {
+function PhotoCard({
+  canArchive,
+  canWrite,
+  photo,
+}: {
+  canArchive: boolean;
+  canWrite: boolean;
+  photo: AssetPhoto;
+}) {
   return (
     <article className="overflow-hidden rounded-md border border-border bg-muted/40">
       <div className="relative aspect-[4/3] bg-muted">
@@ -309,7 +328,7 @@ function PhotoCard({ photo }: { photo: AssetPhoto }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {!photo.isCover ? (
+          {canWrite && !photo.isCover ? (
             <PhotoActionForm action={setAssetPhotoCoverAction} photoId={photo.id}>
               <Button type="submit" variant="secondary">
                 <Star size={14} />
@@ -317,12 +336,14 @@ function PhotoCard({ photo }: { photo: AssetPhoto }) {
               </Button>
             </PhotoActionForm>
           ) : null}
-          <PhotoActionForm action={archiveAssetPhotoAction} photoId={photo.id}>
-            <Button type="submit" variant="ghost">
-              <Archive size={14} />
-              Archive
-            </Button>
-          </PhotoActionForm>
+          {canArchive ? (
+            <PhotoActionForm action={archiveAssetPhotoAction} photoId={photo.id}>
+              <Button type="submit" variant="ghost">
+                <Archive size={14} />
+                Archive
+              </Button>
+            </PhotoActionForm>
+          ) : null}
         </div>
       </div>
     </article>

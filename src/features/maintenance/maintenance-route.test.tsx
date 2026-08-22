@@ -5,10 +5,12 @@ const mocks = vi.hoisted(() => ({
   getMaintenanceReminderNotifications: vi.fn(),
   getMaintenanceScreenData: vi.fn(),
   requireOperationsManagementContext: vi.fn(),
+  requirePermission: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/context", () => ({
   requireOperationsManagementContext: mocks.requireOperationsManagementContext,
+  requirePermission: mocks.requirePermission,
 }));
 vi.mock("@/features/maintenance/data/maintenance", () => ({
   getMaintenanceReminderNotifications: mocks.getMaintenanceReminderNotifications,
@@ -23,11 +25,15 @@ import { renderMaintenanceRoute } from "@/features/maintenance/maintenance-route
 describe("manager maintenance routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireOperationsManagementContext.mockResolvedValue({
+    mocks.requirePermission.mockResolvedValue({
       branchId: "branch-1",
+      isSuperAdmin: false,
       organizationId: "organization-1",
+      permissionKeys: new Set([
+        "maintenance.view",
+      ]),
       personId: "person-1",
-      role: "operations_manager",
+      role: "custom",
     });
     mocks.getMaintenanceScreenData.mockResolvedValue({
       branchOptions: [],
@@ -42,7 +48,7 @@ describe("manager maintenance routes", () => {
     mocks.getMaintenanceReminderNotifications.mockResolvedValue([]);
   });
 
-  it("requires canManageOperations for recurring, inspections, and work-order surfaces", async () => {
+  it("allows branch-scoped maintenance readers onto recurring, inspection, and work-order surfaces", async () => {
     const html = renderToStaticMarkup(await renderMaintenanceRoute({
       emptyLabel: "No work",
       flowLabel: "Manager queue",
@@ -53,6 +59,7 @@ describe("manager maintenance routes", () => {
     }));
 
     expect(html).toContain("Manager maintenance route");
-    expect(mocks.requireOperationsManagementContext).toHaveBeenCalledOnce();
+    expect(mocks.requirePermission).toHaveBeenCalledWith("maintenance.view");
+    expect(mocks.requireOperationsManagementContext).not.toHaveBeenCalled();
   });
 });

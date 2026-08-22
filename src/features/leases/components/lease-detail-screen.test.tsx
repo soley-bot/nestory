@@ -328,14 +328,55 @@ describe("LeaseDetailScreen", () => {
       form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value,
     ).toBe("unit-1");
   });
+
+  it("does not let term-change authority activate, close, or archive a lease", () => {
+    renderDetail("overview", makeLease(), {
+      canActivate: false,
+      canArchive: false,
+      canChangeTerms: true,
+      canClose: false,
+      canPrepare: false,
+    });
+
+    expect(screen.getByRole("button", { name: "Renew lease" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Activate lease" })).toBeNull();
+    expect(screen.queryByText("Terminate lease")).toBeNull();
+  });
+
+  it("does not expose any lease mutation to a view-only role", () => {
+    renderDetail("overview", makeLease(), {
+      canActivate: false,
+      canArchive: false,
+      canChangeTerms: false,
+      canClose: false,
+      canPrepare: false,
+    });
+
+    expect(screen.queryByRole("button", { name: "Renew lease" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Manage lease" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+  });
 });
 
-function renderDetail(activeSection: LeaseRecordSection, lease = makeLease()) {
+const allLeasePermissions = {
+  canActivate: true,
+  canArchive: true,
+  canChangeTerms: true,
+  canClose: true,
+  canPrepare: true,
+};
+
+function renderDetail(
+  activeSection: LeaseRecordSection,
+  lease = makeLease(),
+  permissions = allLeasePermissions,
+) {
   render(
     <LeaseDetailScreen
       activeSection={activeSection}
-      canConfigure
       lease={lease}
+      permissions={permissions}
       propertyOptions={[{ id: "property-1", label: "RIVER - Riverside House" }]}
       tenantOptions={[
         {

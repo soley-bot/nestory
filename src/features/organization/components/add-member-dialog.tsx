@@ -26,8 +26,6 @@ import { PersonSelect } from "@/features/people/components/person-select";
 import { createPersonAction, type PeopleActionState } from "@/features/people/actions";
 import {
   buildAccessByPersonId,
-  formatWorkspaceAccessRole,
-  isOrganizationWideRole,
 } from "@/features/organization/access-status";
 import {
   inviteOrganizationUserAction,
@@ -39,7 +37,6 @@ import type {
   OrganizationMembership,
   OrganizationStaffOption,
 } from "@/features/organization/data";
-import { WORKSPACE_ROLE_OPTIONS } from "@/features/organization/workspace-roles";
 import { cn } from "@/lib/utils";
 
 export type AddMemberDefaults = {
@@ -58,10 +55,12 @@ type WorkflowStep = "access" | "staff" | "review";
 type StaffMode = "existing" | "new";
 type AccessValues = {
   branchId: string;
+  customRoleId: string;
   email: string;
   personId: string;
-  role: OrganizationMembership["role"];
+  roleKind: "custom" | "super_admin";
 };
+export type AccessRoleOption = { id: string; name: string };
 type StaffValues = {
   displayName: string;
   partyType: "company" | "individual";
@@ -80,6 +79,7 @@ export function AddMemberDialog({
   onReviewDuplicate,
   open,
   people,
+  roles,
   returnFocusRef,
 }: {
   branches: OrganizationBranch[];
@@ -92,16 +92,18 @@ export function AddMemberDialog({
   onReviewDuplicate: (target: DuplicateAccessTarget) => void;
   open: boolean;
   people: OrganizationStaffOption[];
+  roles: AccessRoleOption[];
   returnFocusRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const initialAccess = useMemo<AccessValues>(
     () => ({
       branchId: branches.length === 1 ? branches[0]!.id : "",
+      customRoleId: roles[0]?.id ?? "",
       email: defaults?.email ?? "",
       personId: defaults?.personId ?? "",
-      role: "operations_member",
+      roleKind: roles.length > 0 ? "custom" : "super_admin",
     }),
-    [branches, defaults],
+    [branches, defaults, roles],
   );
   const [step, setStep] = useState<WorkflowStep>("access");
   const [access, setAccess] = useState<AccessValues>(initialAccess);
@@ -132,10 +134,11 @@ export function AddMemberDialog({
     access.email !== initialAccess.email ||
     access.personId !== initialAccess.personId ||
     access.branchId !== initialAccess.branchId ||
-    access.role !== initialAccess.role ||
+    access.customRoleId !== initialAccess.customRoleId ||
+    access.roleKind !== initialAccess.roleKind ||
     staffMode === "new" ||
     Boolean(staff.displayName || staff.primaryPhone || createdStaff);
-  const organizationWide = isOrganizationWideRole(access.role);
+  const organizationWide = access.roleKind === "super_admin";
   const selectedPerson = people.find((person) => person.id === access.personId);
   const selectedStaffEmail =
     selectedPerson?.primaryEmail ?? createdStaff?.primaryEmail ?? defaults?.staffEmail;
@@ -232,6 +235,7 @@ export function AddMemberDialog({
   function continueFromAccess() {
     const errors: Partial<Record<keyof AccessValues, string>> = {};
     if (!/^\S+@\S+\.\S+$/.test(access.email.trim())) errors.email = "Enter a valid email.";
+    if (!organizationWide && !access.customRoleId) errors.customRoleId = "Choose a role.";
     if (!organizationWide && !access.branchId) errors.branchId = "Choose a branch.";
     setAccessErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -395,6 +399,7 @@ export function AddMemberDialog({
                   branches={branches}
                   errors={accessErrors}
                   organizationWide={organizationWide}
+                  roles={roles}
                   setAccessField={setAccessField}
                   emailRef={emailRef}
                 />
@@ -422,6 +427,12 @@ export function AddMemberDialog({
                   message={message}
                   onReviewDuplicate={onReviewDuplicate}
                   selectedName={selectedPerson?.label ?? createdStaff?.label}
+                  roleName={
+                    access.roleKind === "super_admin"
+                      ? "Super Admin"
+                      : roles.find((role) => role.id === access.customRoleId)?.name ??
+                        "Role required"
+                  }
                   status={status}
                 />
               ) : null}
@@ -472,6 +483,7 @@ function AccessStep({
   emailRef,
   errors,
   organizationWide,
+  roles,
   setAccessField,
 }: {
   access: AccessValues;
@@ -479,6 +491,7 @@ function AccessStep({
   emailRef: RefObject<HTMLInputElement | null>;
   errors: Partial<Record<keyof AccessValues, string>>;
   organizationWide: boolean;
+  roles: AccessRoleOption[];
   setAccessField: <K extends keyof AccessValues>(field: K, value: AccessValues[K]) => void;
 }) {
   return (
@@ -496,18 +509,34 @@ function AccessStep({
         <SelectControl
           ariaLabel="Access level"
           onValueChange={(value) => {
-            const role = value as AccessValues["role"];
-            setAccessField("role", role);
-            if (isOrganizationWideRole(role)) {
+            if (value === "super_admin") {
+              setAccessField("roleKind", "super_admin");
+              setAccessField("customRoleId", "");
               setAccessField("branchId", "");
               setAccessField("personId", "");
-            } else if (!access.branchId && branches.length === 1) {
+              return;
+            }
+            setAccessField("roleKind", "custom");
+            setAccessField("customRoleId", value);
+            if (!access.branchId && branches.length === 1) {
               setAccessField("branchId", branches[0]!.id);
             }
           }}
-            options={WORKSPACE_ROLE_OPTIONS}
-          value={access.role}
+          options={[
+            { label: "Super Admin", value: "super_admin" },
+            ...roles.map((role) => ({ label: role.name, value: role.id })),
+          ]}
+          value={
+            access.roleKind === "super_admin"
+              ? "super_admin"
+              : access.customRoleId
+          }
         />
+        {errors.customRoleId ? (
+          <span className="text-xs text-danger" role="alert">
+            {errors.customRoleId}
+          </span>
+        ) : null}
       </Field>
       <Field label="Access scope" error={errors.branchId}>
         <SelectControl
@@ -519,10 +548,15 @@ function AccessStep({
               ? [{ label: "All branches", value: "" }]
               : [
                   { label: "Choose branch", value: "" },
-                  ...branches.map((branch) => ({
-                    label: branch.name,
-                    value: branch.id,
-                  })),
+                  ...branches
+                    .filter(
+                      (branch) =>
+                        !branch.archivedAt && branch.status === "active",
+                    )
+                    .map((branch) => ({
+                      label: branch.name,
+                      value: branch.id,
+                    })),
                 ]
           }
           placeholder="Choose branch"
@@ -613,6 +647,7 @@ function ReviewStep({
   emailMismatch,
   message,
   onReviewDuplicate,
+  roleName,
   selectedName,
   status,
 }: {
@@ -622,6 +657,7 @@ function ReviewStep({
   emailMismatch: boolean;
   message?: string;
   onReviewDuplicate: (target: DuplicateAccessTarget) => void;
+  roleName: string;
   selectedName?: string;
   status?: "error" | "saving";
 }) {
@@ -630,16 +666,16 @@ function ReviewStep({
       <h3 className="font-heading text-base font-medium">Review invitation</h3>
       <dl className="divide-y rounded-lg border text-sm">
         <ReviewRow label="Invitation email" value={access.email} />
-        <ReviewRow label="Access level" value={formatWorkspaceAccessRole(access.role)} />
+        <ReviewRow label="Access level" value={roleName} />
         <ReviewRow
           label="Scope"
           value={
-            isOrganizationWideRole(access.role)
+            access.roleKind === "super_admin"
               ? "All branches"
               : branches.find((branch) => branch.id === access.branchId)?.name ?? "Branch required"
           }
         />
-        {!isOrganizationWideRole(access.role) ? (
+        {access.roleKind === "custom" ? (
           <ReviewRow label="Staff record" value={selectedName ?? "Staff required"} />
         ) : null}
       </dl>
@@ -708,10 +744,14 @@ function buildStaffFormData(staff: StaffValues) {
 
 function buildInvitationFormData(access: AccessValues) {
   const formData = new FormData();
-  formData.set("branchId", isOrganizationWideRole(access.role) ? "" : access.branchId);
+  formData.set("branchId", access.roleKind === "super_admin" ? "" : access.branchId);
+  formData.set(
+    "customRoleId",
+    access.roleKind === "super_admin" ? "" : access.customRoleId,
+  );
   formData.set("email", access.email.trim());
-  formData.set("personId", isOrganizationWideRole(access.role) ? "" : access.personId);
-  formData.set("role", access.role);
+  formData.set("personId", access.roleKind === "super_admin" ? "" : access.personId);
+  formData.set("roleKind", access.roleKind);
   return formData;
 }
 

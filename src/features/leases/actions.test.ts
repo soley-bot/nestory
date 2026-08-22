@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   from,
   leasePathQuery,
-  requireLeaseConfigurationContext,
+  requirePermission,
   revalidatePath,
   rpc,
 } = vi.hoisted(
@@ -14,14 +14,14 @@ const {
       maybeSingle: vi.fn(),
       select: vi.fn(),
     },
-    requireLeaseConfigurationContext: vi.fn(),
+    requirePermission: vi.fn(),
     revalidatePath: vi.fn(),
     rpc: vi.fn(),
   }),
 );
 
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/auth/context", () => ({ requireLeaseConfigurationContext }));
+vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: async () => ({ from, rpc }),
 }));
@@ -48,7 +48,7 @@ describe("Lease occupancy evidence input", () => {
     leasePathQuery.eq.mockReset();
     leasePathQuery.maybeSingle.mockReset();
     leasePathQuery.select.mockReset();
-    requireLeaseConfigurationContext.mockReset();
+    requirePermission.mockReset();
     revalidatePath.mockReset();
     rpc.mockReset();
     from.mockReturnValue(leasePathQuery);
@@ -58,7 +58,7 @@ describe("Lease occupancy evidence input", () => {
       error: null,
     });
     leasePathQuery.select.mockReturnValue(leasePathQuery);
-    requireLeaseConfigurationContext.mockResolvedValue({ organizationId });
+    requirePermission.mockResolvedValue({ organizationId });
     rpc.mockResolvedValue({ data: { leaseId }, error: null });
   });
 
@@ -90,6 +90,7 @@ describe("Lease occupancy evidence input", () => {
         }),
       }),
     );
+    expect(requirePermission).toHaveBeenCalledWith("leases.prepare");
   });
 
   it("rejects zero rent before calling the authoritative write", async () => {
@@ -190,6 +191,7 @@ describe("Lease occupancy evidence input", () => {
         p_unit_id: null,
       }),
     );
+    expect(requirePermission).toHaveBeenCalledWith("leases.prepare");
   });
 
   it("records current occupancy through the narrow append-only repair RPC", async () => {
@@ -220,6 +222,7 @@ describe("Lease occupancy evidence input", () => {
       },
     );
     expect(revalidatePath).toHaveBeenCalledWith("/leases");
+    expect(requirePermission).toHaveBeenCalledWith("leases.activate");
   });
 
   it("records notice through the checked lifecycle RPC", async () => {
@@ -262,6 +265,7 @@ describe("Lease occupancy evidence input", () => {
       p_transition: "give_notice",
     });
     expect(revalidatePath).toHaveBeenCalledWith(`/leases/${leaseId}`);
+    expect(requirePermission).toHaveBeenCalledWith("leases.close");
   });
 
   it("explains an unsupported lease scope returned by the lifecycle RPC", async () => {
@@ -360,6 +364,7 @@ describe("Lease occupancy evidence input", () => {
       p_lease_id: leaseId,
       p_organization_id: organizationId,
     });
+    expect(requirePermission).toHaveBeenCalledWith("leases.activate");
   });
 
   it("records deposit activity with a deterministic PostgreSQL fixture identifier", async () => {
@@ -382,6 +387,7 @@ describe("Lease occupancy evidence input", () => {
       p_organization_id: organizationId,
       p_reference: "Receipt 1001",
     });
+    expect(requirePermission).toHaveBeenCalledWith("leases.change_terms");
   });
 
   it("reverses deposit activity with a deterministic PostgreSQL fixture identifier", async () => {
@@ -400,6 +406,7 @@ describe("Lease occupancy evidence input", () => {
       p_organization_id: organizationId,
       p_reference: "Duplicate receipt",
     });
+    expect(requirePermission).toHaveBeenCalledWith("leases.change_terms");
   });
 });
 

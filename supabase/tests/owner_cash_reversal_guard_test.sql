@@ -67,59 +67,60 @@ SELECT has_function(
 );
 
 SELECT ok(
-  (
-    SELECT count(*) = 2
-      AND pg_catalog.bool_and(
-        procedure.prosrc LIKE '%app_private.can_correct_finance(p_organization_id)%'
-        AND procedure.prosrc NOT LIKE '%app_private.can_operate_finance(p_organization_id)%'
-      )
-    FROM pg_catalog.pg_proc AS procedure
-    JOIN pg_catalog.pg_namespace AS namespace
-      ON namespace.oid = procedure.pronamespace
-    WHERE namespace.nspname = 'public'
-      AND procedure.proname IN (
-        'reverse_owner_invoice_payment',
-        'reverse_property_withdrawal'
-      )
-  ),
-  'owner cash reversals require the narrow ordinary-correction capability'
+  pg_catalog.pg_get_functiondef(
+    'public.reverse_owner_invoice_payment(uuid,uuid,date,text,text)'::regprocedure
+  ) LIKE '%begin_finance_property_authority%finance.correct_records%'
+  AND pg_catalog.pg_get_functiondef(
+    'public.reverse_owner_invoice_payment(uuid,uuid,date,text,text)'::regprocedure
+  ) LIKE '%reverse_owner_invoice_payment_branch106%',
+  'owner-payment reversal uses the property-scoped correction wrapper'
 );
 
 SELECT ok(
-  (
-    WITH command_boundaries(command_name, baseline_name) AS (
-      VALUES
-        ('record_owner_distribution'::text, 'record_owner_distribution_baseline'::text),
-        ('reverse_property_withdrawal'::text, 'reverse_property_withdrawal_baseline'::text),
-        ('reverse_owner_invoice_payment'::text, 'reverse_owner_invoice_payment_baseline'::text)
-    ), definitions AS (
-      SELECT
-        boundary.command_name,
-        boundary.baseline_name,
-        public_procedure.prosrc AS public_source,
-        public_procedure.prosrc || private_procedure.prosrc AS effective_source
-      FROM command_boundaries AS boundary
-      JOIN pg_catalog.pg_proc AS public_procedure
-        ON public_procedure.proname = boundary.command_name
-      JOIN pg_catalog.pg_namespace AS public_namespace
-        ON public_namespace.oid = public_procedure.pronamespace
-       AND public_namespace.nspname = 'public'
-      JOIN pg_catalog.pg_proc AS private_procedure
-        ON private_procedure.proname = boundary.baseline_name
-      JOIN pg_catalog.pg_namespace AS private_namespace
-        ON private_namespace.oid = private_procedure.pronamespace
-       AND private_namespace.nspname = 'app_private'
+  pg_catalog.pg_get_functiondef(
+    'public.reverse_property_withdrawal(uuid,uuid,date,text,text)'::regprocedure
+  ) LIKE '%begin_finance_property_authority%finance.correct_records%'
+  AND pg_catalog.pg_get_functiondef(
+    'public.reverse_property_withdrawal(uuid,uuid,date,text,text)'::regprocedure
+  ) LIKE '%reverse_property_withdrawal_branch106%',
+  'withdrawal reversal uses the property-scoped correction wrapper'
+);
+
+SELECT ok(
+  pg_catalog.pg_get_functiondef(
+    'public.record_owner_distribution(uuid,uuid,uuid,public.currency_code,numeric,date,text,text)'::regprocedure
+  ) || pg_catalog.pg_get_functiondef(
+    'app_private.record_owner_distribution_baseline(uuid,uuid,uuid,public.currency_code,numeric,date,text,text)'::regprocedure
+  ) LIKE '%get_financial_idempotency_replay%claim_financial_idempotency%complete_financial_idempotency%',
+  'owner distribution retains the authoritative idempotency lifecycle'
+);
+
+SELECT ok(
+  pg_catalog.pg_get_functiondef(
+    'public.reverse_owner_invoice_payment_branch106(uuid,uuid,date,text,text)'::regprocedure
+  ) LIKE '%reverse_owner_invoice_payment_baseline%'
+  AND (
+    pg_catalog.pg_get_functiondef(
+      'public.reverse_owner_invoice_payment_branch106(uuid,uuid,date,text,text)'::regprocedure
+    ) || pg_catalog.pg_get_functiondef(
+      'app_private.reverse_owner_invoice_payment_baseline(uuid,uuid,date,text,text)'::regprocedure
     )
-    SELECT count(*) = 3
-      AND pg_catalog.bool_and(
-        effective_source LIKE '%app_private.get_financial_idempotency_replay%'
-        AND effective_source LIKE '%app_private.claim_financial_idempotency%'
-        AND effective_source LIKE '%app_private.complete_financial_idempotency%'
-        AND public_source LIKE '%' || baseline_name || '%'
-      )
-    FROM definitions
-  ),
-  'Track 3 cash and reversal public/private-baseline boundaries reuse the single financial idempotency authority'
+  ) LIKE '%get_financial_idempotency_replay%claim_financial_idempotency%complete_financial_idempotency%',
+  'owner-payment reversal retains the authoritative idempotency lifecycle'
+);
+
+SELECT ok(
+  pg_catalog.pg_get_functiondef(
+    'public.reverse_property_withdrawal_branch106(uuid,uuid,date,text,text)'::regprocedure
+  ) LIKE '%reverse_property_withdrawal_baseline%'
+  AND (
+    pg_catalog.pg_get_functiondef(
+      'public.reverse_property_withdrawal_branch106(uuid,uuid,date,text,text)'::regprocedure
+    ) || pg_catalog.pg_get_functiondef(
+      'app_private.reverse_property_withdrawal_baseline(uuid,uuid,date,text,text)'::regprocedure
+    )
+  ) LIKE '%get_financial_idempotency_replay%claim_financial_idempotency%complete_financial_idempotency%',
+  'withdrawal reversal retains the authoritative idempotency lifecycle'
 );
 
 SELECT has_function(
@@ -303,10 +304,10 @@ SELECT set_config(
 SET LOCAL ROLE authenticated;
 
 SELECT ok(
-  app_private.can_correct_finance(
+  NOT app_private.can_correct_finance(
     'd4400000-0000-4000-8000-000000000001'
   ),
-  'Finance Manager receives ordinary correction authority only with Track 3 guards installed'
+  'the legacy organization-wide correction helper stays closed outside a scoped checked command'
 );
 
 SELECT public.allocate_owner_event(

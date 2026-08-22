@@ -23,7 +23,7 @@ import { canTransitionMaintenanceStatus } from "@/features/maintenance/maintenan
 import { cn } from "@/lib/utils";
 
 export type BoardSurfaceProps = {
-  actorRole: MaintenanceActor["role"];
+  actorMode: MaintenanceActor["workflowMode"];
   cases: MaintenanceCase[];
   emptyLabel: string;
   onStatusChange?: (
@@ -52,7 +52,7 @@ const BOARD_COLUMNS: Array<{
 ];
 
 export function BoardSurface({
-  actorRole,
+  actorMode,
   cases,
   emptyLabel,
   onStatusChange,
@@ -63,7 +63,7 @@ export function BoardSurface({
   waitingForReviewLabel = false,
 }: BoardSurfaceProps) {
   const [presentation, setPresentation] = useState<"board" | "list">(
-    actorRole === "operations_member" ? "list" : "board",
+    actorMode === "assigned" ? "list" : "board",
   );
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -85,7 +85,7 @@ export function BoardSurface({
       !canTransitionMaintenanceStatus(
         maintenanceCase.status,
         nextStatus,
-        { actorRole, executionMode: maintenanceCase.executionMode },
+        { actorMode, executionMode: maintenanceCase.executionMode },
       )
     ) {
       return;
@@ -102,7 +102,7 @@ export function BoardSurface({
     );
   }
 
-  if (actorRole === "operations_member") {
+  if (actorMode === "assigned") {
     return (
       <BoardListSurface
         cases={cases}
@@ -129,11 +129,11 @@ export function BoardSurface({
                   canTransitionMaintenanceStatus(
                     maintenanceCase.status,
                     column.status,
-                    { actorRole, executionMode: maintenanceCase.executionMode },
+                    { actorMode, executionMode: maintenanceCase.executionMode },
                   ),
                 )
               }
-              actorRole={actorRole}
+              actorMode={actorMode}
               canManageState={Boolean(onStatusChange) && !statusChangePending}
               column={
                 waitingForReviewLabel && column.status === "ready_for_review"
@@ -299,7 +299,7 @@ function BoardListSurface({
 }
 
 function BoardColumn({
-  actorRole,
+  actorMode,
   canDrop,
   canManageState,
   column,
@@ -307,7 +307,7 @@ function BoardColumn({
   selectedTaskId,
   tasks,
 }: {
-  actorRole: MaintenanceActor["role"];
+  actorMode: MaintenanceActor["workflowMode"];
   canDrop: boolean;
   canManageState: boolean;
   column: (typeof BOARD_COLUMNS)[number];
@@ -349,7 +349,7 @@ function BoardColumn({
                 canTransitionMaintenanceStatus(
                   maintenanceCase.status,
                   maintenanceCase.status === "cancelled" ? "pending" : "cancelled",
-                  { actorRole, executionMode: maintenanceCase.executionMode },
+                  { actorMode, executionMode: maintenanceCase.executionMode },
                 )
               }
               key={maintenanceCase.id}

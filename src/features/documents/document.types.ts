@@ -1,4 +1,5 @@
 import type { RecentChange } from "@/features/activity/activity.types";
+import type { DocumentAuthorityDomain } from "@/features/documents/document-authority";
 
 export type LinkedDocument = {
   category: string;
@@ -85,6 +86,7 @@ export type DocumentDetailHrefs = {
 
 export type DocumentSummary = LinkedDocument & {
   activity: RecentChange[];
+  authorityDomain: DocumentAuthorityDomain;
   archivedAt?: string;
   formValues: DocumentFormValues;
   hrefs: DocumentDetailHrefs;

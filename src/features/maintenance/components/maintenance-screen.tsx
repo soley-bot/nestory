@@ -238,13 +238,13 @@ export function MaintenanceScreen({
   );
   const normalizedViewQuery = useMemo(
     () =>
-      actor.role === "operations_member" && viewQuery.view === "board"
+      actor.workflowMode === "assigned" && viewQuery.view === "board"
         ? { ...viewQuery, view: "list" as const }
         : viewQuery,
-    [actor.role, viewQuery],
+    [actor.workflowMode, viewQuery],
   );
   const normalizedSurfaceVariant =
-    actor.role === "operations_member" && surfaceVariant === "board"
+    actor.workflowMode === "assigned" && surfaceVariant === "board"
       ? "table"
       : surfaceVariant;
   const focusedCase = initialTaskId
@@ -370,7 +370,7 @@ export function MaintenanceScreen({
     if (
       maintenanceCase.status === status ||
       !canTransitionMaintenanceStatus(maintenanceCase.status, status, {
-        actorRole: actor.role,
+        actorMode: actor.workflowMode,
         executionMode: maintenanceCase.executionMode,
       })
     ) {
@@ -505,7 +505,7 @@ export function MaintenanceScreen({
       ) : (
         <div className="min-w-0 flex-1 p-3">
           <MaintenanceWorkflowSurface
-            actorRole={actor.role}
+            actorMode={actor.workflowMode}
             cases={visibleCases}
             emptyLabel={emptyLabel}
             month={normalizedViewQuery.month}
@@ -525,7 +525,7 @@ export function MaintenanceScreen({
             }
             statusChangePending={statusChangePending}
             variant={normalizedSurfaceVariant}
-            waitingForReviewLabel={actor.role === "operations_member"}
+            waitingForReviewLabel={actor.workflowMode === "assigned"}
           />
         </div>
       )}
@@ -1612,7 +1612,7 @@ export function MaintenanceForm({
     branchId:
       maintenanceCase?.formValues.branchId ??
       initialValues?.branchId ??
-      (actor.role === "operations_manager" ? actor.branchId : undefined) ??
+      (actor.dataScope === "branch" ? actor.branchId : undefined) ??
       "",
     category:
       maintenanceCase?.formValues.category ??
@@ -1690,7 +1690,7 @@ export function MaintenanceForm({
   const costScopeLocked =
     costSubmissionStatus === "submitted" || costSubmissionStatus === "approved";
   const managerBranch =
-    actor.role === "operations_manager" && actor.branchId
+    actor.dataScope === "branch" && actor.branchId
       ? branches.find((branch) => branch.id === actor.branchId)
       : undefined;
   const branchControlMode = getMaintenanceBranchControlMode(actor);
@@ -1883,7 +1883,7 @@ export function MaintenanceForm({
                         defaults.status,
                         option.value,
                         {
-                          actorRole: actor.role,
+                          actorMode: actor.workflowMode,
                           executionMode:
                             maintenanceCase?.executionMode ??
                             "manager_coordinated",

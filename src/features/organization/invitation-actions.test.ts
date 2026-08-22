@@ -38,6 +38,7 @@ import {
 const invitationId = "11111111-1111-4111-8111-111111111111";
 const personId = "55555555-5555-4555-8555-555555555555";
 const branchId = "66666666-6666-4666-8666-666666666666";
+const customRoleId = "77777777-7777-4777-8777-777777777777";
 
 describe("organization invitation actions", () => {
   beforeEach(() => {
@@ -66,8 +67,10 @@ describe("organization invitation actions", () => {
 
     expect(rpc.mock.calls[0][0]).toBe("create_organization_invitation");
     expect(rpc.mock.calls[0][1]).toEqual(expect.objectContaining({
+      p_custom_role_id: customRoleId,
       p_email: "invitee@example.com",
       p_person_id: personId,
+      p_role_kind: "custom",
     }));
     expect(adminInvite).toHaveBeenCalledWith(
       "invitee@example.com",
@@ -136,31 +139,36 @@ describe("organization invitation actions", () => {
     });
   });
 
-  it("requires a valid Staff record for a new invitation", async () => {
+  it("allows a custom invitation without linking a Staff record", async () => {
+    rpc
+      .mockResolvedValueOnce({ data: invitationId, error: null })
+      .mockResolvedValueOnce({ data: invitationId, error: null });
+    adminInvite.mockResolvedValue({
+      data: { user: { id: "44444444-4444-4444-8444-444444444444" } },
+      error: null,
+    });
     const formData = inviteForm();
     formData.set("personId", "");
 
     await expect(inviteOrganizationUserAction({}, formData)).resolves.toEqual({
-      message: "Choose a branch and Staff member for an Operations role.",
-      status: "error",
+      message: "Invitation sent to invitee@example.com.",
+      status: "success",
     });
-    expect(rpc).not.toHaveBeenCalled();
-    expect(adminInvite).not.toHaveBeenCalled();
   });
 
-  it("requires branch and Staff scope for an Operations invitation", async () => {
+  it("requires one branch for a custom invitation", async () => {
     const formData = inviteForm();
     formData.set("branchId", "");
 
     await expect(inviteOrganizationUserAction({}, formData)).resolves.toEqual({
-      message: "Choose a branch and Staff member for an Operations role.",
+      message: "Choose one branch and one role.",
       status: "error",
     });
     expect(rpc).not.toHaveBeenCalled();
     expect(adminInvite).not.toHaveBeenCalled();
   });
 
-  it("accepts a Finance invitation without branch or Staff scope", async () => {
+  it("accepts a Super Admin invitation without branch, role, or Staff scope", async () => {
     rpc
       .mockResolvedValueOnce({ data: invitationId, error: null })
       .mockResolvedValueOnce({ data: invitationId, error: null });
@@ -169,25 +177,41 @@ describe("organization invitation actions", () => {
       error: null,
     });
     const formData = new FormData();
-    formData.set("email", "finance@example.com");
-    formData.set("role", "finance_manager");
+    formData.set("email", "admin@example.com");
+    formData.set("roleKind", "super_admin");
+    formData.set("customRoleId", "");
     formData.set("branchId", "");
     formData.set("personId", "");
 
     await expect(inviteOrganizationUserAction({}, formData)).resolves.toEqual({
-      message: "Invitation sent to finance@example.com.",
+      message: "Invitation sent to admin@example.com.",
       status: "success",
     });
     expect(rpc.mock.calls[0]).toEqual([
       "create_organization_invitation",
       {
         p_branch_id: null,
-        p_email: "finance@example.com",
+        p_custom_role_id: null,
+        p_email: "admin@example.com",
         p_organization_id: "22222222-2222-4222-8222-222222222222",
         p_person_id: null,
-        p_role: "finance_manager",
+        p_role_kind: "super_admin",
       },
     ]);
+  });
+
+  it("rejects a legacy ordinary role instead of emulating its authority", async () => {
+    const formData = new FormData();
+    formData.set("email", "legacy@example.com");
+    formData.set("role", "finance_manager");
+    formData.set("branchId", "");
+    formData.set("personId", "");
+
+    await expect(inviteOrganizationUserAction({}, formData)).resolves.toEqual({
+      message: "Choose a valid email, branch, and role.",
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -349,7 +373,8 @@ describe("organization invitation actions", () => {
 function inviteForm() {
   const formData = new FormData();
   formData.set("email", "  Invitee@Example.com  ");
-  formData.set("role", "operations_member");
+  formData.set("roleKind", "custom");
+  formData.set("customRoleId", customRoleId);
   formData.set("branchId", branchId);
   formData.set("personId", personId);
   return formData;

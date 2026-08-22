@@ -75,10 +75,10 @@ SELECT ok(
       pg_catalog.pg_get_functiondef(
         'public.submit_expense(uuid,uuid,uuid,text,uuid,text,text,date,numeric,numeric,currency_code,text,uuid,uuid,uuid,uuid,text,text)'::regprocedure
       ),
-      'IF p_supporting_document_id IS NULL THEN'
+      'app_private.submit_expense_baseline_branch106'
     ) > 0
   ),
-  'general paid-cost submission requires an immutable document even when a reference exists'
+  'general paid-cost submission retains the immutable-evidence baseline behind the scoped wrapper'
 );
 
 SELECT ok(
@@ -138,12 +138,12 @@ SELECT ok(
     'public.submit_expense(uuid,uuid,uuid,text,uuid,text,text,date,numeric,numeric,currency_code,text,uuid,uuid,uuid,uuid,text,text)',
     'EXECUTE'
   )
-  AND NOT has_function_privilege(
+  AND has_function_privilege(
     'service_role',
     'public.submit_expense(uuid,uuid,uuid,text,uuid,text,text,date,numeric,numeric,currency_code,text,uuid,uuid,uuid,uuid,text,text)',
     'EXECUTE'
   ),
-  'the checked paid-cost command is exposed only to authenticated actors'
+  'the checked paid-cost command is exposed to authenticated callers and the trusted service boundary, never anon'
 );
 
 SELECT ok(
@@ -177,14 +177,14 @@ SELECT ok(
 SELECT ok(
   (
     SELECT
-      strpos(policy.qual, '/paid-cost-evidence/%') > 0
+      strpos(policy.qual, 'is_financial_evidence_object_locked') > 0
       AND policy.cmd = 'DELETE'
     FROM pg_catalog.pg_policies AS policy
     WHERE policy.schemaname = 'storage'
       AND policy.tablename = 'objects'
-      AND policy.policyname = 'Admins can delete Nestory documents'
+      AND policy.policyname = 'nestory_documents_branch_delete'
   ),
-  'authenticated document cleanup cannot delete the paid-cost evidence namespace'
+  'authenticated document cleanup cannot delete immutable financial evidence'
 );
 
 SELECT ok(
@@ -451,8 +451,8 @@ SELECT throws_ok(
     source_id
   ),
   '42501',
-  'paid_cost_evidence_service_only',
-  'Super Admin cannot forge registrar evidence through create_document and submit it'
+  'Document branch scope is unresolved or conflicts with its Storage path',
+  'Super Admin cannot forge registrar evidence through an unresolved document scope'
 ) FROM paid_cost_c1_state;
 
 SELECT throws_like(
@@ -464,7 +464,7 @@ SELECT throws_like(
     super_admin_id,
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0daf'::uuid
   ),
-  '%row-level security policy%',
+  '%permission denied for table activity_logs%',
   'ordinary authenticated activity insertion cannot imitate registrar authority'
 ) FROM paid_cost_c1_state;
 

@@ -289,7 +289,11 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
         ) : (
           <FinanceWorkspaceNavigation
             activeRoute={screen.activeRoute}
+            canCorrectFinance={props.canCorrectFinance}
             canReadFinanceReports={props.canReadFinanceReports ?? false}
+            canRecordPayments={props.canRecordPayments}
+            canReviewExpense={props.canReviewExpense}
+            canSubmitExpense={props.canSubmitExpense}
           />
         )
       }
@@ -635,7 +639,7 @@ function getScreen(
     return {
       activeRoute: "/rent-income" as const,
       actions:
-        canRecordScopedPayment || canConfigureRent || canRecoverRent ? (
+        canRecordScopedPayment || props.canRecordPayments || canRecoverRent ? (
           <>
             {canRecoverRent && !props.initialRentLeaseId ? (
               <Button
@@ -659,7 +663,7 @@ function getScreen(
                 <WalletCards size={15} /> Record payment
               </Button>
             ) : null}
-            {canConfigureRent && !props.initialRentLeaseId ? (
+            {props.canRecordPayments && !props.initialRentLeaseId ? (
               <Button
                 onClick={() =>
                   openModal({
@@ -3826,7 +3830,7 @@ function canRenderFinanceModal(
     return true;
   }
   if (modal.mode === "rent-recovery") return capabilities.canRecoverRent;
-  if (modal.mode === "manual-charge") return capabilities.canConfigureRent;
+  if (modal.mode === "manual-charge") return capabilities.canRecordPayments;
   if (modal.mode === "payment") return capabilities.canRecordPayments;
   if (modal.mode === "settlement-reversal") {
     return capabilities.canCorrectFinance;

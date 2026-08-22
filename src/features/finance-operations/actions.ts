@@ -11,7 +11,7 @@ import {
   requireFinanceReversalContext,
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
-  requireLeaseConfigurationContext,
+  requirePermission,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
@@ -252,7 +252,7 @@ export async function saveLeaseBillingAction(
   });
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.change_terms");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("set_lease_billing_term", {
     p_billing_recipient_kind: parsed.data.billingRecipientKind,
@@ -354,7 +354,7 @@ export async function createManualTenantChargeAction(
   const parsed = manualTenantChargeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return validationError(parsed.error);
 
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("finance.record_payments");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("create_manual_tenant_charge", {
     p_amount: parsed.data.amount,

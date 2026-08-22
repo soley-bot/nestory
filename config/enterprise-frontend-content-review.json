@@ -57,6 +57,7 @@
     { "route": "/settings/branches", "result": "pass", "findings": [], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
     { "route": "/settings/teams", "result": "pass", "findings": [], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
     { "route": "/settings/access", "result": "pass", "findings": [{ "issue": "Member, person, staff, role, and scope can be conflated", "disposition": "preserve-for-safety", "outcome": "Concise access-boundary copy remains beside invite and role changes." }], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
+    { "route": "/settings/roles", "result": "pass", "findings": [{ "issue": "Permission changes can affect active access", "disposition": "preserve-for-safety", "outcome": "The editor states the affected user count before permissions are removed or a role is archived." }], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
     { "route": "/users-roles", "result": "pass", "findings": [{ "issue": "Member, person, staff, role, and scope can be conflated", "disposition": "preserve-for-safety", "outcome": "Concise access-boundary copy remains beside invite and role changes." }], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" },
     { "route": "/account", "result": "pass", "findings": [], "defaultTechnicalMetadata": "absent", "safetyCopy": "preserved" }
   ]

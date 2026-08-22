@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
+
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 describe("getMaintenanceCapabilities", () => {
-  it("gives Super Admin operational cost capture and Finance handoff", () => {
-    expect(getMaintenanceCapabilities("super_admin")).toEqual({
+  it("keeps organization-wide archive and evidence authority Super-Admin-only", () => {
+    expect(
+      getMaintenanceCapabilities({
+        isSuperAdmin: true,
+        permissionKeys: new Set<PermissionKey>(),
+      }),
+    ).toEqual({
       canArchiveCase: true,
       canAssignCase: true,
       canCreateCase: true,
@@ -17,23 +24,29 @@ describe("getMaintenanceCapabilities", () => {
     });
   });
 
-  it("lets Operations Managers record and submit actual cost", () => {
-    expect(getMaintenanceCapabilities("operations_manager")).toEqual({
-      canArchiveCase: false,
+  it("derives coordinator behavior only from create-and-assign and review", () => {
+    expect(capabilities("maintenance.create_assign")).toMatchObject({
       canAssignCase: true,
       canCreateCase: true,
       canEditCaseStructure: true,
       canExecuteAssignedCase: false,
       canManageCaseState: true,
       canRecordActualCost: true,
+      canReviewCompletion: false,
+      canSubmitMaintenanceCost: false,
+    });
+    expect(capabilities("maintenance.review")).toMatchObject({
+      canAssignCase: false,
+      canCreateCase: false,
+      canExecuteAssignedCase: false,
+      canManageCaseState: false,
       canReviewCompletion: true,
       canSubmitMaintenanceCost: true,
-      canUploadMaintenanceEvidence: false,
     });
   });
 
-  it("limits members to execution of their assigned work", () => {
-    expect(getMaintenanceCapabilities("operations_member")).toEqual({
+  it("limits complete authority to assigned execution", () => {
+    expect(capabilities("maintenance.complete")).toEqual({
       canArchiveCase: false,
       canAssignCase: false,
       canCreateCase: false,
@@ -47,21 +60,25 @@ describe("getMaintenanceCapabilities", () => {
     });
   });
 
-  it.each(["finance_manager", "finance_member"] as const)(
-    "does not grant %s an operations capability",
-    (role) => {
-      expect(getMaintenanceCapabilities(role)).toEqual({
-        canArchiveCase: false,
-        canAssignCase: false,
-        canCreateCase: false,
-        canEditCaseStructure: false,
-        canExecuteAssignedCase: false,
-        canManageCaseState: false,
-        canRecordActualCost: false,
-        canReviewCompletion: false,
-        canSubmitMaintenanceCost: false,
-        canUploadMaintenanceEvidence: false,
-      });
-    },
-  );
+  it("does not turn view-only access into mutation authority", () => {
+    expect(capabilities("maintenance.view")).toEqual({
+      canArchiveCase: false,
+      canAssignCase: false,
+      canCreateCase: false,
+      canEditCaseStructure: false,
+      canExecuteAssignedCase: false,
+      canManageCaseState: false,
+      canRecordActualCost: false,
+      canReviewCompletion: false,
+      canSubmitMaintenanceCost: false,
+      canUploadMaintenanceEvidence: false,
+    });
+  });
 });
+
+function capabilities(...permissionKeys: PermissionKey[]) {
+  return getMaintenanceCapabilities({
+    isSuperAdmin: false,
+    permissionKeys: new Set(permissionKeys),
+  });
+}

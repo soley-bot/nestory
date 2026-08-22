@@ -13,6 +13,7 @@ export type Database = {
         Row: {
           action: string
           actor_id: string | null
+          branch_id: string | null
           created_at: string
           entity_id: string
           entity_type: string
@@ -24,6 +25,7 @@ export type Database = {
         Insert: {
           action: string
           actor_id?: string | null
+          branch_id?: string | null
           created_at?: string
           entity_id: string
           entity_type: string
@@ -35,6 +37,7 @@ export type Database = {
         Update: {
           action?: string
           actor_id?: string | null
+          branch_id?: string | null
           created_at?: string
           entity_id?: string
           entity_type?: string
@@ -44,6 +47,13 @@ export type Database = {
           previous_values?: Json | null
         }
         Relationships: [
+          {
+            foreignKeyName: "activity_logs_organization_branch_fkey"
+            columns: ["organization_id", "branch_id"]
+            isOneToOne: false
+            referencedRelation: "organization_branches"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "activity_logs_organization_id_fkey"
             columns: ["organization_id"]
@@ -143,6 +153,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           archived_by: string | null
+          branch_id: string | null
           category: string
           content_sha256: string | null
           file_name: string
@@ -164,6 +175,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           archived_by?: string | null
+          branch_id?: string | null
           category: string
           content_sha256?: string | null
           file_name: string
@@ -185,6 +197,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           archived_by?: string | null
+          branch_id?: string | null
           category?: string
           content_sha256?: string | null
           file_name?: string
@@ -224,6 +237,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ledger_entries"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_organization_branch_fkey"
+            columns: ["organization_id", "branch_id"]
+            isOneToOne: false
+            referencedRelation: "organization_branches"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "documents_organization_id_fkey"
@@ -1537,6 +1557,7 @@ export type Database = {
       }
       financial_month_locks: {
         Row: {
+          branch_id: string | null
           created_at: string
           id: string
           is_locked: boolean
@@ -1550,6 +1571,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
           id?: string
           is_locked?: boolean
@@ -1563,6 +1585,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
           id?: string
           is_locked?: boolean
@@ -1576,6 +1599,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "financial_month_locks_organization_branch_fkey"
+            columns: ["organization_id", "branch_id"]
+            isOneToOne: false
+            referencedRelation: "organization_branches"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "financial_month_locks_organization_id_fkey"
             columns: ["organization_id"]
@@ -4037,6 +4067,191 @@ export type Database = {
           },
         ]
       }
+      organization_access_transition_manifest_items: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          legacy_role: string
+          manifest_id: string
+          organization_id: string
+          source_id: string
+          source_kind: string
+          subject_fingerprint: string
+          target_branch_id: string
+          target_permission_keys: Database["public"]["Enums"]["organization_permission_key"][]
+          target_profile_fingerprint: string
+          target_role_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          legacy_role: string
+          manifest_id: string
+          organization_id: string
+          source_id: string
+          source_kind: string
+          subject_fingerprint: string
+          target_branch_id: string
+          target_permission_keys: Database["public"]["Enums"]["organization_permission_key"][]
+          target_profile_fingerprint: string
+          target_role_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          legacy_role?: string
+          manifest_id?: string
+          organization_id?: string
+          source_id?: string
+          source_kind?: string
+          subject_fingerprint?: string
+          target_branch_id?: string
+          target_permission_keys?: Database["public"]["Enums"]["organization_permission_key"][]
+          target_profile_fingerprint?: string
+          target_role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_access_transition_manifest_items_branch_fk"
+            columns: ["organization_id", "target_branch_id"]
+            isOneToOne: false
+            referencedRelation: "organization_branches"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "organization_access_transition_manifest_items_manifest_fk"
+            columns: ["organization_id", "manifest_id"]
+            isOneToOne: false
+            referencedRelation: "organization_access_transition_manifests"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "organization_access_transition_manifest_items_role_fk"
+            columns: ["organization_id", "target_role_id"]
+            isOneToOne: false
+            referencedRelation: "organization_roles"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      organization_access_transition_manifests: {
+        Row: {
+          applied_at: string | null
+          applied_by: string | null
+          approved_at: string | null
+          approved_by: string | null
+          baseline_custom_fingerprint: string
+          baseline_custom_invitation_count: number
+          baseline_custom_membership_count: number
+          created_at: string
+          created_by: string | null
+          expected_legacy_invitation_count: number
+          expected_legacy_membership_count: number
+          id: string
+          manifest_fingerprint: string
+          no_unlisted_conversion: boolean
+          organization_id: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_by?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          baseline_custom_fingerprint: string
+          baseline_custom_invitation_count?: number
+          baseline_custom_membership_count?: number
+          created_at?: string
+          created_by?: string | null
+          expected_legacy_invitation_count: number
+          expected_legacy_membership_count: number
+          id?: string
+          manifest_fingerprint: string
+          no_unlisted_conversion?: boolean
+          organization_id: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          applied_at?: string | null
+          applied_by?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          baseline_custom_fingerprint?: string
+          baseline_custom_invitation_count?: number
+          baseline_custom_membership_count?: number
+          created_at?: string
+          created_by?: string | null
+          expected_legacy_invitation_count?: number
+          expected_legacy_membership_count?: number
+          id?: string
+          manifest_fingerprint?: string
+          no_unlisted_conversion?: boolean
+          organization_id?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_access_transition_manifests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_authorization_states: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ordinary_access_enabled: boolean
+          organization_id: string
+          transition_manifest_required: boolean
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ordinary_access_enabled?: boolean
+          organization_id: string
+          transition_manifest_required?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ordinary_access_enabled?: boolean
+          organization_id?: string
+          transition_manifest_required?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_authorization_states_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_branches: {
         Row: {
           address: string | null
@@ -4096,6 +4311,7 @@ export type Database = {
           auth_user_id: string | null
           branch_id: string | null
           created_at: string
+          custom_role_id: string | null
           delivery_error: string | null
           delivery_method: string | null
           email: string
@@ -4116,6 +4332,7 @@ export type Database = {
           auth_user_id?: string | null
           branch_id?: string | null
           created_at?: string
+          custom_role_id?: string | null
           delivery_error?: string | null
           delivery_method?: string | null
           email: string
@@ -4136,6 +4353,7 @@ export type Database = {
           auth_user_id?: string | null
           branch_id?: string | null
           created_at?: string
+          custom_role_id?: string | null
           delivery_error?: string | null
           delivery_method?: string | null
           email?: string
@@ -4160,6 +4378,13 @@ export type Database = {
             referencedColumns: ["id", "organization_id"]
           },
           {
+            foreignKeyName: "organization_invitations_custom_role_organization_fk"
+            columns: ["organization_id", "custom_role_id"]
+            isOneToOne: false
+            referencedRelation: "organization_roles"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "organization_invitations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -4179,6 +4404,7 @@ export type Database = {
         Row: {
           branch_id: string | null
           created_at: string
+          custom_role_id: string | null
           id: string
           organization_id: string
           person_id: string | null
@@ -4188,6 +4414,7 @@ export type Database = {
         Insert: {
           branch_id?: string | null
           created_at?: string
+          custom_role_id?: string | null
           id?: string
           organization_id: string
           person_id?: string | null
@@ -4197,6 +4424,7 @@ export type Database = {
         Update: {
           branch_id?: string | null
           created_at?: string
+          custom_role_id?: string | null
           id?: string
           organization_id?: string
           person_id?: string | null
@@ -4212,6 +4440,13 @@ export type Database = {
             referencedColumns: ["organization_id", "id"]
           },
           {
+            foreignKeyName: "organization_members_custom_role_organization_fk"
+            columns: ["organization_id", "custom_role_id"]
+            isOneToOne: false
+            referencedRelation: "organization_roles"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "organization_members_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -4224,6 +4459,88 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "people"
             referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      organization_role_permissions: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          organization_id: string
+          permission_key: Database["public"]["Enums"]["organization_permission_key"]
+          role_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          organization_id: string
+          permission_key: Database["public"]["Enums"]["organization_permission_key"]
+          role_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          organization_id?: string
+          permission_key?: Database["public"]["Enums"]["organization_permission_key"]
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_role_permissions_role_organization_fk"
+            columns: ["organization_id", "role_id"]
+            isOneToOne: false
+            referencedRelation: "organization_roles"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
+      organization_roles: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          organization_id: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6593,6 +6910,54 @@ export type Database = {
           },
         ]
       }
+      person_branch_relationships: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          branch_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          person_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          branch_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          person_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          branch_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_branch_relationships_branch_fk"
+            columns: ["organization_id", "branch_id"]
+            isOneToOne: false
+            referencedRelation: "organization_branches"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "person_branch_relationships_person_fk"
+            columns: ["organization_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       person_contacts: {
         Row: {
           archived_at: string | null
@@ -7082,6 +7447,7 @@ export type Database = {
           address: string | null
           archived_at: string | null
           archived_by: string | null
+          branch_id: string | null
           code: string
           created_at: string
           created_by: string | null
@@ -7102,6 +7468,7 @@ export type Database = {
           address?: string | null
           archived_at?: string | null
           archived_by?: string | null
+          branch_id?: string | null
           code: string
           created_at?: string
           created_by?: string | null
@@ -7122,6 +7489,7 @@ export type Database = {
           address?: string | null
           archived_at?: string | null
           archived_by?: string | null
+          branch_id?: string | null
           code?: string
           created_at?: string
           created_by?: string | null
@@ -7138,6 +7506,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "properties_branch_organization_fk"
+            columns: ["organization_id", "branch_id"]
+            isOneToOne: false
+            referencedRelation: "organization_branches"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "properties_organization_id_fkey"
             columns: ["organization_id"]
@@ -9122,6 +9497,15 @@ export type Database = {
         }
         Returns: Json
       }
+      allocate_owner_event_branch106: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_source_line_id: string
+          p_source_type: string
+        }
+        Returns: Json
+      }
       approve_rent_policy_version: {
         Args: { p_organization_id: string; p_policy_id: string }
         Returns: string
@@ -9146,8 +9530,28 @@ export type Database = {
         Args: { p_organization_id: string; p_task_id: string }
         Returns: string
       }
+      archive_organization_branch: {
+        Args: { p_branch_id: string; p_organization_id: string }
+        Returns: string
+      }
+      archive_organization_role: {
+        Args: {
+          p_expected_version: number
+          p_organization_id: string
+          p_role_id: string
+        }
+        Returns: string
+      }
+      archive_organization_team: {
+        Args: { p_organization_id: string; p_team_id: string }
+        Returns: string
+      }
       archive_person: {
         Args: { p_organization_id: string; p_person_id: string }
+        Returns: string
+      }
+      archive_person_branch_relationship: {
+        Args: { p_organization_id: string; p_relationship_id: string }
         Returns: string
       }
       archive_property: {
@@ -9168,6 +9572,14 @@ export type Database = {
           p_branch_id: string
           p_organization_id: string
           p_task_id: string
+        }
+        Returns: string
+      }
+      assign_property_branch: {
+        Args: {
+          p_branch_id: string
+          p_organization_id: string
+          p_property_id: string
         }
         Returns: string
       }
@@ -9240,6 +9652,18 @@ export type Database = {
         Returns: Json
       }
       confirm_owner_collected_rent: {
+        Args: {
+          p_allocations: Json
+          p_amount: number
+          p_confirmed_date: string
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_organization_id: string
+          p_reference: string
+        }
+        Returns: string
+      }
+      confirm_owner_collected_rent_branch106: {
         Args: {
           p_allocations: Json
           p_amount: number
@@ -9413,14 +9837,30 @@ export type Database = {
         }
         Returns: string
       }
-      create_organization_invitation: {
-        Args: {
-          p_branch_id: string
-          p_email: string
-          p_organization_id: string
-          p_person_id: string
-          p_role: string
-        }
+      create_organization_invitation:
+        | {
+            Args: {
+              p_branch_id: string
+              p_email: string
+              p_organization_id: string
+              p_person_id: string
+              p_role: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_branch_id: string
+              p_custom_role_id: string
+              p_email: string
+              p_organization_id: string
+              p_person_id: string
+              p_role_kind: string
+            }
+            Returns: string
+          }
+      create_organization_role: {
+        Args: { p_name: string; p_organization_id: string }
         Returns: string
       }
       create_organization_team: {
@@ -9435,6 +9875,21 @@ export type Database = {
       create_person:
         | {
             Args: {
+              p_display_name: string
+              p_legal_name: string
+              p_notes: string
+              p_organization_id: string
+              p_party_type: string
+              p_primary_email: string
+              p_primary_phone: string
+              p_roles: string[]
+              p_tax_identifier: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_branch_id: string
               p_display_name: string
               p_legal_name: string
               p_notes: string
@@ -9464,6 +9919,32 @@ export type Database = {
             }
             Returns: string
           }
+        | {
+            Args: {
+              p_branch_id: string
+              p_display_name: string
+              p_legal_name: string
+              p_notes: string
+              p_organization_id: string
+              p_party_type: string
+              p_passport_expiry_date: string
+              p_passport_number: string
+              p_primary_email: string
+              p_primary_phone: string
+              p_roles: string[]
+              p_tax_identifier: string
+              p_visa_expiry_date: string
+            }
+            Returns: string
+          }
+      create_person_branch_relationship: {
+        Args: {
+          p_branch_id: string
+          p_organization_id: string
+          p_person_id: string
+        }
+        Returns: string
+      }
       create_petty_cash_account: {
         Args: {
           p_account_number: string
@@ -9501,23 +9982,42 @@ export type Database = {
         }
         Returns: string
       }
-      create_property: {
-        Args: {
-          p_acquisition_date: string
-          p_address: string
-          p_code: string
-          p_name: string
-          p_notes: string
-          p_organization_id: string
-          p_owner: string
-          p_owner_ownership_percent?: number
-          p_owner_person_id?: string
-          p_owner_started_on?: string
-          p_property_type: string
-          p_status: string
-        }
-        Returns: string
-      }
+      create_property:
+        | {
+            Args: {
+              p_acquisition_date: string
+              p_address: string
+              p_branch_id: string
+              p_code: string
+              p_name: string
+              p_notes: string
+              p_organization_id: string
+              p_owner: string
+              p_owner_ownership_percent: number
+              p_owner_person_id: string
+              p_owner_started_on: string
+              p_property_type: string
+              p_status: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_acquisition_date: string
+              p_address: string
+              p_code: string
+              p_name: string
+              p_notes: string
+              p_organization_id: string
+              p_owner: string
+              p_owner_ownership_percent?: number
+              p_owner_person_id?: string
+              p_owner_started_on?: string
+              p_property_type: string
+              p_status: string
+            }
+            Returns: string
+          }
       create_property_lease: {
         Args: {
           p_deposit_amount: number
@@ -9537,21 +10037,38 @@ export type Database = {
         }
         Returns: Json
       }
-      create_property_minimal: {
-        Args: {
-          p_address: string
-          p_code: string
-          p_idempotency_key: string
-          p_name: string
-          p_organization_id: string
-          p_owner_ownership_percent?: number
-          p_owner_person_id?: string
-          p_owner_started_on?: string
-          p_property_type: string
-          p_registered_date: string
-        }
-        Returns: string
-      }
+      create_property_minimal:
+        | {
+            Args: {
+              p_address: string
+              p_branch_id: string
+              p_code: string
+              p_idempotency_key: string
+              p_name: string
+              p_organization_id: string
+              p_owner_ownership_percent: number
+              p_owner_person_id: string
+              p_owner_started_on: string
+              p_property_type: string
+              p_registered_date: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_address: string
+              p_code: string
+              p_idempotency_key: string
+              p_name: string
+              p_organization_id: string
+              p_owner_ownership_percent?: number
+              p_owner_person_id?: string
+              p_owner_started_on?: string
+              p_property_type: string
+              p_registered_date: string
+            }
+            Returns: string
+          }
       create_rent_policy_draft: {
         Args: {
           p_effective_from: string
@@ -9620,6 +10137,10 @@ export type Database = {
             }
             Returns: string
           }
+      duplicate_organization_role: {
+        Args: { p_name: string; p_organization_id: string; p_role_id: string }
+        Returns: string
+      }
       execute_assigned_maintenance_task: {
         Args: {
           p_action: string
@@ -9856,6 +10377,17 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_organization_branch_readiness: {
+        Args: { p_organization_id: string }
+        Returns: {
+          active_branch_count: number
+          conflicting_record_count: number
+          ordinary_assignment_ready: boolean
+          property_count: number
+          scoped_property_count: number
+          unscoped_property_count: number
+        }[]
+      }
       get_organization_invitation_for_acceptance: {
         Args: { p_invitation_id: string }
         Returns: {
@@ -9867,6 +10399,18 @@ export type Database = {
           password_required: boolean
           scope_name: string
           staff_name: string
+        }[]
+      }
+      get_organization_roles: {
+        Args: { p_organization_id: string }
+        Returns: {
+          assigned_user_count: number
+          id: string
+          name: string
+          pending_invitation_count: number
+          permission_keys: Database["public"]["Enums"]["organization_permission_key"][]
+          status: string
+          version: number
         }[]
       }
       get_owner_available_withdrawal: {
@@ -10153,7 +10697,7 @@ export type Database = {
       }
       mark_tenant_commercial_document_publication_failed: {
         Args: {
-          p_failure_message: string
+          p_failure_reason: string
           p_organization_id: string
           p_source_id: string
           p_source_kind: string
@@ -10279,6 +10823,17 @@ export type Database = {
         }
         Returns: string
       }
+      record_owner_invoice_payment_branch106: {
+        Args: {
+          p_amount: number
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_invoice_id: string
+          p_received_date: string
+          p_reference: string
+        }
+        Returns: string
+      }
       record_property_withdrawal: {
         Args: {
           p_amount: number
@@ -10291,6 +10846,19 @@ export type Database = {
         Returns: string
       }
       record_tenant_invoice_payment: {
+        Args: {
+          p_allocations: Json
+          p_amount: number
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_organization_id: string
+          p_received_date: string
+          p_reconciliation_source_id: string
+          p_reference: string
+        }
+        Returns: string
+      }
+      record_tenant_invoice_payment_branch106: {
         Args: {
           p_allocations: Json
           p_amount: number
@@ -10399,7 +10967,7 @@ export type Database = {
           }
       register_tenant_commercial_document_artifact: {
         Args: {
-          p_document_number: string
+          p_filename: string
           p_organization_id: string
           p_presentation_snapshot: Json
           p_renderer_version: string
@@ -10561,6 +11129,14 @@ export type Database = {
         Args: { p_organization_id: string; p_task_id: string }
         Returns: string
       }
+      restore_organization_branch: {
+        Args: { p_branch_id: string; p_organization_id: string }
+        Returns: string
+      }
+      restore_organization_team: {
+        Args: { p_organization_id: string; p_team_id: string }
+        Returns: string
+      }
       restore_person: {
         Args: { p_organization_id: string; p_person_id: string }
         Returns: string
@@ -10614,7 +11190,27 @@ export type Database = {
         }
         Returns: string
       }
+      reverse_owner_collection_confirmation_branch106: {
+        Args: {
+          p_confirmation_id: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_reversal_date: string
+        }
+        Returns: string
+      }
       reverse_owner_invoice_payment: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_owner_payment_id: string
+          p_reason: string
+          p_reversal_date: string
+        }
+        Returns: Json
+      }
+      reverse_owner_invoice_payment_branch106: {
         Args: {
           p_idempotency_key: string
           p_organization_id: string
@@ -10634,7 +11230,27 @@ export type Database = {
         }
         Returns: Json
       }
+      reverse_property_withdrawal_branch106: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_reason: string
+          p_reversal_date: string
+          p_withdrawal_id: string
+        }
+        Returns: Json
+      }
       reverse_tenant_invoice_payment: {
+        Args: {
+          p_idempotency_key: string
+          p_organization_id: string
+          p_payment_id: string
+          p_reason: string
+          p_reversal_date: string
+        }
+        Returns: string
+      }
+      reverse_tenant_invoice_payment_branch106: {
         Args: {
           p_idempotency_key: string
           p_organization_id: string
@@ -10682,6 +11298,17 @@ export type Database = {
         Args: { p_limit?: number; p_run_at: string }
         Returns: Json
       }
+      save_organization_role: {
+        Args: {
+          p_confirm_removals: boolean
+          p_expected_version: number
+          p_name: string
+          p_organization_id: string
+          p_permission_keys: Database["public"]["Enums"]["organization_permission_key"][]
+          p_role_id: string
+        }
+        Returns: Json
+      }
       schedule_authoritative_lease_term: {
         Args: {
           p_end_date: string
@@ -10701,15 +11328,26 @@ export type Database = {
         Args: { p_organization_id: string; p_photo_id: string }
         Returns: string
       }
-      set_financial_month_lock: {
-        Args: {
-          p_locked: boolean
-          p_month_start: string
-          p_organization_id: string
-          p_reason: string
-        }
-        Returns: string
-      }
+      set_financial_month_lock:
+        | {
+            Args: {
+              p_branch_id: string
+              p_locked: boolean
+              p_month_start: string
+              p_organization_id: string
+              p_reason: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_locked: boolean
+              p_month_start: string
+              p_organization_id: string
+              p_reason: string
+            }
+            Returns: string
+          }
       set_lease_billing_term: {
         Args: {
           p_billing_recipient_kind: string
@@ -10973,6 +11611,16 @@ export type Database = {
         }
         Returns: string
       }
+      update_organization_branch: {
+        Args: {
+          p_address: string
+          p_branch_id: string
+          p_code: string
+          p_name: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
       update_organization_identity: {
         Args: { p_name: string; p_organization_id: string }
         Returns: string
@@ -10981,13 +11629,35 @@ export type Database = {
         Args: { p_logo_storage_path: string; p_organization_id: string }
         Returns: string
       }
-      update_organization_member_access: {
+      update_organization_member_access:
+        | {
+            Args: {
+              p_branch_id: string
+              p_member_id: string
+              p_organization_id: string
+              p_person_id: string
+              p_role: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_branch_id: string
+              p_custom_role_id: string
+              p_member_id: string
+              p_organization_id: string
+              p_person_id: string
+              p_role_kind: string
+            }
+            Returns: string
+          }
+      update_organization_team: {
         Args: {
           p_branch_id: string
-          p_member_id: string
+          p_manager_person_id: string
+          p_name: string
           p_organization_id: string
-          p_person_id: string
-          p_role: string
+          p_team_id: string
         }
         Returns: string
       }
@@ -11159,6 +11829,30 @@ export type Database = {
     }
     Enums: {
       currency_code: "USD"
+      organization_permission_key:
+        | "properties.view"
+        | "properties.write"
+        | "properties.archive"
+        | "people.view"
+        | "people.write"
+        | "people.archive"
+        | "leases.view"
+        | "leases.prepare"
+        | "leases.activate"
+        | "leases.change_terms"
+        | "leases.close"
+        | "leases.archive"
+        | "finance.view"
+        | "finance.record_payments"
+        | "finance.submit_expenses"
+        | "finance.approve_expenses"
+        | "finance.correct_records"
+        | "finance.close_periods"
+        | "finance.publish"
+        | "maintenance.view"
+        | "maintenance.create_assign"
+        | "maintenance.complete"
+        | "maintenance.review"
       owner_balance_component:
         | "ips_held_owner_cash"
         | "owner_due_to_ips"
@@ -11304,6 +11998,31 @@ export const Constants = {
   public: {
     Enums: {
       currency_code: ["USD"],
+      organization_permission_key: [
+        "properties.view",
+        "properties.write",
+        "properties.archive",
+        "people.view",
+        "people.write",
+        "people.archive",
+        "leases.view",
+        "leases.prepare",
+        "leases.activate",
+        "leases.change_terms",
+        "leases.close",
+        "leases.archive",
+        "finance.view",
+        "finance.record_payments",
+        "finance.submit_expenses",
+        "finance.approve_expenses",
+        "finance.correct_records",
+        "finance.close_periods",
+        "finance.publish",
+        "maintenance.view",
+        "maintenance.create_assign",
+        "maintenance.complete",
+        "maintenance.review",
+      ],
       owner_balance_component: [
         "ips_held_owner_cash",
         "owner_due_to_ips",

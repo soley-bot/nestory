@@ -1,4 +1,4 @@
-import type { WorkspaceRole } from "@/lib/auth/context";
+import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/context";
 
 export async function buildScopedSentryIdentity({
   organizationId,
@@ -6,7 +6,7 @@ export async function buildScopedSentryIdentity({
   userId,
 }: {
   organizationId: string;
-  role: WorkspaceRole;
+  role: WorkspaceRole | WorkspaceRoleKind;
   userId: string;
 }) {
   const [scopedOrganizationId, scopedUserId] = await Promise.all([

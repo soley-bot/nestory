@@ -232,6 +232,8 @@ export function LedgerScreen({
       localNav={(
         <FinanceWorkspaceNavigation
           activeRoute="/ledger"
+          canClosePeriods={canLockFinancialMonth}
+          canCorrectFinance={canManageFinance}
           canReadFinanceReports={canReadFinanceReports}
         />
       )}

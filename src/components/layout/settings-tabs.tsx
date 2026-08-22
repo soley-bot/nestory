@@ -3,7 +3,7 @@
 import { LocalWorkspaceNav } from "@/components/layout/local-workspace-nav";
 import { useSettingsNavigationGuard } from "@/components/layout/settings-navigation-guard";
 import { getSettingsDestinations } from "@/features/organization/settings-navigation";
-import type { WorkspaceRole } from "@/lib/auth/capabilities";
+import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/capabilities";
 
 /**
  * Every settings destination in one row. Workspace previously split these
@@ -12,10 +12,10 @@ import type { WorkspaceRole } from "@/lib/auth/capabilities";
  */
 export function SettingsTabs({
   activeHref,
-  role = "super_admin",
+  role,
 }: {
   activeHref: string;
-  role?: WorkspaceRole;
+  role: WorkspaceRole | WorkspaceRoleKind;
 }) {
   const navigationGuard = useSettingsNavigationGuard();
   const settingsDestinations = getSettingsDestinations(role);
@@ -26,13 +26,19 @@ export function SettingsTabs({
     ...(workspaceHref
       ? [{ href: workspaceHref, label: "Workspace", value: "workspace" }]
       : []),
-    ...(settingsDestinations.some((destination) => destination.group === "access")
-      ? [{ href: "/settings/access", label: "Access", value: "access" }]
-      : []),
+    ...settingsDestinations
+      .filter((destination) => destination.group === "access")
+      .map((destination) => ({
+        href: destination.href,
+        label: destination.label,
+        value: destination.href,
+      })),
   ];
   const activeGroup = activeHref.startsWith("/settings/access")
-    ? "access"
-    : "workspace";
+    ? "/settings/access"
+    : activeHref.startsWith("/settings/roles")
+      ? "/settings/roles"
+      : "workspace";
 
   return (
     <LocalWorkspaceNav

@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
   type ReactNode,
 } from "react";
 import { ChevronDown, UserPlus } from "lucide-react";
@@ -34,13 +33,11 @@ import {
   DraftActionBar,
   type DraftStatus,
 } from "@/components/ui/draft-action-bar";
-import { Input } from "@/components/ui/input";
 import { SelectControl } from "@/components/ui/select-control";
 import {
   TableCell,
   TableRow,
 } from "@/components/ui/table";
-import { useDrawerDraftGuard } from "@/components/ui/side-drawer";
 import { signOutAction } from "@/features/auth/actions";
 import { PersonSelect } from "@/features/people/components/person-select";
 import {
@@ -49,7 +46,6 @@ import {
   isOrganizationWideRole,
 } from "@/features/organization/access-status";
 import {
-  inviteOrganizationUserAction,
   removeMemberAccessAction,
   resendOrganizationInvitationAction,
   revokeOrganizationInvitationAction,
@@ -57,13 +53,14 @@ import {
   type OrganizationActionState,
 } from "@/features/organization/actions";
 import { cn } from "@/lib/utils";
+import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/capabilities";
 import type {
   OrganizationBranch,
   OrganizationInvitation,
   OrganizationMembership,
+  OrganizationRole,
   OrganizationStaffOption,
 } from "@/features/organization/data";
-import { WORKSPACE_ROLE_OPTIONS } from "@/features/organization/workspace-roles";
 
 type AccessDraftController = {
   discard: () => void;
@@ -75,9 +72,7 @@ type DuplicateAccessTarget = {
   kind: "invitation" | "member";
 };
 
-function isOperationsRole(role: string) {
-  return role === "operations_manager" || role === "operations_member";
-}
+const EMPTY_ORGANIZATION_ROLES: OrganizationRole[] = [];
 
 export function AccessSettingsScreen({
   branches,
@@ -89,6 +84,8 @@ export function AccessSettingsScreen({
   invitations = [],
   members,
   people,
+  role,
+  roles = EMPTY_ORGANIZATION_ROLES,
   requestedStaffId,
   staff,
   embedded = false,
@@ -106,6 +103,8 @@ export function AccessSettingsScreen({
   invitations?: OrganizationInvitation[];
   members: OrganizationMembership[];
   people: OrganizationStaffOption[];
+  role: WorkspaceRole | WorkspaceRoleKind;
+  roles?: OrganizationRole[];
   requestedStaffId?: string;
   staff?: OrganizationStaffOption[];
   embedded?: boolean;
@@ -120,6 +119,8 @@ export function AccessSettingsScreen({
       invitations={invitations}
       members={members}
       people={people}
+      role={role}
+      roles={roles}
       requestedStaffId={requestedStaffId}
       staff={staff}
     />
@@ -129,7 +130,7 @@ export function AccessSettingsScreen({
 
   return (
     <SettingsNavigationGuardProvider>
-      {header ?? <SettingsTabs activeHref="/settings/access" />}
+      {header ?? <SettingsTabs activeHref="/settings/access" role={role} />}
       {workspace}
     </SettingsNavigationGuardProvider>
   );
@@ -144,6 +145,7 @@ function AccessWorkspace({
   invitations = [],
   members,
   people,
+  roles = EMPTY_ORGANIZATION_ROLES,
   requestedStaffId,
   staff,
 }: Parameters<typeof AccessSettingsScreen>[0]) {
@@ -156,6 +158,10 @@ function AccessWorkspace({
   const staffOptions = useMemo(
     () => activeStaffOptions(staff ?? people),
     [people, staff],
+  );
+  const accessRoleOptions = useMemo(
+    () => roles.map((role) => ({ id: role.id, name: role.name })),
+    [roles],
   );
   const accessByPersonId = useMemo(
     () =>
@@ -316,6 +322,7 @@ function AccessWorkspace({
         }
         onViewChange={setActiveView}
         people={people}
+        roles={roles}
         renderInvitationRow={(invitation) => (
           <PendingInvitationRow
             branches={branches}
@@ -335,6 +342,7 @@ function AccessWorkspace({
             member={member}
             onDraftChange={registerDraft}
             people={people}
+            roles={roles}
           />
         )}
       />
@@ -353,325 +361,11 @@ function AccessWorkspace({
         onReviewDuplicate={reviewDuplicate}
         open={memberDialogState.open}
         people={staffOptions}
+        roles={accessRoleOptions}
         returnFocusRef={addMemberTriggerRef}
       />
     </div>
   );
-}
-
-export function InviteUserForm({
-  branches,
-  defaults,
-  invitations,
-  members,
-  onClose,
-  onDraftChange,
-  onPersisted,
-  onReviewDuplicate,
-  people,
-}: {
-  branches: OrganizationBranch[];
-  defaults?: { email?: string; personId?: string; staffEmail?: string };
-  invitations: OrganizationInvitation[];
-  members: OrganizationMembership[];
-  onClose: () => void;
-  onDraftChange: (id: string, controller: AccessDraftController | null) => void;
-  onPersisted: () => void;
-  onReviewDuplicate: (target: DuplicateAccessTarget) => void;
-  people: OrganizationStaffOption[];
-}) {
-  const guard = useSettingsNavigationGuard();
-  const emailId = useId();
-  const emailErrorId = useId();
-  const emailHelpId = useId();
-  const emailLabelId = useId();
-  const staffErrorId = useId();
-  const staffHelpId = useId();
-  const staffLabelId = useId();
-  const initialBranchId = branches.length === 1 ? branches[0]!.id : "";
-  const initial = {
-    branchId: initialBranchId,
-    email: defaults?.email ?? "",
-    personId: defaults?.personId ?? "",
-    role: "operations_member",
-  };
-  const clean = {
-    branchId: initialBranchId,
-    email: "",
-    personId: "",
-    role: "operations_member",
-  };
-  const draft = useAccessDraft({
-    action: inviteOrganizationUserAction,
-    baselineValues: clean,
-    initialStatus: initial.email || initial.personId ? "dirty" : "clean",
-    initialValues: initial,
-    onResult: (result) => {
-      if (invitationWasPersisted(result)) {
-        onPersisted();
-      }
-    },
-    validate: (values) => {
-      const failures: Array<{
-        field: "branchId" | "email" | "personId";
-        message: string;
-      }> = [];
-      if (isOperationsRole(values.role) && !values.personId) {
-        failures.push({ field: "personId", message: "Choose a Staff member." });
-      }
-      if (isOperationsRole(values.role) && !values.branchId) {
-        failures.push({
-          field: "branchId",
-          message: "Choose an operational branch.",
-        });
-      }
-      if (!/^\S+@\S+\.\S+$/.test(values.email.trim())) {
-        failures.push({ field: "email", message: "Enter a valid email." });
-      }
-      return failures;
-    },
-  });
-  const emailRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const staffControlRef = useRef<HTMLDivElement>(null);
-  const selectedPerson = people.find(
-    (person) => person.id === draft.values.personId,
-  );
-  const selectedAccess = draft.values.personId
-    ? buildAccessByPersonId(
-        [draft.values.personId],
-        members,
-        invitations,
-        new Date(),
-        branches,
-      )[draft.values.personId]
-    : undefined;
-  const duplicateTarget =
-    selectedAccess?.state === "active_workspace_access"
-      ? { id: selectedAccess.membershipId, kind: "member" as const }
-      : selectedAccess && "invitationId" in selectedAccess
-        ? { id: selectedAccess.invitationId, kind: "invitation" as const }
-        : undefined;
-  const duplicateMessage =
-    selectedAccess?.state === "active_workspace_access"
-      ? "This Staff member already has workspace access."
-      : selectedAccess?.state === "delivery_failed"
-        ? "This Staff member already has an invitation with failed delivery."
-        : selectedAccess?.state === "expired"
-          ? "This Staff member already has an expired invitation."
-          : selectedAccess?.state === "invitation_pending"
-            ? "This Staff member already has a pending invitation."
-            : undefined;
-  const selectedStaffEmail =
-    selectedPerson?.primaryEmail ?? defaults?.staffEmail;
-  const organizationWide = isOrganizationWideRole(draft.values.role);
-  const emailMismatch =
-    selectedPerson && selectedStaffEmail && draft.values.email.trim()
-      ? selectedStaffEmail.toLocaleLowerCase() !==
-        draft.values.email.trim().toLocaleLowerCase()
-      : false;
-
-  useRegisterAccessDraft("add", draft.status, draft.discard, onDraftChange);
-
-  const focusInvalidField = useCallback((field: string) => {
-    if (field === "email") {
-      emailRef.current?.focus();
-      return;
-    }
-    if (field === "personId") {
-      staffControlRef.current
-        ?.querySelector<HTMLElement>("[role='combobox']")
-        ?.focus();
-      return;
-    }
-    if (field === "branchId") {
-      formRef.current
-        ?.querySelector<HTMLElement>("[aria-label='Access scope']")
-        ?.focus();
-    }
-  }, []);
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void draft.submit(focusInvalidField);
-  }
-
-  function reviewDuplicateTarget() {
-    if (!duplicateTarget) return;
-    onReviewDuplicate(duplicateTarget);
-  }
-
-  return (
-    <>
-      <InviteDrawerDraftGuard
-        onClose={onClose}
-        onDiscard={draft.discard}
-        status={draft.status}
-      />
-      <form
-        className="flex min-h-full min-w-0 flex-col"
-        data-testid="add-access-form"
-        onSubmit={submit}
-        ref={formRef}
-      >
-        <div className="grid gap-4 px-5 py-5 sm:grid-cols-2">
-          <div
-            className="grid gap-1.5 text-sm font-medium"
-            ref={staffControlRef}
-          >
-            <span id={staffLabelId}>Staff member</span>
-            <PersonSelect
-              aria-describedby={
-                draft.fieldErrors.personId ? staffErrorId : staffHelpId
-              }
-              aria-invalid={Boolean(draft.fieldErrors.personId)}
-              aria-labelledby={staffLabelId}
-              aria-required={!organizationWide}
-              disabled={draft.status === "saving" || organizationWide}
-              name="personId"
-              onValueChange={(value) => {
-                draft.setField("personId", value);
-                const primaryEmail = people.find(
-                  (person) => person.id === value,
-                )?.primaryEmail;
-                draft.setField("email", primaryEmail ?? "");
-              }}
-              options={people}
-              placeholder="Choose Staff"
-              roles={["staff"]}
-              value={draft.values.personId}
-            />
-            <FieldError error={draft.fieldErrors.personId} id={staffErrorId} />
-          </div>
-          <div className="grid gap-1.5 text-sm font-medium">
-            <span id={emailLabelId}>Invitation email</span>
-            <Input
-              aria-describedby={
-                draft.fieldErrors.email ? emailErrorId : emailHelpId
-              }
-              aria-invalid={Boolean(draft.fieldErrors.email)}
-              aria-labelledby={emailLabelId}
-              aria-required="true"
-              id={emailId}
-              disabled={draft.status === "saving"}
-              onChange={(event) => draft.setField("email", event.target.value)}
-              placeholder="user@example.com"
-              ref={emailRef}
-              type="email"
-              value={draft.values.email}
-            />
-            <FieldError error={draft.fieldErrors.email} id={emailErrorId} />
-          </div>
-          <AccessSelect
-            disabled={draft.status === "saving"}
-            label="Access level"
-            onValueChange={(value) => {
-              draft.setField("role", value);
-              if (isOrganizationWideRole(value)) {
-                draft.setField("branchId", "");
-                draft.setField("personId", "");
-              } else {
-                if (!draft.values.branchId && branches.length === 1) {
-                  draft.setField("branchId", branches[0]!.id);
-                }
-                if (!draft.values.personId && defaults?.personId) {
-                  draft.setField("personId", defaults.personId);
-                }
-              }
-            }}
-            options={WORKSPACE_ROLE_OPTIONS}
-            value={draft.values.role}
-          />
-          <AccessSelect
-            disabled={draft.status === "saving" || organizationWide}
-            error={draft.fieldErrors.branchId}
-            label="Access scope"
-            onValueChange={(value) => draft.setField("branchId", value)}
-            options={branchOptions(branches, draft.values.role)}
-            value={draft.values.branchId}
-          />
-          {/*
-            Two role systems meet here, so the one consequence worth stating is
-            that this leaves the Staff record alone — and only once a Staff
-            member is actually on the form.
-          */}
-          {selectedPerson ? (
-            <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">
-              {selectedPerson.label}&apos;s Staff role is unchanged.
-            </p>
-          ) : null}
-          {emailMismatch ? (
-            <p className="text-xs leading-5 text-warning sm:col-span-2">
-              Not {selectedPerson?.label ?? "the selected Staff member"}&apos;s
-              Staff email.
-            </p>
-          ) : null}
-          {duplicateMessage ? (
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md border border-warning/30 bg-warning-soft px-3 py-2 text-sm sm:col-span-2">
-              <p className="min-w-0">{duplicateMessage}</p>
-              <button
-                className="shrink-0 font-medium underline-offset-4 hover:underline"
-                onClick={reviewDuplicateTarget}
-                type="button"
-              >
-                {duplicateTarget?.kind === "invitation"
-                  ? "Review invitation"
-                  : "Review access"}
-              </button>
-            </div>
-          ) : null}
-        </div>
-        <div className="mt-auto w-full border-t border-border px-5 py-4">
-          <ConsequencePanel
-            id="invite-access-effect"
-            rows={accessRows(draft.values, branches, people)}
-            title="Access effect"
-            variant="inline"
-          />
-        </div>
-        <div className="sticky bottom-0 z-10 w-full">
-          <DraftActionBar
-            describedBy="invite-access-effect"
-            disabledReason={
-              duplicateMessage
-                ? "Review the existing access before sending a new invitation."
-                : undefined
-            }
-            focusOnError={
-              draft.errorKind === "server" && !guard?.suppressErrorFocus
-            }
-            onDiscard={draft.discard}
-            onSave={() => void draft.submit(focusInvalidField)}
-            saveLabel="Send invitation"
-            status={draft.status}
-            statusMessage={draft.message}
-          />
-        </div>
-      </form>
-    </>
-  );
-}
-
-function InviteDrawerDraftGuard({
-  onClose,
-  onDiscard,
-  status,
-}: {
-  onClose: () => void;
-  onDiscard: () => void;
-  status: DraftStatus;
-}) {
-  const discardAndClose = useCallback(() => {
-    onDiscard();
-    onClose();
-  }, [onClose, onDiscard]);
-  const guard = useMemo(
-    () => ({ onDiscard: discardAndClose, status }),
-    [discardAndClose, status],
-  );
-  useDrawerDraftGuard(guard);
-
-  return null;
 }
 
 function PendingInvitationRow({
@@ -774,7 +468,10 @@ function PendingInvitationRow({
           ) : null}
         </TableCell>
         <TableCell className="px-3">
-          {formatWorkspaceAccessRole(invitation.role)}
+          {formatWorkspaceAccessRole(
+            invitation.role,
+            invitation.customRoleName,
+          )}
         </TableCell>
         <TableCell className="hidden px-3 text-muted-foreground lg:table-cell">
           {isOrganizationWideRole(invitation.role)
@@ -880,6 +577,7 @@ function MemberAccessForm({
   member,
   onDraftChange,
   people,
+  roles,
 }: {
   adminCount: number;
   branches: OrganizationBranch[];
@@ -888,6 +586,7 @@ function MemberAccessForm({
   member: OrganizationMembership;
   onDraftChange: (id: string, controller: AccessDraftController | null) => void;
   people: OrganizationStaffOption[];
+  roles: OrganizationRole[];
 }) {
   const guard = useSettingsNavigationGuard();
   const memberRef = useRef<HTMLTableSectionElement>(null);
@@ -918,24 +617,27 @@ function MemberAccessForm({
       branchId: isOrganizationWideRole(member.role)
         ? ""
         : (member.branchId ?? ""),
+      customRoleId: member.customRoleId ?? "",
       memberId: member.id,
       personId: isOrganizationWideRole(member.role)
         ? ""
         : (member.personId ?? ""),
-      role: member.role,
+      roleKind: (member.role === "super_admin" ? "super_admin" : "custom") as
+        | "custom"
+        | "super_admin",
     },
     validate: (values) => {
       const failures: Array<{
-        field: "branchId" | "personId";
+        field: "branchId" | "customRoleId";
         message: string;
       }> = [];
-      if (isOperationsRole(values.role) && !values.personId) {
-        failures.push({ field: "personId", message: "Choose a Staff member." });
+      if (values.roleKind === "custom" && !values.customRoleId) {
+        failures.push({ field: "customRoleId", message: "Choose a role." });
       }
-      if (isOperationsRole(values.role) && !values.branchId) {
+      if (values.roleKind === "custom" && !values.branchId) {
         failures.push({
           field: "branchId",
-          message: "Choose an operational branch.",
+          message: "Choose a branch.",
         });
       }
       return failures;
@@ -943,7 +645,7 @@ function MemberAccessForm({
   });
   const lastAdministrator = member.role === "super_admin" && adminCount === 1;
   const blocksLastAdminDemotion =
-    lastAdministrator && draft.values.role !== "super_admin";
+    lastAdministrator && draft.values.roleKind !== "super_admin";
   const linkedPerson = people.find((person) => person.id === member.personId);
   // Lead with the person. Falling back to the email only when there is no name
   // stops the row printing the same address twice while the name sits in a
@@ -965,7 +667,7 @@ function MemberAccessForm({
 
   const saveAccess = () => {
     if (
-      isOperationsRole(draft.values.role) &&
+      draft.values.roleKind === "custom" &&
       member.personId &&
       draft.values.personId !== member.personId
     ) {
@@ -1041,8 +743,6 @@ function MemberAccessForm({
     return () => window.clearTimeout(timeoutId);
   }, [current, removeStatus]);
 
-  const unlinkedOperations = isOperationsRole(member.role) && !member.personId;
-
   return (
     <tbody
       data-testid={`access-member-${member.id}`}
@@ -1060,7 +760,6 @@ function MemberAccessForm({
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-medium">{accountLabel}</span>
             {current ? <Badge tone="accent">You</Badge> : null}
-            {unlinkedOperations ? <Badge tone="warning">Unlinked</Badge> : null}
             {linkedPerson?.archived ? (
               <Badge tone="warning">Archived</Badge>
             ) : null}
@@ -1072,7 +771,7 @@ function MemberAccessForm({
           ) : null}
         </TableCell>
         <TableCell className="px-3">
-          {formatWorkspaceAccessRole(member.role)}
+          {formatWorkspaceAccessRole(member.role, member.customRoleName)}
         </TableCell>
         <TableCell className="hidden px-3 text-muted-foreground lg:table-cell">
           {isOrganizationWideRole(member.role)
@@ -1081,9 +780,7 @@ function MemberAccessForm({
         </TableCell>
         <TableCell
           className={
-            unlinkedOperations
-              ? "hidden px-3 text-warning xl:table-cell"
-              : "hidden px-3 text-muted-foreground xl:table-cell"
+            "hidden px-3 text-muted-foreground xl:table-cell"
           }
         >
           {isOrganizationWideRole(member.role)
@@ -1187,11 +884,14 @@ function MemberAccessForm({
                   disabled={draft.status === "saving"}
                   label="Access level"
                   onValueChange={(value) => {
-                    draft.setField("role", value);
-                    if (isOrganizationWideRole(value)) {
+                    if (value === "super_admin") {
+                      draft.setField("roleKind", "super_admin");
+                      draft.setField("customRoleId", "");
                       draft.setField("branchId", "");
                       draft.setField("personId", "");
                     } else {
+                      draft.setField("roleKind", "custom");
+                      draft.setField("customRoleId", value);
                       if (!draft.values.branchId && branches.length === 1) {
                         draft.setField("branchId", branches[0]!.id);
                       }
@@ -1200,18 +900,25 @@ function MemberAccessForm({
                       }
                     }
                   }}
-                  options={WORKSPACE_ROLE_OPTIONS}
-                  value={draft.values.role}
+                  options={[
+                    { label: "Super Admin", value: "super_admin" },
+                    ...roles.map((role) => ({ label: role.name, value: role.id })),
+                  ]}
+                  value={
+                    draft.values.roleKind === "super_admin"
+                      ? "super_admin"
+                      : draft.values.customRoleId
+                  }
                 />
                 <AccessSelect
                   disabled={
                     draft.status === "saving" ||
-                    isOrganizationWideRole(draft.values.role)
+                    draft.values.roleKind === "super_admin"
                   }
                   label="Access scope"
                   onValueChange={(value) => draft.setField("branchId", value)}
                   error={draft.fieldErrors.branchId}
-                  options={branchOptions(branches, draft.values.role)}
+                  options={branchOptions(branches, draft.values.roleKind)}
                   value={draft.values.branchId}
                 />
                 <label className="grid min-w-0 gap-1.5 text-sm font-medium">
@@ -1221,7 +928,7 @@ function MemberAccessForm({
                     context="linked Staff record"
                     disabled={
                       draft.status === "saving" ||
-                      isOrganizationWideRole(draft.values.role)
+                      draft.values.roleKind === "super_admin"
                     }
                     name="personId"
                     onValueChange={(value) => draft.setField("personId", value)}
@@ -1446,18 +1153,6 @@ function AccessSelect({
   );
 }
 
-function FieldError({ error, id }: { error?: string; id: string }) {
-  if (!error) {
-    return null;
-  }
-
-  return (
-    <span className="text-xs font-normal leading-5 text-danger" id={id}>
-      {error}
-    </span>
-  );
-}
-
 function useRegisterAccessDraft(
   id: string,
   status: DraftStatus,
@@ -1641,33 +1336,29 @@ function useAccessDraft<TValues extends Record<string, string>>({
   };
 }
 
-function invitationWasPersisted(result: OrganizationActionState) {
-  return (
-    result.status === "success" ||
-    result.message?.startsWith(
-      "Invitation saved, but email delivery failed",
-    ) === true
-  );
-}
-
 /**
  * The role and scope selects are directly above this panel, so repeating them
  * here says nothing. What the form cannot show is what the grant actually
  * permits — and, for an Operations role, which Staff record it attaches to.
  */
 function accessRows(
-  values: { branchId: string; personId: string; role: string },
+  values: {
+    branchId: string;
+    customRoleId: string;
+    personId: string;
+    roleKind: "custom" | "super_admin";
+  },
   branches: OrganizationBranch[],
   people: OrganizationStaffOption[],
 ) {
   const rows = [
     {
       label: "Grants",
-      value: roleEffect(values.role, values.branchId, branches),
+      value: roleEffect(values.roleKind, values.branchId, branches),
     },
   ];
 
-  if (isOperationsRole(values.role)) {
+  if (values.roleKind === "custom" && values.personId) {
     rows.push({
       label: "Staff record",
       value: personLabel(values.personId, people),
@@ -1682,20 +1373,23 @@ function accessRows(
  * for Operations roles, which must name a branch. Offering it to Operations lets
  * the form build a grant it will then refuse to send.
  */
-function branchOptions(branches: OrganizationBranch[], role: string) {
-  const branchEntries = branches.map((branch) => ({
-    label: `${branch.code} - ${branch.name}`,
-    value: branch.id,
-  }));
+function branchOptions(branches: OrganizationBranch[], roleKind: string) {
+  const branchEntries = branches
+    .filter((branch) => !branch.archivedAt && branch.status === "active")
+    .map((branch) => ({
+      label: `${branch.code} - ${branch.name}`,
+      value: branch.id,
+    }));
 
-  return isOperationsRole(role)
+  return roleKind === "custom"
     ? branchEntries
     : [{ label: "All branches", value: "" }, ...branchEntries];
 }
 
 function branchLabel(branchId: string, branches: OrganizationBranch[]) {
   return (
-    branches.find((branch) => branch.id === branchId)?.name ?? "All branches"
+    branches.find((branch) => branch.id === branchId)?.name ??
+    "Assigned branch unavailable"
   );
 }
 
@@ -1717,23 +1411,14 @@ function formatAccessDate(value: string) {
 }
 
 function roleEffect(
-  role: string,
+  roleKind: string,
   branchId: string,
   branches: OrganizationBranch[],
 ) {
-  if (role === "super_admin") {
+  if (roleKind === "super_admin") {
     return "Full workspace access";
   }
-  if (role === "finance_manager") {
-    return "Read and approve finance activity";
-  }
-  if (role === "finance_member") {
-    return "Read finance activity and submit expenses";
-  }
-  if (role === "operations_manager") {
-    return `Operational access · ${branchLabel(branchId, branches)}`;
-  }
-  return `Assigned work only · ${branchLabel(branchId, branches)}`;
+  return `Assigned role · ${branchLabel(branchId, branches)}`;
 }
 
 function activeStaffOptions(people: OrganizationStaffOption[]) {

@@ -5,13 +5,13 @@ const {
   getPeopleInsightsData,
   getPeopleScreenData,
   parsePeopleSearchParams,
-  requireSuperAdminContext,
+  requirePermission,
 } = vi.hoisted(() => ({
   getAccessByPersonId: vi.fn(),
   getPeopleInsightsData: vi.fn(),
   getPeopleScreenData: vi.fn(),
   parsePeopleSearchParams: vi.fn(),
-  requireSuperAdminContext: vi.fn(),
+  requirePermission: vi.fn(),
 }));
 
 vi.mock("@/features/organization/data", () => ({ getAccessByPersonId }));
@@ -20,7 +20,7 @@ vi.mock("@/features/people/data/people-insights", () => ({
 }));
 vi.mock("@/features/people/data/people", () => ({ getPeopleScreenData }));
 vi.mock("@/features/people/people.filters", () => ({ parsePeopleSearchParams }));
-vi.mock("@/lib/auth/context", () => ({ requireSuperAdminContext }));
+vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 
 import { PeopleModulePageContent } from "./people-module-page";
 
@@ -30,9 +30,13 @@ describe("PeopleModulePageContent", () => {
     getPeopleInsightsData.mockReset();
     getPeopleScreenData.mockReset();
     parsePeopleSearchParams.mockReset();
-    requireSuperAdminContext.mockReset();
+    requirePermission.mockReset();
 
-    requireSuperAdminContext.mockResolvedValue({ organizationId: "organization-1" });
+    requirePermission.mockResolvedValue({
+      isSuperAdmin: true,
+      organizationId: "organization-1",
+      permissionKeys: new Set(["people.view", "people.write"]),
+    });
     parsePeopleSearchParams.mockReturnValue({ personId: null });
     getAccessByPersonId.mockResolvedValue({});
   });
@@ -71,6 +75,32 @@ describe("PeopleModulePageContent", () => {
       "active-staff",
       "multi-role-staff",
     ]);
+    expect(requirePermission).toHaveBeenCalledWith("people.view");
+  });
+
+  it("does not expose organization access status to ordinary viewers", async () => {
+    requirePermission.mockResolvedValue({
+      isSuperAdmin: false,
+      organizationId: "organization-1",
+      permissionKeys: new Set(["people.view"]),
+    });
+    getPeopleScreenData.mockResolvedValue({
+      pagination: { totalCount: 1 },
+      people: [makePerson("active-staff", [{ role: "staff", status: "active" }])],
+    });
+
+    await PeopleModulePageContent({
+      config: {
+        addButtonLabel: "Add staff",
+        role: "staff",
+        searchPlaceholder: "Search staff",
+        showAccessStatus: true,
+        title: "Staff",
+      },
+      searchParams: Promise.resolve({}),
+    });
+
+    expect(getAccessByPersonId).not.toHaveBeenCalled();
   });
 });
 

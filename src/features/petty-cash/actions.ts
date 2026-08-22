@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
-  requireFinancePettyCashContext,
+  requirePermission,
   requireSuperAdminContext,
 } from "@/lib/auth/context";
 
@@ -342,7 +342,7 @@ export async function createPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireFinancePettyCashContext();
+  const context = await requirePermission("finance.submit_expenses");
   const parsed = parseEntryFormData(formData);
   const parsedIdempotencyKey = idempotencyKeySchema.safeParse(
     readString(formData, "idempotencyKey"),
@@ -422,7 +422,7 @@ export async function updatePettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("finance.correct_records");
   const parsedEntryId = entryIdSchema.safeParse(readString(formData, "entryId"));
   const parsed = parseEntryFormData(formData);
 
@@ -503,7 +503,7 @@ export async function voidPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("finance.correct_records");
   const parsed = voidEntrySchema.safeParse({
     entryId: readString(formData, "entryId"),
     voidReason: readString(formData, "voidReason"),
@@ -589,7 +589,7 @@ export async function postPettyCashEntryAction(
   _state: PettyCashActionState,
   formData: FormData,
 ): Promise<PettyCashActionState> {
-  const context = await requireFinancePettyCashContext();
+  const context = await requirePermission("finance.approve_expenses");
   const parsedEntryId = entryIdSchema.safeParse(readString(formData, "entryId"));
 
   if (!parsedEntryId.success) {

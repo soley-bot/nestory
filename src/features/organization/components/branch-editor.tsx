@@ -29,6 +29,7 @@ import type { OrganizationBranch } from "@/features/organization/data";
 import { useSettingsDraft } from "@/features/organization/components/use-settings-draft";
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import { SettingsSectionHeader } from "@/features/organization/components/settings-section-header";
+import { BranchManageDrawer } from "@/features/organization/components/structure-manage-drawers";
 
 type BranchDraft = {
   address: string;
@@ -67,6 +68,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
   ) {
   const formRef = useRef<HTMLFormElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [managedBranch, setManagedBranch] = useState<OrganizationBranch | null>(null);
   const draft = useSettingsDraft({
     action: createBranchAction,
     errorMessage: "Branch not saved",
@@ -122,7 +124,7 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           <CardContent className="divide-y divide-border">
             {branches.map((branch) => (
               <div
-                className="grid min-w-0 gap-1 py-3 first:pt-0 last:pb-0 text-sm sm:grid-cols-[80px_minmax(0,1fr)_90px] sm:items-center"
+                className="grid min-w-0 gap-2 py-3 first:pt-0 last:pb-0 text-sm sm:grid-cols-[80px_minmax(0,1fr)_90px_auto] sm:items-center"
                 key={branch.id}
               >
                 <span className="font-medium">{branch.code}</span>
@@ -133,8 +135,16 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
                   </span>
                 </span>
                 <span className="text-xs font-medium uppercase text-muted-foreground">
-                  {branch.status}
+                  {branch.archivedAt ? "Archived" : branch.status}
                 </span>
+                <Button
+                  aria-label={`Manage branch ${branch.name}`}
+                  onClick={() => setManagedBranch(branch)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  Manage
+                </Button>
               </div>
             ))}
           </CardContent>
@@ -234,6 +244,15 @@ export const BranchEditor = forwardRef<SettingsEditorHandle, BranchEditorProps>(
           </div>
         </form>
       </SideDrawer>
+      {managedBranch ? (
+        <BranchManageDrawer
+          branch={managedBranch}
+          canManageStructure={canManageStructure}
+          key={managedBranch.id}
+          onClose={() => setManagedBranch(null)}
+          open
+        />
+      ) : null}
     </>
   );
   },

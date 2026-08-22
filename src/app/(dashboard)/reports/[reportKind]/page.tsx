@@ -29,7 +29,7 @@ export default async function ReportBuilderPage({
     report: reportKind,
   });
   const data = await getReportsScreenData(context.organizationId, viewQuery);
-  if (context.role === "finance_manager") {
+  if (!context.isSuperAdmin) {
     data.trustedReport = prepareTrustedReportForScreen(data.trustedReport, {
       financeSafeRecords: true,
     });

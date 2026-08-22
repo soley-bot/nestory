@@ -1,12 +1,22 @@
-import type { WorkspaceRole } from "@/lib/auth/context";
 import type { WorkspaceSearchResult } from "@/features/workspace-search/workspace-search.types";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 export type WorkspaceSearchScope =
-  "properties" | "units" | "people" | "leases" | "tasks" | "documents";
+  | "properties"
+  | "units"
+  | "people"
+  | "leases"
+  | "tasks"
+  | "documents";
 
 export type WorkspaceSearchAction = WorkspaceSearchResult & {
   kind: "action";
   keywords: readonly string[];
+};
+
+type WorkspaceSearchAuthority = {
+  isSuperAdmin: boolean;
+  permissionKeys: ReadonlySet<PermissionKey>;
 };
 
 const ADMIN_SCOPES = [
@@ -18,52 +28,19 @@ const ADMIN_SCOPES = [
   "documents",
 ] satisfies readonly WorkspaceSearchScope[];
 
-const TASK_SCOPES = ["tasks"] satisfies readonly WorkspaceSearchScope[];
-const FINANCE_SCOPES = ["leases"] satisfies readonly WorkspaceSearchScope[];
-
 const ADMIN_ACTIONS = [
   action("overview", "Dashboard", "/overview", ["overview", "home"]),
-  action("properties", "Properties", "/properties", ["buildings"]),
-  action("units", "Units", "/units", ["apartments"]),
-  action("people", "People", "/people", ["contacts"]),
-  action("tenants", "Tenants", "/tenants"),
-  action("owners", "Owners", "/owners"),
-  action("staff", "Staff", "/staff", ["team"]),
-  action("vendors", "Vendors", "/vendors"),
-  action("maintenance", "Cases", "/maintenance", [
-    "maintenance",
-    "work orders",
-  ]),
-  action("tasks", "Tasks", "/tasks", ["assignments", "my work"]),
-  action("work-orders", "Work Orders", "/work-orders", [
-    "maintenance",
-    "board",
-  ]),
-  action("inspections", "Inspections", "/inspections", [
-    "maintenance",
-    "checklist",
-  ]),
-  action("recurring-tasks", "Recurring Work", "/recurring-tasks", [
-    "maintenance",
-  ]),
-  action("finance-work", "Finance work", "/finance", [
-    "finance",
-    "open work",
-  ]),
-  action("rent-income", "Rent", "/rent-income", [
-    "income",
-    "payments",
-    "tenant invoices",
-  ]),
-  action("bills-expenses", "Expenses", "/bills-expenses", ["bills", "charges"]),
-  action("balances", "Balances", "/balances", [
-    "owners",
-    "customers",
-    "property accounts",
-  ]),
-  action("leases", "Leases", "/leases"),
-  action("ledger", "Ledger", "/ledger"),
-  action("petty-cash", "Petty Cash", "/petty-cash"),
+  ...propertyActions(),
+  ...peopleActions(),
+  ...leaseActions(),
+  ...maintenanceActions({ complete: true, manage: true }),
+  ...financeActions({
+    close: true,
+    correct: true,
+    publish: true,
+    record: true,
+    submitOrApprove: true,
+  }),
   action("timeline", "Global Timeline", "/timeline", ["history"]),
   action("property-timeline", "Property Timeline", "/property-timeline", [
     "history",
@@ -77,7 +54,6 @@ const ADMIN_ACTIONS = [
   action("financial-timeline", "Financial Timeline", "/financial-timeline", [
     "history",
   ]),
-  action("reports", "Reports", "/reports"),
   action("documents", "Documents", "/documents", ["files"]),
   action("import", "Import data", "/import", ["csv", "upload"]),
   action("settings", "Organization settings", "/settings"),
@@ -89,59 +65,164 @@ const ADMIN_ACTIONS = [
   ]),
 ] satisfies readonly WorkspaceSearchAction[];
 
-const MANAGER_ACTIONS = [
-  action("maintenance", "Cases", "/maintenance", [
-    "maintenance",
-    "work orders",
-  ]),
-  action("tasks", "Tasks", "/tasks", ["assignments"]),
-] satisfies readonly WorkspaceSearchAction[];
+export function getWorkspaceSearchScopes({
+  isSuperAdmin,
+  permissionKeys,
+}: WorkspaceSearchAuthority): readonly WorkspaceSearchScope[] {
+  if (isSuperAdmin) return ADMIN_SCOPES;
 
-const MEMBER_ACTIONS = [
-  action("tasks", "Tasks", "/tasks", ["assigned work"]),
-] satisfies readonly WorkspaceSearchAction[];
-
-const FINANCE_ACTIONS = [
-  action("finance-work", "Finance work", "/finance", ["finance", "open work"]),
-  action("rent-income", "Rent", "/rent-income", [
-    "income",
-    "payments",
-    "tenant invoices",
-  ]),
-  action("bills-expenses", "Expenses", "/bills-expenses", ["bills", "charges"]),
-  action("balances", "Balances", "/balances", [
-    "owners",
-    "customers",
-    "property accounts",
-  ]),
-  action("leases", "Leases", "/leases"),
-  action("ledger", "Ledger", "/ledger"),
-  action("petty-cash", "Petty Cash", "/petty-cash"),
-] satisfies readonly WorkspaceSearchAction[];
-
-export function getWorkspaceSearchScopes(
-  role: WorkspaceRole,
-): readonly WorkspaceSearchScope[] {
-  if (role === "super_admin") return ADMIN_SCOPES;
-  if (role === "finance_manager" || role === "finance_member") {
-    return FINANCE_SCOPES;
+  const scopes: WorkspaceSearchScope[] = [];
+  if (permissionKeys.has("properties.view")) {
+    scopes.push("properties", "units");
   }
-
-  return TASK_SCOPES;
+  if (permissionKeys.has("people.view")) scopes.push("people");
+  if (permissionKeys.has("leases.view")) scopes.push("leases");
+  if (permissionKeys.has("maintenance.view")) scopes.push("tasks");
+  return scopes;
 }
 
-export function getWorkspaceSearchActions(
-  role: WorkspaceRole,
-): readonly WorkspaceSearchAction[] {
-  if (role === "super_admin") {
-    return ADMIN_ACTIONS;
-  }
+export function getWorkspaceSearchActions({
+  isSuperAdmin,
+  permissionKeys,
+}: WorkspaceSearchAuthority): readonly WorkspaceSearchAction[] {
+  if (isSuperAdmin) return ADMIN_ACTIONS;
 
-  if (role === "finance_manager" || role === "finance_member") {
-    return FINANCE_ACTIONS;
+  const actions: WorkspaceSearchAction[] = [];
+  if (permissionKeys.has("properties.view")) actions.push(...propertyActions());
+  if (permissionKeys.has("people.view")) actions.push(...peopleActions());
+  if (permissionKeys.has("leases.view")) actions.push(...leaseActions());
+  if (permissionKeys.has("maintenance.view")) {
+    actions.push(
+      ...maintenanceActions({
+        complete: permissionKeys.has("maintenance.complete"),
+        manage:
+          permissionKeys.has("maintenance.create_assign") ||
+          permissionKeys.has("maintenance.review"),
+      }),
+    );
   }
+  if (permissionKeys.has("finance.view")) {
+    actions.push(
+      ...financeActions({
+        close: permissionKeys.has("finance.close_periods"),
+        correct: permissionKeys.has("finance.correct_records"),
+        publish: permissionKeys.has("finance.publish"),
+        record: permissionKeys.has("finance.record_payments"),
+        submitOrApprove:
+          permissionKeys.has("finance.submit_expenses") ||
+          permissionKeys.has("finance.approve_expenses") ||
+          permissionKeys.has("finance.correct_records"),
+      }),
+    );
+  }
+  return actions;
+}
 
-  return role === "operations_manager" ? MANAGER_ACTIONS : MEMBER_ACTIONS;
+function propertyActions() {
+  return [
+    action("properties", "Properties", "/properties", ["buildings"]),
+    action("units", "Units", "/units", ["apartments"]),
+  ];
+}
+
+function peopleActions() {
+  return [
+    action("people", "People", "/people", ["contacts"]),
+    action("tenants", "Tenants", "/tenants"),
+    action("owners", "Owners", "/owners"),
+    action("staff", "Staff", "/staff", ["team"]),
+    action("vendors", "Vendors", "/vendors"),
+  ];
+}
+
+function leaseActions() {
+  return [action("leases", "Leases", "/leases")];
+}
+
+function maintenanceActions({
+  complete,
+  manage,
+}: {
+  complete: boolean;
+  manage: boolean;
+}) {
+  const actions = [
+    action("maintenance", "Cases", "/maintenance", [
+      "maintenance",
+      "work orders",
+    ]),
+  ];
+  if (complete) {
+    actions.push(action("tasks", "Tasks", "/tasks", ["assignments", "my work"]));
+  }
+  if (manage) {
+    actions.push(
+      action("work-orders", "Work Orders", "/work-orders", [
+        "maintenance",
+        "board",
+      ]),
+      action("inspections", "Inspections", "/inspections", [
+        "maintenance",
+        "checklist",
+      ]),
+      action("recurring-tasks", "Recurring Work", "/recurring-tasks", [
+        "maintenance",
+      ]),
+    );
+  }
+  return actions;
+}
+
+function financeActions({
+  close,
+  correct,
+  publish,
+  record,
+  submitOrApprove,
+}: {
+  close: boolean;
+  correct: boolean;
+  publish: boolean;
+  record: boolean;
+  submitOrApprove: boolean;
+}) {
+  const actions = [
+    action("finance-work", "Finance work", "/finance", ["finance", "open work"]),
+  ];
+  if (record) {
+    actions.push(
+      action("rent-income", "Rent", "/rent-income", [
+        "income",
+        "payments",
+        "tenant invoices",
+      ]),
+    );
+  }
+  if (submitOrApprove) {
+    actions.push(
+      action("bills-expenses", "Expenses", "/bills-expenses", [
+        "bills",
+        "charges",
+      ]),
+    );
+  }
+  actions.push(
+    action("balances", "Balances", "/balances", [
+      "owners",
+      "customers",
+      "property accounts",
+    ]),
+  );
+  if (correct || close) {
+    actions.push(action("ledger", "Ledger", "/ledger"));
+  }
+  if (correct) {
+    actions.push(action("petty-cash", "Petty Cash", "/petty-cash"));
+  }
+  if (publish) {
+    actions.push(action("reports", "Reports", "/reports"));
+  }
+  return actions;
 }
 
 function action(

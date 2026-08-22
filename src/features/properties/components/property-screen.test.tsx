@@ -146,6 +146,49 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByRole("textbox", { name: "Notes" })).toBeNull();
   });
 
+  it("requires Super Admin to choose an active branch during creation", () => {
+    render(
+      <PropertyForm
+        creationBranchOptions={[
+          { id: "branch-a", label: "Central" },
+          { id: "branch-b", label: "Riverside" },
+        ]}
+        mode="create"
+        onClose={vi.fn()}
+        ownerOptions={[]}
+      />,
+    );
+
+    const branch = screen.getByRole("combobox", { name: /^Branch/ });
+    expect(branch.getAttribute("aria-required")).toBe("true");
+    fireEvent.click(branch);
+    expect(screen.getByRole("option", { name: "Central" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Riverside" })).toBeTruthy();
+  });
+
+  it("shows an empty required branch choice when no active branch is available", () => {
+    render(
+      <PropertyForm
+        creationBranchOptions={[]}
+        mode="create"
+        onClose={vi.fn()}
+        ownerOptions={[]}
+      />,
+    );
+
+    const branch = screen.getByRole("combobox", { name: /^Branch/ });
+    expect(branch.getAttribute("aria-required")).toBe("true");
+    fireEvent.click(branch);
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(screen.getByRole("option", { name: "Select branch" })).toBeTruthy();
+  });
+
+  it("keeps an ordinary writer's authenticated branch implicit", () => {
+    render(<PropertyForm mode="create" onClose={vi.fn()} ownerOptions={[]} />);
+
+    expect(screen.queryByRole("combobox", { name: /^Branch/ })).toBeNull();
+  });
+
   it("uses one ownership date when editing and preserves acquisition data invisibly", () => {
     const property = makeProperty("property-edit-details", "EDIT", "Edit details");
     property.formValues.acquisitionDate = "2025-06-15";
@@ -518,14 +561,14 @@ describe("PropertyScreen redesign contract", () => {
     ).toBe("/properties");
   });
 
-  it("shows create actions only when the caller is authorized", () => {
+  it("shows the compact create action only when the caller is authorized", () => {
     const pageTools = document.createElement("div");
     pageTools.id = "workspace-page-tools";
     document.body.append(pageTools);
 
     const authorized = renderProperties({ canCreate: true, properties: [] });
     expect(screen.getAllByRole("button", { name: "Add property" }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: "Set up property" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Set up property" })).toBeNull();
     authorized.unmount();
 
     renderProperties({ canCreate: false, properties: [] });

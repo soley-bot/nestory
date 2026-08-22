@@ -6,7 +6,7 @@ import { getPeopleInsightsData } from "@/features/people/data/people-insights";
 import { getPeopleScreenData } from "@/features/people/data/people";
 import { parsePeopleSearchParams } from "@/features/people/people.filters";
 import type { PersonRoleValue } from "@/features/people/people.types";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 
 type PeopleModulePageProps = {
   config: PeopleModuleConfig;
@@ -38,7 +38,7 @@ export async function PeopleModulePageContent({
   config,
   searchParams,
 }: PeopleModulePageProps) {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("people.view");
   const params = await searchParams;
   const viewQuery = parsePeopleSearchParams(
     config.role ? { ...params, role: config.role } : params,
@@ -58,7 +58,7 @@ export async function PeopleModulePageContent({
       ? [person.id]
       : [],
   );
-  const accessByPersonId = config.showAccessStatus
+  const accessByPersonId = context.isSuperAdmin && config.showAccessStatus
     ? await getAccessByPersonId(context.organizationId, activeStaffIds)
     : undefined;
 
@@ -66,6 +66,10 @@ export async function PeopleModulePageContent({
     <PeopleScreen
       accessByPersonId={accessByPersonId}
       addButtonLabel={config.addButtonLabel}
+      canCreate={
+        context.permissionKeys.has("people.write") &&
+        (context.isSuperAdmin || Boolean(config.createRole))
+      }
       createRole={config.createRole}
       initialPersonId={initialPersonId}
       insights={insights}

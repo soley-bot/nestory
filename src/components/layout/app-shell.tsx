@@ -61,7 +61,8 @@ import {
 } from "@/components/ui/sidebar";
 import { signOutAction } from "@/features/auth/actions";
 import { formatWorkspaceAccessRole } from "@/features/organization/access-status";
-import type { WorkspaceRole } from "@/lib/auth/context";
+import type { WorkspaceRole, WorkspaceRoleKind } from "@/lib/auth/context";
+import { PERMISSION_KEYS, type PermissionKey } from "@/lib/auth/permission-catalog";
 import type { OrganizationTheme } from "@/lib/theme/organization-theme";
 import { getWorkspaceEntryPath } from "@/lib/auth/workspace-entry";
 
@@ -108,18 +109,6 @@ const FINANCE_CHILDREN = [
     label: "Advanced",
     routes: ["/finance/advanced", "/petty-cash", "/ledger"],
   },
-] satisfies readonly GlobalDestinationChild[];
-
-const FINANCE_MANAGER_CHILDREN = [
-  { href: "/finance", label: "Review queue", routes: ["/finance"] },
-  { href: "/leases", label: "Leases", routes: ["/leases"] },
-  ...FINANCE_CHILDREN.slice(1),
-] satisfies readonly GlobalDestinationChild[];
-
-const FINANCE_MEMBER_CHILDREN = [
-  { href: "/finance", label: "My submissions", routes: ["/finance"] },
-  { href: "/leases", label: "Leases", routes: ["/leases"] },
-  ...FINANCE_CHILDREN.slice(1),
 ] satisfies readonly GlobalDestinationChild[];
 
 const MAINTENANCE_CHILDREN = [
@@ -234,82 +223,83 @@ const ADMIN_GLOBAL_DESTINATIONS = [
   },
 ] satisfies readonly GlobalDestination[];
 
-const FINANCE_MANAGER_GLOBAL_DESTINATIONS = [
-  {
-    children: FINANCE_MANAGER_CHILDREN,
-    id: "finance",
-    href: "/finance",
-    icon: Landmark,
-    label: "Finance",
-    routes: [
-      ...FINANCE_MANAGER_CHILDREN.flatMap((destination) => destination.routes),
-    ],
-  },
-  {
-    id: "reports",
-    href: "/reports",
-    icon: FileChartColumn,
-    label: "Reports",
-    routes: ["/reports"],
-  },
-] satisfies readonly GlobalDestination[];
-
-const FINANCE_MEMBER_GLOBAL_DESTINATIONS = [
-  {
-    children: FINANCE_MEMBER_CHILDREN,
-    id: "finance",
-    href: "/finance",
-    icon: Landmark,
-    label: "Finance",
-    routes: FINANCE_MEMBER_CHILDREN.flatMap((destination) => destination.routes),
-  },
-] satisfies readonly GlobalDestination[];
-
-const OPERATIONS_MANAGER_GLOBAL_DESTINATIONS = [
-  {
-    children: MAINTENANCE_CHILDREN,
-    id: "operations",
-    href: "/maintenance",
-    icon: Wrench,
-    label: "Operations",
-    routes: MAINTENANCE_CHILDREN.flatMap((destination) => destination.routes),
-  },
-] satisfies readonly GlobalDestination[];
-
-const OPERATIONS_MEMBER_GLOBAL_DESTINATIONS = [
-  {
-    id: "assigned-work",
-    href: "/tasks",
-    icon: Wrench,
-    label: "My work",
-    routes: ["/tasks"],
-  },
-] satisfies readonly GlobalDestination[];
-
 type AppShellProps = {
   children: React.ReactNode;
   /** Resolved from the sidebar_state cookie so a collapsed rail stays collapsed. */
   defaultSidebarOpen?: boolean;
   organizationId?: string;
   organizationName?: string;
-  role?: WorkspaceRole;
+  permissionKeys?: readonly PermissionKey[];
+  role?: WorkspaceRole | WorkspaceRoleKind;
+  roleKind?: WorkspaceRoleKind;
+  roleName?: string;
   theme?: OrganizationTheme;
   userEmail?: string;
 };
 
-function getGlobalDestinations(
-  role: WorkspaceRole,
-): readonly GlobalDestination[] {
-  if (role === "super_admin") return ADMIN_GLOBAL_DESTINATIONS;
-  if (role === "finance_manager") {
-    return FINANCE_MANAGER_GLOBAL_DESTINATIONS;
+function getGlobalDestinations({
+  isSuperAdmin,
+  permissionKeys,
+}: {
+  isSuperAdmin: boolean;
+  permissionKeys: ReadonlySet<PermissionKey>;
+}): readonly GlobalDestination[] {
+  if (isSuperAdmin) return ADMIN_GLOBAL_DESTINATIONS;
+
+  const destinations: GlobalDestination[] = [];
+  const has = (permission: PermissionKey) => permissionKeys.has(permission);
+
+  if (has("properties.view") || has("leases.view")) {
+    destinations.push({
+      ...ADMIN_GLOBAL_DESTINATIONS[1],
+      children: PROPERTIES_CHILDREN.filter((child) =>
+        child.href === "/leases" ? has("leases.view") : has("properties.view"),
+      ),
+    });
   }
-  if (role === "finance_member") {
-    return FINANCE_MEMBER_GLOBAL_DESTINATIONS;
+
+  if (has("people.view")) {
+    destinations.push(ADMIN_GLOBAL_DESTINATIONS[2]);
   }
-  return role === "operations_manager"
-    ? OPERATIONS_MANAGER_GLOBAL_DESTINATIONS
-    : OPERATIONS_MEMBER_GLOBAL_DESTINATIONS;
+
+  if (has("finance.view")) {
+    destinations.push({
+      ...ADMIN_GLOBAL_DESTINATIONS[3],
+      children: FINANCE_CHILDREN.filter((child) => {
+        if (child.href === "/rent-income") return has("finance.record_payments");
+        if (child.href === "/bills-expenses") {
+          return (
+            has("finance.submit_expenses") ||
+            has("finance.approve_expenses") ||
+            has("finance.correct_records")
+          );
+        }
+        if (child.href === "/finance/advanced") {
+          return has("finance.correct_records") || has("finance.close_periods");
+        }
+        return true;
+      }),
+    });
+  }
+
+  if (has("maintenance.view")) {
+    const canManage =
+      has("maintenance.create_assign") || has("maintenance.review");
+    destinations.push({
+      ...ADMIN_GLOBAL_DESTINATIONS[4],
+      children: MAINTENANCE_CHILDREN.filter((child) => {
+        if (child.href === "/maintenance") return true;
+        if (child.href === "/tasks") return has("maintenance.complete");
+        return canManage;
+      }),
+    });
+  }
+
+  if (has("finance.publish")) {
+    destinations.push(ADMIN_GLOBAL_DESTINATIONS[6]);
+  }
+
+  return destinations;
 }
 
 function destinationMatchesPath(
@@ -445,12 +435,31 @@ export function AppShell({
   defaultSidebarOpen = true,
   organizationId,
   organizationName = "Nestory workspace",
-  role = "super_admin",
+  permissionKeys,
+  role,
+  roleKind,
+  roleName,
   theme,
   userEmail,
 }: AppShellProps) {
   const pathname = usePathname();
-  const destinations = getGlobalDestinations(role);
+  const resolvedRoleKind =
+    roleKind ?? (role === "super_admin" || role === "custom" ? role : null);
+  const isSuperAdmin = resolvedRoleKind === "super_admin";
+  const resolvedPermissionKeys = new Set<PermissionKey>(
+    isSuperAdmin ? PERMISSION_KEYS : permissionKeys ?? [],
+  );
+  const resolvedRoleName =
+    roleName ??
+    (resolvedRoleKind === "custom"
+      ? "Custom role"
+      : resolvedRoleKind === "super_admin"
+        ? formatWorkspaceAccessRole("super_admin")
+        : "Access unavailable");
+  const destinations = getGlobalDestinations({
+    isSuperAdmin,
+    permissionKeys: resolvedPermissionKeys,
+  });
   const primaryDestinations = destinations.filter(
     (destination) =>
       destination.id !== "reports" && destination.id !== "settings",
@@ -479,7 +488,13 @@ export function AppShell({
                   size="lg"
                   tooltip="Nestory"
                 >
-                  <Link href={getWorkspaceEntryPath(role)} prefetch={false}>
+                  <Link
+                    href={getWorkspaceEntryPath({
+                      isSuperAdmin,
+                      permissionKeys: resolvedPermissionKeys,
+                    })}
+                    prefetch={false}
+                  >
                     <NestoryLogo markClassName="size-8" showText={false} />
                     <div className="grid flex-1 text-left text-sm leading-tight">
                       <span className="truncate font-semibold">Nestory</span>
@@ -501,7 +516,7 @@ export function AppShell({
               <SidebarGroup>
                 <SidebarGroupLabel>Workspace</SidebarGroupLabel>
                 <SidebarGroupContent className="flex flex-col gap-2">
-                  {role === "super_admin" ? (
+                  {isSuperAdmin || resolvedPermissionKeys.has("properties.write") ? (
                     <SidebarMenu>
                       <SidebarMenuItem>
                         <SidebarMenuButton
@@ -598,7 +613,7 @@ export function AppShell({
             <SidebarProfileMenu
               email={userEmail}
               organizationName={organizationName}
-              role={role}
+              roleName={resolvedRoleName}
             />
           </SidebarFooter>
           <SidebarRail />
@@ -616,7 +631,12 @@ export function AppShell({
                 className="flex min-w-0 flex-1 items-center"
                 id="workspace-page-tools"
               />
-              <WorkspaceCommandPalette role={role} />
+              {isSuperAdmin || resolvedPermissionKeys.size > 0 ? (
+                <WorkspaceCommandPalette
+                  isSuperAdmin={isSuperAdmin}
+                  permissionKeys={[...resolvedPermissionKeys]}
+                />
+              ) : null}
               {organizationId && theme ? (
                 <ThemeToggle organizationId={organizationId} theme={theme} />
               ) : null}
@@ -638,11 +658,11 @@ export function AppShell({
 function SidebarProfileMenu({
   email,
   organizationName,
-  role,
+  roleName,
 }: {
   email?: string;
   organizationName: string;
-  role: WorkspaceRole;
+  roleName: string;
 }) {
   const label = email ?? organizationName;
   return (
@@ -663,7 +683,7 @@ function SidebarProfileMenu({
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{label}</span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {formatWorkspaceAccessRole(role)}
+                  {roleName}
                 </span>
               </div>
             </SidebarMenuButton>

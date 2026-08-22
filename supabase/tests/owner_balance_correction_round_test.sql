@@ -575,6 +575,7 @@ SELECT lives_ok(
   'a distribution after an exact reversal uses only active held-cash authority'
 );
 
+RESET ROLE;
 SELECT is(
   (
     SELECT source_set.idempotency_key
@@ -603,6 +604,7 @@ SELECT is(
   'correction-reversed-oldest-b',
   'FIFO excludes the exactly reversed oldest positive source and links active source B'
 );
+SET LOCAL ROLE authenticated;
 
 SELECT has_function(
   'app_private',

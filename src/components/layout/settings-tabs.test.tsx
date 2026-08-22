@@ -14,6 +14,7 @@ describe("SettingsTabs", () => {
     "/settings/branches",
     "/settings/teams",
     "/settings/access",
+    "/settings/roles",
   ])("keeps exactly one current section for %s", (activeHref) => {
     render(<SettingsTabs activeHref={activeHref} role="super_admin" />);
 
@@ -28,11 +29,12 @@ describe("SettingsTabs", () => {
     expect(links.map((link) => link.textContent)).toEqual([
       "Workspace",
       "Access",
+      "Roles",
     ]);
     expect(current).toHaveLength(1);
     expect(current[0]?.getAttribute("href")).toBe(
-      activeHref === "/settings/access"
-        ? "/settings/access"
+      activeHref === "/settings/access" || activeHref === "/settings/roles"
+        ? activeHref
         : "/settings/organization",
     );
     expect(
@@ -54,6 +56,21 @@ describe("SettingsTabs", () => {
       name: "Settings sections",
     });
     expect(within(navigation).queryAllByRole("link")).toHaveLength(0);
+  });
+
+  it("fails closed when protected role context is absent", () => {
+    render(
+      <SettingsTabs
+        activeHref="/settings/organization"
+        role={undefined as never}
+      />,
+    );
+
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Settings sections" }),
+      ).queryAllByRole("link"),
+    ).toHaveLength(0);
   });
 
   it("shares the page header row without recreating a full-width tab band", () => {

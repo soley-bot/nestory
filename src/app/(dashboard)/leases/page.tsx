@@ -1,14 +1,14 @@
 import { LeaseScreen } from "@/features/leases/components/lease-screen";
 import { getLeasesScreenData } from "@/features/leases/data/leases";
 import { parseLeaseSearchParams } from "@/features/leases/lease.filters";
-import { requireFinanceContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 
 type LeasesPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function LeasesPage({ searchParams }: LeasesPageProps) {
-  const context = await requireFinanceContext();
+  const context = await requirePermission("leases.view");
   const params = await searchParams;
   const viewQuery = parseLeaseSearchParams(params);
   const { leases, pagination, propertyOptions, tenantOptions, unitOptions } =
@@ -17,7 +17,7 @@ export default async function LeasesPage({ searchParams }: LeasesPageProps) {
 
   return (
     <LeaseScreen
-      canConfigure={context.capabilities.canConfigureLeases}
+      canPrepare={context.permissionKeys.has("leases.prepare")}
       key={initialLeaseId ?? "leases"}
       initialLeaseId={initialLeaseId}
       leases={leases}

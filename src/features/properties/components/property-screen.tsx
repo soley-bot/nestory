@@ -24,6 +24,7 @@ import type { PropertySummary } from "@/features/properties/data/properties";
 import type { PropertyPortfolioSummary } from "@/features/properties/data/property-portfolio-summary";
 import { DEFAULT_PROPERTY_SORT } from "@/features/properties/property.filters";
 import type {
+  PropertyBranchOption,
   PropertyDisplayMode,
   PropertyFormValues,
   PropertyOwnerOption,
@@ -44,6 +45,8 @@ type DrawerState =
 
 type PropertyScreenProps = {
   canCreate: boolean;
+  canSetUp?: boolean;
+  creationBranchOptions?: PropertyBranchOption[];
   ownerOptions: PropertyOwnerOption[];
   pagination: PropertyPagination;
   portfolioSummary: PropertyPortfolioSummary;
@@ -53,6 +56,8 @@ type PropertyScreenProps = {
 
 export function PropertyScreen({
   canCreate,
+  canSetUp = false,
+  creationBranchOptions,
   ownerOptions,
   pagination,
   portfolioSummary,
@@ -148,7 +153,8 @@ export function PropertyScreen({
   const openCreateProperty = () => {
     openPropertyAction({ mode: "create" });
   };
-  const showSetupAction = canCreate && properties.length === 0 && !hasFilters;
+  const showSetupAction =
+    canCreate && canSetUp && properties.length === 0 && !hasFilters;
   const workspaceActions = (
     <>
       {canCreate ? (
@@ -294,6 +300,9 @@ export function PropertyScreen({
           ) : (
             <PropertyForm
               closeOnCreateSuccess={drawer.mode === "create"}
+              creationBranchOptions={
+                drawer.mode === "create" ? creationBranchOptions : undefined
+              }
               initialValues={
                 drawer.mode === "create" ? drawer.initialValues : undefined
               }

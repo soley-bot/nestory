@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const workflowPath = new URL("../.github/workflows/ci.yml", import.meta.url);
+const pilotSnapshotPath = new URL("./pilot-preservation-snapshot.sql", import.meta.url);
 
 function getJob(workflow, jobName) {
   const normalized = workflow.replace(/\r\n/g, "\n");
@@ -141,9 +142,11 @@ test("production database release is serialized and runs only from exact merged 
 
   const expectedReleaseSteps = [
     ["Verify hosted migration preflight", "npm run db:hosted-preflight"],
+    ["Capture Pilot preservation preflight", "scripts/pilot-preservation-snapshot.sql"],
     ["Dry-run production migrations", "npm exec -- supabase db push --linked --dry-run --yes"],
     ["Apply production migrations", "npm exec -- supabase db push --linked --yes"],
     ["Verify hosted migration postflight", "npm run db:hosted-postflight"],
+    ["Verify Pilot preservation postflight", "diff --unified=0"],
     ["Lint linked database", "npm exec -- supabase db lint --linked --level error --fail-on error"],
     ["Confirm no pending production migrations", "npm exec -- supabase db push --linked --dry-run --yes"],
   ];
@@ -157,6 +160,24 @@ test("production database release is serialized and runs only from exact merged 
     assertStepHasSecret(step, "SUPABASE_ACCESS_TOKEN");
     assertStepHasSecret(step, "SUPABASE_DB_PASSWORD");
   }
+});
+
+test("production release compares an aggregate-only Pilot preservation snapshot", async () => {
+  const query = await readFile(pilotSnapshotPath, "utf8");
+
+  assert.match(query, /organization\.slug = 'pilot'/);
+  assert.match(query, /'membershipCount'/);
+  assert.match(query, /'superAdminMembershipCount'/);
+  assert.match(query, /'propertyCount'/);
+  assert.match(query, /'leaseLifecycleEventCount'/);
+  assert.match(query, /'ownerComponentMovementCount'/);
+  assert.match(query, /'activityLogCount'/);
+  assert.match(query, /'membershipCount'\)::integer = 4/);
+  assert.match(query, /'superAdminMembershipCount'\)::integer = 4/);
+  assert.doesNotMatch(
+    query,
+    /\b(?:insert|update|delete|truncate|alter|drop|create|grant|revoke)\b/i,
+  );
 });
 
 function assertStepHasSecret(step, name) {

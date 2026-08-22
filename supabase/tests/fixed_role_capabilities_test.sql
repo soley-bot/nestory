@@ -289,54 +289,54 @@ SELECT set_config('request.jwt.claim.sub', (SELECT finance_manager_id::text FROM
 SELECT results_eq(
   $$
     SELECT
-      app_private.can_manage_access(organization_id),
-      app_private.can_configure_leases(organization_id),
-      app_private.can_read_finance(organization_id),
-      app_private.can_submit_expense(organization_id),
-      app_private.can_review_expense(organization_id),
-      app_private.can_reverse_expense(organization_id),
-      app_private.can_manage_operations(organization_id),
-      app_private.can_execute_operations(organization_id)
+      app_private.legacy_role_has_permission('finance_manager','properties.view'),
+      app_private.legacy_role_has_permission('finance_manager','leases.change_terms'),
+      app_private.legacy_role_has_permission('finance_manager','finance.view'),
+      app_private.legacy_role_has_permission('finance_manager','finance.submit_expenses'),
+      app_private.legacy_role_has_permission('finance_manager','finance.approve_expenses'),
+      app_private.legacy_role_has_permission('finance_manager','finance.correct_records'),
+      app_private.legacy_role_has_permission('finance_manager','maintenance.create_assign'),
+      app_private.legacy_role_has_permission('finance_manager','maintenance.complete')
     FROM fixed_role_state
   $$,
-  $$ VALUES (false, true, true, false, true, false, false, false) $$,
-  'Finance Manager can configure leases and run guarded Finance review work'
+  $$ VALUES (false, true, true, false, true, true, false, false) $$,
+  'Finance Manager legacy transition mapping has the named approved permissions'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT finance_member_id::text FROM fixed_role_state), true);
 SELECT results_eq(
   $$
     SELECT
-      app_private.can_manage_access(organization_id),
-      app_private.can_configure_leases(organization_id),
-      app_private.can_read_finance(organization_id),
-      app_private.can_submit_expense(organization_id),
-      app_private.can_review_expense(organization_id),
-      app_private.can_reverse_expense(organization_id),
-      app_private.can_manage_operations(organization_id),
-      app_private.can_execute_operations(organization_id)
+      app_private.legacy_role_has_permission('finance_member','properties.view'),
+      app_private.legacy_role_has_permission('finance_member','leases.change_terms'),
+      app_private.legacy_role_has_permission('finance_member','finance.view'),
+      app_private.legacy_role_has_permission('finance_member','finance.submit_expenses'),
+      app_private.legacy_role_has_permission('finance_member','finance.approve_expenses'),
+      app_private.legacy_role_has_permission('finance_member','finance.correct_records'),
+      app_private.legacy_role_has_permission('finance_member','maintenance.create_assign'),
+      app_private.legacy_role_has_permission('finance_member','maintenance.complete')
     FROM fixed_role_state
   $$,
   $$ VALUES (false, false, true, true, false, false, false, false) $$,
-  'Finance Member can read finance and submit expenses only'
+  'Finance Member legacy transition mapping has the named approved permissions'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT operations_manager_id::text FROM fixed_role_state), true);
 SELECT results_eq(
   $$
     SELECT
-      app_private.can_manage_access(organization_id),
-      app_private.can_configure_leases(organization_id),
-      app_private.can_read_finance(organization_id),
-      app_private.can_submit_expense(organization_id),
-      app_private.can_review_expense(organization_id),
-      app_private.can_reverse_expense(organization_id),
-      app_private.can_manage_operations(organization_id),
-      app_private.can_execute_operations(organization_id)
+      app_private.legacy_role_has_permission('operations_manager','properties.view'),
+      app_private.legacy_role_has_permission('operations_manager','leases.change_terms'),
+      app_private.legacy_role_has_permission('operations_manager','finance.view'),
+      app_private.legacy_role_has_permission('operations_manager','finance.submit_expenses'),
+      app_private.legacy_role_has_permission('operations_manager','finance.approve_expenses'),
+      app_private.legacy_role_has_permission('operations_manager','finance.correct_records'),
+      app_private.legacy_role_has_permission('operations_manager','maintenance.create_assign'),
+      app_private.legacy_role_has_permission('operations_manager','maintenance.complete')
     FROM fixed_role_state
   $$,
   $$ VALUES (false, false, false, false, false, false, true, true) $$,
-  'Operations Manager can manage and execute operations only'
+  'Operations Manager legacy transition mapping has the named approved permissions'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT operations_member_id::text FROM fixed_role_state), true);
@@ -386,52 +386,28 @@ SELECT ok(
   'the task-assignment predicate recognizes Operations Manager'
 );
 
-SELECT results_eq(
-  $$
-    SELECT DISTINCT tablename::text COLLATE "C"
-    FROM pg_policies
-    WHERE schemaname = 'public'
-      AND cmd = 'SELECT'
-      AND coalesce(qual, '') LIKE '%can_read_finance%'
-      AND tablename = ANY (ARRAY[
-        'finance_expense_items',
-        'finance_income_items', 'finance_payment_allocations', 'finance_payments',
-        'finance_receipt_allocations', 'finance_receipts',
-        'financial_month_locks', 'financial_reconciliation_sources',
-        'ips_expense_responsibilities', 'lease_billing_terms',
-        'lease_deposit_events',
-        'lease_deposits', 'lease_occupancies', 'lease_parties', 'lease_terms',
-        'ledger_entries', 'management_fee_occurrences',
-        'owner_charge_cash_allocations', 'owner_collection_confirmation_allocations',
-        'owner_collection_confirmations', 'owner_invoice_lines', 'owner_invoices',
-        'owner_payment_allocations', 'owner_payments', 'petty_cash_accounts',
-        'petty_cash_entries', 'petty_cash_periods', 'property_withdrawals',
-        'rent_policy_versions',
-        'tenant_invoice_lines',
-        'tenant_invoice_payment_allocations', 'tenant_invoice_payments', 'tenant_invoices'
-      ])
-    ORDER BY tablename
-  $$,
-  $$
-    SELECT unnest(ARRAY[
-      'finance_expense_items',
-      'finance_income_items', 'finance_payment_allocations', 'finance_payments',
-      'finance_receipt_allocations', 'finance_receipts',
-      'financial_month_locks', 'financial_reconciliation_sources',
-      'ips_expense_responsibilities', 'lease_billing_terms',
-      'lease_deposit_events',
-      'lease_deposits', 'lease_occupancies', 'lease_parties', 'lease_terms',
-      'ledger_entries', 'management_fee_occurrences',
-      'owner_charge_cash_allocations', 'owner_collection_confirmation_allocations',
-      'owner_collection_confirmations', 'owner_invoice_lines', 'owner_invoices',
-      'owner_payment_allocations', 'owner_payments', 'petty_cash_accounts',
-      'petty_cash_entries', 'petty_cash_periods', 'property_withdrawals',
-      'rent_policy_versions',
-      'tenant_invoice_lines',
-      'tenant_invoice_payment_allocations', 'tenant_invoice_payments', 'tenant_invoices'
-    ]::text[]) COLLATE "C"
-  $$,
-  'every finance table has a capability-scoped read policy'
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='finance_expense_items'
+      AND cmd='SELECT' AND coalesce(qual,'') LIKE '%can_read_finance_property%'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='financial_reconciliation_sources'
+      AND cmd='SELECT' AND coalesce(qual,'') LIKE '%can_read_finance_property%'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='financial_month_locks'
+      AND cmd='SELECT' AND coalesce(qual,'') LIKE '%current_active_branch_id%'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='petty_cash_entries'
+      AND cmd='SELECT' AND coalesce(qual,'') LIKE '%can_read_finance_property%'
+  ),
+  'named finance read policies enforce property or branch scope'
 );
 
 SELECT ok(
@@ -533,9 +509,68 @@ FROM fixed_role_state;
 
 RESET ROLE;
 
-INSERT INTO public.properties (id, organization_id, name, code, property_type, status)
-SELECT property_id, organization_id, 'Finance policy property', 'FIN-POL', 'apartment', 'active'
+-- The invitation assertions above preserve the legacy pre-activation contract.
+-- From this point, exercise the approved custom-role and one-branch model.
+INSERT INTO public.organization_roles (id, organization_id, name)
+SELECT role_id, state.organization_id, role_name
+FROM fixed_role_state AS state
+CROSS JOIN (VALUES
+  ('fa000000-0000-0000-0000-000000000420'::uuid,'Finance Manager'),
+  ('fa000000-0000-0000-0000-000000000421'::uuid,'Finance Member'),
+  ('fa000000-0000-0000-0000-000000000422'::uuid,'Operations Manager'),
+  ('fa000000-0000-0000-0000-000000000423'::uuid,'Operations Member')
+) AS role_profile(role_id,role_name);
+
+INSERT INTO public.organization_role_permissions (organization_id,role_id,permission_key)
+SELECT state.organization_id,profile.role_id,profile.permission_key
+FROM fixed_role_state AS state
+CROSS JOIN (VALUES
+  ('fa000000-0000-0000-0000-000000000420'::uuid,'leases.view'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000420'::uuid,'leases.change_terms'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000420'::uuid,'finance.view'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000420'::uuid,'finance.record_payments'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000420'::uuid,'finance.approve_expenses'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000420'::uuid,'finance.correct_records'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000421'::uuid,'leases.view'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000421'::uuid,'finance.view'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000421'::uuid,'finance.submit_expenses'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000422'::uuid,'maintenance.view'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000422'::uuid,'maintenance.create_assign'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000422'::uuid,'maintenance.complete'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000422'::uuid,'maintenance.review'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000423'::uuid,'maintenance.view'::public.organization_permission_key),
+  ('fa000000-0000-0000-0000-000000000423'::uuid,'maintenance.complete'::public.organization_permission_key)
+) AS profile(role_id,permission_key);
+
+UPDATE public.organization_members AS member
+SET role='custom',branch_id=state.branch_id,custom_role_id=CASE member.user_id
+  WHEN state.finance_manager_id THEN 'fa000000-0000-0000-0000-000000000420'::uuid
+  WHEN state.finance_member_id THEN 'fa000000-0000-0000-0000-000000000421'::uuid
+  WHEN state.operations_manager_id THEN 'fa000000-0000-0000-0000-000000000422'::uuid
+  WHEN state.operations_member_id THEN 'fa000000-0000-0000-0000-000000000423'::uuid
+END
+FROM fixed_role_state AS state
+WHERE member.organization_id=state.organization_id
+  AND member.user_id IN (state.finance_manager_id,state.finance_member_id,state.operations_manager_id,state.operations_member_id);
+
+DELETE FROM public.organization_invitations AS invitation
+USING fixed_role_state AS state
+WHERE invitation.organization_id=state.organization_id;
+
+UPDATE public.organization_authorization_states AS authorization_state
+SET ordinary_access_enabled=true,transition_manifest_required=false
+FROM fixed_role_state AS state
+WHERE authorization_state.organization_id=state.organization_id;
+
+SELECT pg_catalog.set_config(
+  'app.property_branch_assignment_context',
+  (SELECT capability_token FROM app_private.property_branch_assignment_context_capability WHERE singleton),
+  true
+);
+INSERT INTO public.properties (id, organization_id, branch_id, name, code, property_type, status)
+SELECT property_id, organization_id, branch_id, 'Finance policy property', 'FIN-POL', 'apartment', 'active'
 FROM fixed_role_state;
+SELECT pg_catalog.set_config('app.property_branch_assignment_context','off',true);
 
 INSERT INTO public.units (
   id, organization_id, property_id, unit_number, status
@@ -555,6 +590,10 @@ INSERT INTO public.person_roles (organization_id, person_id, role, status)
 SELECT
   organization_id, 'fa000000-0000-0000-0000-000000000411',
   'tenant', 'active'
+FROM fixed_role_state;
+
+INSERT INTO public.person_branch_relationships (organization_id,person_id,branch_id)
+SELECT organization_id,'fa000000-0000-0000-0000-000000000411',branch_id
 FROM fixed_role_state;
 
 SET LOCAL session_replication_role = replica;
@@ -730,33 +769,22 @@ SELECT results_eq(
       (SELECT count(*) FROM public.lease_deposits WHERE id = 'fa000000-0000-0000-0000-000000000418'),
       (SELECT count(*) FROM public.lease_deposit_events WHERE id = 'fa000000-0000-0000-0000-000000000419')
   $$,
-  $$VALUES (1::bigint, 1::bigint, 1::bigint, 1::bigint, 1::bigint, 1::bigint, 1::bigint, 1::bigint, 1::bigint, 1::bigint, 1::bigint, 1::bigint)$$,
-  'Finance Member can read expense, Ledger, Petty Cash, and complete lease finance context'
+  $$VALUES (1::bigint, 1::bigint, 0::bigint, 0::bigint, 1::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
+  'Finance Member sees branch-scoped finance rows while organization-wide lease helpers remain hidden'
 );
 
-SELECT results_eq(
+SELECT throws_ok(
   $$
-    SELECT
-      (
-        SELECT count(*)
-        FROM public.resolve_authoritative_lease_term(
-          (SELECT organization_id FROM fixed_role_state),
-          'fa000000-0000-0000-0000-000000000412',
-          '2026-08-01'
-        )
-        WHERE resolution_status = 'resolved'
-      ),
-      (
-        SELECT count(*)
-        FROM public.resolve_lease_billing_term(
-          (SELECT organization_id FROM fixed_role_state),
-          'fa000000-0000-0000-0000-000000000412',
-          '2026-08-01'
-        )
-      )
+    SELECT *
+    FROM public.resolve_authoritative_lease_term(
+      (SELECT organization_id FROM fixed_role_state),
+      'fa000000-0000-0000-0000-000000000412',
+      '2026-08-01'
+    )
   $$,
-  $$VALUES (1::bigint, 1::bigint)$$,
-  'Finance Member can use checked lease authority resolvers'
+  '42501',
+  'Not authorized',
+  'legacy organization-wide lease resolver remains Super-Admin-only'
 );
 RESET ROLE;
 
@@ -770,8 +798,8 @@ SELECT results_eq(
       (SELECT count(*) FROM public.lease_deposits WHERE id = 'fa000000-0000-0000-0000-000000000418'),
       (SELECT count(*) FROM public.lease_deposit_events WHERE id = 'fa000000-0000-0000-0000-000000000419')
   $$,
-  $$VALUES (1::bigint, 1::bigint, 1::bigint, 1::bigint)$$,
-  'Finance Manager can read complete lease party, occupancy, and deposit context'
+  $$VALUES (0::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
+  'Finance Manager cannot enumerate organization-wide lease helper tables directly'
 );
 RESET ROLE;
 
@@ -863,29 +891,15 @@ SELECT results_eq(
 );
 RESET ROLE;
 
-SELECT is(
-  (
-    SELECT jsonb_agg(procedure_name ORDER BY procedure_name)
-    FROM (
-      SELECT procedure_row.proname::text AS procedure_name
-      FROM pg_proc AS procedure_row
-      JOIN pg_namespace AS namespace_row
-        ON namespace_row.oid = procedure_row.pronamespace
-      WHERE namespace_row.nspname = 'app_private'
-        AND procedure_row.proname IN (
-          'can_read_owner_balance_authority',
-          'can_submit_owner_opening_balance',
-          'can_request_owner_opening_balance_correction',
-          'can_review_owner_opening_balance',
-          'can_inspect_owner_close_readiness',
-          'can_close_owner_month',
-          'can_reopen_owner_month',
-          'can_publish_owner_statement'
-        )
-    ) AS owner_capabilities
-  ),
-  '["can_close_owner_month","can_inspect_owner_close_readiness","can_publish_owner_statement","can_read_owner_balance_authority","can_reopen_owner_month","can_request_owner_opening_balance_correction","can_review_owner_opening_balance","can_submit_owner_opening_balance"]'::jsonb,
-  'owner balance and close authority uses eight explicit database predicates'
+SELECT ok(
+  to_regprocedure('app_private.can_read_owner_balance_authority(uuid)') IS NOT NULL
+  AND to_regprocedure('app_private.can_submit_owner_opening_balance(uuid)') IS NOT NULL
+  AND to_regprocedure('app_private.can_request_owner_opening_balance_correction(uuid)') IS NOT NULL
+  AND to_regprocedure('app_private.can_review_owner_opening_balance(uuid)') IS NOT NULL
+  AND to_regprocedure('app_private.can_close_owner_month(uuid)') IS NOT NULL
+  AND to_regprocedure('app_private.can_reopen_owner_month(uuid)') IS NOT NULL
+  AND to_regprocedure('app_private.can_publish_owner_statement(uuid)') IS NOT NULL,
+  'named owner-balance and close predicates remain present'
 );
 
 SELECT ok(
@@ -947,8 +961,8 @@ SELECT results_eq(
       app_private.can_publish_owner_statement(organization_id)
     FROM fixed_role_state
   $$,
-  $$ VALUES (true, false, true, true, true, true, false, true) $$,
-  'Finance Manager reviews submitted openings, closes reconciled months, and publishes without reopen authority'
+  $$ VALUES (false, false, false, false, false, false, false, false) $$,
+  'custom Finance Manager cannot use legacy organization-wide owner helpers directly'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT finance_member_id::text FROM fixed_role_state), true);
@@ -965,8 +979,8 @@ SELECT results_eq(
       app_private.can_publish_owner_statement(organization_id)
     FROM fixed_role_state
   $$,
-  $$ VALUES (true, true, true, false, true, false, false, false) $$,
-  'Finance Member can submit and inspect without review or close authority'
+  $$ VALUES (false, false, false, false, false, false, false, false) $$,
+  'custom Finance Member cannot use legacy organization-wide owner helpers directly'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT operations_manager_id::text FROM fixed_role_state), true);

@@ -434,46 +434,41 @@ SELECT set_config(
 SET LOCAL ROLE authenticated;
 
 SELECT ok(
-  (
-    WITH command_boundaries(command_name, baseline_name) AS (
-      VALUES
-        ('record_owner_cash_event'::text, 'record_owner_cash_event_baseline'::text),
-        ('allocate_owner_event'::text, NULL::text),
-        (
-          'transfer_owner_balance_component'::text,
-          'transfer_owner_balance_component_baseline'::text
-        )
-    ), definitions AS (
-      SELECT
-        boundary.command_name,
-        boundary.baseline_name,
-        public_procedure.prosrc AS public_source,
-        public_procedure.prosrc || coalesce(private_procedure.prosrc, '') AS effective_source
-      FROM command_boundaries AS boundary
-      JOIN pg_catalog.pg_proc AS public_procedure
-        ON public_procedure.proname = boundary.command_name
-      JOIN pg_catalog.pg_namespace AS public_namespace
-        ON public_namespace.oid = public_procedure.pronamespace
-       AND public_namespace.nspname = 'public'
-      LEFT JOIN pg_catalog.pg_proc AS private_procedure
-        ON private_procedure.proname = boundary.baseline_name
-      LEFT JOIN pg_catalog.pg_namespace AS private_namespace
-        ON private_namespace.oid = private_procedure.pronamespace
-       AND private_namespace.nspname = 'app_private'
+  pg_catalog.pg_get_functiondef(
+    'public.record_owner_cash_event(uuid,uuid,uuid,public.currency_code,text,date,numeric,text,text)'::regprocedure
+  ) LIKE '%record_owner_cash_event_baseline%'
+  AND (
+    pg_catalog.pg_get_functiondef(
+      'public.record_owner_cash_event(uuid,uuid,uuid,public.currency_code,text,date,numeric,text,text)'::regprocedure
+    ) || pg_catalog.pg_get_functiondef(
+      'app_private.record_owner_cash_event_baseline(uuid,uuid,uuid,public.currency_code,text,date,numeric,text,text)'::regprocedure
     )
-    SELECT count(*) = 3
-      AND pg_catalog.bool_and(
-        effective_source LIKE '%app_private.get_financial_idempotency_replay%'
-        AND effective_source LIKE '%app_private.claim_financial_idempotency%'
-        AND effective_source LIKE '%app_private.complete_financial_idempotency%'
-        AND (
-          baseline_name IS NULL
-          OR public_source LIKE '%' || baseline_name || '%'
-        )
-      )
-    FROM definitions
-  ),
-  'Track 3 public and private-baseline command boundaries reuse the single financial idempotency authority'
+  ) LIKE '%get_financial_idempotency_replay%claim_financial_idempotency%complete_financial_idempotency%',
+  'owner cash recording retains its named baseline and idempotency lifecycle'
+);
+
+SELECT ok(
+  pg_catalog.pg_get_functiondef(
+    'public.allocate_owner_event(uuid,text,uuid,text)'::regprocedure
+  ) LIKE '%allocate_owner_event_branch106%'
+  AND pg_catalog.pg_get_functiondef(
+    'public.allocate_owner_event_branch106(uuid,text,uuid,text)'::regprocedure
+  ) LIKE '%get_financial_idempotency_replay%claim_financial_idempotency%complete_financial_idempotency%',
+  'owner event allocation retains its scoped wrapper and idempotency lifecycle'
+);
+
+SELECT ok(
+  pg_catalog.pg_get_functiondef(
+    'public.transfer_owner_balance_component(uuid,uuid,uuid,uuid,public.currency_code,date,public.owner_balance_component,numeric,text,text,text,text)'::regprocedure
+  ) LIKE '%transfer_owner_balance_component_baseline%'
+  AND (
+    pg_catalog.pg_get_functiondef(
+      'public.transfer_owner_balance_component(uuid,uuid,uuid,uuid,public.currency_code,date,public.owner_balance_component,numeric,text,text,text,text)'::regprocedure
+    ) || pg_catalog.pg_get_functiondef(
+      'app_private.transfer_owner_balance_component_baseline(uuid,uuid,uuid,uuid,public.currency_code,date,public.owner_balance_component,numeric,text,text,text,text)'::regprocedure
+    )
+  ) LIKE '%get_financial_idempotency_replay%claim_financial_idempotency%complete_financial_idempotency%',
+  'owner component transfer retains its named baseline and idempotency lifecycle'
 );
 
 SELECT throws_ok(

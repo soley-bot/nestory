@@ -160,11 +160,15 @@ SELECT throws_ok($$
 $$, '23514', 'Archive active Units before changing the rental structure',
   'an active Unit prevents a circular switch back to whole-property rental');
 
+-- Fixture construction is owner-side. Authenticated application callers must
+-- use the checked Person creation RPC once direct core-table DML is closed.
+RESET ROLE;
 INSERT INTO public.people (id, organization_id, display_name, party_type)
 VALUES (
   '71000000-0000-4000-8000-000000000050',
   '71000000-0000-4000-8000-000000000001', 'Structure Owner', 'individual'
 );
+SET LOCAL ROLE authenticated;
 
 SELECT lives_ok($$
   SELECT public.create_property_minimal(

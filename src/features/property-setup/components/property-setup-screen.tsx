@@ -21,6 +21,7 @@ import { SelectControl } from "@/components/ui/select-control";
 import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
 import { PropertyForm } from "@/features/properties/components/property-form";
+import type { PropertyBranchOption } from "@/features/properties/property.types";
 import { UnitForm } from "@/features/units/components/unit-form";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import { activateSetupLeaseAction } from "@/features/property-setup/actions";
@@ -57,9 +58,11 @@ const steps: Array<{
 ];
 
 export function PropertySetupScreen({
+  creationBranchOptions,
   data,
   step,
 }: {
+  creationBranchOptions?: PropertyBranchOption[];
   data: PropertySetupData;
   step: PropertySetupStep;
 }) {
@@ -286,6 +289,7 @@ export function PropertySetupScreen({
       </div>
 
       <CreateRecordModal
+        creationBranchOptions={creationBranchOptions}
         data={data}
         modal={createModal}
         onClose={() => setCreateModal(null)}
@@ -694,6 +698,7 @@ function OrCreateButton({
 }
 
 function CreateRecordModal({
+  creationBranchOptions,
   data,
   modal,
   onClose,
@@ -704,6 +709,7 @@ function CreateRecordModal({
   onUnitCreated,
   selection,
 }: {
+  creationBranchOptions?: PropertyBranchOption[];
   data: PropertySetupData;
   modal: CreateModal;
   onClose: () => void;
@@ -741,6 +747,7 @@ function CreateRecordModal({
         <PropertyForm
           closeOnCreateSuccess
           collectOwnership
+          creationBranchOptions={creationBranchOptions}
           initialValues={{ ownerPersonId: selection.ownerId }}
           onClose={onClose}
           onSuccess={(_message, id) => onPropertyCreated(id)}

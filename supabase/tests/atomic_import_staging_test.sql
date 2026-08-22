@@ -76,37 +76,17 @@ SELECT ok(
 );
 
 SELECT ok(
-  has_column_privilege(
-    'authenticated', 'public.import_runs', 'source_file_name', 'INSERT,UPDATE'
-  )
-    AND NOT has_column_privilege(
-      'authenticated', 'public.import_runs', 'source_claim_hash', 'INSERT,UPDATE'
-    )
-    AND NOT has_column_privilege(
-      'authenticated', 'public.import_runs', 'snapshot_hash', 'INSERT,UPDATE'
-    )
-    AND has_table_privilege('authenticated', 'public.import_runs', 'DELETE'),
-  'authenticated retains scoped run writes except database-owned hash columns'
+  NOT has_table_privilege(
+    'authenticated', 'public.import_runs', 'INSERT,UPDATE,DELETE'
+  ),
+  'authenticated import-run writes are confined to the checked staging command'
 );
 
 SELECT ok(
-  has_column_privilege(
-    'authenticated', 'public.import_rows', 'raw_data', 'INSERT,UPDATE'
-  )
-    AND has_column_privilege(
-      'authenticated', 'public.import_rows', 'row_status', 'INSERT,UPDATE'
-    )
-    AND NOT has_column_privilege(
-      'authenticated', 'public.import_rows', 'result_lease_id', 'INSERT,UPDATE'
-    )
-    AND NOT has_column_privilege(
-      'authenticated', 'public.import_rows', 'result_lease_party_id', 'INSERT,UPDATE'
-    )
-    AND NOT has_column_privilege(
-      'authenticated', 'public.import_rows', 'result_lease_occupancy_id', 'INSERT,UPDATE'
-    )
-    AND has_table_privilege('authenticated', 'public.import_rows', 'DELETE'),
-  'authenticated retains scoped row writes behind the staging guards'
+  NOT has_table_privilege(
+    'authenticated', 'public.import_rows', 'INSERT,UPDATE,DELETE'
+  ),
+  'authenticated import-row writes are confined to the checked staging command'
 );
 
 SELECT set_config(
@@ -216,8 +196,8 @@ SELECT throws_ok(
     (SELECT first_result ->> 'runId' FROM atomic_import_state)
   ),
   '42501',
-  'Atomic import runs can only be written by their checked RPC',
-  'authenticated cannot spoof a bound atomic stage context to update a run'
+  'permission denied for table import_runs',
+  'authenticated cannot update an import run directly'
 );
 
 SELECT throws_ok(
@@ -227,8 +207,8 @@ SELECT throws_ok(
     (SELECT first_result ->> 'runId' FROM atomic_import_state)
   ),
   '42501',
-  'Atomic import rows can only be written by their checked RPC',
-  'authenticated cannot spoof a bound atomic stage context to update rows'
+  'permission denied for table import_rows',
+  'authenticated cannot update import rows directly'
 );
 
 SELECT throws_ok(
@@ -237,8 +217,8 @@ SELECT throws_ok(
     (SELECT first_result ->> 'runId' FROM atomic_import_state)
   ),
   '42501',
-  'Atomic import rows can only be written by their checked RPC',
-  'authenticated cannot spoof a bound atomic stage context to delete rows'
+  'permission denied for table import_rows',
+  'authenticated cannot delete import rows directly'
 );
 
 SELECT set_config('app.atomic_import_write_context', '', true);

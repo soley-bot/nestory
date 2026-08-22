@@ -9,6 +9,7 @@ const repoRoot = path.resolve(import.meta.dirname, "..");
 const organizationId = "00000000-0000-0000-0000-000000000001";
 const superAdminId = "00000000-0000-0000-0000-000000000101";
 const financeManagerId = "00000000-0000-0000-0000-000000000701";
+const branchId = "00000000-0000-0000-0000-000000000211";
 const centralPropertyId = "10000000-0000-0000-0000-000000000001";
 const riversidePropertyId = "10000000-0000-0000-0000-000000000002";
 const gardenPropertyId = "10000000-0000-0000-0000-000000000003";
@@ -516,11 +517,17 @@ test("two sessions serialize next-period generation to one four-component rowset
 
 test("two sessions serialize the same transfer component against remaining authority", async () => {
   run(`
-    INSERT INTO public.properties (id, organization_id, name, code, property_type)
+    SELECT set_config(
+      'app.property_branch_assignment_context',
+      (SELECT capability_token FROM app_private.property_branch_assignment_context_capability WHERE singleton),
+      false
+    );
+    INSERT INTO public.properties (id, organization_id, branch_id, name, code, property_type)
     VALUES (
-      '${transferRacePropertyId}', '${organizationId}',
+      '${transferRacePropertyId}', '${organizationId}', '${branchId}',
       'Transfer race property', 'TRANSFER-RACE', 'Apartment'
     );
+    SELECT set_config('app.property_branch_assignment_context', 'off', false);
     INSERT INTO public.people (id, organization_id, display_name)
     VALUES
       ('${transferRaceOwnerId}', '${organizationId}', 'Transfer race predecessor'),

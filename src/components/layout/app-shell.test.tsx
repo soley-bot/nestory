@@ -31,10 +31,10 @@ describe("AppShell Shadcn dashboard block", () => {
 
   it.each([
     ["super_admin", "/overview"],
-    ["finance_manager", "/finance"],
-    ["finance_member", "/finance"],
-    ["operations_manager", "/maintenance"],
-    ["operations_member", "/tasks"],
+    ["finance_manager", "/no-access"],
+    ["finance_member", "/no-access"],
+    ["operations_manager", "/no-access"],
+    ["operations_member", "/no-access"],
   ] as const)("links %s users to their workspace entry", (role, href) => {
     render(<AppShell role={role}><div>Workspace content</div></AppShell>);
     const brandLink = screen.getByRole("link", { name: /Nestory/ });
@@ -139,12 +139,23 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(register.getAttribute("aria-current")).toBe("page");
   });
 
-  it("gives Finance Manager a review-first finance navigation", () => {
+  it("gives a Finance reviewer permission-first Finance navigation", () => {
     navigation.pathname = "/finance";
-    render(<AppShell role="finance_manager"><div>Workspace content</div></AppShell>);
+    render(
+      <AppShell
+        permissionKeys={["leases.view", "finance.view", "finance.publish"]}
+        roleKind="custom"
+        roleName="Finance Reviewer"
+      >
+        <div>Workspace content</div>
+      </AppShell>,
+    );
 
-    expect(screen.getByRole("link", { name: "Review queue" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Advanced" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Portfolio review" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Advanced" })).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand Properties navigation" }),
+    );
     expect(
       screen.getByRole("link", { name: "Leases" }).getAttribute("href"),
     ).toBe("/leases");
@@ -153,42 +164,53 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(screen.queryByRole("link", { name: "Timeline history" })).toBeNull();
   });
 
-  it("keeps Finance Member navigation aligned with readable finance routes", () => {
+  it("keeps a Finance submitter aligned with readable finance routes", () => {
     navigation.pathname = "/finance";
-    render(<AppShell role="finance_member"><div>Workspace content</div></AppShell>);
+    render(
+      <AppShell
+        permissionKeys={["leases.view", "finance.view", "finance.submit_expenses"]}
+        roleKind="custom"
+        roleName="Finance Submitter"
+      >
+        <div>Workspace content</div>
+      </AppShell>,
+    );
 
-    expect(screen.getByRole("link", { name: "My submissions" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Rent & collections" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Portfolio review" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Rent & collections" })).toBeNull();
     expect(screen.getByRole("link", { name: "Expenses" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Owner accounts" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Advanced" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Advanced" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Petty cash" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Ledger" })).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand Properties navigation" }),
+    );
     expect(screen.getByRole("link", { name: "Leases" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Rent policy" })).toBeNull();
   });
 
-  it("makes Reports discoverable only to the Finance Manager among non-admin roles", () => {
+  it("makes Reports discoverable only with Finance publish", () => {
     const { rerender } = render(
-      <AppShell role="finance_manager"><div>Workspace content</div></AppShell>,
+      <AppShell permissionKeys={["finance.view", "finance.publish"]} roleKind="custom" roleName="Publisher"><div>Workspace content</div></AppShell>,
     );
     expect(screen.getByRole("link", { name: /Reports/ }).getAttribute("href")).toBe(
       "/reports",
     );
 
-    rerender(<AppShell role="finance_member"><div>Workspace content</div></AppShell>);
+    rerender(<AppShell permissionKeys={["finance.view"]} roleKind="custom" roleName="Finance Viewer"><div>Workspace content</div></AppShell>);
     expect(screen.queryByRole("link", { name: /Reports/ })).toBeNull();
 
-    rerender(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
+    rerender(<AppShell permissionKeys={["maintenance.view"]} roleKind="custom" roleName="Maintenance Viewer"><div>Workspace content</div></AppShell>);
     expect(screen.queryByRole("link", { name: /Reports/ })).toBeNull();
   });
 
-  it("limits Operations Member deep navigation to My work", () => {
+  it("limits a Maintenance completer deep navigation to My work", () => {
     navigation.pathname = "/tasks";
-    render(<AppShell role="operations_member"><div>Workspace content</div></AppShell>);
+    render(<AppShell permissionKeys={["maintenance.view", "maintenance.complete"]} roleKind="custom" roleName="Caretaker"><div>Workspace content</div></AppShell>);
 
     expect(screen.getByRole("link", { name: "My work" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Cases" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Cases" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Work orders" })).toBeNull();
   });
 
@@ -211,13 +233,13 @@ describe("AppShell Shadcn dashboard block", () => {
     ["/recurring-tasks", "Recurring work"],
     ["/inspections", "Inspections"],
     ["/work-orders", "Work orders"],
-  ])("keeps Operations Manager navigation active on %s", (pathname, child) => {
+  ])("keeps Maintenance management navigation active on %s", (pathname, child) => {
     navigation.pathname = pathname;
-    render(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
+    render(<AppShell permissionKeys={["maintenance.view", "maintenance.create_assign", "maintenance.complete", "maintenance.review"]} roleKind="custom" roleName="Maintenance Lead"><div>Workspace content</div></AppShell>);
 
     expect(
       screen
-        .getByRole("button", { name: "Collapse Operations navigation" })
+        .getByRole("button", { name: "Collapse Maintenance navigation" })
         .getAttribute("aria-expanded"),
     ).toBe("true");
     expect(
@@ -266,16 +288,16 @@ describe("AppShell Shadcn dashboard block", () => {
     expect(settingsLink.closest('[data-active="true"]')).toBeNull();
   });
 
-  it("keeps non-admin users out of admin destinations", () => {
-    render(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
+  it("keeps branch-scoped users out of admin destinations", () => {
+    render(<AppShell permissionKeys={["maintenance.view", "maintenance.create_assign"]} roleKind="custom" roleName="Maintenance Lead"><div>Workspace content</div></AppShell>);
     expect(screen.queryByRole("link", { name: /Settings/ })).toBeNull();
-    expect(screen.getByRole("link", { name: /Operations/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Maintenance/ })).toBeTruthy();
   });
 
-  it.each(["finance_manager", "finance_member"] as const)(
+  it.each(["Finance Reviewer", "Finance Submitter"] as const)(
     "gives %s a Finance-only global destination",
-    (role) => {
-      render(<AppShell role={role}><div>Workspace content</div></AppShell>);
+    (roleName) => {
+      render(<AppShell permissionKeys={["finance.view"]} roleKind="custom" roleName={roleName}><div>Workspace content</div></AppShell>);
 
       expect(screen.getByRole("link", { name: /Finance/ }).getAttribute("href")).toBe(
         "/finance",
@@ -286,11 +308,11 @@ describe("AppShell Shadcn dashboard block", () => {
     },
   );
 
-  it("gives Operations Manager a responsibility-led Operations domain", () => {
+  it("gives Maintenance management a responsibility-led domain", () => {
     navigation.pathname = "/maintenance";
-    render(<AppShell role="operations_manager"><div>Workspace content</div></AppShell>);
+    render(<AppShell permissionKeys={["maintenance.view", "maintenance.create_assign"]} roleKind="custom" roleName="Maintenance Lead"><div>Workspace content</div></AppShell>);
 
-    expect(screen.getByRole("link", { name: "Operations" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Maintenance" }).getAttribute("href")).toBe(
       "/maintenance",
     );
     expect(screen.getByRole("link", { name: "Cases" })).toBeTruthy();

@@ -2286,6 +2286,84 @@
     }
   },
   {
+    "route": "/settings/roles",
+    "source": "src/app/(dashboard)/settings/roles/page.tsx",
+    "phase": 4,
+    "surface": "settings",
+    "roles": ["super_admin"],
+    "states": [
+      "loading",
+      "populated",
+      "empty",
+      "error",
+      "permission-blocked",
+      "draft",
+      "saving",
+      "success"
+    ],
+    "evidence": {
+      "loading": [
+        "src/app/(dashboard)/settings/roles/page.tsx",
+        "src/components/layout/module-loading.tsx"
+      ],
+      "populated": [
+        "src/app/(dashboard)/settings/roles/page.tsx",
+        "src/app/(dashboard)/settings/roles/page.test.tsx",
+        "src/features/organization/components/role-register.test.tsx"
+      ],
+      "empty": [
+        "src/app/(dashboard)/settings/roles/page.tsx",
+        "src/features/organization/components/role-register.test.tsx",
+        "src/components/ui/empty-state.tsx"
+      ],
+      "error": [
+        "src/app/(dashboard)/settings/roles/page.tsx",
+        "src/features/organization/role-actions.test.ts",
+        "src/features/organization/components/role-editor.test.tsx",
+        "src/components/ui/error-state.tsx"
+      ],
+      "permission-blocked": [
+        "src/app/(dashboard)/settings/roles/page.tsx",
+        "src/app/(dashboard)/settings/roles/page.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ],
+      "draft": [
+        "src/app/(dashboard)/settings/roles/page.tsx",
+        "src/features/organization/components/role-editor.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "saving": [
+        "src/app/(dashboard)/settings/roles/page.tsx",
+        "src/features/organization/components/role-settings-screen.test.tsx",
+        "src/components/ui/workflow-feedback.test.tsx"
+      ],
+      "success": [
+        "src/app/(dashboard)/settings/roles/page.tsx",
+        "src/features/organization/role-actions.test.ts",
+        "src/features/organization/components/role-settings-screen.test.tsx",
+        "src/components/ui/status-notice.tsx"
+      ]
+    },
+    "smoke": {
+      "path": "/settings/roles",
+      "expectedAccess": {
+        "super_admin": "accessible",
+        "finance_manager": "permission-blocked",
+        "finance_member": "permission-blocked",
+        "operations_manager": "permission-blocked",
+        "operations_member": "permission-blocked",
+        "anonymous": "login-required"
+      },
+      "queryContract": "not-applicable",
+      "workflowEvidence": [
+        "src/app/(dashboard)/settings/roles/page.test.tsx",
+        "src/features/organization/components/role-settings-screen.test.tsx",
+        "src/features/organization/role-actions.test.ts"
+      ],
+      "limitations": []
+    }
+  },
+  {
     "route": "/users-roles",
     "source": "src/app/(dashboard)/users-roles/page.tsx",
     "phase": 4,

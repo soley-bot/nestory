@@ -9,6 +9,7 @@ import { selectLocalDatabaseContainer } from "./load-test-fixture.mjs";
 
 const organizationId = "00000000-0000-0000-0000-000000000001";
 const propertyId = "10000000-0000-0000-0000-000000000001";
+const branchId = "00000000-0000-0000-0000-000000000211";
 const bucket = "nestory-documents";
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
@@ -52,12 +53,12 @@ function physicalArtifactFiles(runId) {
     .map((line) => line.trim())
     .find(Boolean);
   assert.ok(storageContainer, "local Storage container must be running");
-  const artifactRoot = `/mnt/stub/stub/${bucket}/${organizationId}/documents`;
+  const artifactRoot = `/mnt/stub/stub/${bucket}`;
   const result = spawnSync(
     "docker",
     [
       "exec", storageContainer, "find", artifactRoot, "-type", "f", "-path",
-      `*${runId}-*`,
+      `*/${organizationId}/branches/${branchId}/documents/${runId}-*`,
     ],
     { cwd: repoRoot, encoding: "utf8", shell: false },
   );
@@ -71,7 +72,7 @@ async function cleanupExactArtifacts(
   metadataPaths,
   storagePaths,
 ) {
-  const expectedPrefix = `${organizationId}/documents/${runId}-`;
+  const expectedPrefix = `${organizationId}/branches/${branchId}/documents/${runId}-`;
   assert.ok(metadataPaths.length > 0, "cleanup requires exact test object paths");
   assert.equal(
     new Set(metadataPaths).size,
@@ -141,7 +142,7 @@ async function cleanupExactArtifacts(
     );
   }
 
-  const parentPath = `${organizationId}/documents`;
+  const parentPath = `${organizationId}/branches/${branchId}/documents`;
   const listing = await client.storage.from(bucket).list(parentPath, {
     limit: metadataPaths.length + 1,
     search: `${runId}-`,
@@ -213,7 +214,7 @@ function sha256(bytes) {
 test("real local Storage bytes equal immutable opening-evidence metadata", async () => {
   const runId = randomUUID();
   const artifactPath = (suffix) =>
-    `${organizationId}/documents/${runId}-${suffix}`;
+    `${organizationId}/branches/${branchId}/documents/${runId}-${suffix}`;
   const orphanPath = artifactPath("failed-create.pdf");
   const linkedPaths = new Map(
     ["timeline", "task", "lease", "tenant-request"].map((label) => [
@@ -254,7 +255,7 @@ test("real local Storage bytes equal immutable opening-evidence metadata", async
     );
     const initialList = await client.storage
       .from(bucket)
-      .list(`${organizationId}/documents`, {
+      .list(`${organizationId}/branches/${branchId}/documents`, {
         limit: exactArtifactPaths.length + 1,
         search: `${runId}-`,
       });

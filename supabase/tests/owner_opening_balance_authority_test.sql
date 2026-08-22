@@ -179,15 +179,25 @@ SELECT ok(
   'opening request rows enforce RLS'
 );
 
-SELECT is(
-  (
-    SELECT jsonb_agg(policyname ORDER BY policyname)
+SELECT ok(
+  EXISTS (
+    SELECT 1
     FROM pg_policies
     WHERE schemaname = 'public'
       AND tablename = 'owner_opening_balance_requests'
+      AND policyname = 'owner_opening_balance_requests_branch_select'
+      AND cmd = 'SELECT'
+      AND roles = ARRAY['authenticated']::name[]
+      AND qual LIKE '%can_read_finance_property%'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'owner_opening_balance_requests'
+      AND cmd <> 'SELECT'
   ),
-  '["Finance roles can read owner opening requests"]'::jsonb,
-  'the request table has one organization-scoped Finance read policy and no write policy'
+  'opening requests have one authenticated branch-scoped read path and no write policy'
 );
 
 SELECT ok(
@@ -463,15 +473,25 @@ SELECT ok(
   'opening entry rows enforce RLS'
 );
 
-SELECT is(
-  (
-    SELECT jsonb_agg(policyname ORDER BY policyname)
+SELECT ok(
+  EXISTS (
+    SELECT 1
     FROM pg_policies
     WHERE schemaname = 'public'
       AND tablename = 'owner_opening_balance_entries'
+      AND policyname = 'owner_opening_balance_entries_branch_select'
+      AND cmd = 'SELECT'
+      AND roles = ARRAY['authenticated']::name[]
+      AND qual LIKE '%can_read_finance_property%'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'owner_opening_balance_entries'
+      AND cmd <> 'SELECT'
   ),
-  '["Finance roles can read owner opening entries"]'::jsonb,
-  'the entry table has one organization-scoped Finance read policy and no write policy'
+  'opening entries have one authenticated branch-scoped read path and no write policy'
 );
 
 SELECT ok(
@@ -930,34 +950,48 @@ SELECT ok(
 
 SELECT ok(
   (
-    SELECT bool_and(
+    SELECT count(*) = 3 AND bool_and(
       pg_catalog.strpos(
-        pg_catalog.pg_get_functiondef(procedure_row.oid),
+        pg_catalog.pg_get_functiondef(public_procedure.oid),
+        'PERFORM app_private.begin_finance_property_authority('
+      ) > 0
+      AND pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(public_procedure.oid),
+        'baseline_branch106('
+      ) > 0
+      AND pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(private_procedure.oid),
         'PERFORM app_private.lock_owner_opening_roster_inputs('
       ) > pg_catalog.strpos(
-        pg_catalog.pg_get_functiondef(procedure_row.oid),
+        pg_catalog.pg_get_functiondef(private_procedure.oid),
         'PERFORM app_private.lock_owner_opening_property_month('
       )
       AND pg_catalog.strpos(
-        pg_catalog.pg_get_functiondef(procedure_row.oid),
+        pg_catalog.pg_get_functiondef(private_procedure.oid),
         'PERFORM app_private.lock_owner_opening_roster_property('
       ) = 0
       AND pg_catalog.strpos(
-        pg_catalog.pg_get_functiondef(procedure_row.oid),
+        pg_catalog.pg_get_functiondef(private_procedure.oid),
         'FOR KEY SHARE'
       ) = 0
     )
-    FROM pg_proc AS procedure_row
-    JOIN pg_namespace AS namespace_row
-      ON namespace_row.oid = procedure_row.pronamespace
-    WHERE namespace_row.nspname = 'public'
-      AND procedure_row.proname IN (
+    FROM pg_proc AS public_procedure
+    JOIN pg_namespace AS public_namespace
+      ON public_namespace.oid = public_procedure.pronamespace
+    JOIN pg_proc AS private_procedure
+      ON private_procedure.proname = public_procedure.proname || '_baseline_branch106'
+     AND private_procedure.pronargs = public_procedure.pronargs
+    JOIN pg_namespace AS private_namespace
+      ON private_namespace.oid = private_procedure.pronamespace
+     AND private_namespace.nspname = 'app_private'
+    WHERE public_namespace.nspname = 'public'
+      AND public_procedure.proname IN (
         'submit_owner_opening_balance',
         'review_owner_opening_balance',
         'submit_owner_opening_balance_correction'
       )
   ),
-  'every opening workflow prelocks roster tuples before the shared advisory and validation'
+  'each scoped public workflow delegates to the predecessor that preserves ordered roster locking'
 );
 
 CREATE TEMP TABLE owner_opening_request_fixture (

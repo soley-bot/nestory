@@ -195,7 +195,7 @@ export async function getMaintenanceScreenData(
     ...pagedTasks.rows,
     ...summaryTaskRows,
   ]);
-  const isMember = actor?.role === "operations_member";
+  const isMember = actor?.workflowMode === "assigned";
   const memberIdentities = isMember
     ? actor?.personId
       ? [{ branchId: actor.branchId, personId: actor.personId }]
@@ -218,7 +218,10 @@ export async function getMaintenanceScreenData(
   const propertiesById = indexById(references.properties);
   const unitsById = indexById(references.units);
   const peopleById = indexById(references.people);
-  const resolvedActor = actor ?? { role: "super_admin" as const };
+  const resolvedActor = actor ?? {
+    dataScope: "organization" as const,
+    workflowMode: "coordinator" as const,
+  };
   const eligibleVendorPersonIds = isMember
     ? undefined
     : new Set(vendorOptions.map((vendor) => vendor.id));
@@ -338,7 +341,7 @@ export function scopeMaintenanceMutableOptions(
     "branchOptions" | "propertyOptions" | "staffOptions" | "unitOptions" | "vendorOptions"
   >,
 ) {
-  if (actor.role !== "operations_member") {
+  if (actor.workflowMode !== "assigned") {
     return options;
   }
 
@@ -355,7 +358,7 @@ export async function getMaintenanceReminderNotifications(
   organizationId: string,
   actor?: MaintenanceActor,
 ): Promise<MaintenanceReminderNotification[]> {
-  if (actor?.role === "operations_member" && !actor.personId) {
+  if (actor?.workflowMode === "assigned" && !actor.personId) {
     return [];
   }
   const supabase = await createSupabaseServerClient();
@@ -787,14 +790,19 @@ function applyActorTaskScope<T extends { eq: (column: string, value: string) => 
   query: T,
   actor?: MaintenanceActor,
 ) {
-  if (actor?.role === "operations_member") {
-    return actor.personId
+  if (actor?.dataScope === "assigned") {
+    const assignedQuery = actor.personId
       ? query.eq("assignee_person_id", actor.personId)
       : query.eq("assignee_person_id", "00000000-0000-0000-0000-000000000000");
+    return actor.branchId
+      ? assignedQuery.eq("branch_id", actor.branchId)
+      : assignedQuery.eq("branch_id", "00000000-0000-0000-0000-000000000000");
   }
 
-  if (actor?.role === "operations_manager" && actor.branchId) {
-    return query.eq("branch_id", actor.branchId);
+  if (actor?.dataScope === "branch") {
+    return actor.branchId
+      ? query.eq("branch_id", actor.branchId)
+      : query.eq("branch_id", "00000000-0000-0000-0000-000000000000");
   }
 
   return query;

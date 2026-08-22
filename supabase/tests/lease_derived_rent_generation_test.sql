@@ -929,6 +929,7 @@ SELECT results_eq(
 
 INSERT INTO public.financial_month_locks (
   organization_id,
+  branch_id,
   month_start,
   is_locked,
   locked_at,
@@ -937,6 +938,7 @@ INSERT INTO public.financial_month_locks (
 )
 SELECT
   organization_id,
+  (SELECT branch_id FROM public.properties WHERE id=lease_rent_state.property_id),
   '2026-10-01',
   true,
   now(),
@@ -982,6 +984,7 @@ SELECT is(
 
 INSERT INTO public.financial_month_locks (
   organization_id,
+  branch_id,
   month_start,
   is_locked,
   locked_at,
@@ -990,6 +993,7 @@ INSERT INTO public.financial_month_locks (
 )
 SELECT
   organization_id,
+  (SELECT branch_id FROM public.properties WHERE id=lease_rent_state.property_id),
   month_start,
   true,
   now(),
@@ -1054,6 +1058,7 @@ SELECT is(
 
 INSERT INTO public.financial_month_locks (
   organization_id,
+  branch_id,
   month_start,
   is_locked,
   locked_at,
@@ -1062,13 +1067,14 @@ INSERT INTO public.financial_month_locks (
 )
 SELECT
   organization_id,
+  (SELECT branch_id FROM public.properties WHERE id=lease_rent_state.property_id),
   current_period_start,
   true,
   now(),
   super_admin_id,
   'Current-rent retry must fail closed'
 FROM lease_rent_state
-ON CONFLICT (organization_id, month_start) DO UPDATE
+ON CONFLICT (organization_id, branch_id, month_start) WHERE branch_id IS NOT NULL DO UPDATE
 SET is_locked = EXCLUDED.is_locked,
     locked_at = EXCLUDED.locked_at,
     locked_by = EXCLUDED.locked_by,
@@ -1436,6 +1442,7 @@ RESET ROLE;
 
 INSERT INTO public.financial_month_locks (
   organization_id,
+  branch_id,
   month_start,
   is_locked,
   locked_at,
@@ -1444,13 +1451,14 @@ INSERT INTO public.financial_month_locks (
 )
 SELECT
   organization_id,
+  (SELECT branch_id FROM public.properties WHERE id=lease_rent_state.property_id),
   '2026-08-01',
   true,
   now(),
   super_admin_id,
   'Historical recovery must stay in the selected month'
 FROM lease_rent_state
-ON CONFLICT (organization_id, month_start) DO UPDATE
+ON CONFLICT (organization_id, branch_id, month_start) WHERE branch_id IS NOT NULL DO UPDATE
 SET is_locked = EXCLUDED.is_locked,
     locked_at = EXCLUDED.locked_at,
     locked_by = EXCLUDED.locked_by,

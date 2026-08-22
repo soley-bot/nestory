@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireLeaseConfigurationContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { postgresUuid } from "@/lib/validation/postgres-uuid";
 import {
@@ -337,11 +337,21 @@ export async function createLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.prepare");
   const parsed = leaseMutationSchema.safeParse(readLeaseMutationInput(formData));
 
   if (!parsed.success) {
     return invalidFormState(parsed.error);
+  }
+
+  if (parsed.data.status === "active") {
+    await requirePermission("leases.activate");
+  } else if (
+    ["cancelled", "ended", "notice_given", "terminated"].includes(
+      parsed.data.status,
+    )
+  ) {
+    await requirePermission("leases.close");
   }
 
   const idempotencyKey = readIdempotencyKey(formData);
@@ -436,7 +446,7 @@ export async function recordCurrentLeaseOccupancyEvidenceAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.activate");
   const parsed = currentOccupancyEvidenceSchema.safeParse({
     actualMoveInDate: readString(formData, "actualMoveInDate"),
     leaseId: readString(formData, "leaseId"),
@@ -491,7 +501,6 @@ export async function transitionLeaseLifecycleAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
   const parsed = leaseLifecycleTransitionSchema.safeParse({
     effectiveDate: readString(formData, "effectiveDate"),
     expectedOccupancyId: readString(formData, "expectedOccupancyId"),
@@ -506,6 +515,10 @@ export async function transitionLeaseLifecycleAction(
   if (!parsed.success) {
     return invalidFormState(parsed.error);
   }
+
+  const context = await requirePermission(
+    parsed.data.transition === "activate" ? "leases.activate" : "leases.close",
+  );
 
   const supabase = await createSupabaseServerClient();
   const scheduledMoveOutDate =
@@ -555,7 +568,7 @@ export async function scheduleLeaseActivationAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.activate");
   const parsed = leaseActivationSchema.safeParse({
     activationDate: readString(formData, "activationDate"),
     expectedOccupancyId: readString(formData, "expectedOccupancyId"),
@@ -620,7 +633,7 @@ export async function cancelLeaseActivationAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.activate");
   const parsed = cancelLeaseActivationSchema.safeParse({
     leaseId: readString(formData, "leaseId"),
     scheduleId: readString(formData, "scheduleId"),
@@ -647,7 +660,7 @@ export async function updateLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.prepare");
   const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
   const parsed = leaseMutationSchema.safeParse(readLeaseMutationInput(formData));
 
@@ -720,7 +733,7 @@ export async function scheduleFutureRentTermAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.change_terms");
   const parsed = parseFutureRentTermInput({
     endDate: readString(formData, "endDate"),
     leaseId: readString(formData, "leaseId"),
@@ -798,7 +811,7 @@ export async function archiveLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.archive");
   const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
 
   if (!parsedLeaseId.success) {
@@ -844,7 +857,7 @@ export async function restoreLeaseAction(
   _state: LeaseActionState,
   formData: FormData,
 ): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.archive");
   const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
 
   if (!parsedLeaseId.success) {
@@ -1073,7 +1086,7 @@ function isLeaseUnitTermConflict(message: string) {
 }
 
 export async function recordLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.change_terms");
   const parsed = depositEventSchema.safeParse({ amount: readString(formData, "amount"), eventDate: readString(formData, "eventDate"), eventType: readString(formData, "eventType"), leaseDepositId: readString(formData, "leaseDepositId"), reference: readString(formData, "reference") });
   if (!parsed.success) return invalidFormState(parsed.error);
   const supabase = await createSupabaseServerClient();
@@ -1084,7 +1097,7 @@ export async function recordLeaseDepositEventAction(_state: LeaseActionState, fo
 }
 
 export async function reverseLeaseDepositEventAction(_state: LeaseActionState, formData: FormData): Promise<LeaseActionState> {
-  const context = await requireLeaseConfigurationContext();
+  const context = await requirePermission("leases.change_terms");
   const eventId = postgresUuid("Choose deposit activity.").safeParse(readString(formData, "eventId"));
   const eventDate = dateSchema.safeParse(readString(formData, "eventDate"));
   if (!eventId.success || !eventDate.success) return { message: "Choose valid deposit activity and a date.", status: "error" };

@@ -1,4 +1,5 @@
 import { toRecentChange } from "@/features/activity/recent-changes";
+import { getDocumentAuthorityDomain } from "@/features/documents/document-authority";
 import {
   buildDocumentPagination,
   parseDocumentSearchParams,
@@ -58,7 +59,10 @@ type LedgerRow = {
 };
 
 type TimelineRow = {
+  event_type: string;
   id: string;
+  lease_id: string | null;
+  ledger_entry_id: string | null;
   title: string;
 };
 
@@ -273,6 +277,19 @@ function toDocumentSummary({
   return {
     ...linkedDocument,
     activity,
+    authorityDomain: getDocumentAuthorityDomain({
+      leaseId: document.lease_id,
+      ledgerEntryId: document.ledger_entry_id,
+      propertyId: document.property_id,
+      taskId: document.task_id,
+      timelineEvent: timelineEvent
+        ? {
+            eventType: timelineEvent.event_type,
+            leaseId: timelineEvent.lease_id,
+            ledgerEntryId: timelineEvent.ledger_entry_id,
+          }
+        : null,
+    }),
     archivedAt: document.archived_at ?? undefined,
     formValues: {
       category: document.category,
@@ -509,7 +526,7 @@ async function getTimelineEventsById(
 
   const result = await supabase
     .from("timeline_events")
-    .select("id, title")
+    .select("id, title, event_type, lease_id, ledger_entry_id")
     .eq("organization_id", organizationId)
     .in("id", uniqueIds);
 

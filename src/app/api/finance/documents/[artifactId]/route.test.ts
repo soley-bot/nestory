@@ -6,8 +6,8 @@ import {
   getCurrentUser,
   getWorkspaceMembershipForUser,
 } from "@/lib/auth/context";
-import { getWorkspaceCapabilities } from "@/lib/auth/capabilities";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
 
 vi.mock("@/features/finance-operations/documents/commercial-document-artifacts", () => ({
   downloadTenantCommercialDocumentArtifact: vi.fn(),
@@ -16,7 +16,6 @@ vi.mock("@/lib/auth/context", () => ({
   getCurrentUser: vi.fn(),
   getWorkspaceMembershipForUser: vi.fn(),
 }));
-vi.mock("@/lib/auth/capabilities", () => ({ getWorkspaceCapabilities: vi.fn() }));
 vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient: vi.fn() }));
 
 describe("GET /api/finance/documents/[artifactId]", () => {
@@ -27,15 +26,9 @@ describe("GET /api/finance/documents/[artifactId]", () => {
     vi.clearAllMocks();
     vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1" });
     vi.mocked(createSupabaseServerClient).mockResolvedValue({} as never);
-    vi.mocked(getWorkspaceMembershipForUser).mockResolvedValue({
-      branchId: "branch-1",
-      organizationId: "11111111-1111-4111-8111-111111111111",
-      organizationName: "Nestory",
-      personId: "person-1",
-      role: "finance_member",
-      theme: { accentPreset: "neutral", accentSeed: null, mode: "system" },
-    });
-    vi.mocked(getWorkspaceCapabilities).mockReturnValue({ canReadFinance: true } as never);
+    vi.mocked(getWorkspaceMembershipForUser).mockResolvedValue(
+      membership("finance.view"),
+    );
     vi.mocked(downloadTenantCommercialDocumentArtifact).mockResolvedValue({
       bytes: Uint8Array.from([0x25, 0x50, 0x44, 0x46]),
       contentType: "application/pdf",
@@ -68,7 +61,7 @@ describe("GET /api/finance/documents/[artifactId]", () => {
 
   it("returns private 403 for a user without current organization finance access", async () => {
     // Break caught: non-finance members downloading finance documents.
-    vi.mocked(getWorkspaceCapabilities).mockReturnValue({ canReadFinance: false } as never);
+    vi.mocked(getWorkspaceMembershipForUser).mockResolvedValue(membership());
     const response = await GET(new Request("http://localhost/api/finance/documents/x"), context);
     expect(response.status).toBe(403);
     expect(await response.text()).toBe("Forbidden");
@@ -151,3 +144,18 @@ describe("GET /api/finance/documents/[artifactId]", () => {
     expect(response.headers.get("x-evil")).toBeNull();
   });
 });
+
+function membership(...permissionKeys: PermissionKey[]) {
+  return {
+    branchId: "branch-1",
+    isSuperAdmin: false,
+    organizationId: "11111111-1111-4111-8111-111111111111",
+    organizationName: "Nestory",
+    permissionKeys: new Set(permissionKeys),
+    personId: "person-1",
+    role: "custom",
+    roleKind: "custom",
+    roleName: "Finance Viewer",
+    theme: { accentPreset: "neutral", accentSeed: null, mode: "system" },
+  } as never;
+}

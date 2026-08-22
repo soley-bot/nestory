@@ -1,13 +1,67 @@
 import { describe, expect, it } from "vitest";
 import {
   getWorkspaceCapabilities,
+  getWorkspaceCapabilitiesFromPermissions,
+  CURRENT_WORKSPACE_ROLE_KINDS,
   isWorkspaceRole,
   WORKSPACE_ROLES,
   type WorkspaceRole,
 } from "@/lib/auth/capabilities";
 
 describe("workspace role capabilities", () => {
-  it("accepts exactly the five product roles", () => {
+  it("derives current Finance and Maintenance authority from exact permission keys", () => {
+    expect(
+      getWorkspaceCapabilitiesFromPermissions({
+        isSuperAdmin: false,
+        permissionKeys: new Set([
+          "finance.view",
+          "finance.submit_expenses",
+          "maintenance.view",
+          "maintenance.complete",
+        ]),
+      }),
+    ).toMatchObject({
+      canExecuteOperations: true,
+      canLockFinancialMonth: false,
+      canManageAccess: false,
+      canManageOperations: false,
+      canReadFinance: true,
+      canReviewExpense: false,
+      canSubmitExpense: true,
+    });
+  });
+
+  it("keeps exceptional and organization-wide authority Super Admin only", () => {
+    const ordinary = getWorkspaceCapabilitiesFromPermissions({
+      isSuperAdmin: false,
+      permissionKeys: new Set([
+        "finance.view",
+        "finance.correct_records",
+        "finance.close_periods",
+      ]),
+    });
+
+    expect(ordinary).toMatchObject({
+      canCorrectFinance: true,
+      canLockFinancialMonth: true,
+      canManageAccess: false,
+      canManageReconciliationSources: false,
+      canRecoverHistoricalRent: false,
+      canReopenOwnerMonth: false,
+      canReverseExpense: false,
+      canUnlockFinancialMonth: false,
+    });
+
+    expect(
+      getWorkspaceCapabilitiesFromPermissions({
+        isSuperAdmin: true,
+        permissionKeys: new Set(),
+      }),
+    ).toEqual(getWorkspaceCapabilities("super_admin"));
+  });
+
+  it("keeps current role kinds separate from contained legacy role parsing", () => {
+    expect(CURRENT_WORKSPACE_ROLE_KINDS).toEqual(["super_admin", "custom"]);
     expect(WORKSPACE_ROLES).toEqual([
       "super_admin",
       "finance_manager",
@@ -17,9 +71,13 @@ describe("workspace role capabilities", () => {
     ]);
 
     expect(WORKSPACE_ROLES.every(isWorkspaceRole)).toBe(true);
-    expect(
-      ["admin", "manager", "member", "owner", ""].map(isWorkspaceRole),
-    ).toEqual([false, false, false, false, false]);
+    expect(["admin", "manager", "member", "owner", ""].map(isWorkspaceRole)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
   });
 
   it.each<[WorkspaceRole, readonly boolean[]]>([

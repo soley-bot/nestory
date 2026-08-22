@@ -112,24 +112,17 @@ async function main() {
 
     cleanup(container);
     fixture(container);
-    await proveTenantRoleMutationVsCreate(container, {
-      archiveRole: false,
-      marker: "TENANT_ROLE_DEACTIVATED_UNCOMMITTED",
-    });
+    await proveTenantRoleMutationVsCreate(
+      container,
+      "TENANT_ROLE_REMOVED_UNCOMMITTED",
+    );
 
     cleanup(container);
     fixture(container);
-    await proveTenantRoleMutationVsCreate(container, {
-      archiveRole: true,
-      marker: "TENANT_ROLE_ARCHIVED_UNCOMMITTED",
-    });
-
-    cleanup(container);
-    fixture(container);
-    await proveUnrelatedPersonIsNotGloballyBlocked(container);
+    await proveUnrelatedPersonUsesOneAuthorizationSnapshot(container);
 
     process.stdout.write(
-      "PASS lease-history integrity: checked creation serialized active-Person archive, returned relationship_transition_required, waited behind held Person and Tenant-role mutations before rejecting ineligible tenants without auto-promotion, preserved the direct role-update workflow, and did not globally block an unrelated Person archive.\n",
+      "PASS lease-history integrity: checked creation serialized active-Person archive, returned relationship_transition_required, waited behind the checked Tenant-role update before rejecting an ineligible tenant, and kept unrelated Person lifecycle changes on one authorization snapshot.\n",
     );
   } catch (error) {
     proofError = error;
@@ -334,7 +327,7 @@ WHERE people.id = '${ids.tenant}'::uuid
 
 async function proveTenantRoleMutationVsCreate(
   container,
-  { archiveRole, marker },
+  marker,
 ) {
   const roleFixtureState = queryScalar(
     container,
@@ -352,7 +345,7 @@ WHERE roles.organization_id = '${ids.organization}'::uuid
 
   const roleMutation = startPsql(
     container,
-    mutateTenantRoleBeforeCommitSql({ archiveRole, marker }),
+    removeTenantRoleBeforeCommitSql(marker),
     { holdOpen: true },
   );
   await roleMutation.waitFor(marker);
@@ -419,7 +412,7 @@ WHERE roles.organization_id = '${ids.organization}'::uuid
   AND roles.person_id = '${ids.tenant}'::uuid
   AND roles.role = 'tenant';`,
   );
-  const expectedState = `inactive:${archiveRole ? "true" : "false"}:0:1:0`;
+  const expectedState = "inactive:true:0:1:0";
   if (persistedState !== expectedState) {
     throw new Error(
       `Expected a preserved inactive Tenant role and no Lease auto-promotion, found ${persistedState}.`,
@@ -427,7 +420,7 @@ WHERE roles.organization_id = '${ids.organization}'::uuid
   }
 }
 
-async function proveUnrelatedPersonIsNotGloballyBlocked(container) {
+async function proveUnrelatedPersonUsesOneAuthorizationSnapshot(container) {
   const creation = startPsql(
     container,
     checkedLeaseCreationSql("UNRELATED_CONTROL_LEASE_CREATED"),
@@ -443,12 +436,8 @@ async function proveUnrelatedPersonIsNotGloballyBlocked(container) {
     ),
   );
 
-  let unrelatedResult;
   try {
-    unrelatedResult = await withTimeout(
-      unrelatedArchive.result,
-      "The unrelated Person archive waited on a different Person identity.",
-    );
+    await waitForDatabaseLock(container, unrelatedArchive, creation);
   } catch (error) {
     creation.release();
     await Promise.allSettled([creation.result, unrelatedArchive.result]);
@@ -461,9 +450,13 @@ async function proveUnrelatedPersonIsNotGloballyBlocked(container) {
     );
   }
 
-  evaluateUnrelatedArchive(unrelatedResult);
   creation.release();
-  assertSucceeded("held checked Lease creation", await creation.result);
+  const [creationResult, unrelatedResult] = await Promise.all([
+    creation.result,
+    unrelatedArchive.result,
+  ]);
+  assertSucceeded("held checked Lease creation", creationResult);
+  evaluateUnrelatedArchive(unrelatedResult);
 
   const unrelatedWasArchived = queryScalar(
     container,
@@ -664,18 +657,23 @@ COMMIT;
 `;
 }
 
-function mutateTenantRoleBeforeCommitSql({ archiveRole, marker }) {
+function removeTenantRoleBeforeCommitSql(marker) {
   return `\\set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('request.jwt.claim.sub', '${ids.admin}', true);
 SET LOCAL ROLE authenticated;
-UPDATE public.person_roles
-SET
-  status = 'inactive',
-  archived_at = ${archiveRole ? "now()" : "NULL"}
-WHERE organization_id = '${ids.organization}'::uuid
-  AND person_id = '${ids.tenant}'::uuid
-  AND role = 'tenant';
+SELECT public.update_person(
+  '${ids.tenant}'::uuid,
+  '${ids.organization}'::uuid,
+  'Lease history concurrency tenant',
+  NULL,
+  'individual',
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  ARRAY['vendor']::text[]
+);
 \\echo ${marker}
 `;
 }
@@ -969,25 +967,6 @@ function assertSucceeded(label, result) {
 function readOption(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
-}
-
-function withTimeout(promise, message) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const timeout = setTimeout(
-      () => rejectPromise(new Error(message)),
-      markerTimeoutMs,
-    );
-    promise.then(
-      (value) => {
-        clearTimeout(timeout);
-        resolvePromise(value);
-      },
-      (error) => {
-        clearTimeout(timeout);
-        rejectPromise(error);
-      },
-    );
-  });
 }
 
 const entryPath = process.argv[1] ? resolve(process.argv[1]) : "";

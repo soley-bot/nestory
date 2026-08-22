@@ -10,7 +10,7 @@ export type MaintenanceBranchControlMode = "all_branches" | "fixed" | "selectabl
 export function getMaintenanceBranchControlMode(
   actor: MaintenanceActor,
 ): MaintenanceBranchControlMode {
-  if (actor.role !== "operations_manager") return "selectable";
+  if (actor.dataScope === "organization") return "selectable";
   return actor.branchId ? "fixed" : "all_branches";
 }
 

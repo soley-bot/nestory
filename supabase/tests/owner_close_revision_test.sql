@@ -208,10 +208,18 @@ SELECT is(
 
 RESET ROLE;
 SELECT ok(
-  app_private.can_close_owner_month(
+  NOT app_private.can_close_owner_month(
     '00000000-0000-0000-0000-000000000001'
   ),
-  'Finance Manager can close a reconciled owner month after readiness and lock checks pass'
+  'legacy organization-wide close authority remains Super Admin-only'
+);
+SELECT ok(
+  app_private.can_access_property(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'finance.close_periods'
+  ),
+  'the scoped checked close contract authorizes Finance Manager in the assigned branch'
 );
 SET LOCAL ROLE authenticated;
 
@@ -2433,11 +2441,16 @@ SELECT is(
   'future transfer movement exists without a future owner period row'
 );
 
-SELECT public.set_financial_month_lock(
-  '00000000-0000-0000-0000-000000000001',
-  pg_catalog.date_trunc('month', current_date)::date,
+SELECT is(
+  (
+    SELECT month_lock.is_locked
+    FROM public.financial_month_locks AS month_lock
+    WHERE month_lock.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND month_lock.branch_id IS NULL
+      AND month_lock.month_start = pg_catalog.date_trunc('month', current_date)::date
+  ),
   true,
-  'Lock movement-only future-month close correction proof'
+  'movement-only correction proof reuses the already locked organization month'
 );
 
 CREATE TEMP TABLE owner_close_c2_movement_only_runtime (

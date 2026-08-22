@@ -62,6 +62,8 @@ import type {
 import { formatDate } from "@/lib/dates/format";
 import { getUuidSearchParam } from "@/lib/validation/search-params";
 import { cn } from "@/lib/utils";
+import type { PermissionKey } from "@/lib/auth/permission-catalog";
+import { getDocumentPermission } from "@/features/documents/document-authority";
 
 const initialState: DocumentActionState = {};
 
@@ -87,6 +89,7 @@ type DocumentScreenProps = {
   documents: DocumentSummary[];
   initialDocumentId?: string;
   pagination: DocumentPagination;
+  permissionKeys?: PermissionKey[];
   propertyOptions: DocumentPropertyOption[];
   unitOptions: DocumentUnitOption[];
   viewQuery: DocumentViewQuery;
@@ -96,10 +99,20 @@ export function DocumentScreen({
   documents,
   initialDocumentId,
   pagination,
+  permissionKeys = [
+    "finance.correct_records",
+    "leases.archive",
+    "leases.change_terms",
+    "maintenance.create_assign",
+    "properties.archive",
+    "properties.write",
+  ],
   propertyOptions,
   unitOptions,
   viewQuery,
 }: DocumentScreenProps) {
+  const grantedPermissions = new Set(permissionKeys);
+  const canCreatePropertyDocument = grantedPermissions.has("properties.write");
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -115,7 +128,7 @@ export function DocumentScreen({
     [propertyOptions, searchParamString, unitOptions, viewQuery],
   );
   const [drawer, setDrawer] = useState<DrawerState | null>(() =>
-    searchParams.get("action") === "create"
+    canCreatePropertyDocument && searchParams.get("action") === "create"
       ? { initialValues: createInitialValues, mode: "create" }
       : null,
   );
@@ -149,7 +162,7 @@ export function DocumentScreen({
   }, [focusedDocumentId]);
 
   useEffect(() => {
-    if (searchParams.get("action") !== "create") {
+    if (!canCreatePropertyDocument || searchParams.get("action") !== "create") {
       return;
     }
 
@@ -160,7 +173,7 @@ export function DocumentScreen({
     router.replace(getHrefWithoutActionParam(pathname, searchParams), {
       scroll: false,
     });
-  }, [createInitialValues, pathname, router, searchParams]);
+  }, [canCreatePropertyDocument, createInitialValues, pathname, router, searchParams]);
   const openDocumentAction = (nextDrawer: DrawerState) => {
     setCompactInspectorOpen(false);
     setStatusMessage(null);
@@ -226,6 +239,12 @@ export function DocumentScreen({
   );
   const documentInspector = selectedDocument ? (
     <DocumentInspector
+      canArchive={grantedPermissions.has(
+        getDocumentPermission(selectedDocument.authorityDomain, "archive"),
+      )}
+      canWrite={grantedPermissions.has(
+        getDocumentPermission(selectedDocument.authorityDomain, "write"),
+      )}
       document={selectedDocument}
       onArchive={(document) =>
         openDocumentAction({ document, mode: "archive" })
@@ -240,10 +259,12 @@ export function DocumentScreen({
   return (
     <WorkspacePage
       actions={
-        <Button onClick={openCreate} variant="default">
-          <Plus size={15} />
-          Upload document
-        </Button>
+        canCreatePropertyDocument ? (
+          <Button onClick={openCreate} variant="default">
+            <Plus size={15} />
+            Upload document
+          </Button>
+        ) : undefined
       }
       breadcrumbItems={[{ href: "/timeline", label: "Records" }]}
       context={`${pagination.totalCount} ${pagination.totalCount === 1 ? "document" : "documents"}`}
@@ -586,11 +607,15 @@ function DocumentTable({
 }
 
 function DocumentInspector({
+  canArchive,
+  canWrite,
   document,
   onArchive,
   onEdit,
   onRestore,
 }: {
+  canArchive: boolean;
+  canWrite: boolean;
   document: DocumentSummary | null;
   onArchive: (document: DocumentSummary) => void;
   onEdit: (document: DocumentSummary) => void;
@@ -642,25 +667,27 @@ function DocumentInspector({
         <DocumentLinkedRecords records={document.linkedRecords} />
 
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            aria-label="Edit document"
-            onClick={() => onEdit(document)}
-            type="button"
-          >
-            <Pencil size={15} />
-            Edit
-          </Button>
-          {document.isArchived ? (
+          {canWrite ? (
+            <Button
+              aria-label="Edit document"
+              onClick={() => onEdit(document)}
+              type="button"
+            >
+              <Pencil size={15} />
+              Edit
+            </Button>
+          ) : null}
+          {canArchive && document.isArchived ? (
             <Button onClick={() => onRestore(document)} type="button">
               <RotateCcw size={15} />
               Restore
             </Button>
-          ) : (
+          ) : canArchive ? (
             <Button onClick={() => onArchive(document)} type="button">
               <Archive size={15} />
               Archive
             </Button>
-          )}
+          ) : null}
           {document.url ? (
             <a
               className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"

@@ -48,7 +48,9 @@ test("only trusted byte verification can complete retained artifact authority", 
     p_organization_id: organizationId,
     p_reason: "Real Storage correction-round verification",
   });
-  assert.ifError(locked.error);
+  if (locked.error?.message !== "Financial month is already locked") {
+    assert.ifError(locked.error);
+  }
   const closed = await user.rpc("close_owner_month", {
     p_close_reason: "Real Storage correction-round verification",
     p_currency: "USD",

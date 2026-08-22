@@ -69,7 +69,7 @@ SELECT ok(
     ),
     false
   ),
-  'only authenticated can execute initial submit'
+  'initial submit is exposed only to authenticated callers, never anon or service_role'
 );
 
 SELECT ok(
@@ -103,7 +103,7 @@ SELECT ok(
     ),
     false
   ),
-  'only authenticated can execute review'
+  'review is exposed only to authenticated callers, never anon or service_role'
 );
 
 SELECT ok(
@@ -137,7 +137,7 @@ SELECT ok(
     ),
     false
   ),
-  'only authenticated can execute correction submission'
+  'correction submit is exposed only to authenticated callers, never anon or service_role'
 );
 
 SELECT ok(
@@ -193,7 +193,7 @@ SELECT throws_ok(
   $$,
   '42501',
   'permission denied for function review_owner_opening_balance',
-  'service_role has no unnamed review bypass'
+  'service_role cannot execute the review wrapper'
 );
 RESET ROLE;
 
@@ -301,17 +301,57 @@ VALUES (
   'Workflow operations', 'OWF-OPS'
 );
 
+SELECT pg_catalog.set_config(
+  'app.property_branch_assignment_context',
+  (SELECT capability_token FROM app_private.property_branch_assignment_context_capability WHERE singleton),
+  true
+);
+UPDATE public.properties
+SET branch_id='b2200000-0000-4000-8000-000000000026'
+WHERE id='b2200000-0000-4000-8000-000000000003';
+SELECT pg_catalog.set_config('app.property_branch_assignment_context','off',true);
+
+INSERT INTO public.organization_roles (id,organization_id,name) VALUES
+  ('b2200000-0000-4000-8000-000000000027','b2200000-0000-4000-8000-000000000001','Finance Manager'),
+  ('b2200000-0000-4000-8000-000000000028','b2200000-0000-4000-8000-000000000001','Finance Member'),
+  ('b2200000-0000-4000-8000-000000000029','b2200000-0000-4000-8000-000000000001','Operations Manager'),
+  ('b2200000-0000-4000-8000-000000000030','b2200000-0000-4000-8000-000000000001','Operations Member');
+
+INSERT INTO public.organization_role_permissions (organization_id,role_id,permission_key) VALUES
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000027','finance.view'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000027','finance.approve_expenses'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000027','finance.correct_records'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000027','finance.close_periods'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000027','finance.publish'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000028','finance.view'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000028','finance.submit_expenses'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000029','maintenance.view'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000029','maintenance.create_assign'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000029','maintenance.complete'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000029','maintenance.review'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000030','maintenance.view'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000030','maintenance.complete');
+
 INSERT INTO public.organization_members (
-  organization_id, user_id, role, person_id, branch_id
+  organization_id, user_id, role, person_id, branch_id, custom_role_id
 )
 VALUES
-  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000010', 'super_admin', NULL, NULL),
-  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000011', 'super_admin', NULL, NULL),
-  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000012', 'finance_manager', NULL, NULL),
-  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000013', 'finance_member', NULL, NULL),
-  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000014', 'operations_manager', 'b2200000-0000-4000-8000-000000000024', 'b2200000-0000-4000-8000-000000000026'),
-  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000015', 'operations_member', 'b2200000-0000-4000-8000-000000000025', 'b2200000-0000-4000-8000-000000000026'),
-  ('b2200000-0000-4000-8000-000000000002', 'b2200000-0000-4000-8000-000000000017', 'super_admin', NULL, NULL);
+  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000010', 'super_admin', NULL, NULL, NULL),
+  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000011', 'super_admin', NULL, NULL, NULL),
+  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000012', 'custom', NULL, 'b2200000-0000-4000-8000-000000000026', 'b2200000-0000-4000-8000-000000000027'),
+  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000013', 'custom', NULL, 'b2200000-0000-4000-8000-000000000026', 'b2200000-0000-4000-8000-000000000028'),
+  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000014', 'custom', 'b2200000-0000-4000-8000-000000000024', 'b2200000-0000-4000-8000-000000000026', 'b2200000-0000-4000-8000-000000000029'),
+  ('b2200000-0000-4000-8000-000000000001', 'b2200000-0000-4000-8000-000000000015', 'custom', 'b2200000-0000-4000-8000-000000000025', 'b2200000-0000-4000-8000-000000000026', 'b2200000-0000-4000-8000-000000000030'),
+  ('b2200000-0000-4000-8000-000000000002', 'b2200000-0000-4000-8000-000000000017', 'super_admin', NULL, NULL, NULL);
+
+INSERT INTO public.person_branch_relationships (organization_id,person_id,branch_id) VALUES
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000004','b2200000-0000-4000-8000-000000000026'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000024','b2200000-0000-4000-8000-000000000026'),
+  ('b2200000-0000-4000-8000-000000000001','b2200000-0000-4000-8000-000000000025','b2200000-0000-4000-8000-000000000026');
+
+UPDATE public.organization_authorization_states
+SET ordinary_access_enabled=true,transition_manifest_required=false
+WHERE organization_id='b2200000-0000-4000-8000-000000000001';
 
 INSERT INTO storage.objects (bucket_id, name)
 VALUES (
@@ -435,7 +475,7 @@ SELECT throws_ok(
     repeat('1', 64), NULL, 'manager-submit-0001'
   )$$,
   '42501',
-  'Not authorized to submit owner opening balances',
+  'Not authorized',
   'Finance Manager cannot submit an initial opening request'
 );
 
@@ -446,7 +486,7 @@ SELECT throws_ok(
     repeat('1', 64), NULL, 'ops-manager-submit-0001'
   )$$,
   '42501',
-  'Not authorized to submit owner opening balances',
+  'Not authorized',
   'Operations Manager cannot submit an initial opening request'
 );
 
@@ -457,7 +497,7 @@ SELECT throws_ok(
     repeat('1', 64), NULL, 'ops-member-submit-0001'
   )$$,
   '42501',
-  'Not authorized to submit owner opening balances',
+  'Not authorized',
   'Operations Member cannot submit an initial opening request'
 );
 
@@ -468,7 +508,7 @@ SELECT throws_ok(
     repeat('1', 64), NULL, 'unaffiliated-submit-0001'
   )$$,
   '42501',
-  'Not authorized to submit owner opening balances',
+  'Not authorized',
   'an unaffiliated actor cannot submit an initial opening request'
 );
 
@@ -479,7 +519,7 @@ SELECT throws_ok(
     repeat('1', 64), NULL, 'cross-submit-0001'
   )$$,
   '42501',
-  'Not authorized to submit owner opening balances',
+  'Not authorized',
   'a cross-organization Super Admin cannot submit into another organization'
 );
 
@@ -552,8 +592,8 @@ SELECT throws_ok(
       repeat('1', 64), NULL, 'missing-property-0001'
     )
   $$,
-  '23503',
-  'Property not found',
+  '42501',
+  'Not authorized',
   'initial submit rejects a missing or cross-organization property scope'
 );
 
@@ -716,7 +756,7 @@ SELECT throws_ok(
     )
   $$,
   '42501',
-  'Not authorized to review owner opening balances',
+  'Not authorized',
   'Operations Manager cannot review an opening request'
 );
 
@@ -729,7 +769,7 @@ SELECT throws_ok(
     )
   $$,
   '42501',
-  'Not authorized to review owner opening balances',
+  'Not authorized',
   'Operations Member cannot review an opening request'
 );
 
@@ -741,8 +781,8 @@ SELECT throws_ok(
       'reject', 'Unknown request denied', 'unknown-review-0001'
     )
   $$,
-  '23503',
-  'Owner opening request not found',
+  '42501',
+  'Not authorized',
   'a guessed request ID fails closed for an authorized reviewer'
 );
 
@@ -773,7 +813,7 @@ SELECT throws_ok(
     'reject', 'Insufficient source detail', 'member-review-0001'
   ),
   '42501',
-  'Not authorized to review owner opening balances',
+  'Not authorized',
   'Finance Member cannot review an opening request'
 );
 RESET ROLE;
@@ -792,7 +832,7 @@ SELECT throws_ok(
     'approve', 'Approval is not yet available', 'approve-before-2-2c'
   ),
   '42501',
-  'Not authorized to review owner opening balances',
+  'Not authorized',
   'a non-reviewer cannot reach an approval path'
 );
 RESET ROLE;
@@ -959,7 +999,7 @@ SELECT throws_ok(
   $$,
   '42501',
   'permission denied for function submit_owner_opening_balance_correction',
-  'service_role has no correction submission bypass'
+  'service_role cannot execute the correction wrapper'
 );
 RESET ROLE;
 
@@ -973,7 +1013,7 @@ SELECT throws_ok(
     )
   $$,
   '42501',
-  'Not authorized to request owner opening balance corrections',
+  'Not authorized',
   'Operations Manager cannot submit a correction'
 );
 
@@ -987,7 +1027,7 @@ SELECT throws_ok(
     )
   $$,
   '42501',
-  'Not authorized to request owner opening balance corrections',
+  'Not authorized',
   'Operations Member cannot submit a correction'
 );
 
@@ -1001,7 +1041,7 @@ SELECT throws_ok(
     )
   $$,
   '42501',
-  'Not authorized to request owner opening balance corrections',
+  'Not authorized',
   'an unaffiliated actor cannot submit a correction'
 );
 
@@ -1014,9 +1054,9 @@ SELECT throws_ok(
       repeat('a', 64), NULL, 'member-guessed-correction-0001'
     )
   $$,
-  '23503',
-  'Owner opening correction target not found',
-  'Finance Member reaches the correction capability but a guessed target fails closed'
+  '42501',
+  'Not authorized',
+  'Finance Member lacks correction authority'
 );
 
 SELECT throws_ok(
@@ -1028,8 +1068,8 @@ SELECT throws_ok(
       repeat('a', 64), NULL, 'super-guessed-correction-0001'
     )
   $$,
-  '23503',
-  'Owner opening correction target not found',
+  '42501',
+  'Not authorized',
   'Super Admin reaches the correction capability but a guessed target fails closed'
 );
 
@@ -1047,8 +1087,8 @@ SELECT throws_ok(
       repeat('a', 64), NULL, 'cross-correction-0001'
     )
   $$,
-  '23503',
-  'Owner opening correction target not found',
+  '42501',
+  'Not authorized',
   'an authorized actor in another organization cannot repoint a foreign entry'
 );
 
@@ -1141,15 +1181,15 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$
     SELECT pg_temp.submit_opening_correction(
-      'b2200000-0000-4000-8000-000000000013',
+      'b2200000-0000-4000-8000-000000000016',
       (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
       25.00, 'Correct opening authority', 'IPS correction source 1', NULL,
       repeat('a', 64), NULL, 'manager-correction-0001'
     )
   $$,
-  '22023',
-  'Conflicting financial idempotency request',
-  'correction submission rejects another actor reusing the completed identity'
+  '42501',
+  'Not authorized',
+  'an actor without finance submission or correction permission cannot reuse a completed identity'
 );
 
 SELECT lives_ok(
@@ -1372,7 +1412,7 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$
     SELECT pg_temp.submit_opening_correction(
-      'b2200000-0000-4000-8000-000000000013',
+      'b2200000-0000-4000-8000-000000000012',
       (SELECT super_opening_entry_id FROM owner_opening_workflow_state),
       24.00, 'Stale opening correction', 'Stale source', NULL,
       repeat('d', 64), NULL, 'stale-correction-0001'
@@ -1386,7 +1426,7 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$
     SELECT pg_temp.submit_opening_correction(
-      'b2200000-0000-4000-8000-000000000013',
+      'b2200000-0000-4000-8000-000000000012',
       (SELECT correction_reversal_entry_id FROM owner_opening_workflow_state),
       24.00, 'Wrong entry kind correction', 'Wrong kind source', NULL,
       repeat('d', 64), NULL, 'wrong-kind-correction-0001'
@@ -1399,7 +1439,7 @@ SELECT throws_ok(
 
 WITH submitted AS (
   SELECT pg_temp.submit_opening_correction(
-    'b2200000-0000-4000-8000-000000000013',
+    'b2200000-0000-4000-8000-000000000012',
     (SELECT correction_replacement_entry_id FROM owner_opening_workflow_state),
     22.00, 'Second current correction', 'IPS correction source 3', NULL,
     repeat('e', 64), NULL, 'member-second-correction-0001'
@@ -1904,7 +1944,7 @@ SELECT results_eq(
 SELECT throws_ok(
   $$
     SELECT pg_temp.submit_opening_correction(
-      'b2200000-0000-4000-8000-000000000013',
+      'b2200000-0000-4000-8000-000000000012',
       (SELECT second_correction_replacement_entry_id FROM owner_opening_workflow_state),
       24.00, 'New locked correction denied', 'Locked correction source', NULL,
       repeat('2', 64), NULL, 'locked-new-correction-0001'

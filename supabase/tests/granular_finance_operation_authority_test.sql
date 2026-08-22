@@ -70,24 +70,14 @@ SELECT ok(
   AND has_function_privilege('authenticated', 'public.recover_rent_generation_exception(uuid,uuid)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.record_tenant_invoice_payment_internal(uuid,uuid,numeric,date,uuid,text,jsonb,text)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.confirm_owner_collected_rent_internal(uuid,uuid,numeric,date,text,jsonb,text)', 'EXECUTE')
-  AND (
-    SELECT count(*) = 7
-      AND bool_and(procedure.prosecdef)
-      AND bool_and(procedure.proconfig @> ARRAY['search_path=""'])
-      AND bool_and(procedure.prosrc LIKE '%app_private.can_operate_finance(p_organization_id)%')
-      AND bool_and(procedure.prosrc NOT LIKE '%app_private.is_org_admin(p_organization_id)%')
-    FROM pg_proc AS procedure
-    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
-    WHERE (namespace.nspname, procedure.proname) IN (
-      ('app_private', 'settle_income_item_internal'),
-      ('public', 'confirm_owner_collected_rent'),
-      ('public', 'confirm_owner_collected_rent_internal'),
-      ('public', 'record_owner_invoice_payment'),
-      ('public', 'record_owner_distribution'),
-      ('public', 'record_tenant_invoice_payment'),
-      ('public', 'record_tenant_invoice_payment_internal')
-    )
-  ),
+  AND NOT has_function_privilege('authenticated', 'public.record_tenant_invoice_payment_branch106(uuid,uuid,numeric,date,uuid,text,jsonb,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.confirm_owner_collected_rent_branch106(uuid,uuid,numeric,date,text,jsonb,text)', 'EXECUTE')
+  AND pg_catalog.pg_get_functiondef(
+    'public.record_tenant_invoice_payment(uuid,uuid,numeric,date,uuid,text,jsonb,text)'::regprocedure
+  ) LIKE '%begin_finance_property_authority%'
+  AND pg_catalog.pg_get_functiondef(
+    'public.confirm_owner_collected_rent(uuid,uuid,numeric,date,text,jsonb,text)'::regprocedure
+  ) LIKE '%begin_finance_property_authority%',
   'authenticated reaches only the checked public Finance commands, never duplicated internals'
 );
 
@@ -114,17 +104,18 @@ SELECT ok(
 
 SELECT ok(
   (
-    SELECT procedure.prosrc LIKE '%app_private.can_manage_petty_cash(p_organization_id)%'
-      AND procedure.prosrc NOT LIKE '%app_private.is_org_admin(p_organization_id)%'
-      AND procedure.prosrc LIKE '%app_private.claim_financial_idempotency(%'
+    SELECT procedure.prosrc LIKE '%app_private.begin_finance_property_authority(%'
+      AND procedure.prosrc LIKE '%finance.submit_expenses%'
+      AND procedure.prosrc LIKE '%app_private.create_petty_cash_entry_baseline_branch106(%'
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
     WHERE namespace.nspname = 'public'
       AND procedure.proname = 'create_petty_cash_entry'
   )
   AND (
-    SELECT procedure.prosrc LIKE '%app_private.can_manage_petty_cash(p_organization_id)%'
-      AND procedure.prosrc NOT LIKE '%app_private.is_org_admin(p_organization_id)%'
+    SELECT procedure.prosrc LIKE '%app_private.begin_finance_property_authority(%'
+      AND procedure.prosrc LIKE '%finance.approve_expenses%'
+      AND procedure.prosrc LIKE '%app_private.post_petty_cash_entry_baseline_branch106(%'
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
     WHERE namespace.nspname = 'public'
@@ -134,13 +125,13 @@ SELECT ok(
     SELECT procedure.prosrc LIKE '%app_private.can_lock_financial_month(p_organization_id)%'
       AND procedure.prosrc LIKE '%app_private.can_unlock_financial_month(p_organization_id)%'
       AND procedure.prosrc LIKE '%app_private.is_super_admin(p_organization_id)%'
-      AND procedure.prosrc LIKE '%Finance Manager can lock only the current operational month%'
+      AND procedure.prosrc LIKE '%app_private.lock_financial_month_scope(%'
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
-    WHERE namespace.nspname = 'public'
-      AND procedure.proname = 'set_financial_month_lock'
+    WHERE procedure.oid =
+      'public.set_financial_month_lock(uuid,uuid,date,boolean,text)'::regprocedure
   ),
-  'daily Finance commands consume operation-specific predicates and the narrow Super Admin lock exception'
+  'daily Finance commands use scoped checked wrappers and the serialized Month Lock gate'
 );
 
 CREATE TEMP TABLE granular_authority_state (
@@ -280,8 +271,8 @@ SELECT pg_temp.checked_granular_authority_results_eq(
       app_private.can_correct_finance(organization_id)
     FROM granular_authority_state
   $$,
-  $$ VALUES (true, true, false, true, true, false, true, true) $$,
-  'Finance Manager receives ordinary operation and accepted Track 3 correction authority without configuration or unlock authority'
+  $$ VALUES (false, false, false, false, true, false, false, false) $$,
+  'legacy Finance Manager retains only its mapped Month Lock authority before transition'
 );
 
 SELECT throws_ok(

@@ -140,7 +140,7 @@ export async function markReceiptPublicationFailed(
   const result = await client.rpc(
     "mark_tenant_commercial_document_publication_failed",
     {
-      p_failure_message: normalizeFailureMessage(message),
+      p_failure_reason: normalizeFailureMessage(message),
       p_organization_id: organizationId,
       p_source_id: paymentId,
       p_source_kind: "receipt",
@@ -401,7 +401,7 @@ async function publishArtifact({
     const registration = await client.rpc(
       "register_tenant_commercial_document_artifact",
       {
-        p_document_number: documentNumber,
+        p_filename: `${sourceKind}-${safeNumber}.pdf`,
         p_organization_id: organizationId,
         p_presentation_snapshot: snapshot,
         p_renderer_version: COMMERCIAL_DOCUMENT_RENDERER_VERSION,

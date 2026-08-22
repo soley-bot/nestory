@@ -1,15 +1,15 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getLeasesScreenData, requireFinanceContext, screenSpy } = vi.hoisted(
+const { getLeasesScreenData, requirePermission, screenSpy } = vi.hoisted(
   () => ({
     getLeasesScreenData: vi.fn(),
-    requireFinanceContext: vi.fn(),
+    requirePermission: vi.fn(),
     screenSpy: vi.fn(),
   }),
 );
 
-vi.mock("@/lib/auth/context", () => ({ requireFinanceContext }));
+vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 vi.mock("@/features/leases/data/leases", () => ({ getLeasesScreenData }));
 vi.mock("@/features/leases/components/lease-screen", () => ({
   LeaseScreen: (props: Record<string, unknown>) => {
@@ -23,7 +23,7 @@ import LeasesPage from "@/app/(dashboard)/leases/page";
 describe("leases route", () => {
   beforeEach(() => {
     getLeasesScreenData.mockReset();
-    requireFinanceContext.mockReset();
+    requirePermission.mockReset();
     screenSpy.mockReset();
     getLeasesScreenData.mockResolvedValue({
       leases: [],
@@ -35,17 +35,12 @@ describe("leases route", () => {
   });
 
   it.each([
-    ["finance_manager", true],
-    ["finance_member", false],
-    ["super_admin", true],
-  ] as const)("gives %s capability-correct lease access", async (role, canConfigure) => {
-    requireFinanceContext.mockResolvedValue({
-      capabilities: {
-        canConfigureLeases: canConfigure,
-        canReadFinanceReports: role !== "finance_member",
-      },
+    ["lease preparer", true],
+    ["lease reader", false],
+  ] as const)("gives %s exact lease access", async (_role, canPrepare) => {
+    requirePermission.mockResolvedValue({
       organizationId: "organization-1",
-      role,
+      permissionKeys: new Set(canPrepare ? ["leases.view", "leases.prepare"] : ["leases.view"]),
     });
 
     const html = renderToStaticMarkup(
@@ -53,14 +48,14 @@ describe("leases route", () => {
     );
 
     expect(html).toContain("Lease route");
-    expect(requireFinanceContext).toHaveBeenCalledOnce();
+    expect(requirePermission).toHaveBeenCalledWith("leases.view");
     expect(getLeasesScreenData).toHaveBeenCalledWith(
       "organization-1",
       expect.any(Object),
     );
     expect(screenSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        canConfigure,
+        canPrepare,
       }),
     );
   });

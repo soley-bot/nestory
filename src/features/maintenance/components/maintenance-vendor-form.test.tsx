@@ -21,7 +21,7 @@ describe("maintenance vendor form", () => {
     const vendorSelect = getMaintenanceVendorSelectOptions({ vendors });
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ role: "super_admin" }}
+        actor={{ dataScope: "organization", workflowMode: "coordinator" }}
         branches={[]}
         canRecordActualCost
         mode="create"
@@ -69,7 +69,7 @@ describe("maintenance vendor form", () => {
     });
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ role: "super_admin" }}
+        actor={{ dataScope: "organization", workflowMode: "coordinator" }}
         branches={[]}
         canRecordActualCost
         maintenanceCase={maintenanceCase}
@@ -101,7 +101,7 @@ describe("maintenance vendor form", () => {
   it("keeps vendor assignment available to managers without exposing ledger posting", () => {
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", dataScope: "branch", workflowMode: "coordinator" }}
         branches={[{ id: "branch-1", label: "Main branch" }]}
         canRecordActualCost
         maintenanceCase={{
@@ -148,7 +148,7 @@ describe("maintenance vendor form", () => {
   it("locks approved property, unit, and vendor scope while keeping adjustment cost editable", () => {
     const html = renderToStaticMarkup(
       <MaintenanceForm
-        actor={{ branchId: "branch-1", role: "operations_manager" }}
+        actor={{ branchId: "branch-1", dataScope: "branch", workflowMode: "coordinator" }}
         branches={[{ id: "branch-1", label: "Main branch" }]}
         canRecordActualCost
         maintenanceCase={{

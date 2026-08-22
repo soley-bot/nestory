@@ -138,6 +138,26 @@ describe("AccountScreen", () => {
     expect(html).toContain("Workspace Access");
     expect(html).toContain("Admin");
   });
+
+  it("shows a custom role name and its single assigned branch", () => {
+    const html = renderToStaticMarkup(
+      <AccountScreen
+        identity={{
+          branchLabel: "PP - Phnom Penh",
+          email: "caretaker@example.com",
+          organizationName: "Nestory Test",
+          role: "custom",
+          roleName: "Caretaker",
+        }}
+        profile={null}
+      />,
+    );
+
+    expect(html).toContain("Caretaker");
+    expect(html).toContain("PP - Phnom Penh");
+    expect(html).toContain("Access within the assigned branch.");
+    expect(html).not.toContain("Workspace Access");
+  });
 });
 
 function findElements(

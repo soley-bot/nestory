@@ -1,5 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { isWorkspaceRole } from "@/lib/auth/capabilities";
+import {
+  isPermissionKey,
+  type PermissionKey,
+} from "@/lib/auth/permission-catalog";
 import type { PersonSelectOption } from "@/features/people/person-select";
 import {
   normalizeOrganizationTheme,
@@ -16,6 +20,7 @@ export type { OrganizationPersonAccessStatus } from "./access-status";
 
 export type OrganizationBranch = {
   address: string | null;
+  archivedAt?: string | null;
   code: string;
   id: string;
   name: string;
@@ -23,6 +28,7 @@ export type OrganizationBranch = {
 };
 
 export type OrganizationTeam = {
+  archivedAt?: string | null;
   branchId: string | null;
   id: string;
   managerPersonId: string | null;
@@ -46,6 +52,8 @@ export type OrganizationStaffOption = PersonSelectOption & {
 
 export type OrganizationMembership = {
   branchId: string | null;
+  customRoleId?: string | null;
+  customRoleName?: string | null;
   email: string | null;
   id: string;
   personId: string | null;
@@ -55,6 +63,8 @@ export type OrganizationMembership = {
 
 export type OrganizationInvitation = {
   branchId: string | null;
+  customRoleId?: string | null;
+  customRoleName?: string | null;
   email: string;
   expiresAt: string;
   id: string;
@@ -63,6 +73,16 @@ export type OrganizationInvitation = {
   personId: string | null;
   role: OrganizationMembership["role"];
   status: "expired" | "pending" | "send_failed";
+};
+
+export type OrganizationRole = {
+  assignedUserCount: number;
+  id: string;
+  name: string;
+  pendingInvitationCount: number;
+  permissions: PermissionKey[];
+  status: "active" | "archived";
+  version: number;
 };
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -123,12 +143,24 @@ async function loadOrganizationAppearance(
 export async function getAccessSettingsData(organizationId: string) {
   const supabase = await createSupabaseServerClient();
 
-  const [branches, invitations, members, staff] = await Promise.all([
+  const [branches, invitations, members, roles, staff] = await Promise.all([
     loadBranches(supabase, organizationId),
     loadInvitations(supabase, organizationId),
-    loadMemberships(supabase, organizationId),
+    loadMemberships(supabase, organizationId, true),
+    loadOrganizationRoles(supabase, organizationId),
     loadStaffForOrganization(supabase, organizationId),
   ]);
+  const roleById = new Map(roles.map((role) => [role.id, role]));
+  for (const member of members) {
+    member.customRoleName = member.customRoleId
+      ? roleById.get(member.customRoleId)?.name ?? null
+      : null;
+  }
+  for (const invitation of invitations) {
+    invitation.customRoleName = invitation.customRoleId
+      ? roleById.get(invitation.customRoleId)?.name ?? null
+      : null;
+  }
 
   const linkedPersonIds = Array.from(new Set(
     [...members, ...invitations].flatMap((record) => record.personId ? [record.personId] : []),
@@ -141,7 +173,61 @@ export async function getAccessSettingsData(organizationId: string) {
   );
   const linkedPeople = mergeStaffOptions(staff, historicalOptions);
 
-  return { branches, invitations, linkedPeople, members, staff };
+  return { branches, invitations, linkedPeople, members, roles, staff };
+}
+
+export async function getOrganizationRolesData(
+  organizationId: string,
+): Promise<OrganizationRole[]> {
+  const supabase = await createSupabaseServerClient();
+  return loadOrganizationRoles(supabase, organizationId);
+}
+
+async function loadOrganizationRoles(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+): Promise<OrganizationRole[]> {
+  const rpc = supabase.rpc.bind(supabase) as unknown as (
+    name: "get_organization_roles",
+    args: { p_organization_id: string },
+  ) => Promise<{
+    data: Array<{
+      assigned_user_count: number | string;
+      id: string;
+      name: string;
+      pending_invitation_count: number | string;
+      permission_keys: unknown[];
+      status: string;
+      version: number | string;
+    }> | null;
+    error: { message: string } | null;
+  }>;
+  const { data, error } = await rpc("get_organization_roles", {
+    p_organization_id: organizationId,
+  });
+
+  if (error) {
+    throw new Error(`Could not load roles: ${error.message}`);
+  }
+
+  return (data ?? []).map((role) => {
+    if (role.status !== "active" && role.status !== "archived") {
+      throw new Error("Role catalogue contains an unsupported status.");
+    }
+    if (!role.permission_keys.every(isPermissionKey)) {
+      throw new Error("Role catalogue contains an unsupported permission.");
+    }
+
+    return {
+      assignedUserCount: Number(role.assigned_user_count),
+      id: role.id,
+      name: role.name,
+      pendingInvitationCount: Number(role.pending_invitation_count),
+      permissions: role.permission_keys,
+      status: role.status,
+      version: Number(role.version),
+    };
+  });
 }
 
 export async function getAccessByPersonId(
@@ -174,9 +260,8 @@ async function loadBranches(
 ): Promise<OrganizationBranch[]> {
   const { data, error } = await supabase
     .from("organization_branches")
-    .select("id, name, code, address, status")
+    .select("id, name, code, address, status, archived_at")
     .eq("organization_id", organizationId)
-    .is("archived_at", null)
     .order("name", { ascending: true });
 
   if (error) {
@@ -185,6 +270,7 @@ async function loadBranches(
 
   return (data ?? []).map((branch) => ({
     address: branch.address,
+    archivedAt: branch.archived_at,
     code: branch.code,
     id: branch.id,
     name: branch.name,
@@ -198,9 +284,8 @@ async function loadTeams(
 ): Promise<OrganizationTeam[]> {
   const { data, error } = await supabase
     .from("organization_teams")
-    .select("id, name, branch_id, manager_person_id")
+    .select("id, name, branch_id, manager_person_id, archived_at")
     .eq("organization_id", organizationId)
-    .is("archived_at", null)
     .order("name", { ascending: true });
 
   if (error) {
@@ -208,6 +293,7 @@ async function loadTeams(
   }
 
   return (data ?? []).map((team) => ({
+    archivedAt: team.archived_at,
     branchId: team.branch_id,
     id: team.id,
     managerPersonId: team.manager_person_id,
@@ -218,14 +304,29 @@ async function loadTeams(
 async function loadMemberships(
   supabase: SupabaseServerClient,
   organizationId: string,
+  includeCustomRoleScope = false,
 ): Promise<OrganizationMembership[]> {
   const membersResult = await supabase.rpc("get_organization_access_members", {
     p_organization_id: organizationId,
   });
 
   if (!membersResult.error) {
+    const scopeResult =
+      includeCustomRoleScope && (membersResult.data?.length ?? 0) > 0
+        ? await loadMemberCustomRoleScopes(supabase, organizationId)
+        : { data: [] as CustomRoleScopeRow[], error: null };
+    if (scopeResult.error) {
+      throw new Error(
+        `Could not load workspace member roles: ${scopeResult.error.message}`,
+      );
+    }
+    const customRoleByMemberId = new Map(
+      (scopeResult.data ?? []).map((scope) => [scope.id, scope.custom_role_id]),
+    );
     return (membersResult.data ?? []).map((member) => ({
       branchId: member.branch_id,
+      customRoleId: customRoleByMemberId.get(member.id) ?? null,
+      customRoleName: null,
       email: member.email,
       id: member.id,
       personId: member.person_id,
@@ -243,12 +344,10 @@ async function loadInvitations(
   supabase: SupabaseServerClient,
   organizationId: string,
 ): Promise<OrganizationInvitation[]> {
-  const { data, error } = await supabase
-    .from("organization_invitations")
-    .select("id, email, role, branch_id, person_id, status, invited_at, last_sent_at, expires_at")
-    .eq("organization_id", organizationId)
-    .in("status", ["pending", "send_failed", "expired"])
-    .order("invited_at", { ascending: false });
+  const { data, error } = await loadInvitationAccessRows(
+    supabase,
+    organizationId,
+  );
 
   if (error) {
     throw new Error(`Could not load invitations: ${error.message}`);
@@ -257,6 +356,8 @@ async function loadInvitations(
   const now = Date.now();
   return (data ?? []).map((invitation) => ({
     branchId: invitation.branch_id,
+    customRoleId: invitation.custom_role_id,
+    customRoleName: null,
     email: invitation.email,
     expiresAt: invitation.expires_at,
     id: invitation.id,
@@ -340,9 +441,78 @@ function mergeStaffOptions(
 }
 
 function normalizeRole(role: string): OrganizationMembership["role"] {
-  if (!isWorkspaceRole(role)) {
+  if (!isWorkspaceRole(role) && role !== "custom") {
     throw new Error("Workspace access contains an unsupported role.");
   }
 
   return role;
+}
+
+type CustomRoleScopeRow = { custom_role_id: string | null; id: string };
+
+async function loadMemberCustomRoleScopes(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+) {
+  const client = supabase as unknown as {
+    from(table: "organization_members"): {
+      select(columns: "id, custom_role_id"): {
+        eq(
+          column: "organization_id",
+          value: string,
+        ): Promise<{
+          data: CustomRoleScopeRow[] | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+  };
+  return client
+    .from("organization_members")
+    .select("id, custom_role_id")
+    .eq("organization_id", organizationId);
+}
+
+type InvitationAccessRow = {
+  branch_id: string | null;
+  custom_role_id: string | null;
+  email: string;
+  expires_at: string;
+  id: string;
+  invited_at: string;
+  last_sent_at: string | null;
+  person_id: string | null;
+  role: string;
+  status: string;
+};
+
+async function loadInvitationAccessRows(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+) {
+  const client = supabase as unknown as {
+    from(table: "organization_invitations"): {
+      select(columns: string): {
+        eq(column: string, value: string): {
+          in(column: string, values: string[]): {
+            order(
+              column: string,
+              options: { ascending: boolean },
+            ): Promise<{
+              data: InvitationAccessRow[] | null;
+              error: { message: string } | null;
+            }>;
+          };
+        };
+      };
+    };
+  };
+  return client
+    .from("organization_invitations")
+    .select(
+      "id, email, role, branch_id, custom_role_id, person_id, status, invited_at, last_sent_at, expires_at",
+    )
+    .eq("organization_id", organizationId)
+    .in("status", ["pending", "send_failed", "expired"])
+    .order("invited_at", { ascending: false });
 }

@@ -53,8 +53,8 @@ describe("maintenance execution mode", () => {
   });
 
   it("fixes a branch-bound manager and labels an unbound manager all-branches", () => {
-    expect(getMaintenanceBranchControlMode({ branchId: "branch-a", role: "operations_manager" })).toBe("fixed");
-    expect(getMaintenanceBranchControlMode({ role: "operations_manager" })).toBe("all_branches");
-    expect(getMaintenanceBranchControlMode({ role: "super_admin" })).toBe("selectable");
+    expect(getMaintenanceBranchControlMode({ branchId: "branch-a", dataScope: "branch", workflowMode: "coordinator" })).toBe("fixed");
+    expect(getMaintenanceBranchControlMode({ dataScope: "branch", workflowMode: "coordinator" })).toBe("all_branches");
+    expect(getMaintenanceBranchControlMode({ dataScope: "organization", workflowMode: "coordinator" })).toBe("selectable");
   });
 });

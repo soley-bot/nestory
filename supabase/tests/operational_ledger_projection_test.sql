@@ -304,7 +304,7 @@ SELECT throws_ok(
     (SELECT locked_source_id FROM operational_ledger_test_state),
     (SELECT actor_id FROM operational_ledger_test_state)
   ),
-  '22023',
+  '55000',
   'Financial month is locked',
   'a locked month blocks event creation before mutation'
 );

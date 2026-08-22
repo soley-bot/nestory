@@ -9,8 +9,62 @@ vi.mock("@/lib/db/server", () => ({ createSupabaseServerClient }));
 import {
   getAccessByPersonId,
   getAccessSettingsData,
+  getOrganizationRolesData,
   getOrganizationSettingsData,
 } from "./data";
+
+describe("getOrganizationRolesData", () => {
+  it("preserves active and archived roles with exact permissions and counts", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [
+        {
+          assigned_user_count: 2,
+          id: "role-1",
+          name: "Finance desk",
+          pending_invitation_count: 1,
+          permission_keys: ["finance.view", "finance.record_payments"],
+          status: "active",
+          version: 7,
+        },
+        {
+          assigned_user_count: 0,
+          id: "role-2",
+          name: "Former desk",
+          pending_invitation_count: 0,
+          permission_keys: ["finance.view"],
+          status: "archived",
+          version: 3,
+        },
+      ],
+      error: null,
+    });
+    createSupabaseServerClient.mockResolvedValue({ rpc });
+
+    await expect(getOrganizationRolesData("organization-1")).resolves.toEqual([
+      {
+        assignedUserCount: 2,
+        id: "role-1",
+        name: "Finance desk",
+        pendingInvitationCount: 1,
+        permissions: ["finance.view", "finance.record_payments"],
+        status: "active",
+        version: 7,
+      },
+      {
+        assignedUserCount: 0,
+        id: "role-2",
+        name: "Former desk",
+        pendingInvitationCount: 0,
+        permissions: ["finance.view"],
+        status: "archived",
+        version: 3,
+      },
+    ]);
+    expect(rpc).toHaveBeenCalledWith("get_organization_roles", {
+      p_organization_id: "organization-1",
+    });
+  });
+});
 
 describe("getOrganizationSettingsData", () => {
   it("loads and normalizes the organization appearance", async () => {
@@ -31,8 +85,27 @@ describe("getOrganizationSettingsData", () => {
     };
     appearanceQuery.select.mockReturnValue(appearanceQuery);
     appearanceQuery.eq.mockReturnValue(appearanceQuery);
-    const branches = chainQuery({ data: [], error: null }, "order");
-    const teams = chainQuery({ data: [], error: null }, "order");
+    const branches = chainQuery({
+      data: [{
+        address: null,
+        archived_at: "2026-08-22T00:00:00.000Z",
+        code: "OLD",
+        id: "branch-old",
+        name: "Former Office",
+        status: "inactive",
+      }],
+      error: null,
+    }, "order");
+    const teams = chainQuery({
+      data: [{
+        archived_at: "2026-08-22T01:00:00.000Z",
+        branch_id: "branch-old",
+        id: "team-old",
+        manager_person_id: null,
+        name: "Former Team",
+      }],
+      error: null,
+    }, "order");
     const roles = chainQuery({ data: [], error: null }, "is");
     const createSignedUrl = vi.fn().mockResolvedValue({
       data: { signedUrl: "https://storage.test/company-logo" },
@@ -55,11 +128,24 @@ describe("getOrganizationSettingsData", () => {
         accentSeed: "#2563EB",
         mode: "dark",
       },
-      branches: [],
+      branches: [{
+        address: null,
+        archivedAt: "2026-08-22T00:00:00.000Z",
+        code: "OLD",
+        id: "branch-old",
+        name: "Former Office",
+        status: "inactive",
+      }],
       logoStoragePath: "organization-1/logos/logo.png",
       logoUrl: "https://storage.test/company-logo",
       staff: [],
-      teams: [],
+      teams: [{
+        archivedAt: "2026-08-22T01:00:00.000Z",
+        branchId: "branch-old",
+        id: "team-old",
+        managerPersonId: null,
+        name: "Former Team",
+      }],
       workspaceSetup: {
         operationalTimezone: "Asia/Phnom_Penh",
         preferredCurrency: "USD",
@@ -72,6 +158,8 @@ describe("getOrganizationSettingsData", () => {
       "organization-1/logos/logo.png",
       3600,
     );
+    expect(branches.is).not.toHaveBeenCalledWith("archived_at", null);
+    expect(teams.is).not.toHaveBeenCalledWith("archived_at", null);
   });
 });
 

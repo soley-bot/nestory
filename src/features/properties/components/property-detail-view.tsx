@@ -73,6 +73,7 @@ const propertyNextActionToneClass: Record<PropertyBadgeTone, string> = {
 };
 
 export function PropertyDetailView({
+  canArchiveFiles = false,
   initialSection = "overview",
   onAddDocument,
   onAddUnit,
@@ -80,11 +81,12 @@ export function PropertyDetailView({
   onCreateLease,
   property,
 }: {
+  canArchiveFiles?: boolean;
   initialSection?: PropertyLocalSection;
-  onAddDocument: () => void;
-  onAddUnit: () => void;
-  onAssignOwner: () => void;
-  onCreateLease: () => void;
+  onAddDocument?: () => void;
+  onAddUnit?: () => void;
+  onAssignOwner?: () => void;
+  onCreateLease?: () => void;
   property: PropertyDetail;
 }) {
   const [activeSection, setActiveSection] =
@@ -106,6 +108,7 @@ export function PropertyDetailView({
       <div className="flex-1">
         <PropertyRecordPanel
           activeSection={activeSection}
+          canArchiveFiles={canArchiveFiles}
           onAddDocument={onAddDocument}
           onAddUnit={onAddUnit}
           onAssignOwner={onAssignOwner}
@@ -119,6 +122,7 @@ export function PropertyDetailView({
 
 function PropertyRecordPanel({
   activeSection,
+  canArchiveFiles,
   onAddDocument,
   onAddUnit,
   onAssignOwner,
@@ -126,14 +130,16 @@ function PropertyRecordPanel({
   property,
 }: {
   activeSection: PropertyLocalSection;
-  onAddDocument: () => void;
-  onAddUnit: () => void;
-  onAssignOwner: () => void;
-  onCreateLease: () => void;
+  canArchiveFiles: boolean;
+  onAddDocument?: () => void;
+  onAddUnit?: () => void;
+  onAssignOwner?: () => void;
+  onCreateLease?: () => void;
   property: PropertyDetail;
 }) {
   const content = getPropertyRecordPanelContent({
     activeSection,
+    canArchiveFiles,
     onAddDocument,
     onAddUnit,
     onAssignOwner,
@@ -155,6 +161,7 @@ function PropertyRecordPanel({
 
 function getPropertyRecordPanelContent({
   activeSection,
+  canArchiveFiles,
   onAddDocument,
   onAddUnit,
   onAssignOwner,
@@ -162,22 +169,23 @@ function getPropertyRecordPanelContent({
   property,
 }: {
   activeSection: PropertyLocalSection;
-  onAddDocument: () => void;
-  onAddUnit: () => void;
-  onAssignOwner: () => void;
-  onCreateLease: () => void;
+  canArchiveFiles: boolean;
+  onAddDocument?: () => void;
+  onAddUnit?: () => void;
+  onAssignOwner?: () => void;
+  onCreateLease?: () => void;
   property: PropertyDetail;
 }) {
   if (activeSection === "units") {
     return (
       <section id="property-units">
         <SectionTitle
-          actions={
+          actions={onAddUnit ? (
             <Button onClick={onAddUnit} size="sm" variant="outline">
               <Building2 size={14} />
               Add unit
             </Button>
-          }
+          ) : undefined}
           icon={<Building2 size={16} />}
           title="Units"
         />
@@ -243,6 +251,8 @@ function getPropertyRecordPanelContent({
     return (
       <>
         <PhotoGallery
+          canArchive={canArchiveFiles}
+          canWrite={Boolean(onAddDocument)}
           emptyLabel="No property or unit photos yet."
           photos={property.photos}
           propertyId={property.id}
@@ -251,12 +261,12 @@ function getPropertyRecordPanelContent({
         />
         <section id="property-documents">
           <SectionTitle
-            actions={
+            actions={onAddDocument ? (
               <Button onClick={onAddDocument} size="sm" variant="outline">
                 <FileText size={14} />
                 Add property document
               </Button>
-            }
+            ) : undefined}
             icon={<FileText size={16} />}
             title="Property documents"
           />
@@ -311,11 +321,11 @@ function getPropertyRecordPanelContent({
           <Badge tone={property.statusTone}>{property.status}</Badge>
         </div>
 
-        {property.rentalStructure === "undecided" ? (
+        {property.rentalStructure === "undecided" && onAddUnit ? (
           <PropertyRentalStructureSetup propertyId={property.id} />
         ) : null}
 
-        {needsFirstUnit ? (
+        {needsFirstUnit && onAddUnit ? (
           <div className="mt-5 border-y border-border py-5">
             <h2 className="text-base font-semibold">Add the first unit</h2>
             <Button className="mt-4" onClick={onAddUnit}>
@@ -325,7 +335,7 @@ function getPropertyRecordPanelContent({
           </div>
         ) : null}
 
-        {needsWholePropertyLease ? (
+        {needsWholePropertyLease && onCreateLease ? (
           <div className="mt-5 border-y border-border py-5">
             <h2 className="text-base font-semibold">Create the property Lease</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -375,7 +385,7 @@ function PropertyOverviewWorkspace({
   onAssignOwner,
   property,
 }: {
-  onAssignOwner: () => void;
+  onAssignOwner?: () => void;
   property: PropertyDetail;
 }) {
   const activeLeaseLabel =
@@ -645,7 +655,7 @@ function PropertyOverviewCard({
   onAssignOwner,
   property,
 }: {
-  onAssignOwner: () => void;
+  onAssignOwner?: () => void;
   property: PropertyDetail;
 }) {
   const coverPhoto =
@@ -717,7 +727,7 @@ function PropertyOverviewCard({
             >
               {ownerContent}
             </Link>
-          ) : (
+          ) : onAssignOwner ? (
             <button
               className="block w-full rounded-md text-left outline-none transition-opacity hover:opacity-75 focus-visible:ring-2 focus-visible:ring-ring"
               onClick={onAssignOwner}
@@ -725,6 +735,8 @@ function PropertyOverviewCard({
             >
               {ownerContent}
             </button>
+          ) : (
+            ownerContent
           )}
         </div>
 
@@ -754,7 +766,7 @@ function PropertyOverviewAction({
   onAssignOwner,
 }: {
   action: PropertyDetail["nextAction"];
-  onAssignOwner: () => void;
+  onAssignOwner?: () => void;
 }) {
   const className = cn(
     "h-7 rounded-md border px-2.5 text-xs font-semibold shadow-none transition-colors",
@@ -762,6 +774,7 @@ function PropertyOverviewAction({
   );
 
   if (action.intent === "assign-owner") {
+    if (!onAssignOwner) return null;
     return (
       <button className={className} onClick={onAssignOwner} type="button">
         {action.label}

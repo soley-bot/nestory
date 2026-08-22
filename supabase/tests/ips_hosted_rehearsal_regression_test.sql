@@ -20,6 +20,7 @@ CREATE TEMP TABLE hosted_rehearsal_state (
   operations_assignee_id uuid NOT NULL DEFAULT '80000000-0000-0000-0000-000000000008',
   operations_task_id uuid,
   other_branch_id uuid NOT NULL DEFAULT 'b8120000-0000-4000-8000-000000000010',
+  other_property_id uuid NOT NULL DEFAULT 'b8120000-0000-4000-8000-000000000011',
   other_branch_task_id uuid,
   period_start date NOT NULL DEFAULT date_trunc('month', current_date)::date,
   previous_period_start date NOT NULL DEFAULT (
@@ -182,6 +183,17 @@ SELECT other_branch_id,
   'Hosted rehearsal other branch', 'HR-OTHER', super_admin_id, super_admin_id
 FROM hosted_rehearsal_state;
 
+SELECT pg_catalog.set_config(
+  'app.property_branch_assignment_context',
+  (SELECT capability_token FROM app_private.property_branch_assignment_context_capability WHERE singleton),
+  true
+);
+INSERT INTO public.properties (id,organization_id,branch_id,name,code,property_type,status)
+SELECT other_property_id,'00000000-0000-0000-0000-000000000001',other_branch_id,
+  'Hosted rehearsal other property','HR-OTHER-P','apartment','active'
+FROM hosted_rehearsal_state;
+SELECT pg_catalog.set_config('app.property_branch_assignment_context','off',true);
+
 SELECT set_config(
   'request.jwt.claim.sub',
   (SELECT super_admin_id::text FROM hosted_rehearsal_state),
@@ -192,8 +204,8 @@ SET LOCAL ROLE authenticated;
 UPDATE hosted_rehearsal_state
 SET other_branch_task_id = public.create_maintenance_task(
   '00000000-0000-0000-0000-000000000001'::uuid,
-  '10000000-0000-0000-0000-000000000001'::uuid,
-  '20000000-0000-0000-0000-000000000001'::uuid,
+  other_property_id,
+  NULL,
   'Hosted rehearsal cross-branch evidence',
   'Operations Manager must not verify this task evidence',
   'Inspection', 'normal', 'pending', current_date + 1, NULL,

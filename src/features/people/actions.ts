@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireSuperAdminContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { getPeopleMutationErrorMessage } from "@/features/people/people-action-errors";
 import type { PersonRoleValue } from "@/features/people/people.types";
@@ -129,7 +129,7 @@ function nullableString(value: string) {
 }
 
 function peopleRpcPayload(
-  context: Awaited<ReturnType<typeof requireSuperAdminContext>>,
+  context: Awaited<ReturnType<typeof requirePermission>>,
   values: z.infer<typeof peopleMutationSchema>,
 ) {
   return {
@@ -152,7 +152,15 @@ export async function createPersonAction(
   _state: PeopleActionState,
   formData: FormData,
 ): Promise<PeopleActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("people.write");
+  const creationScope = readString(formData, "creationScope");
+
+  if (!context.isSuperAdmin && creationScope !== "branch") {
+    return {
+      message: "Add this person from the branch work that needs the relationship.",
+      status: "error",
+    };
+  }
   const parsed = peopleMutationSchema.safeParse(
     readPeopleMutationInput(formData),
   );
@@ -162,9 +170,13 @@ export async function createPersonAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: personId, error } = await supabase.rpc("create_person", {
+  const payload = {
     ...peopleRpcPayload(context, parsed.data),
-  });
+    ...(!context.isSuperAdmin && context.branchId
+      ? { p_branch_id: context.branchId }
+      : {}),
+  };
+  const { data: personId, error } = await supabase.rpc("create_person", payload);
 
   if (error) {
     return {
@@ -188,7 +200,7 @@ export async function updatePersonAction(
   _state: PeopleActionState,
   formData: FormData,
 ): Promise<PeopleActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("people.write");
   const parsedPersonId = personIdSchema.safeParse(
     readString(formData, "personId"),
   );
@@ -246,7 +258,7 @@ export async function archiveTenantAction(
   _state: PeopleActionState,
   formData: FormData,
 ): Promise<PeopleActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("people.archive");
   const parsed = tenantArchiveSchema.safeParse({
     personId: readString(formData, "personId"),
   });
@@ -321,7 +333,7 @@ async function updatePersonArchiveState({
   fallbackMessage: string;
   formData: FormData;
 }): Promise<PeopleActionState> {
-  const context = await requireSuperAdminContext();
+  const context = await requirePermission("people.archive");
   const parsedPersonId = personIdSchema.safeParse(
     readString(formData, "personId"),
   );

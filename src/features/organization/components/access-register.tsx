@@ -21,9 +21,9 @@ import type {
   OrganizationBranch,
   OrganizationInvitation,
   OrganizationMembership,
+  OrganizationRole,
   OrganizationStaffOption,
 } from "@/features/organization/data";
-import { WORKSPACE_ROLE_OPTIONS } from "@/features/organization/workspace-roles";
 
 import {
   filterAccessRegister,
@@ -41,12 +41,8 @@ type AccessRegisterProps = {
   people: OrganizationStaffOption[];
   renderInvitationRow: (invitation: OrganizationInvitation) => ReactNode;
   renderMemberRow: (member: OrganizationMembership) => ReactNode;
+  roles?: OrganizationRole[];
 };
-
-const roleOptions = [
-  { label: "All access levels", value: "all" },
-  ...WORKSPACE_ROLE_OPTIONS,
-];
 
 export function AccessRegister({
   activeView,
@@ -59,6 +55,7 @@ export function AccessRegister({
   people,
   renderInvitationRow,
   renderMemberRow,
+  roles = [],
 }: AccessRegisterProps) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState("all");
@@ -141,7 +138,11 @@ export function AccessRegister({
               className="h-8"
               disabled={activeView === "no_access"}
               onValueChange={setRole}
-              options={roleOptions}
+              options={[
+                { label: "All access levels", value: "all" },
+                { label: "Super Admin", value: "super_admin" },
+                ...roles.map((role) => ({ label: role.name, value: role.id })),
+              ]}
               value={role}
             />
             <SelectControl

@@ -74,7 +74,13 @@ export function filterAccessRegister({
   const normalizedQuery = normalize(query);
   const personById = new Map(people.map((person) => [person.id, person]));
   const branchById = new Map(branches.map((branch) => [branch.id, branch]));
-  const matchesRole = (value: string) => role === "all" || value === role;
+  const matchesRole = (value: {
+    customRoleId?: string | null;
+    role: string;
+  }) =>
+    role === "all" ||
+    value.role === role ||
+    (value.role === "custom" && value.customRoleId === role);
   const matchesScope = (value: { branchId: string | null; role: string }) => {
     if (scope === "all") return true;
     if (scope === "organization") return isOrganizationWideRole(value.role);
@@ -84,7 +90,7 @@ export function filterAccessRegister({
   return {
     invitations: invitations.filter(
       (invitation) =>
-        matchesRole(invitation.role) &&
+        matchesRole(invitation) &&
         matchesScope(invitation) &&
         matchesQuery(normalizedQuery, [
           invitation.email,
@@ -95,7 +101,7 @@ export function filterAccessRegister({
     ),
     members: members.filter(
       (member) =>
-        matchesRole(member.role) &&
+        matchesRole(member) &&
         matchesScope(member) &&
         matchesQuery(normalizedQuery, [
           member.email,

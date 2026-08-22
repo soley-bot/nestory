@@ -51,20 +51,20 @@ SELECT is(
 SELECT ok(
   pg_catalog.has_function_privilege(
     'authenticated',
-    'app_private.can_create_owner_statement_artifact(uuid)',
+    'app_private.can_create_owner_statement_artifact_path(text)',
     'EXECUTE'
   )
   AND NOT pg_catalog.has_function_privilege(
     'anon',
-    'app_private.can_create_owner_statement_artifact(uuid)',
+    'app_private.can_create_owner_statement_artifact_path(text)',
     'EXECUTE'
   )
   AND NOT pg_catalog.has_function_privilege(
     'service_role',
-    'app_private.can_create_owner_statement_artifact(uuid)',
+    'app_private.can_create_owner_statement_artifact_path(text)',
     'EXECUTE'
   ),
-  'only authenticated sessions may evaluate the scoped Owner Statement upload predicate'
+  'only authenticated sessions may evaluate the publication-scoped Owner Statement upload predicate'
 );
 
 SELECT is(
@@ -75,10 +75,35 @@ SELECT is(
       AND policy.tablename = 'objects'
       AND policy.cmd = 'INSERT'
       AND policy.policyname = 'Finance Manager or Super Admin can create owner statement artifacts'
-      AND policy.with_check LIKE '%can_create_owner_statement_artifact%'
+      AND policy.with_check LIKE '%can_create_owner_statement_artifact_path%'
   ),
   1,
-  'Owner Statement Storage uploads use the delegated scoped Finance predicate'
+  'Owner Statement Storage uploads resolve the canonical publication path before checking branch authority'
+);
+
+SELECT ok(
+  (SELECT prosrc LIKE '%owner_statement_publications%'
+      AND prosrc LIKE '%owner_close_revisions%'
+      AND prosrc LIKE '%organization_role_permissions%'
+      AND prosrc LIKE '%publication.id=p_publication_id%'
+   FROM pg_catalog.pg_proc
+   WHERE oid='app_private.can_access_owner_statement_publication_as_actor(uuid,uuid,uuid,public.organization_permission_key)'::regprocedure),
+  'trusted Owner Statement continuation resolves permission and branch from the publication property'
+);
+
+SELECT ok(
+  (SELECT prosrc LIKE '%can_access_owner_statement_publication_as_actor%'
+      AND prosrc LIKE '%p_publication_id%'
+      AND prosrc NOT LIKE '%can_publish_owner_statement_as_actor%'
+   FROM pg_catalog.pg_proc
+   WHERE oid='public.get_owner_statement_artifact_object(uuid,uuid,uuid,text,text)'::regprocedure)
+  AND
+  (SELECT prosrc LIKE '%can_access_owner_statement_publication_as_actor%'
+      AND prosrc LIKE '%p_publication_id%'
+      AND prosrc NOT LIKE '%can_publish_owner_statement_as_actor%'
+   FROM pg_catalog.pg_proc
+   WHERE oid='public.register_owner_statement_artifact_verified(uuid,uuid,uuid,text,text,uuid,text,text,text,bigint,text)'::regprocedure),
+  'trusted artifact verification and registration both enforce publication-scoped finance.publish authority'
 );
 
 SELECT has_function(
@@ -309,10 +334,18 @@ SELECT lives_ok(
 );
 RESET ROLE;
 SELECT ok(
-  app_private.can_publish_owner_statement(
+  NOT app_private.can_publish_owner_statement(
     '00000000-0000-0000-0000-000000000001'
   ),
-  'Finance Manager can publish a closed owner statement'
+  'legacy organization-wide publication authority remains Super Admin-only'
+);
+SELECT ok(
+  app_private.can_access_property(
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    'finance.publish'
+  ),
+  'the scoped checked publication contract authorizes Finance Manager in the assigned branch'
 );
 SET LOCAL ROLE authenticated;
 
@@ -325,8 +358,8 @@ SELECT throws_ok(
     '00000000-0000-0000-0000-000000000001',
     (SELECT publication_one_id FROM owner_statement_test_runtime)
   ),
-  '42501', 'owner_statement_publication_forbidden',
-  'Operations cannot read official publications'
+  '42501', 'Not authorized',
+  'the scoped publication wrapper rejects Operations before reading official evidence'
 );
 
 SELECT pg_catalog.set_config(

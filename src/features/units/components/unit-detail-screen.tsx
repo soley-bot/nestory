@@ -65,6 +65,8 @@ type ConfirmationState = {
 
 type UnitDetailScreenProps = {
   activeSection: UnitRecordSection;
+  canArchive: boolean;
+  canWrite: boolean;
   maintenanceFormOptions: {
     actor: MaintenanceActor;
     branches: MaintenanceBranchOption[];
@@ -82,6 +84,8 @@ type UnitDetailScreenProps = {
 
 export function UnitDetailScreen({
   activeSection,
+  canArchive,
+  canWrite,
   maintenanceFormOptions,
   propertyOptions,
   sourceTaskId,
@@ -103,7 +107,7 @@ export function UnitDetailScreen({
       <PageHeader
         className="px-4 sm:px-6 2xl:px-8"
         actions={
-          unit.isArchived ? (
+          unit.isArchived ? canArchive ? (
             <Button
               ref={confirmationTriggerRef}
               onClick={() => {
@@ -115,17 +119,19 @@ export function UnitDetailScreen({
               <RotateCcw size={15} />
               Restore
             </Button>
-          ) : (
+          ) : null : canWrite || canArchive ? (
             <>
-              <Button
-                onClick={() => {
-                  setStatusMessage(null);
-                  setDrawer({ mode: "edit", unit });
-                }}
-              >
-                <Pencil size={15} />
-                Edit
-              </Button>
+              {canWrite ? (
+                <Button
+                  onClick={() => {
+                    setStatusMessage(null);
+                    setDrawer({ mode: "edit", unit });
+                  }}
+                >
+                  <Pencil size={15} />
+                  Edit
+                </Button>
+              ) : null}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -144,21 +150,25 @@ export function UnitDetailScreen({
                       View history
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      setStatusMessage(null);
-                      setConfirmation({ mode: "archive", unit });
-                    }}
-                    variant="destructive"
-                  >
-                    <Archive size={15} />
-                    Archive
-                  </DropdownMenuItem>
+                  {canArchive ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setStatusMessage(null);
+                          setConfirmation({ mode: "archive", unit });
+                        }}
+                        variant="destructive"
+                      >
+                        <Archive size={15} />
+                        Archive
+                      </DropdownMenuItem>
+                    </>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
-          )
+          ) : null
         }
         breadcrumb={
           <PageBreadcrumb
@@ -197,12 +207,14 @@ export function UnitDetailScreen({
       ) : null}
 
       <UnitDetailView
+        canArchiveFiles={canArchive}
+        canWriteFiles={canWrite}
         initialSection={activeSection}
         key={`${unit.id}:${activeSection}`}
-        onAddDocument={() => {
+        onAddDocument={canWrite ? () => {
           setStatusMessage(null);
           setDrawer({ mode: "create-document", unit });
-        }}
+        } : undefined}
         onCreateLease={() => {
           setStatusMessage(null);
           setDrawer({ mode: "create-lease", unit });

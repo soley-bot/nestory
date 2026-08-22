@@ -29,6 +29,7 @@ import { useSettingsDraft } from "@/features/organization/components/use-setting
 import type { DraftStatus } from "@/components/ui/draft-action-bar";
 import type { SettingsEditorHandle } from "@/features/organization/components/branch-editor";
 import { SettingsSectionHeader } from "@/features/organization/components/settings-section-header";
+import { TeamManageDrawer } from "@/features/organization/components/structure-manage-drawers";
 
 type TeamDraft = {
   branchId: string;
@@ -67,6 +68,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
   ) {
     const formRef = useRef<HTMLFormElement>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [managedTeam, setManagedTeam] = useState<OrganizationTeam | null>(null);
     const draft = useSettingsDraft({
       action: createTeamAction,
       errorMessage: "Team not saved",
@@ -80,6 +82,10 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
       : "Only administrators can add organization structure.";
     const selectedBranch = branches.find(
       (branch) => branch.id === draft.values.branchId,
+    );
+    const activeBranches = useMemo(
+      () => branches.filter((branch) => !branch.archivedAt && branch.status === "active"),
+      [branches],
     );
     const selectedManager = staff.find(
       (person) => person.id === draft.values.managerPersonId,
@@ -133,27 +139,39 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
 
             {teams.length > 0 ? (
               <div>
-                <div className="hidden grid-cols-[minmax(0,1fr)_120px_150px] gap-1 border-b px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid">
+                <div className="hidden grid-cols-[minmax(0,1fr)_120px_150px_80px_auto] gap-1 border-b px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:grid">
                   <span>Team</span>
                   <span>Scope</span>
                   <span>Manager</span>
+                  <span>Status</span>
+                  <span className="sr-only">Action</span>
                 </div>
                 <div className="divide-y divide-border">
                   {teams.map((team) => (
                     <div
-                      className="grid min-w-0 gap-1 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_120px_150px] sm:items-center"
+                      className="grid min-w-0 gap-2 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_120px_150px_80px_auto] sm:items-center"
                       key={team.id}
                     >
                       <span className="truncate font-medium">{team.name}</span>
                       <span className="truncate text-muted-foreground">
-                        {branches.find((branch) => branch.id === team.branchId)
-                          ?.code ?? "All branches"}
+                        {teamBranchLabel(team.branchId, branches)}
                       </span>
                       <span className="truncate text-muted-foreground">
                         {staff.find(
                           (person) => person.id === team.managerPersonId,
                         )?.label ?? "No manager"}
                       </span>
+                      <span className="text-xs font-medium uppercase text-muted-foreground">
+                        {team.archivedAt ? "Archived" : "Active"}
+                      </span>
+                      <Button
+                        aria-label={`Manage team ${team.name}`}
+                        onClick={() => setManagedTeam(team)}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        Manage
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -233,7 +251,7 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
                       }
                       options={[
                         { label: "All branches", value: "" },
-                        ...branches.map((branch) => ({
+                        ...activeBranches.map((branch) => ({
                           label: `${branch.code} - ${branch.name}`,
                           value: branch.id,
                         })),
@@ -310,6 +328,17 @@ export const TeamEditor = forwardRef<SettingsEditorHandle, TeamEditorProps>(
             </div>
           </form>
         </SideDrawer>
+        {managedTeam ? (
+          <TeamManageDrawer
+            activeBranches={activeBranches}
+            canManageStructure={canManageStructure}
+            key={managedTeam.id}
+            onClose={() => setManagedTeam(null)}
+            open
+            staff={staff}
+            team={managedTeam}
+          />
+        ) : null}
       </>
     );
   },
@@ -353,4 +382,12 @@ function draftStatusLabel(status: string) {
       saving: "Saving",
     }[status] ?? status
   );
+}
+
+function teamBranchLabel(
+  branchId: string | null,
+  branches: OrganizationBranch[],
+) {
+  if (!branchId) return "All branches";
+  return branches.find((branch) => branch.id === branchId)?.code ?? "Assigned branch unavailable";
 }

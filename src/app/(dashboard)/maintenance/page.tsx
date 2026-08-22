@@ -4,7 +4,7 @@ import { getMaintenanceScreenData } from "@/features/maintenance/data/maintenanc
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
-import { requireOperationsManagementContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 
 type MaintenancePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -13,16 +13,17 @@ type MaintenancePageProps = {
 export default async function MaintenancePage({
   searchParams,
 }: MaintenancePageProps) {
-  const context = await requireOperationsManagementContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const context = await requirePermission("maintenance.view");
+  const capabilities = getMaintenanceCapabilities(context);
 
   const params = await searchParams;
   const viewQuery = normalizeCasesViewQuery(parseMaintenanceSearchParams(params));
   const routeConfig = getCasesRouteConfig(viewQuery);
   const data = await getMaintenanceScreenData(context.organizationId, viewQuery, {
     branchId: context.branchId,
+    dataScope: context.isSuperAdmin ? "organization" : "branch",
     personId: context.personId,
-    role: context.role,
+    workflowMode: "coordinator",
   });
   const initialTaskId = viewQuery.taskId === "all" ? undefined : viewQuery.taskId;
 
@@ -30,8 +31,9 @@ export default async function MaintenancePage({
     <MaintenanceScreen
       actor={{
         branchId: context.branchId,
+        dataScope: context.isSuperAdmin ? "organization" : "branch",
         personId: context.personId,
-        role: context.role,
+        workflowMode: "coordinator",
       }}
       branchOptions={data.branchOptions}
       capabilities={capabilities}

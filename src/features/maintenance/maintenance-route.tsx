@@ -7,7 +7,7 @@ import {
 import { parseMaintenanceSearchParams } from "@/features/maintenance/maintenance.filters";
 import { getMaintenanceCapabilities } from "@/features/maintenance/maintenance.capabilities";
 import type { MaintenanceViewQuery } from "@/features/maintenance/maintenance.types";
-import { requireOperationsManagementContext } from "@/lib/auth/context";
+import { requirePermission } from "@/lib/auth/context";
 
 type MaintenanceRouteSearchParams = Record<
   string,
@@ -45,14 +45,15 @@ export async function renderMaintenanceRoute({
   surfaceVariant,
   title,
 }: MaintenanceRouteOptions) {
-  const context = await requireOperationsManagementContext();
-  const capabilities = getMaintenanceCapabilities(context.role);
+  const context = await requirePermission("maintenance.view");
+  const capabilities = getMaintenanceCapabilities(context);
   const params = applyMaintenanceRouteDefaults(await searchParams, defaults);
   const viewQuery = parseMaintenanceSearchParams(params);
   const actor = {
     branchId: context.branchId,
+    dataScope: context.isSuperAdmin ? "organization" as const : "branch" as const,
     personId: context.personId,
-    role: context.role,
+    workflowMode: "coordinator" as const,
   };
   const [data, reminders] = await Promise.all([
     getMaintenanceScreenData(context.organizationId, viewQuery, actor),

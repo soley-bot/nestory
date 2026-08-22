@@ -41,9 +41,10 @@ export async function GET(request: Request) {
       client,
       context: {
         branchId: membership.branchId,
+        isSuperAdmin: membership.isSuperAdmin,
         organizationId: membership.organizationId,
+        permissionKeys: membership.permissionKeys,
         personId: membership.personId,
-        role: membership.role,
       },
       query,
     });

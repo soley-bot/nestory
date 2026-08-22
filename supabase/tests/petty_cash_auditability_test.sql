@@ -438,7 +438,7 @@ SELECT throws_ok(
   'new entry cannot omit both linked and external counterparty'
 );
 
-SELECT lives_ok(
+SELECT throws_ok(
   $$SELECT public.update_petty_cash_entry(
     p_organization_id => '00000000-0000-0000-0000-000000000001',
     p_entry_id => (
@@ -456,7 +456,9 @@ SELECT lives_ok(
     p_amount => 75,
     p_counterparty_person_id => '80000000-0000-0000-0000-000000000006'
   )$$,
-  'unposted entry operational fields can be corrected'
+  '42501',
+  'Not authorized',
+  'an existing entry cannot be repointed to a different property branch'
 );
 
 SELECT is(
@@ -995,7 +997,7 @@ SELECT hasnt_function(
   'the non-idempotent Petty Cash create signature is removed'
 );
 
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000801', true);
 
 SELECT lives_ok(
   $$SELECT public.create_petty_cash_entry(
@@ -1014,13 +1016,13 @@ SELECT lives_ok(
     p_amount => 10,
     p_idempotency_key => 'fm-petty-create-0001'
   )$$,
-  'Finance Manager can create a row in an existing active account and open period'
+  'Finance Member can submit a row in an existing active account and open period'
 );
 
 SELECT is(
   (SELECT created_by FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH'),
-  '00000000-0000-0000-0000-000000000701'::uuid,
-  'Finance Manager remains the created-by actor'
+  '00000000-0000-0000-0000-000000000801'::uuid,
+  'Finance Member remains the created-by actor'
 );
 
 SELECT is(
@@ -1041,7 +1043,7 @@ SELECT is(
     p_idempotency_key => 'fm-petty-create-0001'
   ),
   (SELECT id FROM public.petty_cash_entries WHERE category = 'FM-DAILY-CASH'),
-  'Finance Manager exact create replay returns the original Petty Cash row'
+  'Finance Member exact create replay returns the original Petty Cash row'
 );
 
 SELECT results_eq(
@@ -1081,6 +1083,8 @@ SELECT throws_ok(
   'Conflicting financial idempotency request',
   'same Petty Cash create key rejects a changed payload'
 );
+
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', true);
 
 SELECT lives_ok(
   $$SELECT public.post_petty_cash_entry(

@@ -1,13 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { detailSpy, getLeasesScreenData, requireFinanceContext } = vi.hoisted(() => ({
+const { detailSpy, getLeasesScreenData, requirePermission } = vi.hoisted(() => ({
     detailSpy: vi.fn(),
     getLeasesScreenData: vi.fn(),
-    requireFinanceContext: vi.fn(),
+    requirePermission: vi.fn(),
   }));
 
-vi.mock("@/lib/auth/context", () => ({ requireFinanceContext }));
+vi.mock("@/lib/auth/context", () => ({ requirePermission }));
 vi.mock("@/features/leases/data/leases", () => ({ getLeasesScreenData }));
 vi.mock("@/features/leases/components/lease-detail-screen", () => ({
   LeaseDetailScreen: (props: Record<string, unknown>) => {
@@ -24,10 +24,17 @@ describe("lease detail route", () => {
   beforeEach(() => {
     detailSpy.mockReset();
     getLeasesScreenData.mockReset();
-    requireFinanceContext.mockReset();
-    requireFinanceContext.mockResolvedValue({
-      capabilities: { canConfigureLeases: true },
+    requirePermission.mockReset();
+    requirePermission.mockResolvedValue({
       organizationId: "organization-1",
+      permissionKeys: new Set([
+        "leases.view",
+        "leases.activate",
+        "leases.archive",
+        "leases.change_terms",
+        "leases.close",
+        "leases.prepare",
+      ]),
     });
     getLeasesScreenData.mockResolvedValue({
       leases: [{ id: leaseId }],
@@ -55,12 +62,18 @@ describe("lease detail route", () => {
     );
     expect(detailSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        canConfigure: true,
         activeSection: "files",
         lease: { id: leaseId },
         propertyOptions: [{ id: "property-1" }],
         tenantOptions: [{ id: "tenant-1" }],
         unitOptions: [{ id: "unit-1" }],
+        permissions: {
+          canActivate: true,
+          canArchive: true,
+          canChangeTerms: true,
+          canClose: true,
+          canPrepare: true,
+        },
       }),
     );
   });
