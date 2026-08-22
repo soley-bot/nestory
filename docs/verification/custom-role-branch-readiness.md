@@ -22,13 +22,14 @@ forbidden.
 - Linked project default privileges require explicit grants for new public
   tables/functions. RLS and grants must ship together.
 - The protected package release stopped atomically when `20260822053215` found
-  CRLF in five legacy hosted function bodies. Those five approved targets were
-  normalized through the protected workflow; the next atomic attempt exposed
-  the same legacy newline difference in three photo functions and again
-  recorded no package migration. The hosted ledger remains 103 at
+  CRLF in legacy hosted function bodies. Two protected recovery attempts
+  normalized eight approved targets, but the migration remained atomic and no
+  package migration was recorded. The exhaustive predecessor inventory found
+  the final thirteen newline-only blockers: nine required by `20260822053215`
+  and four required by `20260822071638`. The hosted ledger remains 103 at
   `20260822045638`, with exactly four Git migrations pending.
-- The approved recovery pins all eight raw and LF-normalized definitions. The
-  first five must remain normalized; the three photo targets must be all raw or
+- The approved recovery pins all twenty-one raw and LF-normalized definitions.
+  The prior eight must remain normalized; the final thirteen must be all raw or
   all normalized before any definition executes. It changes CRLF to LF only
   and verifies unchanged function identity, ownership, ACLs, and
   execution/planner metadata before migration apply.
