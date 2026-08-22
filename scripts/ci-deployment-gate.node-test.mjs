@@ -219,9 +219,17 @@ test("production recovery is limited to eight hash-pinned newline normalizations
   assert.match(query, /previously_normalized_targets\s*<>\s*5/);
   assert.match(query, /new_photo_targets\s*<>\s*3/);
   assert.match(query, /raw_photo_targets\s+NOT IN \(0, 3\)/);
+  assert.match(query, /normalized_photo_targets\s+NOT IN \(0, 3\)/);
+  assert.match(
+    query,
+    /raw_photo_targets\s*\+\s*normalized_photo_targets\s*<>\s*3/,
+  );
+  const mixedStateGuard = "raw_photo_targets NOT IN (0, 3)";
+  const executionAnchor = "EXECUTE normalized_definition";
+  assert.notEqual(query.indexOf(mixedStateGuard), -1);
+  assert.notEqual(query.indexOf(executionAnchor), -1);
   assert.ok(
-    query.indexOf("raw_photo_targets NOT IN (0, 3)") <
-      query.indexOf("EXECUTE normalized_definition"),
+    query.indexOf(mixedStateGuard) < query.indexOf(executionAnchor),
     "mixed photo target states must fail before any definition executes",
   );
 
