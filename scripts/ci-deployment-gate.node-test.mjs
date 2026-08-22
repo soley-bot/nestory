@@ -3,7 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const workflowPath = new URL("../.github/workflows/ci.yml", import.meta.url);
-const pilotSnapshotPath = new URL("./pilot-preservation-snapshot.sql", import.meta.url);
+const pilotSnapshotPath = new URL(
+  "./pilot-preservation-snapshot.sql",
+  import.meta.url,
+);
 const newlineRecoveryPath = new URL(
   "./normalize-hosted-function-newlines.sql",
   import.meta.url,
@@ -130,10 +133,7 @@ test("production database release is serialized and runs only from exact merged 
   }
 
   const shaCheck = getStep(release, "Verify exact merged main SHA");
-  assert.match(
-    shaCheck,
-    /^          GH_TOKEN: \$\{\{ github\.token \}\}$/m,
-  );
+  assert.match(shaCheck, /^          GH_TOKEN: \$\{\{ github\.token \}\}$/m);
   assert.match(
     shaCheck,
     /gh api "repos\/\$GITHUB_REPOSITORY\/commits\/main" --jq '\.sha'/,
@@ -154,17 +154,32 @@ test("production database release is serialized and runs only from exact merged 
 
   const expectedReleaseSteps = [
     ["Verify hosted migration preflight", "npm run db:hosted-preflight"],
-    ["Capture Pilot preservation preflight", "scripts/pilot-preservation-snapshot.sql"],
+    [
+      "Capture Pilot preservation preflight",
+      "scripts/pilot-preservation-snapshot.sql",
+    ],
     [
       "Normalize approved hosted function newlines",
       "scripts/normalize-hosted-function-newlines.sql",
     ],
-    ["Dry-run production migrations", "npm exec -- supabase db push --linked --dry-run --yes"],
-    ["Apply production migrations", "npm exec -- supabase db push --linked --yes"],
+    [
+      "Dry-run production migrations",
+      "npm exec -- supabase db push --linked --dry-run --yes",
+    ],
+    [
+      "Apply production migrations",
+      "npm exec -- supabase db push --linked --yes",
+    ],
     ["Verify hosted migration postflight", "npm run db:hosted-postflight"],
     ["Verify Pilot preservation postflight", "diff --unified=0"],
-    ["Lint linked database", "npm exec -- supabase db lint --linked --level error --fail-on error"],
-    ["Confirm no pending production migrations", "npm exec -- supabase db push --linked --dry-run --yes"],
+    [
+      "Lint linked database",
+      "npm exec -- supabase db lint --linked --level error --fail-on error",
+    ],
+    [
+      "Confirm no pending production migrations",
+      "npm exec -- supabase db push --linked --dry-run --yes",
+    ],
   ];
   let previousPosition = -1;
   for (const [stepName, command] of expectedReleaseSteps) {
@@ -196,10 +211,11 @@ test("production database release is serialized and runs only from exact merged 
     recovery,
     /db query --linked --file scripts\/verify-hosted-function-newline-recovery\.sql/,
   );
+  assert.match(recovery, /\.target_count == 21/);
   assert.doesNotMatch(recovery, /readonly query=/);
 });
 
-test("production recovery is limited to eight hash-pinned newline normalizations", async () => {
+test("production recovery is limited to the approved twenty-one hash-pinned newline normalizations", async () => {
   const query = await readFile(newlineRecoveryPath, "utf8");
   const verificationQuery = await readFile(
     newlineRecoveryVerificationPath,
@@ -210,67 +226,167 @@ test("production recovery is limited to eight hash-pinned newline normalizations
   assert.doesNotMatch(query, /^BEGIN;|^COMMIT;/m);
   assert.match(query, /hosted_ledger_count\s*<>\s*103/);
   assert.match(query, /hosted_ledger_head\s*<>\s*'20260822045638'/);
-  assert.match(query, /jsonb_array_length\(targets\)\s*<>\s*8/);
+  assert.match(query, /jsonb_array_length\(targets\)\s*<>\s*21/);
   assert.match(query, /replace\(definition, E'\\r\\n', E'\\n'\)/);
   assert.match(query, /raw_sha256/);
   assert.match(query, /normalized_sha256/);
+  assert.match(query, /expected_raw_sha256\s*=\s*expected_normalized_sha256/);
   assert.match(query, /metadata_before\s+IS DISTINCT FROM metadata_after/);
-  assert.match(query, /processed_signatures\s*<>\s*8/);
-  assert.match(query, /previously_normalized_targets\s*<>\s*5/);
-  assert.match(query, /new_photo_targets\s*<>\s*3/);
-  assert.match(query, /raw_photo_targets\s+NOT IN \(0, 3\)/);
-  assert.match(query, /normalized_photo_targets\s+NOT IN \(0, 3\)/);
+  assert.match(query, /processed_signatures\s*<>\s*21/);
+  assert.match(query, /previously_normalized_targets\s*<>\s*8/);
+  assert.match(query, /new_recovery_targets\s*<>\s*13/);
+  assert.match(query, /raw_recovery_targets\s+NOT IN \(0, 13\)/);
+  assert.match(query, /normalized_recovery_targets\s+NOT IN \(0, 13\)/);
   assert.match(
     query,
-    /raw_photo_targets\s*\+\s*normalized_photo_targets\s*<>\s*3/,
+    /raw_recovery_targets\s*\+\s*normalized_recovery_targets\s*<>\s*13/,
   );
-  const mixedStateGuard = "raw_photo_targets NOT IN (0, 3)";
+  const mixedStateGuard = "raw_recovery_targets NOT IN (0, 13)";
   const executionAnchor = "EXECUTE normalized_definition";
   assert.notEqual(query.indexOf(mixedStateGuard), -1);
   assert.notEqual(query.indexOf(executionAnchor), -1);
   assert.ok(
     query.indexOf(mixedStateGuard) < query.indexOf(executionAnchor),
-    "mixed photo target states must fail before any definition executes",
+    "mixed recovery target states must fail before any definition executes",
   );
 
-  for (const signature of [
-    "public.archive_person(uuid,uuid)",
-    "public.archive_property(uuid,uuid)",
-    "public.restore_person(uuid,uuid)",
-    "public.restore_property(uuid,uuid)",
-    "public.update_person(uuid,uuid,text,text,text,text,text,text,text,text[])",
-    "public.archive_asset_photo(uuid,uuid)",
-    "public.create_asset_photo(uuid,uuid,uuid,text,text,text,bigint,text,boolean,date)",
-    "public.set_asset_photo_cover(uuid,uuid)",
-  ]) {
-    assert.equal(query.split(signature).length - 1, 1, `${signature} must be unique`);
+  const expectedTargets = [
+    [
+      "public.archive_person(uuid,uuid)",
+      "c089e21d926145922a41a0cc47460d119d80511688c21db26a83b1c9fc4b08df",
+      "9a6ae2109e090224622d214b9d36dc2ff257f1221b9905e3d89a3c64dffac60d",
+    ],
+    [
+      "public.archive_property(uuid,uuid)",
+      "080166e6959e245c20397353d1b5e3b32cb2daa63b9c3e32108a234c4912528d",
+      "d89cb737223fd868c60aa7243fba0381f122b1aa88aa5eba9227136975347c87",
+    ],
+    [
+      "public.restore_person(uuid,uuid)",
+      "e346a1cb0dbceab8d2b641064360f3ed909b9a35923dba12040c00573203bf05",
+      "94f21962a9273e73b72883b18e1fc2dfbfd65f247457cae361659d8a1deae79a",
+    ],
+    [
+      "public.restore_property(uuid,uuid)",
+      "29952b0525a61d797ffff75c1c4745213565b2e5024d62653b08dece7ce6fa0b",
+      "bc708433a87f1522ad917f7a460214967203670db0036372c00843b20ffd358e",
+    ],
+    [
+      "public.update_person(uuid,uuid,text,text,text,text,text,text,text,text[])",
+      "3db86d5f86fc0f36e0799b789280b3b4725decccfb5e3bacfceae68f79a0b25e",
+      "24186ec6f8f4a8a0b989d4d874f7526cb92c96f2b5dcde29e3966ec7f1efb5fb",
+    ],
+    [
+      "public.archive_asset_photo(uuid,uuid)",
+      "b45c5e72657877ea3e7cc2e5d85540db10f5dfd7f3b6543e462e0368b2029cc4",
+      "35a73f2c86f509da0d6a46934de71ba79e9fe806cead3e9626f16426644c1f31",
+    ],
+    [
+      "public.create_asset_photo(uuid,uuid,uuid,text,text,text,bigint,text,boolean,date)",
+      "2b1d105dd6902af272128ae1ee8fa0087e8b74581004e856c47d1414241bbe85",
+      "6e242f86bd40c532cd0f1fe960b2896a63056c8b2abd4bc9a22f301d9cd81e9d",
+    ],
+    [
+      "public.set_asset_photo_cover(uuid,uuid)",
+      "1e3644c091625eb6d44cb3669b4868e68a1c2316b86c5edb5f8ebe598d5cb45f",
+      "d57f7c4ec83ab385ff8ae805c03d089743480ce6c1c6946a459b23ded60dacbe",
+    ],
+    [
+      "app_private.commit_generic_import_run_internal(uuid,uuid)",
+      "22ace458068cc7a664792cbc7f3fc036e0517a957a7f36efd9d358c023721b1a",
+      "7281ce6240771f5a8e03108577b76599395be828ec1c55db70878dd9e0add8c8",
+    ],
+    [
+      "app_private.create_lease_core_internal(uuid,uuid,uuid,uuid,date,date,numeric,public.currency_code,integer,text,text,numeric,public.currency_code,text,text)",
+      "e562bcd22d581cfdc4abee5a6984c1c2ed35e9714bb502b1dc4f1963911073c3",
+      "14ab67a6414ea72a409dfb841e21d19125c56ffea5fc97db0b4cba985fadfea4",
+    ],
+    [
+      "app_private.update_lease_with_authoritative_term_internal(uuid,uuid,uuid,uuid,uuid,date,date,numeric,public.currency_code,integer,text,text,numeric,public.currency_code,text,text)",
+      "67718919899d197f534e262097a83d39b60cd61e5bfd12b430e6e409df72a7ba",
+      "f296430f7b8394494f9051353f2d18118b00c74ef607aa83ee89de0ce00f1724",
+    ],
+    [
+      "public.archive_lease(uuid,uuid)",
+      "2d231d952d4d2f2975f73c1a99539ccb23f54f8ebd50b6f809565cd10fe018f7",
+      "99a1d240de1d18458579c72256f1717223ade9043ec08b1505494a44c0a75eca",
+    ],
+    [
+      "public.correct_authoritative_lease_term(uuid,uuid,uuid,date,date,numeric,public.currency_code,integer,text,text,text)",
+      "018042d2d893af393227dbbcd9e3c1c6e720f5ae70885d4e3ac7a8ae4d46edbd",
+      "5f5f2009d436d3bd8b8a04b6be4a991697757f169e26ced408b0b55c4564d87c",
+    ],
+    [
+      "public.create_lease_with_relationships(uuid,uuid,uuid,uuid,date,date,numeric,public.currency_code,integer,text,text,numeric,public.currency_code,text,jsonb,text)",
+      "a2bb1d6933370dbf2df78b48f179d8f1f3d0c745251378086d4abfb8e27d3e50",
+      "1b2396f86ba5388cf07e88f34d31f271812489438daeaa39a3aeafc855c651f5",
+    ],
+    [
+      "public.restore_lease(uuid,uuid)",
+      "e45c887bf36607679939160e440fcf3b5e02b1eccb177e9f4c87a0d0c28c478a",
+      "92bab17ef16f879adb2d2ddacafd8a549865ac1dc2abc593b3f25ef5efdde5b9",
+    ],
+    [
+      "public.set_lease_billing_term(uuid,uuid,date,text,text,numeric,boolean,boolean,text,uuid,numeric,numeric,uuid,text)",
+      "9d3736c9087a7c0e52b1d80a1afb695fd37185cdcbce05ebb0966d1de32b753a",
+      "1da9b7506e2ac081a91b957de38182deb3ea0e064128f4eb0d2fb0b0a288aaea",
+    ],
+    [
+      "public.update_lease_with_authoritative_term(uuid,uuid,uuid,uuid,uuid,date,date,numeric,public.currency_code,integer,text,text,numeric,public.currency_code,text,text)",
+      "ca91d38b5a91591c62e8fa40c1d839e8cea72d0ef4d82aaf7911d979cb93ed21",
+      "6952d2a435a766264205c9f5aa0ac36783d162ce6f48da50fed563b8053caa6f",
+    ],
+    [
+      "app_private.create_maintenance_task_baseline_track10(uuid,uuid,uuid,text,text,text,text,text,date,time without time zone,date,time without time zone,uuid,numeric,public.currency_code,jsonb,text,uuid,uuid)",
+      "a1f4a94213a7935058614c45b0e32e989a0b4bb2959dba05e2b25a4d1a3230e4",
+      "65d6e375de72781daa65f9736a78408a967ecb26da0c8938cd2c36c2d3c54b59",
+    ],
+    [
+      "app_private.create_maintenance_task_internal(uuid,uuid,uuid,text,text,text,text,text,date,time without time zone,date,time without time zone,uuid,numeric,public.currency_code,jsonb,text,uuid,uuid)",
+      "bc6511b10bca5be34cb527e86131ec2eabb7bcd7c65ebdeec90eabf546c0d32e",
+      "f34e944ee364d27ba4d4b7112b7a23ca0072d35974e405b5497d1b01b0b2d375",
+    ],
+    [
+      "app_private.update_maintenance_task_baseline_track10(uuid,uuid,uuid,uuid,text,text,text,text,text,date,time without time zone,date,time without time zone,uuid,numeric,public.currency_code,numeric,public.currency_code,jsonb,text,uuid,uuid)",
+      "2d531b43bc7cbe51ee04be7e3f78458ed88e471945baad5497096c985b74bc0a",
+      "a98d13dbe686805d0bfefcbe53e50f5b3df1585e1efb66261edac3c57ed96216",
+    ],
+    [
+      "app_private.update_maintenance_task_internal(uuid,uuid,uuid,uuid,text,text,text,text,text,date,time without time zone,date,time without time zone,uuid,numeric,public.currency_code,numeric,public.currency_code,jsonb,text,uuid,uuid)",
+      "171db6c1a4b9641ba1f54058fc627c3846306139bc64b2527330bd3ecb6d99b8",
+      "5673f36119dad04acfe6ce00d96865db3ec8e65d36d662891272d1d582903921",
+    ],
+  ];
+
+  for (const [signature, rawHash, normalizedHash] of expectedTargets) {
+    assert.equal(
+      query.split(signature).length - 1,
+      1,
+      `${signature} must be unique`,
+    );
+    assert.equal(
+      query.split(rawHash).length - 1,
+      1,
+      `${rawHash} must be unique`,
+    );
+    assert.equal(
+      query.split(normalizedHash).length - 1,
+      1,
+      `${normalizedHash} must be unique`,
+    );
   }
 
-  for (const hash of [
-    "c089e21d926145922a41a0cc47460d119d80511688c21db26a83b1c9fc4b08df",
-    "080166e6959e245c20397353d1b5e3b32cb2daa63b9c3e32108a234c4912528d",
-    "e346a1cb0dbceab8d2b641064360f3ed909b9a35923dba12040c00573203bf05",
-    "29952b0525a61d797ffff75c1c4745213565b2e5024d62653b08dece7ce6fa0b",
-    "3db86d5f86fc0f36e0799b789280b3b4725decccfb5e3bacfceae68f79a0b25e",
-    "9a6ae2109e090224622d214b9d36dc2ff257f1221b9905e3d89a3c64dffac60d",
-    "d89cb737223fd868c60aa7243fba0381f122b1aa88aa5eba9227136975347c87",
-    "94f21962a9273e73b72883b18e1fc2dfbfd65f247457cae361659d8a1deae79a",
-    "bc708433a87f1522ad917f7a460214967203670db0036372c00843b20ffd358e",
-    "24186ec6f8f4a8a0b989d4d874f7526cb92c96f2b5dcde29e3966ec7f1efb5fb",
-    "b45c5e72657877ea3e7cc2e5d85540db10f5dfd7f3b6543e462e0368b2029cc4",
-    "35a73f2c86f509da0d6a46934de71ba79e9fe806cead3e9626f16426644c1f31",
-    "2b1d105dd6902af272128ae1ee8fa0087e8b74581004e856c47d1414241bbe85",
-    "6e242f86bd40c532cd0f1fe960b2896a63056c8b2abd4bc9a22f301d9cd81e9d",
-    "1e3644c091625eb6d44cb3669b4868e68a1c2316b86c5edb5f8ebe598d5cb45f",
-    "d57f7c4ec83ab385ff8ae805c03d089743480ce6c1c6946a459b23ded60dacbe",
-  ]) {
-    assert.equal(query.split(hash).length - 1, 1, `${hash} must be unique`);
-  }
-
-  assert.match(verificationQuery, /count\(\*\)\s*=\s*8/);
-  assert.match(verificationQuery, /bool_and\(actual_sha256 = normalized_sha256\)/);
-  assert.match(verificationQuery, /bool_and\(strpos\(definition, E'\\r'\) = 0\)/);
-  assert.match(verificationQuery, /'target_count', 8/);
+  assert.equal(expectedTargets.length, 21);
+  assert.match(verificationQuery, /count\(\*\)\s*=\s*21/);
+  assert.match(
+    verificationQuery,
+    /bool_and\(actual_sha256 = normalized_sha256\)/,
+  );
+  assert.match(
+    verificationQuery,
+    /bool_and\(strpos\(definition, E'\\r'\) = 0\)/,
+  );
+  assert.match(verificationQuery, /'target_count', 21/);
 
   assert.doesNotMatch(query, /migration\s+repair/i);
   assert.doesNotMatch(query, /\b(?:delete|truncate|drop)\b/i);
@@ -309,10 +425,7 @@ test("production release compares an aggregate-only Pilot preservation snapshot"
 function assertStepHasSecret(step, name) {
   assert.match(
     step,
-    new RegExp(
-      `^          ${name}: \\$\\{\\{ secrets\\.${name} \\}\\}$`,
-      "m",
-    ),
+    new RegExp(`^          ${name}: \\$\\{\\{ secrets\\.${name} \\}\\}$`, "m"),
   );
 }
 
