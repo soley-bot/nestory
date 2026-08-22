@@ -501,6 +501,9 @@ test("financial evidence recovery is exact, branch-only, and restores the strict
   }
   assert.match(snapshot, /related_activity_sha256/);
   assert.match(snapshot, /storage_object_count/);
+  assert.match(snapshot, /bucket_id\s*=\s*'nestory-documents'/);
+  assert.doesNotMatch(snapshot, /bucket_id\s*=\s*'documents'/);
+  assert.match(snapshot, /observed\.storage_object_count\s*=\s*1/);
   assert.doesNotMatch(snapshot, /\b(?:insert|update|delete|truncate|alter|drop|create|grant|revoke)\b/i);
 
   assert.match(apply, /trap restore_guard EXIT/);

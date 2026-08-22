@@ -90,7 +90,7 @@ WITH expected_targets(
     (
       SELECT count(*)::integer
       FROM storage.objects AS object_record
-      WHERE object_record.bucket_id = 'documents'
+      WHERE object_record.bucket_id = 'nestory-documents'
         AND object_record.name = document.storage_path
     ) AS storage_object_count
   FROM expected_targets
@@ -216,7 +216,7 @@ WITH expected_targets(
     AND observed.resolved_parent_count = expected_targets.expected_parent_count
     AND observed.distinct_branch_count = 1
     AND observed.expected_branch_id = expected_targets.branch_id
-    AND observed.storage_object_count = 0
+    AND observed.storage_object_count = 1
 )
 SELECT jsonb_build_object(
   'target_count', count(*),
