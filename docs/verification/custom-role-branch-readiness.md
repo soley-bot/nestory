@@ -12,8 +12,8 @@ forbidden.
 
 - Worktree: `C:/Users/USer/.codex/worktrees/9c29/nestory`
 - Package merge: `79d9f5199f44daeaee19bfc6e0631cd8dfe76ce8`
-- First recovery merge and current recovery base:
-  `f12788d599f919c5b1b563e95d52c6eb9f053ef3`
+- Newline recovery merge and current semantic-recovery base:
+  `254935ba1fa9f5b8ef2c094f06e9df2d0d061efd`
 - Package baseline: 99 migrations, ending at
   `20260821155604_add_unit_room_counts.sql`; the hosted checkpoint is 103 and
   the complete local package is 107.
@@ -21,21 +21,28 @@ forbidden.
   Settings cleanup are merged.
 - Linked project default privileges require explicit grants for new public
   tables/functions. RLS and grants must ship together.
-- The protected package release stopped atomically when `20260822053215` found
-  CRLF in legacy hosted function bodies. Two protected recovery attempts
-  normalized eight approved targets, but the migration remained atomic and no
-  package migration was recorded. The exhaustive predecessor inventory found
-  the final thirteen newline-only blockers: nine required by `20260822053215`
-  and four required by `20260822071638`. The hosted ledger remains 103 at
-  `20260822045638`, with exactly four Git migrations pending.
+- The protected newline recovery normalized all twenty-one approved legacy
+  function definitions. The following apply recorded `20260822053215` and
+  `20260822061424`; `20260822071638` then rolled back when its document branch
+  backfill reached three referenced financial-evidence documents protected by
+  the released strict immutability trigger. Hosted state is exactly 105 unique
+  ledger rows at `20260822061424`, with `20260822071638` and
+  `20260822091214` pending.
 - The approved recovery pins all twenty-one raw and LF-normalized definitions.
   The prior eight must remain normalized; the final thirteen must be all raw or
   all normalized before any definition executes. It changes CRLF to LF only
   and verifies unchanged function identity, ownership, ACLs, and
   execution/planner metadata before migration apply.
-- Its checkpoint classifier runs normalization only at 103, rejects partial
-  package ledgers, and becomes a verified skip after all four migrations exist
-  so later production releases remain available.
+- Its checkpoint classifier runs normalization only at 103, recognizes the
+  reviewed 105/106 partial checkpoints after predecessor replacement, and
+  becomes a verified skip after all four migrations exist.
+- The approved semantic recovery pins the exact three locked document IDs,
+  non-branch row hashes, financial-reference hashes, related-history hash, sole
+  active branch, and strict guard definition/metadata. A temporary guard permits
+  only the otherwise-identical `branch_id` backfill; an exit trap restores the
+  exact strict guard on both success and failure. Postflight requires 107/107,
+  zero pending migrations, strict-guard restoration, and identical preservation
+  snapshots.
 
 ## Approved transition inventory
 

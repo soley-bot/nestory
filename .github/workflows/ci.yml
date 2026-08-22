@@ -258,17 +258,116 @@ jobs:
               ;;
           esac
 
+      - name: Capture approved financial evidence recovery preflight
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly state_path="$RUNNER_TEMP/financial-evidence-recovery-state.txt"
+          readonly before_path="$RUNNER_TEMP/financial-evidence-preservation-before.json"
+          readonly state_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/classify-hosted-financial-evidence-branch-backfill.sql)"
+          readonly recovery_state="$(jq -er '.rows | select(length == 1) | .[0].recovery_state | select(. == "required" or . == "restore_required" or . == "resume" or . == "restore_resume" or . == "complete")' <<<"$state_output")"
+          printf '%s\n' "$recovery_state" | tee "$state_path"
+
+          case "$recovery_state" in
+            required|restore_required|resume|restore_resume)
+              readonly snapshot_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/financial-evidence-preservation-snapshot.sql)"
+              jq -ceS '.rows | select(length == 1)' <<<"$snapshot_output" | tee "$before_path"
+              ;;
+            complete)
+              printf 'Approved financial evidence recovery already complete.\n'
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
+
       - name: Dry-run production migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: npm exec -- supabase db push --linked --dry-run --yes
 
-      - name: Apply production migrations
+      - name: Apply approved financial evidence recovery and production migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: npm exec -- supabase db push --linked --yes
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly state_path="$RUNNER_TEMP/financial-evidence-recovery-state.txt"
+          test -s "$state_path"
+          readonly expected_state="$(cat "$state_path")"
+
+          classify_recovery() {
+            local output
+            output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/classify-hosted-financial-evidence-branch-backfill.sql)"
+            jq -er '.rows | select(length == 1) | .[0].recovery_state' <<<"$output"
+          }
+
+          restore_guard() {
+            npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/restore-hosted-financial-evidence-guard.sql
+          }
+
+          prepare_guard() {
+            npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/prepare-hosted-financial-evidence-branch-backfill.sql
+          }
+
+          readonly current_state="$(classify_recovery)"
+          test "$current_state" = "$expected_state"
+
+          case "$current_state" in
+            required)
+              trap restore_guard EXIT
+              prepare_guard
+              npm exec -- supabase db push --linked --yes
+              restore_guard
+              trap - EXIT
+              ;;
+            restore_required)
+              trap restore_guard EXIT
+              restore_guard
+              prepare_guard
+              npm exec -- supabase db push --linked --yes
+              restore_guard
+              trap - EXIT
+              ;;
+            resume)
+              npm exec -- supabase db push --linked --yes
+              ;;
+            restore_resume)
+              restore_guard
+              npm exec -- supabase db push --linked --yes
+              ;;
+            complete)
+              npm exec -- supabase db push --linked --yes
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
+
+      - name: Verify approved financial evidence recovery
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly before_path="$RUNNER_TEMP/financial-evidence-preservation-before.json"
+          if test -s "$before_path"; then
+            readonly after_path="$RUNNER_TEMP/financial-evidence-preservation-after.json"
+            readonly verification_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/verify-hosted-financial-evidence-branch-backfill.sql)"
+            jq -ce '.rows | select(length == 1) | .[0].financial_evidence_recovery_descriptor | select(.hosted_ledger_count == 107 and .hosted_ledger_head == "20260822091214" and .target_count == 3 and .strict_guard_restored == true)' <<<"$verification_output"
+            readonly snapshot_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/financial-evidence-preservation-snapshot.sql)"
+            jq -ceS '.rows | select(length == 1)' <<<"$snapshot_output" | tee "$after_path"
+            diff --unified=0 "$before_path" "$after_path"
+          else
+            readonly state_output="$(npm exec -- supabase --agent yes --output-format json db query --linked --file scripts/classify-hosted-financial-evidence-branch-backfill.sql)"
+            jq -ce '.rows | select(length == 1) | .[0].recovery_state | select(. == "complete")' <<<"$state_output"
+          fi
 
       - name: Verify hosted migration postflight
         env:

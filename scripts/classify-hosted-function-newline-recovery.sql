@@ -18,6 +18,14 @@ WITH ledger AS (
         AND hosted_ledger_head = '20260822045638'
         AND package_versions_present = 0
       THEN 'required'
+      WHEN hosted_ledger_count = 105
+        AND hosted_ledger_head = '20260822061424'
+        AND package_versions_present = 2
+      THEN 'complete'
+      WHEN hosted_ledger_count = 106
+        AND hosted_ledger_head = '20260822071638'
+        AND package_versions_present = 3
+      THEN 'complete'
       WHEN package_versions_present = 4
       THEN 'complete'
       ELSE NULL

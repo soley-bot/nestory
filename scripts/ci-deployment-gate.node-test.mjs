@@ -19,6 +19,26 @@ const newlineRecoveryClassifierPath = new URL(
   "./classify-hosted-function-newline-recovery.sql",
   import.meta.url,
 );
+const financialEvidenceRecoveryClassifierPath = new URL(
+  "./classify-hosted-financial-evidence-branch-backfill.sql",
+  import.meta.url,
+);
+const financialEvidenceRecoveryPreparePath = new URL(
+  "./prepare-hosted-financial-evidence-branch-backfill.sql",
+  import.meta.url,
+);
+const financialEvidenceRecoveryRestorePath = new URL(
+  "./restore-hosted-financial-evidence-guard.sql",
+  import.meta.url,
+);
+const financialEvidenceRecoverySnapshotPath = new URL(
+  "./financial-evidence-preservation-snapshot.sql",
+  import.meta.url,
+);
+const financialEvidenceRecoveryVerificationPath = new URL(
+  "./verify-hosted-financial-evidence-branch-backfill.sql",
+  import.meta.url,
+);
 
 function getJob(workflow, jobName) {
   const normalized = workflow.replace(/\r\n/g, "\n");
@@ -163,12 +183,20 @@ test("production database release is serialized and runs only from exact merged 
       "scripts/normalize-hosted-function-newlines.sql",
     ],
     [
+      "Capture approved financial evidence recovery preflight",
+      "scripts/financial-evidence-preservation-snapshot.sql",
+    ],
+    [
       "Dry-run production migrations",
       "npm exec -- supabase db push --linked --dry-run --yes",
     ],
     [
-      "Apply production migrations",
+      "Apply approved financial evidence recovery and production migrations",
       "npm exec -- supabase db push --linked --yes",
+    ],
+    [
+      "Verify approved financial evidence recovery",
+      "scripts/verify-hosted-financial-evidence-branch-backfill.sql",
     ],
     ["Verify hosted migration postflight", "npm run db:hosted-postflight"],
     ["Verify Pilot preservation postflight", "diff --unified=0"],
@@ -398,10 +426,100 @@ test("production recovery runs only at the exact checkpoint and skips completed 
   assert.match(query, /hosted_ledger_count = 103/);
   assert.match(query, /hosted_ledger_head = '20260822045638'/);
   assert.match(query, /package_versions_present = 0/);
+  assert.match(query, /hosted_ledger_count = 105/);
+  assert.match(query, /hosted_ledger_head = '20260822061424'/);
+  assert.match(query, /package_versions_present = 2/);
+  assert.match(query, /hosted_ledger_count = 106/);
+  assert.match(query, /hosted_ledger_head = '20260822071638'/);
+  assert.match(query, /package_versions_present = 3/);
   assert.match(query, /package_versions_present = 4/);
   assert.match(query, /THEN 'required'/);
   assert.match(query, /THEN 'complete'/);
   assert.match(query, /ELSE NULL/);
+});
+
+test("financial evidence recovery is exact, branch-only, and restores the strict guard", async () => {
+  const [classifier, prepare, restore, snapshot, verification, workflow] =
+    await Promise.all([
+      readFile(financialEvidenceRecoveryClassifierPath, "utf8"),
+      readFile(financialEvidenceRecoveryPreparePath, "utf8"),
+      readFile(financialEvidenceRecoveryRestorePath, "utf8"),
+      readFile(financialEvidenceRecoverySnapshotPath, "utf8"),
+      readFile(financialEvidenceRecoveryVerificationPath, "utf8"),
+      readFile(workflowPath, "utf8"),
+    ]);
+  const release = getJob(workflow, "production_database");
+  const apply = getStep(
+    release,
+    "Apply approved financial evidence recovery and production migrations",
+  );
+  const verify = getStep(
+    release,
+    "Verify approved financial evidence recovery",
+  );
+
+  for (const query of [classifier, prepare, restore, snapshot, verification]) {
+    for (const documentId of [
+      "1759ac8e-881d-4e01-8c91-f671f2d7361b",
+      "19a60225-b17b-4d1d-ad6b-c1bcc25ce10d",
+      "71a9b2e7-2e03-4504-89e4-1b822290117f",
+    ]) {
+      assert.match(query, new RegExp(documentId));
+    }
+  }
+
+  assert.match(classifier, /hosted_ledger_count = 105/);
+  assert.match(classifier, /hosted_ledger_head = '20260822061424'/);
+  assert.match(classifier, /THEN 'required'/);
+  assert.match(classifier, /THEN 'resume'/);
+  assert.match(classifier, /THEN 'complete'/);
+  assert.match(classifier, /ELSE NULL/);
+
+  assert.match(prepare, /db88ec0f62601bf0e8d21e658068b6e7f3314d25a2aea2bd32b00a38707274ba/);
+  assert.match(prepare, /to_jsonb\(NEW\)\s*-\s*'branch_id'/);
+  assert.match(prepare, /to_jsonb\(OLD\)\s*-\s*'branch_id'/);
+  assert.match(prepare, /app_private\.is_financial_evidence_document_locked\(OLD\.id\)/);
+  assert.match(prepare, /a8120000-0000-4000-8000-000000000001/);
+  assert.match(prepare, /Financial evidence document is immutable while referenced/);
+  assert.doesNotMatch(prepare, /migration\s+repair/i);
+  assert.doesNotMatch(prepare, /\b(?:delete\s+from|truncate|drop)\b/i);
+
+  assert.match(restore, /db88ec0f62601bf0e8d21e658068b6e7f3314d25a2aea2bd32b00a38707274ba/);
+  assert.match(restore, /to_jsonb\(NEW\) IS NOT DISTINCT FROM to_jsonb\(OLD\)/);
+  assert.match(restore, /metadata_before\s+IS DISTINCT FROM metadata_after/);
+  assert.doesNotMatch(restore, /\b(?:delete\s+from|truncate|drop)\b/i);
+
+  for (const rowHash of [
+    "5c1eed5acfe780771360e8aefc580345bbd379fedeb1b35ae0c554a5255ade36",
+    "37a99d408f2abe9e68b257db3c3d476ffa7bed92e36169278abe812c3775f3b2",
+    "97210808b2b73170ea6db5dd1ae9b9e65139e5041de7bd627b2e9c857ef2f525",
+    "2e709c2269424c28626a88554f62403c2dfd5e61a35f72a9c40f3293c39febd7",
+    "7e9859df80871fd1559de45325033c1ded97cb5b69e51271683dbec3f05972ef",
+    "cd9da1a9f6be9aedd84a9a9640c89ecc66c47d3e3264d8f7d748eededbc62308",
+  ]) {
+    assert.match(snapshot, new RegExp(rowHash));
+  }
+  assert.match(snapshot, /related_activity_sha256/);
+  assert.match(snapshot, /storage_object_count/);
+  assert.doesNotMatch(snapshot, /\b(?:insert|update|delete|truncate|alter|drop|create|grant|revoke)\b/i);
+
+  assert.match(apply, /trap restore_guard EXIT/);
+  assert.match(
+    apply,
+    /required\)\s+trap restore_guard EXIT\s+prepare_guard/,
+  );
+  assert.match(
+    apply,
+    /restore_required\)\s+trap restore_guard EXIT\s+restore_guard\s+prepare_guard/,
+  );
+  assert.match(apply, /prepare-hosted-financial-evidence-branch-backfill\.sql/);
+  assert.match(apply, /restore-hosted-financial-evidence-guard\.sql/);
+  assert.match(apply, /supabase db push --linked --yes/);
+  assert.match(verify, /verify-hosted-financial-evidence-branch-backfill\.sql/);
+  assert.match(verify, /diff --unified=0/);
+  assert.match(verification, /'hosted_ledger_count', 107/);
+  assert.match(verification, /'hosted_ledger_head', '20260822091214'/);
+  assert.match(verification, /'strict_guard_restored', true/);
 });
 
 test("production release compares an aggregate-only Pilot preservation snapshot", async () => {
