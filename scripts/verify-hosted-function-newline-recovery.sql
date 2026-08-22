@@ -19,6 +19,18 @@ WITH targets(signature, normalized_sha256) AS (
     (
       'public.update_person(uuid,uuid,text,text,text,text,text,text,text,text[])',
       '24186ec6f8f4a8a0b989d4d874f7526cb92c96f2b5dcde29e3966ec7f1efb5fb'
+    ),
+    (
+      'public.archive_asset_photo(uuid,uuid)',
+      '35a73f2c86f509da0d6a46934de71ba79e9fe806cead3e9626f16426644c1f31'
+    ),
+    (
+      'public.create_asset_photo(uuid,uuid,uuid,text,text,text,bigint,text,boolean,date)',
+      '6e242f86bd40c532cd0f1fe960b2896a63056c8b2abd4bc9a22f301d9cd81e9d'
+    ),
+    (
+      'public.set_asset_photo_cover(uuid,uuid)',
+      'd57f7c4ec83ab385ff8ae805c03d089743480ce6c1c6946a459b23ded60dacbe'
     )
 ), observed AS (
   SELECT
@@ -55,7 +67,7 @@ WITH targets(signature, normalized_sha256) AS (
 SELECT jsonb_build_object(
   'hosted_ledger_count', ledger.hosted_ledger_count,
   'hosted_ledger_head', ledger.hosted_ledger_head,
-  'target_count', 5,
+  'target_count', 8,
   'normalization', 'CRLF to LF only'
 ) AS recovery_descriptor
 FROM hashed
@@ -64,8 +76,8 @@ GROUP BY
   ledger.hosted_ledger_count,
   ledger.hosted_ledger_head,
   ledger.pending_versions_present
-HAVING count(*) = 5
-  AND count(DISTINCT signature) = 5
+HAVING count(*) = 8
+  AND count(DISTINCT signature) = 8
   AND bool_and(function_identity IS NOT NULL)
   AND bool_and(actual_sha256 = normalized_sha256)
   AND bool_and(strpos(definition, E'\r') = 0)

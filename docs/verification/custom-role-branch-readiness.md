@@ -11,20 +11,27 @@ forbidden.
 ## Proven baseline and recovery checkpoint
 
 - Worktree: `C:/Users/USer/.codex/worktrees/9c29/nestory`
-- Package merge and recovery base: `79d9f5199f44daeaee19bfc6e0631cd8dfe76ce8`
-- Released local/linked migrations: 99, ending at
-  `20260821155604_add_unit_room_counts.sql`
+- Package merge: `79d9f5199f44daeaee19bfc6e0631cd8dfe76ce8`
+- First recovery merge and current recovery base:
+  `f12788d599f919c5b1b563e95d52c6eb9f053ef3`
+- Package baseline: 99 migrations, ending at
+  `20260821155604_add_unit_room_counts.sql`; the hosted checkpoint is 103 and
+  the complete local package is 107.
 - PR #77 migration reconciliation, PR #84 Unit room counts, and PR #85 compact
   Settings cleanup are merged.
 - Linked project default privileges require explicit grants for new public
   tables/functions. RLS and grants must ship together.
-- The protected package release applied the first four forward migrations, then
-  stopped atomically when `20260822053215` found CRLF in five legacy hosted
-  function bodies. The hosted ledger is 103 at `20260822045638`, with exactly
-  four Git migrations pending.
-- The approved recovery pins the five raw definitions and their LF-normalized
-  hashes, changes CRLF to LF only, and verifies unchanged function identity,
-  ownership, ACLs, and execution/planner metadata before migration apply.
+- The protected package release stopped atomically when `20260822053215` found
+  CRLF in five legacy hosted function bodies. Those five approved targets were
+  normalized through the protected workflow; the next atomic attempt exposed
+  the same legacy newline difference in three photo functions and again
+  recorded no package migration. The hosted ledger remains 103 at
+  `20260822045638`, with exactly four Git migrations pending.
+- The approved recovery pins all eight raw and LF-normalized definitions. The
+  first five must remain normalized; the three photo targets must be all raw or
+  all normalized before any definition executes. It changes CRLF to LF only
+  and verifies unchanged function identity, ownership, ACLs, and
+  execution/planner metadata before migration apply.
 - Its checkpoint classifier runs normalization only at 103, rejects partial
   package ledgers, and becomes a verified skip after all four migrations exist
   so later production releases remain available.

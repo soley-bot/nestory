@@ -199,7 +199,7 @@ test("production database release is serialized and runs only from exact merged 
   assert.doesNotMatch(recovery, /readonly query=/);
 });
 
-test("production recovery is limited to five hash-pinned newline normalizations", async () => {
+test("production recovery is limited to eight hash-pinned newline normalizations", async () => {
   const query = await readFile(newlineRecoveryPath, "utf8");
   const verificationQuery = await readFile(
     newlineRecoveryVerificationPath,
@@ -210,12 +210,20 @@ test("production recovery is limited to five hash-pinned newline normalizations"
   assert.doesNotMatch(query, /^BEGIN;|^COMMIT;/m);
   assert.match(query, /hosted_ledger_count\s*<>\s*103/);
   assert.match(query, /hosted_ledger_head\s*<>\s*'20260822045638'/);
-  assert.match(query, /jsonb_array_length\(targets\)\s*<>\s*5/);
+  assert.match(query, /jsonb_array_length\(targets\)\s*<>\s*8/);
   assert.match(query, /replace\(definition, E'\\r\\n', E'\\n'\)/);
   assert.match(query, /raw_sha256/);
   assert.match(query, /normalized_sha256/);
   assert.match(query, /metadata_before\s+IS DISTINCT FROM metadata_after/);
-  assert.match(query, /processed_signatures\s*<>\s*5/);
+  assert.match(query, /processed_signatures\s*<>\s*8/);
+  assert.match(query, /previously_normalized_targets\s*<>\s*5/);
+  assert.match(query, /new_photo_targets\s*<>\s*3/);
+  assert.match(query, /raw_photo_targets\s+NOT IN \(0, 3\)/);
+  assert.ok(
+    query.indexOf("raw_photo_targets NOT IN (0, 3)") <
+      query.indexOf("EXECUTE normalized_definition"),
+    "mixed photo target states must fail before any definition executes",
+  );
 
   for (const signature of [
     "public.archive_person(uuid,uuid)",
@@ -223,6 +231,9 @@ test("production recovery is limited to five hash-pinned newline normalizations"
     "public.restore_person(uuid,uuid)",
     "public.restore_property(uuid,uuid)",
     "public.update_person(uuid,uuid,text,text,text,text,text,text,text,text[])",
+    "public.archive_asset_photo(uuid,uuid)",
+    "public.create_asset_photo(uuid,uuid,uuid,text,text,text,bigint,text,boolean,date)",
+    "public.set_asset_photo_cover(uuid,uuid)",
   ]) {
     assert.equal(query.split(signature).length - 1, 1, `${signature} must be unique`);
   }
@@ -238,14 +249,20 @@ test("production recovery is limited to five hash-pinned newline normalizations"
     "94f21962a9273e73b72883b18e1fc2dfbfd65f247457cae361659d8a1deae79a",
     "bc708433a87f1522ad917f7a460214967203670db0036372c00843b20ffd358e",
     "24186ec6f8f4a8a0b989d4d874f7526cb92c96f2b5dcde29e3966ec7f1efb5fb",
+    "b45c5e72657877ea3e7cc2e5d85540db10f5dfd7f3b6543e462e0368b2029cc4",
+    "35a73f2c86f509da0d6a46934de71ba79e9fe806cead3e9626f16426644c1f31",
+    "2b1d105dd6902af272128ae1ee8fa0087e8b74581004e856c47d1414241bbe85",
+    "6e242f86bd40c532cd0f1fe960b2896a63056c8b2abd4bc9a22f301d9cd81e9d",
+    "1e3644c091625eb6d44cb3669b4868e68a1c2316b86c5edb5f8ebe598d5cb45f",
+    "d57f7c4ec83ab385ff8ae805c03d089743480ce6c1c6946a459b23ded60dacbe",
   ]) {
     assert.equal(query.split(hash).length - 1, 1, `${hash} must be unique`);
   }
 
-  assert.match(verificationQuery, /count\(\*\)\s*=\s*5/);
+  assert.match(verificationQuery, /count\(\*\)\s*=\s*8/);
   assert.match(verificationQuery, /bool_and\(actual_sha256 = normalized_sha256\)/);
   assert.match(verificationQuery, /bool_and\(strpos\(definition, E'\\r'\) = 0\)/);
-  assert.match(verificationQuery, /'target_count', 5/);
+  assert.match(verificationQuery, /'target_count', 8/);
 
   assert.doesNotMatch(query, /migration\s+repair/i);
   assert.doesNotMatch(query, /\b(?:delete|truncate|drop)\b/i);
