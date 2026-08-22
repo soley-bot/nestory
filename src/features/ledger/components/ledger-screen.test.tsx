@@ -175,7 +175,10 @@ describe("LedgerScreen finance workspace contract", () => {
     const consequence = screen.getByRole("region", {
       name: "Month lock consequence",
     });
-    expect(consequence.textContent).toContain("authorized financial mutations");
+    expect(consequence.textContent).toContain(
+      "Locking prevents financial changes for the selected month.",
+    );
+    expect(consequence.textContent).not.toMatch(/mutation|RPC|RLS/i);
     expect(document.querySelector('[name="periodStart"]')).not.toBeNull();
     expect(
       (document.querySelector('[name="lockState"]') as HTMLSelectElement).value,

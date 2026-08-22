@@ -645,8 +645,8 @@ function PeriodLockPanel({
         <ConsequencePanel
           summary={
             canUnlockFinancialMonth
-              ? "Locking pauses authorized financial mutations for the selected month. Unlocking allows authorized corrections."
-              : "Locking pauses authorized financial mutations for the selected month. A reason is required, and only Super Admin can unlock it."
+              ? "Locking prevents financial changes for the selected month. Unlocking allows corrections."
+              : "Locking prevents financial changes for the selected month. A reason is required, and only Super Admin can unlock it."
           }
           title="Month lock consequence"
         />

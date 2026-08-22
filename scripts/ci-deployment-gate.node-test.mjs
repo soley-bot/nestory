@@ -4,6 +4,14 @@ import test from "node:test";
 
 const workflowPath = new URL("../.github/workflows/ci.yml", import.meta.url);
 const pilotSnapshotPath = new URL("./pilot-preservation-snapshot.sql", import.meta.url);
+const newlineRecoveryPath = new URL(
+  "./normalize-hosted-function-newlines.sql",
+  import.meta.url,
+);
+const newlineRecoveryVerificationPath = new URL(
+  "./verify-hosted-function-newline-recovery.sql",
+  import.meta.url,
+);
 
 function getJob(workflow, jobName) {
   const normalized = workflow.replace(/\r\n/g, "\n");
@@ -143,6 +151,10 @@ test("production database release is serialized and runs only from exact merged 
   const expectedReleaseSteps = [
     ["Verify hosted migration preflight", "npm run db:hosted-preflight"],
     ["Capture Pilot preservation preflight", "scripts/pilot-preservation-snapshot.sql"],
+    [
+      "Normalize approved hosted function newlines",
+      "scripts/normalize-hosted-function-newlines.sql",
+    ],
     ["Dry-run production migrations", "npm exec -- supabase db push --linked --dry-run --yes"],
     ["Apply production migrations", "npm exec -- supabase db push --linked --yes"],
     ["Verify hosted migration postflight", "npm run db:hosted-postflight"],
@@ -160,6 +172,72 @@ test("production database release is serialized and runs only from exact merged 
     assertStepHasSecret(step, "SUPABASE_ACCESS_TOKEN");
     assertStepHasSecret(step, "SUPABASE_DB_PASSWORD");
   }
+
+  const recovery = getStep(
+    release,
+    "Normalize approved hosted function newlines",
+  );
+  assert.match(
+    recovery,
+    /db query --linked --file scripts\/normalize-hosted-function-newlines\.sql/,
+  );
+  assert.match(
+    recovery,
+    /db query --linked --file scripts\/verify-hosted-function-newline-recovery\.sql/,
+  );
+  assert.doesNotMatch(recovery, /readonly query=/);
+});
+
+test("production recovery is limited to five hash-pinned newline normalizations", async () => {
+  const query = await readFile(newlineRecoveryPath, "utf8");
+  const verificationQuery = await readFile(
+    newlineRecoveryVerificationPath,
+    "utf8",
+  );
+
+  assert.match(query.trimStart(), /^DO \$recovery\$/);
+  assert.doesNotMatch(query, /^BEGIN;|^COMMIT;/m);
+  assert.match(query, /hosted_ledger_count\s*<>\s*103/);
+  assert.match(query, /hosted_ledger_head\s*<>\s*'20260822045638'/);
+  assert.match(query, /jsonb_array_length\(targets\)\s*<>\s*5/);
+  assert.match(query, /replace\(definition, E'\\r\\n', E'\\n'\)/);
+  assert.match(query, /raw_sha256/);
+  assert.match(query, /normalized_sha256/);
+  assert.match(query, /metadata_before\s+IS DISTINCT FROM metadata_after/);
+  assert.match(query, /processed_signatures\s*<>\s*5/);
+
+  for (const signature of [
+    "public.archive_person(uuid,uuid)",
+    "public.archive_property(uuid,uuid)",
+    "public.restore_person(uuid,uuid)",
+    "public.restore_property(uuid,uuid)",
+    "public.update_person(uuid,uuid,text,text,text,text,text,text,text,text[])",
+  ]) {
+    assert.equal(query.split(signature).length - 1, 1, `${signature} must be unique`);
+  }
+
+  for (const hash of [
+    "c089e21d926145922a41a0cc47460d119d80511688c21db26a83b1c9fc4b08df",
+    "080166e6959e245c20397353d1b5e3b32cb2daa63b9c3e32108a234c4912528d",
+    "e346a1cb0dbceab8d2b641064360f3ed909b9a35923dba12040c00573203bf05",
+    "29952b0525a61d797ffff75c1c4745213565b2e5024d62653b08dece7ce6fa0b",
+    "3db86d5f86fc0f36e0799b789280b3b4725decccfb5e3bacfceae68f79a0b25e",
+    "9a6ae2109e090224622d214b9d36dc2ff257f1221b9905e3d89a3c64dffac60d",
+    "d89cb737223fd868c60aa7243fba0381f122b1aa88aa5eba9227136975347c87",
+    "94f21962a9273e73b72883b18e1fc2dfbfd65f247457cae361659d8a1deae79a",
+    "bc708433a87f1522ad917f7a460214967203670db0036372c00843b20ffd358e",
+    "24186ec6f8f4a8a0b989d4d874f7526cb92c96f2b5dcde29e3966ec7f1efb5fb",
+  ]) {
+    assert.equal(query.split(hash).length - 1, 1, `${hash} must be unique`);
+  }
+
+  assert.match(verificationQuery, /count\(\*\)\s*=\s*5/);
+  assert.match(verificationQuery, /bool_and\(actual_sha256 = normalized_sha256\)/);
+  assert.match(verificationQuery, /bool_and\(strpos\(definition, E'\\r'\) = 0\)/);
+  assert.match(verificationQuery, /'target_count', 5/);
+
+  assert.doesNotMatch(query, /migration\s+repair/i);
+  assert.doesNotMatch(query, /\b(?:delete|truncate|drop)\b/i);
 });
 
 test("production release compares an aggregate-only Pilot preservation snapshot", async () => {
