@@ -8,16 +8,26 @@ merged `main` SHA through the protected `production-database` environment in
 `.github/workflows/ci.yml`; developer-checkout and connector writes remain
 forbidden.
 
-## Proven baseline
+## Proven baseline and recovery checkpoint
 
 - Worktree: `C:/Users/USer/.codex/worktrees/9c29/nestory`
-- Baseline and `origin/main`: `05e84e9b75c4507f2b133ccaf8e7de93a20a5a92`
+- Package merge and recovery base: `79d9f5199f44daeaee19bfc6e0631cd8dfe76ce8`
 - Released local/linked migrations: 99, ending at
   `20260821155604_add_unit_room_counts.sql`
 - PR #77 migration reconciliation, PR #84 Unit room counts, and PR #85 compact
   Settings cleanup are merged.
 - Linked project default privileges require explicit grants for new public
   tables/functions. RLS and grants must ship together.
+- The protected package release applied the first four forward migrations, then
+  stopped atomically when `20260822053215` found CRLF in five legacy hosted
+  function bodies. The hosted ledger is 103 at `20260822045638`, with exactly
+  four Git migrations pending.
+- The approved recovery pins the five raw definitions and their LF-normalized
+  hashes, changes CRLF to LF only, and verifies unchanged function identity,
+  ownership, ACLs, and execution/planner metadata before migration apply.
+- Its checkpoint classifier runs normalization only at 103, rejects partial
+  package ledgers, and becomes a verified skip after all four migrations exist
+  so later production releases remain available.
 
 ## Approved transition inventory
 
@@ -96,8 +106,11 @@ signatures for rollback compatibility.
 - The five approved fixture-role journeys pass at desktop, laptop, and phone
   sizes. Compact browser checks also pass for Super Admin Roles, Branches, and
   Access management, and for Finance Manager Month Lock with no unlock option.
+- User-facing package copy uses compact product terms. The Month Lock consequence
+  says financial changes are prevented, and the role permission is labeled
+  `Lock month`; user-visible package text does not use `mutation`.
 - The protected database job captures aggregate-only Pilot entity/history
   counts before migration apply and requires a byte-identical postflight with
   exactly four Super Admin memberships.
-- Hosted preflight, protected migration release, Pilot postflight, and exact-main
-  deployment evidence are still required before production completion.
+- Recovery PR CI, the protected 103-to-107 hosted release, Pilot postflight, and
+  exact-main deployment evidence are still required before production completion.

@@ -29,14 +29,15 @@ The `Production Database` job runs after local database CI and performs this fai
 
 1. Check out `github.sha`, query the current `main` SHA with a step-scoped GitHub token, and prove both values equal without persisting checkout credentials.
 2. Link the pinned project Supabase CLI using protected environment secrets.
-3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions. A single read-only Postgres query computes deterministic SHA-256 descriptors for every hosted row and returns only version, name, statement count, statement byte counts, per-statement hashes, and the canonical row hash. No raw hosted SQL crosses the runner. Every ordinary row must reconstruct from Git and match exactly; the 99-row released baseline must remain an exact prefix; and all 20 historical reconciliation declarations must match their separately pinned Git, hosted, database-side, and canonical hashes. Any unknown, missing, duplicated, out-of-order, renamed, or content-mismatched remote row stops the release.
+3. Run `npm run db:hosted-preflight`. The hosted ledger must be an exact ordered prefix of the Git migration versions. A single read-only Postgres query computes deterministic SHA-256 descriptors for every hosted row and returns only version, name, statement count, statement byte counts, per-statement hashes, and the canonical row hash. No raw hosted SQL crosses the routine runner. Every ordinary row must reconstruct from Git and match exactly; the 99-row released baseline must remain an exact prefix; and the 20 local reconciliation declarations, including six pinned legacy hosted-content exceptions, must match their declared Git, hosted, database-side, and canonical hashes. Any unknown, missing, duplicated, out-of-order, renamed, or content-mismatched remote row stops the release.
 4. Capture an aggregate-only Pilot preservation snapshot. It requires exactly one Pilot organization and four Super Admin memberships, and records critical entity and history counts without exposing user identity or row contents.
-5. Run a linked `db push --dry-run`.
-6. Run the single production `db push`.
-7. Run `npm run db:hosted-postflight`. Git and hosted ledgers must now be exactly equal.
-8. Recompute the Pilot snapshot and require byte-identical pre/post counts before continuing.
-9. Run linked database lint at error level and a final linked dry-run proving no migration remains pending.
-10. Report `Vercel - nestory: Database` only from this hosted result. Vercel production promotion must not treat local database tests as a hosted release.
+5. When the exact-main workflow contains an explicitly approved one-time recovery artifact, classify the hosted checkpoint here before the dry-run. Run the artifact only at its exact starting ledger; after every recovery migration is present, verify that completed state and skip it. Partial or unknown states fail closed. The artifact must pin every target's raw and normalized hashes, perform only the approved byte normalization in one transaction, preserve function identity and metadata, and fail closed on any mismatch. It is not a migration-history repair or a general exception path.
+6. Run a linked `db push --dry-run`.
+7. Run the single production `db push`.
+8. Run `npm run db:hosted-postflight`. Git and hosted ledgers must now be exactly equal.
+9. Recompute the Pilot snapshot and require byte-identical pre/post counts before continuing.
+10. Run linked database lint at error level and a final linked dry-run proving no migration remains pending.
+11. Report `Vercel - nestory: Database` only from this hosted result. Vercel production promotion must not treat local database tests as a hosted release.
 
 The final release record must include the merged SHA, workflow run, local/remote migration counts, linked lint, final dry-run, Vercel deployment ID and SHA, production aliases, runtime smoke, and worktree state.
 
@@ -66,6 +67,10 @@ No production push has occurred. Preserve the run logs, reproduce against a clea
 ### Push or postflight fails
 
 The Database deployment status remains failed, so production promotion stays blocked. Stop all other database writers. Inspect the hosted ledger and schema read-only, identify the last completed migration, and compare it with the exact main SHA. Do not blindly retry, delete ledger rows, or reverse DDL. Use a new forward repair when the database state needs correction. Escalate any history mutation for explicit approval.
+
+### Approved newline recovery
+
+The custom-role release has one source-controlled recovery step for five legacy hosted functions whose stored bodies use CRLF while the forward migration's checked replacement expects LF. `scripts/classify-hosted-function-newline-recovery.sql` permits normalization only at hosted ledger count 103 and head `20260822045638`, reports completion once all four package migrations exist, and rejects partial states. `scripts/normalize-hosted-function-newlines.sql` recognizes each exact raw or already-normalized SHA-256 definition, replaces CRLF with LF only, and verifies the normalized hash plus unchanged function OID, owner, ACL, execution settings, and planner metadata. Missing, duplicate, mixed, unknown, or semantically different targets abort the transaction. The step does not alter migration files or migration history and becomes a verified no-op for later releases.
 
 ### Application rollback
 
