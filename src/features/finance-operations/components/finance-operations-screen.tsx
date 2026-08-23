@@ -140,7 +140,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
   initialBillingLeaseId?: string;
-  initialExpenseIntent?: boolean;
+  initialExpenseIntent?: "owner" | "tenant";
   initialRentLeaseId?: string;
   openingAuthority?: ReactNode;
   organizationName: string;
@@ -171,7 +171,10 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
     initialBillingLease
       ? { lease: initialBillingLease, mode: "billing" }
       : props.initialExpenseIntent && props.canSubmitExpense
-        ? { mode: "expense" }
+        ? {
+            initialResponsibility: props.initialExpenseIntent,
+            mode: "expense",
+          }
         : null,
   );
   const [modal, setModal] = useState<ModalState | null>(null);
@@ -611,7 +614,6 @@ function getScreen(
   openDrawer: (drawer: DrawerState) => void,
 ) {
   const canConfigureRent = props.canConfigureRent;
-  const canRecoverRent = props.canRecoverRent;
 
   if (props.view === "rent") {
     const focusedLease = props.initialRentLeaseId
@@ -633,27 +635,34 @@ function getScreen(
         )
       : [];
     const scopedLease = scopedLeases.length === 1 ? scopedLeases[0] : undefined;
-    const canRecordScopedPayment =
-      props.canRecordPayments &&
-      invoices.some((invoice) => invoice.balanceDue > 0);
+    const openInvoices = invoices.filter((invoice) => invoice.balanceDue > 0);
     const focusedPayableInvoice = props.initialRentLeaseId
       ? invoices.find((invoice) => invoice.balanceDue > 0)
       : undefined;
     return {
       activeRoute: "/rent-income" as const,
-      actions:
-        canRecordScopedPayment || props.canRecordPayments || canRecoverRent ? (
+      actions: props.canRecordPayments ? (
           <>
-            {canRecoverRent && !props.initialRentLeaseId ? (
+            {!props.initialRentLeaseId ? (
               <Button
-                onClick={() => openModal({ mode: "rent-recovery" })}
-                variant="ghost"
+                onClick={() =>
+                  openModal({
+                    lease: scopedLease,
+                    mode: "manual-charge",
+                  })
+                }
               >
-                Recover missed month
+                <Plus size={15} /> Bill tenant
               </Button>
             ) : null}
-            {canRecordScopedPayment ? (
+            <div className="flex flex-col items-end gap-1">
               <Button
+                aria-describedby={
+                  openInvoices.length === 0
+                    ? "tenant-payment-unavailable-reason"
+                    : undefined
+                }
+                disabled={openInvoices.length === 0}
                 onClick={() =>
                   openModal(
                     focusedPayableInvoice
@@ -663,25 +672,17 @@ function getScreen(
                 }
                 variant="outline"
               >
-                <WalletCards size={15} /> Record payment
+                <WalletCards size={15} /> Record tenant payment
               </Button>
-            ) : null}
-            {props.canRecordPayments && !props.initialRentLeaseId ? (
-              <Button
-                onClick={() =>
-                  openModal({
-                    lease: props.initialRentLeaseId
-                      ? props.leases.find(
-                          (lease) => lease.id === props.initialRentLeaseId,
-                        )
-                      : scopedLease,
-                    mode: "manual-charge",
-                  })
-                }
-              >
-                <Plus size={15} /> Add tenant charge
-              </Button>
-            ) : null}
+              {openInvoices.length === 0 ? (
+                <span
+                  className="text-xs text-muted-foreground"
+                  id="tenant-payment-unavailable-reason"
+                >
+                  No open tenant invoices
+                </span>
+              ) : null}
+            </div>
           </>
         ) : undefined,
       body: (
@@ -701,15 +702,49 @@ function getScreen(
   }
 
   if (props.view === "expenses") {
+    const hasOpenTenantInvoice = props.tenantInvoices.some(
+      (invoice) => invoice.balanceDue > 0,
+    );
     return {
       activeRoute: "/bills-expenses" as const,
       actions: props.canSubmitExpense ? (
-        <Button
-          onClick={() => openDrawer({ mode: "expense" })}
-          variant="default"
-        >
-          <Plus size={15} /> Record expense
-        </Button>
+        <>
+          <Button
+            onClick={() =>
+              openDrawer({ initialResponsibility: "owner", mode: "expense" })
+            }
+            variant="default"
+          >
+            <Plus size={15} /> Record property expense
+          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              aria-describedby={
+                hasOpenTenantInvoice
+                  ? undefined
+                  : "recoverable-cost-unavailable-reason"
+              }
+              disabled={!hasOpenTenantInvoice}
+              onClick={() =>
+                openDrawer({
+                  initialResponsibility: "tenant",
+                  mode: "expense",
+                })
+              }
+              variant="outline"
+            >
+              <Plus size={15} /> Record recoverable cost
+            </Button>
+            {!hasOpenTenantInvoice ? (
+              <span
+                className="text-xs text-muted-foreground"
+                id="recoverable-cost-unavailable-reason"
+              >
+                Needs an open tenant invoice
+              </span>
+            ) : null}
+          </div>
+        </>
       ) : undefined,
       body: (
         <ExpensesView
@@ -796,20 +831,13 @@ function getScreen(
 
   return {
     activeRoute: "/finance" as const,
-    actions: props.canRecordPayments ? (
-      <Button onClick={() => openModal({ mode: "payment" })} variant="default">
-        <WalletCards size={15} /> Record payment
-      </Button>
-    ) : undefined,
+    actions: undefined,
     body: (
       <FinanceWorkView
         canConfigureRent={canConfigureRent}
-        canRecordOwnerCash={props.canRecordOwnerCash}
-        canRecordPayments={props.canRecordPayments}
         canRetryCurrentRent={props.canRetryCurrentRent}
         leases={props.leases}
         openDrawer={openDrawer}
-        openModal={openModal}
         ownerInvoices={props.ownerInvoices}
         rentGenerationExceptions={props.rentGenerationExceptions}
         tenantInvoices={props.tenantInvoices}
@@ -824,23 +852,17 @@ function getScreen(
 
 function FinanceWorkView({
   canConfigureRent,
-  canRecordOwnerCash,
-  canRecordPayments,
   canRetryCurrentRent,
   leases,
   openDrawer,
-  openModal,
   ownerInvoices,
   rentGenerationExceptions,
   tenantInvoices,
 }: {
   canConfigureRent: boolean;
-  canRecordOwnerCash: boolean;
-  canRecordPayments: boolean;
   canRetryCurrentRent: boolean;
   leases: FinanceLease[];
   openDrawer: (drawer: DrawerState) => void;
-  openModal: (modal: ModalState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
   rentGenerationExceptions: RentGenerationException[];
   tenantInvoices: TenantInvoiceSummary[];
@@ -999,21 +1021,11 @@ function FinanceWorkView({
                       </Td>
                       <Td>{formatDate(invoice.dueDate)}</Td>
                       <Td align="right">
-                        {canRecordPayments ? (
-                          <Button
-                            onClick={() =>
-                              openModal({ invoice, mode: "payment" })
-                            }
-                          >
-                            {invoice.collectionRoute === "through_ips"
-                              ? "Record"
-                              : "Confirm"}
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Read only
-                          </span>
-                        )}
+                        <Button asChild variant="outline">
+                          <Link href={`/rent-income?leaseId=${invoice.leaseId}`}>
+                            Review tenant payment
+                          </Link>
+                        </Button>
                       </Td>
                     </tr>
                   ) : (
@@ -1033,19 +1045,11 @@ function FinanceWorkView({
                       </Td>
                       <Td>{formatDate(invoice.dueDate)}</Td>
                       <Td align="right">
-                        {canRecordOwnerCash ? (
-                          <Button
-                            onClick={() =>
-                              openModal({ invoice, mode: "owner-payment" })
-                            }
-                          >
-                            Record
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Read only
-                          </span>
-                        )}
+                        <Button asChild variant="outline">
+                          <Link href={`/properties/${invoice.propertyId}/account`}>
+                            Review owner account
+                          </Link>
+                        </Button>
                       </Td>
                     </tr>
                   ),
@@ -1115,11 +1119,11 @@ function RentGenerationRetry({
     <form action={action} className="space-y-1">
       <input name="exceptionId" type="hidden" value={exceptionId} />
       <Button
-        aria-label={`Retry rent for ${monthLabel}`}
+        aria-label={`Generate missing rent for ${monthLabel}`}
         disabled={pending}
         type="submit"
       >
-        {pending ? "Retrying..." : "Retry"}
+        {pending ? "Generating..." : "Generate missing rent"}
       </Button>
       {state.message ? (
         <p
@@ -1448,7 +1452,7 @@ function ExpenseSubmissionTable({
                 <p className="text-xs text-muted-foreground">
                   {submission.responsibility === "owner"
                     ? "Property owner"
-                    : "Tenant or company"}
+                    : "Tenant recharge"}
                 </p>
               </Td>
               <Td>
@@ -2038,7 +2042,7 @@ function ExpenseDetails({
             "Charged to",
             submission.responsibility === "owner"
               ? "Property owner"
-              : "Tenant or company",
+              : "Tenant recharge",
           ],
           ["Paid from", submission.fundingSourceLabel],
           [
@@ -2719,14 +2723,10 @@ function ExpenseForm({
         source.propertyId === initialInvoice?.propertyId,
     )?.id ?? "",
   );
-  const [responsibility, setResponsibility] = useState<"owner" | "tenant">(
-    initialResponsibility ?? "owner",
-  );
   const [tenantInvoiceId, setTenantInvoiceId] = useState(
     initialInvoiceId ?? "",
   );
-  const effectiveResponsibility =
-    responsibility === "tenant" ? "tenant" : "owner";
+  const effectiveResponsibility = initialResponsibility ?? "owner";
   const matchingInvoices = invoices.filter(
     (invoice) =>
       invoice.propertyId === propertyId &&
@@ -2736,14 +2736,22 @@ function ExpenseForm({
   const matchingSources = reconciliationSources.filter(
     (source) => source.propertyId == null || source.propertyId === propertyId,
   );
+  const selectedSource = matchingSources.find(
+    (source) => source.id === reconciliationSourceId,
+  );
   const effectiveMarkup = effectiveResponsibility === "tenant" ? markup : "0";
   const invoiceTotal = Number(cost || 0) + Number(effectiveMarkup || 0);
+  const expenseAmount = Number(cost || 0);
+  const expenseFormLabel =
+    effectiveResponsibility === "tenant"
+      ? "Record recoverable cost form"
+      : "Record property expense form";
   useSuccess(state, onSuccess);
   return (
     <RecordForm
       action={action}
       allowSaveWhenClean={false}
-      ariaLabel="Record expense form"
+      ariaLabel={expenseFormLabel}
       onCancel={onClose}
       pending={pending}
       saveLabel="Submit for review"
@@ -2892,45 +2900,11 @@ function ExpenseForm({
         className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
         indentContent={false}
         step="03"
-        title="Responsibility"
+        title="Financial preview"
       >
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Charge this to</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button
-              aria-pressed={effectiveResponsibility === "owner"}
-              className={cn(
-                "h-auto justify-start px-3 py-3 text-left",
-                effectiveResponsibility === "owner"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground",
-              )}
-              onClick={() => setResponsibility("owner")}
-              type="button"
-              variant="outline"
-            >
-              Property owner
-            </Button>
-            <Button
-              aria-pressed={effectiveResponsibility === "tenant"}
-              className={cn(
-                "h-auto justify-start px-3 py-3 text-left",
-                effectiveResponsibility === "tenant"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground",
-              )}
-              onClick={() => setResponsibility("tenant")}
-              type="button"
-              variant="outline"
-            >
-              Tenant or company
-            </Button>
-          </div>
-        </fieldset>
-
         {effectiveResponsibility === "tenant" ? (
-          <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
-            <Field label="Invoice">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Recharge invoice">
               <SelectControl
                 onValueChange={(value) => {
                   setTenantInvoiceId(value);
@@ -2949,34 +2923,62 @@ function ExpenseForm({
                 value={tenantInvoiceId}
               />
             </Field>
-            <Field label="Service fee">
+            <Field label="Optional service fee">
               <NumberInput
                 onChange={(event) => setMarkup(event.target.value)}
                 required
                 value={markup}
               />
             </Field>
-            <div className="flex items-center justify-between gap-4 border-t border-border pt-3 text-sm sm:col-span-2">
-              <span className="text-muted-foreground">Invoice line</span>
-              <span className="font-semibold">
-                {categoryLabel(category)} ·{" "}
-                {formatMoneyDisplay(invoiceTotal).primary}
-              </span>
+            <div className="rounded-xl border border-border/80 sm:col-span-2">
+              <DefinitionRows
+                rows={[
+                  [
+                    "Company cost",
+                    formatMoneyDisplay(expenseAmount).primary,
+                  ],
+                  [
+                    "Service fee",
+                    formatMoneyDisplay(Number(effectiveMarkup || 0)).primary,
+                  ],
+                  [
+                    "Tenant invoice",
+                    formatMoneyDisplay(invoiceTotal).primary,
+                  ],
+                  ["Owner P&L", "No impact"],
+                ]}
+              />
             </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="space-y-2 rounded-xl border border-border/80">
+            <DefinitionRows
+              rows={[
+                ["Owner expense", formatMoneyDisplay(expenseAmount).primary],
+                [
+                  "Owner due to company",
+                  formatMoneyDisplay(expenseAmount).primary,
+                ],
+                ["Who paid", selectedSource?.label ?? "Choose a funding source"],
+              ]}
+            />
+            <p className="px-3 pb-3 text-xs text-muted-foreground">
+              Owner-held cash may be applied automatically after approval.
+            </p>
+          </div>
+        )}
       </FormSection>
 
       <FormSection
         className="rounded-xl border border-border/80 bg-card p-4 shadow-sm last:border-b last:pb-4"
         indentContent={false}
         step="04"
-        title="Receipt and reconciliation"
+        title="Payment evidence"
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Paid from">
+          <Field label="Who paid?">
             <SelectControl
-              ariaLabel="Paid from"
+              ariaLabel="Who paid?"
               onValueChange={setReconciliationSourceId}
               options={matchingSources.map((source) => ({
                 label: source.label,
@@ -3564,7 +3566,6 @@ function ManualTenantChargeForm({
             name="chargeType"
             onValueChange={setChargeType}
             options={[
-              { label: "Manual rent", value: "manual_rent" },
               { label: "Utilities", value: "utilities" },
               { label: "Cleaning", value: "cleaning" },
               {
@@ -3640,22 +3641,24 @@ function ManualTenantChargeForm({
       <ActionMessage state={state} />
       <FormFooter>
         <span />
-        <SubmitButton label="Add tenant charge" />
+        <SubmitButton label="Bill tenant" />
       </FormFooter>
     </form>
   );
 }
 
 function getModalTitle(modal: ModalState) {
-  if (modal.mode === "manual-charge") return "Add tenant charge";
-  if (modal.mode === "rent-recovery") return "Recover missed rent";
+  if (modal.mode === "manual-charge") return "Bill tenant";
+  if (modal.mode === "rent-recovery") return "Generate missing rent";
   if (modal.mode === "invoice-details") return "Invoice details";
   if (modal.mode === "expense-details") return "Paid cost details";
   if (modal.mode === "owner-balance-details") return "Owner balance details";
-  if (modal.mode === "payment")
-    return !modal.invoice || modal.invoice.collectionRoute === "through_ips"
+  if (modal.mode === "payment") {
+    if (!modal.invoice || modal.canChooseAnother) return "Record tenant payment";
+    return modal.invoice.collectionRoute === "through_ips"
       ? "Record payment"
       : "Confirm owner collection";
+  }
   if (modal.mode === "owner-payment") return "Owner invoice payment";
   if (modal.mode === "expense-review") {
     return modal.decision === "approve"
@@ -3723,7 +3726,9 @@ function getDrawerTitle(drawer: DrawerState) {
       ? "Repair lease billing"
       : "Set up lease billing";
   }
-  return "Record expense";
+  return drawer.initialResponsibility === "tenant"
+    ? "Record recoverable cost"
+    : "Record property expense";
 }
 
 function isLeaseBillingRuleComplete(
