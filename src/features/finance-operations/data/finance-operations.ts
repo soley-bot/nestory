@@ -187,16 +187,20 @@ export function toExpenseSubmissionSummary(
     submission.source_type === "maintenance_task" && submission.source_id
       ? maintenanceTaskById.get(submission.source_id)
       : undefined;
-  const ownerExpenseCategory = financeCategories.find(
+  const categoryNamespace =
+    submission.responsibility === "tenant"
+      ? "tenant_billing"
+      : "owner_expense";
+  const financeCategory = financeCategories.find(
     (category) =>
-      category.namespace === "owner_expense" &&
+      category.namespace === categoryNamespace &&
       category.code === submission.customer_category,
   );
 
   return {
     adjustsSubmissionId: submission.adjusts_submission_id,
     category: submission.customer_category,
-    categoryLabel: ownerExpenseCategory?.displayLabel ?? null,
+    categoryLabel: financeCategory?.displayLabel ?? null,
     customerTotal: Number(submission.customer_total_amount),
     date: submission.expense_date,
     evidence: evidenceBySubmissionId.get(submission.id),

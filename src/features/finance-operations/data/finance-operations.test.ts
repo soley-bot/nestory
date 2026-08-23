@@ -104,6 +104,74 @@ describe("isRentGenerationSource", () => {
 });
 
 describe("toExpenseSubmissionSummary", () => {
+  it("resolves an archived renamed tenant recharge category without crossing into owner expense", () => {
+    const submission = {
+      adjusts_submission_id: null,
+      customer_category: "custom_water_recharge_7d1b",
+      customer_total_amount: 95,
+      expense_date: "2026-08-10",
+      id: "submission-custom-tenant-category",
+      internal_cost_amount: 80,
+      internal_markup_amount: 15,
+      previously_approved_amount: null,
+      property_id: "property-1",
+      reconciliation_source_id: null,
+      recorded_total_amount: null,
+      reference: "Water recharge 18",
+      responsibility: "tenant",
+      reviewed_at: null,
+      review_reason: null,
+      reversal_reason: null,
+      source_id: null,
+      source_type: "general",
+      status: "submitted",
+      submitted_at: "2026-08-10T08:00:00Z",
+      submitted_by: "finance-member-user-1",
+      unit_id: null,
+      vendor_label: "City Water",
+    } as Database["public"]["Tables"]["expense_submissions"]["Row"];
+
+    const summary = toExpenseSubmissionSummary(
+      submission,
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      [
+        {
+          archivedAt: null,
+          code: "custom_water_recharge_7d1b",
+          displayLabel: "Owner water service",
+          id: "owner-category-same-code",
+          isActive: true,
+          isDefault: false,
+          namespace: "owner_expense",
+          reportingGroup: "utilities",
+          sortOrder: 50,
+        },
+        {
+          archivedAt: "2026-08-11T10:00:00Z",
+          code: "custom_water_recharge_7d1b",
+          displayLabel: "Resident water recharge",
+          id: "tenant-category-renamed-archived",
+          isActive: false,
+          isDefault: false,
+          namespace: "tenant_billing",
+          reportingGroup: "utility_reimbursement",
+          sortOrder: 50,
+        },
+      ],
+    );
+
+    expect(summary).toMatchObject({
+      category: "custom_water_recharge_7d1b",
+      categoryLabel: "Resident water recharge",
+      responsibility: "tenant",
+    });
+  });
+
   it("resolves an archived renamed owner category without crossing into tenant billing", () => {
     const submission = {
       adjusts_submission_id: null,

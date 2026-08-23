@@ -69,6 +69,36 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("shows a renamed archived tenant-recharge category in the queue and review detail", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [
+      {
+        ...expenseSubmission("submitted"),
+        category: "custom_water_recharge_7d1b",
+        categoryLabel: "Resident water recharge",
+        responsibility: "tenant",
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canReviewExpense: true })}
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+
+    expect(screen.getByText("Resident water recharge")).not.toBeNull();
+    expect(screen.queryByText("Custom water recharge 7d1b")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Review Sokha Repairs" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Resident water recharge")).not.toBeNull();
+    expect(within(dialog).queryByText("Custom water recharge 7d1b")).toBeNull();
+  });
+
   it("shows the current renamed label for an archived custom owner category in review", async () => {
     const user = userEvent.setup();
     const input = data();
