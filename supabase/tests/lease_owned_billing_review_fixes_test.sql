@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(24);
+SELECT plan(27);
 
 CREATE TEMP TABLE review_state (
   fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),
@@ -16,10 +16,7 @@ CREATE TEMP TABLE review_state (
     )::date
   ) STORED,
   owner_b_started_on date GENERATED ALWAYS AS (
-    (
-      pg_catalog.date_trunc('month', fixture_clock AT TIME ZONE 'UTC')
-      + interval '1 month 1 day'
-    )::date
+    (fixture_clock AT TIME ZONE 'UTC')::date + 90
   ) STORED,
   admin_id uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000001',
   organization_id uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000002',
@@ -50,6 +47,11 @@ CREATE TEMP TABLE review_state (
 
 INSERT INTO review_state DEFAULT VALUES;
 GRANT SELECT ON review_state TO authenticated;
+
+SELECT ok(
+  owner_b_started_on > replacement_effective_on + interval '1 month',
+  'the rejected scheduled-owner fixture stays invalid across a UTC month rollover'
+) FROM review_state;
 
 CREATE OR REPLACE FUNCTION pg_temp.billing_rule(
   p_recipient uuid,
@@ -440,6 +442,58 @@ SELECT is(
   0::bigint,
   'an authority gap cannot issue a stale-predecessor Rent invoice'
 ) FROM review_state AS state;
+
+UPDATE public.organization_members AS membership
+SET role = 'finance_manager'
+FROM review_state AS state
+WHERE membership.organization_id = state.organization_id
+  AND membership.user_id = state.admin_id;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM review_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+WITH retry AS MATERIALIZED (
+  SELECT public.recover_rent_generation_exception(
+    state.organization_id,
+    exception.id
+  ) AS result
+  FROM review_state AS state
+  JOIN public.rent_generation_exceptions AS exception
+    ON exception.organization_id = state.organization_id
+   AND exception.lease_id = state.authority_gap_lease
+   AND exception.billing_period_start = DATE '2026-08-01'
+)
+SELECT is(
+  pg_catalog.jsonb_build_array(result ->> 'status', result ->> 'code'),
+  pg_catalog.jsonb_build_array('failed', 'billing_setup_missing'),
+  'Finance Manager retry preserves the current-period authority-gap failure'
+) FROM retry;
+
+RESET ROLE;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      exception.resolved_at IS NULL,
+      pg_catalog.count(invoice.id)
+    )
+    FROM review_state AS state
+    JOIN public.rent_generation_exceptions AS exception
+      ON exception.organization_id = state.organization_id
+     AND exception.lease_id = state.authority_gap_lease
+     AND exception.billing_period_start = DATE '2026-08-01'
+    LEFT JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.lease_id = state.authority_gap_lease
+    GROUP BY exception.resolved_at
+  ),
+  pg_catalog.jsonb_build_array(true, 0),
+  'Finance Manager retry leaves the gap exception unresolved and issues no invoice'
+) FROM review_state;
 
 SELECT * FROM finish();
 ROLLBACK;

@@ -560,6 +560,129 @@ BEGIN
 END;
 $clone_exact_try_generation$;
 
+-- Finance Manager retry is a current-period authority, so it must use the
+-- same Lease-owned transition clock and exact selected rule as scheduled and
+-- activation generation. Super Admin's explicit historical recovery remains
+-- on the general six-argument path in recover_rent_generation_exception.
+CREATE OR REPLACE FUNCTION app_private.is_checked_current_rent_retry_generation(
+  p_organization_id uuid,
+  p_lease_id uuid,
+  p_billing_period_start date,
+  p_issue_date date,
+  p_generation_source text,
+  p_actor_id uuid
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT p_actor_id IS NOT NULL
+    AND p_actor_id = (SELECT auth.uid())
+    AND (
+      app_private.can_retry_current_rent(p_organization_id)
+      OR app_private.has_finance_branch_authority_context(
+        p_organization_id, 'finance.record_payments'
+      )
+    )
+    AND p_generation_source = 'manual_recovery'
+    AND EXISTS (
+      SELECT 1
+      FROM app_private.resolve_lease_billing_clock(
+        p_organization_id,
+        p_lease_id,
+        pg_catalog.now()
+      ) AS resolved
+      WHERE resolved.billing_term_id IS NOT NULL
+        AND p_issue_date = resolved.business_date
+        AND p_billing_period_start = pg_catalog.date_trunc(
+          'month', resolved.business_date::timestamp
+        )::date
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.rent_generation_exceptions AS exception
+      WHERE exception.organization_id = p_organization_id
+        AND exception.lease_id = p_lease_id
+        AND exception.billing_period_start = p_billing_period_start
+        AND exception.resolved_at IS NULL
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.try_generate_current_rent_retry(
+  p_organization_id uuid,
+  p_exception_id uuid,
+  p_actor_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_business_date date;
+  v_exception public.rent_generation_exceptions%ROWTYPE;
+  v_resolved_rule_id uuid;
+BEGIN
+  IF p_actor_id IS NULL
+    OR p_actor_id IS DISTINCT FROM (SELECT auth.uid())
+    OR NOT (
+      app_private.can_retry_current_rent(p_organization_id)
+      OR app_private.has_finance_branch_authority_context(
+        p_organization_id, 'finance.record_payments'
+      )
+    ) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT exception.*
+  INTO v_exception
+  FROM public.rent_generation_exceptions AS exception
+  WHERE exception.organization_id = p_organization_id
+    AND exception.id = p_exception_id
+    AND exception.resolved_at IS NULL
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Rent generation exception not found'
+      USING ERRCODE = '23503';
+  END IF;
+
+  SELECT resolved.billing_term_id, resolved.business_date
+  INTO v_resolved_rule_id, v_business_date
+  FROM app_private.resolve_lease_billing_clock(
+    p_organization_id,
+    v_exception.lease_id,
+    pg_catalog.now()
+  ) AS resolved;
+
+  IF v_business_date IS NULL THEN
+    v_business_date := (pg_catalog.now() AT TIME ZONE 'UTC')::date;
+  END IF;
+
+  IF v_exception.billing_period_start
+    <> pg_catalog.date_trunc('month', v_business_date)::date THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  RETURN app_private.try_generate_lease_rent_invoice(
+    p_organization_id,
+    v_exception.lease_id,
+    v_exception.billing_period_start,
+    v_business_date,
+    'manual_recovery',
+    p_actor_id,
+    v_resolved_rule_id
+  );
+END;
+$$;
+
+COMMENT ON FUNCTION app_private.try_generate_current_rent_retry(
+  uuid, uuid, uuid
+) IS
+  'Private checked retry for one unresolved current Lease billing month, bound to the deterministic Lease-owned transition clock and exact selected rule.';
+
 ALTER FUNCTION app_private.normalize_lease_billing_rule(uuid,uuid,date,jsonb)
   OWNER TO postgres;
 ALTER FUNCTION public.update_lease_with_billing_rules(
@@ -581,6 +704,11 @@ ALTER FUNCTION app_private.generate_simple_lease_rent_invoice(
 ALTER FUNCTION app_private.try_generate_lease_rent_invoice(
   uuid,uuid,date,date,text,uuid,uuid
 ) OWNER TO postgres;
+ALTER FUNCTION app_private.is_checked_current_rent_retry_generation(
+  uuid,uuid,date,date,text,uuid
+) OWNER TO postgres;
+ALTER FUNCTION app_private.try_generate_current_rent_retry(uuid,uuid,uuid)
+  OWNER TO postgres;
 
 REVOKE ALL ON FUNCTION public.update_lease_with_billing_rules(
   uuid,uuid,uuid,uuid,uuid,date,date,numeric,public.currency_code,integer,
@@ -607,4 +735,10 @@ REVOKE ALL ON FUNCTION app_private.generate_simple_lease_rent_invoice(
 ) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION app_private.try_generate_lease_rent_invoice(
   uuid,uuid,date,date,text,uuid,uuid
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION app_private.is_checked_current_rent_retry_generation(
+  uuid,uuid,date,date,text,uuid
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION app_private.try_generate_current_rent_retry(
+  uuid,uuid,uuid
 ) FROM PUBLIC, anon, authenticated, service_role;
