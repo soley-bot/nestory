@@ -24,6 +24,7 @@ import { PropertyForm } from "@/features/properties/components/property-form";
 import type { PropertyBranchOption } from "@/features/properties/property.types";
 import { UnitForm } from "@/features/units/components/unit-form";
 import { LeaseForm } from "@/features/leases/components/lease-form";
+import type { LeaseBillingFormConfig } from "@/features/leases/lease.types";
 import { activateSetupLeaseAction } from "@/features/property-setup/actions";
 import { initialActivateSetupLeaseState } from "@/features/property-setup/property-setup-state";
 import {
@@ -58,10 +59,12 @@ const steps: Array<{
 ];
 
 export function PropertySetupScreen({
+  billingFormConfig,
   creationBranchOptions,
   data,
   step,
 }: {
+  billingFormConfig?: LeaseBillingFormConfig;
   creationBranchOptions?: PropertyBranchOption[];
   data: PropertySetupData;
   step: PropertySetupStep;
@@ -289,6 +292,7 @@ export function PropertySetupScreen({
       </div>
 
       <CreateRecordModal
+        billingFormConfig={billingFormConfig}
         creationBranchOptions={creationBranchOptions}
         data={data}
         modal={createModal}
@@ -698,6 +702,7 @@ function OrCreateButton({
 }
 
 function CreateRecordModal({
+  billingFormConfig,
   creationBranchOptions,
   data,
   modal,
@@ -709,6 +714,7 @@ function CreateRecordModal({
   onUnitCreated,
   selection,
 }: {
+  billingFormConfig?: LeaseBillingFormConfig;
   creationBranchOptions?: PropertyBranchOption[];
   data: PropertySetupData;
   modal: CreateModal;
@@ -774,6 +780,7 @@ function CreateRecordModal({
       ) : null}
       {modal === "lease" ? (
         <LeaseForm
+          billingFormConfig={billingFormConfig}
           createContext={
             contextProperty
               ? {

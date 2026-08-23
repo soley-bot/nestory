@@ -21,6 +21,8 @@ import {
 } from "@/features/leases/data/lease-summary";
 import type {
   LeasePagination,
+  LeaseBillingFormConfig,
+  LeaseBillingRule,
   LeasePropertyOption,
   LeaseSummary,
   LeaseUnitOption,
@@ -31,6 +33,7 @@ import {
   formatUnitOptionLabel,
 } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
+import type { Database } from "@/types/database";
 
 const propertySelect = "id, code, name, rental_structure, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
@@ -46,6 +49,9 @@ type RentPolicyCalendarDateRow = {
   rent_calculation_timezone: string | null;
   version_number: number;
 };
+type LeaseBillingTermRow =
+  Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+type LeaseBillingRuleRow = LeaseBillingRule & { lease_id: string };
 type LeaseAvailabilityLeaseRow = {
   archived_at: string | null;
   id: string;
@@ -71,7 +77,7 @@ export async function getLeasesScreenData(
     unitsResult,
     availabilityLeasesResult,
     tenantOptions,
-    readinessDate,
+    billingFormConfig,
   ] =
     await Promise.all([
       supabase
@@ -90,8 +96,12 @@ export async function getLeasesScreenData(
         .eq("organization_id", organizationId)
         .not("unit_id", "is", null),
       getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
-      loadEffectiveRentPolicyCalendarDate(supabase, organizationId),
+      loadLeaseBillingFormConfig(supabase, organizationId),
     ]);
+  const readinessDate = getCalendarDateInTimeZone(
+    new Date(),
+    billingFormConfig.operationalTimezone,
+  );
 
   if (propertiesResult.error) {
     throw new Error(
@@ -290,6 +300,7 @@ export async function getLeasesScreenData(
 
     if (pagination.totalCount === 0) {
       return {
+        billingFormConfig,
         leases: [],
         pagination,
         propertyOptions: toPropertyOptions(properties),
@@ -323,6 +334,7 @@ export async function getLeasesScreenData(
     const visibleLeases = getLeasePageSummaries(sortedLeases, pagination);
 
     return {
+      billingFormConfig,
       leases: await enrichLeaseSummaries({
         leases: visibleLeases,
         organizationId,
@@ -375,6 +387,7 @@ export async function getLeasesScreenData(
   const leases = toLeaseSummaries((leasesResult.data ?? []) as LeaseRow[]);
 
   return {
+    billingFormConfig,
     leases: await enrichLeaseSummaries({
       leases,
       organizationId,
@@ -419,6 +432,7 @@ async function enrichLeaseSummaries({
   const [
     partiesResult,
     termsResult,
+    billingTermsResult,
     occupanciesResult,
     depositsResult,
     documentsResult,
@@ -445,6 +459,12 @@ async function enrichLeaseSummaries({
       .eq("organization_id", organizationId)
       .in("lease_id", detailLeaseIds)
       .order("term_sequence", { ascending: false }),
+    supabase
+      .from("lease_billing_terms")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .in("lease_id", detailLeaseIds)
+      .order("effective_from", { ascending: false }),
     supabase
       .from("lease_occupancies")
       .select(
@@ -517,6 +537,11 @@ async function enrichLeaseSummaries({
     "lease terms",
     "lease_terms",
   );
+  const billingTermData = getOptionalLeaseBackboneRows(
+    billingTermsResult,
+    "lease billing rules",
+    "lease_billing_terms",
+  ) as LeaseBillingTermRow[];
   const occupancyData = getOptionalLeaseBackboneRows(
     occupanciesResult,
     "lease occupancies",
@@ -604,12 +629,19 @@ async function enrichLeaseSummaries({
     organizationId,
     supabase,
   );
+  const billingRules = await addLeaseBillingRecipientLabels(
+    billingTermData,
+    organizationId,
+    readinessDate,
+    supabase,
+  );
   const documents = await addSignedDocumentUrls(
     documentsResult.data ?? [],
     supabase,
   );
   const partiesByLeaseId = groupByLeaseId(partyRows);
   const termsByLeaseId = groupByLeaseId(termData as LeaseTermRow[]);
+  const billingRulesByLeaseId = groupByLeaseId(billingRules);
   const occupanciesByLeaseId = groupByLeaseId(
     occupancyData as LeaseOccupancyRow[],
   );
@@ -643,7 +675,8 @@ async function enrichLeaseSummaries({
   return leases.map((lease) => {
     const leaseRow = summaryToLeaseRow(lease);
 
-    return buildLeaseSummary({
+    return {
+      ...buildLeaseSummary({
       activationSchedule: activationScheduleByLeaseId.get(lease.id),
       activity: activityByLeaseId.get(lease.id) ?? [],
       depositLedgerEvidenceIds,
@@ -657,8 +690,10 @@ async function enrichLeaseSummaries({
       terms: termsByLeaseId.get(lease.id) ?? [],
       deposits: depositsByLeaseId.get(lease.id) ?? [],
       timelineEvents: timelineByLeaseId.get(lease.id) ?? [],
-      unit: lease.unitId ? unitsById.get(lease.unitId) : undefined,
-    });
+        unit: lease.unitId ? unitsById.get(lease.unitId) : undefined,
+      }),
+      billingRules: billingRulesByLeaseId.get(lease.id) ?? [],
+    };
   });
 }
 
@@ -669,6 +704,21 @@ export function getCalendarDateInTimeZone(date: Date, timeZone: string) {
     timeZone,
     year: "numeric",
   }).format(date);
+}
+
+export function getLeaseBillingRuleState({
+  effectiveFrom,
+  effectiveTo,
+  readinessDate,
+}: {
+  effectiveFrom: string;
+  effectiveTo: string;
+  readinessDate: string;
+  supersededAt: string | null;
+}): LeaseBillingRule["state"] {
+  if (effectiveTo < readinessDate) return "historical";
+  if (effectiveFrom > readinessDate) return "scheduled";
+  return "current";
 }
 
 export function getEffectiveRentPolicyCalendarDate(
@@ -708,6 +758,56 @@ export function getEffectiveRentPolicyCalendarDate(
   return calendarDate < effectivePolicy.effective_from
     ? effectivePolicy.effective_from
     : calendarDate;
+}
+
+async function loadLeaseBillingFormConfig(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+): Promise<LeaseBillingFormConfig> {
+  const [organizationResult, companiesResult] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("name, operational_timezone")
+      .eq("id", organizationId)
+      .single(),
+    supabase
+      .from("people")
+      .select("id, display_name")
+      .eq("organization_id", organizationId)
+      .eq("party_type", "company")
+      .is("archived_at", null)
+      .order("display_name"),
+  ]);
+
+  if (organizationResult.error) {
+    throw new Error(
+      `Could not load lease billing organization: ${organizationResult.error.message}`,
+    );
+  }
+  if (companiesResult.error) {
+    throw new Error(
+      `Could not load lease billing recipients: ${companiesResult.error.message}`,
+    );
+  }
+
+  return {
+    companyOptions: (companiesResult.data ?? []).map((person) => ({
+      id: person.id,
+      label: person.display_name,
+    })),
+    operationalTimezone:
+      organizationResult.data.operational_timezone || "UTC",
+    organizationName: organizationResult.data.name || "our company",
+  };
+}
+
+export async function getLeaseBillingFormConfig(
+  organizationId: string,
+): Promise<LeaseBillingFormConfig> {
+  return loadLeaseBillingFormConfig(
+    await createSupabaseServerClient(),
+    organizationId,
+  );
 }
 
 export async function loadEffectiveRentPolicyCalendarDate(
@@ -830,6 +930,109 @@ async function addLeasePartyPeople(
       primary_phone: person?.primary_phone ?? null,
     };
   });
+}
+
+async function addLeaseBillingRecipientLabels(
+  rows: LeaseBillingTermRow[],
+  organizationId: string,
+  readinessDate: string,
+  supabase: SupabaseServerClient,
+): Promise<LeaseBillingRuleRow[]> {
+  const personIds = [
+    ...new Set(
+      rows.flatMap((row) =>
+        row.billing_recipient_person_id
+          ? [row.billing_recipient_person_id]
+          : [],
+      ),
+    ),
+  ];
+  const peopleResult = personIds.length
+    ? await supabase
+        .from("people")
+        .select("id, display_name")
+        .eq("organization_id", organizationId)
+        .in("id", personIds)
+    : { data: [], error: null };
+
+  if (peopleResult.error) {
+    throw new Error(
+      `Could not load lease billing recipients: ${peopleResult.error.message}`,
+    );
+  }
+
+  const recipientById = new Map(
+    (peopleResult.data ?? []).map((person) => [person.id, person.display_name]),
+  );
+
+  return rows
+    .filter((row) => row.archived_at === null)
+    .map((row) => ({
+      billingRecipientKind: row.billing_recipient_kind as
+        | "company"
+        | "individual"
+        | null,
+      billingRecipientLabel: row.billing_recipient_person_id
+        ? recipientById.get(row.billing_recipient_person_id) ??
+          "Recipient unavailable"
+        : "Recipient not set",
+      billingRecipientPersonId: row.billing_recipient_person_id,
+      chargeManagementFeeWhenActive:
+        row.charge_management_fee_when_active,
+      chargeThroughLeaseEnd: row.charge_through_lease_end,
+      collectionRoute: row.collection_route as
+        | "direct_to_owner"
+        | "through_ips"
+        | null,
+      effectiveFrom: row.effective_from,
+      effectiveTo: row.effective_to,
+      finalPeriodProratedAmount:
+        row.final_period_prorated_amount === null
+          ? null
+          : Number(row.final_period_prorated_amount),
+      firstPeriodProratedAmount:
+        row.first_period_prorated_amount === null
+          ? null
+          : Number(row.first_period_prorated_amount),
+      fullManagementFeeDuringProration:
+        row.full_management_fee_during_proration,
+      id: row.id,
+      leaseEndProrationRule: row.lease_end_proration_rule as "actual_days",
+      leaseStartProrationRule: row.lease_start_proration_rule as "actual_days",
+      lease_id: row.lease_id,
+      managementFeeMode: row.management_fee_mode as
+        | "flat"
+        | "percentage"
+        | null,
+      managementFeeValue:
+        row.management_fee_value === null
+          ? null
+          : Number(row.management_fee_value),
+      midPeriodRentChangeRule:
+        row.mid_period_rent_change_rule as "next_full_month",
+      rentCalculationTimezone: row.rent_calculation_timezone,
+      shortMonthDueDayRule:
+        row.short_month_due_day_rule as "last_calendar_day",
+      state: getLeaseBillingRuleState({
+        effectiveFrom: row.effective_from,
+        effectiveTo: row.effective_to,
+        readinessDate,
+        supersededAt: row.superseded_at,
+      }),
+    }))
+    .sort(compareLeaseBillingRules);
+}
+
+function compareLeaseBillingRules(
+  left: LeaseBillingRuleRow,
+  right: LeaseBillingRuleRow,
+) {
+  const rank = { current: 0, scheduled: 1, historical: 2 } as const;
+  const stateOrder = rank[left.state] - rank[right.state];
+  if (stateOrder !== 0) return stateOrder;
+  return left.state === "historical"
+    ? right.effectiveFrom.localeCompare(left.effectiveFrom)
+    : left.effectiveFrom.localeCompare(right.effectiveFrom);
 }
 
 async function addSignedDocumentUrls(

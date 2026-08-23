@@ -12,6 +12,7 @@ import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
+import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import type { PersonRoleValue } from "@/features/people/people.types";
 import {
   createLeaseAction,
@@ -20,6 +21,7 @@ import {
 } from "@/features/leases/actions";
 import type {
   LeaseFormValues,
+  LeaseBillingFormConfig,
   LeaseCreateContext,
   LeasePaymentFrequency,
   LeasePropertyOption,
@@ -43,6 +45,7 @@ const paymentFrequencyOptions: {
   { label: "One time", value: "one_time" },
 ];
 type LeaseFormProps = {
+  billingFormConfig?: LeaseBillingFormConfig;
   createContext?: LeaseCreateContext;
   initialValues?: LeaseFormInitialValues;
   initialStatus?: LeaseStatusValue;
@@ -62,6 +65,7 @@ type LeaseFormInitialValues = Partial<
 >;
 
 export function LeaseForm({
+  billingFormConfig,
   createContext,
   initialValues,
   initialStatus,
@@ -108,6 +112,13 @@ export function LeaseForm({
     moveInTiming,
     formUnitId,
   );
+  const tenantRecipient = tenantOptions.find(
+    (tenant) => tenant.id === selectedTenantId,
+  );
+  const billingDefaults =
+    lease?.billingRules.find((rule) => rule.state === "current") ??
+    lease?.billingRules[0] ??
+    null;
 
   useEffect(() => {
     if (state.status === "success") {
@@ -370,6 +381,37 @@ export function LeaseForm({
               step="0.01"
             />
           </RecordField>
+        </FormSection>
+
+        <FormSection
+          step={isEditMode ? "03" : "04"}
+          title="Rent collection and billing"
+        >
+          <p className="text-sm text-muted-foreground">
+            {isEditMode
+              ? "This unused draft rule follows the lease start date."
+              : "Begins on the lease start date."}
+          </p>
+          <LeaseBillingRuleFields
+            companyOptions={billingFormConfig?.companyOptions}
+            defaults={billingDefaults}
+            fieldErrors={state.fieldErrors}
+            operationalTimezone={
+              billingFormConfig?.operationalTimezone ?? "UTC"
+            }
+            organizationName={
+              billingFormConfig?.organizationName ?? "our company"
+            }
+            tenantRecipient={
+              tenantRecipient
+                ? {
+                    id: tenantRecipient.id,
+                    label: tenantRecipient.label,
+                    partyType: tenantRecipient.partyType ?? "individual",
+                  }
+                : null
+            }
+          />
         </FormSection>
       </RecordForm>
       <Modal

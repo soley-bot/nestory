@@ -8,6 +8,7 @@ import {
 import type { PropertySetupSelection } from "@/features/property-setup/property-setup.types";
 import { requirePermission } from "@/lib/auth/context";
 import { getFirstSearchParam, getUuidSearchParam } from "@/lib/validation/search-params";
+import { getLeaseBillingFormConfig } from "@/features/leases/data/leases";
 
 type PropertySetupPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -24,7 +25,7 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
     tenantId: getUuidSearchParam(params.tenantId) ?? null,
     unitId: getUuidSearchParam(params.unitId) ?? null,
   };
-  const [data, creationBranchOptions] = await Promise.all([
+  const [data, creationBranchOptions, billingFormConfig] = await Promise.all([
     getPropertySetupData({
       organizationId: context.organizationId,
       requestedSelection,
@@ -32,6 +33,7 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
     context.isSuperAdmin
       ? getActivePropertyBranchOptions(context.organizationId)
       : Promise.resolve(undefined),
+    getLeaseBillingFormConfig(context.organizationId),
   ]);
   const requestedStep = Number(getFirstSearchParam(params.step) ?? 1);
   const requiresUnit = propertySetupRequiresUnit(data.properties, data.selection);
@@ -42,6 +44,7 @@ export default async function PropertySetupPage({ searchParams }: PropertySetupP
 
   return (
     <PropertySetupScreen
+      billingFormConfig={billingFormConfig}
       creationBranchOptions={creationBranchOptions}
       data={data}
       step={step}

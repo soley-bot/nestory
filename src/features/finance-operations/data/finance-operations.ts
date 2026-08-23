@@ -255,6 +255,7 @@ export async function getFinanceOperationsData(
 ): Promise<FinanceOperationsData> {
   const supabase = await createSupabaseServerClient();
   const [
+    organizationResult,
     propertiesResult,
     unitsResult,
     peopleResult,
@@ -270,6 +271,11 @@ export async function getFinanceOperationsData(
     sourcesResult,
   ] = await Promise.all([
     supabase
+      .from("organizations")
+      .select("operational_timezone")
+      .eq("id", organizationId)
+      .single(),
+    supabase
       .from("properties")
       .select("id, code, name, archived_at")
       .eq("organization_id", organizationId)
@@ -281,7 +287,7 @@ export async function getFinanceOperationsData(
       .order("unit_number"),
     supabase
       .from("people")
-      .select("id, display_name, archived_at")
+      .select("id, display_name, party_type, archived_at")
       .eq("organization_id", organizationId)
       .order("display_name"),
     supabase
@@ -303,8 +309,7 @@ export async function getFinanceOperationsData(
     supabase
       .from("lease_billing_terms")
       .select("*")
-      .eq("organization_id", organizationId)
-      .is("superseded_at", null),
+      .eq("organization_id", organizationId),
     getTenantInvoiceBalanceRows(supabase, organizationId, propertyId),
     getUnresolvedRentGenerationExceptions(supabase, organizationId),
     getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
@@ -323,6 +328,7 @@ export async function getFinanceOperationsData(
   ]);
 
   const results = [
+    organizationResult,
     propertiesResult,
     unitsResult,
     peopleResult,
@@ -413,12 +419,19 @@ export async function getFinanceOperationsData(
   const ownerByPropertyId = new Map(
     owners.map((owner) => [owner.property_id, owner.person_id]),
   );
-  const billingByLeaseId = new Map(
-    (billingResult.data ?? []).map((billing) => [
-      billing.lease_id,
-      toBilling(billing),
-    ]),
-  );
+  const operationalTimezone =
+    organizationResult.data?.operational_timezone || "UTC";
+  const businessDate = getDateInTimezone(new Date(), operationalTimezone);
+  const billingByLeaseId = new Map<string, LeaseBillingSummary>();
+  for (const billing of [...(billingResult.data ?? [])].sort((left, right) =>
+    right.effective_from.localeCompare(left.effective_from),
+  )) {
+    if (billingByLeaseId.has(billing.lease_id)) continue;
+    if (billing.superseded_at !== null) continue;
+    if (billing.effective_from > businessDate) continue;
+    if (billing.effective_to && billing.effective_to < businessDate) continue;
+    billingByLeaseId.set(billing.lease_id, toBilling(billing));
+  }
   const generationByInvoiceId = new Map(
     (tenantInvoiceGenerationResult.data ?? []).map((invoice) => [
       invoice.id,
@@ -589,11 +602,13 @@ export async function getFinanceOperationsData(
     ownerInvoices: (ownerInvoicesResult.data ?? []).flatMap((row) =>
       toOwnerInvoice(row as OwnerInvoiceBalanceRow, propertyById, personById),
     ),
+    operationalTimezone,
     peopleOptions: people
       .filter((person) => person.archived_at === null)
       .map((person) => ({
         id: person.id,
         label: person.display_name,
+        partyType: person.party_type,
       })),
     positions: (positionsResult.data ?? []).flatMap((row) =>
       toPosition(row as PositionRow, personById),
@@ -676,6 +691,7 @@ export function scopeFinanceOperationsData(
     ownerInvoices: data.ownerInvoices.filter(
       (invoice) => invoice.propertyId === scope.propertyId,
     ),
+    operationalTimezone: data.operationalTimezone,
     peopleOptions: data.peopleOptions,
     positions: data.positions.filter(
       (position) => position.propertyId === scope.propertyId,
@@ -1190,11 +1206,13 @@ function toBilling(
       | null,
     billingRecipientPersonId: row.billing_recipient_person_id,
     chargeManagementFeeWhenActive: row.charge_management_fee_when_active,
+    chargeThroughLeaseEnd: row.charge_through_lease_end,
     collectionRoute: row.collection_route as
       | "direct_to_owner"
       | "through_ips"
       | null,
     effectiveFrom: row.effective_from,
+    effectiveTo: row.effective_to,
     finalPeriodProratedAmount:
       row.final_period_prorated_amount === null
         ? null
@@ -1205,6 +1223,10 @@ function toBilling(
         : Number(row.first_period_prorated_amount),
     fullManagementFeeDuringProration: row.full_management_fee_during_proration,
     id: row.id,
+    leaseEndProrationRule: row.lease_end_proration_rule as "actual_days" | null,
+    leaseStartProrationRule: row.lease_start_proration_rule as
+      | "actual_days"
+      | null,
     managementFeeMode: row.management_fee_mode as
       | "flat"
       | "percentage"
@@ -1213,7 +1235,26 @@ function toBilling(
       row.management_fee_value === null
         ? null
         : Number(row.management_fee_value),
+    midPeriodRentChangeRule: row.mid_period_rent_change_rule as
+      | "next_full_month"
+      | null,
+    rentCalculationTimezone: row.rent_calculation_timezone,
+    shortMonthDueDayRule: row.short_month_due_day_rule as
+      | "last_calendar_day"
+      | null,
   };
+}
+
+function getDateInTimezone(date: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: timezone,
+    year: "numeric",
+  }).formatToParts(date);
+  const read = (type: string) =>
+    parts.find((part) => part.type === type)?.value ?? "00";
+  return `${read("year")}-${read("month")}-${read("day")}`;
 }
 
 export function toTenantInvoice(

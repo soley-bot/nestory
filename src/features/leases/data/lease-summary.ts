@@ -274,6 +274,7 @@ export function buildLeaseSummary({
   return {
     activationSchedule,
     activity,
+    billingRules: [],
     depositDisplay: hasDeposit
       ? formatMoneyDisplay(depositAmount, depositCurrency)
       : undefined,

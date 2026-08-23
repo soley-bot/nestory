@@ -272,22 +272,33 @@ describe("rent generation recovery action", () => {
     formData.set("billingRecipientKind", "individual");
     formData.set("billingRecipientPersonId", actorId);
     formData.set("chargeManagementFeeWhenActive", "yes");
+    formData.set("chargeThroughLeaseEnd", "yes");
     formData.set("collectionRoute", "through_ips");
-    formData.set("effectiveFrom", "2026-08-11");
+    formData.set("expectedCurrentBillingRuleId", "billing-current");
     formData.set("fullManagementFeeDuringProration", "no");
     formData.set("idempotencyKey", "billing-test-key");
+    formData.set("leaseEndProrationRule", "actual_days");
     formData.set("leaseId", leaseId);
+    formData.set("leaseStartProrationRule", "actual_days");
     formData.set("managementFeeMode", "percentage");
     formData.set("managementFeeValue", "10");
+    formData.set("midPeriodRentChangeRule", "next_full_month");
+    formData.set("rentCalculationTimezone", "Asia/Bangkok");
+    formData.set("shortMonthDueDayRule", "last_calendar_day");
 
     await expect(saveLeaseBillingAction({}, formData)).resolves.toMatchObject({
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "set_lease_billing_term",
+      "save_lease_billing_rules",
       expect.objectContaining({
-        p_charge_management_fee_when_active: true,
-        p_full_management_fee_during_proration: false,
+        p_billing_rule: expect.objectContaining({
+          chargeManagementFeeWhenActive: true,
+          chargeThroughLeaseEnd: true,
+          fullManagementFeeDuringProration: false,
+          rentCalculationTimezone: "Asia/Bangkok",
+        }),
+        p_expected_current_billing_rule_id: "billing-current",
       }),
     );
     expect(requirePermission).toHaveBeenCalledWith("leases.change_terms");

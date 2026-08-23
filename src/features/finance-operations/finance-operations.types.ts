@@ -1,6 +1,7 @@
 export type FinanceOption = {
   id: string;
   label: string;
+  partyType?: string | null;
   propertyId?: string | null;
 };
 
@@ -8,14 +9,21 @@ export type LeaseBillingSummary = {
   billingRecipientKind: "company" | "individual" | null;
   billingRecipientPersonId: string | null;
   chargeManagementFeeWhenActive: boolean;
+  chargeThroughLeaseEnd: boolean;
   collectionRoute: "direct_to_owner" | "through_ips" | null;
   effectiveFrom: string;
+  effectiveTo: string;
   finalPeriodProratedAmount: number | null;
   firstPeriodProratedAmount: number | null;
   fullManagementFeeDuringProration: boolean;
   id: string;
+  leaseEndProrationRule: "actual_days" | null;
+  leaseStartProrationRule: "actual_days" | null;
   managementFeeMode: "flat" | "percentage" | null;
   managementFeeValue: number | null;
+  midPeriodRentChangeRule: "next_full_month" | null;
+  rentCalculationTimezone: string | null;
+  shortMonthDueDayRule: "last_calendar_day" | null;
 };
 
 export type FinanceLease = {
@@ -204,6 +212,7 @@ export type FinanceOperationsData = {
   expenseSubmissions: ExpenseSubmissionSummary[];
   leases: FinanceLease[];
   ownerInvoices: OwnerInvoiceSummary[];
+  operationalTimezone?: string;
   peopleOptions: FinanceOption[];
   positions: PropertyFinancePosition[];
   propertyOptions: FinanceOption[];

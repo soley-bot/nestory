@@ -68,6 +68,58 @@ export type LeaseCreateContext = {
   unitLabel: string | null;
 };
 
+export type LeaseBillingRuleState = "current" | "historical" | "scheduled";
+
+export type LeaseBillingRule = {
+  billingRecipientKind: "company" | "individual" | null;
+  billingRecipientLabel: string;
+  billingRecipientPersonId: string | null;
+  chargeManagementFeeWhenActive: boolean;
+  chargeThroughLeaseEnd: boolean;
+  collectionRoute: "direct_to_owner" | "through_ips" | null;
+  effectiveFrom: string;
+  effectiveTo: string;
+  finalPeriodProratedAmount: number | null;
+  firstPeriodProratedAmount: number | null;
+  fullManagementFeeDuringProration: boolean;
+  id: string;
+  leaseEndProrationRule: "actual_days";
+  leaseStartProrationRule: "actual_days";
+  managementFeeMode: "flat" | "percentage" | null;
+  managementFeeValue: number | null;
+  midPeriodRentChangeRule: "next_full_month";
+  rentCalculationTimezone: string;
+  shortMonthDueDayRule: "last_calendar_day";
+  state: LeaseBillingRuleState;
+};
+
+export type LeaseBillingRuleFieldErrors = Partial<
+  Record<
+    | "billingRecipientKind"
+    | "billingRecipientPersonId"
+    | "chargeManagementFeeWhenActive"
+    | "chargeThroughLeaseEnd"
+    | "collectionRoute"
+    | "finalPeriodProratedAmount"
+    | "firstPeriodProratedAmount"
+    | "fullManagementFeeDuringProration"
+    | "leaseEndProrationRule"
+    | "leaseStartProrationRule"
+    | "managementFeeMode"
+    | "managementFeeValue"
+    | "midPeriodRentChangeRule"
+    | "rentCalculationTimezone"
+    | "shortMonthDueDayRule",
+    string[]
+  >
+>;
+
+export type LeaseBillingFormConfig = {
+  companyOptions: Array<{ id: string; label: string }>;
+  operationalTimezone: string;
+  organizationName: string;
+};
+
 export type LeaseFormValues = {
   depositAmount?: number | null;
   depositCurrency?: CurrencyCode | null;
@@ -225,6 +277,7 @@ export type LeaseSummary = {
     status: "cancelled" | "failed" | "pending" | "processed";
   };
   activity: RecentChange[];
+  billingRules: LeaseBillingRule[];
   depositDisplay?: MoneyDisplayValue;
   depositLabel: string;
   deposits: LeaseDepositContext[];

@@ -32,6 +32,8 @@ import { SideDrawer } from "@/components/ui/side-drawer";
 import { Table, TableCell, TableHead } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
+import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
+import type { LeaseBillingRule } from "@/features/leases/lease.types";
 import {
   confirmOwnerCollectionAction,
   createManualTenantChargeAction,
@@ -359,6 +361,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
             <BillingSetupForm
               lease={visibleDrawer.lease}
               onSuccess={onActionSuccess}
+              operationalTimezone={props.operationalTimezone ?? "UTC"}
               organizationName={organizationName}
               peopleOptions={props.peopleOptions}
             />
@@ -848,7 +851,7 @@ function FinanceWorkView({
   const leasesNeedingSetup = leases.filter(
     (lease) =>
       (lease.status === "active" || lease.status === "notice_given") &&
-      !lease.billing,
+      !isLeaseBillingRuleComplete(lease.billing),
   );
   const leaseById = new Map(leases.map((lease) => [lease.id, lease]));
   const tenantDue = tenantInvoices.filter((invoice) => invoice.balanceDue > 0);
@@ -939,7 +942,11 @@ function FinanceWorkView({
                     key={`setup-${lease.id}`}
                   >
                     <Td>
-                      <p className="font-medium">Set up lease billing</p>
+                      <p className="font-medium">
+                        {lease.billing
+                          ? "Repair lease billing"
+                          : "Set up lease billing"}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {lease.tenantLabel} · {lease.unitLabel}
                       </p>
@@ -952,7 +959,7 @@ function FinanceWorkView({
                         <Button
                           onClick={() => openDrawer({ lease, mode: "billing" })}
                         >
-                          Set up
+                          {lease.billing ? "Repair" : "Set up"}
                         </Button>
                       ) : (
                         <span className="text-xs text-muted-foreground">
@@ -2366,11 +2373,13 @@ function AccountPositionItem({
 function BillingSetupForm({
   lease,
   onSuccess,
+  operationalTimezone,
   organizationName,
   peopleOptions,
 }: {
   lease: FinanceLease;
   onSuccess: (message: string) => void;
+  operationalTimezone: string;
   organizationName: string;
   peopleOptions: FinanceOperationsData["peopleOptions"];
 }) {
@@ -2379,89 +2388,13 @@ function BillingSetupForm({
     saveLeaseBillingAction,
     actionInitialState,
   );
-  const [recipientKind, setRecipientKind] = useState<
-    "" | "company" | "individual"
-  >(
-    lease.billing?.billingRecipientKind ??
-      (lease.tenantPersonId ? "individual" : ""),
-  );
-  const [recipientId, setRecipientId] = useState(
-    lease.billing?.billingRecipientPersonId ?? lease.tenantPersonId ?? "",
-  );
-  const [effectiveFrom, setEffectiveFrom] = useState(
-    lease.billing?.effectiveFrom ?? lease.startDate,
-  );
-  const [firstProrata, setFirstProrata] = useState(
-    lease.billing?.firstPeriodProratedAmount?.toString() ?? "",
-  );
-  const [finalProrata, setFinalProrata] = useState(
-    lease.billing?.finalPeriodProratedAmount?.toString() ?? "",
-  );
-  const [route, setRoute] = useState<"" | "direct_to_owner" | "through_ips">(
-    lease.billing?.collectionRoute ?? "through_ips",
-  );
-  const [feeMode, setFeeMode] = useState<"" | "flat" | "percentage">(
-    lease.billing?.managementFeeMode ?? "percentage",
-  );
-  const [feeValue, setFeeValue] = useState(
-    lease.billing?.managementFeeValue?.toString() ?? "0",
-  );
-  const [chargeFee, setChargeFee] = useState<"" | "no" | "yes">(
-    lease.billing
-      ? lease.billing.chargeManagementFeeWhenActive
-        ? "yes"
-        : "no"
-      : "no",
-  );
-  const [fullFeeDuringProration, setFullFeeDuringProration] = useState<
-    "" | "no" | "yes"
-  >(
-    lease.billing
-      ? lease.billing.fullManagementFeeDuringProration
-        ? "yes"
-        : "no"
-      : "no",
-  );
-  const recipientOptions =
-    recipientKind === "individual" && lease.tenantPersonId
-      ? [{ id: lease.tenantPersonId, label: lease.tenantLabel }]
-      : peopleOptions;
+  const defaults = toLeaseBillingRuleDefaults(lease, peopleOptions);
   useSuccess(state, onSuccess);
   return (
     <form action={action} className="space-y-4 p-4">
       <input name="leaseId" type="hidden" value={lease.id} />
-      <input name="effectiveFrom" type="hidden" value={effectiveFrom} />
-      <input name="billingRecipientKind" type="hidden" value={recipientKind} />
       <input
-        name="billingRecipientPersonId"
-        type="hidden"
-        value={recipientId}
-      />
-      <input
-        name="firstPeriodProratedAmount"
-        type="hidden"
-        value={firstProrata}
-      />
-      <input
-        name="finalPeriodProratedAmount"
-        type="hidden"
-        value={finalProrata}
-      />
-      <input name="collectionRoute" type="hidden" value={route} />
-      <input name="managementFeeMode" type="hidden" value={feeMode} />
-      <input name="managementFeeValue" type="hidden" value={feeValue} />
-      <input
-        name="chargeManagementFeeWhenActive"
-        type="hidden"
-        value={chargeFee}
-      />
-      <input
-        name="fullManagementFeeDuringProration"
-        type="hidden"
-        value={fullFeeDuringProration}
-      />
-      <input
-        name="supersedesBillingTermId"
+        name="expectedCurrentBillingRuleId"
         type="hidden"
         value={lease.billing?.id ?? ""}
       />
@@ -2475,142 +2408,80 @@ function BillingSetupForm({
           ["Monthly rent", formatMoneyDisplay(lease.monthlyRent).primary],
         ]}
       />
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Bill to">
-          <SelectControl
-            onValueChange={(value) => {
-              const nextKind = value as "company" | "individual";
-              setRecipientKind(nextKind);
-              setRecipientId(
-                nextKind === "individual" ? (lease.tenantPersonId ?? "") : "",
-              );
-            }}
-            options={[
-              { label: "Individual tenant", value: "individual" },
-              { label: "Company", value: "company" },
-            ]}
-            value={recipientKind}
-          />
-        </Field>
-        <Field label={recipientKind === "company" ? "Company" : "Recipient"}>
-          <SelectControl
-            onValueChange={setRecipientId}
-            options={recipientOptions.map((option) => ({
-              label: option.label,
-              value: option.id,
-            }))}
-            placeholder="Choose a recipient"
-            value={recipientId}
-          />
-        </Field>
-        <Field label="Billing effective date">
-          <Input
-            aria-label="Billing effective date"
-            onChange={(event) => setEffectiveFrom(event.target.value)}
-            required
-            type="date"
-            value={effectiveFrom}
-          />
-        </Field>
-        <Field label="Who collects rent?">
-          <SelectControl
-            onValueChange={(value) => setRoute(value as typeof route)}
-            options={[
-              {
-                label: `Collected by ${organizationName}`,
-                value: "through_ips",
-              },
-              { label: "Collected by owner", value: "direct_to_owner" },
-            ]}
-            value={route}
-          />
-        </Field>
-      </div>
-
-      <details className="border-y border-border py-3">
-        <summary className="cursor-pointer text-sm font-medium text-foreground">
-          Proration and fee options
-        </summary>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="Management fee">
-            <SelectControl
-              onValueChange={(value) => setFeeMode(value as typeof feeMode)}
-              options={[
-                { label: "Percentage", value: "percentage" },
-                { label: "Flat amount", value: "flat" },
-              ]}
-              value={feeMode}
-            />
-          </Field>
-          <Field
-            label={feeMode === "percentage" ? "Fee percentage" : "Fee amount"}
-          >
-            <NumberInput
-              onChange={(event) => setFeeValue(event.target.value)}
-              required
-              value={feeValue}
-            />
-          </Field>
-          <Field label="First month amount (optional)">
-            <NumberInput
-              onChange={(event) => setFirstProrata(event.target.value)}
-              placeholder="Use full rent"
-              value={firstProrata}
-            />
-          </Field>
-          <Field label="Final month amount (optional)">
-            <NumberInput
-              onChange={(event) => setFinalProrata(event.target.value)}
-              placeholder="Use full rent"
-              value={finalProrata}
-            />
-          </Field>
-          <Field label="Charge fee while lease is active?">
-            <SelectControl
-              onValueChange={(value) => setChargeFee(value as typeof chargeFee)}
-              options={[
-                { label: "Yes", value: "yes" },
-                { label: "No", value: "no" },
-              ]}
-              value={chargeFee}
-            />
-          </Field>
-          <Field label="Keep full fee in pro-rata months?">
-            <SelectControl
-              onValueChange={(value) =>
-                setFullFeeDuringProration(
-                  value as typeof fullFeeDuringProration,
-                )
+      <p className="text-sm text-muted-foreground">
+        {lease.billing
+          ? "Repairs this lease-owned rule without changing generated invoices."
+          : "Begins on the lease start date."}
+      </p>
+      <LeaseBillingRuleFields
+        companyOptions={peopleOptions
+          .filter((option) => option.partyType === "company")
+          .map((option) => ({ id: option.id, label: option.label }))}
+        defaults={defaults}
+        operationalTimezone={operationalTimezone}
+        organizationName={organizationName}
+        tenantRecipient={
+          lease.tenantPersonId
+            ? {
+                id: lease.tenantPersonId,
+                label: lease.tenantLabel,
+                partyType:
+                  peopleOptions.find(
+                    (option) => option.id === lease.tenantPersonId,
+                  )?.partyType === "company"
+                    ? "company"
+                    : "individual",
               }
-              options={[
-                { label: "Yes", value: "yes" },
-                { label: "No", value: "no" },
-              ]}
-              value={fullFeeDuringProration}
-            />
-          </Field>
-        </div>
-      </details>
+            : null
+        }
+      />
       <ActionMessage state={state} />
       <FormFooter>
         <span />
-        <SubmitButton
-          disabled={
-            !recipientKind ||
-            !recipientId ||
-            !effectiveFrom ||
-            !route ||
-            !feeMode ||
-            feeValue === "" ||
-            !chargeFee ||
-            !fullFeeDuringProration
-          }
-          label="Activate billing"
-        />
+        <SubmitButton label="Save billing rules" />
       </FormFooter>
     </form>
   );
+}
+
+function toLeaseBillingRuleDefaults(
+  lease: FinanceLease,
+  peopleOptions: FinanceOperationsData["peopleOptions"],
+): LeaseBillingRule | null {
+  const billing = lease.billing;
+  if (!billing) return null;
+  const tenantPartyType =
+    peopleOptions.find((option) => option.id === lease.tenantPersonId)
+      ?.partyType === "company"
+      ? "company"
+      : "individual";
+  const billingRecipientKind =
+    billing.billingRecipientKind ?? tenantPartyType;
+  const billingRecipientPersonId =
+    billing.billingRecipientPersonId ??
+    (billingRecipientKind === tenantPartyType
+      ? (lease.tenantPersonId ?? "")
+      : "");
+  return {
+    ...billing,
+    billingRecipientKind,
+    billingRecipientLabel:
+      peopleOptions.find(
+        (option) => option.id === billingRecipientPersonId,
+      )?.label ?? lease.tenantLabel,
+    billingRecipientPersonId,
+    collectionRoute: billing.collectionRoute ?? "through_ips",
+    leaseEndProrationRule: billing.leaseEndProrationRule ?? "actual_days",
+    leaseStartProrationRule: billing.leaseStartProrationRule ?? "actual_days",
+    managementFeeMode: billing.managementFeeMode ?? "percentage",
+    managementFeeValue: billing.managementFeeValue ?? 0,
+    midPeriodRentChangeRule:
+      billing.midPeriodRentChangeRule ?? "next_full_month",
+    rentCalculationTimezone: billing.rentCalculationTimezone ?? "UTC",
+    shortMonthDueDayRule:
+      billing.shortMonthDueDayRule ?? "last_calendar_day",
+    state: "current",
+  };
 }
 
 function PaymentChooser({
@@ -3847,8 +3718,29 @@ function canRenderFinanceModal(
 }
 
 function getDrawerTitle(drawer: DrawerState) {
-  if (drawer.mode === "billing") return "Set up lease billing";
+  if (drawer.mode === "billing") {
+    return drawer.lease.billing
+      ? "Repair lease billing"
+      : "Set up lease billing";
+  }
   return "Record expense";
+}
+
+function isLeaseBillingRuleComplete(
+  billing: FinanceLease["billing"],
+): boolean {
+  return Boolean(
+    billing?.billingRecipientKind &&
+      billing.billingRecipientPersonId &&
+      billing.collectionRoute &&
+      billing.managementFeeMode &&
+      billing.managementFeeValue !== null &&
+      billing.leaseStartProrationRule &&
+      billing.leaseEndProrationRule &&
+      billing.midPeriodRentChangeRule &&
+      billing.rentCalculationTimezone &&
+      billing.shortMonthDueDayRule,
+  );
 }
 
 function useSuccess(

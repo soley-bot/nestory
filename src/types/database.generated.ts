@@ -9770,6 +9770,28 @@ export type Database = {
         }
         Returns: string
       }
+      create_lease_with_billing_rules: {
+        Args: {
+          p_billing_rule: Json
+          p_deposit_amount: number
+          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
+          p_idempotency_key: string
+          p_lease_end_date: string
+          p_lease_start_date: string
+          p_lease_status: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_relationship_payload: Json
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_term_status: string
+          p_unit_id: string
+        }
+        Returns: Json
+      }
       create_lease_with_relationships: {
         Args: {
           p_deposit_amount: number
@@ -11298,6 +11320,16 @@ export type Database = {
         Args: { p_limit?: number; p_run_at: string }
         Returns: Json
       }
+      save_lease_billing_rules: {
+        Args: {
+          p_billing_rule: Json
+          p_expected_current_billing_rule_id: string
+          p_idempotency_key: string
+          p_lease_id: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       save_organization_role: {
         Args: {
           p_confirm_removals: boolean
@@ -11574,6 +11606,28 @@ export type Database = {
           p_unit_id: string
         }
         Returns: string
+      }
+      update_lease_with_billing_rules: {
+        Args: {
+          p_billing_rule: Json
+          p_deposit_amount: number
+          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
+          p_idempotency_key: string
+          p_lease_end_date: string
+          p_lease_id: string
+          p_lease_start_date: string
+          p_lease_status: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_term_status: string
+          p_unit_id: string
+        }
+        Returns: Json
       }
       update_maintenance_task: {
         Args: {

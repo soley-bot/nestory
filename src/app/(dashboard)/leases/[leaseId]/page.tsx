@@ -18,7 +18,13 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
     ...parseLeaseSearchParams({ archiveState: "all" }),
     leaseId,
   };
-  const { leases, propertyOptions, tenantOptions, unitOptions } =
+  const {
+    billingFormConfig,
+    leases,
+    propertyOptions,
+    tenantOptions,
+    unitOptions,
+  } =
     await getLeasesScreenData(context.organizationId, viewQuery);
   const lease = leases[0];
 
@@ -29,6 +35,7 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
   return (
     <LeaseDetailScreen
       activeSection={section}
+      billingFormConfig={billingFormConfig}
       permissions={{
         canActivate: context.permissionKeys.has("leases.activate"),
         canArchive: context.permissionKeys.has("leases.archive"),

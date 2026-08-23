@@ -17,6 +17,7 @@ vi.mock("@/features/leases/actions", () => ({
   reverseLeaseDepositEventAction: async () => ({}),
   scheduleLeaseActivationAction: async () => ({}),
   scheduleFutureRentTermAction: async () => ({}),
+  saveLeaseBillingRulesAction: async () => ({}),
   transitionLeaseLifecycleAction: async () => ({}),
   updateLeaseAction: async () => ({}),
 }));
@@ -279,6 +280,68 @@ describe("LeaseDetailScreen", () => {
     expect(screen.queryByText(/received \/ /)).toBeNull();
   });
 
+  it("shows current, scheduled, and historical billing rules directly below the rent schedule", () => {
+    const lease = makeLease();
+    Object.assign(lease, {
+      billingRules: [
+        billingRule({
+          effectiveFrom: "2026-07-01",
+          effectiveTo: "2026-08-31",
+          id: "billing-history",
+          state: "historical",
+        }),
+        billingRule({
+          effectiveFrom: "2026-09-01",
+          effectiveTo: "2027-05-31",
+          id: "billing-current",
+          state: "current",
+        }),
+        billingRule({
+          effectiveFrom: "2027-06-01",
+          effectiveTo: "2027-06-30",
+          id: "billing-future",
+          state: "scheduled",
+        }),
+      ],
+    });
+
+    renderDetail("rent", lease);
+
+    const rentSchedule = screen.getByRole("heading", { name: "Rent schedule" });
+    const billingRules = screen.getByRole("heading", { name: "Billing rules" });
+    expect(
+      rentSchedule.compareDocumentPosition(billingRules) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByText("Current billing rule")).not.toBeNull();
+    expect(screen.getByText("Scheduled from 01 Jun 2027")).not.toBeNull();
+    expect(screen.getByText("Billing rule history")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Change rules" })).not.toBeNull();
+  });
+
+  it("reuses the billing editor for an active effective-dated change", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    Object.assign(lease, {
+      billingRules: [billingRule({ id: "billing-current", state: "current" })],
+    });
+
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "Change rules" }));
+
+    const drawer = screen.getByRole("dialog", { name: "Change billing rules" });
+    expect(within(drawer).getByRole("combobox", { name: "Bill to" })).not.toBeNull();
+    expect(
+      within(drawer).getByRole("combobox", { name: "Who collects rent?" }),
+    ).not.toBeNull();
+    expect(within(drawer).getByText("Begins with the next unbilled month.")).not.toBeNull();
+    expect(
+      drawer.querySelector<HTMLInputElement>(
+        'input[name="expectedCurrentBillingRuleId"]',
+      )?.value,
+    ).toBe("billing-current");
+  });
+
   it("uses move-in and move-out language without exposing evidence state", () => {
     renderDetail("occupancy");
 
@@ -476,4 +539,32 @@ function makeLease() {
   ];
 
   return lease;
+}
+
+function billingRule(
+  overrides: Partial<Record<string, unknown>> = {},
+) {
+  return {
+    billingRecipientKind: "individual",
+    billingRecipientLabel: "Alice Tenant",
+    billingRecipientPersonId: "person-1",
+    chargeManagementFeeWhenActive: true,
+    chargeThroughLeaseEnd: true,
+    collectionRoute: "through_ips",
+    effectiveFrom: "2026-07-01",
+    effectiveTo: "2027-06-30",
+    finalPeriodProratedAmount: null,
+    firstPeriodProratedAmount: null,
+    fullManagementFeeDuringProration: false,
+    id: "billing-current",
+    leaseEndProrationRule: "actual_days",
+    leaseStartProrationRule: "actual_days",
+    managementFeeMode: "percentage",
+    managementFeeValue: 8,
+    midPeriodRentChangeRule: "next_full_month",
+    rentCalculationTimezone: "Asia/Bangkok",
+    shortMonthDueDayRule: "last_calendar_day",
+    state: "current",
+    ...overrides,
+  };
 }

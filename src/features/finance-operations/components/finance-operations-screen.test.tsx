@@ -626,12 +626,65 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.getByRole("combobox", { name: "Recipient" }).textContent,
     ).toContain("Dara Tenant");
+    expect(screen.queryByLabelText("Billing effective date")).toBeNull();
+    expect(screen.getByText("Begins on the lease start date.")).not.toBeNull();
+    expect(screen.getByText("Advanced billing rules")).not.toBeNull();
     expect(
-      screen.getByLabelText("Billing effective date").getAttribute("value"),
-    ).toBe("2026-08-01");
-    expect(
-      screen.getByRole("button", { name: "Activate billing" }),
+      screen.getByRole("button", { name: "Save billing rules" }),
     ).not.toBeNull();
+  });
+
+  it("keeps the Finance billing queue only as a repair shortcut for incomplete rules", () => {
+    const input = data();
+    input.leases[0]!.billing = {
+      ...billing(),
+      billingRecipientKind: null,
+      billingRecipientPersonId: null,
+      collectionRoute: null,
+      managementFeeMode: null,
+      managementFeeValue: null,
+    };
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    expect(screen.getByText("Repair lease billing")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Repair" })).not.toBeNull();
+  });
+
+  it("repairs an incomplete company lease with the company tenant selected", () => {
+    const input = data();
+    input.leases[0]!.tenantLabel = "Sokha Trading Co.";
+    input.leases[0]!.tenantPersonId = "person-company";
+    input.leases[0]!.billing = {
+      ...billing(),
+      billingRecipientKind: null,
+      billingRecipientPersonId: null,
+    };
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Repair" }));
+    const dialog = screen.getByRole("dialog", { name: "Repair lease billing" });
+    expect(
+      within(dialog).getByRole("combobox", { name: "Bill to" }).textContent,
+    ).toContain("Company");
+    expect(
+      within(dialog).getByRole("combobox", { name: "Recipient" }).textContent,
+    ).toContain("Sokha Trading Co.");
   });
 
   it("orders outstanding payment work by the oldest due date first", () => {
@@ -752,14 +805,14 @@ describe("FinanceOperationsScreen", () => {
 
     expect(screen.queryByRole("alert")).toBeNull();
     const advanced = screen
-      .getByText("Proration and fee options", {
+      .getByText("Advanced billing rules", {
         exact: true,
       })
       .closest("details");
     expect(advanced).not.toBeNull();
     expect(advanced?.hasAttribute("open")).toBe(false);
     expect(
-      screen.getByRole("button", { name: "Activate billing" }),
+      screen.getByRole("button", { name: "Save billing rules" }),
     ).not.toBeNull();
   });
 
@@ -1152,15 +1205,10 @@ describe("FinanceOperationsScreen", () => {
   it("shows direct-owner collection without pretending IPS received cash", () => {
     const input = data();
     input.leases[0].billing = {
+      ...billing(),
       billingRecipientKind: "company",
       billingRecipientPersonId: "person-company",
-      chargeManagementFeeWhenActive: true,
       collectionRoute: "direct_to_owner",
-      effectiveFrom: "2026-08-01",
-      finalPeriodProratedAmount: null,
-      firstPeriodProratedAmount: null,
-      fullManagementFeeDuringProration: true,
-      id: "billing-1",
       managementFeeMode: "flat",
       managementFeeValue: 65,
     };
@@ -2340,8 +2388,16 @@ function data(): FinanceOperationsData {
     ],
     ownerInvoices: [],
     peopleOptions: [
-      { id: "person-tenant", label: "Dara Tenant" },
-      { id: "person-company", label: "Sokha Trading Co." },
+      {
+        id: "person-tenant",
+        label: "Dara Tenant",
+        partyType: "individual",
+      },
+      {
+        id: "person-company",
+        label: "Sokha Trading Co.",
+        partyType: "company",
+      },
     ],
     positions: [
       {
@@ -2447,14 +2503,21 @@ function billing(): NonNullable<
     billingRecipientKind: "individual",
     billingRecipientPersonId: "person-tenant",
     chargeManagementFeeWhenActive: true,
+    chargeThroughLeaseEnd: true,
     collectionRoute: "through_ips",
     effectiveFrom: "2026-08-01",
+    effectiveTo: "2027-07-31",
     finalPeriodProratedAmount: null,
     firstPeriodProratedAmount: null,
     fullManagementFeeDuringProration: true,
     id: "billing-1",
+    leaseEndProrationRule: "actual_days",
+    leaseStartProrationRule: "actual_days",
     managementFeeMode: "percentage",
     managementFeeValue: 10,
+    midPeriodRentChangeRule: "next_full_month",
+    rentCalculationTimezone: "Asia/Bangkok",
+    shortMonthDueDayRule: "last_calendar_day",
   };
 }
 

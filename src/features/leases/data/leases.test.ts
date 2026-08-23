@@ -3,6 +3,7 @@ import {
   buildLeaseUnitReservations,
   getCalendarDateInTimeZone,
   getEffectiveRentPolicyCalendarDate,
+  getLeaseBillingRuleState,
 } from "@/features/leases/data/leases";
 
 describe("lease data dates", () => {
@@ -56,6 +57,37 @@ describe("lease data dates", () => {
         new Date("2026-08-01T23:30:00.000Z"),
       ),
     ).toBe("2026-08-01");
+  });
+});
+
+describe("lease billing rule dates", () => {
+  it("keeps a replaced rule current through its effective end date", () => {
+    expect(
+      getLeaseBillingRuleState({
+        effectiveFrom: "2026-08-23",
+        effectiveTo: "2026-08-31",
+        readinessDate: "2026-08-23",
+        supersededAt: "2026-08-23T02:40:00.000Z",
+      }),
+    ).toBe("current");
+
+    expect(
+      getLeaseBillingRuleState({
+        effectiveFrom: "2026-09-01",
+        effectiveTo: "2027-08-22",
+        readinessDate: "2026-08-23",
+        supersededAt: null,
+      }),
+    ).toBe("scheduled");
+
+    expect(
+      getLeaseBillingRuleState({
+        effectiveFrom: "2026-08-23",
+        effectiveTo: "2026-08-31",
+        readinessDate: "2026-09-01",
+        supersededAt: "2026-08-23T02:40:00.000Z",
+      }),
+    ).toBe("historical");
   });
 });
 

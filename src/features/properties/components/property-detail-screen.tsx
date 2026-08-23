@@ -18,7 +18,10 @@ import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { DocumentForm } from "@/features/documents/components/document-screen";
 import { LeaseForm } from "@/features/leases/components/lease-form";
-import type { LeaseTenantOption } from "@/features/leases/lease.types";
+import type {
+  LeaseBillingFormConfig,
+  LeaseTenantOption,
+} from "@/features/leases/lease.types";
 import {
   ArchivePropertyPanel,
   RestorePropertyPanel,
@@ -42,6 +45,7 @@ type ConfirmationState = {
 };
 
 type PropertyDetailScreenProps = {
+  billingFormConfig?: LeaseBillingFormConfig;
   canArchive?: boolean;
   canCreateLease?: boolean;
   canWrite?: boolean;
@@ -52,6 +56,7 @@ type PropertyDetailScreenProps = {
 };
 
 export function PropertyDetailScreen({
+  billingFormConfig,
   canArchive = true,
   canCreateLease = true,
   canWrite = true,
@@ -205,6 +210,7 @@ export function PropertyDetailScreen({
             />
           ) : drawer.mode === "create-lease" ? (
             <LeaseForm
+              billingFormConfig={billingFormConfig}
               createContext={{
                 propertyId: drawer.property.id,
                 propertyLabel: drawer.property.name,
