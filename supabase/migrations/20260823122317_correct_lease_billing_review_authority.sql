@@ -363,7 +363,8 @@ BEGIN
     v_period_start,
     v_business_date,
     p_generation_source,
-    v_actor_id
+    v_actor_id,
+    v_resolved_rule_id
   );
 END;
 $$;
@@ -459,6 +460,106 @@ BEGIN
 END;
 $patch_generation$;
 
+-- Preserve the general six-argument generation path for explicit historical
+-- recovery, while giving current-month generation a private exact-authority
+-- overload. The resolver's selected rule id is required by both the monthly
+-- authority preflight and the downstream invoice snapshot selection.
+DO $clone_exact_generation$
+DECLARE
+  v_function constant regprocedure :=
+    'app_private.generate_simple_lease_rent_invoice(uuid,uuid,date,date,text,uuid)'::regprocedure;
+  v_definition text := pg_catalog.pg_get_functiondef(v_function);
+  v_old_signature text := $old$CREATE OR REPLACE FUNCTION app_private.generate_simple_lease_rent_invoice(p_organization_id uuid, p_lease_id uuid, p_billing_period_start date, p_issue_date date, p_generation_reason text, p_actor_id uuid)$old$;
+  v_new_signature text := $new$CREATE OR REPLACE FUNCTION app_private.generate_simple_lease_rent_invoice(p_organization_id uuid, p_lease_id uuid, p_billing_period_start date, p_issue_date date, p_generation_reason text, p_actor_id uuid, p_expected_billing_term_id uuid)$new$;
+  v_old_selection text := $old$    AND billing.rule_source = 'lease_default_v1'
+    AND v_effective_date BETWEEN billing.effective_from AND billing.effective_to$old$;
+  v_new_selection text := $new$    AND billing.rule_source = 'lease_default_v1'
+    AND billing.id = p_expected_billing_term_id
+    AND v_effective_date BETWEEN billing.effective_from AND billing.effective_to$new$;
+BEGIN
+  IF (
+      pg_catalog.length(v_definition)
+      - pg_catalog.length(pg_catalog.replace(
+          v_definition, v_old_signature, ''
+        ))
+    ) / pg_catalog.length(v_old_signature) <> 1
+    OR (
+      pg_catalog.length(v_definition)
+      - pg_catalog.length(pg_catalog.replace(
+          v_definition, v_old_selection, ''
+        ))
+    ) / pg_catalog.length(v_old_selection) <> 1 THEN
+    RAISE EXCEPTION 'Expected exact Lease generation anchors are missing or ambiguous'
+      USING ERRCODE = '55000';
+  END IF;
+
+  v_definition := pg_catalog.replace(
+    v_definition, v_old_signature, v_new_signature
+  );
+  v_definition := pg_catalog.replace(
+    v_definition, v_old_selection, v_new_selection
+  );
+  EXECUTE v_definition;
+END;
+$clone_exact_generation$;
+
+DO $clone_exact_try_generation$
+DECLARE
+  v_function constant regprocedure :=
+    'app_private.try_generate_lease_rent_invoice(uuid,uuid,date,date,text,uuid)'::regprocedure;
+  v_definition text := pg_catalog.pg_get_functiondef(v_function);
+  v_old_signature text := $old$CREATE OR REPLACE FUNCTION app_private.try_generate_lease_rent_invoice(p_organization_id uuid, p_lease_id uuid, p_billing_period_start date, p_issue_date date, p_generation_source text, p_actor_id uuid)$old$;
+  v_new_signature text := $new$CREATE OR REPLACE FUNCTION app_private.try_generate_lease_rent_invoice(p_organization_id uuid, p_lease_id uuid, p_billing_period_start date, p_issue_date date, p_generation_source text, p_actor_id uuid, p_expected_billing_term_id uuid)$new$;
+  v_old_authority text := $old$      AND billing.rule_source = 'lease_default_v1'
+      AND billing.archived_at IS NULL
+      AND billing.effective_from <= v_period_end$old$;
+  v_new_authority text := $new$      AND billing.rule_source = 'lease_default_v1'
+      AND billing.archived_at IS NULL
+      AND billing.id = p_expected_billing_term_id
+      AND billing.effective_from <= v_period_end$new$;
+  v_old_call text := $old$      p_generation_source,
+      p_actor_id
+    );$old$;
+  v_new_call text := $new$      p_generation_source,
+      p_actor_id,
+      p_expected_billing_term_id
+    );$new$;
+BEGIN
+  IF (
+      pg_catalog.length(v_definition)
+      - pg_catalog.length(pg_catalog.replace(
+          v_definition, v_old_signature, ''
+        ))
+    ) / pg_catalog.length(v_old_signature) <> 1
+    OR (
+      pg_catalog.length(v_definition)
+      - pg_catalog.length(pg_catalog.replace(
+          v_definition, v_old_authority, ''
+        ))
+    ) / pg_catalog.length(v_old_authority) <> 1
+    OR (
+      pg_catalog.length(v_definition)
+      - pg_catalog.length(pg_catalog.replace(
+          v_definition, v_old_call, ''
+        ))
+    ) / pg_catalog.length(v_old_call) <> 1 THEN
+    RAISE EXCEPTION 'Expected exact Lease attempt anchors are missing or ambiguous'
+      USING ERRCODE = '55000';
+  END IF;
+
+  v_definition := pg_catalog.replace(
+    v_definition, v_old_signature, v_new_signature
+  );
+  v_definition := pg_catalog.replace(
+    v_definition, v_old_authority, v_new_authority
+  );
+  v_definition := pg_catalog.replace(
+    v_definition, v_old_call, v_new_call
+  );
+  EXECUTE v_definition;
+END;
+$clone_exact_try_generation$;
+
 ALTER FUNCTION app_private.normalize_lease_billing_rule(uuid,uuid,date,jsonb)
   OWNER TO postgres;
 ALTER FUNCTION public.update_lease_with_billing_rules(
@@ -473,6 +574,12 @@ ALTER FUNCTION app_private.try_current_month_rent(uuid,uuid,text,timestamptz)
   OWNER TO postgres;
 ALTER FUNCTION app_private.generate_simple_lease_rent_invoice(
   uuid,uuid,date,date,text,uuid
+) OWNER TO postgres;
+ALTER FUNCTION app_private.generate_simple_lease_rent_invoice(
+  uuid,uuid,date,date,text,uuid,uuid
+) OWNER TO postgres;
+ALTER FUNCTION app_private.try_generate_lease_rent_invoice(
+  uuid,uuid,date,date,text,uuid,uuid
 ) OWNER TO postgres;
 
 REVOKE ALL ON FUNCTION public.update_lease_with_billing_rules(
@@ -494,4 +601,10 @@ REVOKE ALL ON FUNCTION app_private.normalize_lease_billing_rule(
 ) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION app_private.generate_simple_lease_rent_invoice(
   uuid,uuid,date,date,text,uuid
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION app_private.generate_simple_lease_rent_invoice(
+  uuid,uuid,date,date,text,uuid,uuid
+) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION app_private.try_generate_lease_rent_invoice(
+  uuid,uuid,date,date,text,uuid,uuid
 ) FROM PUBLIC, anon, authenticated, service_role;

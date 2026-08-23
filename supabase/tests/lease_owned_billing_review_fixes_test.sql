@@ -2,9 +2,25 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(22);
+SELECT plan(24);
 
 CREATE TEMP TABLE review_state (
+  fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),
+  fixture_utc_date date GENERATED ALWAYS AS (
+    (fixture_clock AT TIME ZONE 'UTC')::date
+  ) STORED,
+  replacement_effective_on date GENERATED ALWAYS AS (
+    (
+      pg_catalog.date_trunc('month', fixture_clock AT TIME ZONE 'UTC')
+      + interval '1 month'
+    )::date
+  ) STORED,
+  owner_b_started_on date GENERATED ALWAYS AS (
+    (
+      pg_catalog.date_trunc('month', fixture_clock AT TIME ZONE 'UTC')
+      + interval '1 month 1 day'
+    )::date
+  ) STORED,
   admin_id uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000001',
   organization_id uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000002',
   property_a uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000003',
@@ -26,8 +42,10 @@ CREATE TEMP TABLE review_state (
   rejected_scheduled_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000015',
   west_to_east_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000016',
   east_to_west_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000017',
+  authority_gap_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000018',
   west_result jsonb,
-  east_result jsonb
+  east_result jsonb,
+  gap_result jsonb
 ) ON COMMIT DROP;
 
 INSERT INTO review_state DEFAULT VALUES;
@@ -141,9 +159,8 @@ SELECT state.organization_id, fixture.property_id, fixture.person_id,
 FROM review_state AS state
 CROSS JOIN LATERAL (VALUES
   (state.property_a, state.owner_a, DATE '2025-01-01'),
-  (state.property_b, state.owner_b, DATE '2026-09-02'),
-  (state.property_c, state.owner_c,
-    (date_trunc('month', current_date::timestamp) + interval '1 month')::date)
+  (state.property_b, state.owner_b, state.owner_b_started_on),
+  (state.property_c, state.owner_c, state.replacement_effective_on)
 ) AS fixture(property_id, person_id, started_on);
 
 SET LOCAL session_replication_role = replica;
@@ -163,7 +180,8 @@ CROSS JOIN LATERAL (VALUES
   (state.scheduled_lease, state.property_c, state.unit_c, 'active'),
   (state.rejected_scheduled_lease, state.property_b, state.unit_b, 'active'),
   (state.west_to_east_lease, state.property_a, state.unit_a, 'active'),
-  (state.east_to_west_lease, state.property_a, state.unit_a, 'active')
+  (state.east_to_west_lease, state.property_a, state.unit_a, 'active'),
+  (state.authority_gap_lease, state.property_a, state.unit_a, 'active')
 ) AS fixture(id, property_id, unit_id, status);
 
 INSERT INTO public.lease_terms(
@@ -183,10 +201,11 @@ CROSS JOIN LATERAL (VALUES
   (state.full_fee_lease, 1, DATE '2026-05-10', DATE '2026-05-20', 'active'),
   (state.override_fee_lease, 1, DATE '2026-06-10', DATE '2026-06-30', 'active'),
   (state.move_lease, 1, DATE '2026-08-01', DATE '2027-12-31', 'draft'),
-  (state.scheduled_lease, 1, current_date - 60, current_date + 400, 'active'),
-  (state.rejected_scheduled_lease, 1, current_date - 60, current_date + 400, 'active'),
+  (state.scheduled_lease, 1, state.fixture_utc_date - 60, state.fixture_utc_date + 400, 'active'),
+  (state.rejected_scheduled_lease, 1, state.fixture_utc_date - 60, state.fixture_utc_date + 400, 'active'),
   (state.west_to_east_lease, 1, DATE '2026-08-01', DATE '2026-12-31', 'active'),
-  (state.east_to_west_lease, 1, DATE '2026-08-01', DATE '2026-12-31', 'active')
+  (state.east_to_west_lease, 1, DATE '2026-08-01', DATE '2026-12-31', 'active'),
+  (state.authority_gap_lease, 1, DATE '2026-08-01', DATE '2026-12-31', 'active')
 ) AS fixture(lease_id, sequence, start_date, end_date, status);
 
 INSERT INTO public.lease_billing_terms(
@@ -212,12 +231,14 @@ CROSS JOIN LATERAL (VALUES
   ('96000000-0000-0000-0000-000000000102'::uuid, state.full_fee_lease, state.property_a, DATE '2026-01-01', DATE '2026-12-31', 'through_ips', true, state.company_id, NULL::numeric, 'UTC'),
   ('96000000-0000-0000-0000-000000000103'::uuid, state.override_fee_lease, state.property_a, DATE '2026-01-01', DATE '2026-12-31', 'through_ips', false, state.company_id, 1550::numeric, 'UTC'),
   ('96000000-0000-0000-0000-000000000104'::uuid, state.move_lease, state.property_a, DATE '2026-08-01', DATE '2027-12-31', 'direct_to_owner', false, state.owner_a, NULL::numeric, 'UTC'),
-  ('96000000-0000-0000-0000-000000000105'::uuid, state.scheduled_lease, state.property_c, current_date - 60, current_date + 400, 'through_ips', false, state.company_id, NULL::numeric, 'UTC'),
-  ('96000000-0000-0000-0000-000000000106'::uuid, state.rejected_scheduled_lease, state.property_b, current_date - 60, current_date + 400, 'through_ips', false, state.company_id, NULL::numeric, 'UTC'),
+  ('96000000-0000-0000-0000-000000000105'::uuid, state.scheduled_lease, state.property_c, state.fixture_utc_date - 60, state.fixture_utc_date + 400, 'through_ips', false, state.company_id, NULL::numeric, 'UTC'),
+  ('96000000-0000-0000-0000-000000000106'::uuid, state.rejected_scheduled_lease, state.property_b, state.fixture_utc_date - 60, state.fixture_utc_date + 400, 'through_ips', false, state.company_id, NULL::numeric, 'UTC'),
   ('96000000-0000-0000-0000-000000000107'::uuid, state.west_to_east_lease, state.property_a, DATE '2026-08-01', DATE '2026-08-31', 'through_ips', false, state.company_id, NULL::numeric, 'Pacific/Kiritimati'),
   ('96000000-0000-0000-0000-000000000108'::uuid, state.west_to_east_lease, state.property_a, DATE '2026-09-01', DATE '2026-12-31', 'through_ips', false, state.company_id, NULL::numeric, 'Pacific/Honolulu'),
   ('96000000-0000-0000-0000-000000000109'::uuid, state.east_to_west_lease, state.property_a, DATE '2026-08-01', DATE '2026-08-31', 'through_ips', false, state.company_id, NULL::numeric, 'Pacific/Honolulu'),
-  ('96000000-0000-0000-0000-000000000110'::uuid, state.east_to_west_lease, state.property_a, DATE '2026-09-01', DATE '2026-12-31', 'through_ips', false, state.company_id, NULL::numeric, 'Pacific/Kiritimati')
+  ('96000000-0000-0000-0000-000000000110'::uuid, state.east_to_west_lease, state.property_a, DATE '2026-09-01', DATE '2026-12-31', 'through_ips', false, state.company_id, NULL::numeric, 'Pacific/Kiritimati'),
+  ('96000000-0000-0000-0000-000000000111'::uuid, state.authority_gap_lease, state.property_a, DATE '2026-08-01', DATE '2026-08-15', 'through_ips', false, state.company_id, NULL::numeric, 'UTC'),
+  ('96000000-0000-0000-0000-000000000112'::uuid, state.authority_gap_lease, state.property_a, DATE '2026-09-01', DATE '2026-12-31', 'through_ips', false, state.company_id, NULL::numeric, 'UTC')
 ) AS fixture(rule_id, lease_id, property_id, effective_from, effective_to,
   route, keep_full, recipient_id, first_override, timezone);
 
@@ -335,8 +356,9 @@ SELECT is(
 ) FROM review_state state;
 
 SELECT throws_ok(
-  format($q$SELECT public.update_lease_with_billing_rules(%L,%L,%L,%L,%L,DATE '2026-09-02',DATE '2027-12-31',3100,'USD',1,'monthly','draft',0,'USD','draft',%L::jsonb,'move-owner-b')$q$,
+  format($q$SELECT public.update_lease_with_billing_rules(%L,%L,%L,%L,%L,%L::date,DATE '2027-12-31',3100,'USD',1,'monthly','draft',0,'USD','draft',%L::jsonb,'move-owner-b')$q$,
     move_lease, organization_id, property_b, unit_b, tenant_id,
+    owner_b_started_on,
     pg_temp.billing_rule(owner_b, 'direct_to_owner')),
   '55000', NULL,
   'destination-valid owner reaches the unchanged checked occupancy-transition guard'
@@ -363,7 +385,7 @@ SELECT is(
   (SELECT jsonb_build_array(count(*), min(billing.effective_from), max(billing.effective_to))
    FROM public.lease_billing_terms billing
    WHERE billing.lease_id=state.rejected_scheduled_lease),
-  jsonb_build_array(1, current_date - 60, current_date + 400),
+  jsonb_build_array(1, fixture_utc_date - 60, fixture_utc_date + 400),
   'rejected scheduled ownership validation leaves the current rule unmutated'
 ) FROM review_state state;
 
@@ -398,6 +420,26 @@ SELECT is(
   jsonb_build_array(DATE '2026-08-01', '96000000-0000-0000-0000-000000000109'::uuid),
   'predecessor Honolulu prevents successor Kiritimati from taking the boundary early'
 ) FROM review_state;
+
+UPDATE review_state AS state
+SET gap_result = app_private.try_current_month_rent(
+  state.organization_id, state.authority_gap_lease, 'scheduled',
+  TIMESTAMPTZ '2026-08-20 12:00:00+00'
+);
+
+SELECT is(
+  jsonb_build_array(gap_result ->> 'status', gap_result ->> 'code'),
+  jsonb_build_array('failed', 'billing_setup_missing'),
+  'current rent fails closed when no billing rule owns the resolved business date'
+) FROM review_state;
+
+SELECT is(
+  (SELECT pg_catalog.count(*)
+   FROM public.tenant_invoices AS invoice
+   WHERE invoice.lease_id = state.authority_gap_lease),
+  0::bigint,
+  'an authority gap cannot issue a stale-predecessor Rent invoice'
+) FROM review_state AS state;
 
 SELECT * FROM finish();
 ROLLBACK;
