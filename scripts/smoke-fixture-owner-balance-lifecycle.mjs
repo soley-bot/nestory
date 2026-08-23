@@ -37,6 +37,7 @@ export function prepareOwnerBalanceBlockedSourceFixture() {
 SELECT json_build_object(
   'feeId', fee.id,
   'feeDate', fee.fee_date,
+  'invoiceIssueDate', invoice.issue_date,
   'amount', to_char(fee.amount, 'FM999999999990.00'),
   'propertyId', fee.property_id,
   'feeLeaseId', fee.lease_id,
@@ -59,6 +60,7 @@ WHERE fee.organization_id = '00000000-0000-0000-0000-000000000001'
   AND fee.amount = 116.00
   AND fee.reversal_of_id IS NULL
   AND invoice.property_id = fee.property_id
+  AND fee.fee_date = invoice.issue_date
   AND invoice.billing_period_start = date_trunc('month', current_date)::date
   AND invoice.generation_source = 'lease_rules_v1'
   AND invoice.lifecycle = 'issued'
@@ -77,6 +79,7 @@ ORDER BY fee.id;`);
   assert.equal(fee.feeReversalOfId, null, "fixture must select the original management fee");
   assert.equal(fee.feeCorrectionOccurrenceId, null, "fixture must not select a correction occurrence");
   assert.match(fee.feeDate, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(fee.feeDate, fee.invoiceIssueDate, "management fee date must match invoice issuance");
 
   const ownershipRows = queryLocalDatabase(String.raw`
 UPDATE public.property_owners
