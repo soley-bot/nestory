@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(43);
+SELECT plan(47);
 
 CREATE TEMP TABLE review_state (
   fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.now(),
@@ -50,12 +50,15 @@ CREATE TEMP TABLE review_state (
   authority_gap_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000018',
   unsupported_false_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000019',
   legacy_snapshot_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-00000000001a',
+  incomplete_false_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-00000000001b',
   west_result jsonb,
   east_result jsonb,
   gap_result jsonb,
   rollover_result jsonb,
   unsupported_current_result jsonb,
   unsupported_manual_result jsonb,
+  incomplete_current_result jsonb,
+  incomplete_manual_result jsonb,
   unsupported_repair_result jsonb,
   supported_retry_result jsonb,
   legacy_repair_result jsonb
@@ -202,7 +205,8 @@ CROSS JOIN LATERAL (VALUES
   (state.east_to_west_lease, state.property_a, state.unit_a, 'active'),
   (state.authority_gap_lease, state.property_a, state.unit_a, 'active'),
   (state.unsupported_false_lease, state.property_a, state.unit_a, 'active'),
-  (state.legacy_snapshot_lease, state.property_a, state.unit_a, 'active')
+  (state.legacy_snapshot_lease, state.property_a, state.unit_a, 'active'),
+  (state.incomplete_false_lease, state.property_a, state.unit_a, 'active')
 ) AS fixture(id, property_id, unit_id, status);
 
 INSERT INTO public.lease_terms(
@@ -233,6 +237,9 @@ CROSS JOIN LATERAL (VALUES
     state.fixture_lease_month_start - interval '1 month',
     state.fixture_lease_month_start + interval '4 months - 1 day', 'active'),
   (state.legacy_snapshot_lease, 1,
+    state.fixture_lease_month_start - interval '1 month',
+    state.fixture_lease_month_start + interval '4 months - 1 day', 'active'),
+  (state.incomplete_false_lease, 1,
     state.fixture_lease_month_start - interval '1 month',
     state.fixture_lease_month_start + interval '4 months - 1 day', 'active')
 ) AS fixture(lease_id, sequence, start_date, end_date, status);
@@ -307,6 +314,17 @@ SELECT
   NULL::text, NULL::text, NULL::numeric, false, false, NULL::text, NULL::uuid,
   NULL::numeric, NULL::numeric, 'Pacific/Kiritimati', 'last_calendar_day', 'actual_days',
   'actual_days', 'next_full_month', true, 'historical_policy_snapshot',
+  now(), state.admin_id, state.admin_id, state.admin_id
+FROM review_state AS state
+UNION ALL
+SELECT
+  '96000000-0000-0000-0000-000000000115'::uuid, state.organization_id,
+  state.incomplete_false_lease, state.property_a,
+  state.fixture_lease_month_start - interval '1 month',
+  state.fixture_lease_month_start + interval '4 months - 1 day',
+  NULL::text, NULL::text, NULL::numeric, false, false, NULL::text, NULL::uuid,
+  NULL::numeric, NULL::numeric, 'Pacific/Kiritimati', 'last_calendar_day', 'actual_days',
+  'actual_days', 'next_full_month', false, 'lease_default_v1',
   now(), state.admin_id, state.admin_id, state.admin_id
 FROM review_state AS state;
 
@@ -453,6 +471,101 @@ SELECT is(
   ),
   pg_catalog.jsonb_build_array(2, 0, 0, 0),
   'manual retry increments the same unresolved exception without partial finance writes'
+);
+
+UPDATE review_state AS state
+SET incomplete_current_result = app_private.try_current_month_rent(
+  state.organization_id,
+  state.incomplete_false_lease,
+  'scheduled',
+  state.fixture_clock
+);
+
+SELECT is(
+  pg_catalog.jsonb_build_array(
+    incomplete_current_result ->> 'status',
+    incomplete_current_result ->> 'code'
+  ),
+  pg_catalog.jsonb_build_array('failed', 'billing_setup_missing'),
+  'current exact-rule generation fails closed before incomplete-rule fallback'
+) FROM review_state;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      count(DISTINCT invoice.id),
+      count(DISTINCT income.id),
+      count(DISTINCT fee.id),
+      count(DISTINCT exception.id) FILTER (
+        WHERE exception.error_code = 'billing_setup_missing'
+          AND exception.resolved_at IS NULL
+          AND exception.attempt_count = 1
+      )
+    )
+    FROM review_state AS state
+    LEFT JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.lease_id = state.incomplete_false_lease
+    LEFT JOIN public.finance_income_items AS income
+      ON income.organization_id = state.organization_id
+     AND income.lease_id = state.incomplete_false_lease
+    LEFT JOIN public.management_fee_occurrences AS fee
+      ON fee.organization_id = state.organization_id
+     AND fee.lease_id = state.incomplete_false_lease
+    LEFT JOIN public.rent_generation_exceptions AS exception
+      ON exception.organization_id = state.organization_id
+     AND exception.lease_id = state.incomplete_false_lease
+     AND exception.billing_period_start = state.fixture_lease_month_start
+  ),
+  pg_catalog.jsonb_build_array(0, 0, 0, 1),
+  'incomplete false current generation records an exception and no finance writes'
+);
+
+UPDATE review_state AS state
+SET incomplete_manual_result = app_private.try_generate_lease_rent_invoice(
+  state.organization_id,
+  state.incomplete_false_lease,
+  state.fixture_lease_month_start,
+  state.fixture_lease_date,
+  'manual_recovery',
+  state.admin_id
+);
+
+SELECT is(
+  pg_catalog.jsonb_build_array(
+    incomplete_manual_result ->> 'status',
+    incomplete_manual_result ->> 'code'
+  ),
+  pg_catalog.jsonb_build_array('failed', 'billing_setup_missing'),
+  'general manual generation fails closed before incomplete-rule fallback'
+) FROM review_state;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      exception.attempt_count,
+      count(DISTINCT invoice.id),
+      count(DISTINCT income.id),
+      count(DISTINCT fee.id)
+    )
+    FROM review_state AS state
+    JOIN public.rent_generation_exceptions AS exception
+      ON exception.organization_id = state.organization_id
+     AND exception.lease_id = state.incomplete_false_lease
+     AND exception.billing_period_start = state.fixture_lease_month_start
+    LEFT JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.lease_id = state.incomplete_false_lease
+    LEFT JOIN public.finance_income_items AS income
+      ON income.organization_id = state.organization_id
+     AND income.lease_id = state.incomplete_false_lease
+    LEFT JOIN public.management_fee_occurrences AS fee
+      ON fee.organization_id = state.organization_id
+     AND fee.lease_id = state.incomplete_false_lease
+    GROUP BY exception.attempt_count
+  ),
+  pg_catalog.jsonb_build_array(2, 0, 0, 0),
+  'incomplete false manual retry increments the exception without finance writes'
 );
 
 SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM review_state), true);
