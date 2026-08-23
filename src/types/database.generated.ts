@@ -693,6 +693,71 @@ export type Database = {
           },
         ]
       }
+      finance_categories: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          display_label: string
+          id: string
+          is_active: boolean | null
+          is_default: boolean
+          namespace: string
+          normalized_label: string | null
+          organization_id: string
+          reporting_group: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          display_label: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean
+          namespace: string
+          normalized_label?: string | null
+          organization_id: string
+          reporting_group: string
+          sort_order: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          display_label?: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean
+          namespace?: string
+          normalized_label?: string | null
+          organization_id?: string
+          reporting_group?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       finance_expense_items: {
         Row: {
           amount: number
@@ -9985,6 +10050,15 @@ export type Database = {
         }
         Returns: string
       }
+      create_finance_category: {
+        Args: {
+          p_display_label: string
+          p_namespace: string
+          p_organization_id: string
+          p_reporting_group: string
+        }
+        Returns: string
+      }
       create_financial_reconciliation_source: {
         Args: {
           p_code: string
@@ -10455,6 +10529,26 @@ export type Database = {
           size_bytes: number
           storage_path: string
           submission_id: string
+        }[]
+      }
+      get_finance_categories: {
+        Args: {
+          p_include_archived?: boolean
+          p_namespace: string
+          p_organization_id: string
+        }
+        Returns: {
+          archived_at: string
+          code: string
+          display_label: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          namespace: string
+          normalized_label: string
+          organization_id: string
+          reporting_group: string
+          sort_order: number
         }[]
       }
       get_finance_expense_scoped_summary: {
@@ -11333,6 +11427,23 @@ export type Database = {
           unit_id: string
         }[]
       }
+      resolve_finance_category: {
+        Args: {
+          p_legacy_code: string
+          p_namespace: string
+          p_organization_id: string
+        }
+        Returns: {
+          authority_kind: string
+          canonical_code: string
+          category_id: string
+          display_label: string
+          is_active: boolean
+          namespace: string
+          organization_id: string
+          reporting_group: string
+        }[]
+      }
       resolve_lease_billing_term: {
         Args: {
           p_effective_date: string
@@ -11627,6 +11738,14 @@ export type Database = {
         Args: { p_organization_id: string; p_photo_id: string }
         Returns: string
       }
+      set_finance_category_archived: {
+        Args: {
+          p_archived: boolean
+          p_category_id: string
+          p_organization_id: string
+        }
+        Returns: string
+      }
       set_financial_month_lock:
         | {
             Args: {
@@ -11841,6 +11960,15 @@ export type Database = {
           p_property_id: string
           p_task_id?: string
           p_unit_id?: string
+        }
+        Returns: string
+      }
+      update_finance_category: {
+        Args: {
+          p_category_id: string
+          p_display_label: string
+          p_organization_id: string
+          p_reporting_group: string
         }
         Returns: string
       }
