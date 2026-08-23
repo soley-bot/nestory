@@ -2,10 +2,10 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(27);
+SELECT plan(30);
 
 CREATE TEMP TABLE review_state (
-  fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),
+  fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.now(),
   fixture_utc_date date GENERATED ALWAYS AS (
     (fixture_clock AT TIME ZONE 'UTC')::date
   ) STORED,
@@ -17,6 +17,14 @@ CREATE TEMP TABLE review_state (
   ) STORED,
   owner_b_started_on date GENERATED ALWAYS AS (
     (fixture_clock AT TIME ZONE 'UTC')::date + 90
+  ) STORED,
+  fixture_lease_date date GENERATED ALWAYS AS (
+    (fixture_clock AT TIME ZONE 'Pacific/Kiritimati')::date
+  ) STORED,
+  fixture_lease_month_start date GENERATED ALWAYS AS (
+    pg_catalog.date_trunc(
+      'month', fixture_clock AT TIME ZONE 'Pacific/Kiritimati'
+    )::date
   ) STORED,
   admin_id uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000001',
   organization_id uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000002',
@@ -42,11 +50,12 @@ CREATE TEMP TABLE review_state (
   authority_gap_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000018',
   west_result jsonb,
   east_result jsonb,
-  gap_result jsonb
+  gap_result jsonb,
+  rollover_result jsonb
 ) ON COMMIT DROP;
 
 INSERT INTO review_state DEFAULT VALUES;
-GRANT SELECT ON review_state TO authenticated;
+GRANT SELECT, UPDATE ON review_state TO authenticated;
 
 SELECT ok(
   owner_b_started_on > replacement_effective_on + interval '1 month',
@@ -207,7 +216,9 @@ CROSS JOIN LATERAL (VALUES
   (state.rejected_scheduled_lease, 1, state.fixture_utc_date - 60, state.fixture_utc_date + 400, 'active'),
   (state.west_to_east_lease, 1, DATE '2026-08-01', DATE '2026-12-31', 'active'),
   (state.east_to_west_lease, 1, DATE '2026-08-01', DATE '2026-12-31', 'active'),
-  (state.authority_gap_lease, 1, DATE '2026-08-01', DATE '2026-12-31', 'active')
+  (state.authority_gap_lease, 1,
+    state.fixture_lease_month_start - interval '1 month',
+    state.fixture_lease_month_start + interval '4 months - 1 day', 'active')
 ) AS fixture(lease_id, sequence, start_date, end_date, status);
 
 INSERT INTO public.lease_billing_terms(
@@ -239,8 +250,14 @@ CROSS JOIN LATERAL (VALUES
   ('96000000-0000-0000-0000-000000000108'::uuid, state.west_to_east_lease, state.property_a, DATE '2026-09-01', DATE '2026-12-31', 'through_ips', false, state.company_id, NULL::numeric, 'Pacific/Honolulu'),
   ('96000000-0000-0000-0000-000000000109'::uuid, state.east_to_west_lease, state.property_a, DATE '2026-08-01', DATE '2026-08-31', 'through_ips', false, state.company_id, NULL::numeric, 'Pacific/Honolulu'),
   ('96000000-0000-0000-0000-000000000110'::uuid, state.east_to_west_lease, state.property_a, DATE '2026-09-01', DATE '2026-12-31', 'through_ips', false, state.company_id, NULL::numeric, 'Pacific/Kiritimati'),
-  ('96000000-0000-0000-0000-000000000111'::uuid, state.authority_gap_lease, state.property_a, DATE '2026-08-01', DATE '2026-08-15', 'through_ips', false, state.company_id, NULL::numeric, 'UTC'),
-  ('96000000-0000-0000-0000-000000000112'::uuid, state.authority_gap_lease, state.property_a, DATE '2026-09-01', DATE '2026-12-31', 'through_ips', false, state.company_id, NULL::numeric, 'UTC')
+  ('96000000-0000-0000-0000-000000000111'::uuid, state.authority_gap_lease, state.property_a,
+    state.fixture_lease_month_start - interval '1 month',
+    state.fixture_lease_date - 1, 'through_ips', false, state.company_id,
+    NULL::numeric, 'Pacific/Kiritimati'),
+  ('96000000-0000-0000-0000-000000000112'::uuid, state.authority_gap_lease, state.property_a,
+    state.fixture_lease_date + 1,
+    state.fixture_lease_month_start + interval '4 months - 1 day',
+    'through_ips', false, state.company_id, NULL::numeric, 'Pacific/Kiritimati')
 ) AS fixture(rule_id, lease_id, property_id, effective_from, effective_to,
   route, keep_full, recipient_id, first_override, timezone);
 
@@ -426,7 +443,7 @@ SELECT is(
 UPDATE review_state AS state
 SET gap_result = app_private.try_current_month_rent(
   state.organization_id, state.authority_gap_lease, 'scheduled',
-  TIMESTAMPTZ '2026-08-20 12:00:00+00'
+  state.fixture_clock
 );
 
 SELECT is(
@@ -465,7 +482,7 @@ WITH retry AS MATERIALIZED (
   JOIN public.rent_generation_exceptions AS exception
     ON exception.organization_id = state.organization_id
    AND exception.lease_id = state.authority_gap_lease
-   AND exception.billing_period_start = DATE '2026-08-01'
+   AND exception.billing_period_start = state.fixture_lease_month_start
 )
 SELECT is(
   pg_catalog.jsonb_build_array(result ->> 'status', result ->> 'code'),
@@ -485,7 +502,7 @@ SELECT is(
     JOIN public.rent_generation_exceptions AS exception
       ON exception.organization_id = state.organization_id
      AND exception.lease_id = state.authority_gap_lease
-     AND exception.billing_period_start = DATE '2026-08-01'
+     AND exception.billing_period_start = state.fixture_lease_month_start
     LEFT JOIN public.tenant_invoices AS invoice
       ON invoice.organization_id = state.organization_id
      AND invoice.lease_id = state.authority_gap_lease
@@ -493,6 +510,136 @@ SELECT is(
   ),
   pg_catalog.jsonb_build_array(true, 0),
   'Finance Manager retry leaves the gap exception unresolved and issues no invoice'
+) FROM review_state;
+
+UPDATE public.lease_billing_terms AS billing
+SET archived_at = pg_catalog.now()
+FROM review_state AS state
+WHERE billing.organization_id = state.organization_id
+  AND billing.id = '96000000-0000-0000-0000-000000000112';
+
+UPDATE public.lease_billing_terms AS billing
+SET effective_to = state.fixture_lease_month_start + interval '4 months - 1 day'
+FROM review_state AS state
+WHERE billing.organization_id = state.organization_id
+  AND billing.id = '96000000-0000-0000-0000-000000000111';
+
+CREATE OR REPLACE FUNCTION app_private.rent_business_date(
+  p_organization_id uuid,
+  p_clock timestamptz DEFAULT pg_catalog.now()
+) RETURNS date
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT (
+    pg_catalog.date_trunc(
+      'month', p_clock AT TIME ZONE 'Pacific/Kiritimati'
+    ) AT TIME ZONE 'Pacific/Kiritimati'
+      AT TIME ZONE 'Pacific/Honolulu'
+  )::date;
+$$;
+
+CREATE OR REPLACE FUNCTION pg_temp.capture_rent_recovery(
+  p_organization_id uuid,
+  p_exception_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN public.recover_rent_generation_exception(
+    p_organization_id,
+    p_exception_id
+  );
+EXCEPTION WHEN OTHERS THEN
+  RETURN pg_catalog.jsonb_build_object(
+    'status', 'threw',
+    'code', SQLSTATE,
+    'message', SQLERRM
+  );
+END;
+$$;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      pg_catalog.date_trunc(
+        'month', app_private.rent_business_date(
+          state.organization_id, state.fixture_clock
+        )::timestamp
+      )::date,
+      pg_catalog.date_trunc('month', resolved.business_date::timestamp)::date,
+      resolved.billing_term_id
+    )
+    FROM review_state AS state
+    CROSS JOIN LATERAL app_private.resolve_lease_billing_clock(
+      state.organization_id,
+      state.authority_gap_lease,
+      state.fixture_clock
+    ) AS resolved
+  ),
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      (fixture_lease_month_start - interval '1 month')::date,
+      fixture_lease_month_start,
+      '96000000-0000-0000-0000-000000000111'::uuid
+    )
+    FROM review_state
+  ),
+  'opposing organization timezone is one month behind exact Lease authority at rollover'
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM review_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+UPDATE review_state AS state
+SET rollover_result = pg_temp.capture_rent_recovery(
+  state.organization_id,
+  exception.id
+)
+FROM public.rent_generation_exceptions AS exception
+WHERE exception.organization_id = state.organization_id
+  AND exception.lease_id = state.authority_gap_lease
+  AND exception.billing_period_start = state.fixture_lease_month_start;
+
+RESET ROLE;
+
+SELECT is(
+  pg_catalog.jsonb_build_array(
+    rollover_result ->> 'status',
+    rollover_result ->> 'code'
+  ),
+  pg_catalog.jsonb_build_array('generated', NULL),
+  'Finance Manager retry delegates adjacent-calendar validation to the Lease clock'
+) FROM review_state;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      invoice.billing_term_id,
+      exception.resolved_invoice_id = invoice.id,
+      exception.resolved_at IS NOT NULL
+    )
+    FROM review_state AS state
+    JOIN public.rent_generation_exceptions AS exception
+      ON exception.organization_id = state.organization_id
+     AND exception.lease_id = state.authority_gap_lease
+     AND exception.billing_period_start = state.fixture_lease_month_start
+    JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.id = exception.resolved_invoice_id
+  ),
+  pg_catalog.jsonb_build_array(
+    '96000000-0000-0000-0000-000000000111'::uuid,
+    true,
+    true
+  ),
+  'adjacent-calendar retry issues and resolves through the exact Lease rule'
 ) FROM review_state;
 
 SELECT * FROM finish();

@@ -683,6 +683,113 @@ COMMENT ON FUNCTION app_private.try_generate_current_rent_retry(
 ) IS
   'Private checked retry for one unresolved current Lease billing month, bound to the deterministic Lease-owned transition clock and exact selected rule.';
 
+CREATE OR REPLACE FUNCTION public.recover_rent_generation_exception(
+  p_organization_id uuid,
+  p_exception_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_actor_id uuid := (SELECT auth.uid());
+  v_exception public.rent_generation_exceptions%ROWTYPE;
+  v_property_id uuid;
+  v_business_date date;
+  v_result jsonb;
+BEGIN
+  IF v_actor_id IS NULL THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT exception.*
+  INTO v_exception
+  FROM public.rent_generation_exceptions AS exception
+  WHERE exception.organization_id = p_organization_id
+    AND exception.id = p_exception_id
+  FOR UPDATE OF exception;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Rent generation exception not found'
+      USING ERRCODE = '23503';
+  END IF;
+
+  SELECT lease_record.property_id
+  INTO v_property_id
+  FROM public.leases AS lease_record
+  WHERE lease_record.organization_id = p_organization_id
+    AND lease_record.id = v_exception.lease_id;
+
+  IF NOT app_private.can_access_property(
+    p_organization_id,
+    v_property_id,
+    'finance.record_payments'
+  ) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT app_private.is_super_admin(p_organization_id)
+    AND v_exception.resolved_at IS NOT NULL THEN
+    RETURN pg_catalog.jsonb_build_object(
+      'status', 'already_generated',
+      'invoiceId', v_exception.resolved_invoice_id,
+      'exceptionId', v_exception.id
+    );
+  END IF;
+
+  IF app_private.is_super_admin(p_organization_id) THEN
+    v_business_date := app_private.rent_business_date(
+      p_organization_id,
+      pg_catalog.now()
+    );
+
+    RETURN app_private.try_generate_lease_rent_invoice(
+      p_organization_id,
+      v_exception.lease_id,
+      v_exception.billing_period_start,
+      v_business_date,
+      'manual_recovery',
+      v_actor_id
+    );
+  END IF;
+
+  PERFORM app_private.begin_finance_property_authority(
+    p_organization_id,
+    v_property_id,
+    'finance.record_payments'
+  );
+
+  BEGIN
+    v_result := app_private.try_generate_current_rent_retry(
+      p_organization_id,
+      p_exception_id,
+      v_actor_id
+    );
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM app_private.set_finance_branch_authority_context(
+      p_organization_id,
+      NULL,
+      'finance.record_payments',
+      false
+    );
+    RAISE;
+  END;
+
+  PERFORM app_private.set_finance_branch_authority_context(
+    p_organization_id,
+    NULL,
+    'finance.record_payments',
+    false
+  );
+
+  RETURN v_result;
+END;
+$$;
+
+COMMENT ON FUNCTION public.recover_rent_generation_exception(uuid, uuid) IS
+  'Retries one rent generation exception: Super Admin retains explicit historical recovery, while Finance Manager current-period validation delegates to the deterministic Lease-owned billing clock.';
+
 ALTER FUNCTION app_private.normalize_lease_billing_rule(uuid,uuid,date,jsonb)
   OWNER TO postgres;
 ALTER FUNCTION public.update_lease_with_billing_rules(
@@ -708,6 +815,8 @@ ALTER FUNCTION app_private.is_checked_current_rent_retry_generation(
   uuid,uuid,date,date,text,uuid
 ) OWNER TO postgres;
 ALTER FUNCTION app_private.try_generate_current_rent_retry(uuid,uuid,uuid)
+  OWNER TO postgres;
+ALTER FUNCTION public.recover_rent_generation_exception(uuid,uuid)
   OWNER TO postgres;
 
 REVOKE ALL ON FUNCTION public.update_lease_with_billing_rules(
@@ -742,3 +851,9 @@ REVOKE ALL ON FUNCTION app_private.is_checked_current_rent_retry_generation(
 REVOKE ALL ON FUNCTION app_private.try_generate_current_rent_retry(
   uuid,uuid,uuid
 ) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.recover_rent_generation_exception(
+  uuid,uuid
+) FROM PUBLIC, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.recover_rent_generation_exception(
+  uuid,uuid
+) TO authenticated;
