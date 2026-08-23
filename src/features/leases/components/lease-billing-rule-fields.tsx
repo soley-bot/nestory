@@ -167,7 +167,10 @@ export function LeaseBillingRuleFields({
           <SelectControl
             ariaLabel="Recipient"
             onValueChange={setRecipientId}
-            options={recipientOptions}
+            options={[
+              { disabled: true, label: "Choose recipient", value: "" },
+              ...recipientOptions,
+            ]}
             placeholder="Choose recipient"
             value={selectedRecipientId}
           />

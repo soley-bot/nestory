@@ -71,6 +71,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
   delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
   delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
@@ -93,6 +94,12 @@ describe("LeaseForm inline tenant billing recipient", () => {
     "preserves edited billing values and the party type from %s",
     async (completionLabel, personId, partyType) => {
       const user = userEvent.setup();
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      const consoleWarn = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => undefined);
       render(
         <LeaseForm
           billingFormConfig={{
@@ -150,6 +157,8 @@ describe("LeaseForm inline tenant billing recipient", () => {
       expect(payload.get("rentCalculationTimezone")).toBe("Pacific/Honolulu");
       expect(payload.get("firstPeriodProratedAmount")).toBe("321.45");
       expect(payload.get("finalPeriodProratedAmount")).toBe("654.32");
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(consoleWarn).not.toHaveBeenCalled();
     },
   );
 });
