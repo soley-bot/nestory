@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { PropertyCashEvent } from "@/features/finance/data/property-cash-events.types";
+import type { OwnerProfitLossEvent } from "@/features/reports/data/owner-profit-loss-events.types";
 import {
   buildTrustedReport,
   getTrustedReportSourceRequirements,
@@ -9,20 +9,18 @@ import {
 type TrustedReportInput = Parameters<typeof buildTrustedReport>[0];
 
 describe("Monthly Unit Profit & Loss", () => {
-  it("uses only units and canonical property cash events", () => {
-    const requirements = getTrustedReportSourceRequirements(
-      "unit-profit-loss",
-    );
+  it("uses only units and the recognized owner P&L authority", () => {
+    const requirements = getTrustedReportSourceRequirements("unit-profit-loss");
 
     expect(
       Object.entries(requirements)
         .filter(([, enabled]) => enabled)
         .map(([key]) => key)
         .toSorted(),
-    ).toEqual(["propertyCashEvents", "units"]);
+    ).toEqual(["ownerProfitLossEvents", "units"]);
   });
 
-  it("shows canonical operating income, expense magnitude, and net income by unit", () => {
+  it("shows signed recognition by unit and explicit property-level scope", () => {
     const report = buildTrustedReport(reportInput());
 
     expect(report).toMatchObject({
@@ -30,18 +28,12 @@ describe("Monthly Unit Profit & Loss", () => {
       kind: "unit-profit-loss",
       title: "Monthly Unit Profit & Loss",
     });
-    expect(report.columns.map(({ label }) => label)).toEqual([
-      "Property",
-      "Unit",
-      "Income",
-      "Expenses",
-      "Net income",
-    ]);
+    expect(report.rows).toHaveLength(2);
     expect(report.rows[0]).toMatchObject({
       cells: {
-        expenses: "USD 120.00",
-        income: "USD 500.00",
-        netIncome: "USD 380.00",
+        expenses: "USD 40.00",
+        income: "USD 400.00",
+        netIncome: "USD 360.00",
         property: "P1 - Property One",
         unit: "Unit A1",
       },
@@ -49,184 +41,99 @@ describe("Monthly Unit Profit & Loss", () => {
       id: "unit-1",
       tone: "success",
     });
-    expect(
-      report.rows[0]?.sourceLinks.map(({ recordType }) => recordType),
-    ).toEqual([
-      "property",
-      "unit",
-      "receipt-allocation",
-      "payment-allocation",
-    ]);
+    expect(report.rows[1]).toMatchObject({
+      cells: {
+        expenses: "USD 120.00",
+        income: "USD 0.00",
+        netIncome: "-USD 120.00",
+        property: "P1 - Property One",
+        unit: "Property-level",
+      },
+      href: "/properties/property-1",
+      id: "property-level:property-1",
+      tone: "danger",
+    });
     expect(report.summary.map(({ label, value }) => [label, value])).toEqual([
-      ["Income", "USD 500.00"],
-      ["Expenses", "USD 120.00"],
-      ["Net income", "USD 380.00"],
-      ["Units", "1"],
+      ["Income", "USD 400.00"],
+      ["Expenses", "USD 160.00"],
+      ["Net income", "USD 240.00"],
+      ["Scopes", "2"],
     ]);
-    expect(report.unitProfitLossLines).toEqual([
-      {
-        amountCents: BigInt(50_000),
-        category: "Rent",
-        currency: "USD",
-        date: "2026-07-15",
-        description: "Tenant - Rent",
-        direction: "income",
-        id: "receipt_allocation:income-source",
-        property: "P1 - Property One",
-        unit: "Unit A1",
-      },
-      {
-        amountCents: BigInt(12_000),
-        category: "Repair",
-        currency: "USD",
-        date: "2026-07-15",
-        description: "Vendor - Repair",
-        direction: "expense",
-        id: "payment_allocation:expense-source",
-        property: "P1 - Property One",
-        unit: "Unit A1",
-      },
-    ]);
-
-    const lines = report.unitProfitLossLines ?? [];
-    expect(
-      lines
-        .filter(({ direction }) => direction === "income")
-        .reduce((total, line) => total + line.amountCents, BigInt(0)),
-    ).toBe(BigInt(50_000));
-    expect(
-      lines
-        .filter(({ direction }) => direction === "expense")
-        .reduce((total, line) => total + line.amountCents, BigInt(0)),
-    ).toBe(BigInt(12_000));
+    expect(report.totalsTraceLabel).toContain("5 recognized owner event");
+    expect(report.totalsTraceLabel).toContain("1 property-level event");
   });
 
-  it("does not silently assign property-level canonical events to a unit", () => {
+  it("keeps reversal signs and immutable source identities in detail", () => {
+    const report = buildTrustedReport(reportInput());
+
+    expect(report.unitProfitLossLines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          amountCents: BigInt(-10_000),
+          direction: "income",
+          id: "tenant_invoice_line:rent-reversal",
+        }),
+        expect.objectContaining({
+          amountCents: BigInt(-1_000),
+          direction: "expense",
+          id: "management_fee_occurrence:fee-reversal",
+        }),
+        expect.objectContaining({
+          amountCents: BigInt(12_000),
+          direction: "expense",
+          id: "owner_invoice_line:owner-expense",
+          unit: "Property-level",
+        }),
+      ]),
+    );
+    expect(
+      report.rows.flatMap((row) => row.sourceLinks).map(({ recordType }) => recordType),
+    ).toEqual(
+      expect.arrayContaining(["income-obligation", "expense-obligation"]),
+    );
+  });
+
+  it("keeps property-level activity in the selected unit's property only", () => {
     const input = reportInput();
-    input.propertyCashEvents!.push(
-      cashEvent("property-income", {
-        operatingCashEffectCents: BigInt(99_900),
+    input.properties.push({
+      code: "P2",
+      id: "property-2",
+      name: "Property Two",
+      owner: null,
+      property_type: "Apartment",
+      status: "active",
+    });
+    input.ownerProfitLossEvents?.push(
+      event("other-property-expense", {
+        economicClass: "owner_expense",
+        propertyId: "property-2",
+        signedAmountCents: BigInt(99_900),
+        sourceType: "owner_invoice_line",
         unitId: null,
       }),
     );
 
     const report = buildTrustedReport(input);
 
-    expect(report.summary.find(({ label }) => label === "Income")?.value).toBe(
-      "USD 500.00",
-    );
-    expect(report.totalsTraceLabel).toContain(
-      "2 canonical unit-linked operating cash events",
-    );
-    expect(report.totalsTraceLabel).toContain(
-      "1 property-level event excluded",
-    );
-  });
-
-  it("excludes unresolved canonical-looking events and preserves income and expense reversal signs", () => {
-    const input = reportInput();
-    input.propertyCashEvents!.push(
-      cashEvent("unresolved-income", {
-        depositLiabilityEffectCents: null,
-        managementFeeEffectCents: null,
-        operatingCashEffectCents: null,
-        ownerCashEffectCents: null,
-        resolutionReason: "Missing operational Ledger event",
-        resolutionState: "unresolved",
-      }),
-      cashEvent("owner-funding", {
-        economicClass: "owner_contribution",
-        operatingCashEffectCents: BigInt(25_000),
-      }),
-      cashEvent("rent-reversal", {
-        isReversal: true,
-        operatingCashEffectCents: BigInt(-5_000),
-      }),
-      cashEvent("expense-reversal", {
-        economicClass: "operating_expense",
-        isReversal: true,
-        operatingCashEffectCents: BigInt(2_000),
-        sourceType: "payment_allocation",
-      }),
-    );
-
-    const report = buildTrustedReport(input);
-
-    expect(report.rows[0]?.cells).toMatchObject({
-      expenses: "USD 100.00",
-      income: "USD 450.00",
-      netIncome: "USD 350.00",
-    });
-    expect(
-      report.rows[0]?.sourceLinks
-        .filter(({ recordType }) =>
-          ["receipt-allocation", "payment-allocation"].includes(recordType),
-        )
-        .map(({ id }) => id),
-    ).toEqual([
-      "income-source",
-      "expense-source",
-      "rent-reversal",
-      "expense-reversal",
+    expect(report.rows.map(({ id }) => id)).toEqual([
+      "unit-1",
+      "property-level:property-1",
     ]);
-    expect(report.totalsTraceLabel).toContain(
-      "2 non-operating or unresolved unit-linked events excluded",
-    );
-    expect(report.unitProfitLossLines).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          amountCents: BigInt(-5_000),
-          direction: "income",
-          id: "receipt_allocation:rent-reversal",
-        }),
-        expect.objectContaining({
-          amountCents: BigInt(-2_000),
-          direction: "expense",
-          id: "payment_allocation:expense-reversal",
-        }),
-      ]),
+    expect(report.summary.find(({ label }) => label === "Expenses")?.value).toBe(
+      "USD 160.00",
     );
   });
 
-  it("retains exact canonical event source identities and operator links", () => {
-    const report = buildTrustedReport(reportInput());
-    const incomeSource = report.rows[0]?.sourceLinks.find(
-      ({ id }) => id === "income-source",
-    );
-    const expenseSource = report.rows[0]?.sourceLinks.find(
-      ({ id }) => id === "expense-source",
-    );
-
-    expect(incomeSource).toEqual({
-      href:
-        "/rent-income?archiveState=all&month=2026-07&propertyId=property-1&unitId=unit-1",
-      id: "income-source",
-      label: "Rent receipt allocation",
-      recordType: "receipt-allocation",
-    });
-    expect(expenseSource).toEqual({
-      href:
-        "/bills-expenses?archiveState=all&dateBasis=paid&month=2026-07&propertyId=property-1&unitId=unit-1",
-      id: "expense-source",
-      label: "Repair payment allocation",
-      recordType: "payment-allocation",
-    });
-  });
-
-  it("formats bigint cents exactly beyond Number.MAX_SAFE_INTEGER", () => {
+  it("formats exact bigint cents beyond Number.MAX_SAFE_INTEGER", () => {
     const input = reportInput();
-    input.propertyCashEvents = [
-      cashEvent("large-income", {
-        amountCents: BigInt("900719925474099300"),
-        operatingCashEffectCents: BigInt("900719925474099300"),
-        ownerCashEffectCents: BigInt("900719925474099300"),
+    input.ownerProfitLossEvents = [
+      event("large-income", {
+        signedAmountCents: BigInt("900719925474099300"),
       }),
-      cashEvent("large-expense", {
-        amountCents: BigInt("900719925474099101"),
-        economicClass: "operating_expense",
-        operatingCashEffectCents: BigInt("-900719925474099101"),
-        ownerCashEffectCents: BigInt("-900719925474099101"),
-        sourceType: "payment_allocation",
+      event("large-expense", {
+        economicClass: "owner_expense",
+        signedAmountCents: BigInt("900719925474099101"),
+        sourceType: "owner_invoice_line",
       }),
     ];
 
@@ -237,23 +144,9 @@ describe("Monthly Unit Profit & Loss", () => {
       income: "USD 9,007,199,254,740,993.00",
       netIncome: "USD 1.99",
     });
-    expect(report.summary.map(({ label, value }) => [label, value])).toEqual([
-      ["Income", "USD 9,007,199,254,740,993.00"],
-      ["Expenses", "USD 9,007,199,254,740,991.01"],
-      ["Net income", "USD 1.99"],
-      ["Units", "1"],
-    ]);
-    expect(
-      report.unitProfitLossLines?.map(({ amountCents }) => amountCents),
-    ).toEqual(
-      expect.arrayContaining([
-        BigInt("900719925474099300"),
-        BigInt("900719925474099101"),
-      ]),
-    );
   });
 
-  it("keeps all-unit scope on the traceable summary contract", () => {
+  it("keeps all-unit scope summarized without line-detail payload", () => {
     const input = reportInput();
     input.viewQuery.unitId = "all";
 
@@ -264,51 +157,34 @@ describe("Monthly Unit Profit & Loss", () => {
   });
 });
 
-function cashEvent(
+function event(
   sourceId: string,
-  overrides: Partial<PropertyCashEvent> = {},
-): PropertyCashEvent {
-  const sourceType = overrides.sourceType ?? "receipt_allocation";
+  overrides: Partial<OwnerProfitLossEvent> = {},
+): OwnerProfitLossEvent {
+  const sourceType = overrides.sourceType ?? "tenant_invoice_line";
 
   return {
-    amountCents: BigInt(50_000),
     categoryCode: "rent",
-    contractVersion: "property_cash_events.v1",
+    contractVersion: "owner_profit_loss_events.v1",
     currency: "USD",
-    depositLiabilityEffectCents: BigInt(0),
-    description:
-      sourceType === "payment_allocation"
-        ? "Vendor - Repair"
-        : "Tenant - Rent",
-    economicClass: "operating_income",
-    eventDate: "2026-07-15",
+    description: "Tenant - Rent",
+    economicClass: "owner_income",
     eventKey: `${sourceType}:${sourceId}`,
     isReversal: false,
     leaseId: null,
-    ledgerEntryId: null,
-    managementFeeEffectCents: BigInt(0),
-    obligationId: null,
-    obligationType: null,
-    operatingCashEffectCents: BigInt(50_000),
     organizationId: "organization-1",
-    ownerCashEffectCents: BigInt(50_000),
-    ownerPersonId: null,
     periodStart: "2026-07-01",
     propertyId: "property-1",
-    reconciliationSourceId: null,
-    reference: null,
-    resolutionReason: null,
-    resolutionState: "resolved",
-    reversalSourceId: null,
+    recognitionBasis: "tenant_invoice_issued",
+    recognizedOn: "2026-07-15",
+    reversalOfId: null,
     reversalSourceType: null,
+    signedAmountCents: BigInt(50_000),
     sourceId,
     sourceParentId: null,
     sourceParentType: null,
     sourceType,
-    taskId: null,
-    tenantPersonId: null,
     unitId: "unit-1",
-    vendorPersonId: null,
     ...overrides,
   };
 }
@@ -320,6 +196,43 @@ function reportInput(): TrustedReportInput {
     ledgerEntries: [],
     leases: [],
     maintenanceTasks: [],
+    ownerProfitLossEvents: [
+      event("rent-original"),
+      event("rent-reversal", {
+        isReversal: true,
+        reversalOfId: "rent-original",
+        reversalSourceType: "tenant_invoice_line",
+        signedAmountCents: BigInt(-10_000),
+      }),
+      event("fee-original", {
+        categoryCode: "management_fee",
+        description: "Management fee",
+        economicClass: "owner_expense",
+        recognitionBasis: "management_fee_earned_at_invoice_issuance",
+        signedAmountCents: BigInt(5_000),
+        sourceType: "management_fee_occurrence",
+      }),
+      event("fee-reversal", {
+        categoryCode: "management_fee",
+        description: "Management fee",
+        economicClass: "owner_expense",
+        isReversal: true,
+        recognitionBasis: "management_fee_earned_at_invoice_issuance",
+        reversalOfId: "fee-original",
+        reversalSourceType: "management_fee_occurrence",
+        signedAmountCents: BigInt(-1_000),
+        sourceType: "management_fee_occurrence",
+      }),
+      event("owner-expense", {
+        categoryCode: "repairs_maintenance",
+        description: "Company-advanced roof repair",
+        economicClass: "owner_expense",
+        recognitionBasis: "owner_responsibility_obligation",
+        signedAmountCents: BigInt(12_000),
+        sourceType: "owner_invoice_line",
+        unitId: null,
+      }),
+    ],
     owners: [],
     people: [],
     periodEnd: "2026-07-31",
@@ -334,17 +247,7 @@ function reportInput(): TrustedReportInput {
         status: "active",
       },
     ],
-    propertyCashEvents: [
-      cashEvent("income-source"),
-      cashEvent("expense-source", {
-        amountCents: BigInt(12_000),
-        categoryCode: "repair",
-        economicClass: "operating_expense",
-        operatingCashEffectCents: BigInt(-12_000),
-        ownerCashEffectCents: BigInt(-12_000),
-        sourceType: "payment_allocation",
-      }),
-    ],
+    propertyCashEvents: [],
     timelineEvents: [],
     units: [
       {
