@@ -397,7 +397,6 @@ export function LeaseForm({
               : "Begins on the lease start date."}
           </p>
           <LeaseBillingRuleFields
-            key={`${tenantRecipient?.id ?? "none"}:${tenantRecipient?.partyType ?? "unknown"}`}
             companyOptions={billingFormConfig?.companyOptions}
             defaults={billingDefaults}
             fieldErrors={state.fieldErrors}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { RecordField } from "@/components/ui/record-form";
@@ -47,9 +47,28 @@ export function LeaseBillingRuleFields({
   const [feeMode, setFeeMode] = useState<"flat" | "percentage">(
     defaults?.managementFeeMode ?? "percentage",
   );
+  const previousTenantRecipientRef = useRef(tenantRecipient);
   const selectedRecipientId = recipientId || (
     recipientKind === tenantRecipient?.partyType ? tenantRecipient.id : ""
   );
+
+  useEffect(() => {
+    const previousTenantRecipient = previousTenantRecipientRef.current;
+    previousTenantRecipientRef.current = tenantRecipient;
+
+    if (!tenantRecipient) {
+      if (previousTenantRecipient?.id === recipientId) setRecipientId("");
+      return;
+    }
+
+    const followsTenant = previousTenantRecipient
+      ? recipientId === previousTenantRecipient.id
+      : recipientId === "";
+    if (!followsTenant) return;
+
+    setRecipientKind(tenantRecipient.partyType);
+    setRecipientId(tenantRecipient.id);
+  }, [recipientId, tenantRecipient]);
 
   const recipientOptions = useMemo(() => {
     if (recipientKind === "individual") {

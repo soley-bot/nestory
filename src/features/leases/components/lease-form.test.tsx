@@ -1,7 +1,8 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   PersonPartyType,
   PersonRoleValue,
@@ -59,7 +60,22 @@ vi.mock("@/features/people/components/person-form", () => ({
 
 import { LeaseForm } from "@/features/leases/components/lease-form";
 
-afterEach(cleanup);
+beforeEach(() => {
+  Object.defineProperties(HTMLElement.prototype, {
+    hasPointerCapture: { configurable: true, value: () => false },
+    releasePointerCapture: { configurable: true, value: () => undefined },
+    scrollIntoView: { configurable: true, value: () => undefined },
+    setPointerCapture: { configurable: true, value: () => undefined },
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).hasPointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).releasePointerCapture;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  delete (HTMLElement.prototype as Partial<HTMLElement>).setPointerCapture;
+});
 
 describe("LeaseForm inline tenant billing recipient", () => {
   it.each([
@@ -74,8 +90,9 @@ describe("LeaseForm inline tenant billing recipient", () => {
       "individual",
     ],
   ] as const)(
-    "preserves the party type from %s in the lease billing payload",
-    (completionLabel, personId, partyType) => {
+    "preserves edited billing values and the party type from %s",
+    async (completionLabel, personId, partyType) => {
+      const user = userEvent.setup();
       render(
         <LeaseForm
           billingFormConfig={{
@@ -90,14 +107,49 @@ describe("LeaseForm inline tenant billing recipient", () => {
         />,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: "New tenant" }));
-      fireEvent.click(screen.getByRole("button", { name: completionLabel }));
-
       const form = screen.getByRole("form", { name: "Add lease form" });
+      const chooseOption = async (label: RegExp | string, option: string) => {
+        await user.click(screen.getByRole("combobox", { name: label }));
+        await user.click(await screen.findByRole("option", { name: option }));
+      };
+
+      await chooseOption("Who collects rent?", "Collected by owner");
+      await chooseOption("Management fee", "Flat amount");
+      fireEvent.change(form.elements.namedItem("managementFeeValue")!, {
+        target: { value: "125.50" },
+      });
+      await chooseOption(/^Charge management fee\?/, "No");
+      await user.click(
+        screen.getByText("Advanced billing rules", { selector: "summary" }),
+      );
+      await chooseOption(/^Keep full fee in pro-rata months\?/, "Yes");
+      await chooseOption(/^Charge through lease end\?/, "No");
+      fireEvent.change(form.elements.namedItem("rentCalculationTimezone")!, {
+        target: { value: "Pacific/Honolulu" },
+      });
+      fireEvent.change(form.elements.namedItem("firstPeriodProratedAmount")!, {
+        target: { value: "321.45" },
+      });
+      fireEvent.change(form.elements.namedItem("finalPeriodProratedAmount")!, {
+        target: { value: "654.32" },
+      });
+
+      await user.click(screen.getByRole("button", { name: "New tenant" }));
+      await user.click(screen.getByRole("button", { name: completionLabel }));
+
       const payload = new FormData(form);
       expect(payload.get("tenantPersonId")).toBe(personId);
       expect(payload.get("billingRecipientKind")).toBe(partyType);
       expect(payload.get("billingRecipientPersonId")).toBe(personId);
+      expect(payload.get("collectionRoute")).toBe("direct_to_owner");
+      expect(payload.get("managementFeeMode")).toBe("flat");
+      expect(payload.get("managementFeeValue")).toBe("125.50");
+      expect(payload.get("chargeManagementFeeWhenActive")).toBe("no");
+      expect(payload.get("fullManagementFeeDuringProration")).toBe("yes");
+      expect(payload.get("chargeThroughLeaseEnd")).toBe("no");
+      expect(payload.get("rentCalculationTimezone")).toBe("Pacific/Honolulu");
+      expect(payload.get("firstPeriodProratedAmount")).toBe("321.45");
+      expect(payload.get("finalPeriodProratedAmount")).toBe("654.32");
     },
   );
 });

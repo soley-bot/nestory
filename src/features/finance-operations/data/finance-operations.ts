@@ -49,6 +49,8 @@ type AccountEntryRow =
   Database["public"]["Views"]["property_account_entries"]["Row"];
 type ExpenseSubmissionRow =
   Database["public"]["Tables"]["expense_submissions"]["Row"];
+type LeaseBillingTermRow =
+  Database["public"]["Tables"]["lease_billing_terms"]["Row"];
 type MaintenanceTaskRow = Pick<
   Database["public"]["Tables"]["tasks"]["Row"],
   "completed_at" | "description" | "id" | "status" | "title"
@@ -447,7 +449,7 @@ export async function getFinanceOperationsData(
     organizationResult.data?.operational_timezone || "UTC";
   const billingClock = new Date();
   const billingByLeaseId = new Map<string, LeaseBillingSummary>();
-  for (const [leaseId, billing] of selectCurrentLeaseBillingRulesByLeaseId(
+  for (const [leaseId, billing] of selectCurrentFinanceLeaseBillingRulesByLeaseId(
     billingResult.data ?? [],
     billingClock,
   )) {
@@ -705,6 +707,16 @@ export async function getFinanceOperationsData(
       ];
     }),
   };
+}
+
+export function selectCurrentFinanceLeaseBillingRulesByLeaseId(
+  rules: readonly LeaseBillingTermRow[],
+  clock: Date,
+) {
+  return selectCurrentLeaseBillingRulesByLeaseId(
+    rules.filter((rule) => rule.rule_source === "lease_default_v1"),
+    clock,
+  );
 }
 
 export function scopeFinanceOperationsData(

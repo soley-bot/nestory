@@ -7,10 +7,46 @@ import {
   loadCommercialDocumentLinks,
   mapCommercialDocumentLinks,
   mergeRowsById,
+  selectCurrentFinanceLeaseBillingRulesByLeaseId,
   toExpenseSubmissionSummary,
   toTenantInvoice,
 } from "@/features/finance-operations/data/finance-operations";
 import type { Database } from "@/types/database";
+
+describe("Finance lease billing authority", () => {
+  it("does not select a historical policy snapshot as current billing setup", () => {
+    type BillingRow = Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+    const rows = [
+      {
+        archived_at: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        effective_from: "2026-01-01",
+        effective_to: "2026-08-31",
+        id: "historical-current",
+        lease_id: "lease-1",
+        rent_calculation_timezone: "UTC",
+        rule_source: "historical_policy_snapshot",
+      },
+      {
+        archived_at: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        effective_from: "2026-09-01",
+        effective_to: "2027-08-31",
+        id: "authoritative-successor",
+        lease_id: "lease-1",
+        rent_calculation_timezone: "UTC",
+        rule_source: "lease_default_v1",
+      },
+    ] as BillingRow[];
+
+    expect(
+      selectCurrentFinanceLeaseBillingRulesByLeaseId(
+        rows,
+        new Date("2026-08-15T12:00:00.000Z"),
+      ),
+    ).toEqual(new Map());
+  });
+});
 
 describe("fetchAllActionableRows", () => {
   it("keeps actionable rows reachable beyond the old 250-row cap", async () => {
