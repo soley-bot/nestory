@@ -16,7 +16,11 @@ export const leaseBillingRuleShape = {
   }),
   billingRecipientPersonId: postgresUuid("Choose a billing recipient."),
   chargeManagementFeeWhenActive: explicitBooleanChoice,
-  chargeThroughLeaseEnd: explicitBooleanChoice,
+  chargeThroughLeaseEnd: z
+    .literal("yes", {
+      message: "Rent must run through the lease end date.",
+    })
+    .transform(() => true),
   collectionRoute: z.enum(["through_ips", "direct_to_owner"], {
     message: "Choose who collects rent.",
   }),

@@ -455,6 +455,11 @@ export async function getFinanceOperationsData(
   )) {
     billingByLeaseId.set(leaseId, toBilling(billing));
   }
+  const billingRuleIdByLeaseId =
+    selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(
+      billingResult.data ?? [],
+      billingClock,
+    );
   const generationByInvoiceId = new Map(
     (tenantInvoiceGenerationResult.data ?? []).map((invoice) => [
       invoice.id,
@@ -621,6 +626,8 @@ export async function getFinanceOperationsData(
         {
           billing: billingByLeaseId.get(lease.id) ?? null,
           endDate: lease.lease_end_date,
+          expectedCurrentBillingRuleId:
+            billingRuleIdByLeaseId.get(lease.id) ?? null,
           id: lease.id,
           monthlyRent: Number(lease.monthly_rent_amount),
           ownerLabel: ownerPersonId
@@ -716,6 +723,17 @@ export function selectCurrentFinanceLeaseBillingRulesByLeaseId(
   return selectCurrentLeaseBillingRulesByLeaseId(
     rules.filter((rule) => rule.rule_source === "lease_default_v1"),
     clock,
+  );
+}
+
+export function selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(
+  rules: readonly LeaseBillingTermRow[],
+  clock: Date,
+) {
+  return new Map(
+    [...selectCurrentLeaseBillingRulesByLeaseId(rules, clock)].flatMap(
+      ([leaseId, rule]) => (rule.id ? [[leaseId, rule.id] as const] : []),
+    ),
   );
 }
 

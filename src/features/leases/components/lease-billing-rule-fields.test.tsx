@@ -52,6 +52,28 @@ describe("LeaseBillingRuleFields", () => {
     expect(control.closest("details")).toBeNull();
   });
 
+  it("fixes rent charging through lease end as an explicit submitted snapshot", () => {
+    render(
+      <form data-testid="billing-form">
+        <LeaseBillingRuleFields
+          tenantRecipient={{
+            id: "individual-tenant",
+            label: "Dara Tenant",
+            partyType: "individual",
+          }}
+        />
+      </form>,
+    );
+
+    expect(
+      screen.queryByRole("combobox", { name: /^Charge through lease end\?/ }),
+    ).toBeNull();
+    const values = new FormData(
+      screen.getByTestId("billing-form") as HTMLFormElement,
+    );
+    expect(values.get("chargeThroughLeaseEnd")).toBe("yes");
+  });
+
   it("moves a tenant-derived recipient when the selected tenant changes", () => {
     const { rerender } = render(
       <form data-testid="billing-form">

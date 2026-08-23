@@ -2421,7 +2421,7 @@ function BillingSetupForm({
       <input
         name="expectedCurrentBillingRuleId"
         type="hidden"
-        value={lease.billing?.id ?? ""}
+        value={lease.expectedCurrentBillingRuleId ?? ""}
       />
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
 
@@ -4017,7 +4017,8 @@ function isLeaseBillingRuleComplete(
       billing.leaseEndProrationRule &&
       billing.midPeriodRentChangeRule &&
       billing.rentCalculationTimezone &&
-      billing.shortMonthDueDayRule,
+      billing.shortMonthDueDayRule &&
+      billing.chargeThroughLeaseEnd,
   );
 }
 

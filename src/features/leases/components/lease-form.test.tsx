@@ -130,7 +130,6 @@ describe("LeaseForm inline tenant billing recipient", () => {
         screen.getByText("Advanced billing rules", { selector: "summary" }),
       );
       await chooseOption(/^Keep full fee in pro-rata months\?/, "Yes");
-      await chooseOption(/^Charge through lease end\?/, "No");
       fireEvent.change(form.elements.namedItem("rentCalculationTimezone")!, {
         target: { value: "Pacific/Honolulu" },
       });
@@ -153,7 +152,7 @@ describe("LeaseForm inline tenant billing recipient", () => {
       expect(payload.get("managementFeeValue")).toBe("125.50");
       expect(payload.get("chargeManagementFeeWhenActive")).toBe("no");
       expect(payload.get("fullManagementFeeDuringProration")).toBe("yes");
-      expect(payload.get("chargeThroughLeaseEnd")).toBe("no");
+      expect(payload.get("chargeThroughLeaseEnd")).toBe("yes");
       expect(payload.get("rentCalculationTimezone")).toBe("Pacific/Honolulu");
       expect(payload.get("firstPeriodProratedAmount")).toBe("321.45");
       expect(payload.get("finalPeriodProratedAmount")).toBe("654.32");

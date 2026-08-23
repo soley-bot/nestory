@@ -7,6 +7,7 @@ import {
   loadCommercialDocumentLinks,
   mapCommercialDocumentLinks,
   mergeRowsById,
+  selectCurrentFinanceLeaseBillingRuleIdsByLeaseId,
   selectCurrentFinanceLeaseBillingRulesByLeaseId,
   toExpenseSubmissionSummary,
   toTenantInvoice,
@@ -14,7 +15,7 @@ import {
 import type { Database } from "@/types/database";
 
 describe("Finance lease billing authority", () => {
-  it("does not select a historical policy snapshot as current billing setup", () => {
+  it("keeps legacy current-row tokens without treating them as billing authority", () => {
     type BillingRow = Database["public"]["Tables"]["lease_billing_terms"]["Row"];
     const rows = [
       {
@@ -37,6 +38,16 @@ describe("Finance lease billing authority", () => {
         rent_calculation_timezone: "UTC",
         rule_source: "lease_default_v1",
       },
+      {
+        archived_at: null,
+        created_at: "2026-01-02T00:00:00.000Z",
+        effective_from: "2026-01-01",
+        effective_to: "2026-08-31",
+        id: "unresolved-current",
+        lease_id: "lease-2",
+        rent_calculation_timezone: "UTC",
+        rule_source: "unresolved_history",
+      },
     ] as BillingRow[];
 
     expect(
@@ -45,6 +56,17 @@ describe("Finance lease billing authority", () => {
         new Date("2026-08-15T12:00:00.000Z"),
       ),
     ).toEqual(new Map());
+    expect(
+      selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(
+        rows,
+        new Date("2026-08-15T12:00:00.000Z"),
+      ),
+    ).toEqual(
+      new Map([
+        ["lease-1", "historical-current"],
+        ["lease-2", "unresolved-current"],
+      ]),
+    );
   });
 });
 

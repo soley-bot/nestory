@@ -793,6 +793,30 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
+  it("submits a legacy snapshot id as the repair token while showing missing authority", () => {
+    const input = data();
+    input.leases[0]!.expectedCurrentBillingRuleId = "legacy-snapshot-rule";
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    expect(screen.getByText("Set up lease billing")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Set up" }));
+    const dialog = screen.getByRole("dialog", { name: "Set up lease billing" });
+    expect(
+      dialog.querySelector<HTMLInputElement>(
+        'input[name="expectedCurrentBillingRuleId"]',
+      )?.value,
+    ).toBe("legacy-snapshot-rule");
+    expect(within(dialog).getByText("Begins on the lease start date.")).not.toBeNull();
+  });
+
   it("keeps the Finance billing queue only as a repair shortcut for incomplete rules", () => {
     const input = data();
     input.leases[0]!.billing = {
@@ -803,6 +827,27 @@ describe("FinanceOperationsScreen", () => {
       managementFeeMode: null,
       managementFeeValue: null,
     };
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canConfigureRent: true })}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    expect(screen.getByText("Repair lease billing")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Repair" })).not.toBeNull();
+  });
+
+  it("queues an unsupported legacy stop-before-end rule for repair", () => {
+    const input = data();
+    input.leases[0]!.billing = {
+      ...billing(),
+      chargeThroughLeaseEnd: false,
+    };
+    input.leases[0]!.expectedCurrentBillingRuleId = "legacy-false-rule";
 
     render(
       <FinanceOperationsScreen
@@ -2662,6 +2707,7 @@ function data(): FinanceOperationsData {
       {
         billing: null,
         endDate: "2027-07-31",
+        expectedCurrentBillingRuleId: null,
         id: "lease-1",
         monthlyRent: 780,
         ownerLabel: "Sokha Owner",

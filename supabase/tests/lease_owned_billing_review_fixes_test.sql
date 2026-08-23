@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(30);
+SELECT plan(43);
 
 CREATE TEMP TABLE review_state (
   fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.now(),
@@ -48,10 +48,17 @@ CREATE TEMP TABLE review_state (
   west_to_east_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000016',
   east_to_west_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000017',
   authority_gap_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000018',
+  unsupported_false_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000019',
+  legacy_snapshot_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-00000000001a',
   west_result jsonb,
   east_result jsonb,
   gap_result jsonb,
-  rollover_result jsonb
+  rollover_result jsonb,
+  unsupported_current_result jsonb,
+  unsupported_manual_result jsonb,
+  unsupported_repair_result jsonb,
+  supported_retry_result jsonb,
+  legacy_repair_result jsonb
 ) ON COMMIT DROP;
 
 INSERT INTO review_state DEFAULT VALUES;
@@ -70,7 +77,8 @@ CREATE OR REPLACE FUNCTION pg_temp.billing_rule(
   p_keep_full boolean DEFAULT false,
   p_timezone text DEFAULT 'UTC',
   p_first_override numeric DEFAULT NULL,
-  p_final_override numeric DEFAULT NULL
+  p_final_override numeric DEFAULT NULL,
+  p_charge_through boolean DEFAULT true
 ) RETURNS jsonb
 LANGUAGE sql IMMUTABLE
 AS $$
@@ -87,7 +95,7 @@ AS $$
     'leaseStartProrationRule', 'actual_days',
     'leaseEndProrationRule', 'actual_days',
     'midPeriodRentChangeRule', 'next_full_month',
-    'chargeThroughLeaseEnd', true,
+    'chargeThroughLeaseEnd', p_charge_through,
     'firstPeriodProratedAmount', p_first_override,
     'finalPeriodProratedAmount', p_final_override
   );
@@ -192,7 +200,9 @@ CROSS JOIN LATERAL (VALUES
   (state.rejected_scheduled_lease, state.property_b, state.unit_b, 'active'),
   (state.west_to_east_lease, state.property_a, state.unit_a, 'active'),
   (state.east_to_west_lease, state.property_a, state.unit_a, 'active'),
-  (state.authority_gap_lease, state.property_a, state.unit_a, 'active')
+  (state.authority_gap_lease, state.property_a, state.unit_a, 'active'),
+  (state.unsupported_false_lease, state.property_a, state.unit_a, 'active'),
+  (state.legacy_snapshot_lease, state.property_a, state.unit_a, 'active')
 ) AS fixture(id, property_id, unit_id, status);
 
 INSERT INTO public.lease_terms(
@@ -217,6 +227,12 @@ CROSS JOIN LATERAL (VALUES
   (state.west_to_east_lease, 1, DATE '2026-08-01', DATE '2026-12-31', 'active'),
   (state.east_to_west_lease, 1, DATE '2026-08-01', DATE '2026-12-31', 'active'),
   (state.authority_gap_lease, 1,
+    state.fixture_lease_month_start - interval '1 month',
+    state.fixture_lease_month_start + interval '4 months - 1 day', 'active'),
+  (state.unsupported_false_lease, 1,
+    state.fixture_lease_month_start - interval '1 month',
+    state.fixture_lease_month_start + interval '4 months - 1 day', 'active'),
+  (state.legacy_snapshot_lease, 1,
     state.fixture_lease_month_start - interval '1 month',
     state.fixture_lease_month_start + interval '4 months - 1 day', 'active')
 ) AS fixture(lease_id, sequence, start_date, end_date, status);
@@ -261,7 +277,356 @@ CROSS JOIN LATERAL (VALUES
 ) AS fixture(rule_id, lease_id, property_id, effective_from, effective_to,
   route, keep_full, recipient_id, first_override, timezone);
 
+INSERT INTO public.lease_billing_terms(
+  id, organization_id, lease_id, property_id, effective_from, effective_to,
+  collection_route, management_fee_mode, management_fee_value,
+  charge_management_fee_when_active, full_management_fee_during_proration,
+  billing_recipient_kind, billing_recipient_person_id,
+  first_period_prorated_amount, final_period_prorated_amount,
+  rent_calculation_timezone, short_month_due_day_rule,
+  lease_start_proration_rule, lease_end_proration_rule,
+  mid_period_rent_change_rule, charge_through_lease_end, rule_source,
+  confirmed_at, confirmed_by, created_by, updated_by
+)
+SELECT
+  '96000000-0000-0000-0000-000000000113'::uuid, state.organization_id,
+  state.unsupported_false_lease, state.property_a,
+  state.fixture_lease_month_start - interval '1 month',
+  state.fixture_lease_month_start + interval '4 months - 1 day',
+  'through_ips', 'flat', 310, true, false, 'company', state.company_id,
+  NULL::numeric, NULL::numeric, 'Pacific/Kiritimati', 'last_calendar_day', 'actual_days',
+  'actual_days', 'next_full_month', false, 'lease_default_v1',
+  now(), state.admin_id, state.admin_id, state.admin_id
+FROM review_state AS state
+UNION ALL
+SELECT
+  '96000000-0000-0000-0000-000000000114'::uuid, state.organization_id,
+  state.legacy_snapshot_lease, state.property_a,
+  state.fixture_lease_month_start - interval '1 month',
+  state.fixture_lease_month_start + interval '4 months - 1 day',
+  NULL::text, NULL::text, NULL::numeric, false, false, NULL::text, NULL::uuid,
+  NULL::numeric, NULL::numeric, 'Pacific/Kiritimati', 'last_calendar_day', 'actual_days',
+  'actual_days', 'next_full_month', true, 'historical_policy_snapshot',
+  now(), state.admin_id, state.admin_id, state.admin_id
+FROM review_state AS state;
+
 SET LOCAL session_replication_role = origin;
+
+CREATE OR REPLACE FUNCTION pg_temp.capture_billing_save_sqlstate(
+  p_organization_id uuid,
+  p_lease_id uuid,
+  p_billing_rule jsonb,
+  p_expected_rule_id uuid,
+  p_idempotency_key text
+) RETURNS text
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_state text;
+  v_message text;
+BEGIN
+  BEGIN
+    PERFORM public.save_lease_billing_rules(
+      p_organization_id,
+      p_lease_id,
+      p_billing_rule,
+      p_expected_rule_id,
+      p_idempotency_key
+    );
+    RAISE EXCEPTION 'pg_temp_expected_rollback';
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_message = MESSAGE_TEXT;
+    IF v_message = 'pg_temp_expected_rollback' THEN
+      RETURN 'no_error';
+    END IF;
+    RETURN v_state;
+  END;
+END;
+$$;
+
+SELECT throws_ok(
+  format(
+    $q$SELECT app_private.normalize_lease_billing_rule(%L,%L,%L,%L::jsonb)$q$,
+    organization_id,
+    unsupported_false_lease,
+    fixture_lease_date,
+    pg_temp.billing_rule(
+      company_id, 'through_ips', 'flat', 310, false, 'Pacific/Kiritimati',
+      NULL, NULL, false
+    )
+  ),
+  '22023',
+  NULL,
+  'normalization rejects the unsupported stop-before-lease-end snapshot'
+) FROM review_state;
+
+UPDATE review_state AS state
+SET unsupported_current_result = app_private.try_current_month_rent(
+  state.organization_id,
+  state.unsupported_false_lease,
+  'scheduled',
+  state.fixture_clock
+);
+
+SELECT is(
+  pg_catalog.jsonb_build_array(
+    unsupported_current_result ->> 'status',
+    unsupported_current_result ->> 'code'
+  ),
+  pg_catalog.jsonb_build_array('failed', 'billing_setup_missing'),
+  'current exact-rule generation fails closed for a persisted false snapshot'
+) FROM review_state;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      count(DISTINCT invoice.id),
+      count(DISTINCT income.id),
+      count(DISTINCT fee.id),
+      count(DISTINCT exception.id) FILTER (
+        WHERE exception.error_code = 'billing_setup_missing'
+          AND exception.resolved_at IS NULL
+          AND exception.attempt_count = 1
+      )
+    )
+    FROM review_state AS state
+    LEFT JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.finance_income_items AS income
+      ON income.organization_id = state.organization_id
+     AND income.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.management_fee_occurrences AS fee
+      ON fee.organization_id = state.organization_id
+     AND fee.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.rent_generation_exceptions AS exception
+      ON exception.organization_id = state.organization_id
+     AND exception.lease_id = state.unsupported_false_lease
+     AND exception.billing_period_start = state.fixture_lease_month_start
+  ),
+  pg_catalog.jsonb_build_array(0, 0, 0, 1),
+  'unsupported current generation records one reviewable exception and no finance writes'
+);
+
+UPDATE review_state AS state
+SET unsupported_manual_result = app_private.try_generate_lease_rent_invoice(
+  state.organization_id,
+  state.unsupported_false_lease,
+  state.fixture_lease_month_start,
+  state.fixture_lease_date,
+  'manual_recovery',
+  state.admin_id
+);
+
+SELECT is(
+  pg_catalog.jsonb_build_array(
+    unsupported_manual_result ->> 'status',
+    unsupported_manual_result ->> 'code'
+  ),
+  pg_catalog.jsonb_build_array('failed', 'billing_setup_missing'),
+  'general historical-recovery overload also fails closed for false authority'
+) FROM review_state;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      exception.attempt_count,
+      count(DISTINCT invoice.id),
+      count(DISTINCT income.id),
+      count(DISTINCT fee.id)
+    )
+    FROM review_state AS state
+    JOIN public.rent_generation_exceptions AS exception
+      ON exception.organization_id = state.organization_id
+     AND exception.lease_id = state.unsupported_false_lease
+     AND exception.billing_period_start = state.fixture_lease_month_start
+    LEFT JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.finance_income_items AS income
+      ON income.organization_id = state.organization_id
+     AND income.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.management_fee_occurrences AS fee
+      ON fee.organization_id = state.organization_id
+     AND fee.lease_id = state.unsupported_false_lease
+    GROUP BY exception.attempt_count
+  ),
+  pg_catalog.jsonb_build_array(2, 0, 0, 0),
+  'manual retry increments the same unresolved exception without partial finance writes'
+);
+
+SELECT set_config('request.jwt.claim.sub', (SELECT admin_id::text FROM review_state), true);
+SET LOCAL ROLE authenticated;
+
+SELECT is(
+  pg_temp.capture_billing_save_sqlstate(
+    organization_id,
+    legacy_snapshot_lease,
+    pg_temp.billing_rule(company_id, p_timezone => 'Pacific/Kiritimati'),
+    NULL,
+    'legacy-snapshot-null-token'
+  ),
+  '40001',
+  'a legacy snapshot repair rejects a missing concurrency token'
+) FROM review_state;
+
+SELECT is(
+  pg_temp.capture_billing_save_sqlstate(
+    organization_id,
+    legacy_snapshot_lease,
+    pg_temp.billing_rule(company_id, p_timezone => 'Pacific/Kiritimati'),
+    '96000000-0000-0000-0000-000000000199',
+    'legacy-snapshot-stale-token'
+  ),
+  '40001',
+  'a legacy snapshot repair rejects a stale concurrency token'
+) FROM review_state;
+
+UPDATE review_state AS state
+SET legacy_repair_result = public.save_lease_billing_rules(
+  state.organization_id,
+  state.legacy_snapshot_lease,
+  pg_temp.billing_rule(state.company_id, p_timezone => 'Pacific/Kiritimati'),
+  '96000000-0000-0000-0000-000000000114',
+  'legacy-snapshot-correct-token'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      legacy_repair_result ->> 'mode',
+      legacy_repair_result ->> 'billingTermId',
+      billing.rule_source,
+      billing.charge_through_lease_end
+    )
+    FROM review_state AS state
+    JOIN public.lease_billing_terms AS billing
+      ON billing.organization_id = state.organization_id
+     AND billing.id = '96000000-0000-0000-0000-000000000114'
+  ),
+  pg_catalog.jsonb_build_array(
+    'repair', '96000000-0000-0000-0000-000000000114',
+    'lease_default_v1', true
+  ),
+  'the exact legacy token repairs the same row into explicit Lease authority'
+);
+
+SELECT is(
+  pg_temp.capture_billing_save_sqlstate(
+    organization_id,
+    unsupported_false_lease,
+    pg_temp.billing_rule(
+      company_id, 'through_ips', 'flat', 310, false, 'Pacific/Kiritimati',
+      NULL, NULL, false
+    ),
+    '96000000-0000-0000-0000-000000000113',
+    'unsupported-false-save'
+  ),
+  '22023',
+  'save authority rejects an unsupported false snapshot before mutation'
+) FROM review_state;
+
+UPDATE review_state AS state
+SET unsupported_repair_result = public.save_lease_billing_rules(
+  state.organization_id,
+  state.unsupported_false_lease,
+  pg_temp.billing_rule(state.company_id, p_timezone => 'Pacific/Kiritimati'),
+  '96000000-0000-0000-0000-000000000113',
+  'unsupported-false-repair'
+);
+
+RESET ROLE;
+
+SELECT is(
+  pg_catalog.jsonb_build_array(
+    unsupported_repair_result ->> 'mode',
+    unsupported_repair_result ->> 'billingTermId'
+  ),
+  pg_catalog.jsonb_build_array(
+    'repair', '96000000-0000-0000-0000-000000000113'
+  ),
+  'a persisted false row is repaired in place when the exact token submits true'
+) FROM review_state;
+
+UPDATE review_state AS state
+SET supported_retry_result = app_private.try_current_month_rent(
+  state.organization_id,
+  state.unsupported_false_lease,
+  'scheduled',
+  state.fixture_clock
+);
+
+SELECT is(
+  supported_retry_result ->> 'status',
+  'generated',
+  'current rent generates after the unsupported row is repaired to true'
+) FROM review_state;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      count(DISTINCT invoice.id),
+      count(DISTINCT income.id),
+      count(DISTINCT fee.id),
+      count(DISTINCT exception.id) FILTER (
+        WHERE exception.resolved_at IS NOT NULL
+          AND exception.resolved_invoice_id = invoice.id
+      )
+    )
+    FROM review_state AS state
+    LEFT JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.finance_income_items AS income
+      ON income.organization_id = state.organization_id
+     AND income.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.management_fee_occurrences AS fee
+      ON fee.organization_id = state.organization_id
+     AND fee.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.rent_generation_exceptions AS exception
+      ON exception.organization_id = state.organization_id
+     AND exception.lease_id = state.unsupported_false_lease
+     AND exception.billing_period_start = state.fixture_lease_month_start
+  ),
+  pg_catalog.jsonb_build_array(1, 1, 1, 1),
+  'repair retry creates one complete finance chain and resolves the exception once'
+);
+
+UPDATE public.lease_billing_terms
+SET charge_through_lease_end = false
+WHERE id = '96000000-0000-0000-0000-000000000113';
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      app_private.try_generate_lease_rent_invoice(
+        state.organization_id,
+        state.unsupported_false_lease,
+        state.fixture_lease_month_start,
+        state.fixture_lease_date,
+        'manual_recovery',
+        state.admin_id
+      ) ->> 'status',
+      count(DISTINCT invoice.id),
+      count(DISTINCT income.id),
+      count(DISTINCT fee.id)
+    )
+    FROM review_state AS state
+    LEFT JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.finance_income_items AS income
+      ON income.organization_id = state.organization_id
+     AND income.lease_id = state.unsupported_false_lease
+    LEFT JOIN public.management_fee_occurrences AS fee
+      ON fee.organization_id = state.organization_id
+     AND fee.lease_id = state.unsupported_false_lease
+    GROUP BY state.organization_id, state.unsupported_false_lease,
+      state.fixture_lease_month_start, state.fixture_lease_date, state.admin_id
+  ),
+  pg_catalog.jsonb_build_array('generated', 1, 1, 1),
+  'an issued invoice still replays idempotently if its historical rule is later false'
+);
 
 SELECT is(
   (app_private.try_generate_lease_rent_invoice(organization_id, proration_lease,

@@ -41,6 +41,7 @@ export type LeaseBillingSummary = {
 export type FinanceLease = {
   billing: LeaseBillingSummary | null;
   endDate: string;
+  expectedCurrentBillingRuleId: string | null;
   id: string;
   monthlyRent: number;
   ownerLabel: string;

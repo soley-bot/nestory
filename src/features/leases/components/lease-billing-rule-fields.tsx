@@ -287,24 +287,7 @@ export function LeaseBillingRuleFields({
             />
           </RecordField>
 
-          <RecordField
-            error={fieldErrors?.chargeThroughLeaseEnd?.[0]}
-            label="Charge through lease end?"
-            name="chargeThroughLeaseEnd"
-            required
-          >
-            <SelectControl
-              defaultValue={
-                (defaults?.chargeThroughLeaseEnd ?? true) ? "yes" : "no"
-              }
-              name="chargeThroughLeaseEnd"
-              options={[
-                { label: "Yes", value: "yes" },
-                { label: "No", value: "no" },
-              ]}
-              required
-            />
-          </RecordField>
+          <input name="chargeThroughLeaseEnd" type="hidden" value="yes" />
 
           <RecordField
             error={fieldErrors?.firstPeriodProratedAmount?.[0]}

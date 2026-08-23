@@ -1548,7 +1548,7 @@ SELECT is(
     WHERE invoice.lease_id = (SELECT recovery_lease_id FROM lease_rent_state)
       AND invoice.billing_period_start = '2026-07-01'
   ),
-  current_date,
+  (statement_timestamp() AT TIME ZONE 'Asia/Bangkok')::date,
   'historical recovery recognizes its management fee on immutable invoice issuance even when the selected month is locked'
 );
 

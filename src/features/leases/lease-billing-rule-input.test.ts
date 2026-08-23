@@ -20,6 +20,15 @@ const validRule = {
 };
 
 describe("lease billing proration overrides", () => {
+  it("rejects an unsupported stop-before-lease-end snapshot", () => {
+    const result = leaseBillingRuleSchema.safeParse({
+      ...validRule,
+      chargeThroughLeaseEnd: "no",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it.each(["firstPeriodProratedAmount", "finalPeriodProratedAmount"] as const)(
     "rejects a zero %s before the database contract",
     (field) => {
