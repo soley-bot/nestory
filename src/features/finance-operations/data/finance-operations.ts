@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { selectCurrentLeaseBillingRulesByLeaseId } from "@/features/leases/lease-billing-rule-state";
 import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
@@ -444,16 +445,13 @@ export async function getFinanceOperationsData(
   );
   const operationalTimezone =
     organizationResult.data?.operational_timezone || "UTC";
-  const businessDate = getDateInTimezone(new Date(), operationalTimezone);
+  const billingClock = new Date();
   const billingByLeaseId = new Map<string, LeaseBillingSummary>();
-  for (const billing of [...(billingResult.data ?? [])].sort((left, right) =>
-    right.effective_from.localeCompare(left.effective_from),
+  for (const [leaseId, billing] of selectCurrentLeaseBillingRulesByLeaseId(
+    billingResult.data ?? [],
+    billingClock,
   )) {
-    if (billingByLeaseId.has(billing.lease_id)) continue;
-    if (billing.superseded_at !== null) continue;
-    if (billing.effective_from > businessDate) continue;
-    if (billing.effective_to && billing.effective_to < businessDate) continue;
-    billingByLeaseId.set(billing.lease_id, toBilling(billing));
+    billingByLeaseId.set(leaseId, toBilling(billing));
   }
   const generationByInvoiceId = new Map(
     (tenantInvoiceGenerationResult.data ?? []).map((invoice) => [
@@ -1283,18 +1281,6 @@ function toBilling(
       | "last_calendar_day"
       | null,
   };
-}
-
-function getDateInTimezone(date: Date, timezone: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: timezone,
-    year: "numeric",
-  }).formatToParts(date);
-  const read = (type: string) =>
-    parts.find((part) => part.type === type)?.value ?? "00";
-  return `${read("year")}-${read("month")}-${read("day")}`;
 }
 
 export function toTenantInvoice(

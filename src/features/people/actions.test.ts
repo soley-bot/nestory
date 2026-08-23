@@ -45,6 +45,7 @@ describe("person travel document inputs", () => {
     formData.set("visaExpiryDate", "2026-12-31");
 
     await expect(createPersonAction({}, formData)).resolves.toMatchObject({
+      partyType: "individual",
       personId,
       status: "success",
     });

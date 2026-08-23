@@ -34,6 +34,12 @@ import {
 } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
 import type { Database } from "@/types/database";
+import {
+  getCalendarDateInTimeZone,
+  getLeaseBillingRuleState,
+} from "@/features/leases/lease-billing-rule-state";
+
+export { getCalendarDateInTimeZone } from "@/features/leases/lease-billing-rule-state";
 
 const propertySelect = "id, code, name, rental_structure, archived_at";
 const unitSelect = "id, property_id, unit_number, floor, status, archived_at";
@@ -98,8 +104,9 @@ export async function getLeasesScreenData(
       getPersonSelectOptions({ organizationId, roles: ["tenant"] }),
       loadLeaseBillingFormConfig(supabase, organizationId),
     ]);
+  const readinessClock = new Date();
   const readinessDate = getCalendarDateInTimeZone(
-    new Date(),
+    readinessClock,
     billingFormConfig.operationalTimezone,
   );
 
@@ -340,6 +347,7 @@ export async function getLeasesScreenData(
         organizationId,
         propertiesById,
         readinessDate,
+        readinessClock,
         supabase,
         unitsById,
       }),
@@ -393,6 +401,7 @@ export async function getLeasesScreenData(
       organizationId,
       propertiesById,
       readinessDate,
+      readinessClock,
       supabase,
       unitsById,
     }),
@@ -408,6 +417,7 @@ async function enrichLeaseSummaries({
   organizationId,
   propertiesById,
   readinessDate,
+  readinessClock,
   supabase,
   unitsById,
 }: {
@@ -415,6 +425,7 @@ async function enrichLeaseSummaries({
   organizationId: string;
   propertiesById: Map<string, LeasePropertyRow>;
   readinessDate: string;
+  readinessClock: Date;
   supabase: SupabaseServerClient;
   unitsById: Map<string, LeaseUnitRow>;
 }) {
@@ -632,7 +643,7 @@ async function enrichLeaseSummaries({
   const billingRules = await addLeaseBillingRecipientLabels(
     billingTermData,
     organizationId,
-    readinessDate,
+    readinessClock,
     supabase,
   );
   const documents = await addSignedDocumentUrls(
@@ -695,30 +706,6 @@ async function enrichLeaseSummaries({
       billingRules: billingRulesByLeaseId.get(lease.id) ?? [],
     };
   });
-}
-
-export function getCalendarDateInTimeZone(date: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone,
-    year: "numeric",
-  }).format(date);
-}
-
-export function getLeaseBillingRuleState({
-  effectiveFrom,
-  effectiveTo,
-  readinessDate,
-}: {
-  effectiveFrom: string;
-  effectiveTo: string;
-  readinessDate: string;
-  supersededAt: string | null;
-}): LeaseBillingRule["state"] {
-  if (effectiveTo < readinessDate) return "historical";
-  if (effectiveFrom > readinessDate) return "scheduled";
-  return "current";
 }
 
 export function getEffectiveRentPolicyCalendarDate(
@@ -935,7 +922,7 @@ async function addLeasePartyPeople(
 async function addLeaseBillingRecipientLabels(
   rows: LeaseBillingTermRow[],
   organizationId: string,
-  readinessDate: string,
+  readinessClock: Date,
   supabase: SupabaseServerClient,
 ): Promise<LeaseBillingRuleRow[]> {
   const personIds = [
@@ -963,6 +950,9 @@ async function addLeaseBillingRecipientLabels(
 
   const recipientById = new Map(
     (peopleResult.data ?? []).map((person) => [person.id, person.display_name]),
+  );
+  const billingRowsByLeaseId = groupByLeaseId(
+    rows.filter((row) => row.archived_at === null),
   );
 
   return rows
@@ -1013,12 +1003,11 @@ async function addLeaseBillingRecipientLabels(
       rentCalculationTimezone: row.rent_calculation_timezone,
       shortMonthDueDayRule:
         row.short_month_due_day_rule as "last_calendar_day",
-      state: getLeaseBillingRuleState({
-        effectiveFrom: row.effective_from,
-        effectiveTo: row.effective_to,
-        readinessDate,
-        supersededAt: row.superseded_at,
-      }),
+      state: getLeaseBillingRuleState(
+        row,
+        billingRowsByLeaseId.get(row.lease_id) ?? [],
+        readinessClock,
+      ),
     }))
     .sort(compareLeaseBillingRules);
 }

@@ -133,8 +133,11 @@ export function LeaseForm({
     personId?: string,
     roles?: PersonRoleValue[],
     displayName?: string,
+    partyType?: "company" | "individual",
   ) {
-    if (!personId || !displayName || !roles?.includes("tenant")) return;
+    if (!personId || !displayName || !partyType || !roles?.includes("tenant")) {
+      return;
+    }
 
     setAvailableTenantOptions((current) => [
       {
@@ -142,6 +145,7 @@ export function LeaseForm({
         description: "Tenant",
         id: personId,
         label: displayName,
+        partyType,
         roles: ["tenant"],
       },
       ...current.filter((option) => option.id !== personId),
@@ -393,6 +397,7 @@ export function LeaseForm({
               : "Begins on the lease start date."}
           </p>
           <LeaseBillingRuleFields
+            key={`${tenantRecipient?.id ?? "none"}:${tenantRecipient?.partyType ?? "unknown"}`}
             companyOptions={billingFormConfig?.companyOptions}
             defaults={billingDefaults}
             fieldErrors={state.fieldErrors}
@@ -403,11 +408,11 @@ export function LeaseForm({
               billingFormConfig?.organizationName ?? "our company"
             }
             tenantRecipient={
-              tenantRecipient
+              tenantRecipient?.partyType
                 ? {
                     id: tenantRecipient.id,
                     label: tenantRecipient.label,
-                    partyType: tenantRecipient.partyType ?? "individual",
+                    partyType: tenantRecipient.partyType,
                   }
                 : null
             }
@@ -422,8 +427,8 @@ export function LeaseForm({
         <PersonForm
           initialRoles={["tenant"]}
           onClose={() => setCreateTenantOpen(false)}
-          onSuccess={(_message, personId, roles, displayName) =>
-            handleTenantCreated(personId, roles, displayName)
+          onSuccess={(_message, personId, roles, displayName, partyType) =>
+            handleTenantCreated(personId, roles, displayName, partyType)
           }
           roleContext="tenant"
         />

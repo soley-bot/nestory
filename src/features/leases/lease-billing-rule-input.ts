@@ -3,7 +3,7 @@ import { postgresUuid } from "@/lib/validation/postgres-uuid";
 
 const optionalAmount = z.preprocess(
   (value) => (value === "" || value === undefined ? null : value),
-  z.coerce.number().nonnegative("Enter a non-negative amount.").nullable(),
+  z.coerce.number().positive("Enter an amount greater than zero.").nullable(),
 );
 
 const explicitBooleanChoice = z
