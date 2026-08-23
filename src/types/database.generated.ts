@@ -10883,6 +10883,9 @@ export type Database = {
         }
         Returns: {
           category_code: string
+          category_id: string
+          category_label: string
+          category_reporting_group: string
           contract_version: string
           currency: Database["public"]["Enums"]["currency_code"]
           cursor_recognized_on: string

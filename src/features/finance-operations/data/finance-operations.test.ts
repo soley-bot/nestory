@@ -104,6 +104,73 @@ describe("isRentGenerationSource", () => {
 });
 
 describe("toExpenseSubmissionSummary", () => {
+  it("resolves an archived renamed owner category without crossing into tenant billing", () => {
+    const submission = {
+      adjusts_submission_id: null,
+      customer_category: "custom_courtyard_4f2a",
+      customer_total_amount: 125,
+      expense_date: "2026-08-08",
+      id: "submission-custom-owner-category",
+      internal_cost_amount: 125,
+      internal_markup_amount: 0,
+      previously_approved_amount: null,
+      property_id: "property-1",
+      reconciliation_source_id: null,
+      recorded_total_amount: null,
+      reference: "Receipt 124",
+      responsibility: "owner",
+      reviewed_at: null,
+      review_reason: null,
+      reversal_reason: null,
+      source_id: null,
+      source_type: "general",
+      status: "submitted",
+      submitted_at: "2026-08-08T08:00:00Z",
+      submitted_by: "finance-member-user-1",
+      unit_id: null,
+      vendor_label: "Courtyard Vendor",
+    } as Database["public"]["Tables"]["expense_submissions"]["Row"];
+
+    const summary = toExpenseSubmissionSummary(
+      submission,
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      [
+        {
+          archivedAt: null,
+          code: "custom_courtyard_4f2a",
+          displayLabel: "Tenant courtyard charge",
+          id: "tenant-category-same-code",
+          isActive: true,
+          isDefault: false,
+          namespace: "tenant_billing",
+          reportingGroup: "other",
+          sortOrder: 50,
+        },
+        {
+          archivedAt: "2026-08-09T10:00:00Z",
+          code: "custom_courtyard_4f2a",
+          displayLabel: "Courtyard upkeep",
+          id: "owner-category-renamed-archived",
+          isActive: false,
+          isDefault: false,
+          namespace: "owner_expense",
+          reportingGroup: "maintenance",
+          sortOrder: 50,
+        },
+      ],
+    );
+
+    expect(summary).toMatchObject({
+      category: "custom_courtyard_4f2a",
+      categoryLabel: "Courtyard upkeep",
+    });
+  });
+
   it("keeps a submitted expense visible after its label records are archived", () => {
     const submission = {
       adjusts_submission_id: null,

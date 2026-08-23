@@ -69,6 +69,35 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("shows the current renamed label for an archived custom owner category in review", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.expenseSubmissions = [
+      {
+        ...expenseSubmission("submitted"),
+        category: "custom_courtyard_4f2a",
+        categoryLabel: "Courtyard upkeep",
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canReviewExpense: true })}
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+
+    expect(screen.getByText("Courtyard upkeep")).not.toBeNull();
+    expect(screen.queryByText("Custom courtyard 4f2a")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Review Sokha Repairs" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Courtyard upkeep")).not.toBeNull();
+    expect(within(dialog).queryByText("Custom courtyard 4f2a")).toBeNull();
+  });
+
   it("keeps owner-expense and tenant-billing category choices in separate workflows", async () => {
     const user = userEvent.setup();
     const input = data();

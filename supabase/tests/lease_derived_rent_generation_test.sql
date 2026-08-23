@@ -490,7 +490,7 @@ SELECT
   '2027-07-31'::date,
   1000::numeric,
   'USD'::public.currency_code,
-  NULL::integer,
+  5,
   'monthly',
   'active',
   'authoritative',
@@ -509,7 +509,7 @@ SELECT
   '2027-07-31'::date,
   900::numeric,
   'USD'::public.currency_code,
-  NULL::integer,
+  5,
   'monthly',
   'active',
   'authoritative',
@@ -528,7 +528,7 @@ SELECT
   '2026-07-31'::date,
   1100::numeric,
   'USD'::public.currency_code,
-  NULL::integer,
+  5,
   'monthly',
   'expired',
   'authoritative',
@@ -620,6 +620,13 @@ INSERT INTO public.lease_billing_terms (
   billing_recipient_person_id,
   first_period_prorated_amount,
   final_period_prorated_amount,
+  rent_calculation_timezone,
+  short_month_due_day_rule,
+  lease_start_proration_rule,
+  lease_end_proration_rule,
+  mid_period_rent_change_rule,
+  charge_through_lease_end,
+  rule_source,
   confirmed_at,
   confirmed_by,
   created_by,
@@ -641,6 +648,13 @@ SELECT
   good_tenant_id,
   750::numeric,
   NULL::numeric,
+  'Asia/Bangkok',
+  'last_calendar_day',
+  'actual_days',
+  'actual_days',
+  'next_full_month',
+  true,
+  'lease_default_v1',
   now(),
   super_admin_id,
   super_admin_id,
@@ -663,6 +677,13 @@ SELECT
   recovery_tenant_id,
   NULL::numeric,
   NULL::numeric,
+  'Asia/Bangkok',
+  'last_calendar_day',
+  'actual_days',
+  'actual_days',
+  'next_full_month',
+  true,
+  'lease_default_v1',
   now(),
   super_admin_id,
   super_admin_id,
@@ -799,7 +820,7 @@ SELECT results_eq(
     )
       AND invoice.billing_period_start = '2026-08-01'
   $$,
-  $$ VALUES ('activation_catch_up'::text, 750.00::numeric, 1000.00::numeric, true) $$,
+  $$ VALUES ('lease_rules_v1'::text, 750.00::numeric, 1000.00::numeric, true) $$,
   'activation catch-up creates the prorated current-month rent from lease authority'
 );
 
@@ -812,7 +833,7 @@ SELECT lives_ok(
       '2026-09-01 00:30:00+00'::timestamptz
     )
   $$,
-  'the scheduled runner isolates leases and covers policy timezones plus the UTC fallback'
+  'the scheduled runner isolates leases and covers lease-rule timezones plus missing-rule failure'
 );
 
 SELECT results_eq(
@@ -824,8 +845,8 @@ SELECT results_eq(
     )
       AND billing_period_start = '2026-09-01'
   $$,
-  $$VALUES ('rent_policy_missing'::text, 1, true)$$,
-  'scheduled generation exposes a pre-existing active lease with no rent policy'
+  $$VALUES ('billing_setup_missing'::text, 1, true)$$,
+  'scheduled generation exposes a pre-existing active lease with no lease-owned billing rule'
 );
 
 SELECT is(
@@ -843,7 +864,7 @@ SELECT results_eq(
   $$
     SELECT
       invoice.lease_term_id,
-      invoice.rent_policy_version_id,
+      invoice.billing_term_id,
       invoice.generation_source,
       invoice.base_rent_amount,
       invoice.total_amount,
@@ -858,8 +879,8 @@ SELECT results_eq(
   $$
     SELECT
       good_term_id,
-      policy_id,
-      'scheduled'::text,
+      good_billing_id,
+      'lease_rules_v1'::text,
       1000.00::numeric,
       1000.00::numeric,
       false,
@@ -868,7 +889,7 @@ SELECT results_eq(
       100.00::numeric
     FROM lease_rent_state
   $$,
-  'generated rent snapshots the exact term, policy, amount, proration, and fee authority'
+  'generated rent snapshots the exact term, lease billing rule, amount, proration, and fee authority'
 );
 
 SELECT is(
@@ -879,7 +900,7 @@ SELECT is(
       AND billing_period_start = '2026-09-01'
   ),
   '2026-09-05'::date,
-  'the approved policy supplies the due day when the lease term does not'
+  'the lease term supplies the due day without mutable organization policy'
 );
 
 SELECT is(
@@ -899,7 +920,10 @@ SELECT is(
 SELECT lives_ok(
   $$
     SELECT app_private.run_due_rent_generation(
-      '2026-08-31 17:30:00+00'::timestamptz
+      '2026-09-01 00:30:00+00'::timestamptz
+    );
+    SELECT app_private.run_due_rent_generation(
+      '2026-09-01 00:30:00+00'::timestamptz
     )
   $$,
   'scheduled replay is safe'
@@ -1094,6 +1118,13 @@ INSERT INTO public.lease_billing_terms (
   full_management_fee_during_proration,
   billing_recipient_kind,
   billing_recipient_person_id,
+  rent_calculation_timezone,
+  short_month_due_day_rule,
+  lease_start_proration_rule,
+  lease_end_proration_rule,
+  mid_period_rent_change_rule,
+  charge_through_lease_end,
+  rule_source,
   confirmed_at,
   confirmed_by,
   created_by,
@@ -1113,6 +1144,13 @@ SELECT
   true,
   'individual',
   blocked_tenant_id,
+  'Asia/Bangkok',
+  'last_calendar_day',
+  'actual_days',
+  'actual_days',
+  'next_full_month',
+  true,
+  'lease_default_v1',
   now(),
   super_admin_id,
   super_admin_id,
@@ -1510,8 +1548,8 @@ SELECT is(
     WHERE invoice.lease_id = (SELECT recovery_lease_id FROM lease_rent_state)
       AND invoice.billing_period_start = '2026-07-01'
   ),
-  '2026-07-01'::date,
-  'historical recovery recognizes its management fee in the selected month even when the retry month is locked'
+  current_date,
+  'historical recovery recognizes its management fee on immutable invoice issuance even when the selected month is locked'
 );
 
 SELECT is(
@@ -1587,8 +1625,8 @@ SELECT results_eq(
     WHERE lease_id = (SELECT blocked_lease_id FROM lease_rent_state)
       AND billing_period_start = '2026-09-01'
   $$,
-  $$ VALUES ('manual_recovery'::text, 75.00::numeric) $$,
-  'recovered rent retains its recovery source and configured flat fee snapshot'
+  $$ VALUES ('lease_rules_v1'::text, 75.00::numeric) $$,
+  'recovered rent retains its lease-owned source and configured flat fee snapshot'
 );
 
 SELECT results_eq(

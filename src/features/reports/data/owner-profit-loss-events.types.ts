@@ -18,6 +18,9 @@ export type OwnerProfitLossSourceType =
 
 export type OwnerProfitLossEventDatabaseRow = {
   category_code: string;
+  category_id: string | null;
+  category_label: string;
+  category_reporting_group: string;
   contract_version: string;
   currency: string;
   cursor_recognized_on: string;
@@ -45,7 +48,10 @@ export type OwnerProfitLossEventDatabaseRow = {
 
 export type OwnerProfitLossEvent = {
   categoryCode: string;
-  contractVersion: "owner_profit_loss_events.v1";
+  categoryId: string | null;
+  categoryLabel: string;
+  categoryReportingGroup: string;
+  contractVersion: "owner_profit_loss_events.v2";
   currency: "USD";
   description: string;
   economicClass: OwnerProfitLossEconomicClass;

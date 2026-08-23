@@ -150,6 +150,7 @@ export type OwnerInvoiceSummary = {
 export type ExpenseSubmissionSummary = {
   adjustsSubmissionId?: string | null;
   category: string;
+  categoryLabel?: string | null;
   customerTotal: number;
   date: string;
   evidence?: {

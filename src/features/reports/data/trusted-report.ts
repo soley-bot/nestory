@@ -706,7 +706,9 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
               : undefined;
             return {
               amountCents: event.signedAmountCents,
-              category: normalizeCategory(event.categoryCode),
+              category: event.categoryLabel,
+              categoryCode: event.categoryCode,
+              categoryId: event.categoryId,
               currency: event.currency,
               date: event.recognizedOn,
               description: event.description,
@@ -718,12 +720,14 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
               property: propertyLabel(
                 context.propertiesById.get(event.propertyId),
               ),
+              reportingGroup: event.categoryReportingGroup,
               unit: unit ? `Unit ${unit.unit_number}` : "Property-level",
             };
           })
           .toSorted(
             (first, second) =>
               compareStrings(first.date, second.date) ||
+              compareStrings(first.reportingGroup, second.reportingGroup) ||
               compareStrings(first.category, second.category) ||
               compareStrings(first.id, second.id),
           );
@@ -1695,10 +1699,16 @@ function ownerProfitLossEventSource(
   event: OwnerProfitLossEvent,
 ): ReportSourceLink {
   const sourceLabel = event.sourceType.replaceAll("_", " ");
+  const reportingGroupLabel = normalizeCategory(event.categoryReportingGroup);
+  const categoryContext =
+    reportingGroupLabel.toLocaleLowerCase() ===
+    event.categoryLabel.toLocaleLowerCase()
+      ? event.categoryLabel
+      : `${reportingGroupLabel} · ${event.categoryLabel}`;
 
   return {
     id: event.sourceId,
-    label: `${normalizeCategory(event.categoryCode)} ${sourceLabel}`,
+    label: `${categoryContext} ${sourceLabel}`,
     recordType:
       event.economicClass === "owner_income"
         ? "income-obligation"

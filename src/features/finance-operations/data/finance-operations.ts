@@ -177,6 +177,7 @@ export function toExpenseSubmissionSummary(
   >,
   maintenanceTaskById: ReadonlyMap<string, MaintenanceTaskRow> = new Map(),
   submitterLabelByUserId: ReadonlyMap<string, string> = new Map(),
+  financeCategories: readonly FinanceCategory[] = [],
 ): ExpenseSubmissionSummary {
   const property = propertyById.get(submission.property_id);
   const unit = submission.unit_id
@@ -186,10 +187,16 @@ export function toExpenseSubmissionSummary(
     submission.source_type === "maintenance_task" && submission.source_id
       ? maintenanceTaskById.get(submission.source_id)
       : undefined;
+  const ownerExpenseCategory = financeCategories.find(
+    (category) =>
+      category.namespace === "owner_expense" &&
+      category.code === submission.customer_category,
+  );
 
   return {
     adjustsSubmissionId: submission.adjusts_submission_id,
     category: submission.customer_category,
+    categoryLabel: ownerExpenseCategory?.displayLabel ?? null,
     customerTotal: Number(submission.customer_total_amount),
     date: submission.expense_date,
     evidence: evidenceBySubmissionId.get(submission.id),
@@ -567,6 +574,20 @@ export async function getFinanceOperationsData(
       },
     ]),
   );
+  const financeCategories = (financeCategoriesResult.data ?? []).map(
+    (category) =>
+      ({
+        archivedAt: category.archived_at,
+        code: category.code,
+        displayLabel: category.display_label,
+        id: category.id,
+        isActive: category.is_active ?? category.archived_at === null,
+        isDefault: category.is_default,
+        namespace: category.namespace as FinanceCategory["namespace"],
+        reportingGroup: category.reporting_group,
+        sortOrder: category.sort_order,
+      }) satisfies FinanceCategory,
+  );
   return {
     accountEntries: sortPropertyAccountEntriesNewestFirst(
       (entriesResult.data ?? []).flatMap((row) =>
@@ -583,22 +604,10 @@ export async function getFinanceOperationsData(
           evidenceBySubmissionId,
           maintenanceTaskById,
           submitterLabelByUserId,
+          financeCategories,
         ),
     ),
-    financeCategories: (financeCategoriesResult.data ?? []).map(
-      (category) =>
-        ({
-          archivedAt: category.archived_at,
-          code: category.code,
-          displayLabel: category.display_label,
-          id: category.id,
-          isActive: category.is_active ?? category.archived_at === null,
-          isDefault: category.is_default,
-          namespace: category.namespace as FinanceCategory["namespace"],
-          reportingGroup: category.reporting_group,
-          sortOrder: category.sort_order,
-        }) satisfies FinanceCategory,
-    ),
+    financeCategories,
     leases: (leasesResult.data ?? []).flatMap((lease) => {
       const property = propertyById.get(lease.property_id);
       if (!property) return [];

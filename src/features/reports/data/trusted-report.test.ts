@@ -93,6 +93,40 @@ describe("Monthly Unit Profit & Loss", () => {
     );
   });
 
+  it("shows the configured category label while retaining stable report identity", () => {
+    const input = reportInput();
+    const customExpense = input.ownerProfitLossEvents?.find(
+      ({ sourceId }) => sourceId === "owner-expense",
+    );
+    Object.assign(customExpense ?? {}, {
+      categoryCode: "custom_grounds_authority",
+      categoryId: "category-grounds",
+      categoryLabel: "Grounds care",
+      categoryReportingGroup: "maintenance",
+    });
+
+    const report = buildTrustedReport(input);
+
+    expect(report.unitProfitLossLines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "Grounds care",
+          categoryCode: "custom_grounds_authority",
+          id: "owner_invoice_line:owner-expense",
+          reportingGroup: "maintenance",
+        }),
+      ]),
+    );
+    expect(report.rows.flatMap((row) => row.sourceLinks)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "owner-expense",
+          label: "Maintenance · Grounds care owner invoice line",
+        }),
+      ]),
+    );
+  });
+
   it("keeps property-level activity in the selected unit's property only", () => {
     const input = reportInput();
     input.properties.push({
@@ -165,7 +199,10 @@ function event(
 
   return {
     categoryCode: "rent",
-    contractVersion: "owner_profit_loss_events.v1",
+    categoryId: null,
+    categoryLabel: "Rent",
+    categoryReportingGroup: "rent",
+    contractVersion: "owner_profit_loss_events.v2",
     currency: "USD",
     description: "Tenant - Rent",
     economicClass: "owner_income",

@@ -289,9 +289,9 @@ SELECT results_eq(
     JOIN public.properties AS property ON property.id = invoice.property_id
     WHERE invoice.id = (SELECT full_invoice_id FROM ips_rent_runtime)
   $$,
-  $$ VALUES ('RIV-SHP'::text, 1450.00::numeric, '2026-08-05'::date,
+  $$ VALUES ('RIV-SHP'::text, 1450.00::numeric, current_date,
     'unpaid'::text, 1450.00::numeric) $$,
-  'the full-month scenario retains one exact unpaid obligation after its due date'
+  'the full-month scenario retains one exact unpaid obligation with a due date no earlier than issuance'
 );
 
 SELECT results_eq(
@@ -574,8 +574,8 @@ SELECT results_eq(
       ON payment.id = (SELECT payment_id FROM ips_rent_runtime)
     WHERE balance.id = (SELECT ips_partial_invoice_id FROM ips_rent_runtime)
   $$,
-  $$ VALUES ('paid'::text, 0.00::numeric, '2026-08-11'::date, true) $$,
-  'late payment closes the exact tenant balance while preserving its settlement date'
+  $$ VALUES ('paid'::text, 0.00::numeric, '2026-08-11'::date, false) $$,
+  'payment closes the exact tenant balance while preserving its settlement date and issuance-floor timing'
 );
 
 SELECT is(

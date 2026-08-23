@@ -1098,6 +1098,25 @@ SET source_id = public.create_financial_reconciliation_source(
 );
 
 RESET ROLE;
+
+-- These checked fixture calls predate the lease-owned creation surface and
+-- therefore stamp historical_policy_snapshot. The active local demo leases
+-- represent completed current setup, so promote only their fully populated
+-- fixture rows to the live lease_default_v1 authority before scheduling.
+SET LOCAL session_replication_role = replica;
+UPDATE public.lease_billing_terms AS billing
+SET rule_source = 'lease_default_v1'
+FROM fixture_runtime AS runtime
+WHERE billing.organization_id = runtime.organization_id
+  AND billing.lease_id IN (
+    runtime.through_lease_id,
+    runtime.direct_lease_id,
+    runtime.commercial_lease_id,
+    runtime.garden_open_lease_id
+  )
+  AND billing.archived_at IS NULL;
+SET LOCAL session_replication_role = origin;
+
 SELECT app_private.run_due_rent_generation(now());
 SET LOCAL ROLE authenticated;
 
@@ -1173,6 +1192,23 @@ SELECT public.set_lease_billing_term(
 FROM fixture_runtime AS runtime;
 
 RESET ROLE;
+
+SET LOCAL session_replication_role = replica;
+UPDATE public.lease_billing_terms AS billing
+SET rule_source = 'lease_default_v1'
+FROM fixture_runtime AS runtime
+WHERE billing.organization_id = runtime.organization_id
+  AND billing.lease_id = runtime.garden_exception_lease_id
+  AND billing.archived_at IS NULL;
+SET LOCAL session_replication_role = origin;
+
+SELECT app_private.try_current_month_rent(
+  runtime.organization_id,
+  runtime.garden_exception_lease_id,
+  'activation_catch_up',
+  now()
+)
+FROM fixture_runtime AS runtime;
 
 UPDATE public.rent_generation_exceptions AS exception
 SET resolved_at = NULL,
@@ -2033,10 +2069,13 @@ SELECT
     'FIXTURE-OWNER-BALANCE-PAYMENT',
     'fixture-owner-balance-payment-v1'
   )
-FROM public.owner_invoices AS invoice
+FROM public.owner_invoice_balances AS invoice
 WHERE invoice.organization_id = '00000000-0000-0000-0000-000000000001'
   AND invoice.property_id = '10000000-0000-0000-0000-000000000003'
-  AND invoice.billing_period_start = date_trunc('month', current_date)::date;
+  AND invoice.billing_period_start = date_trunc('month', current_date)::date
+  AND invoice.balance_due >= 85.00
+ORDER BY invoice.total_amount DESC, invoice.id
+LIMIT 1;
 
 SELECT public.allocate_owner_event(
   '00000000-0000-0000-0000-000000000001',
@@ -2255,7 +2294,19 @@ SELECT public.transfer_owner_balance_component(
   '80000000-0000-0000-0000-000000000012',
   'USD',
   (date_trunc('month', current_date) + interval '1 month')::date,
-  'owner_due_to_ips', 102.80,
+  'owner_due_to_ips', (
+    SELECT component.closing_amount
+    FROM public.owner_balance_periods AS period
+    JOIN public.owner_balance_period_components AS component
+      ON component.organization_id = period.organization_id
+      AND component.owner_balance_period_id = period.id
+      AND component.component = 'owner_due_to_ips'
+    WHERE period.organization_id = '00000000-0000-0000-0000-000000000001'
+      AND period.property_id = '10000000-0000-0000-0000-000000000003'
+      AND period.owner_person_id = '80000000-0000-0000-0000-000000000009'
+      AND period.currency = 'USD'
+      AND period.month_start = date_trunc('month', current_date)::date
+  ),
   'Explicit Garden Court owner-payable transfer',
   'FIXTURE-GARDEN-TRANSFER-OWNER-DUE-001', repeat('4', 64),
   'fixture-owner-balance-transfer-owner-due-v1'

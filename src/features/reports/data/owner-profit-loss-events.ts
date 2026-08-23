@@ -108,11 +108,18 @@ export async function* iterateOwnerProfitLossEvents(
 export function normalizeOwnerProfitLossEvent(
   row: OwnerProfitLossEventDatabaseRow,
 ): OwnerProfitLossEvent {
-  if (row.contract_version !== "owner_profit_loss_events.v1") {
+  if (row.contract_version !== "owner_profit_loss_events.v2") {
     throw new Error(`Unsupported owner P&L contract: ${row.contract_version}`);
   }
   if (row.currency !== "USD") {
     throw new Error(`Owner P&L event has unsupported currency: ${row.currency}`);
+  }
+  if (
+    !row.category_code.trim() ||
+    !row.category_label.trim() ||
+    !row.category_reporting_group.trim()
+  ) {
+    throw new Error("Owner P&L event category authority is incomplete.");
   }
 
   const sourceType = assertMember(
@@ -147,6 +154,9 @@ export function normalizeOwnerProfitLossEvent(
 
   return {
     categoryCode: row.category_code,
+    categoryId: row.category_id,
+    categoryLabel: row.category_label,
+    categoryReportingGroup: row.category_reporting_group,
     contractVersion: row.contract_version,
     currency: row.currency,
     description: row.description,

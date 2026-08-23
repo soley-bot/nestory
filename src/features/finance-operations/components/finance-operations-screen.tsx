@@ -1460,7 +1460,7 @@ function ExpenseSubmissionTable({
               <Td>{formatDate(submission.date)}</Td>
               <Td>
                 <p className="font-medium">
-                  {categoryLabel(submission.category)}
+                  {submission.categoryLabel ?? categoryLabel(submission.category)}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {submission.vendorLabel}
@@ -2044,7 +2044,9 @@ function ExpenseDetails({
     <div className="space-y-4 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="font-semibold">{categoryLabel(submission.category)}</p>
+          <p className="font-semibold">
+            {submission.categoryLabel ?? categoryLabel(submission.category)}
+          </p>
           <p className="text-sm text-muted-foreground">
             {submission.vendorLabel} · {submission.propertyLabel}
           </p>

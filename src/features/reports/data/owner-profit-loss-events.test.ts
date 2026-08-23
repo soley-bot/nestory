@@ -19,7 +19,10 @@ function row(
 ): OwnerProfitLossEventDatabaseRow {
   return {
     category_code: "rent",
-    contract_version: "owner_profit_loss_events.v1",
+    category_id: null,
+    category_label: "Rent",
+    category_reporting_group: "rent",
+    contract_version: "owner_profit_loss_events.v2",
     currency: "USD",
     cursor_recognized_on: "2026-07-15",
     cursor_source_id: sourceId,
@@ -70,6 +73,32 @@ const scope = {
 };
 
 describe("owner profit and loss recognized-event adapter", () => {
+  it("preserves Finance category identity, current label, and reporting group", () => {
+    const sourceId = "55555555-5555-4555-8555-555555555555";
+    const databaseRow = Object.assign(row(sourceId), {
+      category_code: "custom_grounds_authority",
+      category_id: "66666666-6666-4666-8666-666666666666",
+      category_label: "Grounds care",
+      category_reporting_group: "maintenance",
+      contract_version: "owner_profit_loss_events.v2",
+    });
+
+    const event = normalizeOwnerProfitLossEvent(databaseRow) as ReturnType<
+      typeof normalizeOwnerProfitLossEvent
+    > & {
+      categoryId: string | null;
+      categoryLabel: string;
+      categoryReportingGroup: string;
+    };
+
+    expect(event).toMatchObject({
+      categoryCode: "custom_grounds_authority",
+      categoryId: "66666666-6666-4666-8666-666666666666",
+      categoryLabel: "Grounds care",
+      categoryReportingGroup: "maintenance",
+    });
+  });
+
   it("preserves exact signed money and reversal lineage", () => {
     const sourceId = "44444444-4444-4444-8444-444444444444";
     const originalId = "33333333-3333-4333-8333-333333333333";

@@ -229,11 +229,12 @@ SELECT ok(
     SELECT 1
     FROM public.tenant_invoices
     WHERE lease_term_id IS NULL
-      OR rent_policy_version_id IS NULL
+      OR billing_term_id IS NULL
+      OR rent_policy_version_id IS NOT NULL
       OR generation_source IS NULL
       OR generated_at IS NULL
   ),
-  'every rent invoice snapshots its term, policy, and generation source'
+  'every rent invoice snapshots its lease term, lease billing rule, and generation source'
 );
 
 SELECT results_eq(
