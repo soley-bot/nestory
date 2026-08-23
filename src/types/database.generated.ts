@@ -3836,6 +3836,7 @@ export type Database = {
         Row: {
           amount: number
           billing_term_id: string
+          correction_occurrence_id: string | null
           created_at: string
           created_by: string | null
           currency: Database["public"]["Enums"]["currency_code"]
@@ -3846,12 +3847,14 @@ export type Database = {
           lease_id: string
           organization_id: string
           property_id: string
+          reversal_of_id: string | null
           settlement_status: string
           tenant_invoice_id: string
         }
         Insert: {
           amount: number
           billing_term_id: string
+          correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -3862,12 +3865,14 @@ export type Database = {
           lease_id: string
           organization_id: string
           property_id: string
+          reversal_of_id?: string | null
           settlement_status?: string
           tenant_invoice_id: string
         }
         Update: {
           amount?: number
           billing_term_id?: string
+          correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: Database["public"]["Enums"]["currency_code"]
@@ -3878,6 +3883,7 @@ export type Database = {
           lease_id?: string
           organization_id?: string
           property_id?: string
+          reversal_of_id?: string | null
           settlement_status?: string
           tenant_invoice_id?: string
         }
@@ -3890,16 +3896,23 @@ export type Database = {
             referencedColumns: ["organization_id", "lease_id", "id"]
           },
           {
+            foreignKeyName: "management_fee_occurrences_correction_fkey"
+            columns: ["organization_id", "correction_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_corrections"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
             foreignKeyName: "management_fee_occurrences_invoice_fkey"
             columns: ["organization_id", "tenant_invoice_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "tenant_invoice_balances"
             referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "management_fee_occurrences_invoice_fkey"
             columns: ["organization_id", "tenant_invoice_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "tenant_invoices"
             referencedColumns: ["organization_id", "id"]
           },
@@ -3937,6 +3950,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "management_fee_occurrences_reversal_fkey"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "management_fee_occurrences"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -6065,6 +6085,7 @@ export type Database = {
       owner_invoice_lines: {
         Row: {
           amount: number
+          correction_occurrence_id: string | null
           created_at: string
           created_by: string | null
           customer_label: string
@@ -6073,12 +6094,15 @@ export type Database = {
           invoice_id: string
           organization_id: string
           property_id: string
+          recognized_on: string
+          reversal_of_id: string | null
           sort_order: number
           source_id: string
           source_type: string
         }
         Insert: {
           amount: number
+          correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
           customer_label: string
@@ -6087,12 +6111,15 @@ export type Database = {
           invoice_id: string
           organization_id: string
           property_id: string
+          recognized_on: string
+          reversal_of_id?: string | null
           sort_order: number
           source_id: string
           source_type: string
         }
         Update: {
           amount?: number
+          correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
           customer_label?: string
@@ -6101,11 +6128,20 @@ export type Database = {
           invoice_id?: string
           organization_id?: string
           property_id?: string
+          recognized_on?: string
+          reversal_of_id?: string | null
           sort_order?: number
           source_id?: string
           source_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "owner_invoice_lines_correction_fkey"
+            columns: ["organization_id", "correction_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_corrections"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "owner_invoice_lines_invoice_fkey"
             columns: ["organization_id", "invoice_id"]
@@ -6140,6 +6176,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "property_finance_positions"
             referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "owner_invoice_lines_reversal_fkey"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "owner_invoice_lines"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -8256,53 +8299,192 @@ export type Database = {
           },
         ]
       }
+      tenant_invoice_corrections: {
+        Row: {
+          action: string
+          affected_line_count: number
+          created_at: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          evidence_recognized_on: string
+          id: string
+          idempotency_key: string
+          organization_id: string
+          payload_hash: string
+          property_id: string
+          reason: string
+          source_identity: Json
+          target_invoice_line_id: string | null
+          tenant_invoice_id: string
+          unit_id: string | null
+        }
+        Insert: {
+          action: string
+          affected_line_count: number
+          created_at?: string
+          created_by: string
+          currency: Database["public"]["Enums"]["currency_code"]
+          evidence_recognized_on: string
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          payload_hash: string
+          property_id: string
+          reason: string
+          source_identity: Json
+          target_invoice_line_id?: string | null
+          tenant_invoice_id: string
+          unit_id?: string | null
+        }
+        Update: {
+          action?: string
+          affected_line_count?: number
+          created_at?: string
+          created_by?: string
+          currency?: Database["public"]["Enums"]["currency_code"]
+          evidence_recognized_on?: string
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          payload_hash?: string
+          property_id?: string
+          reason?: string
+          source_identity?: Json
+          target_invoice_line_id?: string | null
+          tenant_invoice_id?: string
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invoice_corrections_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_corrections_invoice_fkey"
+            columns: ["organization_id", "tenant_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoices"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_corrections_organization_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_corrections_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_corrections_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_corrections_target_line_fkey"
+            columns: ["organization_id", "target_invoice_line_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_line_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_corrections_target_line_fkey"
+            columns: ["organization_id", "target_invoice_line_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_lines"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_corrections_unit_fkey"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["organization_id", "id"]
+          },
+        ]
+      }
       tenant_invoice_lines: {
         Row: {
           amount: number
+          correction_occurrence_id: string | null
           created_at: string
           created_by: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
           customer_label: string
           description: string | null
           id: string
-          income_item_id: string
+          income_item_id: string | null
           internal_cost_amount: number | null
           internal_markup_amount: number
           invoice_id: string
           line_type: string
           organization_id: string
+          property_id: string
+          recognized_on: string
+          reversal_of_id: string | null
           sort_order: number
+          unit_id: string | null
         }
         Insert: {
           amount: number
+          correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
+          currency: Database["public"]["Enums"]["currency_code"]
           customer_label: string
           description?: string | null
           id?: string
-          income_item_id: string
+          income_item_id?: string | null
           internal_cost_amount?: number | null
           internal_markup_amount?: number
           invoice_id: string
           line_type: string
           organization_id: string
+          property_id: string
+          recognized_on: string
+          reversal_of_id?: string | null
           sort_order: number
+          unit_id?: string | null
         }
         Update: {
           amount?: number
+          correction_occurrence_id?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: Database["public"]["Enums"]["currency_code"]
           customer_label?: string
           description?: string | null
           id?: string
-          income_item_id?: string
+          income_item_id?: string | null
           internal_cost_amount?: number | null
           internal_markup_amount?: number
           invoice_id?: string
           line_type?: string
           organization_id?: string
+          property_id?: string
+          recognized_on?: string
+          reversal_of_id?: string | null
           sort_order?: number
+          unit_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "tenant_invoice_lines_correction_fkey"
+            columns: ["organization_id", "correction_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_corrections"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "tenant_invoice_lines_income_fkey"
             columns: ["organization_id", "income_item_id"]
@@ -8330,6 +8512,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_property_fkey"
+            columns: ["organization_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "property_finance_positions"
+            referencedColumns: ["organization_id", "property_id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_reversal_fkey"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_line_balances"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_reversal_fkey"
+            columns: ["organization_id", "reversal_of_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_invoice_lines"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_unit_fkey"
+            columns: ["organization_id", "unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["organization_id", "id"]
           },
         ]
       }
@@ -9702,6 +9919,17 @@ export type Database = {
           p_term_id: string
         }
         Returns: string
+      }
+      correct_tenant_invoice: {
+        Args: {
+          p_action: string
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_organization_id: string
+          p_reason: string
+          p_target_invoice_line_id: string
+        }
+        Returns: Json
       }
       create_asset_photo: {
         Args: {
