@@ -69,6 +69,98 @@ class ResizeObserverStub {
 }
 
 describe("FinanceOperationsScreen", () => {
+  it("keeps owner-expense and tenant-billing category choices in separate workflows", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.financeCategories = [
+      {
+        archivedAt: null,
+        code: "custom_landscaping",
+        displayLabel: "Landscaping",
+        id: "category-owner-landscaping",
+        isActive: true,
+        isDefault: false,
+        namespace: "owner_expense",
+        reportingGroup: "maintenance",
+        sortOrder: 50,
+      },
+      {
+        archivedAt: null,
+        code: "custom_parking",
+        displayLabel: "Parking",
+        id: "category-tenant-parking",
+        isActive: true,
+        isDefault: false,
+        namespace: "tenant_billing",
+        reportingGroup: "parking",
+        sortOrder: 50,
+      },
+    ];
+    input.tenantInvoices = [tenantInvoice()];
+
+    const owner = render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canSubmitExpense: true })}
+        organizationName="Sokha Property Services"
+        view="expenses"
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Record property expense" }),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Paid-cost category" }));
+    expect(screen.getByRole("option", { name: "Landscaping" })).not.toBeNull();
+    expect(screen.queryByRole("option", { name: "Parking" })).toBeNull();
+    owner.unmount();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({ canRecordPayments: true })}
+        organizationName="Sokha Property Services"
+        view="rent"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Bill tenant" }));
+    await user.click(screen.getByRole("combobox", { name: "Charge type" }));
+    expect(screen.getByRole("option", { name: "Parking" })).not.toBeNull();
+    expect(screen.queryByRole("option", { name: "Landscaping" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Manual rent" })).toBeNull();
+  });
+
+  it("opens a namespace-explicit category surface from Finance", async () => {
+    const user = userEvent.setup();
+    const input = data();
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        canManageFinanceCategories
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Finance categories" }));
+    const drawer = screen.getByRole("dialog", { name: "Finance categories" });
+    expect(within(drawer).getByRole("heading", { name: "Owner expenses" })).not.toBeNull();
+    expect(within(drawer).getByRole("heading", { name: "Tenant billing" })).not.toBeNull();
+    expect(within(drawer).getByRole("button", { name: "Add owner expense category" })).not.toBeNull();
+    expect(within(drawer).getByRole("button", { name: "Add tenant billing category" })).not.toBeNull();
+    const tenantSection = within(drawer)
+      .getByRole("heading", { name: "Tenant billing" })
+      .closest("section");
+    expect(tenantSection).not.toBeNull();
+    expect(
+      within(tenantSection!).getAllByText("Other tenant charge").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(tenantSection!).queryByText("Other owner expense"),
+    ).toBeNull();
+  });
+
   it("uses the shared responsive workspace gutters and compact summary sizing", () => {
     const input = data();
     const { container, rerender } = render(
@@ -2417,6 +2509,96 @@ function data(): FinanceOperationsData {
   return {
     accountEntries: [],
     expenseSubmissions: [],
+    financeCategories: [
+      {
+        archivedAt: null,
+        code: "cleaning",
+        displayLabel: "Cleaning",
+        id: "category-owner-cleaning",
+        isActive: true,
+        isDefault: true,
+        namespace: "owner_expense",
+        reportingGroup: "maintenance",
+        sortOrder: 10,
+      },
+      {
+        archivedAt: null,
+        code: "utilities",
+        displayLabel: "Utilities",
+        id: "category-owner-utilities",
+        isActive: true,
+        isDefault: true,
+        namespace: "owner_expense",
+        reportingGroup: "utilities",
+        sortOrder: 20,
+      },
+      {
+        archivedAt: null,
+        code: "repairs_maintenance",
+        displayLabel: "Repairs and maintenance",
+        id: "category-owner-repairs",
+        isActive: true,
+        isDefault: true,
+        namespace: "owner_expense",
+        reportingGroup: "maintenance",
+        sortOrder: 30,
+      },
+      {
+        archivedAt: null,
+        code: "other",
+        displayLabel: "Other",
+        id: "category-owner-other",
+        isActive: true,
+        isDefault: true,
+        namespace: "owner_expense",
+        reportingGroup: "other",
+        sortOrder: 40,
+      },
+      {
+        archivedAt: null,
+        code: "cleaning",
+        displayLabel: "Cleaning",
+        id: "category-tenant-cleaning",
+        isActive: true,
+        isDefault: true,
+        namespace: "tenant_billing",
+        reportingGroup: "other",
+        sortOrder: 10,
+      },
+      {
+        archivedAt: null,
+        code: "utilities",
+        displayLabel: "Utilities",
+        id: "category-tenant-utilities",
+        isActive: true,
+        isDefault: true,
+        namespace: "tenant_billing",
+        reportingGroup: "utility_reimbursement",
+        sortOrder: 20,
+      },
+      {
+        archivedAt: null,
+        code: "repairs_maintenance",
+        displayLabel: "Repairs and maintenance",
+        id: "category-tenant-repairs",
+        isActive: true,
+        isDefault: true,
+        namespace: "tenant_billing",
+        reportingGroup: "other",
+        sortOrder: 30,
+      },
+      {
+        archivedAt: null,
+        code: "other",
+        displayLabel: "Other",
+        id: "category-tenant-other",
+        isActive: true,
+        isDefault: true,
+        namespace: "tenant_billing",
+        reportingGroup: "other",
+        sortOrder: 40,
+      },
+    ],
     leases: [
       {
         billing: null,

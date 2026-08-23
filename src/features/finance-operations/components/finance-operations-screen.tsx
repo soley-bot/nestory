@@ -36,6 +36,7 @@ import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billi
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
 import {
   confirmOwnerCollectionAction,
+  createFinanceCategoryAction,
   createManualTenantChargeAction,
   publishTenantInvoicePdfAction,
   recordOwnerPaymentAction,
@@ -50,10 +51,13 @@ import {
   reviewExpenseAction,
   saveLeaseBillingAction,
   submitExpenseAction,
+  setFinanceCategoryArchivedAction,
+  updateFinanceCategoryAction,
 } from "@/features/finance-operations/actions";
 import type {
   CommercialDocumentLink,
   ExpenseSubmissionSummary,
+  FinanceCategory,
   FinanceLease,
   FinanceOperationsActionState,
   FinanceOperationsData,
@@ -122,6 +126,7 @@ type ModalState =
 
 type DrawerState =
   | { lease: FinanceLease; mode: "billing" }
+  | { mode: "categories" }
   | {
       initialInvoiceId?: string;
       initialResponsibility?: "owner" | "tenant";
@@ -130,6 +135,7 @@ type DrawerState =
 
 type FinanceOperationsScreenProps = FinanceOperationsData & {
   canConfigureRent: boolean;
+  canManageFinanceCategories?: boolean;
   canCorrectFinance: boolean;
   canRecordOwnerCash: boolean;
   canRecordPayments: boolean;
@@ -230,7 +236,9 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
     drawer &&
     (drawer.mode === "billing"
       ? props.canConfigureRent
-      : props.canSubmitExpense)
+      : drawer.mode === "expense"
+        ? props.canSubmitExpense
+        : true)
       ? drawer
       : null;
   const visibleModal =
@@ -368,8 +376,9 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
               organizationName={organizationName}
               peopleOptions={props.peopleOptions}
             />
-          ) : (
+          ) : visibleDrawer.mode === "expense" ? (
             <ExpenseForm
+              financeCategories={props.financeCategories}
               fixedScope={props.scope}
               initialInvoiceId={visibleDrawer.initialInvoiceId}
               initialResponsibility={visibleDrawer.initialResponsibility}
@@ -379,6 +388,11 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
               propertyOptions={props.propertyOptions}
               reconciliationSources={props.reconciliationSources}
               unitOptions={props.unitOptions}
+            />
+          ) : (
+            <FinanceCategoryManager
+              canManage={props.canManageFinanceCategories ?? false}
+              categories={props.financeCategories}
             />
           )}
         </SideDrawer>
@@ -494,6 +508,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
         >
           {visibleActionModal.mode === "manual-charge" ? (
             <ManualTenantChargeForm
+              financeCategories={props.financeCategories}
               fixedLease={visibleActionModal.lease}
               invoices={props.tenantInvoices}
               leases={props.leases}
@@ -831,7 +846,11 @@ function getScreen(
 
   return {
     activeRoute: "/finance" as const,
-    actions: undefined,
+    actions: (
+      <Button onClick={() => openDrawer({ mode: "categories" })} variant="outline">
+        Finance categories
+      </Button>
+    ),
     body: (
       <FinanceWorkView
         canConfigureRent={canConfigureRent}
@@ -2671,6 +2690,7 @@ function SettleInvoiceForm({
 }
 
 function ExpenseForm({
+  financeCategories,
   fixedScope,
   initialInvoiceId,
   initialResponsibility,
@@ -2681,6 +2701,7 @@ function ExpenseForm({
   reconciliationSources,
   unitOptions,
 }: {
+  financeCategories: FinanceCategory[];
   fixedScope?: FinanceOperationsScreenProps["scope"];
   initialInvoiceId?: string;
   initialResponsibility?: "owner" | "tenant";
@@ -2692,6 +2713,12 @@ function ExpenseForm({
   unitOptions: FinanceOperationsData["unitOptions"];
 }) {
   const idempotencyKey = useStableActionId("expense");
+  const effectiveResponsibility = initialResponsibility ?? "owner";
+  const categoryNamespace =
+    effectiveResponsibility === "tenant" ? "tenant_billing" : "owner_expense";
+  const activeCategories = financeCategories.filter(
+    (item) => item.isActive && item.namespace === categoryNamespace,
+  );
   const initialInvoice = invoices.find(
     (invoice) => invoice.id === initialInvoiceId,
   );
@@ -2710,7 +2737,7 @@ function ExpenseForm({
       ? fixedScope.id
       : (initialInvoice?.unitId ?? ""),
   );
-  const [category, setCategory] = useState("cleaning");
+  const [category, setCategory] = useState(activeCategories[0]?.code ?? "");
   const [vendor, setVendor] = useState("");
   const [cost, setCost] = useState("");
   const [markup, setMarkup] = useState("0");
@@ -2726,7 +2753,6 @@ function ExpenseForm({
   const [tenantInvoiceId, setTenantInvoiceId] = useState(
     initialInvoiceId ?? "",
   );
-  const effectiveResponsibility = initialResponsibility ?? "owner";
   const matchingInvoices = invoices.filter(
     (invoice) =>
       invoice.propertyId === propertyId &&
@@ -2845,19 +2871,26 @@ function ExpenseForm({
               />
             )}
           </Field>
-          <Field label="Paid-cost category">
+          <Field
+            label={
+              effectiveResponsibility === "tenant"
+                ? "Tenant billing category"
+                : "Owner expense category"
+            }
+          >
             <SelectControl
               ariaLabel="Paid-cost category"
               onValueChange={setCategory}
-              options={[
-                { label: "Cleaning", value: "cleaning" },
-                { label: "Utility", value: "utility" },
-                {
-                  label: "Repairs and maintenance",
-                  value: "repairs_maintenance",
-                },
-                { label: "Other", value: "other" },
-              ]}
+              options={activeCategories.map((item) => ({
+                label: item.displayLabel,
+                value: item.code,
+              }))}
+              placeholder={`Choose ${
+                effectiveResponsibility === "tenant"
+                  ? "tenant billing"
+                  : "owner expense"
+              } category`}
+              required
               value={category}
             />
           </Field>
@@ -3468,13 +3501,246 @@ function WithdrawalForm({
   );
 }
 
+const ownerExpenseReportingGroups = [
+  { label: "Vendor bill", value: "vendor_bill" },
+  { label: "Maintenance", value: "maintenance" },
+  { label: "Utilities", value: "utilities" },
+  { label: "Supplies", value: "supplies" },
+  { label: "Other owner expense", value: "other" },
+];
+const tenantBillingReportingGroups = [
+  { label: "Utility reimbursement", value: "utility_reimbursement" },
+  { label: "Parking", value: "parking" },
+  { label: "Late fee", value: "late_fee" },
+  { label: "Service fee", value: "service_fee" },
+  { label: "Other tenant charge", value: "other" },
+];
+
+function FinanceCategoryManager({
+  canManage,
+  categories,
+}: {
+  canManage: boolean;
+  categories: FinanceCategory[];
+}) {
+  return (
+    <div className="space-y-5 p-4">
+      {!canManage ? (
+        <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+          Super Admin manages category changes. Active categories remain available
+          in the relevant Finance workflows.
+        </p>
+      ) : null}
+      <FinanceCategoryNamespaceSection
+        canManage={canManage}
+        categories={categories.filter(
+          (category) => category.namespace === "owner_expense",
+        )}
+        description="Costs charged to property owners and reported on owner P&L."
+        namespace="owner_expense"
+        title="Owner expenses"
+      />
+      <FinanceCategoryNamespaceSection
+        canManage={canManage}
+        categories={categories.filter(
+          (category) => category.namespace === "tenant_billing",
+        )}
+        description="Non-rent charges shown on tenant invoices. Rent remains lease-owned."
+        namespace="tenant_billing"
+        title="Tenant billing"
+      />
+    </div>
+  );
+}
+
+function FinanceCategoryNamespaceSection({
+  canManage,
+  categories,
+  description,
+  namespace,
+  title,
+}: {
+  canManage: boolean;
+  categories: FinanceCategory[];
+  description: string;
+  namespace: FinanceCategory["namespace"];
+  title: string;
+}) {
+  const groups =
+    namespace === "owner_expense"
+      ? ownerExpenseReportingGroups
+      : tenantBillingReportingGroups;
+
+  return (
+    <section className="space-y-3 border-t border-border pt-4 first:border-t-0 first:pt-0">
+      <div>
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      </div>
+      <div className="divide-y divide-border rounded-md border border-border">
+        {categories.length > 0 ? (
+          categories.map((category) => (
+            <FinanceCategoryRow
+              canManage={canManage}
+              category={category}
+              key={category.id}
+            />
+          ))
+        ) : (
+          <p className="px-3 py-3 text-sm text-muted-foreground">
+            No categories in this group.
+          </p>
+        )}
+      </div>
+      {canManage ? (
+        <FinanceCategoryCreateForm
+          groups={groups}
+          namespace={namespace}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function FinanceCategoryCreateForm({
+  groups,
+  namespace,
+}: {
+  groups: { label: string; value: string }[];
+  namespace: FinanceCategory["namespace"];
+}) {
+  const [state, action] = useActionState(
+    createFinanceCategoryAction,
+    actionInitialState,
+  );
+  const ownerCategory = namespace === "owner_expense";
+
+  return (
+    <form action={action} className="grid gap-2 sm:grid-cols-[1fr_12rem_auto]">
+      <input name="namespace" type="hidden" value={namespace} />
+      <Input
+        aria-label={`New ${ownerCategory ? "owner expense" : "tenant billing"} category name`}
+        name="displayLabel"
+        placeholder="Category name"
+        required
+      />
+      <SelectControl
+        ariaLabel={`${ownerCategory ? "Owner expense" : "Tenant billing"} reporting group`}
+        defaultValue={groups[0]?.value}
+        name="reportingGroup"
+        options={groups}
+        required
+      />
+      <SubmitButton
+        label={`Add ${ownerCategory ? "owner expense" : "tenant billing"} category`}
+      />
+      <FinanceCategoryActionMessage state={state} />
+    </form>
+  );
+}
+
+function FinanceCategoryRow({
+  canManage,
+  category,
+}: {
+  canManage: boolean;
+  category: FinanceCategory;
+}) {
+  const [renameState, renameAction] = useActionState(
+    updateFinanceCategoryAction,
+    actionInitialState,
+  );
+  const [archiveState, archiveAction] = useActionState(
+    setFinanceCategoryArchivedAction,
+    actionInitialState,
+  );
+
+  return (
+    <div className="space-y-2 px-3 py-3">
+      {canManage ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <form action={renameAction} className="flex min-w-0 flex-1 items-end gap-2">
+            <input name="categoryId" type="hidden" value={category.id} />
+            <input
+              name="reportingGroup"
+              type="hidden"
+              value={category.reportingGroup}
+            />
+            <Field label={category.isDefault ? "Default category" : "Category"}>
+              <Input
+                aria-label={`Rename ${category.displayLabel}`}
+                defaultValue={category.displayLabel}
+                name="displayLabel"
+                required
+              />
+            </Field>
+            <SubmitButton label="Rename" />
+          </form>
+          <form action={archiveAction}>
+            <input name="categoryId" type="hidden" value={category.id} />
+            <input
+              name="archived"
+              type="hidden"
+              value={category.isActive ? "true" : "false"}
+            />
+            <SubmitButton label={category.isActive ? "Archive" : "Restore"} />
+          </form>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="font-medium">{category.displayLabel}</span>
+          <Badge>{category.isActive ? "Active" : "Archived"}</Badge>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">
+        {reportingGroupLabel(category.reportingGroup, category.namespace)}
+        {!category.isActive ? " · Archived" : ""}
+      </p>
+      <FinanceCategoryActionMessage state={renameState} />
+      <FinanceCategoryActionMessage state={archiveState} />
+    </div>
+  );
+}
+
+function FinanceCategoryActionMessage({
+  state,
+}: {
+  state: FinanceOperationsActionState;
+}) {
+  return state.message ? (
+    <p
+      className={cn(
+        "col-span-full text-xs",
+        state.status === "error" ? "text-danger" : "text-success",
+      )}
+      role={state.status === "error" ? "alert" : "status"}
+    >
+      {state.message}
+    </p>
+  ) : null;
+}
+
+function reportingGroupLabel(
+  value: string,
+  namespace: FinanceCategory["namespace"],
+) {
+  const options =
+    namespace === "owner_expense"
+      ? ownerExpenseReportingGroups
+      : tenantBillingReportingGroups;
+  const option = options.find((item) => item.value === value);
+  return option?.label ?? value.replaceAll("_", " ");
+}
+
 function ManualTenantChargeForm({
+  financeCategories,
   fixedLease,
   invoices,
   leases,
   onSuccess,
   scope,
 }: {
+  financeCategories: FinanceCategory[];
   fixedLease?: FinanceLease;
   invoices: TenantInvoiceSummary[];
   leases: FinanceLease[];
@@ -3484,8 +3750,15 @@ function ManualTenantChargeForm({
   const availableLeases = leases.filter(
     (lease) => lease.status === "active" || lease.status === "notice_given",
   );
-  const [chargeType, setChargeType] = useState("utilities");
-  const submittedChargeTypeRef = useRef("utilities");
+  const activeCategories = financeCategories.filter(
+    (item) => item.isActive && item.namespace === "tenant_billing",
+  );
+  const initialChargeType =
+    activeCategories.find((item) => item.code === "utilities")?.code ??
+    activeCategories[0]?.code ??
+    "";
+  const [chargeType, setChargeType] = useState(initialChargeType);
+  const submittedChargeTypeRef = useRef(initialChargeType);
   const [leaseId, setLeaseId] = useState(fixedLease?.id ?? "");
   const [billingPeriod, setBillingPeriod] = useState(getBusinessMonthValue());
   const idempotencyKey = useStableActionId("manual-tenant-charge");
@@ -3565,15 +3838,12 @@ function ManualTenantChargeForm({
             ariaLabel="Charge type"
             name="chargeType"
             onValueChange={setChargeType}
-            options={[
-              { label: "Utilities", value: "utilities" },
-              { label: "Cleaning", value: "cleaning" },
-              {
-                label: "Repairs and maintenance",
-                value: "repairs_maintenance",
-              },
-              { label: "Other", value: "other" },
-            ]}
+            options={activeCategories.map((item) => ({
+              label: item.displayLabel,
+              value: item.code,
+            }))}
+            placeholder="Choose tenant billing category"
+            required
             value={chargeType}
           />
         </Field>
@@ -3726,6 +3996,7 @@ function getDrawerTitle(drawer: DrawerState) {
       ? "Repair lease billing"
       : "Set up lease billing";
   }
+  if (drawer.mode === "categories") return "Finance categories";
   return drawer.initialResponsibility === "tenant"
     ? "Record recoverable cost"
     : "Record property expense";

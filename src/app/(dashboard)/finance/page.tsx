@@ -13,6 +13,7 @@ export default async function FinancePage(_props: {
     <FinanceOperationsScreen
       {...data}
       canConfigureRent={context.permissionKeys.has("leases.change_terms")}
+      canManageFinanceCategories={context.isSuperAdmin}
       canCorrectFinance={context.capabilities.canCorrectFinance}
       canRecordOwnerCash={context.capabilities.canOperateFinance}
       canRecordPayments={context.capabilities.canOperateFinance}

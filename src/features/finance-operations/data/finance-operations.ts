@@ -7,6 +7,7 @@ import type { Database } from "@/types/database";
 import type {
   ExpenseSubmissionSummary,
   CommercialDocumentLink,
+  FinanceCategory,
   FinanceLease,
   FinanceOperationsData,
   FinanceOption,
@@ -269,6 +270,7 @@ export async function getFinanceOperationsData(
     positionsResult,
     entriesResult,
     sourcesResult,
+    financeCategoriesResult,
   ] = await Promise.all([
     supabase
       .from("organizations")
@@ -325,6 +327,15 @@ export async function getFinanceOperationsData(
       .select("id, property_id, code, display_name, archived_at")
       .eq("organization_id", organizationId)
       .order("code"),
+    supabase
+      .from("finance_categories")
+      .select(
+        "id, namespace, code, display_label, reporting_group, sort_order, is_default, is_active, archived_at",
+      )
+      .eq("organization_id", organizationId)
+      .order("namespace")
+      .order("sort_order")
+      .order("display_label"),
   ]);
 
   const results = [
@@ -342,6 +353,7 @@ export async function getFinanceOperationsData(
     positionsResult,
     entriesResult,
     sourcesResult,
+    financeCategoriesResult,
   ];
   const failed = results.find((result) => result.error);
   if (failed?.error) {
@@ -573,6 +585,20 @@ export async function getFinanceOperationsData(
           submitterLabelByUserId,
         ),
     ),
+    financeCategories: (financeCategoriesResult.data ?? []).map(
+      (category) =>
+        ({
+          archivedAt: category.archived_at,
+          code: category.code,
+          displayLabel: category.display_label,
+          id: category.id,
+          isActive: category.is_active ?? category.archived_at === null,
+          isDefault: category.is_default,
+          namespace: category.namespace as FinanceCategory["namespace"],
+          reportingGroup: category.reporting_group,
+          sortOrder: category.sort_order,
+        }) satisfies FinanceCategory,
+    ),
     leases: (leasesResult.data ?? []).flatMap((lease) => {
       const property = propertyById.get(lease.property_id);
       if (!property) return [];
@@ -685,6 +711,7 @@ export function scopeFinanceOperationsData(
     expenseSubmissions: data.expenseSubmissions.filter((submission) =>
       inScope(submission.propertyId, submission.unitId),
     ),
+    financeCategories: data.financeCategories,
     leases: data.leases.filter((lease) =>
       inScope(lease.propertyId, lease.unitId),
     ),

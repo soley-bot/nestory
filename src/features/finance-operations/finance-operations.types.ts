@@ -5,6 +5,18 @@ export type FinanceOption = {
   propertyId?: string | null;
 };
 
+export type FinanceCategory = {
+  archivedAt: string | null;
+  code: string;
+  displayLabel: string;
+  id: string;
+  isActive: boolean;
+  isDefault: boolean;
+  namespace: "owner_expense" | "tenant_billing";
+  reportingGroup: string;
+  sortOrder: number;
+};
+
 export type LeaseBillingSummary = {
   billingRecipientKind: "company" | "individual" | null;
   billingRecipientPersonId: string | null;
@@ -210,6 +222,7 @@ export type PropertyAccountEntry = {
 export type FinanceOperationsData = {
   accountEntries: PropertyAccountEntry[];
   expenseSubmissions: ExpenseSubmissionSummary[];
+  financeCategories: FinanceCategory[];
   leases: FinanceLease[];
   ownerInvoices: OwnerInvoiceSummary[];
   operationalTimezone?: string;

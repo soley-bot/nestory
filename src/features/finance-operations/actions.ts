@@ -12,6 +12,7 @@ import {
   requireFinanceSubmissionContext,
   requireHistoricalRentRecoveryContext,
   requirePermission,
+  requireSuperAdminContext,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import {
@@ -90,17 +91,62 @@ const recoverLeaseRentPeriodSchema = z.object({
   leaseId: uuid,
 });
 
+const financeCategoryCode = z
+  .string()
+  .regex(/^[a-z][a-z0-9_]{1,63}$/, "Choose a valid Finance category.");
+const financeCategoryNamespace = z.enum(["owner_expense", "tenant_billing"]);
+const ownerExpenseReportingGroup = z.enum([
+  "vendor_bill",
+  "maintenance",
+  "utilities",
+  "supplies",
+  "other",
+]);
+const tenantBillingReportingGroup = z.enum([
+  "utility_reimbursement",
+  "parking",
+  "late_fee",
+  "service_fee",
+  "other",
+]);
+const financeCategoryReportingGroup = z.union([
+  ownerExpenseReportingGroup,
+  tenantBillingReportingGroup,
+]);
+const createFinanceCategorySchema = z
+  .object({
+    displayLabel: z.string().trim().min(2).max(80),
+    namespace: financeCategoryNamespace,
+    reportingGroup: financeCategoryReportingGroup,
+  })
+  .superRefine((value, context) => {
+    const valid =
+      value.namespace === "owner_expense"
+        ? ownerExpenseReportingGroup.safeParse(value.reportingGroup).success
+        : tenantBillingReportingGroup.safeParse(value.reportingGroup).success;
+    if (!valid) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a reporting group for the selected category type.",
+        path: ["reportingGroup"],
+      });
+    }
+  });
+const updateFinanceCategorySchema = z.object({
+  categoryId: uuid,
+  displayLabel: z.string().trim().min(2).max(80),
+  reportingGroup: financeCategoryReportingGroup,
+});
+const archiveFinanceCategorySchema = z.object({
+  archived: z.enum(["true", "false"]).transform((value) => value === "true"),
+  categoryId: uuid,
+});
+
 const manualTenantChargeSchema = z
   .object({
     amount,
     billingPeriod: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/, "Choose a month."),
-    chargeType: z.enum([
-      "manual_rent",
-      "utilities",
-      "cleaning",
-      "repairs_maintenance",
-      "other",
-    ]),
+    chargeType: financeCategoryCode,
     description: z.string().trim().max(240),
     dueDate: date,
     idempotencyKey: z.string().min(8),
@@ -155,7 +201,7 @@ const settlementReversalSchema = z.object({
 });
 
 const expenseSchema = z.object({
-  category: z.enum(["cleaning", "utility", "repairs_maintenance", "other"]),
+  category: financeCategoryCode,
   expenseDate: date,
   idempotencyKey: z.string().min(8),
   internalCost: authoritativeOwnerAmount,
@@ -336,6 +382,76 @@ export async function createManualTenantChargeAction(
   revalidateFinance();
   revalidatePath(`/leases/${parsed.data.leaseId}`);
   return { message: "Charge added.", status: "success" };
+}
+
+export async function createFinanceCategoryAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = createFinanceCategorySchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireSuperAdminContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("create_finance_category", {
+    p_display_label: parsed.data.displayLabel,
+    p_namespace: parsed.data.namespace,
+    p_organization_id: context.organizationId,
+    p_reporting_group: parsed.data.reportingGroup,
+  });
+  if (error) return actionError(error.message);
+  revalidateFinance();
+  return {
+    message:
+      parsed.data.namespace === "owner_expense"
+        ? "Owner expense category added."
+        : "Tenant billing category added.",
+    status: "success",
+  };
+}
+
+export async function updateFinanceCategoryAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = updateFinanceCategorySchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireSuperAdminContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_finance_category", {
+    p_category_id: parsed.data.categoryId,
+    p_display_label: parsed.data.displayLabel,
+    p_organization_id: context.organizationId,
+    p_reporting_group: parsed.data.reportingGroup,
+  });
+  if (error) return actionError(error.message);
+  revalidateFinance();
+  return { message: "Finance category renamed.", status: "success" };
+}
+
+export async function setFinanceCategoryArchivedAction(
+  _state: FinanceOperationsActionState,
+  formData: FormData,
+): Promise<FinanceOperationsActionState> {
+  const parsed = archiveFinanceCategorySchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return validationError(parsed.error);
+
+  const context = await requireSuperAdminContext();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("set_finance_category_archived", {
+    p_archived: parsed.data.archived,
+    p_category_id: parsed.data.categoryId,
+    p_organization_id: context.organizationId,
+  });
+  if (error) return actionError(error.message);
+  revalidateFinance();
+  return {
+    message: parsed.data.archived
+      ? "Finance category archived."
+      : "Finance category restored.",
+    status: "success",
+  };
 }
 
 export async function recordTenantInvoicePaymentAction(

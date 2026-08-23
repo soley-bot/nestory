@@ -8487,6 +8487,7 @@ export type Database = {
           currency: Database["public"]["Enums"]["currency_code"]
           customer_label: string
           description: string | null
+          finance_category_id: string | null
           id: string
           income_item_id: string | null
           internal_cost_amount: number | null
@@ -8508,6 +8509,7 @@ export type Database = {
           currency: Database["public"]["Enums"]["currency_code"]
           customer_label: string
           description?: string | null
+          finance_category_id?: string | null
           id?: string
           income_item_id?: string | null
           internal_cost_amount?: number | null
@@ -8529,6 +8531,7 @@ export type Database = {
           currency?: Database["public"]["Enums"]["currency_code"]
           customer_label?: string
           description?: string | null
+          finance_category_id?: string | null
           id?: string
           income_item_id?: string | null
           internal_cost_amount?: number | null
@@ -8549,6 +8552,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tenant_invoice_corrections"
             referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_invoice_lines_finance_category_id_fkey"
+            columns: ["finance_category_id"]
+            isOneToOne: false
+            referencedRelation: "finance_categories"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "tenant_invoice_lines_income_fkey"
