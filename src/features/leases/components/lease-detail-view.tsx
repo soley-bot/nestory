@@ -31,7 +31,7 @@ import type {
 } from "@/features/leases/lease.types";
 import { formatFileSize } from "@/features/documents/components/document-list";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
-import { formatDate } from "@/lib/dates/format";
+import { formatCalendarDate, formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 
 const sections: Array<{ id: LeaseRecordSection; label: string }> = [
@@ -369,7 +369,7 @@ function LeaseRentAndDeposit({
           {scheduledBillingRules.map((rule) => (
             <BillingRuleRow
               key={rule.id}
-              label={`Scheduled from ${formatDate(rule.effectiveFrom)}`}
+              label={`Scheduled from ${formatCalendarDate(rule.effectiveFrom)}`}
               rule={rule}
             />
           ))}
@@ -381,7 +381,7 @@ function LeaseRentAndDeposit({
                   <BillingRuleRow
                     compact
                     key={rule.id}
-                    label={`${formatDate(rule.effectiveFrom)} - ${formatDate(rule.effectiveTo)}`}
+                    label={`${formatCalendarDate(rule.effectiveFrom)} - ${formatCalendarDate(rule.effectiveTo)}`}
                     rule={rule}
                   />
                 ))}
@@ -523,8 +523,9 @@ function BillingRuleRow({
   label: string;
   rule: LeaseBillingRule;
 }) {
-  const fee =
-    rule.managementFeeMode === "percentage"
+  const fee = !rule.chargeManagementFeeWhenActive
+    ? "No management fee charged"
+    : rule.managementFeeMode === "percentage"
       ? `${rule.managementFeeValue ?? 0}% fee`
       : `${rule.managementFeeValue ?? 0} flat fee`;
   const collection =
@@ -542,7 +543,7 @@ function BillingRuleRow({
       <div>
         <p className="font-medium">{label}</p>
         <p className="text-xs text-muted-foreground">
-          {formatDate(rule.effectiveFrom)} - {formatDate(rule.effectiveTo)}
+          {formatCalendarDate(rule.effectiveFrom)} - {formatCalendarDate(rule.effectiveTo)}
         </p>
       </div>
       <div>

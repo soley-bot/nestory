@@ -7,6 +7,26 @@ import { LeaseDetailScreen } from "@/features/leases/components/lease-detail-scr
 import { buildLeaseSummary } from "@/features/leases/data/lease-summary";
 import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
 
+vi.mock("@/lib/dates/format", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/dates/format")>();
+
+  return {
+    ...actual,
+    formatDate: (value: string | Date) => {
+      if (value === "2026-08-01" || value === "2026-08-31") {
+        return new Intl.DateTimeFormat("en-GB", {
+          day: "2-digit",
+          month: "short",
+          timeZone: "America/Los_Angeles",
+          year: "numeric",
+        }).format(new Date(value));
+      }
+
+      return actual.formatDate(value);
+    },
+  };
+});
+
 vi.mock("@/features/leases/actions", () => ({
   archiveLeaseAction: async () => ({}),
   cancelLeaseActivationAction: async () => ({}),
@@ -317,6 +337,53 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByText("Scheduled from 01 Jun 2027")).not.toBeNull();
     expect(screen.getByText("Billing rule history")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Change rules" })).not.toBeNull();
+  });
+
+  it("keeps date-only billing rule dates on their calendar day west of UTC", () => {
+    const lease = makeLease();
+    Object.assign(lease, {
+      billingRules: [
+        billingRule({
+          effectiveFrom: "2026-08-01",
+          effectiveTo: "2026-08-31",
+          id: "billing-current",
+          state: "current",
+        }),
+      ],
+    });
+
+    renderDetail("rent", lease);
+
+    expect(
+      new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        month: "short",
+        timeZone: "America/Los_Angeles",
+        year: "numeric",
+      }).format(new Date("2026-08-01")),
+    ).toBe("31 Jul 2026");
+    expect(screen.getByText("01 Aug 2026 - 31 Aug 2026")).not.toBeNull();
+    expect(screen.queryByText(/31 Jul 2026/)).toBeNull();
+  });
+
+  it("shows no management fee when fee charging is disabled", () => {
+    const lease = makeLease();
+    Object.assign(lease, {
+      billingRules: [
+        billingRule({
+          chargeManagementFeeWhenActive: false,
+          id: "billing-current",
+          managementFeeMode: "flat",
+          managementFeeValue: 125,
+          state: "current",
+        }),
+      ],
+    });
+
+    renderDetail("rent", lease);
+
+    expect(screen.getByText("No management fee charged")).not.toBeNull();
+    expect(screen.queryByText("125 flat fee")).toBeNull();
   });
 
   it("reuses the billing editor for an active effective-dated change", async () => {
