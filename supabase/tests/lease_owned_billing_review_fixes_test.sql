@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(55);
+SELECT plan(63);
 
 CREATE TEMP TABLE review_state (
   fixture_clock timestamptz NOT NULL DEFAULT pg_catalog.now(),
@@ -54,6 +54,9 @@ CREATE TEMP TABLE review_state (
   complete_unused_legacy_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-00000000001c',
   complete_prior_billed_legacy_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-00000000001d',
   complete_current_billed_legacy_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-00000000001e',
+  multi_history_legacy_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-00000000001f',
+  kiritimati_first_rule_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000020',
+  honolulu_first_rule_lease uuid NOT NULL DEFAULT '96000000-0000-0000-0000-000000000021',
   west_result jsonb,
   east_result jsonb,
   gap_result jsonb,
@@ -69,7 +72,9 @@ CREATE TEMP TABLE review_state (
   prior_billed_legacy_repair_result jsonb,
   current_billed_legacy_repair_result jsonb,
   unused_legacy_generation_result jsonb,
-  prior_billed_legacy_generation_result jsonb
+  prior_billed_legacy_generation_result jsonb,
+  multi_history_repair_result jsonb,
+  multi_history_generation_result jsonb
 ) ON COMMIT DROP;
 
 INSERT INTO review_state DEFAULT VALUES;
@@ -217,7 +222,10 @@ CROSS JOIN LATERAL (VALUES
   (state.incomplete_false_lease, state.property_a, state.unit_a, 'active'),
   (state.complete_unused_legacy_lease, state.property_a, state.unit_a, 'active'),
   (state.complete_prior_billed_legacy_lease, state.property_a, state.unit_a, 'active'),
-  (state.complete_current_billed_legacy_lease, state.property_a, state.unit_a, 'active')
+  (state.complete_current_billed_legacy_lease, state.property_a, state.unit_a, 'active'),
+  (state.multi_history_legacy_lease, state.property_a, state.unit_a, 'active'),
+  (state.kiritimati_first_rule_lease, state.property_a, state.unit_a, 'active'),
+  (state.honolulu_first_rule_lease, state.property_a, state.unit_a, 'active')
 ) AS fixture(id, property_id, unit_id, status);
 
 INSERT INTO public.lease_terms(
@@ -261,7 +269,14 @@ CROSS JOIN LATERAL (VALUES
     state.fixture_lease_month_start + interval '4 months - 1 day', 'active'),
   (state.complete_current_billed_legacy_lease, 1,
     state.fixture_lease_month_start - interval '1 month',
-    state.fixture_lease_month_start + interval '4 months - 1 day', 'active')
+    state.fixture_lease_month_start + interval '4 months - 1 day', 'active'),
+  (state.multi_history_legacy_lease, 1,
+    state.fixture_lease_month_start - interval '1 month',
+    state.fixture_lease_month_start + interval '4 months - 1 day', 'active'),
+  (state.kiritimati_first_rule_lease, 1,
+    DATE '2026-09-01', DATE '2026-12-31', 'active'),
+  (state.honolulu_first_rule_lease, 1,
+    DATE '2026-09-01', DATE '2026-12-31', 'active')
 ) AS fixture(lease_id, sequence, start_date, end_date, status);
 
 INSERT INTO public.lease_billing_terms(
@@ -366,6 +381,58 @@ CROSS JOIN LATERAL (VALUES
     state.complete_current_billed_legacy_lease, 'unresolved_history')
 ) AS fixture(rule_id, lease_id, rule_source);
 
+INSERT INTO public.lease_billing_terms(
+  id, organization_id, lease_id, property_id, effective_from, effective_to,
+  collection_route, management_fee_mode, management_fee_value,
+  charge_management_fee_when_active, full_management_fee_during_proration,
+  billing_recipient_kind, billing_recipient_person_id,
+  first_period_prorated_amount, final_period_prorated_amount,
+  rent_calculation_timezone, short_month_due_day_rule,
+  lease_start_proration_rule, lease_end_proration_rule,
+  mid_period_rent_change_rule, charge_through_lease_end, rule_source,
+  supersedes_billing_term_id, superseded_at, superseded_by,
+  confirmed_at, confirmed_by, created_by, updated_by
+)
+SELECT
+  fixture.rule_id, state.organization_id, fixture.lease_id, state.property_a,
+  fixture.effective_from, fixture.effective_to,
+  'through_ips', 'flat', 310, true, false, 'company', state.company_id,
+  NULL::numeric, NULL::numeric, fixture.timezone, 'last_calendar_day',
+  'actual_days', 'actual_days', 'next_full_month', true,
+  fixture.rule_source, fixture.supersedes_id,
+  CASE WHEN fixture.is_superseded THEN now() ELSE NULL END,
+  CASE WHEN fixture.is_superseded THEN state.admin_id ELSE NULL END,
+  now(), state.admin_id, state.admin_id, state.admin_id
+FROM review_state AS state
+CROSS JOIN LATERAL (VALUES
+  ('96000000-0000-0000-0000-000000000119'::uuid,
+    state.multi_history_legacy_lease,
+    (state.fixture_lease_month_start - interval '1 month')::date,
+    (state.fixture_lease_month_start - 1)::date,
+    'Pacific/Kiritimati', 'historical_policy_snapshot', NULL::uuid, true),
+  ('96000000-0000-0000-0000-000000000120'::uuid,
+    state.multi_history_legacy_lease,
+    state.fixture_lease_month_start,
+    (state.fixture_lease_month_start + interval '1 month - 1 day')::date,
+    'Pacific/Kiritimati', 'unresolved_history',
+    '96000000-0000-0000-0000-000000000119'::uuid, true),
+  ('96000000-0000-0000-0000-000000000121'::uuid,
+    state.multi_history_legacy_lease,
+    (state.fixture_lease_month_start + interval '1 month')::date,
+    (state.fixture_lease_month_start + interval '4 months - 1 day')::date,
+    'Pacific/Kiritimati', 'lease_default_v1',
+    '96000000-0000-0000-0000-000000000120'::uuid, false),
+  ('96000000-0000-0000-0000-000000000122'::uuid,
+    state.kiritimati_first_rule_lease, DATE '2026-09-01', DATE '2026-12-31',
+    'Pacific/Kiritimati', 'lease_default_v1', NULL::uuid, false),
+  ('96000000-0000-0000-0000-000000000123'::uuid,
+    state.honolulu_first_rule_lease, DATE '2026-09-01', DATE '2026-12-31',
+    'Pacific/Honolulu', 'lease_default_v1', NULL::uuid, false)
+) AS fixture(
+  rule_id, lease_id, effective_from, effective_to, timezone, rule_source,
+  supersedes_id, is_superseded
+);
+
 INSERT INTO public.tenant_invoices(
   id, organization_id, invoice_number, property_id, unit_id, lease_id,
   billing_term_id, billing_period_start, billing_period_end, issue_date,
@@ -427,6 +494,68 @@ BEGIN
   END;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION pg_temp.capture_billing_save_result(
+  p_organization_id uuid,
+  p_lease_id uuid,
+  p_billing_rule jsonb,
+  p_expected_rule_id uuid,
+  p_idempotency_key text
+) RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN public.save_lease_billing_rules(
+    p_organization_id,
+    p_lease_id,
+    p_billing_rule,
+    p_expected_rule_id,
+    p_idempotency_key
+  );
+EXCEPTION WHEN OTHERS THEN
+  RETURN pg_catalog.jsonb_build_object(
+    'errorCode', SQLSTATE,
+    'errorMessage', SQLERRM
+  );
+END;
+$$;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      resolved.billing_term_id,
+      resolved.business_date
+    )
+    FROM review_state AS state
+    CROSS JOIN LATERAL app_private.resolve_lease_billing_clock(
+      state.organization_id,
+      state.kiritimati_first_rule_lease,
+      TIMESTAMPTZ '2026-08-31 10:30:00+00'
+    ) AS resolved
+  ),
+  pg_catalog.jsonb_build_array(
+    '96000000-0000-0000-0000-000000000122'::uuid,
+    DATE '2026-09-01'
+  ),
+  'a first Kiritimati rule activates when its local effective date arrives before UTC'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      resolved.billing_term_id,
+      resolved.business_date
+    )
+    FROM review_state AS state
+    CROSS JOIN LATERAL app_private.resolve_lease_billing_clock(
+      state.organization_id,
+      state.honolulu_first_rule_lease,
+      TIMESTAMPTZ '2026-09-01 00:30:00+00'
+    ) AS resolved
+  ),
+  pg_catalog.jsonb_build_array(NULL, DATE '2026-08-31'),
+  'a first Honolulu rule stays inactive while its local date is still prior'
+);
 
 SELECT throws_ok(
   format(
@@ -830,6 +959,130 @@ SELECT is(
 SELECT is(
   pg_temp.capture_billing_save_sqlstate(
     organization_id,
+    multi_history_legacy_lease,
+    pg_temp.billing_rule(company_id, p_timezone => 'Pacific/Kiritimati'),
+    '96000000-0000-0000-0000-000000000119',
+    'multi-history-wrong-predecessor-token'
+  ),
+  '40001',
+  'a superseded legacy predecessor is a stale repair token'
+) FROM review_state;
+
+UPDATE review_state AS state
+SET multi_history_repair_result = pg_temp.capture_billing_save_result(
+  state.organization_id,
+  state.multi_history_legacy_lease,
+  pg_temp.billing_rule(state.company_id, p_timezone => 'Pacific/Kiritimati'),
+  '96000000-0000-0000-0000-000000000120',
+  'multi-history-current-successor-repair'
+);
+
+SELECT is(
+  pg_catalog.jsonb_build_array(
+    multi_history_repair_result ->> 'errorCode',
+    multi_history_repair_result ->> 'mode',
+    multi_history_repair_result ->> 'billingTermId'
+  ),
+  pg_catalog.jsonb_build_array(
+    NULL, 'repair', '96000000-0000-0000-0000-000000000120'
+  ),
+  'the exact current legacy token repairs that selected row despite retained history'
+) FROM review_state;
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_array(
+        billing.id,
+        billing.rule_source,
+        billing.effective_from,
+        billing.effective_to,
+        billing.supersedes_billing_term_id,
+        billing.superseded_at IS NOT NULL
+      ) ORDER BY billing.effective_from
+    )
+    FROM review_state AS state
+    JOIN public.lease_billing_terms AS billing
+      ON billing.organization_id = state.organization_id
+     AND billing.lease_id = state.multi_history_legacy_lease
+  ),
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_array(
+        '96000000-0000-0000-0000-000000000119'::uuid,
+        'historical_policy_snapshot',
+        (fixture_lease_month_start - interval '1 month')::date,
+        fixture_lease_month_start - 1,
+        NULL, true
+      ),
+      pg_catalog.jsonb_build_array(
+        '96000000-0000-0000-0000-000000000120'::uuid,
+        'lease_default_v1',
+        fixture_lease_month_start,
+        (fixture_lease_month_start + interval '1 month - 1 day')::date,
+        '96000000-0000-0000-0000-000000000119'::uuid, true
+      ),
+      pg_catalog.jsonb_build_array(
+        '96000000-0000-0000-0000-000000000121'::uuid,
+        'lease_default_v1',
+        (fixture_lease_month_start + interval '1 month')::date,
+        (fixture_lease_month_start + interval '4 months - 1 day')::date,
+        '96000000-0000-0000-0000-000000000120'::uuid, false
+      )
+    )
+    FROM review_state
+  ),
+  'selected-row repair preserves predecessor and future successor lineage and ranges'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      log.action,
+      log.previous_values ->> 'rule_source',
+      log.new_values ->> 'rule_source',
+      pg_catalog.count(*) OVER ()
+    )
+    FROM review_state AS state
+    JOIN public.activity_logs AS log
+      ON log.organization_id = state.organization_id
+     AND log.entity_type = 'lease_billing_term'
+     AND log.entity_id = '96000000-0000-0000-0000-000000000120'
+     AND log.action = 'lease_billing_repaired'
+  ),
+  pg_catalog.jsonb_build_array(
+    'lease_billing_repaired', 'unresolved_history', 'lease_default_v1', 1
+  ),
+  'selected-row legacy repair records one before-and-after activity event'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      replay.result ->> 'errorCode',
+      replay.result ->> 'mode',
+      replay.result ->> 'billingTermId'
+    )
+    FROM review_state AS state
+    CROSS JOIN LATERAL pg_temp.capture_billing_save_result(
+      state.organization_id,
+      state.multi_history_legacy_lease,
+      pg_temp.billing_rule(
+        state.company_id, p_timezone => 'Pacific/Kiritimati'
+      ),
+      '96000000-0000-0000-0000-000000000120',
+      'multi-history-current-successor-repair'
+    ) AS replay(result)
+  ),
+  pg_catalog.jsonb_build_array(
+    NULL, 'repair', '96000000-0000-0000-0000-000000000120'
+  ),
+  'selected-row legacy repair replays idempotently with the original token'
+);
+
+SELECT is(
+  pg_temp.capture_billing_save_sqlstate(
+    organization_id,
     unsupported_false_lease,
     pg_temp.billing_rule(
       company_id, 'through_ips', 'flat', 310, false, 'Pacific/Kiritimati',
@@ -863,6 +1116,12 @@ SET unused_legacy_generation_result = app_private.try_current_month_rent(
 prior_billed_legacy_generation_result = app_private.try_current_month_rent(
   state.organization_id,
   state.complete_prior_billed_legacy_lease,
+  'scheduled',
+  state.fixture_clock
+),
+multi_history_generation_result = app_private.try_current_month_rent(
+  state.organization_id,
+  state.multi_history_legacy_lease,
   'scheduled',
   state.fixture_clock
 );
@@ -923,6 +1182,32 @@ SELECT is(
   ),
   1::bigint,
   'a current-month legacy invoice remains the sole invoice for its covered month'
+);
+
+SELECT is(
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      state.multi_history_generation_result ->> 'status',
+      invoice.billing_term_id,
+      invoice.billing_period_start,
+      pg_catalog.count(*) OVER ()
+    )
+    FROM review_state AS state
+    JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.lease_id = state.multi_history_legacy_lease
+     AND invoice.billing_period_start = state.fixture_lease_month_start
+  ),
+  (
+    SELECT pg_catalog.jsonb_build_array(
+      'generated',
+      '96000000-0000-0000-0000-000000000120'::uuid,
+      fixture_lease_month_start,
+      1
+    )
+    FROM review_state
+  ),
+  'current generation uses the exact repaired row once before its future successor'
 );
 
 SELECT is(
