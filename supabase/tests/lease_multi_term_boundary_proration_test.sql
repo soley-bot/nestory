@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(23);
+SELECT plan(34);
 
 CREATE TEMP TABLE boundary_state (
   admin_id uuid NOT NULL DEFAULT '97000000-0000-0000-0000-000000000001',
@@ -14,7 +14,9 @@ CREATE TEMP TABLE boundary_state (
   start_actual_lease uuid NOT NULL DEFAULT '97000000-0000-0000-0000-000000000010',
   end_actual_lease uuid NOT NULL DEFAULT '97000000-0000-0000-0000-000000000011',
   start_override_lease uuid NOT NULL DEFAULT '97000000-0000-0000-0000-000000000012',
-  end_override_lease uuid NOT NULL DEFAULT '97000000-0000-0000-0000-000000000013'
+  end_override_lease uuid NOT NULL DEFAULT '97000000-0000-0000-0000-000000000013',
+  conflict_write_lease uuid NOT NULL DEFAULT '97000000-0000-0000-0000-000000000014',
+  conflict_history_lease uuid NOT NULL DEFAULT '97000000-0000-0000-0000-000000000015'
 ) ON COMMIT DROP;
 
 INSERT INTO boundary_state DEFAULT VALUES;
@@ -85,14 +87,20 @@ INSERT INTO public.leases(
   id, organization_id, property_id, unit_id, primary_tenant_person_id,
   status, deposit_amount, deposit_currency, created_by, updated_by
 )
-SELECT fixture.lease_id, state.organization_id, state.property_id, state.unit_id,
+SELECT fixture.lease_id, state.organization_id, state.property_id,
+  CASE
+    WHEN fixture.lease_id = state.conflict_history_lease THEN NULL
+    ELSE state.unit_id
+  END,
   state.tenant_id, 'active', 0, 'USD', state.admin_id, state.admin_id
 FROM boundary_state AS state
 CROSS JOIN LATERAL (VALUES
   (state.start_actual_lease),
   (state.end_actual_lease),
   (state.start_override_lease),
-  (state.end_override_lease)
+  (state.end_override_lease),
+  (state.conflict_write_lease),
+  (state.conflict_history_lease)
 ) AS fixture(lease_id);
 
 INSERT INTO public.lease_terms(
@@ -113,7 +121,9 @@ CROSS JOIN LATERAL (VALUES
   (state.start_override_lease, 1, DATE '2026-08-10', DATE '2026-08-19', 3100::numeric, 'active'),
   (state.start_override_lease, 2, DATE '2026-08-20', DATE '2026-12-31', 3600::numeric, 'upcoming'),
   (state.end_override_lease, 1, DATE '2026-05-01', DATE '2026-08-09', 3100::numeric, 'active'),
-  (state.end_override_lease, 2, DATE '2026-08-10', DATE '2026-08-20', 3600::numeric, 'upcoming')
+  (state.end_override_lease, 2, DATE '2026-08-10', DATE '2026-08-20', 3600::numeric, 'upcoming'),
+  (state.conflict_write_lease, 1, DATE '2026-08-10', DATE '2026-08-20', 3100::numeric, 'active'),
+  (state.conflict_history_lease, 1, DATE '2026-08-10', DATE '2026-08-20', 3100::numeric, 'active')
 ) AS fixture(lease_id, sequence, start_date, end_date, rent_amount, status);
 
 INSERT INTO public.lease_billing_terms(
@@ -143,13 +153,122 @@ CROSS JOIN LATERAL (VALUES
   ('97000000-0000-0000-0000-000000000103'::uuid, state.start_override_lease,
     'flat', 310::numeric, true, 1550::numeric, NULL::numeric),
   ('97000000-0000-0000-0000-000000000104'::uuid, state.end_override_lease,
-    'percentage', 10::numeric, false, NULL::numeric, 1800::numeric)
+    'percentage', 10::numeric, false, NULL::numeric, 1800::numeric),
+  ('97000000-0000-0000-0000-000000000105'::uuid, state.conflict_history_lease,
+    'percentage', 10::numeric, false, 111::numeric, 222::numeric)
 ) AS fixture(
   rule_id, lease_id, fee_mode, fee_value, keep_full_fee,
   first_override, final_override
 );
 
 SET LOCAL session_replication_role = origin;
+
+SELECT throws_ok(
+  format(
+    $sql$
+      INSERT INTO public.lease_billing_terms(
+        id, organization_id, lease_id, property_id, effective_from, effective_to,
+        collection_route, management_fee_mode, management_fee_value,
+        charge_management_fee_when_active, full_management_fee_during_proration,
+        billing_recipient_kind, billing_recipient_person_id,
+        first_period_prorated_amount, final_period_prorated_amount,
+        rent_calculation_timezone, short_month_due_day_rule,
+        lease_start_proration_rule, lease_end_proration_rule,
+        mid_period_rent_change_rule, charge_through_lease_end, rule_source,
+        confirmed_at, confirmed_by, created_by, updated_by
+      )
+      SELECT
+        '97000000-0000-0000-0000-000000000106'::uuid,
+        organization_id, conflict_write_lease, property_id,
+        DATE '2026-08-01', DATE '2026-08-31',
+        'through_ips', 'percentage', 10, true, false,
+        'company', company_id, 333, 444, 'UTC', 'last_calendar_day',
+        'actual_days', 'actual_days', 'next_full_month', true,
+        'lease_default_v1', now(), admin_id, admin_id, admin_id
+      FROM boundary_state
+    $sql$
+  ),
+  '23514',
+  'Same-month leases allow only one explicit boundary proration override',
+  'a new authoritative same-month rule rejects conflicting boundary overrides'
+);
+
+SELECT throws_ok(
+  format(
+    $sql$
+      INSERT INTO public.lease_billing_terms(
+        id, organization_id, lease_id, property_id, effective_from, effective_to,
+        collection_route, management_fee_mode, management_fee_value,
+        charge_management_fee_when_active, full_management_fee_during_proration,
+        billing_recipient_kind, billing_recipient_person_id,
+        first_period_prorated_amount, final_period_prorated_amount,
+        rent_calculation_timezone, short_month_due_day_rule,
+        lease_start_proration_rule, lease_end_proration_rule,
+        mid_period_rent_change_rule, charge_through_lease_end, rule_source,
+        confirmed_at, confirmed_by, created_by, updated_by
+      )
+      SELECT
+        '97000000-0000-0000-0000-000000000107'::uuid,
+        organization_id, conflict_write_lease, property_id,
+        DATE '2026-08-01', DATE '2026-08-31',
+        'through_ips', 'percentage', 10, true, false,
+        'company', company_id, 333, 333, 'UTC', 'last_calendar_day',
+        'actual_days', 'actual_days', 'next_full_month', true,
+        'lease_default_v1', now(), admin_id, admin_id, admin_id
+      FROM boundary_state
+    $sql$
+  ),
+  '23514',
+  'Same-month leases allow only one explicit boundary proration override',
+  'equal first and final overrides are still a conflicting same-month write'
+);
+
+SELECT is(
+  app_private.try_generate_lease_rent_invoice(
+    organization_id, conflict_history_lease, DATE '2026-08-01',
+    DATE '2026-08-10', 'manual_recovery', admin_id
+  ) ->> 'status',
+  'failed',
+  'a historical conflicting same-month rule fails rent generation closed'
+) FROM boundary_state;
+
+SELECT is(
+  (SELECT exception.error_code
+   FROM public.rent_generation_exceptions AS exception
+   JOIN boundary_state AS state
+     ON state.conflict_history_lease = exception.lease_id
+   WHERE exception.billing_period_start = DATE '2026-08-01'),
+  'billing_proration_override_conflict',
+  'the historical conflict records a specific actionable exception code'
+);
+
+SELECT is(
+  (SELECT invoice.total_amount
+   FROM public.tenant_invoices AS invoice
+   JOIN boundary_state AS state
+     ON state.conflict_history_lease = invoice.lease_id
+   WHERE invoice.billing_period_start = DATE '2026-08-01'),
+  NULL::numeric,
+  'the historical conflict creates no invoice instead of silently using the first override'
+);
+
+SELECT lives_ok(
+  format(
+    'UPDATE public.lease_terms SET end_date = DATE %L WHERE lease_id = %L',
+    '2026-09-20', state.conflict_history_lease
+  ),
+  'an existing conflict can be moved out of the same-month state without rewriting billing history'
+) FROM boundary_state AS state;
+
+SELECT throws_ok(
+  format(
+    'UPDATE public.lease_terms SET end_date = DATE %L WHERE lease_id = %L',
+    '2026-08-20', state.conflict_history_lease
+  ),
+  '23514',
+  'Same-month leases allow only one explicit boundary proration override',
+  'authoritative term dates cannot newly create a same-month conflict'
+) FROM boundary_state AS state;
 
 SELECT is(
   app_private.try_generate_lease_rent_invoice(
@@ -441,6 +560,85 @@ SELECT is(
    WHERE invoice.billing_period_start = DATE '2026-08-01'),
   7550::numeric,
   'August rent totals include only bounded opening-rate economics'
+);
+
+SELECT is(
+  (SELECT count(*)::integer
+   FROM pg_catalog.pg_proc AS procedure
+   JOIN pg_catalog.pg_namespace AS namespace
+     ON namespace.oid = procedure.pronamespace
+   JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+   WHERE namespace.nspname = 'app_private'
+     AND procedure.proname IN (
+       'assert_single_same_month_proration_override',
+       'guard_same_month_billing_override_write',
+       'guard_same_month_lease_term_write'
+     )
+     AND procedure.prosecdef
+     AND procedure.proconfig @> ARRAY['search_path=""']
+     AND owner.rolname = 'postgres'),
+  3,
+  'same-month guard helpers remain postgres-owned security definers with an empty search path'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      coalesce(
+        procedure.proacl,
+        pg_catalog.acldefault('f', procedure.proowner)
+      )
+    ) AS privilege
+    LEFT JOIN pg_catalog.pg_roles AS grantee
+      ON grantee.oid = privilege.grantee
+    WHERE namespace.nspname = 'app_private'
+      AND procedure.proname IN (
+        'assert_single_same_month_proration_override',
+        'guard_same_month_billing_override_write',
+        'guard_same_month_lease_term_write'
+      )
+      AND privilege.privilege_type = 'EXECUTE'
+      AND (
+        privilege.grantee = 0
+        OR grantee.rolname IN ('anon', 'authenticated', 'service_role')
+      )
+  ),
+  'same-month guard helpers expose no direct execution grant'
+);
+
+SELECT is(
+  (SELECT count(*)::integer
+   FROM pg_catalog.pg_trigger AS trigger
+   WHERE trigger.tgname IN (
+     'guard_same_month_billing_override_write',
+     'guard_same_month_lease_term_write',
+     'guard_same_month_lease_term_delete'
+   )
+     AND NOT trigger.tgisinternal),
+  3,
+  'billing writes and authoritative term boundary changes install all three guards'
+);
+
+SELECT is(
+  (SELECT count(*)::integer
+   FROM pg_catalog.pg_proc AS procedure
+   JOIN pg_catalog.pg_namespace AS namespace
+     ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'app_private'
+     AND (
+       procedure.proname = 'generate_simple_lease_rent_invoice'
+       AND pg_catalog.pg_get_functiondef(procedure.oid) LIKE
+         '%lease_same_month_proration_override_conflict%'
+       OR procedure.proname = 'try_generate_lease_rent_invoice'
+       AND pg_catalog.pg_get_functiondef(procedure.oid) LIKE
+         '%billing_proration_override_conflict%'
+     )),
+  4,
+  'both generator and guarded-entry overloads retain the compatibility failure path'
 );
 
 SELECT * FROM finish();
