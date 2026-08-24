@@ -60,11 +60,13 @@ const steps: Array<{
 
 export function PropertySetupScreen({
   billingFormConfig,
+  canRecordDepositReceipt = false,
   creationBranchOptions,
   data,
   step,
 }: {
   billingFormConfig?: LeaseBillingFormConfig;
+  canRecordDepositReceipt?: boolean;
   creationBranchOptions?: PropertyBranchOption[];
   data: PropertySetupData;
   step: PropertySetupStep;
@@ -293,6 +295,7 @@ export function PropertySetupScreen({
 
       <CreateRecordModal
         billingFormConfig={billingFormConfig}
+        canRecordDepositReceipt={canRecordDepositReceipt}
         creationBranchOptions={creationBranchOptions}
         data={data}
         modal={createModal}
@@ -703,6 +706,7 @@ function OrCreateButton({
 
 function CreateRecordModal({
   billingFormConfig,
+  canRecordDepositReceipt,
   creationBranchOptions,
   data,
   modal,
@@ -715,6 +719,7 @@ function CreateRecordModal({
   selection,
 }: {
   billingFormConfig?: LeaseBillingFormConfig;
+  canRecordDepositReceipt: boolean;
   creationBranchOptions?: PropertyBranchOption[];
   data: PropertySetupData;
   modal: CreateModal;
@@ -781,6 +786,7 @@ function CreateRecordModal({
       {modal === "lease" ? (
         <LeaseForm
           billingFormConfig={billingFormConfig}
+          canRecordDepositReceipt={canRecordDepositReceipt}
           createContext={
             contextProperty
               ? {

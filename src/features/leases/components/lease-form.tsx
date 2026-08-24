@@ -47,6 +47,7 @@ const paymentFrequencyOptions: {
 ];
 type LeaseFormProps = {
   billingFormConfig?: LeaseBillingFormConfig;
+  canRecordDepositReceipt?: boolean;
   createContext?: LeaseCreateContext;
   initialValues?: LeaseFormInitialValues;
   initialStatus?: LeaseStatusValue;
@@ -67,6 +68,7 @@ type LeaseFormInitialValues = Partial<
 
 export function LeaseForm({
   billingFormConfig,
+  canRecordDepositReceipt = false,
   createContext,
   initialValues,
   initialStatus,
@@ -403,7 +405,7 @@ export function LeaseForm({
             />
           </RecordField>
 
-          {!isEditMode ? (
+          {!isEditMode && canRecordDepositReceipt ? (
             <div className="grid gap-4 border-t border-border/70 pt-4 sm:grid-cols-2">
               <RecordField
                 error={state.fieldErrors?.depositReceived?.[0]}

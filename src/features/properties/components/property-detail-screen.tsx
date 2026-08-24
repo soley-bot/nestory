@@ -48,6 +48,7 @@ type PropertyDetailScreenProps = {
   billingFormConfig?: LeaseBillingFormConfig;
   canArchive?: boolean;
   canCreateLease?: boolean;
+  canRecordDepositReceipt?: boolean;
   canWrite?: boolean;
   initialSection?: Exclude<PropertyRecordSection, "account">;
   ownerOptions: PropertyOwnerOption[];
@@ -59,6 +60,7 @@ export function PropertyDetailScreen({
   billingFormConfig,
   canArchive = true,
   canCreateLease = true,
+  canRecordDepositReceipt = false,
   canWrite = true,
   initialSection = "overview",
   ownerOptions,
@@ -211,6 +213,7 @@ export function PropertyDetailScreen({
           ) : drawer.mode === "create-lease" ? (
             <LeaseForm
               billingFormConfig={billingFormConfig}
+              canRecordDepositReceipt={canRecordDepositReceipt}
               createContext={{
                 propertyId: drawer.property.id,
                 propertyLabel: drawer.property.name,

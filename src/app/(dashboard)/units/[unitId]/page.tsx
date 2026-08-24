@@ -56,6 +56,7 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
       activeSection={section}
       billingFormConfig={billingFormConfig}
       canArchive={context.permissionKeys.has("properties.archive")}
+      canRecordDepositReceipt={context.permissionKeys.has("leases.change_terms")}
       canWrite={context.permissionKeys.has("properties.write")}
       maintenanceFormOptions={{
         actor: maintenanceActor,

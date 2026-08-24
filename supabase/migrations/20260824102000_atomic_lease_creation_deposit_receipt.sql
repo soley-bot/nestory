@@ -26,10 +26,6 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
   END IF;
 
-  IF NOT app_private.can_configure_leases(p_organization_id) THEN
-    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
-  END IF;
-
   IF p_event_type NOT IN ('received', 'applied', 'retained', 'refunded') THEN
     RAISE EXCEPTION 'Unsupported deposit event type' USING ERRCODE = '22023';
   END IF;
@@ -60,6 +56,14 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Lease not found' USING ERRCODE = '23503';
+  END IF;
+
+  IF NOT app_private.can_access_property(
+    p_organization_id,
+    v_property_id,
+    'leases.change_terms'::public.organization_permission_key
+  ) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
   END IF;
 
   SELECT coalesce(
@@ -124,7 +128,121 @@ $$;
 COMMENT ON FUNCTION app_private.record_lease_deposit_event(
   uuid, uuid, text, date, numeric, text
 ) IS
-  'Records checked deposit activity and caps new receipts against current cash held, allowing a later top-up after refund, retention, or reversal.';
+  'Records property-scoped deposit activity for operators with leases.change_terms and caps new receipts against current cash held, allowing a later top-up after refund, retention, or reversal.';
+
+CREATE OR REPLACE FUNCTION public.record_lease_deposit_event(
+  p_organization_id uuid,
+  p_lease_deposit_id uuid,
+  p_event_type text,
+  p_event_date date,
+  p_amount numeric,
+  p_reference text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_actor_id uuid := (SELECT auth.uid());
+  v_event public.lease_deposit_events%ROWTYPE;
+  v_event_id uuid;
+  v_ledger_entry_id uuid;
+  v_property_id uuid;
+  v_unit_id uuid;
+BEGIN
+  IF v_actor_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '28000';
+  END IF;
+
+  IF p_event_date IS NULL THEN
+    RAISE EXCEPTION 'Deposit event date is required'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT lease.property_id
+  INTO v_property_id
+  FROM public.lease_deposits AS deposit
+  JOIN public.leases AS lease
+    ON lease.organization_id = deposit.organization_id
+   AND lease.id = deposit.lease_id
+  WHERE deposit.organization_id = p_organization_id
+    AND deposit.id = p_lease_deposit_id
+    AND deposit.archived_at IS NULL
+    AND lease.archived_at IS NULL;
+
+  IF v_property_id IS NULL
+    OR NOT app_private.can_access_property(
+      p_organization_id,
+      v_property_id,
+      'leases.change_terms'::public.organization_permission_key
+    ) THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM app_private.lock_open_financial_month(
+    p_organization_id,
+    p_event_date
+  );
+
+  v_event_id := app_private.record_lease_deposit_event(
+    p_organization_id,
+    p_lease_deposit_id,
+    p_event_type,
+    p_event_date,
+    p_amount,
+    p_reference
+  );
+
+  SELECT event.*
+  INTO v_event
+  FROM public.lease_deposit_events AS event
+  WHERE event.organization_id = p_organization_id
+    AND event.id = v_event_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Deposit event not found' USING ERRCODE = '23503';
+  END IF;
+
+  SELECT lease.unit_id
+  INTO STRICT v_unit_id
+  FROM public.lease_deposits AS deposit
+  JOIN public.leases AS lease
+    ON lease.organization_id = deposit.organization_id
+   AND lease.id = deposit.lease_id
+  WHERE deposit.organization_id = p_organization_id
+    AND deposit.id = v_event.lease_deposit_id;
+
+  v_ledger_entry_id := app_private.create_operational_ledger_event(
+    p_organization_id,
+    v_event.property_id,
+    v_unit_id,
+    v_event.event_date,
+    CASE WHEN v_event.event_type = 'received' THEN 'income' ELSE 'expense' END,
+    'Security deposit - ' || replace(v_event.event_type, '_', ' '),
+    v_event.amount,
+    v_event.currency,
+    v_event.reference,
+    'deposit_event',
+    v_event.id,
+    v_actor_id,
+    NULL
+  );
+
+  UPDATE public.lease_deposit_events
+  SET ledger_entry_id = v_ledger_entry_id
+  WHERE organization_id = p_organization_id
+    AND id = v_event.id;
+
+  RETURN v_event.id;
+END;
+$$;
+
+COMMENT ON FUNCTION public.record_lease_deposit_event(
+  uuid, uuid, text, date, numeric, text
+) IS
+  'Records property-scoped deposit activity and matching Ledger evidence for operators with leases.change_terms.';
 
 CREATE FUNCTION public.create_lease_with_deposit_receipt(
   p_organization_id uuid,

@@ -79,10 +79,29 @@ afterEach(() => {
 });
 
 describe("LeaseForm inline tenant billing recipient", () => {
+  it("hides receipt controls when the operator cannot change lease terms", () => {
+    render(
+      <LeaseForm
+        canRecordDepositReceipt={false}
+        onClose={() => undefined}
+        properties={[]}
+        tenants={[]}
+        units={[]}
+      />,
+    );
+
+    const form = screen.getByRole("form", { name: "Add lease form" });
+    expect(
+      screen.queryByRole("combobox", { name: "Deposit received?" }),
+    ).toBeNull();
+    expect(new FormData(form).get("depositReceived")).toBeNull();
+  });
+
   it("separates the deposit obligation from an optional receipt and defaults the receipt", async () => {
     const user = userEvent.setup();
     render(
       <LeaseForm
+        canRecordDepositReceipt
         onClose={() => undefined}
         properties={[]}
         tenants={[]}
