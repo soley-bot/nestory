@@ -476,7 +476,14 @@ describe("PropertyScreen redesign contract", () => {
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
 
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(within(rows[0]!).queryByRole("link", { name: "Home Residence" })).toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: "Home Residence" })
+        .getAttribute("href"),
+    ).toBe("/properties/property-1");
+    expect(
+      screen.getByRole("region", { name: "Properties table" }),
+    ).not.toBeNull();
 
     fireEvent.click(rows[1]!);
     expect(navigation.push).toHaveBeenCalledWith("/properties/property-2");
