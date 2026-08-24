@@ -74,6 +74,7 @@ WHERE lease.organization_id = '00000000-0000-0000-0000-000000000001'::uuid
     WHERE billing.organization_id = lease.organization_id
       AND billing.lease_id = lease.id
       AND billing.archived_at IS NULL
+      AND billing.collection_route = 'through_ips'
       AND current_date BETWEEN billing.effective_from AND billing.effective_to
   )
 ORDER BY lease.id
@@ -1074,6 +1075,297 @@ SELECT throws_ok(
 
 RESET ROLE;
 
+UPDATE app_private.finance_category_idempotency_bindings AS binding
+SET namespace = 'owner_expense',
+    finance_category_id = state.owner_category_a_id
+FROM finance_category_idempotency_state AS state
+WHERE binding.organization_id = state.organization_id
+  AND binding.operation = 'submit_expense'
+  AND binding.idempotency_key = 'category-idempotency-owner-expense-0001';
+
+SELECT results_eq(
+  $$
+    SELECT seal.operation, seal.result_id
+    FROM finance_category_idempotency_state AS state
+    JOIN app_private.finance_category_idempotency_result_seals AS seal
+      ON seal.organization_id = state.organization_id
+     AND (
+       (seal.operation = 'submit_expense'
+         AND seal.idempotency_key = 'category-idempotency-owner-expense-0001')
+       OR
+       (seal.operation = 'create_manual_tenant_charge'
+         AND seal.idempotency_key = 'category-idempotency-manual-charge-0001')
+     )
+    ORDER BY seal.operation
+  $$,
+  $$
+    SELECT operation, result_id
+    FROM (
+      VALUES
+        ('create_manual_tenant_charge'::text,
+          (SELECT (manual_result->>'lineId')::uuid
+           FROM finance_category_idempotency_state)),
+        ('submit_expense'::text,
+          (SELECT (expense_result->>'submission_id')::uuid
+           FROM finance_category_idempotency_state))
+    ) AS expected(operation, result_id)
+    ORDER BY operation
+  $$,
+  'fresh category-aware requests seal their exact business result identities'
+);
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET result_ids = pg_catalog.jsonb_build_object(
+  'submission_id', state.expense_custom_result->>'submission_id',
+  'status', 'submitted'
+)
+FROM finance_category_idempotency_state AS state
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'submit_expense'
+  AND request.idempotency_key = 'category-idempotency-owner-expense-0001';
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT finance_member_id::text FROM finance_category_idempotency_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    SELECT public.submit_expense(
+      organization_id, property_id, unit_id, 'general', NULL,
+      owner_category_a_code, 'Idempotency Vendor', current_date,
+      41.25, 3.75, 'USD', 'owner', NULL, source_id,
+      evidence_document_id, NULL, 'Canonical category replay proof',
+      'category-idempotency-owner-expense-0001'
+    )
+    FROM finance_category_idempotency_state
+  $$,
+  '23514',
+  'Finance category idempotency result is unavailable',
+  'a same-organization pointer swap to an unrelated expense fails the sealed lineage check'
+);
+
+RESET ROLE;
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET result_ids = snapshot.result_ids
+FROM finance_category_idempotency_state AS state
+CROSS JOIN expense_result_authority_snapshot AS snapshot
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'submit_expense'
+  AND request.idempotency_key = 'category-idempotency-owner-expense-0001';
+
+CREATE TEMP TABLE manual_result_authority_snapshot ON COMMIT DROP AS
+SELECT request.result_ids, request.actor_id, request.payload_hash
+FROM app_private.financial_idempotency_requests AS request
+JOIN finance_category_idempotency_state AS state
+  ON state.organization_id = request.organization_id
+WHERE request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key = 'category-idempotency-manual-charge-0001';
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET result_ids = pg_catalog.jsonb_build_object(
+  'invoiceId', state.manual_custom_result->>'invoiceId',
+  'leaseId', state.lease_id,
+  'lineId', state.manual_custom_result->>'lineId'
+)
+FROM finance_category_idempotency_state AS state
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key = 'category-idempotency-manual-charge-0001';
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM finance_category_idempotency_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    SELECT public.create_manual_tenant_charge(
+      organization_id, lease_id, tenant_category_a_code,
+      date_trunc('month', current_date)::date, current_date, 27.50,
+      'Same explicit tenant description',
+      'category-idempotency-manual-charge-0001'
+    )
+    FROM finance_category_idempotency_state
+  $$,
+  '23514',
+  'Finance category idempotency result is unavailable',
+  'a same-organization pointer swap to an unrelated non-rent line fails closed'
+);
+
+RESET ROLE;
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET result_ids = snapshot.result_ids
+FROM finance_category_idempotency_state AS state
+CROSS JOIN manual_result_authority_snapshot AS snapshot
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key = 'category-idempotency-manual-charge-0001';
+
+CREATE TEMP TABLE rent_line_authority_snapshot ON COMMIT DROP AS
+SELECT line.id, line.finance_category_id, invoice.id AS invoice_id,
+  invoice.lease_id
+FROM public.tenant_invoice_lines AS line
+JOIN public.tenant_invoices AS invoice
+  ON invoice.organization_id = line.organization_id
+ AND invoice.id = line.invoice_id
+JOIN finance_category_idempotency_state AS state
+  ON state.organization_id = line.organization_id
+WHERE line.line_type = 'rent'
+ORDER BY line.id
+LIMIT 1;
+
+UPDATE public.tenant_invoice_lines AS line
+SET finance_category_id = state.tenant_category_a_id
+FROM rent_line_authority_snapshot AS snapshot
+CROSS JOIN finance_category_idempotency_state AS state
+WHERE line.id = snapshot.id;
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET result_ids = pg_catalog.jsonb_build_object(
+  'invoiceId', snapshot.invoice_id,
+  'leaseId', snapshot.lease_id,
+  'lineId', snapshot.id
+)
+FROM rent_line_authority_snapshot AS snapshot
+CROSS JOIN finance_category_idempotency_state AS state
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key = 'category-idempotency-manual-charge-0001';
+
+SELECT is(
+  app_private.valid_finance_category_idempotency_result(
+    organization_id,
+    'create_manual_tenant_charge',
+    'category-idempotency-manual-charge-0001',
+    false
+  ),
+  NULL::uuid,
+  'a rent line is never valid manual-category lineage even with an exact category UUID'
+)
+FROM finance_category_idempotency_state;
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET result_ids = snapshot.result_ids
+FROM finance_category_idempotency_state AS state
+CROSS JOIN manual_result_authority_snapshot AS snapshot
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key = 'category-idempotency-manual-charge-0001';
+
+UPDATE public.tenant_invoice_lines AS line
+SET finance_category_id = snapshot.finance_category_id
+FROM rent_line_authority_snapshot AS snapshot
+WHERE line.id = snapshot.id;
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET actor_id = state.finance_manager_id
+FROM finance_category_idempotency_state AS state
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key = 'category-idempotency-manual-charge-0001';
+
+SELECT is(
+  app_private.valid_finance_category_idempotency_result(
+    organization_id,
+    'create_manual_tenant_charge',
+    'category-idempotency-manual-charge-0001',
+    false
+  ),
+  NULL::uuid,
+  'manual-category lineage rejects an actor that differs from the append-only activity'
+)
+FROM finance_category_idempotency_state;
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET actor_id = snapshot.actor_id,
+    payload_hash = pg_catalog.repeat('a', 64)
+FROM finance_category_idempotency_state AS state
+CROSS JOIN manual_result_authority_snapshot AS snapshot
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key = 'category-idempotency-manual-charge-0001';
+
+SELECT is(
+  app_private.valid_finance_category_idempotency_result(
+    organization_id,
+    'create_manual_tenant_charge',
+    'category-idempotency-manual-charge-0001',
+    false
+  ),
+  NULL::uuid,
+  'manual-category lineage rejects an activity payload hash mismatch'
+)
+FROM finance_category_idempotency_state;
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET payload_hash = snapshot.payload_hash
+FROM finance_category_idempotency_state AS state
+CROSS JOIN manual_result_authority_snapshot AS snapshot
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key = 'category-idempotency-manual-charge-0001';
+
+INSERT INTO public.activity_logs (
+  organization_id, actor_id, entity_type, entity_id, action,
+  previous_values, new_values
+)
+SELECT activity.organization_id, activity.actor_id, activity.entity_type,
+  activity.entity_id, activity.action,
+  pg_catalog.jsonb_build_object('categoryLineageDuplicateTest', true),
+  activity.new_values
+FROM public.activity_logs AS activity
+JOIN finance_category_idempotency_state AS state
+  ON activity.organization_id = state.organization_id
+WHERE activity.action = 'manual_tenant_charge_created'
+  AND activity.new_values->>'lineId' = state.manual_result->>'lineId';
+
+SELECT is(
+  app_private.valid_finance_category_idempotency_result(
+    organization_id,
+    'create_manual_tenant_charge',
+    'category-idempotency-manual-charge-0001',
+    false
+  ),
+  NULL::uuid,
+  'ambiguous duplicate append-only activities fail closed'
+)
+FROM finance_category_idempotency_state;
+
+DELETE FROM public.activity_logs
+WHERE previous_values =
+  pg_catalog.jsonb_build_object('categoryLineageDuplicateTest', true);
+
+SELECT is(
+  app_private.valid_finance_category_idempotency_result(
+    organization_id,
+    'create_manual_tenant_charge',
+    'category-idempotency-manual-charge-0001',
+    true
+  ),
+  (manual_result->>'lineId')::uuid,
+  'unique manual activity lineage resolves the exact sealed line again'
+)
+FROM finance_category_idempotency_state;
+
+SELECT throws_ok(
+  $$
+    UPDATE app_private.finance_category_idempotency_result_seals
+    SET result_id = pg_catalog.gen_random_uuid()
+    WHERE operation = 'submit_expense'
+      AND idempotency_key = 'category-idempotency-owner-expense-0001'
+  $$,
+  '55000',
+  'Finance category idempotency result seals are immutable',
+  'sealed result identity cannot be reassigned'
+);
+
 SELECT throws_ok(
   $$
     INSERT INTO app_private.finance_category_idempotency_bindings (
@@ -1116,8 +1408,23 @@ SELECT ok(
     'service_role',
     'app_private.finance_category_idempotency_bindings',
     'SELECT,INSERT,UPDATE,DELETE'
+  )
+  AND NOT has_table_privilege(
+    'anon',
+    'app_private.finance_category_idempotency_result_seals',
+    'SELECT,INSERT,UPDATE,DELETE'
+  )
+  AND NOT has_table_privilege(
+    'authenticated',
+    'app_private.finance_category_idempotency_result_seals',
+    'SELECT,INSERT,UPDATE,DELETE'
+  )
+  AND NOT has_table_privilege(
+    'service_role',
+    'app_private.finance_category_idempotency_result_seals',
+    'SELECT,INSERT,UPDATE,DELETE'
   ),
-  'the private canonical binding authority is not exposed through Data API roles'
+  'private canonical bindings and result seals are not exposed through Data API roles'
 );
 
 SELECT ok(
