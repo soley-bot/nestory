@@ -1,7 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(29);
+SELECT plan(35);
 
 SELECT has_function(
   'public',
@@ -31,6 +31,48 @@ SELECT ok(
 
 SELECT ok(
   (
+    SELECT
+      procedure.prosecdef
+      AND procedure.proowner = 'postgres'::regrole
+      AND coalesce(
+        procedure.proconfig @> ARRAY['search_path=""']::text[],
+        false
+      )
+    FROM pg_catalog.pg_proc AS procedure
+    WHERE procedure.oid =
+      'public.correct_tenant_invoice(uuid,uuid,text,uuid,text,text)'::regprocedure
+  ),
+  'the public correction authority preserves postgres ownership and an empty SECURITY DEFINER search path'
+);
+
+SELECT ok(
+  (
+    SELECT
+      procedure.prosecdef
+      AND procedure.proowner = 'postgres'::regrole
+      AND coalesce(
+        procedure.proconfig @> ARRAY['search_path=""']::text[],
+        false
+      )
+    FROM pg_catalog.pg_proc AS procedure
+    WHERE procedure.oid =
+      'app_private.mark_tenant_rent_owner_periods_stale(uuid,uuid,public.currency_code,uuid[],uuid,uuid)'::regprocedure
+  )
+  AND NOT has_function_privilege(
+    'authenticated',
+    'app_private.mark_tenant_rent_owner_periods_stale(uuid,uuid,public.currency_code,uuid[],uuid,uuid)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'service_role',
+    'app_private.mark_tenant_rent_owner_periods_stale(uuid,uuid,public.currency_code,uuid[],uuid,uuid)',
+    'EXECUTE'
+  ),
+  'the private staling helper preserves postgres ownership, empty search path, and private ACL'
+);
+
+SELECT ok(
+  (
     SELECT relation.relrowsecurity AND relation.relforcerowsecurity
     FROM pg_catalog.pg_class AS relation
     JOIN pg_catalog.pg_namespace AS namespace
@@ -53,12 +95,15 @@ CREATE TEMP TABLE correction_state (
   invoice_id uuid,
   rent_line_id uuid,
   utility_line_id uuid,
+  pass_through_line_id uuid,
+  pass_through_expense_id uuid NOT NULL DEFAULT gen_random_uuid(),
   management_fee_id uuid,
   owner_line_id uuid,
   owner_allocation_set_id uuid,
   close_series_id uuid NOT NULL DEFAULT gen_random_uuid(),
   closed_revision_id uuid NOT NULL DEFAULT gen_random_uuid(),
   utility_correction jsonb,
+  pass_through_correction jsonb,
   void_correction jsonb,
   payment_invoice_id uuid,
   reconciliation_source_id uuid,
@@ -211,6 +256,81 @@ SET utility_line_id = (
     'invoice-correction-utility-0001'
   )->>'lineId'
 )::uuid;
+
+UPDATE correction_state
+SET pass_through_line_id = (
+  public.create_manual_tenant_charge(
+    organization_id,
+    lease_id,
+    'cleaning',
+    (date_trunc('month', current_date) + interval '1 month')::date,
+    (date_trunc('month', current_date) + interval '1 month + 4 days')::date,
+    18.30,
+    'Tenant expense pass-through fixture',
+    'invoice-correction-pass-through-0001'
+  )->>'lineId'
+)::uuid;
+
+INSERT INTO public.finance_expense_items (
+  id, organization_id, property_id, unit_id, expense_type, vendor_label,
+  invoice_date, paid_date, amount, currency, category, status, description,
+  created_by, updated_by, economic_scope, owner_bill_status,
+  owner_reimbursable_amount, owner_reimbursed_amount, company_loss_amount
+)
+SELECT
+  state.pass_through_expense_id,
+  state.organization_id,
+  state.property_id,
+  line.unit_id,
+  'vendor_bill',
+  'Pass-through cleaning vendor',
+  current_date,
+  current_date,
+  18.30,
+  'USD',
+  'cleaning',
+  'paid',
+  'Fixture expense linked to the tenant pass-through line',
+  state.admin_id,
+  state.admin_id,
+  'company_advance',
+  'billed',
+  18.30,
+  0,
+  0
+FROM correction_state AS state
+JOIN public.tenant_invoice_lines AS line
+  ON line.organization_id = state.organization_id
+ AND line.id = state.pass_through_line_id;
+
+INSERT INTO public.ips_expense_responsibilities (
+  organization_id, property_id, finance_expense_item_id, responsibility,
+  responsible_person_id, customer_category, customer_label,
+  internal_cost_amount, internal_markup_amount, customer_total_amount,
+  held_cash_amount, ips_advance_amount, tenant_invoice_line_id,
+  idempotency_key, created_by, updated_by
+)
+SELECT
+  state.organization_id,
+  state.property_id,
+  state.pass_through_expense_id,
+  'tenant',
+  lease.primary_tenant_person_id,
+  'cleaning',
+  'Tenant expense pass-through fixture',
+  18.30,
+  0,
+  18.30,
+  0,
+  18.30,
+  state.pass_through_line_id,
+  'invoice-correction-pass-through-responsibility-0001',
+  state.admin_id,
+  state.admin_id
+FROM correction_state AS state
+JOIN public.current_leases AS lease
+  ON lease.organization_id = state.organization_id
+ AND lease.id = state.lease_id;
 
 UPDATE correction_state AS state
 SET
@@ -382,54 +502,75 @@ SELECT set_config(
 SET LOCAL ROLE authenticated;
 
 UPDATE correction_state
-SET utility_correction = public.correct_tenant_invoice(
+SET pass_through_correction = public.correct_tenant_invoice(
   organization_id,
   invoice_id,
   'line_correction',
-  utility_line_id,
-  'Reverse the metered recharge only',
-  'invoice-correction-utility-reversal-0001'
+  pass_through_line_id,
+  'Reverse tenant expense pass-through only',
+  'invoice-correction-pass-through-reversal-0001'
 );
 
 SELECT results_eq(
   $$
     SELECT
-      reversal.amount,
-      reversal.recognized_on,
-      reversal.property_id = original.property_id,
-      reversal.unit_id IS NOT DISTINCT FROM original.unit_id,
-      reversal.currency = original.currency,
-      reversal.reversal_of_id = original.id
+      (state.pass_through_correction->>'tenant_line_reversal_count')::integer,
+      series.state,
+      series.current_closed_revision_id = state.closed_revision_id
     FROM correction_state AS state
-    JOIN public.tenant_invoice_lines AS original ON original.id = state.utility_line_id
-    JOIN public.tenant_invoice_lines AS reversal ON reversal.reversal_of_id = original.id
+    JOIN public.owner_close_series AS series
+      ON series.organization_id = state.organization_id
+     AND series.id = state.close_series_id
   $$,
-  $$VALUES (-37.45::numeric, current_date, true, true, true, true)$$,
-  'an appended recharge correction preserves exact snapshots, recognition, and lineage'
+  $$VALUES (1, 'closed'::text, true)$$,
+  'tenant-expense pass-through correction bypasses owner guard and leaves Owner Close unchanged'
 );
 
 SELECT is(
   (
     SELECT count(*)::integer
-    FROM public.management_fee_occurrences AS fee
-    WHERE fee.correction_occurrence_id = (
-      SELECT (utility_correction->>'correction_id')::uuid FROM correction_state
-    )
+    FROM correction_state AS state
+    CROSS JOIN LATERAL public.get_owner_profit_loss_events_page(
+      state.organization_id,
+      state.property_id,
+      'USD',
+      current_date,
+      current_date,
+      NULL,
+      NULL,
+      NULL,
+      100
+    ) AS event
+    WHERE event.source_type = 'tenant_invoice_line'
+      AND event.source_id IN (
+        state.pass_through_line_id,
+        (
+          SELECT reversal.id
+          FROM public.tenant_invoice_lines AS reversal
+          WHERE reversal.organization_id = state.organization_id
+            AND reversal.reversal_of_id = state.pass_through_line_id
+        )
+      )
   ),
   0,
-  'tenant recharge correction does not append a management-fee reversal'
+  'the final P and L resolver excludes both pass-through original and reversal economics'
 );
 
-SELECT is(
-  (
-    SELECT count(*)::integer
-    FROM public.owner_invoice_lines AS line
-    WHERE line.correction_occurrence_id = (
-      SELECT (utility_correction->>'correction_id')::uuid FROM correction_state
+SELECT throws_ok(
+  $$
+    SELECT public.correct_tenant_invoice(
+      organization_id,
+      invoice_id,
+      'line_correction',
+      utility_line_id,
+      'Reverse recognized non-rent owner income',
+      'invoice-correction-utility-closed-0001'
     )
-  ),
-  0,
-  'tenant recharge correction does not create an owner charge'
+    FROM correction_state
+  $$,
+  '55000',
+  'owner_close_period_closed',
+  'recognized non-rent owner income fails closed in a closed Owner Close month'
 );
 
 SELECT throws_ok(
@@ -496,6 +637,79 @@ SELECT set_config(
 SET LOCAL ROLE authenticated;
 
 UPDATE correction_state
+SET utility_correction = public.correct_tenant_invoice(
+  organization_id,
+  invoice_id,
+  'line_correction',
+  utility_line_id,
+  'Reverse the metered recharge only',
+  'invoice-correction-utility-reversal-0001'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      reversal.amount,
+      reversal.recognized_on,
+      reversal.property_id = original.property_id,
+      reversal.unit_id IS NOT DISTINCT FROM original.unit_id,
+      reversal.currency = original.currency,
+      reversal.reversal_of_id = original.id
+    FROM correction_state AS state
+    JOIN public.tenant_invoice_lines AS original ON original.id = state.utility_line_id
+    JOIN public.tenant_invoice_lines AS reversal ON reversal.reversal_of_id = original.id
+  $$,
+  $$VALUES (-37.45::numeric, current_date, true, true, true, true)$$,
+  'an appended recharge correction preserves exact snapshots, recognition, and lineage'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.management_fee_occurrences AS fee
+    WHERE fee.correction_occurrence_id = (
+      SELECT (utility_correction->>'correction_id')::uuid FROM correction_state
+    )
+  ),
+  0,
+  'tenant recharge correction does not append a management-fee reversal'
+);
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.owner_invoice_lines AS line
+    WHERE line.correction_occurrence_id = (
+      SELECT (utility_correction->>'correction_id')::uuid FROM correction_state
+    )
+  ),
+  0,
+  'tenant recharge correction does not create an owner charge'
+);
+
+SELECT results_eq(
+  $$
+    SELECT period.month_start, period.status
+    FROM correction_state AS state
+    JOIN public.owner_balance_periods AS period
+      ON period.organization_id = state.organization_id
+     AND period.property_id = state.property_id
+     AND period.owner_person_id = state.owner_person_id
+     AND period.currency = 'USD'
+    WHERE period.month_start IN (
+      date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '1 month')::date
+    )
+    ORDER BY period.month_start
+  $$,
+  $$VALUES
+    (date_trunc('month', current_date)::date, 'stale'::text),
+    ((date_trunc('month', current_date) + interval '1 month')::date, 'stale'::text)
+  $$,
+  'an open-period non-rent owner-income correction stales its owner series'
+);
+
+UPDATE correction_state
 SET void_correction = public.correct_tenant_invoice(
   organization_id,
   invoice_id,
@@ -526,7 +740,7 @@ SELECT results_eq(
     JOIN public.tenant_invoice_lines AS reversal ON reversal.reversal_of_id = original.id
     WHERE original.reversal_of_id IS NULL
   $$,
-  $$VALUES (2, -887.45::numeric(14,2))$$,
+  $$VALUES (3, -905.75::numeric(14,2))$$,
   'every recognized invoice line has exactly one append-only reversal'
 );
 
@@ -672,7 +886,7 @@ SELECT results_eq(
        WHERE reversal_of_allocation_set_id = state.owner_allocation_set_id)
     FROM correction_state AS state
   $$,
-  $$VALUES (2, 2, 1, 1, 1)$$,
+  $$VALUES (3, 3, 1, 1, 1)$$,
   'retry creates no duplicate correction or reversal evidence'
 );
 
