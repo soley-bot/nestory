@@ -15,6 +15,68 @@ import {
 import type { Database } from "@/types/database";
 
 describe("Finance lease billing authority", () => {
+  it("aligns first-rule billing and concurrency tokens to each Lease timezone", () => {
+    type BillingRow = Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+    const rows = [
+      {
+        archived_at: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        effective_from: "2026-09-01",
+        effective_to: "2027-08-31",
+        id: "kiritimati-first",
+        lease_id: "lease-kiritimati",
+        rent_calculation_timezone: "Pacific/Kiritimati",
+        rule_source: "lease_default_v1",
+      },
+      {
+        archived_at: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        effective_from: "2026-09-01",
+        effective_to: "2027-08-31",
+        id: "honolulu-first",
+        lease_id: "lease-honolulu",
+        rent_calculation_timezone: "Pacific/Honolulu",
+        rule_source: "lease_default_v1",
+      },
+    ] as BillingRow[];
+    const clock = new Date("2026-09-01T00:30:00.000Z");
+
+    expect(
+      selectCurrentFinanceLeaseBillingRulesByLeaseId(rows, clock),
+    ).toEqual(
+      new Map([
+        [
+          "lease-kiritimati",
+          expect.objectContaining({ id: "kiritimati-first" }),
+        ],
+      ]),
+    );
+    expect(
+      selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(rows, clock),
+    ).toEqual(new Map([["lease-kiritimati", "kiritimati-first"]]));
+
+    const kiritimatiBoundary = new Date("2026-08-31T10:30:00.000Z");
+    expect(
+      selectCurrentFinanceLeaseBillingRulesByLeaseId(
+        rows,
+        kiritimatiBoundary,
+      ),
+    ).toEqual(
+      new Map([
+        [
+          "lease-kiritimati",
+          expect.objectContaining({ id: "kiritimati-first" }),
+        ],
+      ]),
+    );
+    expect(
+      selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(
+        rows,
+        kiritimatiBoundary,
+      ),
+    ).toEqual(new Map([["lease-kiritimati", "kiritimati-first"]]));
+  });
+
   it("keeps legacy current-row tokens without treating them as billing authority", () => {
     type BillingRow = Database["public"]["Tables"]["lease_billing_terms"]["Row"];
     const rows = [

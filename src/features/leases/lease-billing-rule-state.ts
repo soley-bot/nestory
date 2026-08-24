@@ -23,17 +23,23 @@ export function getLeaseBillingRuleCalendarDate<
 >(rules: readonly Rule[], clock: Date) {
   const sortedRules = getActiveSortedRules(rules);
   let effectiveRule: Rule | undefined;
+  let boundaryDate = getCalendarDateInTimeZone(
+    clock,
+    sortedRules[0]?.rent_calculation_timezone || "UTC",
+  );
 
   for (const rule of sortedRules) {
     const boundaryTimeZone =
-      effectiveRule?.rent_calculation_timezone || "UTC";
-    const boundaryDate = getCalendarDateInTimeZone(clock, boundaryTimeZone);
+      effectiveRule?.rent_calculation_timezone ||
+      rule.rent_calculation_timezone ||
+      "UTC";
+    boundaryDate = getCalendarDateInTimeZone(clock, boundaryTimeZone);
 
     if (rule.effective_from > boundaryDate) break;
     effectiveRule = rule;
   }
 
-  if (!effectiveRule) return getCalendarDateInTimeZone(clock, "UTC");
+  if (!effectiveRule) return boundaryDate;
 
   const calendarDate = getCalendarDateInTimeZone(
     clock,

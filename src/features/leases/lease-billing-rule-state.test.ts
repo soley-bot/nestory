@@ -16,6 +16,57 @@ const predecessor = {
 };
 
 describe("lease billing rule effective state", () => {
+  it("activates the first Kiritimati rule when its local effective date arrives before UTC", () => {
+    const firstRule = {
+      ...predecessor,
+      effective_from: "2026-09-01",
+      effective_to: "2027-08-31",
+      id: "kiritimati-first",
+      rent_calculation_timezone: "Pacific/Kiritimati",
+      superseded_at: null,
+    };
+    const clock = new Date("2026-08-31T10:30:00.000Z");
+
+    expect(getLeaseBillingRuleCalendarDate([firstRule], clock)).toBe(
+      "2026-09-01",
+    );
+    expect(selectCurrentLeaseBillingRule([firstRule], clock)?.id).toBe(
+      "kiritimati-first",
+    );
+    expect(getLeaseBillingRuleState(firstRule, [firstRule], clock)).toBe(
+      "current",
+    );
+  });
+
+  it("keeps the first Honolulu rule scheduled while its local date is still prior", () => {
+    const firstRule = {
+      ...predecessor,
+      effective_from: "2026-09-01",
+      effective_to: "2027-08-31",
+      id: "honolulu-first",
+      rent_calculation_timezone: "Pacific/Honolulu",
+      superseded_at: null,
+    };
+    const clock = new Date("2026-09-01T00:30:00.000Z");
+
+    expect(getLeaseBillingRuleCalendarDate([firstRule], clock)).toBe(
+      "2026-08-31",
+    );
+    expect(selectCurrentLeaseBillingRule([firstRule], clock)).toBeUndefined();
+    expect(getLeaseBillingRuleState(firstRule, [firstRule], clock)).toBe(
+      "scheduled",
+    );
+  });
+
+  it("uses UTC only when no billing rule exists", () => {
+    expect(
+      getLeaseBillingRuleCalendarDate(
+        [],
+        new Date("2026-09-01T00:30:00.000Z"),
+      ),
+    ).toBe("2026-09-01");
+  });
+
   it("keeps a superseded predecessor current until its own timezone reaches the successor boundary", () => {
     const successor = {
       ...predecessor,
