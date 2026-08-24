@@ -23,26 +23,46 @@ import {
   type OrganizationTheme,
 } from "@/lib/theme/organization-theme";
 
-type ThemeToggleProps = {
+type ThemeToggleBaseProps = {
   className?: string;
-  organizationId?: string;
-  theme?: OrganizationTheme;
 };
+
+type ThemeToggleProps = ThemeToggleBaseProps &
+  (
+    | {
+        organizationId: string;
+        theme: OrganizationTheme;
+        userId: string;
+      }
+    | {
+        organizationId?: undefined;
+        theme?: undefined;
+        userId?: undefined;
+      }
+  );
 
 export function ThemeToggle({
   className,
   organizationId,
   theme,
+  userId,
 }: ThemeToggleProps) {
   const scope = organizationId ?? "public";
   const organizationTheme = theme ?? DEFAULT_ORGANIZATION_THEME;
   const subscribe = useCallback((notify: () => void) => {
     function handleDisplayTheme(event: Event) {
-      const detail = (event as CustomEvent<{ organizationId?: string }>).detail;
-      if (!detail?.organizationId || detail.organizationId === scope) notify();
+      const detail = (
+        event as CustomEvent<{ organizationId?: string; userId?: string }>
+      ).detail;
+      if (
+        detail?.organizationId === scope &&
+        detail.userId === userId
+      ) {
+        notify();
+      }
     }
     function handleStorage(event: StorageEvent) {
-      if (event.key === getDisplayThemeStorageKey(scope)) notify();
+      if (event.key === getDisplayThemeStorageKey(scope, userId)) notify();
     }
     window.addEventListener(DISPLAY_THEME_UPDATED_EVENT, handleDisplayTheme);
     window.addEventListener("storage", handleStorage);
@@ -50,16 +70,16 @@ export function ThemeToggle({
       window.removeEventListener(DISPLAY_THEME_UPDATED_EVENT, handleDisplayTheme);
       window.removeEventListener("storage", handleStorage);
     };
-  }, [scope]);
+  }, [scope, userId]);
   const mode = useSyncExternalStore(
     subscribe,
-    () => readDisplayThemeMode(scope) ?? organizationTheme.mode,
+    () => readDisplayThemeMode(scope, userId) ?? organizationTheme.mode,
     () => organizationTheme.mode,
   );
 
   function chooseMode(next: string) {
     if (next !== "system" && next !== "light" && next !== "dark") return;
-    setPersonalDisplayTheme(scope, organizationTheme, next);
+    setPersonalDisplayTheme(scope, organizationTheme, next, userId);
   }
 
   return (
