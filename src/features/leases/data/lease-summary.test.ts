@@ -224,6 +224,52 @@ describe("buildLeaseSummary", () => {
     });
   });
 
+  it("labels a fully received then partially refunded deposit from current held cash", () => {
+    const summary = buildLeaseSummary({
+      deposits: [
+        {
+          amount: 1200,
+          archived_at: null,
+          currency: "USD",
+          deposit_type: "security",
+          events: [
+            {
+              amount: 1200,
+              currency: "USD",
+              event_date: "2026-07-01",
+              event_type: "received",
+              id: "deposit-event-received",
+              reference: "Full receipt",
+              reversal_of_id: null,
+            },
+            {
+              amount: 200,
+              currency: "USD",
+              event_date: "2026-07-02",
+              event_type: "refunded",
+              id: "deposit-event-refunded",
+              reference: "Partial refund",
+              reversal_of_id: null,
+            },
+          ],
+          id: "deposit-partially-refunded",
+          lease_id: "lease-1",
+          status: "partially_returned",
+        },
+      ],
+      lease,
+      property,
+      unit,
+    });
+
+    expect(summary.deposits[0]).toMatchObject({
+      amountCents: 120000,
+      heldBalanceCents: 100000,
+      receivedAmount: 1200,
+      statusLabel: "Partially held",
+    });
+  });
+
   it("surfaces exact term authority and rent readiness without fallback inference", () => {
     const summary = buildLeaseSummary({
       lease,
@@ -559,9 +605,13 @@ describe("buildLeaseSummary", () => {
     });
     expect(summary.deposits[0]).toMatchObject({
       amountLabel: "USD 1,200.00",
-      statusLabel: "Held",
+      amountCents: 120000,
+      heldBalance: 400,
+      heldBalanceCents: 40000,
+      statusLabel: "Partially held",
       typeLabel: "Security",
       heldBalanceDisplay: { primary: "USD 400.00" },
+      receivedAmount: 500,
     });
     expect(summary.documents[0]).toMatchObject({
       fileName: "lease-agreement.pdf",

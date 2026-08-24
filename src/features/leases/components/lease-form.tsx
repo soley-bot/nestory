@@ -31,6 +31,7 @@ import type {
   LeaseTermStatus,
   LeaseUnitOption,
 } from "@/features/leases/lease.types";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 
 const initialState: LeaseActionState = {};
 
@@ -46,6 +47,7 @@ const paymentFrequencyOptions: {
 ];
 type LeaseFormProps = {
   billingFormConfig?: LeaseBillingFormConfig;
+  canRecordDepositReceipt?: boolean;
   createContext?: LeaseCreateContext;
   initialValues?: LeaseFormInitialValues;
   initialStatus?: LeaseStatusValue;
@@ -66,6 +68,7 @@ type LeaseFormInitialValues = Partial<
 
 export function LeaseForm({
   billingFormConfig,
+  canRecordDepositReceipt = false,
   createContext,
   initialValues,
   initialStatus,
@@ -99,6 +102,15 @@ export function LeaseForm({
   const selectedUnitId = createContext?.unitId ?? defaults.unitId;
   const [availableTenantOptions, setAvailableTenantOptions] = useState(tenants);
   const [leaseStartDate, setLeaseStartDate] = useState(defaults.leaseStartDate);
+  const [depositRequiredAmount, setDepositRequiredAmount] = useState(
+    defaults.depositAmount,
+  );
+  const [depositReceived, setDepositReceived] = useState<"no" | "yes">("no");
+  const [depositReceivedAmount, setDepositReceivedAmount] = useState(
+    defaults.depositAmount,
+  );
+  const [depositReceivedAmountEdited, setDepositReceivedAmountEdited] =
+    useState(false);
   const [moveInTiming, setMoveInTiming] = useState<"moved_in" | "later">("moved_in");
   const [createTenantOpen, setCreateTenantOpen] = useState(false);
   const tenantOptions = ensureSelectedTenant(
@@ -374,17 +386,87 @@ export function LeaseForm({
 
           <RecordField
             error={state.fieldErrors?.depositAmount?.[0]}
-            label="Security deposit"
+            label={isEditMode ? "Security deposit" : "Deposit required"}
             name="depositAmount"
           >
             <NumberInput
-              defaultValue={defaults.depositAmount}
               min="0"
               name="depositAmount"
+              onChange={(event) => {
+                const nextAmount = event.currentTarget.value;
+                setDepositRequiredAmount(nextAmount);
+                if (!depositReceivedAmountEdited) {
+                  setDepositReceivedAmount(nextAmount);
+                }
+              }}
               placeholder="0.00"
               step="0.01"
+              value={depositRequiredAmount}
             />
           </RecordField>
+
+          {!isEditMode && canRecordDepositReceipt ? (
+            <div className="grid gap-4 border-t border-border/70 pt-4 sm:grid-cols-2">
+              <RecordField
+                error={state.fieldErrors?.depositReceived?.[0]}
+                label="Deposit received?"
+                name="depositReceived"
+              >
+                <SelectControl
+                  ariaLabel="Deposit received?"
+                  name="depositReceived"
+                  onValueChange={(value) => {
+                    const nextValue = value as "no" | "yes";
+                    setDepositReceived(nextValue);
+                    if (nextValue === "yes" && !depositReceivedAmountEdited) {
+                      setDepositReceivedAmount(depositRequiredAmount);
+                    }
+                  }}
+                  options={[
+                    { label: "No, still pending", value: "no" },
+                    { label: "Yes, received", value: "yes" },
+                  ]}
+                  value={depositReceived}
+                />
+              </RecordField>
+
+              {depositReceived === "yes" ? (
+                <>
+                  <RecordField
+                    error={state.fieldErrors?.depositReceivedAmount?.[0]}
+                    label="Received amount"
+                    name="depositReceivedAmount"
+                    required
+                  >
+                    <NumberInput
+                      min="0.01"
+                      name="depositReceivedAmount"
+                      onChange={(event) => {
+                        setDepositReceivedAmount(event.currentTarget.value);
+                        setDepositReceivedAmountEdited(true);
+                      }}
+                      required
+                      step="0.01"
+                      value={depositReceivedAmount}
+                    />
+                  </RecordField>
+                  <RecordField
+                    error={state.fieldErrors?.depositReceivedOn?.[0]}
+                    label="Received on"
+                    name="depositReceivedOn"
+                    required
+                  >
+                    <DatePickerField
+                      ariaLabel="Received on"
+                      defaultValue={getBusinessDateValue()}
+                      name="depositReceivedOn"
+                      required
+                    />
+                  </RecordField>
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </FormSection>
 
         <FormSection

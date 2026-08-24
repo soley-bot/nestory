@@ -31,6 +31,9 @@ type LeaseFieldErrors = LeaseBillingRuleFieldErrors & {
   expectedStatus?: string[];
   leaseDepositId?: string[];
   depositAmount?: string[];
+  depositReceived?: string[];
+  depositReceivedAmount?: string[];
+  depositReceivedOn?: string[];
   leaseEndDate?: string[];
   leaseId?: string[];
   leaseStartDate?: string[];
@@ -156,6 +159,9 @@ const leaseMutationSchema = z
     actualMoveInDate: optionalDateSchema,
     actualMoveOutDate: optionalDateSchema,
     depositAmount: z.string().trim(),
+    depositReceived: z.enum(["no", "yes"]),
+    depositReceivedAmount: z.string().trim(),
+    depositReceivedOn: optionalDateSchema,
     leaseEndDate: dateSchema,
     leaseStartDate: dateSchema,
     monthlyRentAmount: z.string().trim(),
@@ -278,18 +284,56 @@ const leaseMutationSchema = z
       });
     }
 
-    if (data.depositAmount.length === 0) {
-      return;
-    }
-
     const depositAmount = Number(data.depositAmount);
+    const depositAmountIsValid =
+      data.depositAmount.length === 0 ||
+      (Number.isFinite(depositAmount) && depositAmount >= 0);
 
-    if (!Number.isFinite(depositAmount) || depositAmount < 0) {
+    if (!depositAmountIsValid) {
       context.addIssue({
         code: "custom",
         message: "Enter a valid non-negative deposit.",
         path: ["depositAmount"],
       });
+    }
+
+    if (data.depositReceived === "yes") {
+      if (!depositAmountIsValid || data.depositAmount.length === 0 || depositAmount <= 0) {
+        context.addIssue({
+          code: "custom",
+          message: "Enter the required deposit before recording its receipt.",
+          path: ["depositAmount"],
+        });
+      }
+
+      const receivedAmount = Number(
+        data.depositReceivedAmount || data.depositAmount,
+      );
+
+      if (!Number.isFinite(receivedAmount) || receivedAmount <= 0) {
+        context.addIssue({
+          code: "custom",
+          message: "Enter a received amount greater than zero.",
+          path: ["depositReceivedAmount"],
+        });
+      } else if (
+        Number.isFinite(depositAmount) &&
+        receivedAmount > depositAmount
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Received amount cannot exceed the required deposit.",
+          path: ["depositReceivedAmount"],
+        });
+      }
+
+      if (!data.depositReceivedOn) {
+        context.addIssue({
+          code: "custom",
+          message: "Choose when the deposit was received.",
+          path: ["depositReceivedOn"],
+        });
+      }
     }
   });
 
@@ -319,7 +363,6 @@ function leaseAuthorityRpcPayload(
     enteredDepositAmount !== null && enteredDepositAmount > 0
       ? enteredDepositAmount
       : null;
-
   return {
     // Supabase's generated RPC signature cannot express nullable SQL
     // parameters, but the database contract intentionally accepts NULL here.
@@ -338,6 +381,25 @@ function leaseAuthorityRpcPayload(
     p_rent_due_day: Number(values.rentDueDay),
     p_term_status: values.termStatus,
     p_unit_id: (values.unitId || null) as string,
+  } as const;
+}
+
+function leaseDepositReceiptRpcPayload(
+  values: z.infer<typeof leaseMutationSchema>,
+) {
+  const depositReceived = values.depositReceived === "yes";
+  const depositReceivedAmount = depositReceived
+    ? Number(values.depositReceivedAmount || values.depositAmount)
+    : null;
+
+  return {
+    // Supabase's generated RPC signature cannot express nullable SQL
+    // parameters, but the database contract intentionally accepts NULL here.
+    p_deposit_received: depositReceived,
+    p_deposit_received_amount: depositReceivedAmount as number,
+    p_deposit_received_on: depositReceived
+      ? values.depositReceivedOn
+      : (null as unknown as string),
   } as const;
 }
 
@@ -362,6 +424,10 @@ export async function createLeaseAction(
     await requirePermission("leases.close");
   }
 
+  if (parsed.data.depositReceived === "yes") {
+    await requirePermission("leases.change_terms");
+  }
+
   const idempotencyKey = readIdempotencyKey(formData);
 
   if (!idempotencyKey) {
@@ -375,9 +441,10 @@ export async function createLeaseAction(
     idempotencyKey,
   );
   const { data: relationshipResult, error } = await supabase.rpc(
-    "create_lease_with_billing_rules",
+    "create_lease_with_deposit_receipt",
     {
       ...authorityPayload,
+      ...leaseDepositReceiptRpcPayload(parsed.data),
       p_billing_rule: toLeaseBillingRulePayload(parsed.data),
       p_relationship_payload: buildNewLeaseRelationshipPayload({
         actualMoveInDate: parsed.data.actualMoveInDate || undefined,
@@ -969,6 +1036,9 @@ function readLeaseMutationInput(formData: FormData) {
     actualMoveInDate: readString(formData, "actualMoveInDate"),
     actualMoveOutDate: readString(formData, "actualMoveOutDate"),
     depositAmount: readString(formData, "depositAmount"),
+    depositReceived: readString(formData, "depositReceived") || "no",
+    depositReceivedAmount: readString(formData, "depositReceivedAmount"),
+    depositReceivedOn: readString(formData, "depositReceivedOn"),
     leaseEndDate: readString(formData, "leaseEndDate"),
     leaseStartDate: readString(formData, "leaseStartDate"),
     monthlyRentAmount: readString(formData, "monthlyRentAmount"),

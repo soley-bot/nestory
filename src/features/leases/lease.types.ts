@@ -212,12 +212,16 @@ export type LeaseOccupancyContext = {
 
 export type LeaseDepositContext = {
   amount: number;
+  amountCents: number;
   amountDisplay: MoneyDisplayValue;
   amountLabel: string;
   id: string;
   currency: CurrencyCode;
   events: LeaseDepositEventContext[];
+  heldBalance: number;
+  heldBalanceCents: number;
   heldBalanceDisplay: MoneyDisplayValue;
+  receivedAmount: number;
   statusLabel: string;
   typeLabel: string;
 };

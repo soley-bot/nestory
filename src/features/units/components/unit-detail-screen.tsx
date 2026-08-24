@@ -70,6 +70,7 @@ type UnitDetailScreenProps = {
   activeSection: UnitRecordSection;
   billingFormConfig?: LeaseBillingFormConfig;
   canArchive: boolean;
+  canRecordDepositReceipt: boolean;
   canWrite: boolean;
   maintenanceFormOptions: {
     actor: MaintenanceActor;
@@ -90,6 +91,7 @@ export function UnitDetailScreen({
   activeSection,
   billingFormConfig,
   canArchive,
+  canRecordDepositReceipt,
   canWrite,
   maintenanceFormOptions,
   propertyOptions,
@@ -288,6 +290,7 @@ export function UnitDetailScreen({
           ) : drawer.mode === "create-lease" ? (
             <LeaseForm
               billingFormConfig={billingFormConfig}
+              canRecordDepositReceipt={canRecordDepositReceipt}
               createContext={{
                 propertyId: drawer.unit.propertyId,
                 propertyLabel: drawer.unit.propertyName,

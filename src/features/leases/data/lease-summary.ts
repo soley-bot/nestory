@@ -1,4 +1,5 @@
 import { formatDate } from "@/lib/dates/format";
+import { parseExactMoneyToCents } from "@/features/finance/data/property-cash-events.money";
 import {
   formatMoney,
   formatMoneyDisplay,
@@ -665,27 +666,69 @@ function toDepositContext(
   deposit: LeaseDepositRow,
   hasLedgerEvidence = false,
 ): LeaseDepositContext {
-  const reversedIds = new Set((deposit.events ?? []).filter((event) => event.reversal_of_id).map((event) => event.reversal_of_id!));
-  const held = (deposit.events ?? []).filter((event) => !event.reversal_of_id && !reversedIds.has(event.id)).reduce((sum, event) => sum + (event.event_type === "received" ? Number(event.amount) : -Number(event.amount)), 0);
+  const reversedIds = new Set(
+    (deposit.events ?? [])
+      .filter((event) => event.reversal_of_id)
+      .map((event) => event.reversal_of_id!),
+  );
+  const activeEvents = (deposit.events ?? []).filter(
+    (event) => !event.reversal_of_id && !reversedIds.has(event.id),
+  );
+  const amountCents = parseExactMoneyToCents(deposit.amount);
+  const heldCents = activeEvents.reduce(
+    (sum, event) => {
+      const eventCents = parseExactMoneyToCents(event.amount);
+      return sum + (event.event_type === "received" ? eventCents : -eventCents);
+    },
+    BigInt(0),
+  );
+  const receivedCents = activeEvents.reduce(
+    (sum, event) =>
+      sum +
+      (event.event_type === "received"
+        ? parseExactMoneyToCents(event.amount)
+        : BigInt(0)),
+    BigInt(0),
+  );
+  const heldBalanceCents = toSafeCentsNumber(heldCents);
+  const amountCentsNumber = toSafeCentsNumber(amountCents);
+  const held = heldBalanceCents / 100;
+  const receivedAmount = toSafeCentsNumber(receivedCents) / 100;
   const isZeroDeposit = Number(deposit.amount) === 0;
   const zeroDepositHasEvidence =
     isZeroDeposit &&
     ((deposit.events?.length ?? 0) > 0 || hasLedgerEvidence);
   return {
     amount: Number(deposit.amount),
+    amountCents: amountCentsNumber,
     amountDisplay: formatMoneyDisplay(deposit.amount, deposit.currency),
     amountLabel: formatMoney(deposit.amount, deposit.currency),
     id: deposit.id,
     currency: deposit.currency,
+    heldBalance: held,
+    heldBalanceCents,
     heldBalanceDisplay: formatMoneyDisplay(held, deposit.currency),
+    receivedAmount,
     events: (deposit.events ?? []).map((event) => ({ id: event.id, eventDate: event.event_date, eventType: event.event_type, amountDisplay: formatMoneyDisplay(event.amount, event.currency), reference: event.reference ?? "", reversible: !event.reversal_of_id && !reversedIds.has(event.id) })),
     statusLabel: isZeroDeposit
       ? zeroDepositHasEvidence
         ? "Needs review"
         : "No deposit required"
+      : heldCents > BigInt(0) && heldCents < amountCents
+        ? "Partially held"
       : formatStoredLabel(deposit.status),
     typeLabel: formatStoredLabel(deposit.deposit_type),
   };
+}
+
+function toSafeCentsNumber(value: bigint) {
+  const numberValue = Number(value);
+
+  if (!Number.isSafeInteger(numberValue)) {
+    throw new Error("Lease deposit money exceeds safe integer cents.");
+  }
+
+  return numberValue;
 }
 
 function toDocumentContext(document: LeaseDocumentRow): LeaseDocumentContext {

@@ -79,6 +79,53 @@ afterEach(() => {
 });
 
 describe("LeaseForm inline tenant billing recipient", () => {
+  it("hides receipt controls when the operator cannot change lease terms", () => {
+    render(
+      <LeaseForm
+        canRecordDepositReceipt={false}
+        onClose={() => undefined}
+        properties={[]}
+        tenants={[]}
+        units={[]}
+      />,
+    );
+
+    const form = screen.getByRole("form", { name: "Add lease form" });
+    expect(
+      screen.queryByRole("combobox", { name: "Deposit received?" }),
+    ).toBeNull();
+    expect(new FormData(form).get("depositReceived")).toBeNull();
+  });
+
+  it("separates the deposit obligation from an optional receipt and defaults the receipt", async () => {
+    const user = userEvent.setup();
+    render(
+      <LeaseForm
+        canRecordDepositReceipt
+        onClose={() => undefined}
+        properties={[]}
+        tenants={[]}
+        units={[]}
+      />,
+    );
+
+    const form = screen.getByRole("form", { name: "Add lease form" });
+    expect(screen.getByText("Deposit required")).not.toBeNull();
+    fireEvent.change(form.elements.namedItem("depositAmount")!, {
+      target: { value: "750" },
+    });
+
+    await user.click(screen.getByRole("combobox", { name: "Deposit received?" }));
+    await user.click(screen.getByRole("option", { name: "Yes, received" }));
+
+    expect(screen.getByText("Received amount")).not.toBeNull();
+    expect(screen.getByLabelText("Received on")).not.toBeNull();
+    const payload = new FormData(form);
+    expect(payload.get("depositReceived")).toBe("yes");
+    expect(payload.get("depositReceivedAmount")).toBe("750");
+    expect(payload.get("depositReceivedOn")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
   it.each([
     [
       "Complete company tenant",

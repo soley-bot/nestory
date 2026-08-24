@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(8);
+SELECT plan(10);
 
 SELECT has_function(
   'public',
@@ -12,6 +12,17 @@ SELECT has_function(
     'integer','text','text','numeric','currency_code','text','jsonb','jsonb','text'
   ],
   'new leases use one checked lease, relationship, term, deposit, and billing write'
+);
+
+SELECT has_function(
+  'public',
+  'create_lease_with_deposit_receipt',
+  ARRAY[
+    'uuid','uuid','uuid','uuid','date','date','numeric','currency_code',
+    'integer','text','text','numeric','currency_code','text','jsonb','jsonb',
+    'boolean','numeric','date','text'
+  ],
+  'lease creation can atomically add an optional deposit receipt'
 );
 
 SELECT has_function(
@@ -41,6 +52,19 @@ SELECT function_privs_are(
   'authenticated',
   ARRAY['EXECUTE'],
   'authenticated operators can reach only the checked creation boundary'
+);
+
+SELECT function_privs_are(
+  'public',
+  'create_lease_with_deposit_receipt',
+  ARRAY[
+    'uuid','uuid','uuid','uuid','date','date','numeric','currency_code',
+    'integer','text','text','numeric','currency_code','text','jsonb','jsonb',
+    'boolean','numeric','date','text'
+  ],
+  'authenticated',
+  ARRAY['EXECUTE'],
+  'authenticated operators reach the atomic obligation and receipt boundary'
 );
 
 SELECT function_privs_are(

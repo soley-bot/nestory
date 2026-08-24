@@ -327,6 +327,7 @@ function renderUnitDetail({
     <UnitDetailScreen
       activeSection={initialSection}
       canArchive={canArchive}
+      canRecordDepositReceipt
       canWrite={canWrite}
       maintenanceFormOptions={{
         actor: { dataScope: "organization", workflowMode: "coordinator" },

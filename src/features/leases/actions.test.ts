@@ -73,7 +73,7 @@ describe("Lease occupancy evidence input", () => {
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "create_lease_with_billing_rules",
+      "create_lease_with_deposit_receipt",
       expect.objectContaining({
         p_billing_rule: {
           billingRecipientKind: "individual",
@@ -149,13 +149,16 @@ describe("Lease occupancy evidence input", () => {
       leaseId,
       status: "success",
     });
-    expect(rpc).toHaveBeenCalledWith("create_lease_with_billing_rules", {
+    expect(rpc).toHaveBeenCalledWith("create_lease_with_deposit_receipt", {
       p_billing_rule: expect.objectContaining({
         billingRecipientPersonId: tenantPersonId,
         rentCalculationTimezone: "Asia/Bangkok",
       }),
       p_deposit_amount: 500,
       p_deposit_currency: "USD",
+      p_deposit_received: false,
+      p_deposit_received_amount: null,
+      p_deposit_received_on: null,
       p_idempotency_key: "lease-occupancy-evidence-1",
       p_lease_end_date: "2028-04-30",
       p_lease_start_date: "2027-05-01",
@@ -195,12 +198,35 @@ describe("Lease occupancy evidence input", () => {
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "create_lease_with_billing_rules",
+      "create_lease_with_deposit_receipt",
       expect.objectContaining({
         p_deposit_amount: null,
         p_deposit_currency: null,
       }),
     );
+  });
+
+  it("records an explicitly received deposit in the same checked creation command", async () => {
+    const formData = leaseForm();
+    formData.set("depositReceived", "yes");
+    formData.set("depositReceivedAmount", "");
+    formData.set("depositReceivedOn", "2027-05-03");
+
+    await expect(createLeaseAction({}, formData)).resolves.toMatchObject({
+      leaseId,
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "create_lease_with_deposit_receipt",
+      expect.objectContaining({
+        p_deposit_amount: 500,
+        p_deposit_received: true,
+        p_deposit_received_amount: 500,
+        p_deposit_received_on: "2027-05-03",
+      }),
+    );
+    expect(requirePermission).toHaveBeenCalledWith("leases.prepare");
+    expect(requirePermission).toHaveBeenCalledWith("leases.change_terms");
   });
 
   it("updates a whole-property draft with a nullable Unit RPC argument", async () => {
@@ -231,6 +257,10 @@ describe("Lease occupancy evidence input", () => {
         p_unit_id: null,
       }),
     );
+    const updatePayload = rpc.mock.calls.at(-1)?.[1];
+    expect(updatePayload).not.toHaveProperty("p_deposit_received");
+    expect(updatePayload).not.toHaveProperty("p_deposit_received_amount");
+    expect(updatePayload).not.toHaveProperty("p_deposit_received_on");
     expect(requirePermission).toHaveBeenCalledWith("leases.prepare");
   });
 
@@ -460,6 +490,9 @@ function leaseForm() {
   formData.set("chargeThroughLeaseEnd", "yes");
   formData.set("collectionRoute", "through_ips");
   formData.set("depositAmount", "500");
+  formData.set("depositReceived", "no");
+  formData.set("depositReceivedAmount", "");
+  formData.set("depositReceivedOn", "");
   formData.set("finalPeriodProratedAmount", "");
   formData.set("firstPeriodProratedAmount", "");
   formData.set("fullManagementFeeDuringProration", "no");

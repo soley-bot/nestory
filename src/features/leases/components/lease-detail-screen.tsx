@@ -2,12 +2,18 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, Pencil, RotateCcw } from "lucide-react";
+import { Archive, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -105,42 +111,15 @@ export function LeaseDetailScreen({
     <div className="lg:flex lg:flex-col">
       <PageHeader
         actions={
-          lease.isArchived ? (
-            permissions.canArchive ? (
-              <Button
-                onClick={() => openDrawer({ mode: "restore" })}
-                variant="default"
-              >
-                <RotateCcw aria-hidden size={15} /> Restore
-              </Button>
-            ) : null
-          ) : lease.statusValue === "draft" ? (
-              <>
-                {permissions.canPrepare ? (
-                  <Button
-                    onClick={() => openDrawer({ mode: "edit" })}
-                    variant="default"
-                  >
-                    <Pencil aria-hidden size={15} /> Edit draft
-                  </Button>
-                ) : null}
-                {permissions.canArchive ? (
-                  <Button
-                    onClick={() => openDrawer({ mode: "archive" })}
-                    variant="outline"
-                  >
-                    <Archive aria-hidden size={15} /> Archive
-                  </Button>
-                ) : null}
-              </>
-            ) : permissions.canArchive ? (
-              <Button
-                onClick={() => openDrawer({ mode: "archive" })}
-                variant="outline"
-              >
-                <Archive aria-hidden size={15} /> Archive
-              </Button>
-            ) : null
+          <LeaseHeaderActions
+            lease={lease}
+            onArchive={() => openDrawer({ mode: "archive" })}
+            onEditDraft={() => openDrawer({ mode: "edit" })}
+            onLifecycleChange={setTransition}
+            onRestore={() => openDrawer({ mode: "restore" })}
+            onScheduleTerm={setTermChange}
+            permissions={permissions}
+          />
         }
         breadcrumb={
           <PageBreadcrumb
@@ -327,6 +306,101 @@ export function LeaseDetailScreen({
         </Modal>
       ) : null}
     </div>
+  );
+}
+
+function LeaseHeaderActions({
+  lease,
+  onArchive,
+  onEditDraft,
+  onLifecycleChange,
+  onRestore,
+  onScheduleTerm,
+  permissions,
+}: {
+  lease: LeaseSummary;
+  onArchive: () => void;
+  onEditDraft: () => void;
+  onLifecycleChange: (transition: LeaseTransition) => void;
+  onRestore: () => void;
+  onScheduleTerm: (mode: LeaseTermChange) => void;
+  permissions: LeaseActionPermissions;
+}) {
+  if (lease.isArchived) {
+    return permissions.canArchive ? (
+      <Button onClick={onRestore} variant="default">
+        <RotateCcw aria-hidden size={15} /> Restore
+      </Button>
+    ) : null;
+  }
+
+  if (lease.statusValue === "draft") {
+    return (
+      <>
+        {permissions.canPrepare ? (
+          <Button onClick={onEditDraft} variant="default">
+            <Pencil aria-hidden size={15} /> Edit draft
+          </Button>
+        ) : null}
+        {permissions.canArchive ? (
+          <Button onClick={onArchive} variant="outline">
+            <Archive aria-hidden size={15} /> Archive
+          </Button>
+        ) : null}
+      </>
+    );
+  }
+
+  const canManageActive =
+    lease.statusValue === "active" &&
+    (permissions.canChangeTerms || permissions.canClose);
+  const canManageNotice =
+    lease.statusValue === "notice_given" && permissions.canClose;
+
+  return (
+    <>
+      {canManageActive || canManageNotice ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="default">
+              Manage lease
+              <MoreHorizontal aria-hidden size={15} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-48">
+            {permissions.canChangeTerms && lease.statusValue === "active" ? (
+              <DropdownMenuItem onSelect={() => onScheduleTerm("rent_change")}>
+                Change rent
+              </DropdownMenuItem>
+            ) : null}
+            {permissions.canClose && lease.statusValue === "active" ? (
+              <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>
+                Record notice
+              </DropdownMenuItem>
+            ) : null}
+            {permissions.canClose &&
+            ["active", "notice_given"].includes(lease.statusValue) ? (
+              <>
+                <DropdownMenuItem onSelect={() => onLifecycleChange("end")}>
+                  Complete move-out
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => onLifecycleChange("terminate")}
+                  variant="destructive"
+                >
+                  Terminate lease
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+      {permissions.canArchive ? (
+        <Button onClick={onArchive} variant="outline">
+          <Archive aria-hidden size={15} /> Archive
+        </Button>
+      ) : null}
+    </>
   );
 }
 

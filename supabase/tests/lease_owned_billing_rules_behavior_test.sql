@@ -2,19 +2,31 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(31);
+SELECT plan(46);
 
 CREATE TEMP TABLE lease_billing_state (
   admin_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  custom_user_id uuid NOT NULL DEFAULT gen_random_uuid(),
   outsider_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  prepare_user_id uuid NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  branch_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  custom_role_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  prepare_role_id uuid NOT NULL DEFAULT gen_random_uuid(),
   property_id uuid NOT NULL DEFAULT gen_random_uuid(),
   unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
   rollback_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  receipt_rollback_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  receipt_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  custom_receipt_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  pending_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  prepare_receipt_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
   legacy_unit_id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL DEFAULT gen_random_uuid(),
   create_result jsonb,
+  receipt_result jsonb,
+  pending_result jsonb,
   direct_result jsonb,
   draft_rule_id uuid,
   historical_result jsonb,
@@ -126,6 +138,8 @@ FROM lease_billing_state AS state
 CROSS JOIN LATERAL (
   VALUES
     (state.admin_id, 'lease-billing-admin'),
+    (state.custom_user_id, 'lease-billing-custom'),
+    (state.prepare_user_id, 'lease-billing-prepare'),
     (state.outsider_id, 'lease-billing-outsider')
 ) AS fixture(user_id, label);
 
@@ -137,8 +151,48 @@ SELECT
   'America/Los_Angeles'
 FROM lease_billing_state;
 
-INSERT INTO public.organization_members(organization_id, user_id, role)
-SELECT organization_id, admin_id, 'super_admin'
+INSERT INTO public.organization_branches(id, organization_id, name, code)
+SELECT branch_id, organization_id, 'Lease billing branch', 'LBR'
+FROM lease_billing_state;
+
+INSERT INTO public.organization_roles(id, organization_id, name)
+SELECT custom_role_id, organization_id, 'Lease and deposit'
+FROM lease_billing_state
+UNION ALL
+SELECT prepare_role_id, organization_id, 'Lease preparation only'
+FROM lease_billing_state;
+
+INSERT INTO public.organization_role_permissions(
+  organization_id, role_id, permission_key
+)
+SELECT
+  organization_id,
+  custom_role_id,
+  'leases.prepare'::public.organization_permission_key
+FROM lease_billing_state
+UNION ALL
+SELECT
+  organization_id,
+  custom_role_id,
+  'leases.change_terms'::public.organization_permission_key
+FROM lease_billing_state
+UNION ALL
+SELECT
+  organization_id,
+  prepare_role_id,
+  'leases.prepare'::public.organization_permission_key
+FROM lease_billing_state;
+
+INSERT INTO public.organization_members(
+  organization_id, user_id, role, branch_id, custom_role_id
+)
+SELECT organization_id, admin_id, 'super_admin', NULL, NULL
+FROM lease_billing_state
+UNION ALL
+SELECT organization_id, custom_user_id, 'custom', branch_id, custom_role_id
+FROM lease_billing_state
+UNION ALL
+SELECT organization_id, prepare_user_id, 'custom', branch_id, prepare_role_id
 FROM lease_billing_state;
 
 INSERT INTO public.properties(
@@ -161,7 +215,12 @@ CROSS JOIN LATERAL (
   VALUES
     (state.unit_id, 'LBR-01'),
     (state.rollback_unit_id, 'LBR-02'),
-    (state.legacy_unit_id, 'LBR-03')
+    (state.legacy_unit_id, 'LBR-03'),
+    (state.receipt_unit_id, 'LBR-04'),
+    (state.pending_unit_id, 'LBR-05'),
+    (state.receipt_rollback_unit_id, 'LBR-06'),
+    (state.custom_receipt_unit_id, 'LBR-07'),
+    (state.prepare_receipt_unit_id, 'LBR-08')
 ) AS fixture(unit_id, unit_number);
 
 INSERT INTO public.people(id, organization_id, display_name, party_type)
@@ -169,6 +228,17 @@ SELECT tenant_id, organization_id, 'Lease billing tenant', 'individual'
 FROM lease_billing_state
 UNION ALL
 SELECT company_id, organization_id, 'Lease billing company', 'company'
+FROM lease_billing_state;
+
+INSERT INTO public.person_branch_relationships(
+  organization_id,
+  person_id,
+  branch_id
+)
+SELECT organization_id, tenant_id, branch_id
+FROM lease_billing_state
+UNION ALL
+SELECT organization_id, company_id, branch_id
 FROM lease_billing_state;
 
 INSERT INTO public.person_roles(organization_id, person_id, role)
@@ -208,6 +278,22 @@ SELECT set_config(
 );
 SET LOCAL ROLE authenticated;
 
+SELECT public.assign_property_branch(
+  organization_id,
+  property_id,
+  branch_id
+)
+FROM lease_billing_state;
+
+RESET ROLE;
+
+UPDATE public.organization_authorization_states AS authorization_state
+SET ordinary_access_enabled = true
+FROM lease_billing_state AS state
+WHERE authorization_state.organization_id = state.organization_id;
+
+SET LOCAL ROLE authenticated;
+
 UPDATE lease_billing_state AS state
 SET create_result = public.create_lease_with_billing_rules(
   state.organization_id,
@@ -231,6 +317,247 @@ SET create_result = public.create_lease_with_billing_rules(
 
 UPDATE lease_billing_state AS state
 SET draft_rule_id = (state.create_result ->> 'billingTermId')::uuid;
+
+UPDATE lease_billing_state AS state
+SET pending_result = public.create_lease_with_deposit_receipt(
+  state.organization_id, state.property_id, state.pending_unit_id, state.tenant_id,
+  DATE '2026-08-01', DATE '2027-12-31', 1000, 'USD', 15, 'monthly',
+  'draft', 500, 'USD', 'draft',
+  pg_temp.relationship_payload(state.tenant_id),
+  pg_temp.billing_rule(state.company_id),
+  false, NULL, NULL, 'lease-deposit-pending-1'
+);
+
+UPDATE lease_billing_state AS state
+SET receipt_result = public.create_lease_with_deposit_receipt(
+  state.organization_id, state.property_id, state.receipt_unit_id, state.tenant_id,
+  DATE '2026-08-01', DATE '2027-12-31', 1000, 'USD', 15, 'monthly',
+  'draft', 500, 'USD', 'draft',
+  pg_temp.relationship_payload(state.tenant_id),
+  pg_temp.billing_rule(state.company_id),
+  true, NULL, DATE '2026-08-03', 'lease-deposit-received-1'
+);
+
+SELECT is(
+  (
+    SELECT jsonb_build_array(deposit.status, count(event.id))
+    FROM public.lease_deposits AS deposit
+    LEFT JOIN public.lease_deposit_events AS event
+      ON event.organization_id = deposit.organization_id
+      AND event.lease_deposit_id = deposit.id
+    WHERE deposit.lease_id = (state.pending_result ->> 'leaseId')::uuid
+    GROUP BY deposit.status
+  ),
+  jsonb_build_array('pending', 0),
+  'an unreceived deposit creates only the pending obligation'
+)
+FROM lease_billing_state AS state;
+
+SELECT ok(
+  (SELECT receipt_result ? 'depositEventId' FROM lease_billing_state),
+  'the atomic result includes the created deposit receipt identity'
+);
+
+SELECT is(
+  (
+    SELECT jsonb_build_array(event.amount, event.event_date, event.ledger_entry_id IS NOT NULL)
+    FROM public.lease_deposit_events AS event
+    WHERE event.id = (state.receipt_result ->> 'depositEventId')::uuid
+  ),
+  jsonb_build_array(500, DATE '2026-08-03', true),
+  'a received deposit defaults to the obligation and records dated Ledger evidence'
+)
+FROM lease_billing_state AS state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT custom_user_id::text FROM lease_billing_state),
+  true
+);
+
+SELECT lives_ok(
+  format(
+    'SELECT public.create_lease_with_deposit_receipt(%L,%L,%L,%L,DATE %L,DATE %L,1000,%L,15,%L,%L,500,%L,%L,%L::jsonb,%L::jsonb,true,500,DATE %L,%L)',
+    state.organization_id, state.property_id, state.custom_receipt_unit_id,
+    state.tenant_id, '2026-08-01', '2027-12-31', 'USD', 'monthly', 'draft',
+    'USD', 'draft', pg_temp.relationship_payload(state.tenant_id),
+    pg_temp.billing_rule(state.company_id), '2026-08-03',
+    'lease-deposit-custom-role-1'
+  ),
+  'a branch-scoped custom role with prepare and change-terms permission can atomically create the obligation and receipt'
+)
+FROM lease_billing_state AS state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT prepare_user_id::text FROM lease_billing_state),
+  true
+);
+
+SELECT throws_ok(
+  format(
+    'SELECT public.create_lease_with_deposit_receipt(%L,%L,%L,%L,DATE %L,DATE %L,1000,%L,15,%L,%L,500,%L,%L,%L::jsonb,%L::jsonb,true,500,DATE %L,%L)',
+    state.organization_id, state.property_id, state.prepare_receipt_unit_id,
+    state.tenant_id, '2026-08-01', '2027-12-31', 'USD', 'monthly', 'draft',
+    'USD', 'draft', pg_temp.relationship_payload(state.tenant_id),
+    pg_temp.billing_rule(state.company_id), '2026-08-03',
+    'lease-deposit-prepare-only-1'
+  ),
+  '42501',
+  NULL,
+  'a custom role with prepare but without change-terms permission cannot record the initial receipt'
+)
+FROM lease_billing_state AS state;
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.leases AS lease
+    WHERE lease.unit_id = state.prepare_receipt_unit_id
+  ),
+  0,
+  'receipt authorization failure rolls back the prepare-only lease creation'
+)
+FROM lease_billing_state AS state;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT admin_id::text FROM lease_billing_state),
+  true
+);
+
+SELECT is(
+  (
+    SELECT deposit.status
+    FROM public.lease_deposits AS deposit
+    WHERE deposit.lease_id = (state.receipt_result ->> 'leaseId')::uuid
+  ),
+  'held',
+  'the full receipt moves the deposit obligation to held'
+)
+FROM lease_billing_state AS state;
+
+SELECT is(
+  public.create_lease_with_deposit_receipt(
+    state.organization_id, state.property_id, state.receipt_unit_id, state.tenant_id,
+    DATE '2026-08-01', DATE '2027-12-31', 1000, 'USD', 15, 'monthly',
+    'draft', 500, 'USD', 'draft',
+    pg_temp.relationship_payload(state.tenant_id),
+    pg_temp.billing_rule(state.company_id),
+    true, NULL, DATE '2026-08-03', 'lease-deposit-received-1'
+  ),
+  state.receipt_result,
+  'same-payload atomic creation retry returns the exact original result'
+)
+FROM lease_billing_state AS state;
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.lease_deposit_events AS event
+    WHERE event.lease_deposit_id = (
+      SELECT deposit.id
+      FROM public.lease_deposits AS deposit
+      WHERE deposit.lease_id = (state.receipt_result ->> 'leaseId')::uuid
+    )
+  ),
+  1,
+  'same-payload retry does not duplicate the received deposit event'
+)
+FROM lease_billing_state AS state;
+
+SELECT lives_ok(
+  format(
+    'SELECT public.record_lease_deposit_event(%L,%L,%L,DATE %L,100,%L)',
+    state.organization_id,
+    (
+      SELECT deposit.id
+      FROM public.lease_deposits AS deposit
+      WHERE deposit.lease_id = (state.receipt_result ->> 'leaseId')::uuid
+    ),
+    'refunded', '2026-08-04', 'Partial refund after creation'
+  ),
+  'a later refund remains available after the creation-time receipt'
+)
+FROM lease_billing_state AS state;
+
+SELECT lives_ok(
+  format(
+    'SELECT public.record_lease_deposit_event(%L,%L,%L,DATE %L,100,%L)',
+    state.organization_id,
+    (
+      SELECT deposit.id
+      FROM public.lease_deposits AS deposit
+      WHERE deposit.lease_id = (state.receipt_result ->> 'leaseId')::uuid
+    ),
+    'received', '2026-08-05', 'Top up after partial refund'
+  ),
+  'receipt can top the deposit back up after current held cash falls below the obligation'
+)
+FROM lease_billing_state AS state;
+
+SELECT is(
+  (
+    SELECT sum(
+      CASE WHEN event.event_type = 'received' THEN event.amount ELSE -event.amount END
+    )
+    FROM public.lease_deposit_events AS event
+    WHERE event.lease_deposit_id = (
+      SELECT deposit.id
+      FROM public.lease_deposits AS deposit
+      WHERE deposit.lease_id = (state.receipt_result ->> 'leaseId')::uuid
+    )
+      AND event.reversal_of_id IS NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.lease_deposit_events AS reversal
+        WHERE reversal.reversal_of_id = event.id
+      )
+  ),
+  500::numeric,
+  'the replacement receipt restores current held cash to the obligation'
+)
+FROM lease_billing_state AS state;
+
+SELECT throws_ok(
+  format(
+    'SELECT public.create_lease_with_deposit_receipt(%L,%L,%L,%L,DATE %L,DATE %L,1000,%L,15,%L,%L,500,%L,%L,%L::jsonb,%L::jsonb,true,400,DATE %L,%L)',
+    state.organization_id, state.property_id, state.receipt_unit_id, state.tenant_id,
+    '2026-08-01', '2027-12-31', 'USD', 'monthly', 'draft', 'USD', 'draft',
+    pg_temp.relationship_payload(state.tenant_id), pg_temp.billing_rule(state.company_id),
+    '2026-08-03', 'lease-deposit-received-1'
+  ),
+  '22023',
+  NULL,
+  'a reused atomic creation key rejects a changed deposit receipt payload'
+)
+FROM lease_billing_state AS state;
+
+SELECT throws_ok(
+  format(
+    'SELECT public.create_lease_with_deposit_receipt(%L,%L,%L,%L,DATE %L,DATE %L,1000,%L,15,%L,%L,500,%L,%L,%L::jsonb,%L::jsonb,true,600,DATE %L,%L)',
+    state.organization_id, state.property_id, state.receipt_rollback_unit_id,
+    state.tenant_id, '2026-08-01', '2027-12-31', 'USD', 'monthly', 'draft',
+    'USD', 'draft', pg_temp.relationship_payload(state.tenant_id),
+    pg_temp.billing_rule(state.company_id), '2026-08-03',
+    'lease-deposit-received-invalid-1'
+  ),
+  NULL,
+  NULL,
+  'an invalid received amount rejects the atomic creation command'
+)
+FROM lease_billing_state AS state;
+
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.leases AS lease
+    WHERE lease.unit_id = state.receipt_rollback_unit_id
+  ),
+  0,
+  'deposit receipt failure rolls back lease, term, relationship, obligation, and billing writes'
+)
+FROM lease_billing_state AS state;
 
 SELECT is(
   (SELECT count(*)::integer FROM public.rent_policy_versions),

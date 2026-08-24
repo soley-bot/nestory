@@ -39,6 +39,7 @@ export default async function PropertyPage({
       canArchive={context.permissionKeys.has("properties.archive")}
       billingFormConfig={billingFormConfig}
       canCreateLease={context.permissionKeys.has("leases.prepare")}
+      canRecordDepositReceipt={context.permissionKeys.has("leases.change_terms")}
       canWrite={context.permissionKeys.has("properties.write")}
       initialSection={getInitialPropertySection(section)}
       ownerOptions={ownerOptions}
