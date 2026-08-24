@@ -2,17 +2,11 @@
 
 import Link from "next/link";
 import { useActionState, useState, type ReactNode } from "react";
-import { FilePlus2, MoreHorizontal } from "lucide-react";
+import { FilePlus2 } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -27,6 +21,7 @@ import {
 } from "@/features/leases/lease-detail-route";
 import type {
   LeaseBillingRule,
+  LeaseDepositContext,
   LeaseSummary,
 } from "@/features/leases/lease.types";
 import { formatFileSize } from "@/features/documents/components/document-list";
@@ -213,33 +208,6 @@ function LeaseOverview({
               Renew lease
             </Button>
           ) : null}
-          {(permissions.canChangeTerms || permissions.canClose) &&
-          !lease.isArchived && lease.statusValue !== "draft" ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  Manage lease
-                  <MoreHorizontal size={15} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-48">
-                {permissions.canChangeTerms && lease.statusValue === "active" ? (
-                  <>
-                    <DropdownMenuItem onSelect={() => onScheduleTerm("rent_change")}>Change rent</DropdownMenuItem>
-                    {permissions.canClose ? (
-                      <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>Record notice</DropdownMenuItem>
-                    ) : null}
-                  </>
-                ) : null}
-                {permissions.canClose && ["active", "notice_given"].includes(lease.statusValue) ? (
-                  <>
-                    <DropdownMenuItem onSelect={() => onLifecycleChange("end")}>Complete move-out</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onLifecycleChange("terminate")} variant="destructive">Terminate lease</DropdownMenuItem>
-                  </>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
         </div>
       </section>
     </div>
@@ -395,8 +363,14 @@ function LeaseRentAndDeposit({
         <SectionHeading id="deposit-events-heading" title="Deposit activity" />
         {lease.deposits.length ? (
           <div className="mt-3 divide-y divide-border border-y border-border">
-            {lease.deposits.map((deposit) => (
-              <div className="py-4" key={deposit.id}>
+            {lease.deposits.map((deposit) => {
+              const activityOptions = getDepositActivityOptions(deposit);
+              const canRecordReceipt =
+                deposit.amountCents > 0 &&
+                deposit.heldBalanceCents < deposit.amountCents;
+
+              return (
+                <div className="py-4" key={deposit.id}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="font-medium">{deposit.typeLabel}</p>
@@ -449,14 +423,18 @@ function LeaseRentAndDeposit({
                     ))}
                   </div>
                 ) : null}
-                {permissions.canChangeTerms ? (
+                {permissions.canChangeTerms && activityOptions.length > 0 ? (
                   <div className="mt-3">
                     <Button onClick={() => setShowDepositForm((visible) => !visible)} variant="outline">
-                      Record deposit activity
+                      {canRecordReceipt
+                        ? "Record deposit activity"
+                        : "Manage held deposit"}
                     </Button>
                   </div>
                 ) : null}
-                {permissions.canChangeTerms && showDepositForm ? (
+                {permissions.canChangeTerms &&
+                activityOptions.length > 0 &&
+                showDepositForm ? (
                   <form
                     action={recordDepositEvent}
                     className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-5"
@@ -469,12 +447,9 @@ function LeaseRentAndDeposit({
                     <Field label="Activity">
                       <SelectControl
                         ariaLabel="Deposit activity"
+                        defaultValue={activityOptions[0]?.value}
                         name="eventType"
-                        options={[
-                          { label: "Deposit received", value: "received" },
-                          { label: "Deposit retained", value: "retained" },
-                          { label: "Deposit refunded", value: "refunded" },
-                        ]}
+                        options={activityOptions}
                       />
                     </Field>
                     <Field label="Date">
@@ -502,9 +477,10 @@ function LeaseRentAndDeposit({
                   </form>
                 ) : null}
                 <ActionMessage state={depositState} />
-                <ActionMessage state={reversalState} />
-              </div>
-            ))}
+                  <ActionMessage state={reversalState} />
+                </div>
+              );
+            })}
           </div>
         ) : (
           <EmptyLine label="No deposit activity recorded." />
@@ -512,6 +488,20 @@ function LeaseRentAndDeposit({
       </section>
     </div>
   );
+}
+
+function getDepositActivityOptions(deposit: LeaseDepositContext) {
+  return [
+    ...(deposit.amountCents > 0 && deposit.heldBalanceCents < deposit.amountCents
+      ? [{ label: "Deposit received", value: "received" }]
+      : []),
+    ...(deposit.heldBalanceCents > 0
+      ? [
+          { label: "Deposit retained", value: "retained" },
+          { label: "Deposit refunded", value: "refunded" },
+        ]
+      : []),
+  ];
 }
 
 function BillingRuleRow({

@@ -10104,6 +10104,31 @@ export type Database = {
         }
         Returns: Json
       }
+      create_lease_with_deposit_receipt: {
+        Args: {
+          p_billing_rule: Json
+          p_deposit_amount: number
+          p_deposit_currency: Database["public"]["Enums"]["currency_code"]
+          p_deposit_received: boolean
+          p_deposit_received_amount: number
+          p_deposit_received_on: string
+          p_idempotency_key: string
+          p_lease_end_date: string
+          p_lease_start_date: string
+          p_lease_status: string
+          p_organization_id: string
+          p_payment_frequency: string
+          p_primary_tenant_person_id: string
+          p_property_id: string
+          p_relationship_payload: Json
+          p_rent_amount: number
+          p_rent_currency: Database["public"]["Enums"]["currency_code"]
+          p_rent_due_day: number
+          p_term_status: string
+          p_unit_id: string
+        }
+        Returns: Json
+      }
       create_lease_with_relationships: {
         Args: {
           p_deposit_amount: number

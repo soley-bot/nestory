@@ -100,6 +100,18 @@ describe("LeaseDetailScreen", () => {
     expect(screen.queryByRole("combobox", { name: "Term status" })).toBeNull();
   });
 
+  it("keeps task-specific management discoverable outside Overview without exposing active editing", async () => {
+    const user = userEvent.setup();
+    renderDetail("rent");
+
+    expect(screen.queryByRole("button", { name: "Edit lease" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit draft" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Manage lease" }));
+    expect(screen.getByRole("menuitem", { name: "Change rent" })).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Record notice" })).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Complete move-out" })).not.toBeNull();
+  });
+
   it("offers Activate today or a scheduled date without asking for an explanation", async () => {
     const user = userEvent.setup();
     const lease = makeLease();
@@ -298,6 +310,94 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByRole("button", { name: "Save deposit activity" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Undo entry" })).not.toBeNull();
     expect(screen.queryByText(/received \/ /)).toBeNull();
+  });
+
+  it("hides only the receipt choice once the deposit obligation is fully received", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.deposits[0]!.events = [
+      {
+        amountDisplay: lease.deposits[0]!.amountDisplay,
+        eventDate: "2026-07-01",
+        eventType: "received",
+        id: "deposit-event-1",
+        reference: "Created with lease",
+        reversible: true,
+      },
+    ];
+    lease.deposits[0]!.heldBalance = 1200;
+    lease.deposits[0]!.heldBalanceCents = 120000;
+    lease.deposits[0]!.receivedAmount = 1200;
+
+    renderDetail("rent", lease);
+    expect(screen.getByRole("button", { name: "Undo entry" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Manage held deposit" }));
+    await user.click(screen.getByRole("combobox", { name: "Deposit activity" }));
+
+    expect(screen.queryByRole("option", { name: "Deposit received" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Deposit retained" })).not.toBeNull();
+    expect(screen.getByRole("option", { name: "Deposit refunded" })).not.toBeNull();
+  });
+
+  it("retains the receipt choice for a partially received deposit", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.deposits[0]!.heldBalance = 400;
+    lease.deposits[0]!.heldBalanceCents = 40000;
+    lease.deposits[0]!.receivedAmount = 400;
+
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "Record deposit activity" }));
+    await user.click(screen.getByRole("combobox", { name: "Deposit activity" }));
+
+    expect(screen.getByRole("option", { name: "Deposit received" })).not.toBeNull();
+  });
+
+  it("offers receipt again when a refund lowers the currently held balance", async () => {
+    const user = userEvent.setup();
+    const lease = makeLease();
+    lease.deposits[0]!.events = [
+      {
+        amountDisplay: lease.deposits[0]!.amountDisplay,
+        eventDate: "2026-07-01",
+        eventType: "received",
+        id: "deposit-event-received",
+        reference: "Full receipt",
+        reversible: true,
+      },
+      {
+        amountDisplay: { primary: "USD 200.00" },
+        eventDate: "2026-07-02",
+        eventType: "refunded",
+        id: "deposit-event-refunded",
+        reference: "Partial refund",
+        reversible: true,
+      },
+    ];
+    lease.deposits[0]!.heldBalance = 1000;
+    lease.deposits[0]!.heldBalanceCents = 100000;
+    lease.deposits[0]!.receivedAmount = 1200;
+
+    renderDetail("rent", lease);
+    await user.click(screen.getByRole("button", { name: "Record deposit activity" }));
+    await user.click(screen.getByRole("combobox", { name: "Deposit activity" }));
+
+    expect(screen.getByRole("option", { name: "Deposit received" })).not.toBeNull();
+  });
+
+  it("does not expose an empty activity form for a zero deposit obligation", () => {
+    const lease = makeLease();
+    lease.deposits[0]!.amount = 0;
+    lease.deposits[0]!.amountCents = 0;
+    lease.deposits[0]!.heldBalance = 0;
+    lease.deposits[0]!.heldBalanceCents = 0;
+    lease.deposits[0]!.receivedAmount = 0;
+
+    renderDetail("rent", lease);
+
+    expect(screen.queryByRole("button", { name: "Record deposit activity" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Manage held deposit" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Deposit activity" })).toBeNull();
   });
 
   it("shows current, scheduled, and historical billing rules directly below the rent schedule", () => {
