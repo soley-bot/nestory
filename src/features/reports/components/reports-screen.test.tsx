@@ -118,7 +118,7 @@ describe("minimal Reports workspace", () => {
       name: "Monthly Unit Profit & Loss",
     });
     const heading = title.parentElement;
-    const rowCount = within(heading!).getByText("1 unit");
+    const rowCount = within(heading!).getByText("1 scope");
 
     expect(heading).not.toBeNull();
     expect(heading?.className).toContain("flex");
@@ -206,7 +206,7 @@ describe("minimal Reports workspace", () => {
     renderReport({ report });
 
     expect(screen.queryByText("P2 - Property Two")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Show 1 unit with no activity" }));
+    await user.click(screen.getByRole("button", { name: "Show 1 scope with no activity" }));
     expect(screen.getByText("P2 - Property Two")).toBeTruthy();
   });
 

@@ -5,7 +5,10 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { getPeopleMutationErrorMessage } from "@/features/people/people-action-errors";
-import type { PersonRoleValue } from "@/features/people/people.types";
+import type {
+  PersonPartyType,
+  PersonRoleValue,
+} from "@/features/people/people.types";
 
 type PeopleFieldErrors = {
   displayName?: string[];
@@ -26,6 +29,7 @@ export type PeopleActionState = {
   displayName?: string;
   fieldErrors?: PeopleFieldErrors;
   message?: string;
+  partyType?: PersonPartyType;
   personId?: string;
   roles?: PersonRoleValue[];
   status?: "error" | "success";
@@ -190,6 +194,7 @@ export async function createPersonAction(
   return {
     displayName: parsed.data.displayName,
     message: "Person added.",
+    partyType: parsed.data.partyType,
     personId,
     roles: parsed.data.roles,
     status: "success",

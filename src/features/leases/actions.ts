@@ -11,8 +11,15 @@ import {
   parseIdempotencyKey,
 } from "@/features/leases/lease-action-input";
 import { buildNewLeaseRelationshipPayload } from "@/features/leases/lease-relationship-input";
+import {
+  leaseBillingRuleSchema,
+  leaseBillingRuleShape,
+  readLeaseBillingRuleInput,
+  toLeaseBillingRulePayload,
+} from "@/features/leases/lease-billing-rule-input";
+import type { LeaseBillingRuleFieldErrors } from "@/features/leases/lease.types";
 
-type LeaseFieldErrors = {
+type LeaseFieldErrors = LeaseBillingRuleFieldErrors & {
   activationDate?: string[];
   actualMoveInDate?: string[];
   actualMoveOutDate?: string[];
@@ -145,6 +152,7 @@ const cancelLeaseActivationSchema = z.object({
 
 const leaseMutationSchema = z
   .object({
+    ...leaseBillingRuleShape,
     actualMoveInDate: optionalDateSchema,
     actualMoveOutDate: optionalDateSchema,
     depositAmount: z.string().trim(),
@@ -366,36 +374,22 @@ export async function createLeaseAction(
     parsed.data,
     idempotencyKey,
   );
-  const { data: relationshipResult, error } = parsed.data.unitId
-    ? await supabase.rpc("create_simplified_unit_lease", {
-        ...authorityPayload,
-        p_relationship_payload: buildNewLeaseRelationshipPayload({
-          actualMoveInDate: parsed.data.actualMoveInDate || undefined,
-          actualMoveOutDate: parsed.data.actualMoveOutDate || undefined,
-          leaseStatus: parsed.data.status,
-          recordSource: "operator_confirmed",
-          scheduledMoveInDate: parsed.data.scheduledMoveInDate || undefined,
-          scheduledMoveOutDate: parsed.data.scheduledMoveOutDate || undefined,
-          tenantPersonId: parsed.data.tenantPersonId,
-        }),
-      })
-    : await supabase.rpc("create_property_lease", {
-        p_deposit_amount: authorityPayload.p_deposit_amount,
-        p_deposit_currency: authorityPayload.p_deposit_currency,
-        p_idempotency_key: authorityPayload.p_idempotency_key,
-        p_lease_end_date: authorityPayload.p_lease_end_date,
-        p_lease_start_date: authorityPayload.p_lease_start_date,
-        p_lease_status: authorityPayload.p_lease_status,
-        p_organization_id: authorityPayload.p_organization_id,
-        p_payment_frequency: authorityPayload.p_payment_frequency,
-        p_primary_tenant_person_id:
-          authorityPayload.p_primary_tenant_person_id,
-        p_property_id: authorityPayload.p_property_id,
-        p_rent_amount: authorityPayload.p_rent_amount,
-        p_rent_currency: authorityPayload.p_rent_currency,
-        p_rent_due_day: authorityPayload.p_rent_due_day,
-        p_term_status: authorityPayload.p_term_status,
-      });
+  const { data: relationshipResult, error } = await supabase.rpc(
+    "create_lease_with_billing_rules",
+    {
+      ...authorityPayload,
+      p_billing_rule: toLeaseBillingRulePayload(parsed.data),
+      p_relationship_payload: buildNewLeaseRelationshipPayload({
+        actualMoveInDate: parsed.data.actualMoveInDate || undefined,
+        actualMoveOutDate: parsed.data.actualMoveOutDate || undefined,
+        leaseStatus: parsed.data.status,
+        recordSource: "operator_confirmed",
+        scheduledMoveInDate: parsed.data.scheduledMoveInDate || undefined,
+        scheduledMoveOutDate: parsed.data.scheduledMoveOutDate || undefined,
+        tenantPersonId: parsed.data.tenantPersonId,
+      }),
+    },
+  );
 
   if (error) {
     if (isLeaseUnitTermConflict(error.message)) {
@@ -696,13 +690,14 @@ export async function updateLeaseAction(
   }
 
   const { error } = await supabase.rpc(
-    "update_lease_with_authoritative_term",
+    "update_lease_with_billing_rules",
     {
       ...leaseAuthorityRpcPayload(
         context.organizationId,
         parsed.data,
         idempotencyKey,
       ),
+      p_billing_rule: toLeaseBillingRulePayload(parsed.data),
       p_lease_id: parsedLeaseId.data,
     },
   );
@@ -725,6 +720,75 @@ export async function updateLeaseAction(
   return {
     leaseId: parsedLeaseId.data,
     message: "Draft lease updated.",
+    status: "success",
+  };
+}
+
+export async function saveLeaseBillingRulesAction(
+  _state: LeaseActionState,
+  formData: FormData,
+): Promise<LeaseActionState> {
+  const context = await requirePermission("leases.change_terms");
+  const parsedLeaseId = leaseIdSchema.safeParse(readString(formData, "leaseId"));
+  const parsedExpectedRuleId = z
+    .preprocess(
+      (value) => value || null,
+      postgresUuid("Choose the current billing rule.").nullable(),
+    )
+    .safeParse(readString(formData, "expectedCurrentBillingRuleId"));
+  const parsedRule = leaseBillingRuleSchema.safeParse(
+    readLeaseBillingRuleInput(formData),
+  );
+
+  if (!parsedLeaseId.success) {
+    return { fieldErrors: { leaseId: ["Choose a lease."] }, status: "error" };
+  }
+  if (!parsedExpectedRuleId.success) {
+    return {
+      message: "Refresh the billing rules and try again.",
+      status: "error",
+    };
+  }
+  if (!parsedRule.success) {
+    return invalidFormState(parsedRule.error);
+  }
+
+  const idempotencyKey = readIdempotencyKey(formData);
+  if (!idempotencyKey) {
+    return { message: "Refresh the form and try again.", status: "error" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const pathContext = await getLeasePathContext(
+    supabase,
+    context.organizationId,
+    parsedLeaseId.data,
+  );
+  const { error } = await supabase.rpc("save_lease_billing_rules", {
+    p_billing_rule: toLeaseBillingRulePayload(parsedRule.data),
+    p_expected_current_billing_rule_id: parsedExpectedRuleId.data as string,
+    p_idempotency_key: idempotencyKey,
+    p_lease_id: parsedLeaseId.data,
+    p_organization_id: context.organizationId,
+  });
+
+  if (error) {
+    return {
+      message: leaseActionErrorMessage(error.message, error.details),
+      status: "error",
+    };
+  }
+
+  revalidateLeasePaths(
+    [pathContext?.property_id],
+    [pathContext?.unit_id],
+    parsedLeaseId.data,
+  );
+  revalidatePath("/finance");
+  revalidatePath("/rent-income");
+  return {
+    leaseId: parsedLeaseId.data,
+    message: "Billing rules saved.",
     status: "success",
   };
 }
@@ -901,6 +965,7 @@ export async function restoreLeaseAction(
 
 function readLeaseMutationInput(formData: FormData) {
   return {
+    ...readLeaseBillingRuleInput(formData),
     actualMoveInDate: readString(formData, "actualMoveInDate"),
     actualMoveOutDate: readString(formData, "actualMoveOutDate"),
     depositAmount: readString(formData, "depositAmount"),

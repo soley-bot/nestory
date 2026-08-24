@@ -18,17 +18,20 @@ import {
   RestoreLeasePanel,
 } from "@/features/leases/components/lease-drawer-panels";
 import { LeaseDetailView } from "@/features/leases/components/lease-detail-view";
+import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import {
   cancelLeaseActivationAction,
   scheduleLeaseActivationAction,
   scheduleFutureRentTermAction,
+  saveLeaseBillingRulesAction,
   transitionLeaseLifecycleAction,
   type LeaseActionState,
 } from "@/features/leases/actions";
 import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
 import type {
   LeasePropertyOption,
+  LeaseBillingFormConfig,
   LeaseSummary,
   LeaseTenantOption,
   LeaseTermContext,
@@ -45,7 +48,11 @@ type LeaseTransition =
   | "terminate";
 type LeaseTermChange = "renewal" | "rent_change";
 
-type DrawerState = { mode: "archive" } | { mode: "edit" } | { mode: "restore" };
+type DrawerState =
+  | { mode: "archive" }
+  | { mode: "billing" }
+  | { mode: "edit" }
+  | { mode: "restore" };
 
 export type LeaseActionPermissions = {
   canActivate: boolean;
@@ -59,6 +66,7 @@ const initialActionState: LeaseActionState = {};
 
 export function LeaseDetailScreen({
   activeSection,
+  billingFormConfig,
   lease,
   permissions,
   propertyOptions,
@@ -66,6 +74,7 @@ export function LeaseDetailScreen({
   unitOptions,
 }: {
   activeSection: LeaseRecordSection;
+  billingFormConfig?: LeaseBillingFormConfig;
   lease: LeaseSummary;
   permissions: LeaseActionPermissions;
   propertyOptions: LeasePropertyOption[];
@@ -188,6 +197,7 @@ export function LeaseDetailScreen({
           setStatusMessage(null);
           setUploadOpen(true);
         }}
+        onChangeBillingRules={() => openDrawer({ mode: "billing" })}
         onLifecycleChange={(nextTransition) => {
           setStatusMessage(null);
           if (!currentOccupancy) {
@@ -229,8 +239,16 @@ export function LeaseDetailScreen({
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
             />
+          ) : drawer.mode === "billing" ? (
+            <LeaseBillingRulesForm
+              billingFormConfig={billingFormConfig}
+              lease={lease}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+            />
           ) : (
             <LeaseForm
+              billingFormConfig={billingFormConfig}
               key={`edit-${lease.id}`}
               lease={lease}
               mode="edit"
@@ -309,6 +327,100 @@ export function LeaseDetailScreen({
         </Modal>
       ) : null}
     </div>
+  );
+}
+
+function LeaseBillingRulesForm({
+  billingFormConfig,
+  lease,
+  onClose,
+  onSuccess,
+}: {
+  billingFormConfig?: LeaseBillingFormConfig;
+  lease: LeaseSummary;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    saveLeaseBillingRulesAction,
+    initialActionState,
+  );
+  const [idempotencyKey] = useState(
+    () => `lease-billing:${lease.id}:${crypto.randomUUID()}`,
+  );
+  const currentRule =
+    lease.billingRules.find((rule) => rule.state === "current") ??
+    lease.billingRules.find((rule) => rule.state === "scheduled") ??
+    null;
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+    onSuccess(state.message ?? "Billing rules saved.");
+    onClose();
+    router.refresh();
+  }, [onClose, onSuccess, router, state.message, state.status]);
+
+  return (
+    <form action={action} className="space-y-4 p-4">
+      <input name="leaseId" type="hidden" value={lease.id} />
+      <input
+        name="expectedCurrentBillingRuleId"
+        type="hidden"
+        value={currentRule?.id ?? ""}
+      />
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
+
+      <div className="border-l-2 border-foreground pl-3">
+        <p className="font-medium text-foreground">{lease.tenantName}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {lease.propertyName} / {lease.unitLabel}
+        </p>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Begins with the next unbilled month.
+      </p>
+      <LeaseBillingRuleFields
+        companyOptions={billingFormConfig?.companyOptions}
+        defaults={currentRule}
+        fieldErrors={state.fieldErrors}
+        operationalTimezone={
+          billingFormConfig?.operationalTimezone ??
+          currentRule?.rentCalculationTimezone ??
+          "UTC"
+        }
+        organizationName={billingFormConfig?.organizationName ?? "our company"}
+        tenantRecipient={{
+          id: lease.formValues.tenantPersonId,
+          label: lease.tenantName,
+          partyType: billingFormConfig?.companyOptions.some(
+            (option) => option.id === lease.formValues.tenantPersonId,
+          )
+            ? "company"
+            : "individual",
+        }}
+      />
+      {state.message ? (
+        <p
+          className={
+            state.status === "error"
+              ? "text-sm text-danger"
+              : "text-sm text-muted-foreground"
+          }
+          role="status"
+        >
+          {state.message}
+        </p>
+      ) : null}
+      <div className="flex justify-end gap-2 border-t border-border pt-4">
+        <Button onClick={onClose} type="button" variant="ghost">
+          Cancel
+        </Button>
+        <Button disabled={pending} type="submit">
+          {pending ? "Saving..." : "Save billing rules"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -456,6 +568,7 @@ function LeaseTermModal({
 
 function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "archive") return "Archive lease";
+  if (drawer.mode === "billing") return "Change billing rules";
   if (drawer.mode === "restore") return "Restore lease";
   return "Edit draft";
 }
@@ -463,6 +576,8 @@ function getDrawerTitle(drawer: DrawerState) {
 function getDrawerDescription(drawer: DrawerState) {
   if (drawer.mode === "archive")
     return "Archive this record without deleting its history.";
+  if (drawer.mode === "billing")
+    return "Schedule the replacement after all generated invoice months.";
   if (drawer.mode === "restore")
     return "Review whether this lease can return to active views.";
   return "Update the draft period, rent, or deposit before activation.";

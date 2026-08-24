@@ -10,6 +10,12 @@ export default async function BillsExpensesPage({
   searchParams,
 }: BillsExpensesPageProps = {}) {
   const params = (await searchParams) ?? {};
+  const initialExpenseIntent =
+    params.action === "record-recoverable-cost"
+      ? "tenant"
+      : params.action === "create" || params.action === "record-property-expense"
+        ? "owner"
+        : undefined;
   const context = await requireFinanceContext();
   const data = await getFinanceOperationsData(context.organizationId);
   return (
@@ -25,7 +31,7 @@ export default async function BillsExpensesPage({
       canReverseExpense={context.capabilities.canReverseExpense}
       canRetryCurrentRent={context.capabilities.canRetryCurrentRent}
       canSubmitExpense={context.capabilities.canSubmitExpense}
-      initialExpenseIntent={params.action === "create"}
+      initialExpenseIntent={initialExpenseIntent}
       organizationName={context.organizationName}
       view="expenses"
     />

@@ -243,6 +243,7 @@ function financeData(
   return {
     accountEntries: [],
     expenseSubmissions: [],
+    financeCategories: [],
     leases: [],
     ownerInvoices: [],
     peopleOptions: [],

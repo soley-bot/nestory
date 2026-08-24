@@ -68,6 +68,7 @@ vi.mock("@/features/finance-operations/documents/commercial-document-artifacts",
 }));
 
 import {
+  createFinanceCategoryAction,
   confirmOwnerCollectionAction,
   createManualTenantChargeAction,
   publishTenantInvoicePdfAction,
@@ -83,6 +84,8 @@ import {
   retryTenantReceiptPdfAction,
   saveLeaseBillingAction,
   submitExpenseAction,
+  setFinanceCategoryArchivedAction,
+  updateFinanceCategoryAction,
 } from "@/features/finance-operations/actions";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
@@ -152,6 +155,30 @@ describe("rent generation recovery action", () => {
       p_organization_id: organizationId,
     });
     expect(requirePermission).toHaveBeenCalledWith("finance.record_payments");
+  });
+
+  it("passes an organization tenant-billing category code to the checked charge RPC", async () => {
+    requirePermission.mockResolvedValue({ organizationId });
+    rpc.mockResolvedValueOnce({
+      data: { invoiceId: sourceId, leaseId, lineId: submissionId },
+      error: null,
+    });
+    const formData = new FormData();
+    formData.set("amount", "75.50");
+    formData.set("billingPeriod", "2026-08");
+    formData.set("chargeType", "custom_parking_123");
+    formData.set("description", "Reserved parking");
+    formData.set("dueDate", "2026-08-20");
+    formData.set("idempotencyKey", "custom-charge-v1");
+    formData.set("leaseId", leaseId);
+
+    await expect(createManualTenantChargeAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "create_manual_tenant_charge",
+      expect.objectContaining({ p_charge_type: "custom_parking_123" }),
+    );
   });
 
   it("uses the current-rent retry context and retries only the selected exception", async () => {
@@ -272,22 +299,33 @@ describe("rent generation recovery action", () => {
     formData.set("billingRecipientKind", "individual");
     formData.set("billingRecipientPersonId", actorId);
     formData.set("chargeManagementFeeWhenActive", "yes");
+    formData.set("chargeThroughLeaseEnd", "yes");
     formData.set("collectionRoute", "through_ips");
-    formData.set("effectiveFrom", "2026-08-11");
+    formData.set("expectedCurrentBillingRuleId", "billing-current");
     formData.set("fullManagementFeeDuringProration", "no");
     formData.set("idempotencyKey", "billing-test-key");
+    formData.set("leaseEndProrationRule", "actual_days");
     formData.set("leaseId", leaseId);
+    formData.set("leaseStartProrationRule", "actual_days");
     formData.set("managementFeeMode", "percentage");
     formData.set("managementFeeValue", "10");
+    formData.set("midPeriodRentChangeRule", "next_full_month");
+    formData.set("rentCalculationTimezone", "Asia/Bangkok");
+    formData.set("shortMonthDueDayRule", "last_calendar_day");
 
     await expect(saveLeaseBillingAction({}, formData)).resolves.toMatchObject({
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "set_lease_billing_term",
+      "save_lease_billing_rules",
       expect.objectContaining({
-        p_charge_management_fee_when_active: true,
-        p_full_management_fee_during_proration: false,
+        p_billing_rule: expect.objectContaining({
+          chargeManagementFeeWhenActive: true,
+          chargeThroughLeaseEnd: true,
+          fullManagementFeeDuringProration: false,
+          rentCalculationTimezone: "Asia/Bangkok",
+        }),
+        p_expected_current_billing_rule_id: "billing-current",
       }),
     );
     expect(requirePermission).toHaveBeenCalledWith("leases.change_terms");
@@ -828,6 +866,40 @@ describe("expense approval actions", () => {
     );
   });
 
+  it("passes an organization owner-expense category code to paid-cost submission", async () => {
+    rpc.mockResolvedValue({ data: submissionId, error: null });
+    const formData = new FormData();
+    formData.set("category", "custom_landscaping_123");
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "expense-custom-category");
+    formData.set("internalCost", "200");
+    formData.set("internalMarkup", "0");
+    formData.set("propertyId", propertyId);
+    formData.set("reconciliationSourceId", sourceId);
+    formData.set("reference", "Receipt 43");
+    formData.set("responsibility", "owner");
+    formData.set("tenantInvoiceId", "");
+    formData.set("unitId", "");
+    formData.set("vendorLabel", "Sokha Gardens");
+    formData.set(
+      "evidenceFile",
+      new File(["paid-cost-receipt"], "receipt-43.pdf", {
+        type: "application/pdf",
+      }),
+    );
+
+    await expect(submitExpenseAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      "submit_expense",
+      expect.objectContaining({
+        p_customer_category: "custom_landscaping_123",
+        p_responsibility: "owner",
+      }),
+    );
+  });
+
   it("rejects a paid cost without a retained evidence file before authorization", async () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     const formData = new FormData();
@@ -966,6 +1038,81 @@ describe("expense approval actions", () => {
       p_reason: "Duplicate payment",
       p_reversal_date: "2026-08-08",
       p_submission_id: submissionId,
+    });
+  });
+});
+
+describe("finance category actions", () => {
+  beforeEach(() => {
+    requireSuperAdminContext.mockReset();
+    revalidatePath.mockReset();
+    rpc.mockReset();
+    requireSuperAdminContext.mockResolvedValue({ organizationId });
+    rpc.mockResolvedValue({ data: submissionId, error: null });
+  });
+
+  it("creates an owner-expense category in its explicit namespace", async () => {
+    const formData = new FormData();
+    formData.set("displayLabel", "Landscaping");
+    formData.set("namespace", "owner_expense");
+    formData.set("reportingGroup", "maintenance");
+
+    await expect(createFinanceCategoryAction({}, formData)).resolves.toEqual({
+      message: "Owner expense category added.",
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("create_finance_category", {
+      p_display_label: "Landscaping",
+      p_namespace: "owner_expense",
+      p_organization_id: organizationId,
+      p_reporting_group: "maintenance",
+    });
+  });
+
+  it("does not accept a tenant reporting group in the owner-expense namespace", async () => {
+    const formData = new FormData();
+    formData.set("displayLabel", "Parking");
+    formData.set("namespace", "owner_expense");
+    formData.set("reportingGroup", "parking");
+
+    await expect(createFinanceCategoryAction({}, formData)).resolves.toEqual({
+      message: "Choose a reporting group for the selected category type.",
+      status: "error",
+    });
+    expect(requireSuperAdminContext).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("renames without changing category namespace or reporting mapping", async () => {
+    const formData = new FormData();
+    formData.set("categoryId", submissionId);
+    formData.set("displayLabel", "Grounds care");
+    formData.set("reportingGroup", "maintenance");
+
+    await expect(updateFinanceCategoryAction({}, formData)).resolves.toMatchObject({
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("update_finance_category", {
+      p_category_id: submissionId,
+      p_display_label: "Grounds care",
+      p_organization_id: organizationId,
+      p_reporting_group: "maintenance",
+    });
+  });
+
+  it("archives a category through the checked lifecycle RPC", async () => {
+    const formData = new FormData();
+    formData.set("archived", "true");
+    formData.set("categoryId", submissionId);
+
+    await expect(setFinanceCategoryArchivedAction({}, formData)).resolves.toEqual({
+      message: "Finance category archived.",
+      status: "success",
+    });
+    expect(rpc).toHaveBeenCalledWith("set_finance_category_archived", {
+      p_archived: true,
+      p_category_id: submissionId,
+      p_organization_id: organizationId,
     });
   });
 });

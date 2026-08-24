@@ -25,10 +25,13 @@ import {
   buildLeaseRecordHref,
   type LeaseRecordSection,
 } from "@/features/leases/lease-detail-route";
-import type { LeaseSummary } from "@/features/leases/lease.types";
+import type {
+  LeaseBillingRule,
+  LeaseSummary,
+} from "@/features/leases/lease.types";
 import { formatFileSize } from "@/features/documents/components/document-list";
 import { getBusinessDateValue } from "@/lib/dates/business-date";
-import { formatDate } from "@/lib/dates/format";
+import { formatCalendarDate, formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 
 const sections: Array<{ id: LeaseRecordSection; label: string }> = [
@@ -51,6 +54,7 @@ export function LeaseDetailView({
   lease,
   permissions,
   onAttachFile,
+  onChangeBillingRules,
   onLifecycleChange,
   onScheduleTerm,
 }: {
@@ -58,6 +62,7 @@ export function LeaseDetailView({
   lease: LeaseSummary;
   permissions: LeaseActionPermissions;
   onAttachFile: () => void;
+  onChangeBillingRules: () => void;
   onLifecycleChange: (
     transition: "activate" | "cancel" | "end" | "give_notice" | "terminate",
   ) => void;
@@ -79,6 +84,7 @@ export function LeaseDetailView({
         {activeSection === "rent" ? (
           <LeaseRentAndDeposit
             lease={lease}
+            onChangeBillingRules={onChangeBillingRules}
             permissions={permissions}
             onScheduleTerm={onScheduleTerm}
           />
@@ -242,10 +248,12 @@ function LeaseOverview({
 
 function LeaseRentAndDeposit({
   lease,
+  onChangeBillingRules,
   onScheduleTerm,
   permissions,
 }: {
   lease: LeaseSummary;
+  onChangeBillingRules: () => void;
   onScheduleTerm: (mode: "renewal" | "rent_change") => void;
   permissions: LeaseActionPermissions;
 }) {
@@ -261,6 +269,15 @@ function LeaseRentAndDeposit({
   const historicalTerms = lease.terms.filter((term) => term.status !== "active");
   const [showRentHistory, setShowRentHistory] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
+  const currentBillingRule = lease.billingRules.find(
+    (rule) => rule.state === "current",
+  );
+  const scheduledBillingRules = lease.billingRules.filter(
+    (rule) => rule.state === "scheduled",
+  );
+  const historicalBillingRules = lease.billingRules.filter(
+    (rule) => rule.state === "historical",
+  );
 
   return (
     <div className="space-y-8">
@@ -326,6 +343,52 @@ function LeaseRentAndDeposit({
             ) : null}
           </div>
         ) : null}
+      </section>
+
+      <section aria-labelledby="billing-rules-heading">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionHeading id="billing-rules-heading" title="Billing rules" />
+          {permissions.canChangeTerms &&
+          !lease.isArchived &&
+          ["active", "notice_given"].includes(lease.statusValue) &&
+          currentBillingRule ? (
+            <Button onClick={onChangeBillingRules} variant="outline">
+              Change rules
+            </Button>
+          ) : null}
+        </div>
+        <div className="mt-3 divide-y divide-border border-y border-border">
+          {currentBillingRule ? (
+            <BillingRuleRow
+              label="Current billing rule"
+              rule={currentBillingRule}
+            />
+          ) : (
+            <EmptyLine label="No complete lease-owned billing rule." />
+          )}
+          {scheduledBillingRules.map((rule) => (
+            <BillingRuleRow
+              key={rule.id}
+              label={`Scheduled from ${formatCalendarDate(rule.effectiveFrom)}`}
+              rule={rule}
+            />
+          ))}
+          {historicalBillingRules.length ? (
+            <div className="py-3">
+              <p className="text-sm font-medium">Billing rule history</p>
+              <div className="mt-2 divide-y divide-border border-t border-border">
+                {historicalBillingRules.map((rule) => (
+                  <BillingRuleRow
+                    compact
+                    key={rule.id}
+                    label={`${formatCalendarDate(rule.effectiveFrom)} - ${formatCalendarDate(rule.effectiveTo)}`}
+                    rule={rule}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section aria-labelledby="deposit-events-heading">
@@ -447,6 +510,52 @@ function LeaseRentAndDeposit({
           <EmptyLine label="No deposit activity recorded." />
         )}
       </section>
+    </div>
+  );
+}
+
+function BillingRuleRow({
+  compact = false,
+  label,
+  rule,
+}: {
+  compact?: boolean;
+  label: string;
+  rule: LeaseBillingRule;
+}) {
+  const fee = !rule.chargeManagementFeeWhenActive
+    ? "No management fee charged"
+    : rule.managementFeeMode === "percentage"
+      ? `${rule.managementFeeValue ?? 0}% fee`
+      : `${rule.managementFeeValue ?? 0} flat fee`;
+  const collection =
+    rule.collectionRoute === "direct_to_owner"
+      ? "Owner collects"
+      : "Management collects";
+
+  return (
+    <div
+      className={cn(
+        "grid gap-1 py-3 text-sm sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-center",
+        compact && "py-2.5",
+      )}
+    >
+      <div>
+        <p className="font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">
+          {formatCalendarDate(rule.effectiveFrom)} - {formatCalendarDate(rule.effectiveTo)}
+        </p>
+      </div>
+      <div>
+        <p>{rule.billingRecipientLabel}</p>
+        <p className="text-xs text-muted-foreground">{collection}</p>
+      </div>
+      <div>
+        <p>{fee}</p>
+        <p className="text-xs text-muted-foreground">
+          {rule.rentCalculationTimezone}
+        </p>
+      </div>
     </div>
   );
 }

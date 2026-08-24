@@ -131,12 +131,15 @@ export type TrustedReportRow = {
 export type UnitProfitLossLine = {
   amountCents: bigint;
   category: string;
+  categoryCode: string;
+  categoryId: string | null;
   currency: CurrencyCode;
   date: string;
   description: string;
   direction: "expense" | "income";
   id: string;
   property: string;
+  reportingGroup: string;
   unit: string;
 };
 

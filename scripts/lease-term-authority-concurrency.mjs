@@ -690,6 +690,8 @@ WHERE organization_id = '${ids.organization}'::uuid;
 SET LOCAL session_replication_role = replica;
 DELETE FROM public.lease_billing_terms
 WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_categories
+WHERE organization_id = '${ids.organization}'::uuid;
 SET LOCAL session_replication_role = origin;
 ALTER TABLE public.financial_reconciliation_sources
   DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;

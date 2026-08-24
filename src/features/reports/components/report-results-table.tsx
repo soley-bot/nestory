@@ -62,7 +62,7 @@ export function ReportResultsTable({
   const columns = displayColumns(report);
   const countLabel =
     report.kind === "unit-profit-loss"
-      ? `${reportRowCount} ${reportRowCount === 1 ? "unit" : "units"}`
+      ? `${reportRowCount} ${reportRowCount === 1 ? "scope" : "scopes"}`
       : `${reportRowCount} ${reportRowCount === 1 ? "property" : "properties"}`;
 
   return (
@@ -81,8 +81,8 @@ export function ReportResultsTable({
               variant="ghost"
             >
               {showZeroActivity
-                ? "Hide units with no activity"
-                : `Show ${zeroActivityRows.length} ${zeroActivityRows.length === 1 ? "unit" : "units"} with no activity`}
+                ? "Hide scopes with no activity"
+                : `Show ${zeroActivityRows.length} ${zeroActivityRows.length === 1 ? "scope" : "scopes"} with no activity`}
             </Button>
           ) : null}
         </div>
@@ -264,11 +264,11 @@ function ReportRowDetails({
     row.sourceCount - row.sourceLinks.length,
   );
   const unitPdfHref =
-    report.kind === "unit-profit-loss"
+    report.kind === "unit-profit-loss" && row.cells.unit !== "Property-level"
       ? buildUnitExportHref("/api/reports/pdf", viewQuery, row.id)
       : null;
   const unitExcelHref =
-    report.kind === "unit-profit-loss"
+    report.kind === "unit-profit-loss" && row.cells.unit !== "Property-level"
       ? buildUnitExportHref("/api/reports/excel", viewQuery, row.id)
       : null;
 

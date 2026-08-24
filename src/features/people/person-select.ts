@@ -1,10 +1,14 @@
-import type { PersonRoleValue } from "@/features/people/people.types";
+import type {
+  PersonPartyType,
+  PersonRoleValue,
+} from "@/features/people/people.types";
 
 export type PersonSelectOption = {
   archived: boolean;
   description: string;
   id: string;
   label: string;
+  partyType?: PersonPartyType;
   roles: PersonRoleValue[];
 };
 
@@ -12,6 +16,7 @@ export type PersonSelectPersonRow = {
   archived_at: string | null;
   display_name: string;
   id: string;
+  party_type: PersonPartyType;
   primary_email: string | null;
   primary_phone: string | null;
 };
@@ -68,6 +73,7 @@ export function buildPersonSelectOptions({
         description: [roleLabel, contact].filter(Boolean).join(" · "),
         id: person.id,
         label: person.display_name,
+        partyType: person.party_type,
         roles: personRoles,
       };
     })

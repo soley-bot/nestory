@@ -7,12 +7,16 @@ import {
 } from "@/lib/money/format";
 import { getReportMonthRange } from "@/features/reports/reports.filters";
 import { getMonthlyOwnerActivityReport } from "@/features/reports/data/monthly-owner-activity-report";
-import { resolvePropertyCashEventHref } from "@/features/finance/data/property-cash-events.links";
 import { iteratePropertyCashEvents } from "@/features/finance/data/property-cash-events";
 import type {
   PropertyCashEvent,
   PropertyCashEventsRpcClient,
 } from "@/features/finance/data/property-cash-events.types";
+import { iterateOwnerProfitLossEvents } from "@/features/reports/data/owner-profit-loss-events";
+import type {
+  OwnerProfitLossEvent,
+  OwnerProfitLossEventsRpcClient,
+} from "@/features/reports/data/owner-profit-loss-events.types";
 import { getPeopleReadinessReport } from "@/features/people/data/people-readiness";
 import {
   assertCompleteReportSource,
@@ -170,6 +174,7 @@ type TrustedReportInput = {
   periodEnd: string;
   periodStart: string;
   properties: PropertyRow[];
+  ownerProfitLossEvents?: OwnerProfitLossEvent[];
   propertyCashEvents?: PropertyCashEvent[];
   timelineEvents: TimelineRow[];
   units: UnitRow[];
@@ -182,13 +187,17 @@ type TrustedReportSourceRequirements = {
   leases: boolean;
   maintenanceTasks: boolean;
   owners: boolean;
+  ownerProfitLossEvents: boolean;
   people: boolean;
   propertyCashEvents: boolean;
   timelineEvents: boolean;
   units: boolean;
 };
 
-type ReportContext = Omit<TrustedReportInput, "propertyCashEvents"> & {
+type ReportContext = Omit<
+  TrustedReportInput,
+  "ownerProfitLossEvents" | "propertyCashEvents"
+> & {
   activeLeaseByUnitId: Map<string, LeaseRow>;
   documentsByLeaseId: Map<string, DocumentRow[]>;
   documentsByLedgerId: Map<string, DocumentRow[]>;
@@ -201,6 +210,8 @@ type ReportContext = Omit<TrustedReportInput, "propertyCashEvents"> & {
   maintenanceByPropertyId: Map<string, MaintenanceTaskRow[]>;
   maintenanceByUnitId: Map<string, MaintenanceTaskRow[]>;
   ownersByPropertyId: Map<string, OwnerRow>;
+  ownerProfitLossEvents: OwnerProfitLossEvent[];
+  ownerProfitLossEventsByUnitId: Map<string, OwnerProfitLossEvent[]>;
   peopleById: Map<string, PersonRow>;
   periodLabel: string;
   propertiesById: Map<string, PropertyRow>;
@@ -239,7 +250,7 @@ const trustedReportSourceRequirements = {
     "timelineEvents",
     "units",
   ),
-  "unit-profit-loss": requiresReportSources("propertyCashEvents", "units"),
+  "unit-profit-loss": requiresReportSources("ownerProfitLossEvents", "units"),
   "vacancy-risk": requiresReportSources("documents", "leases", "units"),
 } satisfies Record<ReportKind, TrustedReportSourceRequirements>;
 
@@ -276,6 +287,7 @@ export async function getTrustedReport({
       maintenanceTasks: [],
       owners: [],
       people: [],
+      ownerProfitLossEvents: [],
       periodEnd: period.end,
       periodStart: period.start,
       properties,
@@ -290,6 +302,7 @@ export async function getTrustedReport({
     units,
     leases,
     ledgerEntries,
+    ownerProfitLossEvents,
     propertyCashEvents,
     maintenanceTasks,
     timelineEvents,
@@ -306,6 +319,14 @@ export async function getTrustedReport({
       sources.ledgerEntries
         ? loadReportLedger(supabase, organizationId, propertyIds, period)
         : Promise.resolve<LedgerRow[]>([]),
+      sources.ownerProfitLossEvents
+        ? loadReportOwnerProfitLossEvents({
+            organizationId,
+            period,
+            propertyIds,
+            supabase,
+          })
+        : Promise.resolve<OwnerProfitLossEvent[]>([]),
       sources.propertyCashEvents
         ? loadReportPropertyCashEvents({
             organizationId,
@@ -358,6 +379,7 @@ export async function getTrustedReport({
     leaseTerms,
     maintenanceTasks,
     owners,
+    ownerProfitLossEvents,
     people,
     periodEnd: period.end,
     periodStart: period.start,
@@ -428,6 +450,7 @@ function requiresReportSources(
     leases: enabledSources.includes("leases"),
     maintenanceTasks: enabledSources.includes("maintenanceTasks"),
     owners: enabledSources.includes("owners"),
+    ownerProfitLossEvents: enabledSources.includes("ownerProfitLossEvents"),
     people: enabledSources.includes("people"),
     propertyCashEvents: enabledSources.includes("propertyCashEvents"),
     timelineEvents: enabledSources.includes("timelineEvents"),
@@ -579,7 +602,7 @@ function buildUnitPerformanceReport(context: ReportContext): TrustedReport {
 }
 
 function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
-  const rows = context.units
+  const unitRows = context.units
     .toSorted((first, second) => {
       const firstProperty = context.propertiesById.get(first.property_id);
       const secondProperty = context.propertiesById.get(second.property_id);
@@ -597,16 +620,15 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
     })
     .map((unit) => {
       const property = context.propertiesById.get(unit.property_id);
-      const unitEvents = context.propertyCashEventsByUnitId.get(unit.id) ?? [];
-      const operatingEvents = unitEvents.filter(isUnitProfitLossOperatingEvent);
-      const incomeEvents = operatingEvents.filter(
-        (event) => event.economicClass === "operating_income",
+      const events = context.ownerProfitLossEventsByUnitId.get(unit.id) ?? [];
+      const incomeEvents = events.filter(
+        (event) => event.economicClass === "owner_income",
       );
-      const expenseEvents = operatingEvents.filter(
-        (event) => event.economicClass === "operating_expense",
+      const expenseEvents = events.filter(
+        (event) => event.economicClass === "owner_expense",
       );
-      const incomeCents = sumOperatingCashEffect(incomeEvents);
-      const expenseCents = -sumOperatingCashEffect(expenseEvents);
+      const incomeCents = sumOwnerProfitLossEvents(incomeEvents);
+      const expenseCents = sumOwnerProfitLossEvents(expenseEvents);
       const netIncomeCents = incomeCents - expenseCents;
 
       return reportRow({
@@ -622,7 +644,7 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
         sources: compactSources([
           property && propertySource(property),
           unitSource(unit),
-          ...operatingEvents.map(propertyCashEventSource),
+          ...events.map(ownerProfitLossEventSource),
         ]),
         title: `${property?.code ?? "Unknown"} / Unit ${unit.unit_number}`,
         tone:
@@ -633,63 +655,94 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
               : "neutral",
       });
     });
-  const unitLinkedEvents = context.propertyCashEvents.filter(
-    (event) => event.unitId && context.unitsById.has(event.unitId),
-  );
-  const operatingEvents = unitLinkedEvents.filter(
-    isUnitProfitLossOperatingEvent,
-  );
+  const propertyLevelRows = context.properties.flatMap((property) => {
+    const events = context.ownerProfitLossEvents.filter(
+      (event) => event.propertyId === property.id && event.unitId === null,
+    );
+    if (events.length === 0) return [];
+
+    const incomeCents = sumOwnerProfitLossEvents(
+      events.filter((event) => event.economicClass === "owner_income"),
+    );
+    const expenseCents = sumOwnerProfitLossEvents(
+      events.filter((event) => event.economicClass === "owner_expense"),
+    );
+    const netIncomeCents = incomeCents - expenseCents;
+
+    return [
+      reportRow({
+        cells: {
+          expenses: formatUsdCents(expenseCents),
+          income: formatUsdCents(incomeCents),
+          netIncome: formatUsdCents(netIncomeCents),
+          property: propertyLabel(property),
+          unit: "Property-level",
+        },
+        href: `/properties/${property.id}`,
+        id: `property-level:${property.id}`,
+        sources: compactSources([
+          propertySource(property),
+          ...events.map(ownerProfitLossEventSource),
+        ]),
+        title: `${property.code} / Property-level`,
+        tone:
+          netIncomeCents < BigInt(0)
+            ? "danger"
+            : incomeCents > BigInt(0)
+              ? "success"
+              : "neutral",
+      }),
+    ];
+  });
+  const rows = [...unitRows, ...propertyLevelRows];
+  const recognizedEvents = context.ownerProfitLossEvents;
   const unitProfitLossLines =
     context.viewQuery.unitId === "all"
       ? undefined
-      : operatingEvents
+      : recognizedEvents
           .map<UnitProfitLossLine>((event) => {
             const unit = event.unitId
               ? context.unitsById.get(event.unitId)
               : undefined;
-            const operatingCashEffectCents =
-              event.operatingCashEffectCents ?? BigInt(0);
-
             return {
-              amountCents:
-                event.economicClass === "operating_expense"
-                  ? -operatingCashEffectCents
-                  : operatingCashEffectCents,
-              category: normalizeCategory(event.categoryCode),
+              amountCents: event.signedAmountCents,
+              category: event.categoryLabel,
+              categoryCode: event.categoryCode,
+              categoryId: event.categoryId,
               currency: event.currency,
-              date: event.eventDate,
+              date: event.recognizedOn,
               description: event.description,
               direction:
-                event.economicClass === "operating_expense"
+                event.economicClass === "owner_expense"
                   ? "expense"
                   : "income",
               id: event.eventKey,
               property: propertyLabel(
                 context.propertiesById.get(event.propertyId),
               ),
-              unit: unit ? `Unit ${unit.unit_number}` : "Unknown unit",
+              reportingGroup: event.categoryReportingGroup,
+              unit: unit ? `Unit ${unit.unit_number}` : "Property-level",
             };
           })
           .toSorted(
             (first, second) =>
               compareStrings(first.date, second.date) ||
+              compareStrings(first.reportingGroup, second.reportingGroup) ||
               compareStrings(first.category, second.category) ||
               compareStrings(first.id, second.id),
           );
-  const incomeEvents = operatingEvents.filter(
-    (event) => event.economicClass === "operating_income",
+  const incomeEvents = recognizedEvents.filter(
+    (event) => event.economicClass === "owner_income",
   );
-  const expenseEvents = operatingEvents.filter(
-    (event) => event.economicClass === "operating_expense",
+  const expenseEvents = recognizedEvents.filter(
+    (event) => event.economicClass === "owner_expense",
   );
-  const incomeCents = sumOperatingCashEffect(incomeEvents);
-  const expenseCents = -sumOperatingCashEffect(expenseEvents);
+  const incomeCents = sumOwnerProfitLossEvents(incomeEvents);
+  const expenseCents = sumOwnerProfitLossEvents(expenseEvents);
   const netIncomeCents = incomeCents - expenseCents;
   const incomeSourceCount = incomeEvents.length;
   const expenseSourceCount = expenseEvents.length;
-  const excludedUnitLinkedCount =
-    unitLinkedEvents.length - operatingEvents.length;
-  const propertyLevelCount = context.propertyCashEvents.filter(
+  const propertyLevelCount = recognizedEvents.filter(
     (event) => event.unitId === null,
   ).length;
 
@@ -702,9 +755,9 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
       { align: "right", key: "netIncome", label: "Net income" },
     ],
     description:
-      "Canonical operating cash income, expense magnitude, and net income by unit for the selected month. Property-level, owner-funding, deposit, company-fee, and unresolved events are excluded.",
+      "Owner income and expense recognized by invoice or owner-cost obligation date, shown by unit with property-level activity kept explicit.",
     emptyDescription:
-      "Add units or resolved unit-linked operating cash events for the selected scope.",
+      "Add units or issue owner-recognized income and expense obligations for this scope.",
     emptyTitle: "No unit profit and loss rows",
     exportFilenameBase: "unit-profit-loss",
     kind: "unit-profit-loss",
@@ -713,13 +766,13 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
       metric(
         "Income",
         formatUsdCents(incomeCents),
-        "Income from resolved unit-linked operating cash events",
+        "Owner income recognized when tenant invoice lines are issued",
         incomeSourceCount,
       ),
       metric(
         "Expenses",
         formatUsdCents(expenseCents),
-        "Expense magnitude from resolved unit-linked operating cash events",
+        "Management fees and owner-responsibility costs recognized when earned",
         expenseSourceCount,
       ),
       metric(
@@ -728,10 +781,10 @@ function buildUnitProfitLossReport(context: ReportContext): TrustedReport {
         "Income less expenses",
         incomeSourceCount + expenseSourceCount,
       ),
-      metric("Units", String(rows.length), "Units in this scope", rows.length),
+      metric("Scopes", String(rows.length), "Unit and property-level rows", rows.length),
     ],
     title: "Monthly Unit Profit & Loss",
-    totalsTraceLabel: `Totals trace to ${operatingEvents.length} canonical unit-linked operating cash event${operatingEvents.length === 1 ? "" : "s"} in ${context.periodLabel}; ${propertyLevelCount} property-level event${propertyLevelCount === 1 ? "" : "s"} excluded and ${excludedUnitLinkedCount} non-operating or unresolved unit-linked event${excludedUnitLinkedCount === 1 ? "" : "s"} excluded.`,
+    totalsTraceLabel: `Totals trace to ${recognizedEvents.length} recognized owner event${recognizedEvents.length === 1 ? "" : "s"} in ${context.periodLabel}, including ${propertyLevelCount} property-level event${propertyLevelCount === 1 ? "" : "s"}. Tenant settlements, Ledger rows, and tenant-recharge company costs are not recognition sources.`,
     unitProfitLossDetailScope:
       context.viewQuery.unitId === "all" ? undefined : "single-unit",
     unitProfitLossLines,
@@ -1236,6 +1289,7 @@ function buildReportContext(input: TrustedReportInput): ReportContext {
       input.leaseTerms ?? [],
       input.effectiveLeaseDate,
     ),
+    ownerProfitLossEvents: input.ownerProfitLossEvents ?? [],
     propertyCashEvents: input.propertyCashEvents ?? [],
   });
   const propertiesById = indexById(scopedInput.properties);
@@ -1262,6 +1316,11 @@ function buildReportContext(input: TrustedReportInput): ReportContext {
     maintenanceByPropertyId: groupBy(scopedInput.maintenanceTasks, "property_id"),
     maintenanceByUnitId: groupByNullable(scopedInput.maintenanceTasks, "unit_id"),
     ownersByPropertyId: indexPrimaryOwners(scopedInput.owners),
+    ownerProfitLossEvents: scopedInput.ownerProfitLossEvents ?? [],
+    ownerProfitLossEventsByUnitId: groupByNullable(
+      scopedInput.ownerProfitLossEvents ?? [],
+      "unitId",
+    ),
     peopleById: indexById(scopedInput.people),
     periodLabel: `${formatDate(scopedInput.periodStart)} - ${formatDate(scopedInput.periodEnd)}`,
     propertiesById,
@@ -1284,6 +1343,7 @@ function filterReportInputByUnit(input: TrustedReportInput): TrustedReportInput 
   }
 
   const unitId = input.viewQuery.unitId;
+  const propertyId = input.units.find((unit) => unit.id === unitId)?.property_id;
 
   return {
     ...input,
@@ -1291,6 +1351,11 @@ function filterReportInputByUnit(input: TrustedReportInput): TrustedReportInput 
     ledgerEntries: input.ledgerEntries.filter((entry) => entry.unit_id === unitId),
     leases: input.leases.filter((lease) => lease.unit_id === unitId),
     maintenanceTasks: input.maintenanceTasks.filter((task) => task.unit_id === unitId),
+    ownerProfitLossEvents: (input.ownerProfitLossEvents ?? []).filter(
+      (event) =>
+        event.unitId === unitId ||
+        (event.unitId === null && event.propertyId === propertyId),
+    ),
     propertyCashEvents: (input.propertyCashEvents ?? []).filter(
       (event) => event.unitId === unitId || event.unitId === null,
     ),
@@ -1630,51 +1695,30 @@ function isExpense(entry: LedgerRow) {
   return entry.direction === "expense";
 }
 
-function propertyCashEventSource(event: PropertyCashEvent): ReportSourceLink {
+function ownerProfitLossEventSource(
+  event: OwnerProfitLossEvent,
+): ReportSourceLink {
   const sourceLabel = event.sourceType.replaceAll("_", " ");
+  const reportingGroupLabel = normalizeCategory(event.categoryReportingGroup);
+  const categoryContext =
+    reportingGroupLabel.toLocaleLowerCase() ===
+    event.categoryLabel.toLocaleLowerCase()
+      ? event.categoryLabel
+      : `${reportingGroupLabel} · ${event.categoryLabel}`;
 
   return {
-    href: resolvePropertyCashEventHref(event),
     id: event.sourceId,
-    label: `${normalizeCategory(event.categoryCode)} ${sourceLabel}`,
-    recordType: propertyCashEventRecordType(event),
+    label: `${categoryContext} ${sourceLabel}`,
+    recordType:
+      event.economicClass === "owner_income"
+        ? "income-obligation"
+        : "expense-obligation",
   };
 }
 
-function propertyCashEventRecordType(
-  event: PropertyCashEvent,
-): ReportSourceLink["recordType"] {
-  switch (event.sourceType) {
-    case "receipt_allocation":
-      return "receipt-allocation";
-    case "owner_collection_allocation":
-      return "owner-collection-allocation";
-    case "payment_allocation":
-      return "payment-allocation";
-    case "deposit_event":
-      return "deposit-event";
-    case "petty_cash_entry":
-      return "petty-cash-entry";
-    case "owner_payment":
-      return "owner-payment";
-    case "property_withdrawal":
-      return "property-withdrawal";
-  }
-}
-
-function isUnitProfitLossOperatingEvent(event: PropertyCashEvent) {
-  return (
-    event.unitId !== null &&
-    event.resolutionState === "resolved" &&
-    event.operatingCashEffectCents !== null &&
-    (event.economicClass === "operating_income" ||
-      event.economicClass === "operating_expense")
-  );
-}
-
-function sumOperatingCashEffect(events: PropertyCashEvent[]) {
+function sumOwnerProfitLossEvents(events: OwnerProfitLossEvent[]) {
   return events.reduce(
-    (total, event) => total + (event.operatingCashEffectCents ?? BigInt(0)),
+    (total, event) => total + event.signedAmountCents,
     BigInt(0),
   );
 }
@@ -2093,6 +2137,41 @@ async function loadReportPropertyCashEvents({
 
       for await (const event of iteratePropertyCashEvents(
         supabase as unknown as PropertyCashEventsRpcClient,
+        {
+          currency: "USD",
+          organizationId,
+          periodEnd: period.end,
+          periodStart: period.start,
+          propertyId,
+        },
+      )) {
+        events.push(event);
+      }
+
+      return events;
+    }),
+  );
+
+  return eventLists.flat();
+}
+
+async function loadReportOwnerProfitLossEvents({
+  organizationId,
+  period,
+  propertyIds,
+  supabase,
+}: {
+  organizationId: string;
+  period: { end: string; start: string };
+  propertyIds: string[];
+  supabase: SupabaseServerClient;
+}) {
+  const eventLists = await Promise.all(
+    propertyIds.map(async (propertyId) => {
+      const events: OwnerProfitLossEvent[] = [];
+
+      for await (const event of iterateOwnerProfitLossEvents(
+        supabase as unknown as OwnerProfitLossEventsRpcClient,
         {
           currency: "USD",
           organizationId,

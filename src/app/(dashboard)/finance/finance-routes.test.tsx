@@ -164,7 +164,36 @@ describe("finance routes", () => {
     );
 
     expect(screenSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ initialExpenseIntent: true }),
+      expect.objectContaining({ initialExpenseIntent: "owner" }),
+    );
+  });
+
+  it("opens the recoverable-cost drawer from an explicit route intent", async () => {
+    requireFinanceContext.mockResolvedValue({
+      capabilities: {
+        canCorrectFinance: false,
+        canOperateFinance: false,
+        canReadFinanceReports: false,
+        canRecoverHistoricalRent: false,
+        canReviewExpense: false,
+        canReverseExpense: false,
+        canRetryCurrentRent: false,
+        canSubmitExpense: true,
+      },
+      organizationId: "organization-1",
+      organizationName: "Nestory Test",
+      permissionKeys: new Set(["finance.view", "finance.submit_expenses"]),
+      role: "custom",
+    });
+
+    renderToStaticMarkup(
+      await BillsExpensesPage({
+        searchParams: Promise.resolve({ action: "record-recoverable-cost" }),
+      }),
+    );
+
+    expect(screenSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ initialExpenseIntent: "tenant" }),
     );
   });
 });

@@ -192,6 +192,28 @@ describe("UnitDetailScreen focused operating record", () => {
     expect(
       form.querySelector<HTMLInputElement>('input[name="unitId"]')?.value,
     ).toBe("unit-1");
+    expect(
+      within(drawer).getByRole("heading", {
+        level: 3,
+        name: "Rent collection and billing",
+      }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("combobox", { name: "Bill to" }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("combobox", { name: "Recipient" }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("combobox", { name: "Who collects rent?" }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("combobox", { name: "Management fee" }),
+    ).not.toBeNull();
+    const advanced = within(drawer)
+      .getByText("Advanced billing rules")
+      .closest("details");
+    expect(advanced?.open).toBe(false);
   });
 
   it("blocks the local Lease handoff while the unit is in maintenance", () => {

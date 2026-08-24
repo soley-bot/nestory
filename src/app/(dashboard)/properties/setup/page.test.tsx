@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getActivePropertyBranchOptions: vi.fn(),
+  getLeaseBillingFormConfig: vi.fn(),
   getPropertySetupData: vi.fn(),
   requirePermission: vi.fn(),
   requireSuperAdminContext: vi.fn(),
@@ -9,6 +10,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/features/properties/data/property-branches", () => ({
   getActivePropertyBranchOptions: mocks.getActivePropertyBranchOptions,
+}));
+vi.mock("@/features/leases/data/leases", () => ({
+  getLeaseBillingFormConfig: mocks.getLeaseBillingFormConfig,
 }));
 vi.mock("@/features/property-setup/data/property-setup", () => ({
   getPropertySetupData: mocks.getPropertySetupData,
@@ -23,6 +27,11 @@ import PropertySetupPage from "./page";
 describe("PropertySetupPage authority", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getLeaseBillingFormConfig.mockResolvedValue({
+      companyOptions: [],
+      operationalTimezone: "UTC",
+      organizationName: "Nestory",
+    });
     mocks.getPropertySetupData.mockResolvedValue({
       leases: [],
       owners: [],

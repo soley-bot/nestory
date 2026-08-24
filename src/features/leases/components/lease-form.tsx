@@ -12,6 +12,7 @@ import { RecordField, RecordForm } from "@/components/ui/record-form";
 import { SelectControl } from "@/components/ui/select-control";
 import { PersonForm } from "@/features/people/components/person-form";
 import { PersonSelect } from "@/features/people/components/person-select";
+import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import type { PersonRoleValue } from "@/features/people/people.types";
 import {
   createLeaseAction,
@@ -20,6 +21,7 @@ import {
 } from "@/features/leases/actions";
 import type {
   LeaseFormValues,
+  LeaseBillingFormConfig,
   LeaseCreateContext,
   LeasePaymentFrequency,
   LeasePropertyOption,
@@ -43,6 +45,7 @@ const paymentFrequencyOptions: {
   { label: "One time", value: "one_time" },
 ];
 type LeaseFormProps = {
+  billingFormConfig?: LeaseBillingFormConfig;
   createContext?: LeaseCreateContext;
   initialValues?: LeaseFormInitialValues;
   initialStatus?: LeaseStatusValue;
@@ -62,6 +65,7 @@ type LeaseFormInitialValues = Partial<
 >;
 
 export function LeaseForm({
+  billingFormConfig,
   createContext,
   initialValues,
   initialStatus,
@@ -108,6 +112,13 @@ export function LeaseForm({
     moveInTiming,
     formUnitId,
   );
+  const tenantRecipient = tenantOptions.find(
+    (tenant) => tenant.id === selectedTenantId,
+  );
+  const billingDefaults =
+    lease?.billingRules.find((rule) => rule.state === "current") ??
+    lease?.billingRules[0] ??
+    null;
 
   useEffect(() => {
     if (state.status === "success") {
@@ -122,8 +133,11 @@ export function LeaseForm({
     personId?: string,
     roles?: PersonRoleValue[],
     displayName?: string,
+    partyType?: "company" | "individual",
   ) {
-    if (!personId || !displayName || !roles?.includes("tenant")) return;
+    if (!personId || !displayName || !partyType || !roles?.includes("tenant")) {
+      return;
+    }
 
     setAvailableTenantOptions((current) => [
       {
@@ -131,6 +145,7 @@ export function LeaseForm({
         description: "Tenant",
         id: personId,
         label: displayName,
+        partyType,
         roles: ["tenant"],
       },
       ...current.filter((option) => option.id !== personId),
@@ -371,6 +386,37 @@ export function LeaseForm({
             />
           </RecordField>
         </FormSection>
+
+        <FormSection
+          step={isEditMode ? "03" : "04"}
+          title="Rent collection and billing"
+        >
+          <p className="text-sm text-muted-foreground">
+            {isEditMode
+              ? "This unused draft rule follows the lease start date."
+              : "Begins on the lease start date."}
+          </p>
+          <LeaseBillingRuleFields
+            companyOptions={billingFormConfig?.companyOptions}
+            defaults={billingDefaults}
+            fieldErrors={state.fieldErrors}
+            operationalTimezone={
+              billingFormConfig?.operationalTimezone ?? "UTC"
+            }
+            organizationName={
+              billingFormConfig?.organizationName ?? "our company"
+            }
+            tenantRecipient={
+              tenantRecipient?.partyType
+                ? {
+                    id: tenantRecipient.id,
+                    label: tenantRecipient.label,
+                    partyType: tenantRecipient.partyType,
+                  }
+                : null
+            }
+          />
+        </FormSection>
       </RecordForm>
       <Modal
         onClose={() => setCreateTenantOpen(false)}
@@ -380,8 +426,8 @@ export function LeaseForm({
         <PersonForm
           initialRoles={["tenant"]}
           onClose={() => setCreateTenantOpen(false)}
-          onSuccess={(_message, personId, roles, displayName) =>
-            handleTenantCreated(personId, roles, displayName)
+          onSuccess={(_message, personId, roles, displayName, partyType) =>
+            handleTenantCreated(personId, roles, displayName, partyType)
           }
           roleContext="tenant"
         />

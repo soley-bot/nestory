@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { selectCurrentLeaseBillingRulesByLeaseId } from "@/features/leases/lease-billing-rule-state";
 import {
   formatPropertyOptionLabel,
   formatUnitOptionLabel,
@@ -7,6 +8,7 @@ import type { Database } from "@/types/database";
 import type {
   ExpenseSubmissionSummary,
   CommercialDocumentLink,
+  FinanceCategory,
   FinanceLease,
   FinanceOperationsData,
   FinanceOption,
@@ -47,6 +49,8 @@ type AccountEntryRow =
   Database["public"]["Views"]["property_account_entries"]["Row"];
 type ExpenseSubmissionRow =
   Database["public"]["Tables"]["expense_submissions"]["Row"];
+type LeaseBillingTermRow =
+  Database["public"]["Tables"]["lease_billing_terms"]["Row"];
 type MaintenanceTaskRow = Pick<
   Database["public"]["Tables"]["tasks"]["Row"],
   "completed_at" | "description" | "id" | "status" | "title"
@@ -176,6 +180,7 @@ export function toExpenseSubmissionSummary(
   >,
   maintenanceTaskById: ReadonlyMap<string, MaintenanceTaskRow> = new Map(),
   submitterLabelByUserId: ReadonlyMap<string, string> = new Map(),
+  financeCategories: readonly FinanceCategory[] = [],
 ): ExpenseSubmissionSummary {
   const property = propertyById.get(submission.property_id);
   const unit = submission.unit_id
@@ -185,10 +190,20 @@ export function toExpenseSubmissionSummary(
     submission.source_type === "maintenance_task" && submission.source_id
       ? maintenanceTaskById.get(submission.source_id)
       : undefined;
+  const categoryNamespace =
+    submission.responsibility === "tenant"
+      ? "tenant_billing"
+      : "owner_expense";
+  const financeCategory = financeCategories.find(
+    (category) =>
+      category.namespace === categoryNamespace &&
+      category.code === submission.customer_category,
+  );
 
   return {
     adjustsSubmissionId: submission.adjusts_submission_id,
     category: submission.customer_category,
+    categoryLabel: financeCategory?.displayLabel ?? null,
     customerTotal: Number(submission.customer_total_amount),
     date: submission.expense_date,
     evidence: evidenceBySubmissionId.get(submission.id),
@@ -255,6 +270,7 @@ export async function getFinanceOperationsData(
 ): Promise<FinanceOperationsData> {
   const supabase = await createSupabaseServerClient();
   const [
+    organizationResult,
     propertiesResult,
     unitsResult,
     peopleResult,
@@ -268,7 +284,13 @@ export async function getFinanceOperationsData(
     positionsResult,
     entriesResult,
     sourcesResult,
+    financeCategoriesResult,
   ] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("operational_timezone")
+      .eq("id", organizationId)
+      .single(),
     supabase
       .from("properties")
       .select("id, code, name, archived_at")
@@ -281,7 +303,7 @@ export async function getFinanceOperationsData(
       .order("unit_number"),
     supabase
       .from("people")
-      .select("id, display_name, archived_at")
+      .select("id, display_name, party_type, archived_at")
       .eq("organization_id", organizationId)
       .order("display_name"),
     supabase
@@ -303,8 +325,7 @@ export async function getFinanceOperationsData(
     supabase
       .from("lease_billing_terms")
       .select("*")
-      .eq("organization_id", organizationId)
-      .is("superseded_at", null),
+      .eq("organization_id", organizationId),
     getTenantInvoiceBalanceRows(supabase, organizationId, propertyId),
     getUnresolvedRentGenerationExceptions(supabase, organizationId),
     getOwnerInvoiceBalanceRows(supabase, organizationId, propertyId),
@@ -320,9 +341,19 @@ export async function getFinanceOperationsData(
       .select("id, property_id, code, display_name, archived_at")
       .eq("organization_id", organizationId)
       .order("code"),
+    supabase
+      .from("finance_categories")
+      .select(
+        "id, namespace, code, display_label, reporting_group, sort_order, is_default, is_active, archived_at",
+      )
+      .eq("organization_id", organizationId)
+      .order("namespace")
+      .order("sort_order")
+      .order("display_label"),
   ]);
 
   const results = [
+    organizationResult,
     propertiesResult,
     unitsResult,
     peopleResult,
@@ -336,6 +367,7 @@ export async function getFinanceOperationsData(
     positionsResult,
     entriesResult,
     sourcesResult,
+    financeCategoriesResult,
   ];
   const failed = results.find((result) => result.error);
   if (failed?.error) {
@@ -413,12 +445,21 @@ export async function getFinanceOperationsData(
   const ownerByPropertyId = new Map(
     owners.map((owner) => [owner.property_id, owner.person_id]),
   );
-  const billingByLeaseId = new Map(
-    (billingResult.data ?? []).map((billing) => [
-      billing.lease_id,
-      toBilling(billing),
-    ]),
-  );
+  const operationalTimezone =
+    organizationResult.data?.operational_timezone || "UTC";
+  const billingClock = new Date();
+  const billingByLeaseId = new Map<string, LeaseBillingSummary>();
+  for (const [leaseId, billing] of selectCurrentFinanceLeaseBillingRulesByLeaseId(
+    billingResult.data ?? [],
+    billingClock,
+  )) {
+    billingByLeaseId.set(leaseId, toBilling(billing));
+  }
+  const billingRuleIdByLeaseId =
+    selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(
+      billingResult.data ?? [],
+      billingClock,
+    );
   const generationByInvoiceId = new Map(
     (tenantInvoiceGenerationResult.data ?? []).map((invoice) => [
       invoice.id,
@@ -542,6 +583,20 @@ export async function getFinanceOperationsData(
       },
     ]),
   );
+  const financeCategories = (financeCategoriesResult.data ?? []).map(
+    (category) =>
+      ({
+        archivedAt: category.archived_at,
+        code: category.code,
+        displayLabel: category.display_label,
+        id: category.id,
+        isActive: category.is_active ?? category.archived_at === null,
+        isDefault: category.is_default,
+        namespace: category.namespace as FinanceCategory["namespace"],
+        reportingGroup: category.reporting_group,
+        sortOrder: category.sort_order,
+      }) satisfies FinanceCategory,
+  );
   return {
     accountEntries: sortPropertyAccountEntriesNewestFirst(
       (entriesResult.data ?? []).flatMap((row) =>
@@ -558,8 +613,10 @@ export async function getFinanceOperationsData(
           evidenceBySubmissionId,
           maintenanceTaskById,
           submitterLabelByUserId,
+          financeCategories,
         ),
     ),
+    financeCategories,
     leases: (leasesResult.data ?? []).flatMap((lease) => {
       const property = propertyById.get(lease.property_id);
       if (!property) return [];
@@ -569,6 +626,8 @@ export async function getFinanceOperationsData(
         {
           billing: billingByLeaseId.get(lease.id) ?? null,
           endDate: lease.lease_end_date,
+          expectedCurrentBillingRuleId:
+            billingRuleIdByLeaseId.get(lease.id) ?? null,
           id: lease.id,
           monthlyRent: Number(lease.monthly_rent_amount),
           ownerLabel: ownerPersonId
@@ -589,11 +648,13 @@ export async function getFinanceOperationsData(
     ownerInvoices: (ownerInvoicesResult.data ?? []).flatMap((row) =>
       toOwnerInvoice(row as OwnerInvoiceBalanceRow, propertyById, personById),
     ),
+    operationalTimezone,
     peopleOptions: people
       .filter((person) => person.archived_at === null)
       .map((person) => ({
         id: person.id,
         label: person.display_name,
+        partyType: person.party_type,
       })),
     positions: (positionsResult.data ?? []).flatMap((row) =>
       toPosition(row as PositionRow, personById),
@@ -655,6 +716,38 @@ export async function getFinanceOperationsData(
   };
 }
 
+export function selectCurrentFinanceLeaseBillingRulesByLeaseId(
+  rules: readonly LeaseBillingTermRow[],
+  clock: Date,
+) {
+  return selectCurrentLeaseBillingRulesByLeaseId(
+    rules.filter((rule) => rule.rule_source === "lease_default_v1"),
+    clock,
+  );
+}
+
+export function selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(
+  rules: readonly LeaseBillingTermRow[],
+  clock: Date,
+) {
+  const leasesWithAuthoritativeRules = new Set(
+    rules.flatMap((rule) =>
+      rule.rule_source === "lease_default_v1" ? [rule.lease_id] : [],
+    ),
+  );
+  const clockRules = rules.filter(
+    (rule) =>
+      rule.rule_source === "lease_default_v1" ||
+      !leasesWithAuthoritativeRules.has(rule.lease_id),
+  );
+
+  return new Map(
+    [...selectCurrentLeaseBillingRulesByLeaseId(clockRules, clock)].flatMap(
+      ([leaseId, rule]) => (rule.id ? [[leaseId, rule.id] as const] : []),
+    ),
+  );
+}
+
 export function scopeFinanceOperationsData(
   data: FinanceOperationsData,
   scope: { propertyId: string; unitId?: string | null },
@@ -670,12 +763,14 @@ export function scopeFinanceOperationsData(
     expenseSubmissions: data.expenseSubmissions.filter((submission) =>
       inScope(submission.propertyId, submission.unitId),
     ),
+    financeCategories: data.financeCategories,
     leases: data.leases.filter((lease) =>
       inScope(lease.propertyId, lease.unitId),
     ),
     ownerInvoices: data.ownerInvoices.filter(
       (invoice) => invoice.propertyId === scope.propertyId,
     ),
+    operationalTimezone: data.operationalTimezone,
     peopleOptions: data.peopleOptions,
     positions: data.positions.filter(
       (position) => position.propertyId === scope.propertyId,
@@ -1190,11 +1285,13 @@ function toBilling(
       | null,
     billingRecipientPersonId: row.billing_recipient_person_id,
     chargeManagementFeeWhenActive: row.charge_management_fee_when_active,
+    chargeThroughLeaseEnd: row.charge_through_lease_end,
     collectionRoute: row.collection_route as
       | "direct_to_owner"
       | "through_ips"
       | null,
     effectiveFrom: row.effective_from,
+    effectiveTo: row.effective_to,
     finalPeriodProratedAmount:
       row.final_period_prorated_amount === null
         ? null
@@ -1205,6 +1302,10 @@ function toBilling(
         : Number(row.first_period_prorated_amount),
     fullManagementFeeDuringProration: row.full_management_fee_during_proration,
     id: row.id,
+    leaseEndProrationRule: row.lease_end_proration_rule as "actual_days" | null,
+    leaseStartProrationRule: row.lease_start_proration_rule as
+      | "actual_days"
+      | null,
     managementFeeMode: row.management_fee_mode as
       | "flat"
       | "percentage"
@@ -1213,6 +1314,13 @@ function toBilling(
       row.management_fee_value === null
         ? null
         : Number(row.management_fee_value),
+    midPeriodRentChangeRule: row.mid_period_rent_change_rule as
+      | "next_full_month"
+      | null,
+    rentCalculationTimezone: row.rent_calculation_timezone,
+    shortMonthDueDayRule: row.short_month_due_day_rule as
+      | "last_calendar_day"
+      | null,
   };
 }
 

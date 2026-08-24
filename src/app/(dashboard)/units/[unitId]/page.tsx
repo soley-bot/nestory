@@ -9,6 +9,7 @@ import type { UnitPropertyOption } from "@/features/units/unit.types";
 import { requirePermission } from "@/lib/auth/context";
 import { formatPropertyOptionLabel } from "@/lib/entity-option-labels";
 import { getPersonSelectOptions } from "@/features/people/data/person-options";
+import { getLeaseBillingFormConfig } from "@/features/leases/data/leases";
 import UnitNotFound from "./not-found";
 
 type UnitPageProps = {
@@ -20,13 +21,14 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
   const [{ unitId }, rawSearchParams] = await Promise.all([params, searchParams]);
   const { section, sourceTaskId } = parseUnitDetailQuery(rawSearchParams);
   const context = await requirePermission("properties.view");
-  const [unit, properties, tenantOptions] = await Promise.all([
+  const [unit, properties, tenantOptions, billingFormConfig] = await Promise.all([
     getUnitDetail(context.organizationId, unitId),
     getPropertySummaries(context.organizationId),
     getPersonSelectOptions({
       organizationId: context.organizationId,
       roles: ["tenant"],
     }),
+    getLeaseBillingFormConfig(context.organizationId),
   ]);
 
   if (!unit) {
@@ -52,6 +54,7 @@ export default async function UnitPage({ params, searchParams }: UnitPageProps) 
   return (
     <UnitDetailScreen
       activeSection={section}
+      billingFormConfig={billingFormConfig}
       canArchive={context.permissionKeys.has("properties.archive")}
       canWrite={context.permissionKeys.has("properties.write")}
       maintenanceFormOptions={{

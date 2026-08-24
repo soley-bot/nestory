@@ -9,6 +9,7 @@ describe("buildPersonSelectOptions", () => {
           archived_at: null,
           display_name: "Alex Person",
           id: "person-1",
+          party_type: "company",
           primary_email: "alex@example.com",
           primary_phone: null,
         },
@@ -16,6 +17,7 @@ describe("buildPersonSelectOptions", () => {
           archived_at: null,
           display_name: "Vendor Only",
           id: "person-2",
+          party_type: "individual",
           primary_email: null,
           primary_phone: "+855 12 345 678",
         },
@@ -47,6 +49,7 @@ describe("buildPersonSelectOptions", () => {
       expect.objectContaining({
         description: "Owner, Tenant · alex@example.com",
         id: "person-1",
+        partyType: "company",
         roles: ["owner", "tenant"],
       }),
     ]);
@@ -58,6 +61,7 @@ describe("buildPersonSelectOptions", () => {
         archived_at: "2026-07-01T00:00:00Z",
         display_name: "Archived Owner",
         id: "person-1",
+        party_type: "individual" as const,
         primary_email: null,
         primary_phone: null,
       },

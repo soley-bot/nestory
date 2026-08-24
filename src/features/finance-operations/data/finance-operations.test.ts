@@ -7,10 +7,156 @@ import {
   loadCommercialDocumentLinks,
   mapCommercialDocumentLinks,
   mergeRowsById,
+  selectCurrentFinanceLeaseBillingRuleIdsByLeaseId,
+  selectCurrentFinanceLeaseBillingRulesByLeaseId,
   toExpenseSubmissionSummary,
   toTenantInvoice,
 } from "@/features/finance-operations/data/finance-operations";
 import type { Database } from "@/types/database";
+
+describe("Finance lease billing authority", () => {
+  it("aligns first-rule billing and concurrency tokens to each Lease timezone", () => {
+    type BillingRow = Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+    const rows = [
+      {
+        archived_at: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        effective_from: "2026-09-01",
+        effective_to: "2027-08-31",
+        id: "kiritimati-first",
+        lease_id: "lease-kiritimati",
+        rent_calculation_timezone: "Pacific/Kiritimati",
+        rule_source: "lease_default_v1",
+      },
+      {
+        archived_at: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        effective_from: "2026-09-01",
+        effective_to: "2027-08-31",
+        id: "honolulu-first",
+        lease_id: "lease-honolulu",
+        rent_calculation_timezone: "Pacific/Honolulu",
+        rule_source: "lease_default_v1",
+      },
+    ] as BillingRow[];
+    const clock = new Date("2026-09-01T00:30:00.000Z");
+
+    expect(
+      selectCurrentFinanceLeaseBillingRulesByLeaseId(rows, clock),
+    ).toEqual(
+      new Map([
+        [
+          "lease-kiritimati",
+          expect.objectContaining({ id: "kiritimati-first" }),
+        ],
+      ]),
+    );
+    expect(
+      selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(rows, clock),
+    ).toEqual(new Map([["lease-kiritimati", "kiritimati-first"]]));
+
+    const kiritimatiBoundary = new Date("2026-08-31T10:30:00.000Z");
+    expect(
+      selectCurrentFinanceLeaseBillingRulesByLeaseId(
+        rows,
+        kiritimatiBoundary,
+      ),
+    ).toEqual(
+      new Map([
+        [
+          "lease-kiritimati",
+          expect.objectContaining({ id: "kiritimati-first" }),
+        ],
+      ]),
+    );
+    expect(
+      selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(
+        rows,
+        kiritimatiBoundary,
+      ),
+    ).toEqual(new Map([["lease-kiritimati", "kiritimati-first"]]));
+  });
+
+  it("does not let a legacy timezone activate the first authoritative rule early", () => {
+    type BillingRow = Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+    const rows = [
+      {
+        archived_at: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        effective_from: "2026-01-01",
+        effective_to: "2026-08-31",
+        id: "kiritimati-legacy",
+        lease_id: "lease-1",
+        rent_calculation_timezone: "Pacific/Kiritimati",
+        rule_source: "historical_policy_snapshot",
+      },
+      {
+        archived_at: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        effective_from: "2026-09-01",
+        effective_to: "2027-08-31",
+        id: "honolulu-authority",
+        lease_id: "lease-1",
+        rent_calculation_timezone: "Pacific/Honolulu",
+        rule_source: "lease_default_v1",
+      },
+    ] as BillingRow[];
+    const clock = new Date("2026-08-31T11:30:00.000Z");
+
+    expect(
+      selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(rows, clock),
+    ).toEqual(new Map());
+  });
+
+  it("uses legacy current-row tokens only when a lease has no billing authority", () => {
+    type BillingRow = Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+    const rows = [
+      {
+        archived_at: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        effective_from: "2026-01-01",
+        effective_to: "2026-08-31",
+        id: "historical-current",
+        lease_id: "lease-1",
+        rent_calculation_timezone: "UTC",
+        rule_source: "historical_policy_snapshot",
+      },
+      {
+        archived_at: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        effective_from: "2026-09-01",
+        effective_to: "2027-08-31",
+        id: "authoritative-successor",
+        lease_id: "lease-1",
+        rent_calculation_timezone: "UTC",
+        rule_source: "lease_default_v1",
+      },
+      {
+        archived_at: null,
+        created_at: "2026-01-02T00:00:00.000Z",
+        effective_from: "2026-01-01",
+        effective_to: "2026-08-31",
+        id: "unresolved-current",
+        lease_id: "lease-2",
+        rent_calculation_timezone: "UTC",
+        rule_source: "unresolved_history",
+      },
+    ] as BillingRow[];
+
+    expect(
+      selectCurrentFinanceLeaseBillingRulesByLeaseId(
+        rows,
+        new Date("2026-08-15T12:00:00.000Z"),
+      ),
+    ).toEqual(new Map());
+    expect(
+      selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(
+        rows,
+        new Date("2026-08-15T12:00:00.000Z"),
+      ),
+    ).toEqual(new Map([["lease-2", "unresolved-current"]]));
+  });
+});
 
 describe("fetchAllActionableRows", () => {
   it("keeps actionable rows reachable beyond the old 250-row cap", async () => {
@@ -104,6 +250,141 @@ describe("isRentGenerationSource", () => {
 });
 
 describe("toExpenseSubmissionSummary", () => {
+  it("resolves an archived renamed tenant recharge category without crossing into owner expense", () => {
+    const submission = {
+      adjusts_submission_id: null,
+      customer_category: "custom_water_recharge_7d1b",
+      customer_total_amount: 95,
+      expense_date: "2026-08-10",
+      id: "submission-custom-tenant-category",
+      internal_cost_amount: 80,
+      internal_markup_amount: 15,
+      previously_approved_amount: null,
+      property_id: "property-1",
+      reconciliation_source_id: null,
+      recorded_total_amount: null,
+      reference: "Water recharge 18",
+      responsibility: "tenant",
+      reviewed_at: null,
+      review_reason: null,
+      reversal_reason: null,
+      source_id: null,
+      source_type: "general",
+      status: "submitted",
+      submitted_at: "2026-08-10T08:00:00Z",
+      submitted_by: "finance-member-user-1",
+      unit_id: null,
+      vendor_label: "City Water",
+    } as Database["public"]["Tables"]["expense_submissions"]["Row"];
+
+    const summary = toExpenseSubmissionSummary(
+      submission,
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      [
+        {
+          archivedAt: null,
+          code: "custom_water_recharge_7d1b",
+          displayLabel: "Owner water service",
+          id: "owner-category-same-code",
+          isActive: true,
+          isDefault: false,
+          namespace: "owner_expense",
+          reportingGroup: "utilities",
+          sortOrder: 50,
+        },
+        {
+          archivedAt: "2026-08-11T10:00:00Z",
+          code: "custom_water_recharge_7d1b",
+          displayLabel: "Resident water recharge",
+          id: "tenant-category-renamed-archived",
+          isActive: false,
+          isDefault: false,
+          namespace: "tenant_billing",
+          reportingGroup: "utility_reimbursement",
+          sortOrder: 50,
+        },
+      ],
+    );
+
+    expect(summary).toMatchObject({
+      category: "custom_water_recharge_7d1b",
+      categoryLabel: "Resident water recharge",
+      responsibility: "tenant",
+    });
+  });
+
+  it("resolves an archived renamed owner category without crossing into tenant billing", () => {
+    const submission = {
+      adjusts_submission_id: null,
+      customer_category: "custom_courtyard_4f2a",
+      customer_total_amount: 125,
+      expense_date: "2026-08-08",
+      id: "submission-custom-owner-category",
+      internal_cost_amount: 125,
+      internal_markup_amount: 0,
+      previously_approved_amount: null,
+      property_id: "property-1",
+      reconciliation_source_id: null,
+      recorded_total_amount: null,
+      reference: "Receipt 124",
+      responsibility: "owner",
+      reviewed_at: null,
+      review_reason: null,
+      reversal_reason: null,
+      source_id: null,
+      source_type: "general",
+      status: "submitted",
+      submitted_at: "2026-08-08T08:00:00Z",
+      submitted_by: "finance-member-user-1",
+      unit_id: null,
+      vendor_label: "Courtyard Vendor",
+    } as Database["public"]["Tables"]["expense_submissions"]["Row"];
+
+    const summary = toExpenseSubmissionSummary(
+      submission,
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map(),
+      [
+        {
+          archivedAt: null,
+          code: "custom_courtyard_4f2a",
+          displayLabel: "Tenant courtyard charge",
+          id: "tenant-category-same-code",
+          isActive: true,
+          isDefault: false,
+          namespace: "tenant_billing",
+          reportingGroup: "other",
+          sortOrder: 50,
+        },
+        {
+          archivedAt: "2026-08-09T10:00:00Z",
+          code: "custom_courtyard_4f2a",
+          displayLabel: "Courtyard upkeep",
+          id: "owner-category-renamed-archived",
+          isActive: false,
+          isDefault: false,
+          namespace: "owner_expense",
+          reportingGroup: "maintenance",
+          sortOrder: 50,
+        },
+      ],
+    );
+
+    expect(summary).toMatchObject({
+      category: "custom_courtyard_4f2a",
+      categoryLabel: "Courtyard upkeep",
+    });
+  });
+
   it("keeps a submitted expense visible after its label records are archived", () => {
     const submission = {
       adjusts_submission_id: null,

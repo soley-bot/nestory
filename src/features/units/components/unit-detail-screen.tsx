@@ -18,7 +18,10 @@ import { Modal } from "@/components/ui/modal";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { DocumentForm } from "@/features/documents/components/document-screen";
 import { LeaseForm } from "@/features/leases/components/lease-form";
-import type { LeaseTenantOption } from "@/features/leases/lease.types";
+import type {
+  LeaseBillingFormConfig,
+  LeaseTenantOption,
+} from "@/features/leases/lease.types";
 import { MaintenanceForm } from "@/features/maintenance/components/maintenance-screen";
 import type {
   MaintenanceActor,
@@ -65,6 +68,7 @@ type ConfirmationState = {
 
 type UnitDetailScreenProps = {
   activeSection: UnitRecordSection;
+  billingFormConfig?: LeaseBillingFormConfig;
   canArchive: boolean;
   canWrite: boolean;
   maintenanceFormOptions: {
@@ -84,6 +88,7 @@ type UnitDetailScreenProps = {
 
 export function UnitDetailScreen({
   activeSection,
+  billingFormConfig,
   canArchive,
   canWrite,
   maintenanceFormOptions,
@@ -282,6 +287,7 @@ export function UnitDetailScreen({
             />
           ) : drawer.mode === "create-lease" ? (
             <LeaseForm
+              billingFormConfig={billingFormConfig}
               createContext={{
                 propertyId: drawer.unit.propertyId,
                 propertyLabel: drawer.unit.propertyName,

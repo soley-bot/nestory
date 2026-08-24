@@ -71,12 +71,19 @@ SELECT ok(
 
 SELECT ok(
   (
-    SELECT strpos(
-      pg_catalog.pg_get_functiondef(
-        'public.submit_expense(uuid,uuid,uuid,text,uuid,text,text,date,numeric,numeric,currency_code,text,uuid,uuid,uuid,uuid,text,text)'::regprocedure
-      ),
-      'app_private.submit_expense_baseline_branch106'
-    ) > 0
+    SELECT
+      strpos(
+        pg_catalog.pg_get_functiondef(
+          'public.submit_expense(uuid,uuid,uuid,text,uuid,text,text,date,numeric,numeric,currency_code,text,uuid,uuid,uuid,uuid,text,text)'::regprocedure
+        ),
+        'app_private.submit_expense_before_category_connection'
+      ) > 0
+      AND strpos(
+        pg_catalog.pg_get_functiondef(
+          'app_private.submit_expense_before_category_connection(uuid,uuid,uuid,text,uuid,text,text,date,numeric,numeric,currency_code,text,uuid,uuid,uuid,uuid,text,text)'::regprocedure
+        ),
+        'app_private.submit_expense_baseline_branch106'
+      ) > 0
   ),
   'general paid-cost submission retains the immutable-evidence baseline behind the scoped wrapper'
 );

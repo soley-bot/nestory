@@ -73,8 +73,25 @@ describe("Lease occupancy evidence input", () => {
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "create_simplified_unit_lease",
+      "create_lease_with_billing_rules",
       expect.objectContaining({
+        p_billing_rule: {
+          billingRecipientKind: "individual",
+          billingRecipientPersonId: tenantPersonId,
+          chargeManagementFeeWhenActive: true,
+          chargeThroughLeaseEnd: true,
+          collectionRoute: "through_ips",
+          finalPeriodProratedAmount: null,
+          firstPeriodProratedAmount: null,
+          fullManagementFeeDuringProration: false,
+          leaseEndProrationRule: "actual_days",
+          leaseStartProrationRule: "actual_days",
+          managementFeeMode: "percentage",
+          managementFeeValue: 8,
+          midPeriodRentChangeRule: "next_full_month",
+          rentCalculationTimezone: "Asia/Bangkok",
+          shortMonthDueDayRule: "last_calendar_day",
+        },
         p_relationship_payload: expect.objectContaining({
           occupancy: expect.objectContaining({
             actualMoveIn: expect.objectContaining({ date: "2027-05-03" }),
@@ -132,7 +149,11 @@ describe("Lease occupancy evidence input", () => {
       leaseId,
       status: "success",
     });
-    expect(rpc).toHaveBeenCalledWith("create_property_lease", {
+    expect(rpc).toHaveBeenCalledWith("create_lease_with_billing_rules", {
+      p_billing_rule: expect.objectContaining({
+        billingRecipientPersonId: tenantPersonId,
+        rentCalculationTimezone: "Asia/Bangkok",
+      }),
       p_deposit_amount: 500,
       p_deposit_currency: "USD",
       p_idempotency_key: "lease-occupancy-evidence-1",
@@ -146,8 +167,23 @@ describe("Lease occupancy evidence input", () => {
       p_rent_amount: 900,
       p_rent_currency: "USD",
       p_rent_due_day: 1,
+      p_relationship_payload: expect.any(Object),
       p_term_status: "draft",
+      p_unit_id: null,
     });
+  });
+
+  it("rejects an incomplete initial billing snapshot before creating any lease rows", async () => {
+    const formData = leaseForm();
+    formData.set("billingRecipientPersonId", "");
+
+    await expect(createLeaseAction({}, formData)).resolves.toMatchObject({
+      fieldErrors: {
+        billingRecipientPersonId: ["Choose a billing recipient."],
+      },
+      status: "error",
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("normalizes a zero deposit to no deposit before the checked mutation", async () => {
@@ -159,7 +195,7 @@ describe("Lease occupancy evidence input", () => {
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "create_simplified_unit_lease",
+      "create_lease_with_billing_rules",
       expect.objectContaining({
         p_deposit_amount: null,
         p_deposit_currency: null,
@@ -184,8 +220,12 @@ describe("Lease occupancy evidence input", () => {
       status: "success",
     });
     expect(rpc).toHaveBeenCalledWith(
-      "update_lease_with_authoritative_term",
+      "update_lease_with_billing_rules",
       expect.objectContaining({
+        p_billing_rule: expect.objectContaining({
+          billingRecipientPersonId: tenantPersonId,
+          collectionRoute: "through_ips",
+        }),
         p_lease_id: leaseId,
         p_rent_due_day: 22,
         p_unit_id: null,
@@ -414,17 +454,32 @@ function leaseForm() {
   const formData = new FormData();
   formData.set("actualMoveInDate", "");
   formData.set("actualMoveOutDate", "");
+  formData.set("billingRecipientKind", "individual");
+  formData.set("billingRecipientPersonId", tenantPersonId);
+  formData.set("chargeManagementFeeWhenActive", "yes");
+  formData.set("chargeThroughLeaseEnd", "yes");
+  formData.set("collectionRoute", "through_ips");
   formData.set("depositAmount", "500");
+  formData.set("finalPeriodProratedAmount", "");
+  formData.set("firstPeriodProratedAmount", "");
+  formData.set("fullManagementFeeDuringProration", "no");
   formData.set("idempotencyKey", "lease-occupancy-evidence-1");
+  formData.set("leaseEndProrationRule", "actual_days");
   formData.set("leaseEndDate", "2028-04-30");
+  formData.set("leaseStartProrationRule", "actual_days");
   formData.set("leaseStartDate", "2027-05-01");
+  formData.set("managementFeeMode", "percentage");
+  formData.set("managementFeeValue", "8");
+  formData.set("midPeriodRentChangeRule", "next_full_month");
   formData.set("monthlyRentAmount", "900");
   formData.set("paymentFrequency", "monthly");
   formData.set("propertyId", propertyId);
   formData.set("rentDueDay", "1");
+  formData.set("rentCalculationTimezone", "Asia/Bangkok");
   formData.set("scheduledMoveInDate", "");
   formData.set("scheduledMoveOutDate", "");
   formData.set("status", "active");
+  formData.set("shortMonthDueDayRule", "last_calendar_day");
   formData.set("tenantPersonId", tenantPersonId);
   formData.set("termStatus", "active");
   formData.set("unitId", unitId);

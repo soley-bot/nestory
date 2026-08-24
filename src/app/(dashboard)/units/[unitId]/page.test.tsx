@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   getMaintenanceCapabilities,
+  getLeaseBillingFormConfig,
   getMaintenanceScreenData,
   getPersonSelectOptions,
   getPropertySummaries,
@@ -9,6 +10,7 @@ const {
   requirePermission,
 } = vi.hoisted(() => ({
   getMaintenanceCapabilities: vi.fn(),
+  getLeaseBillingFormConfig: vi.fn(),
   getMaintenanceScreenData: vi.fn(),
   getPersonSelectOptions: vi.fn(),
   getPropertySummaries: vi.fn(),
@@ -18,6 +20,9 @@ const {
 
 vi.mock("@/features/maintenance/maintenance.capabilities", () => ({
   getMaintenanceCapabilities,
+}));
+vi.mock("@/features/leases/data/leases", () => ({
+  getLeaseBillingFormConfig,
 }));
 vi.mock("@/features/maintenance/data/maintenance", () => ({
   getMaintenanceScreenData,
@@ -37,12 +42,18 @@ import UnitPage from "./page";
 describe("UnitPage authority", () => {
   beforeEach(() => {
     getMaintenanceCapabilities.mockReset();
+    getLeaseBillingFormConfig.mockReset();
     getMaintenanceScreenData.mockReset();
     getPersonSelectOptions.mockReset();
     getPropertySummaries.mockReset();
     getUnitDetail.mockReset();
     requirePermission.mockReset();
     getMaintenanceCapabilities.mockReturnValue({ canRecordActualCost: false });
+    getLeaseBillingFormConfig.mockResolvedValue({
+      companyOptions: [],
+      operationalTimezone: "UTC",
+      organizationName: "Nestory",
+    });
     getMaintenanceScreenData.mockResolvedValue({
       branchOptions: [],
       propertyOptions: [],

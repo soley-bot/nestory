@@ -22,6 +22,90 @@ function localDatabaseContainer() {
   throw new Error("Set SUPABASE_DB_CONTAINER to one local test database container");
 }
 
+function queryLocalDatabase(sql) {
+  const result = spawnSync(
+    "docker",
+    ["exec", localDatabaseContainer(), "psql", "-U", "postgres", "-d", "postgres", "-qAt", "-v", "ON_ERROR_STOP=1", "-c", sql],
+    { cwd, encoding: "utf8", shell: false },
+  );
+  if (result.status !== 0) throw new Error(result.stderr.trim() || "Owner-balance fixture query failed");
+  return result.stdout.split(/\r?\n/).map((row) => row.trim()).filter(Boolean);
+}
+
+export function prepareOwnerBalanceBlockedSourceFixture() {
+  const feeRows = queryLocalDatabase(String.raw`
+SELECT json_build_object(
+  'feeId', fee.id,
+  'feeDate', fee.fee_date,
+  'invoiceIssueDate', invoice.issue_date,
+  'amount', to_char(fee.amount, 'FM999999999990.00'),
+  'propertyId', fee.property_id,
+  'feeLeaseId', fee.lease_id,
+  'tenantInvoiceId', fee.tenant_invoice_id,
+  'invoiceId', invoice.id,
+  'invoiceLeaseId', invoice.lease_id,
+  'generationSource', invoice.generation_source,
+  'billingPeriodStart', invoice.billing_period_start,
+  'invoiceLifecycle', invoice.lifecycle,
+  'invoiceVoidedAt', invoice.voided_at,
+  'feeReversalOfId', fee.reversal_of_id,
+  'feeCorrectionOccurrenceId', fee.correction_occurrence_id
+)::text
+FROM public.management_fee_occurrences AS fee
+JOIN public.tenant_invoices AS invoice
+  ON invoice.organization_id = fee.organization_id
+ AND invoice.id = fee.tenant_invoice_id
+WHERE fee.organization_id = '00000000-0000-0000-0000-000000000001'
+  AND fee.property_id = '10000000-0000-0000-0000-000000000002'
+  AND fee.amount = 116.00
+  AND fee.reversal_of_id IS NULL
+  AND invoice.property_id = fee.property_id
+  AND fee.fee_date = invoice.issue_date
+  AND invoice.billing_period_start = date_trunc('month', current_date)::date
+  AND invoice.generation_source = 'lease_rules_v1'
+  AND invoice.lifecycle = 'issued'
+  AND invoice.voided_at IS NULL
+ORDER BY fee.id;`);
+
+  assert.equal(feeRows.length, 1, "fixture must select one exact original property-2 management fee");
+  const fee = JSON.parse(feeRows[0]);
+  assert.equal(fee.propertyId, "10000000-0000-0000-0000-000000000002");
+  assert.equal(fee.amount, "116.00");
+  assert.equal(fee.tenantInvoiceId, fee.invoiceId, "management fee must retain exact invoice lineage");
+  assert.equal(fee.feeLeaseId, fee.invoiceLeaseId, "management fee must retain exact lease lineage");
+  assert.equal(fee.generationSource, "lease_rules_v1");
+  assert.equal(fee.invoiceLifecycle, "issued", "fixture must select the issued invoice");
+  assert.equal(fee.invoiceVoidedAt, null, "fixture must not select a voided invoice");
+  assert.equal(fee.feeReversalOfId, null, "fixture must select the original management fee");
+  assert.equal(fee.feeCorrectionOccurrenceId, null, "fixture must not select a correction occurrence");
+  assert.match(fee.feeDate, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(fee.feeDate, fee.invoiceIssueDate, "management fee date must match invoice issuance");
+
+  const ownershipRows = queryLocalDatabase(String.raw`
+UPDATE public.property_owners
+SET started_on = '${fee.feeDate}'::date,
+    ended_on = ('${fee.feeDate}'::date + 1)
+WHERE organization_id = '00000000-0000-0000-0000-000000000001'
+  AND id = '90000000-0000-0000-0000-000000000005'
+  AND property_id = '10000000-0000-0000-0000-000000000002'
+  AND person_id = '80000000-0000-0000-0000-000000000012'
+  AND ownership_percent = 10.000
+  AND ownership_label = 'Deliberate event-date remediation vector'
+RETURNING json_build_object(
+  'ownershipId', id,
+  'propertyId', property_id,
+  'startedOn', started_on,
+  'endedOn', ended_on,
+  'intervalDays', ended_on - started_on
+)::text;`);
+  assert.equal(ownershipRows.length, 1, "fixture must update only the deliberate extra ownership row");
+  const ownership = JSON.parse(ownershipRows[0]);
+  assert.equal(ownership.ownershipId, "90000000-0000-0000-0000-000000000005");
+  assert.equal(ownership.propertyId, fee.propertyId);
+  assert.equal(ownership.startedOn, fee.feeDate, "owner-share interval must start on the selected fee date");
+  assert.equal(ownership.intervalDays, 1, "owner-share remediation interval must remain exactly one day");
+}
+
 export function validateOwnerBalanceFixture(report, manifest) {
   assert.equal(report.organizationId, manifest.organizationId);
   assert.deepEqual(report.periods, manifest.periods, "literal four-component period oracle changed");
@@ -99,7 +183,7 @@ WITH expected_periods(property_id, owner_person_id, month_start, period_key) AS 
     '10000000-0000-0000-0000-000000000002',
     'USD',
     date_trunc('month', current_date)::date,
-    date_trunc('month', current_date)::date
+    (date_trunc('month', current_date) + interval '1 month - 1 day')::date
   ) AS queue
   WHERE queue.allocation_state = 'blocked'
 ), fixture_cash AS (
@@ -173,6 +257,7 @@ SELECT json_build_object(
 
 export async function main() {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  prepareOwnerBalanceBlockedSourceFixture();
   const report = queryOwnerBalanceFixture();
   validateOwnerBalanceFixture(report, manifest);
   process.stdout.write("Owner-balance lifecycle fixture reconciled: 16 component rows, 12 source types, 2 properties, 2 months\n");

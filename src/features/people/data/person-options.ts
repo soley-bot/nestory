@@ -42,7 +42,7 @@ export async function getPersonSelectOptions({
 
   let peopleQuery = supabase
     .from("people")
-    .select("id, display_name, primary_email, primary_phone, archived_at")
+    .select("id, display_name, party_type, primary_email, primary_phone, archived_at")
     .eq("organization_id", organizationId)
     .in("id", personIds)
     .order("display_name", { ascending: true });

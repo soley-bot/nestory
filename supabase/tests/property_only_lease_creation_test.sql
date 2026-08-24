@@ -106,7 +106,9 @@ FROM property_only_lease_state;
 INSERT INTO public.organizations(id, name, slug, operational_timezone)
 SELECT organization_id, 'Property lease organization',
   'property-lease-' || left(organization_id::text, 8),
-  'Asia/Phnom_Penh'
+  -- Keep this general lifecycle fixture on one clock; timezone transitions
+  -- have dedicated predecessor-boundary coverage.
+  'UTC'
 FROM property_only_lease_state;
 
 INSERT INTO public.organization_members(organization_id, user_id, role)
@@ -182,8 +184,8 @@ SET property_lease_result = public.create_property_lease(
   state.organization_id,
   state.single_property_id,
   state.scheduled_tenant_id,
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 364,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date + 364,
   1200,
   'USD',
   1,
@@ -248,7 +250,7 @@ SELECT is(
       FROM property_only_lease_state
     )
   ),
-  'Asia/Phnom_Penh',
+  'UTC',
   'the billing snapshot uses the workspace timezone'
 );
 
@@ -412,7 +414,7 @@ SELECT set_config('request.jwt.claim.role', 'service_role', true);
 SET LOCAL ROLE service_role;
 
 UPDATE public.lease_activation_schedules AS schedule
-SET activation_date = (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date
+SET activation_date = (statement_timestamp() AT TIME ZONE 'UTC')::date
 FROM property_only_lease_state AS state
 WHERE schedule.lease_id = (state.property_lease_result ->> 'leaseId')::uuid;
 
@@ -421,7 +423,7 @@ SELECT lives_ok(
     SELECT format(
       'SELECT public.process_due_lease_activations(%L, DATE %L, 100)',
       organization_id,
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date
+      (statement_timestamp() AT TIME ZONE 'UTC')::date
     )
     FROM property_only_lease_state
   ),
@@ -475,8 +477,8 @@ SET immediate_lease_result = public.create_property_lease(
   state.organization_id,
   state.immediate_property_id,
   state.tenant_id,
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 364,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date + 364,
   1000,
   'USD',
   1,
@@ -499,7 +501,7 @@ SET immediate_activation_result = public.request_lease_activation(
     WHERE occupancy.lease_id = (state.immediate_lease_result ->> 'leaseId')::uuid
       AND occupancy.evidence_state = 'accepted'
   ),
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date,
   'immediate-property-lease-activation'
 );
 
@@ -527,8 +529,8 @@ SET termination_lease_result = public.create_property_lease(
   state.organization_id,
   state.termination_property_id,
   state.termination_tenant_id,
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 364,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date + 364,
   950,
   'USD',
   1,
@@ -551,7 +553,7 @@ SET termination_activation_result = public.request_lease_activation(
     WHERE occupancy.lease_id = (state.termination_lease_result ->> 'leaseId')::uuid
       AND occupancy.evidence_state = 'accepted'
   ),
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date,
   'termination-property-lease-activation'
 );
 
@@ -569,7 +571,7 @@ SELECT lives_ok(
           AND occupancy.evidence_state = 'accepted'
       ),
       'terminate',
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
       'Tenant requested early termination',
       'termination-property-lease-transition'
     )
@@ -596,7 +598,7 @@ SELECT is(
       public.resolve_lease_rent_readiness(
         state.organization_id,
         (state.immediate_lease_result ->> 'leaseId')::uuid,
-        (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date
+        (statement_timestamp() AT TIME ZONE 'UTC')::date
       ) AS readiness
   ),
   'ready',
@@ -629,10 +631,10 @@ SELECT is(
     WHERE invoice.lease_id = (state.immediate_lease_result ->> 'leaseId')::uuid
       AND line.line_type = 'rent'
   ),
-  round(1000 * ((date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+  round(1000 * ((date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)
     + interval '1 month - 1 day')::date
-    - (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 1)
-    / extract(day FROM (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+    - (statement_timestamp() AT TIME ZONE 'UTC')::date + 1)
+    / extract(day FROM (date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)
       + interval '1 month - 1 day'))::numeric, 2),
   'the first rent charge uses the Lease actual-days proration rule'
 );
@@ -642,8 +644,8 @@ SET changed_lease_result = public.create_property_lease(
   state.organization_id,
   state.changed_property_id,
   state.changed_tenant_id,
-  date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)::date,
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 500,
+  date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)::date,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date + 500,
   1100,
   'USD',
   1,
@@ -666,7 +668,7 @@ SET changed_activation_result = public.request_lease_activation(
     WHERE occupancy.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
       AND occupancy.evidence_state = 'accepted'
   ),
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date,
   'rent-change-lease-activation'
 );
 
@@ -674,9 +676,9 @@ UPDATE property_only_lease_state AS state
 SET changed_term_id = public.schedule_authoritative_lease_term(
   state.organization_id,
   (state.changed_lease_result ->> 'leaseId')::uuid,
-  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)
     + interval '1 month 14 days')::date,
-  (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date + 500,
+  (statement_timestamp() AT TIME ZONE 'UTC')::date + 500,
   1300,
   'USD',
   1,
@@ -695,9 +697,9 @@ RESET ROLE;
 SELECT app_private.generate_simple_lease_rent_invoice(
   organization_id,
   (changed_lease_result ->> 'leaseId')::uuid,
-  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)
     + interval '1 month')::date,
-  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+  (date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)
     + interval '1 month')::date,
   'scheduled',
   admin_id
@@ -718,7 +720,7 @@ SELECT is(
       property_only_lease_state AS state
     WHERE invoice.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
       AND invoice.billing_period_start = (
-        date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+        date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)
         + interval '1 month'
       )::date
   ),
@@ -734,7 +736,7 @@ SELECT is(
       property_only_lease_state AS state
     WHERE invoice.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
       AND invoice.billing_period_start = (
-        date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+        date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)
         + interval '1 month'
       )::date
   ),
@@ -750,7 +752,7 @@ SELECT results_eq(
       property_only_lease_state AS state
     WHERE invoice.lease_id = (state.changed_lease_result ->> 'leaseId')::uuid
       AND invoice.billing_period_start = (
-        date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)
+        date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)
         + interval '1 month'
       )::date
     ORDER BY segment.segment_order
@@ -769,8 +771,8 @@ SELECT lives_ok(
       organization_id,
       (immediate_lease_result ->> 'leaseId')::uuid,
       'utilities',
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
       'Water bill',
       'manual-utilities-charge'
     )
@@ -800,8 +802,8 @@ SELECT lives_ok(
       organization_id,
       (immediate_lease_result ->> 'leaseId')::uuid,
       'utilities',
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
       'Water bill',
       'manual-utilities-charge'
     )
@@ -831,8 +833,8 @@ SELECT is(
       organization_id,
       (immediate_lease_result ->> 'leaseId')::uuid,
       'manual_rent',
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
       'Duplicate rent',
       'duplicate-manual-rent'
     )) ->> 'detail'
@@ -849,8 +851,8 @@ SELECT is(
       organization_id,
       (immediate_lease_result ->> 'leaseId')::uuid,
       'other',
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
       'manual-other-without-description'
     )) ->> 'detail'
     FROM property_only_lease_state
@@ -861,7 +863,7 @@ SELECT is(
 
 SELECT public.set_financial_month_lock(
   organization_id,
-  date_trunc('month', (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date)::date,
+  date_trunc('month', (statement_timestamp() AT TIME ZONE 'UTC')::date)::date,
   true,
   'Close the month for the manual-charge regression'
 )
@@ -874,8 +876,8 @@ SELECT is(
       organization_id,
       (immediate_lease_result ->> 'leaseId')::uuid,
       'utilities',
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
-      (statement_timestamp() AT TIME ZONE 'Asia/Phnom_Penh')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
+      (statement_timestamp() AT TIME ZONE 'UTC')::date,
       'Locked month charge',
       'locked-month-charge'
     )) ->> 'sqlstate'

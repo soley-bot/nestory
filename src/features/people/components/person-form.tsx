@@ -46,6 +46,7 @@ type PersonFormProps = {
     personId?: string,
     roles?: PersonRoleValue[],
     displayName?: string,
+    partyType?: PersonPartyType,
   ) => void;
   person?: PeopleSummary | null;
   roleContext?: PersonRoleValue;
@@ -87,6 +88,7 @@ export function PersonForm({
         state.personId,
         state.roles,
         state.displayName,
+        state.partyType,
       );
       onClose();
     }
@@ -95,6 +97,7 @@ export function PersonForm({
     onSuccess,
     state.displayName,
     state.message,
+    state.partyType,
     state.personId,
     state.roles,
     state.status,
