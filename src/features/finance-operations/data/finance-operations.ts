@@ -730,8 +730,19 @@ export function selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(
   rules: readonly LeaseBillingTermRow[],
   clock: Date,
 ) {
+  const leasesWithAuthoritativeRules = new Set(
+    rules.flatMap((rule) =>
+      rule.rule_source === "lease_default_v1" ? [rule.lease_id] : [],
+    ),
+  );
+  const clockRules = rules.filter(
+    (rule) =>
+      rule.rule_source === "lease_default_v1" ||
+      !leasesWithAuthoritativeRules.has(rule.lease_id),
+  );
+
   return new Map(
-    [...selectCurrentLeaseBillingRulesByLeaseId(rules, clock)].flatMap(
+    [...selectCurrentLeaseBillingRulesByLeaseId(clockRules, clock)].flatMap(
       ([leaseId, rule]) => (rule.id ? [[leaseId, rule.id] as const] : []),
     ),
   );

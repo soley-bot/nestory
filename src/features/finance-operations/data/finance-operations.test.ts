@@ -77,7 +77,38 @@ describe("Finance lease billing authority", () => {
     ).toEqual(new Map([["lease-kiritimati", "kiritimati-first"]]));
   });
 
-  it("keeps legacy current-row tokens without treating them as billing authority", () => {
+  it("does not let a legacy timezone activate the first authoritative rule early", () => {
+    type BillingRow = Database["public"]["Tables"]["lease_billing_terms"]["Row"];
+    const rows = [
+      {
+        archived_at: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        effective_from: "2026-01-01",
+        effective_to: "2026-08-31",
+        id: "kiritimati-legacy",
+        lease_id: "lease-1",
+        rent_calculation_timezone: "Pacific/Kiritimati",
+        rule_source: "historical_policy_snapshot",
+      },
+      {
+        archived_at: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        effective_from: "2026-09-01",
+        effective_to: "2027-08-31",
+        id: "honolulu-authority",
+        lease_id: "lease-1",
+        rent_calculation_timezone: "Pacific/Honolulu",
+        rule_source: "lease_default_v1",
+      },
+    ] as BillingRow[];
+    const clock = new Date("2026-08-31T11:30:00.000Z");
+
+    expect(
+      selectCurrentFinanceLeaseBillingRuleIdsByLeaseId(rows, clock),
+    ).toEqual(new Map());
+  });
+
+  it("uses legacy current-row tokens only when a lease has no billing authority", () => {
     type BillingRow = Database["public"]["Tables"]["lease_billing_terms"]["Row"];
     const rows = [
       {
@@ -123,12 +154,7 @@ describe("Finance lease billing authority", () => {
         rows,
         new Date("2026-08-15T12:00:00.000Z"),
       ),
-    ).toEqual(
-      new Map([
-        ["lease-1", "historical-current"],
-        ["lease-2", "unresolved-current"],
-      ]),
-    );
+    ).toEqual(new Map([["lease-2", "unresolved-current"]]));
   });
 });
 
