@@ -21,6 +21,7 @@ export default async function DashboardLayout({
     <ThemeRuntime
       organizationId={context.organizationId}
       theme={context.theme}
+      userId={context.userId}
     >
       <SentryIdentity
         organizationId={context.organizationId}
@@ -37,6 +38,7 @@ export default async function DashboardLayout({
         roleName={context.roleName}
         theme={context.theme}
         userEmail={context.userEmail}
+        userId={context.userId}
       >
         {children}
       </AppShell>

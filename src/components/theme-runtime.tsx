@@ -11,20 +11,25 @@ import {
 
 export const DISPLAY_THEME_UPDATED_EVENT = "nestory-display-theme-updated";
 
-export function getDisplayThemeStorageKey(organizationId: string) {
-  return `nestory-display-mode:${organizationId}`;
+export function getDisplayThemeStorageKey(
+  organizationId: string,
+  userId?: string,
+) {
+  return `nestory-display-mode:${organizationId}${userId ? `:${userId}` : ""}`;
 }
 
 type ThemeRuntimeProps = {
   children: ReactNode;
   organizationId: string;
   theme: OrganizationTheme;
+  userId: string;
 };
 
 export function ThemeRuntime({
   children,
   organizationId,
   theme,
+  userId,
 }: ThemeRuntimeProps) {
   useLayoutEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -33,11 +38,18 @@ export function ThemeRuntime({
         organizationId,
         theme,
         media.matches,
-        readDisplayThemeMode(organizationId),
+        readDisplayThemeMode(organizationId, userId),
       );
     const handleDisplayTheme = (event: Event) => {
-      const detail = (event as CustomEvent<{ organizationId: string }>).detail;
-      if (detail?.organizationId === organizationId) apply();
+      const detail = (
+        event as CustomEvent<{ organizationId: string; userId?: string }>
+      ).detail;
+      if (
+        detail?.organizationId === organizationId &&
+        detail.userId === userId
+      ) {
+        apply();
+      }
     };
     apply();
     media.addEventListener("change", apply);
@@ -46,7 +58,7 @@ export function ThemeRuntime({
       media.removeEventListener("change", apply);
       window.removeEventListener(DISPLAY_THEME_UPDATED_EVENT, handleDisplayTheme);
     };
-  }, [organizationId, theme]);
+  }, [organizationId, theme, userId]);
 
   return children;
 }
@@ -54,11 +66,12 @@ export function ThemeRuntime({
 export function getThemeBootstrapScript(
   organizationId: string,
   theme: OrganizationTheme,
+  userId?: string,
 ) {
   const payload = escapeScriptJson(
     JSON.stringify({
       organizationId,
-      storageKey: getDisplayThemeStorageKey(organizationId),
+      storageKey: getDisplayThemeStorageKey(organizationId, userId),
       styles: {
         dark: getOrganizationThemeStyle(theme, "dark"),
         light: getOrganizationThemeStyle(theme, "light"),
@@ -103,8 +116,12 @@ export function setPersonalDisplayTheme(
   organizationId: string,
   theme: OrganizationTheme,
   mode: ThemeMode,
+  userId?: string,
 ) {
-  window.localStorage.setItem(getDisplayThemeStorageKey(organizationId), mode);
+  window.localStorage.setItem(
+    getDisplayThemeStorageKey(organizationId, userId),
+    mode,
+  );
   applyOrganizationTheme(
     organizationId,
     theme,
@@ -113,13 +130,18 @@ export function setPersonalDisplayTheme(
   );
   window.dispatchEvent(
     new CustomEvent(DISPLAY_THEME_UPDATED_EVENT, {
-      detail: { organizationId, mode },
+      detail: { organizationId, mode, userId },
     }),
   );
 }
 
-export function readDisplayThemeMode(organizationId: string): ThemeMode | null {
-  const stored = window.localStorage.getItem(getDisplayThemeStorageKey(organizationId));
+export function readDisplayThemeMode(
+  organizationId: string,
+  userId?: string,
+): ThemeMode | null {
+  const stored = window.localStorage.getItem(
+    getDisplayThemeStorageKey(organizationId, userId),
+  );
   return stored === "light" || stored === "dark" || stored === "system"
     ? stored
     : null;

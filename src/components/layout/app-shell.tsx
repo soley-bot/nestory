@@ -223,19 +223,31 @@ const ADMIN_GLOBAL_DESTINATIONS = [
   },
 ] satisfies readonly GlobalDestination[];
 
-type AppShellProps = {
+type AppShellBaseProps = {
   children: React.ReactNode;
   /** Resolved from the sidebar_state cookie so a collapsed rail stays collapsed. */
   defaultSidebarOpen?: boolean;
-  organizationId?: string;
   organizationName?: string;
   permissionKeys?: readonly PermissionKey[];
   role?: WorkspaceRole | WorkspaceRoleKind;
   roleKind?: WorkspaceRoleKind;
   roleName?: string;
-  theme?: OrganizationTheme;
   userEmail?: string;
 };
+
+type AppShellProps = AppShellBaseProps &
+  (
+    | {
+        organizationId: string;
+        theme: OrganizationTheme;
+        userId: string;
+      }
+    | {
+        organizationId?: undefined;
+        theme?: undefined;
+        userId?: undefined;
+      }
+  );
 
 function getGlobalDestinations({
   isSuperAdmin,
@@ -441,6 +453,7 @@ export function AppShell({
   roleName,
   theme,
   userEmail,
+  userId,
 }: AppShellProps) {
   const pathname = usePathname();
   const resolvedRoleKind =
@@ -638,7 +651,11 @@ export function AppShell({
                 />
               ) : null}
               {organizationId && theme ? (
-                <ThemeToggle organizationId={organizationId} theme={theme} />
+                <ThemeToggle
+                  organizationId={organizationId}
+                  theme={theme}
+                  userId={userId}
+                />
               ) : null}
             </div>
           </header>
