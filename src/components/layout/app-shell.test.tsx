@@ -256,7 +256,7 @@ describe("AppShell Shadcn dashboard block", () => {
   ] as const)("offers personal display theme control to %s", (role) => {
     const theme = { accentPreset: "neutral" as const, accentSeed: null, mode: "system" as const };
     render(
-      <AppShell organizationId="org-1" role={role} theme={theme}>
+      <AppShell organizationId="org-1" role={role} theme={theme} userId="user-1">
         <div>Workspace content</div>
       </AppShell>,
     );
