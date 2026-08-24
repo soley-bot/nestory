@@ -1354,6 +1354,211 @@ SELECT is(
 )
 FROM finance_category_idempotency_state;
 
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM finance_category_idempotency_state),
+  true
+);
+
+CREATE TEMP TABLE manual_global_ambiguity_state ON COMMIT DROP AS
+WITH authority AS (
+  SELECT organization_id, lease_id
+  FROM finance_category_idempotency_state
+), charge_a AS (
+  SELECT
+    authority.*,
+    app_private.create_manual_tenant_charge_before_category_connection(
+      authority.organization_id,
+      authority.lease_id,
+      'other',
+      date_trunc('month', current_date)::date,
+      current_date,
+      19.73,
+      'Global manual lineage ambiguity',
+      'category-idempotency-global-manual-a-0001'
+    ) AS result_a
+  FROM authority
+), charge_b AS (
+  SELECT
+    charge_a.*,
+    app_private.create_manual_tenant_charge_before_category_connection(
+      charge_a.organization_id,
+      charge_a.lease_id,
+      'other',
+      date_trunc('month', current_date)::date,
+      current_date,
+      19.73,
+      'Global manual lineage ambiguity',
+      'category-idempotency-global-manual-b-0001'
+    ) AS result_b
+  FROM charge_a
+)
+SELECT *
+FROM charge_b;
+
+SELECT isnt(
+  (result_a->>'lineId')::uuid,
+  (result_b->>'lineId')::uuid,
+  'identical legacy manual payloads under different keys create distinct lines'
+)
+FROM manual_global_ambiguity_state;
+
+SELECT is(
+  (
+    SELECT count(DISTINCT (request.actor_id, request.payload_hash))
+    FROM app_private.financial_idempotency_requests AS request
+    JOIN manual_global_ambiguity_state AS state
+      ON state.organization_id = request.organization_id
+    WHERE request.operation = 'create_manual_tenant_charge'
+      AND request.idempotency_key IN (
+        'category-idempotency-global-manual-a-0001',
+        'category-idempotency-global-manual-b-0001'
+      )
+  ),
+  1::bigint,
+  'the distinct-key legacy charges have the same actor and canonical payload hash'
+);
+
+SELECT is(
+  (
+    SELECT count(*)
+    FROM app_private.finance_category_idempotency_bindings AS binding
+    JOIN manual_global_ambiguity_state AS state
+      ON state.organization_id = binding.organization_id
+    WHERE binding.operation = 'create_manual_tenant_charge'
+      AND binding.idempotency_key IN (
+        'category-idempotency-global-manual-a-0001',
+        'category-idempotency-global-manual-b-0001'
+      )
+  ) + (
+    SELECT count(*)
+    FROM app_private.finance_category_idempotency_result_seals AS seal
+    JOIN manual_global_ambiguity_state AS state
+      ON state.organization_id = seal.organization_id
+    WHERE seal.operation = 'create_manual_tenant_charge'
+      AND seal.idempotency_key IN (
+        'category-idempotency-global-manual-a-0001',
+        'category-idempotency-global-manual-b-0001'
+      )
+  ),
+  0::bigint,
+  'legacy-core ambiguity fixtures begin without a category binding or result seal'
+);
+
+CREATE TEMP TABLE manual_global_ambiguity_snapshot ON COMMIT DROP AS
+SELECT
+  invoice.id AS invoice_id,
+  invoice.total_amount,
+  array_agg(line.id ORDER BY line.id) AS line_ids,
+  array_agg(line.finance_category_id ORDER BY line.id) AS category_ids,
+  array_agg(line.description ORDER BY line.id) AS descriptions,
+  (SELECT count(*) FROM public.tenant_invoice_lines) AS line_count,
+  (SELECT count(*) FROM public.finance_income_items) AS income_count,
+  (SELECT count(*) FROM public.activity_logs) AS activity_count,
+  (
+    SELECT count(*)
+    FROM app_private.finance_category_idempotency_bindings AS binding
+    WHERE binding.organization_id = invoice.organization_id
+      AND binding.operation = 'create_manual_tenant_charge'
+      AND binding.idempotency_key IN (
+        'category-idempotency-global-manual-a-0001',
+        'category-idempotency-global-manual-b-0001'
+      )
+  ) AS binding_count,
+  (
+    SELECT count(*)
+    FROM app_private.finance_category_idempotency_result_seals AS seal
+    WHERE seal.organization_id = invoice.organization_id
+      AND seal.operation = 'create_manual_tenant_charge'
+      AND seal.idempotency_key IN (
+        'category-idempotency-global-manual-a-0001',
+        'category-idempotency-global-manual-b-0001'
+      )
+  ) AS seal_count
+FROM manual_global_ambiguity_state AS state
+JOIN public.tenant_invoices AS invoice
+  ON invoice.organization_id = state.organization_id
+ AND invoice.id = (state.result_a->>'invoiceId')::uuid
+JOIN public.tenant_invoice_lines AS line
+  ON line.organization_id = invoice.organization_id
+ AND line.invoice_id = invoice.id
+ AND line.id IN (
+   (state.result_a->>'lineId')::uuid,
+   (state.result_b->>'lineId')::uuid
+ )
+GROUP BY invoice.id, invoice.total_amount;
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET result_ids = state.result_b
+FROM manual_global_ambiguity_state AS state
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key = 'category-idempotency-global-manual-a-0001';
+
+SELECT is(
+  app_private.valid_finance_category_idempotency_result(
+    organization_id,
+    'create_manual_tenant_charge',
+    'category-idempotency-global-manual-a-0001',
+    false
+  ),
+  NULL::uuid,
+  'global manual candidates reject an A-to-B result pointer swap across identical payloads'
+)
+FROM manual_global_ambiguity_state;
+
+SELECT results_eq(
+  $$
+    SELECT
+      invoice.id,
+      invoice.total_amount,
+      array_agg(line.id ORDER BY line.id),
+      array_agg(line.finance_category_id ORDER BY line.id),
+      array_agg(line.description ORDER BY line.id),
+      (SELECT count(*) FROM public.tenant_invoice_lines),
+      (SELECT count(*) FROM public.finance_income_items),
+      (SELECT count(*) FROM public.activity_logs),
+      (
+        SELECT count(*)
+        FROM app_private.finance_category_idempotency_bindings AS binding
+        WHERE binding.organization_id = invoice.organization_id
+          AND binding.operation = 'create_manual_tenant_charge'
+          AND binding.idempotency_key IN (
+            'category-idempotency-global-manual-a-0001',
+            'category-idempotency-global-manual-b-0001'
+          )
+      ),
+      (
+        SELECT count(*)
+        FROM app_private.finance_category_idempotency_result_seals AS seal
+        WHERE seal.organization_id = invoice.organization_id
+          AND seal.operation = 'create_manual_tenant_charge'
+          AND seal.idempotency_key IN (
+            'category-idempotency-global-manual-a-0001',
+            'category-idempotency-global-manual-b-0001'
+          )
+      )
+    FROM manual_global_ambiguity_state AS state
+    JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.id = (state.result_a->>'invoiceId')::uuid
+    JOIN public.tenant_invoice_lines AS line
+      ON line.organization_id = invoice.organization_id
+     AND line.invoice_id = invoice.id
+     AND line.id IN (
+       (state.result_a->>'lineId')::uuid,
+       (state.result_b->>'lineId')::uuid
+     )
+    GROUP BY invoice.id, invoice.total_amount
+  $$,
+  $$
+    SELECT invoice_id, total_amount, line_ids, category_ids, descriptions,
+      line_count, income_count, activity_count, binding_count, seal_count
+    FROM manual_global_ambiguity_snapshot
+  $$,
+  'the rejected global ambiguity does not mutate invoice economics or line authority'
+);
+
 SELECT throws_ok(
   $$
     UPDATE app_private.finance_category_idempotency_result_seals
@@ -1425,6 +1630,32 @@ SELECT ok(
     'SELECT,INSERT,UPDATE,DELETE'
   ),
   'private canonical bindings and result seals are not exposed through Data API roles'
+);
+
+SELECT ok(
+  (
+    SELECT
+      procedure.prosecdef
+      AND procedure.provolatile = 's'
+      AND procedure.proowner = 'postgres'::regrole
+      AND 'search_path=""' = ANY (coalesce(procedure.proconfig, '{}'::text[]))
+      AND NOT EXISTS (
+        SELECT 1
+        FROM pg_catalog.aclexplode(coalesce(
+          procedure.proacl,
+          pg_catalog.acldefault('f', procedure.proowner)
+        )) AS privilege
+        WHERE privilege.grantee = 0
+          AND privilege.privilege_type = 'EXECUTE'
+      )
+      AND NOT has_function_privilege('anon', procedure.oid, 'EXECUTE')
+      AND NOT has_function_privilege('authenticated', procedure.oid, 'EXECUTE')
+      AND NOT has_function_privilege('service_role', procedure.oid, 'EXECUTE')
+    FROM pg_catalog.pg_proc AS procedure
+    WHERE procedure.oid =
+      'app_private.valid_finance_category_idempotency_result(uuid,text,text,boolean)'::regprocedure
+  ),
+  'the private lineage validator retains stable checked-definer ownership and ACLs'
 );
 
 SELECT ok(
