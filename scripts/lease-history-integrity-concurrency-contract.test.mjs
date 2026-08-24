@@ -1,12 +1,34 @@
 import { describe, expect, it } from "vitest";
-import {
+import * as leaseHistoryHarness from "./lease-history-integrity-concurrency.mjs";
+
+const {
   assertActiveTenantRoleFixture,
   evaluateArchiveAttempt,
   evaluateCreateAgainstArchivedPerson,
   evaluateUnrelatedArchive,
-} from "./lease-history-integrity-concurrency.mjs";
+} = leaseHistoryHarness;
 
 describe("lease-history integrity concurrency result contract", () => {
+  it("cleans new lease billing and category dependents before the organization", () => {
+    expect(typeof leaseHistoryHarness.buildCleanupSql).toBe("function");
+
+    const cleanupSql = leaseHistoryHarness.buildCleanupSql();
+    const billingDelete = cleanupSql.indexOf(
+      "DELETE FROM public.lease_billing_terms",
+    );
+    const categoryDelete = cleanupSql.indexOf(
+      "DELETE FROM public.finance_categories",
+    );
+    const organizationDelete = cleanupSql.indexOf(
+      "DELETE FROM public.organizations",
+    );
+
+    expect(cleanupSql).toContain("SET LOCAL session_replication_role = replica");
+    expect(billingDelete).toBeGreaterThan(-1);
+    expect(categoryDelete).toBeGreaterThan(billingDelete);
+    expect(organizationDelete).toBeGreaterThan(categoryDelete);
+  });
+
   it("requires an active, unarchived Tenant role before the mutation race", () => {
     expect(
       assertActiveTenantRoleFixture({

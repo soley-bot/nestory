@@ -4,22 +4,13 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 
+import { findLocalDatabaseContainer } from "./load-test-fixture.mjs";
+
 const cwd = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifestPath = new URL("./fixtures/owner-balance-lifecycle.json", import.meta.url);
 
 function localDatabaseContainer() {
-  if (process.env.SUPABASE_DB_CONTAINER) return process.env.SUPABASE_DB_CONTAINER;
-  const result = spawnSync(
-    "docker",
-    ["ps", "--filter", "name=^/supabase_db_", "--format", "{{.Names}}"],
-    { cwd, encoding: "utf8", shell: false },
-  );
-  if (result.status !== 0) throw new Error("Could not inspect local database containers");
-  const names = result.stdout.split(/\r?\n/).map((name) => name.trim()).filter(Boolean);
-  const preferred = `supabase_db_${path.basename(cwd)}`;
-  if (names.includes(preferred)) return preferred;
-  if (names.length === 1) return names[0];
-  throw new Error("Set SUPABASE_DB_CONTAINER to one local test database container");
+  return findLocalDatabaseContainer(cwd);
 }
 
 function queryLocalDatabase(sql) {

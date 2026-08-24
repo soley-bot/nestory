@@ -79,3 +79,25 @@ test("recognizes Vitest convention files as default-gate coverage", () => {
 
   assert.equal(inventory.entries[0].classification, "default-gate");
 });
+
+test("flags executable Node tests that have no execution gate", () => {
+  const inventory = buildScriptInventory({
+    documents: new Map([
+      [
+        "docs/repository/script-inventory.md",
+        "| `scripts/safety.node-test.mjs` | documented-operator |",
+      ],
+    ]),
+    packageScripts: {},
+    scriptPaths: ["scripts/safety.node-test.mjs"],
+    workflowTexts: [],
+  });
+
+  assert.deepEqual(inventory.entries, [
+    {
+      classification: "ungated-test",
+      path: "scripts/safety.node-test.mjs",
+      references: [],
+    },
+  ]);
+});

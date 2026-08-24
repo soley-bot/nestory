@@ -112,18 +112,36 @@ function actorSql(actorId, body, pause = "") {
     COMMIT;`;
 }
 
+export function selectCompleteSubmissionScope(output) {
+  const complete = output.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [submissionId, propertyId, unitId, sourceId, documentId] = line.split("|");
+      return { documentId, propertyId, sourceId, submissionId, unitId };
+    })
+    .filter(({ documentId, propertyId, sourceId, submissionId }) =>
+      documentId && propertyId && sourceId && submissionId);
+  assert.equal(
+    complete.length,
+    1,
+    `expected exactly one complete paid-cost scope, found ${complete.length}`,
+  );
+  return complete[0];
+}
+
 function submissionScope(reference = "GDN-PUMP-2088") {
-  const [submissionId, propertyId, unitId, sourceId, documentId] = run(`
+  return selectCompleteSubmissionScope(run(`
     SELECT submission.id::text || '|' || submission.property_id::text || '|' ||
       coalesce(submission.unit_id::text, '') || '|' ||
-      submission.reconciliation_source_id::text || '|' ||
-      submission.supporting_document_id::text
+      coalesce(submission.reconciliation_source_id::text, '') || '|' ||
+      coalesce(submission.supporting_document_id::text, '')
     FROM public.expense_submissions AS submission
     WHERE submission.organization_id = '${organizationId}'
       AND submission.source_type = 'general'
-      AND submission.reference = '${reference}';
-  `).split("|");
-  return { documentId, propertyId, sourceId, submissionId, unitId };
+      AND submission.reference = '${reference}'
+    ORDER BY submission.id;
+  `));
 }
 
 function registerRaceEvidence(label, propertyId) {
@@ -250,6 +268,23 @@ beforeEach(reloadFixture);
 after(() => {
   removePauseHarness();
   reloadFixture();
+});
+
+test("selects the complete paid-cost scope when a legacy reference is reused", () => {
+  assert.equal(typeof selectCompleteSubmissionScope, "function");
+  assert.deepEqual(
+    selectCompleteSubmissionScope([
+      "incomplete|property-a|unit-a||document-a",
+      "complete|property-b|unit-b|source-b|document-b",
+    ].join("\n")),
+    {
+      documentId: "document-b",
+      propertyId: "property-b",
+      sourceId: "source-b",
+      submissionId: "complete",
+      unitId: "unit-b",
+    },
+  );
 });
 
 test("duplicate submit returns one exact actor-bound paid-cost identity", async () => {

@@ -1323,10 +1323,8 @@ WHERE contender.application_name = '${contender.applicationName}'
   );
 }
 
-function cleanup(container) {
-  runSql(
-    container,
-    `\\set ON_ERROR_STOP on
+export function buildCleanupSql() {
+  return `\\set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('app.people_leases_skip_sync', 'on', true);
 DELETE FROM public.activity_logs
@@ -1335,6 +1333,15 @@ DELETE FROM app_private.financial_idempotency_requests
 WHERE organization_id = '${ids.organization}'::uuid;
 DELETE FROM public.financial_month_locks
 WHERE organization_id = '${ids.organization}'::uuid;
+-- Accepted relationship creation now writes immutable billing snapshots and
+-- every organization receives default Finance categories. Remove only this
+-- fixture's dependents with their history guards disabled before its org row.
+SET LOCAL session_replication_role = replica;
+DELETE FROM public.lease_billing_terms
+WHERE organization_id = '${ids.organization}'::uuid;
+DELETE FROM public.finance_categories
+WHERE organization_id = '${ids.organization}'::uuid;
+SET LOCAL session_replication_role = origin;
 ALTER TABLE public.financial_reconciliation_sources
   DISABLE TRIGGER enforce_financial_reconciliation_source_mutation;
 DELETE FROM public.financial_reconciliation_sources
@@ -1377,8 +1384,11 @@ BEGIN
     RAISE EXCEPTION 'Lease relationship concurrency fixtures remain after cleanup';
   END IF;
 END;
-$cleanup$;`,
-  );
+$cleanup$;`;
+}
+
+function cleanup(container) {
+  runSql(container, buildCleanupSql());
 }
 
 function assertScalar(container, sql, expected, label) {

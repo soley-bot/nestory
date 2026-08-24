@@ -26,6 +26,17 @@ export function selectLocalDatabaseContainer(
   containerNames,
   { expectedContainerName } = {},
 ) {
+  let configuredContainerName = expectedContainerName;
+  if (!configuredContainerName) {
+    try {
+      configuredContainerName = configuredLocalDatabaseContainerName(cwd);
+    } catch (error) {
+      if (!(error && typeof error === "object" && error.code === "ENOENT")) {
+        throw error;
+      }
+    }
+  }
+
   if (process.env.SUPABASE_DB_CONTAINER) {
     const explicitContainer = process.env.SUPABASE_DB_CONTAINER;
     if (!containerNames.includes(explicitContainer)) {
@@ -34,21 +45,21 @@ export function selectLocalDatabaseContainer(
       );
     }
     if (
-      expectedContainerName &&
-      explicitContainer !== expectedContainerName
+      configuredContainerName &&
+      explicitContainer !== configuredContainerName
     ) {
       throw new Error(
-        `Explicit database target ${explicitContainer} does not match the configured local Supabase project (${expectedContainerName}).`,
+        `Explicit database target ${explicitContainer} does not match the configured local Supabase project (${configuredContainerName}).`,
       );
     }
     return explicitContainer;
   }
 
-  const preferred = expectedContainerName ?? `supabase_db_${path.basename(cwd)}`;
+  const preferred = configuredContainerName ?? `supabase_db_${path.basename(cwd)}`;
   if (containerNames.includes(preferred)) return preferred;
-  if (expectedContainerName) {
+  if (configuredContainerName) {
     throw new Error(
-      `Configured local Supabase database container is not running: ${expectedContainerName}`,
+      `Configured local Supabase database container is not running: ${configuredContainerName}`,
     );
   }
   if (containerNames.length === 1) return containerNames[0];

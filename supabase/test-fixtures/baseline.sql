@@ -23,6 +23,10 @@ $$;
 
 BEGIN;
 
+-- PostgreSQL current_date and now() are transaction-stable. Pin their named
+-- business timezone so the fixture has the same calendar date on every host.
+SET LOCAL TIME ZONE 'Asia/Phnom_Penh';
+
 DO $$
 DECLARE
   fixture_tables text;
@@ -214,14 +218,16 @@ INSERT INTO public.organizations (
   name,
   slug,
   preferred_currency,
-  khr_per_usd
+  khr_per_usd,
+  operational_timezone
 )
 VALUES (
   '00000000-0000-0000-0000-000000000001',
   'Nestory Sample Operations',
   'nestory-sample-operations',
   'USD',
-  4100
+  4100,
+  'Asia/Phnom_Penh'
 );
 
 INSERT INTO public.organization_branches (
@@ -836,7 +842,7 @@ SELECT
   1,
   (date_trunc('month', current_date) - interval '1 year')::date,
   ARRAY['monthly']::text[],
-  'Asia/Bangkok',
+  'Asia/Phnom_Penh',
   'term',
   5,
   'last_calendar_day',
