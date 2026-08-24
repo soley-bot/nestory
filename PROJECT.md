@@ -374,7 +374,8 @@ loads the guarded disposable five-role fixture documented at the top of
 `supabase/test-fixtures/baseline.sql`.
 
 The guarded local fixture contains one organization, five fixed-role logins,
-three properties, ten units, five current leases, and connected lease-derived
+four properties (three operating stories and one isolated owner-close story),
+ten units, five current leases, and connected lease-derived
 rent, Finance approval, maintenance handoff, petty-cash, timeline, and reporting
 stories. It is local-only: it is not a scale benchmark, hosted seed, or proof of
 production readiness.

@@ -34,7 +34,9 @@ export function buildScriptInventory({
     const documentReferences = [...documents]
       .filter(
         ([documentPath, text]) =>
-          documentPath !== path && mentionsScript(text, documentPath, path),
+          documentPath !== path &&
+          documentPath !== "docs/repository/script-inventory.md" &&
+          mentionsScript(text, documentPath, path),
       )
       .map(([documentPath]) => documentPath);
     const references = [
@@ -44,7 +46,13 @@ export function buildScriptInventory({
     ].sort();
 
     let classification = "unreferenced";
-    if (/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path)) {
+    if (
+      /\.node-test\.[cm]?js$/.test(path) &&
+      packageReferences.length === 0 &&
+      workflowReferences.length === 0
+    ) {
+      classification = "ungated-test";
+    } else if (/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path)) {
       classification = "default-gate";
     } else if (
       packageReferences.some((reference) =>

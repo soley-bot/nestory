@@ -4,6 +4,36 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
 SELECT no_plan();
 
+CREATE TEMP TABLE demo_fixture_scope ON COMMIT DROP AS
+SELECT
+  min(invoice.billing_period_start)::date AS operating_month,
+  count(DISTINCT invoice.billing_period_start)::bigint AS operating_month_count
+FROM public.tenant_invoices AS invoice
+WHERE invoice.lifecycle = 'issued';
+GRANT SELECT ON demo_fixture_scope TO authenticated;
+
+SELECT is(
+  (SELECT operating_month_count FROM demo_fixture_scope),
+  1::bigint,
+  'issued fixture invoices define one deterministic operating month'
+);
+
+SELECT results_eq(
+  $$SELECT operational_timezone FROM public.organizations$$,
+  $$VALUES ('Asia/Phnom_Penh'::text)$$,
+  'the Phnom Penh demo company persists its named operational timezone'
+);
+
+SELECT results_eq(
+  $$
+    SELECT rent_calculation_timezone
+    FROM public.rent_policy_versions
+    WHERE lifecycle = 'approved'
+  $$,
+  $$VALUES ('Asia/Phnom_Penh'::text)$$,
+  'the approved demo rent policy uses the company business timezone'
+);
+
 SELECT is(
   (SELECT count(*) FROM public.organizations),
   1::bigint,
@@ -217,7 +247,8 @@ SELECT is(
   (
     SELECT count(*)
     FROM public.tenant_invoices
-    WHERE billing_period_start = date_trunc('month', current_date)::date
+    WHERE billing_period_start =
+      (SELECT operating_month FROM demo_fixture_scope)
       AND lifecycle = 'issued'
   ),
   5::bigint,
@@ -479,13 +510,17 @@ SELECT ok(
     SELECT 1
     FROM public.financial_month_locks AS month_lock
     WHERE month_lock.month_start =
-      (date_trunc('month', current_date) + interval '24 months')::date
+      (
+        (SELECT operating_month FROM demo_fixture_scope)
+        + interval '24 months'
+      )::date
       AND month_lock.is_locked
   )
   AND NOT EXISTS (
     SELECT 1
     FROM public.financial_month_locks AS month_lock
-    WHERE month_lock.month_start = date_trunc('month', current_date)::date
+    WHERE month_lock.month_start =
+      (SELECT operating_month FROM demo_fixture_scope)
       AND month_lock.is_locked
   ),
   'only the isolated future owner-close story is locked; the operating month is open'
@@ -505,8 +540,11 @@ SELECT ok(
       '00000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000001',
       'USD',
-      date_trunc('month', current_date)::date,
-      (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+      (SELECT operating_month FROM demo_fixture_scope),
+      (
+        (SELECT operating_month FROM demo_fixture_scope)
+        + interval '1 month - 1 day'
+      )::date,
       NULL,
       NULL,
       NULL,
@@ -524,8 +562,11 @@ SELECT ok(
       '00000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000001',
       'USD',
-      date_trunc('month', current_date)::date,
-      (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
+      (SELECT operating_month FROM demo_fixture_scope),
+      (
+        (SELECT operating_month FROM demo_fixture_scope)
+        + interval '1 month - 1 day'
+      )::date,
       NULL,
       NULL,
       NULL,

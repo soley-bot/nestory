@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -34,7 +37,7 @@ test("fixture loader fails closed when an explicit database target is not verifi
   try {
     assert.throws(
       () => selectLocalDatabaseContainer(
-        "D:\\nestory",
+        path.join("fixture-workspace", "nestory"),
         ["supabase_db_nestory"],
       ),
       /explicit local Supabase database container is not running/i,
@@ -55,7 +58,12 @@ test("fixture loader rejects a running explicit target from a different local Su
   try {
     assert.throws(
       () => selectLocalDatabaseContainer(
-        "D:\\nestory\\.worktrees\\ips-operational-readiness",
+        path.join(
+          "fixture-workspace",
+          "nestory",
+          ".worktrees",
+          "ips-operational-readiness",
+        ),
         ["supabase_db_nestory", "supabase_db_unrelated"],
         { expectedContainerName: "supabase_db_nestory" },
       ),
@@ -67,5 +75,27 @@ test("fixture loader rejects a running explicit target from a different local Su
     } else {
       process.env.SUPABASE_DB_CONTAINER = originalContainer;
     }
+  }
+});
+
+test("fixture loader selects the project configured for an isolated worktree", () => {
+  const workspace = mkdtempSync(path.join(os.tmpdir(), "nestory-fixture-selector-"));
+  const supabaseDirectory = path.join(workspace, "supabase");
+  mkdirSync(supabaseDirectory);
+  writeFileSync(
+    path.join(supabaseDirectory, "config.toml"),
+    'project_id = "isolated_cleanup"\n',
+  );
+
+  try {
+    assert.equal(
+      selectLocalDatabaseContainer(workspace, [
+        `supabase_db_${path.basename(workspace)}`,
+        "supabase_db_isolated_cleanup",
+      ]),
+      "supabase_db_isolated_cleanup",
+    );
+  } finally {
+    rmSync(workspace, { force: true, recursive: true });
   }
 });

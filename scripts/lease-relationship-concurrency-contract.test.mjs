@@ -1,7 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { evaluateAcceptedRangeRace } from "./lease-relationship-concurrency.mjs";
+import * as relationshipHarness from "./lease-relationship-concurrency.mjs";
+
+const { evaluateAcceptedRangeRace } = relationshipHarness;
 
 describe("Lease relationship accepted relationship concurrency result contract", () => {
+  it("cleans lease billing and category dependents before the organization", () => {
+    expect(typeof relationshipHarness.buildCleanupSql).toBe("function");
+
+    const cleanupSql = relationshipHarness.buildCleanupSql();
+    const billingDelete = cleanupSql.indexOf(
+      "DELETE FROM public.lease_billing_terms",
+    );
+    const categoryDelete = cleanupSql.indexOf(
+      "DELETE FROM public.finance_categories",
+    );
+    const organizationDelete = cleanupSql.indexOf(
+      "DELETE FROM public.organizations",
+    );
+
+    expect(cleanupSql).toContain("SET LOCAL session_replication_role = replica");
+    expect(billingDelete).toBeGreaterThan(-1);
+    expect(categoryDelete).toBeGreaterThan(billingDelete);
+    expect(organizationDelete).toBeGreaterThan(categoryDelete);
+  });
+
   it("accepts exactly one committed contender and one exclusion rejection", () => {
     expect(
       evaluateAcceptedRangeRace(
