@@ -150,6 +150,34 @@ describe("maintenance workspace redesign contract", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("keeps Maintenance queue-first with collapsed filters and keyboard quick view", () => {
+    renderMaintenance({
+      viewQuery: {
+        ...defaultViewQuery,
+        month: getBusinessMonthValue(),
+      },
+    });
+
+    expect(screen.getByRole("heading", { name: "Cases" })).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Open" })).not.toBeNull();
+    expect(screen.getByRole("table")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "New case" }),
+    ).not.toBeNull();
+
+    const filters = screen.getByRole("button", { name: "Filters" });
+    expect(filters.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("combobox", { name: "Priority" })).toBeNull();
+
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1]!;
+    row.focus();
+    fireEvent.keyDown(row, { key: "Enter" });
+
+    expect(
+      screen.getByRole("dialog", { name: "Repair sink quick view" }),
+    ).not.toBeNull();
+  });
+
   it.each([1024, 390])(
     "opens one deliberate quick-view dialog at %ipx and returns focus",
     (width) => {

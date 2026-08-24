@@ -925,13 +925,18 @@ function FinanceWorkView({
 
   return (
     <div className="workspace-gutter-x mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
-      <CompactTotals
-        items={[
-          { label: "Open work", value: workCount },
-          { label: "Tenant payments", value: tenantDue.length },
-          { label: "Owner invoice payments", value: ownerDue.length },
-        ]}
-      />
+      <p
+        aria-label="Finance work summary"
+        className="text-sm text-muted-foreground"
+      >
+        <span className="font-medium text-foreground">
+          {workCount} open work
+        </span>
+        {" · "}
+        {tenantDue.length} tenant payments
+        {" · "}
+        {ownerDue.length} owner invoice payments
+      </p>
       <section
         className="min-h-0 flex-1 border-t border-border"
         data-slot="finance-work-surface"
@@ -999,6 +1004,8 @@ function FinanceWorkView({
                       {canConfigureRent ? (
                         <Button
                           onClick={() => openDrawer({ lease, mode: "billing" })}
+                          size="sm"
+                          variant="outline"
                         >
                           {lease.billing ? "Repair" : "Set up"}
                         </Button>
@@ -1040,7 +1047,7 @@ function FinanceWorkView({
                       </Td>
                       <Td>{formatDate(invoice.dueDate)}</Td>
                       <Td align="right">
-                        <Button asChild variant="outline">
+                        <Button asChild size="sm" variant="outline">
                           <Link href={`/rent-income?leaseId=${invoice.leaseId}`}>
                             Review tenant payment
                           </Link>
@@ -1064,7 +1071,7 @@ function FinanceWorkView({
                       </Td>
                       <Td>{formatDate(invoice.dueDate)}</Td>
                       <Td align="right">
-                        <Button asChild variant="outline">
+                        <Button asChild size="sm" variant="outline">
                           <Link href={`/properties/${invoice.propertyId}/account`}>
                             Review owner account
                           </Link>
@@ -1140,7 +1147,9 @@ function RentGenerationRetry({
       <Button
         aria-label={`Generate missing rent for ${monthLabel}`}
         disabled={pending}
+        size="sm"
         type="submit"
+        variant="outline"
       >
         {pending ? "Generating..." : "Generate missing rent"}
       </Button>

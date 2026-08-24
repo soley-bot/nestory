@@ -220,7 +220,7 @@ describe("FinanceOperationsScreen", () => {
     ).toBeNull();
   });
 
-  it("uses the shared responsive workspace gutters and compact summary sizing", () => {
+  it("uses shared gutters and keeps summary cards scoped to rent", () => {
     const input = data();
     const { container, rerender } = render(
       <FinanceOperationsScreen
@@ -245,11 +245,10 @@ describe("FinanceOperationsScreen", () => {
     expect(workLayout?.className).toContain("sm:px-6");
     expect(workLayout?.className).toContain("2xl:px-8");
     expect(workLayout?.className).toContain("gap-3");
-    const summary = screen.getByRole("region", { name: "Finance summary" });
-    expect(summary.firstElementChild?.className).toContain("py-2.5");
-    expect(summary.className).toContain("rounded-xl");
-    expect(summary.className).toContain("bg-card");
-    expect(summary.className).toContain("shadow-sm");
+    const workSummary = screen.getByLabelText("Finance work summary");
+    expect(workSummary.className).not.toContain("rounded-xl");
+    expect(workSummary.className).not.toContain("bg-card");
+    expect(workSummary.className).not.toContain("shadow-sm");
 
     rerender(
       <FinanceOperationsScreen
@@ -265,6 +264,13 @@ describe("FinanceOperationsScreen", () => {
     expect(rentSurface?.parentElement?.className).toContain("px-4");
     expect(rentSurface?.parentElement?.className).toContain("sm:px-6");
     expect(rentSurface?.parentElement?.className).toContain("2xl:px-8");
+    const rentSummary = screen.getByRole("region", {
+      name: "Finance summary",
+    });
+    expect(rentSummary.firstElementChild?.className).toContain("py-2.5");
+    expect(rentSummary.className).toContain("rounded-xl");
+    expect(rentSummary.className).toContain("bg-card");
+    expect(rentSummary.className).toContain("shadow-sm");
   });
 
   it("keeps the work queue summary focused on open work and payment ownership", () => {
@@ -297,12 +303,74 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    const summary = screen.getByRole("region", { name: "Finance summary" });
-    expect(within(summary).getByText("Open work")).not.toBeNull();
-    expect(within(summary).getByText("Tenant payments")).not.toBeNull();
-    expect(within(summary).getByText("Owner invoice payments")).not.toBeNull();
-    expect(within(summary).queryByText("Needs setup")).toBeNull();
-    expect(within(summary).queryByText("Rent exceptions")).toBeNull();
+    const summary = screen.getByLabelText("Finance work summary");
+    expect(summary.textContent).toContain("2 open work");
+    expect(summary.textContent).toContain("1 tenant payments");
+    expect(summary.textContent).toContain("1 owner invoice payments");
+    expect(summary.className).not.toContain("rounded-xl");
+    expect(screen.queryByText("Needs setup")).toBeNull();
+    expect(screen.queryByText("Rent exceptions")).toBeNull();
+  });
+
+  it("keeps every Finance work row action compact and secondary", () => {
+    const input = data();
+    input.tenantInvoices = [tenantInvoice()];
+    input.ownerInvoices = [
+      {
+        balanceDue: 200,
+        dueDate: "2026-08-10",
+        id: "owner-invoice-actions",
+        invoiceNumber: "OWNER-ACTIONS",
+        ownerLabel: "Sokha Owner",
+        ownerPersonId: "person-owner",
+        paidByOwner: 0,
+        paidFromHeldCash: 0,
+        paymentStatus: "unpaid",
+        propertyId: "property-1",
+        propertyLabel: "HOME — Riverside Home",
+        totalAmount: 200,
+      },
+    ];
+    input.rentGenerationExceptions = [
+      {
+        attemptCount: 2,
+        billingPeriodStart: "2026-09-01",
+        code: "billing_recipient_invalid",
+        id: "exception-actions",
+        lastAttemptAt: "2026-09-01T01:00:00Z",
+        leaseId: "lease-1",
+        message: "Select an active billing recipient for the lease.",
+        propertyId: "property-1",
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({
+          canConfigureRent: true,
+          canRetryCurrentRent: true,
+        })}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    const workSurface = screen.getByRole("region", { name: "Finance records" });
+    const actions = [
+      within(workSurface).getByRole("button", { name: "Set up" }),
+      within(workSurface).getByRole("button", {
+        name: "Generate missing rent for Sep 2026",
+      }),
+      within(workSurface).getByRole("link", { name: "Review tenant payment" }),
+      within(workSurface).getByRole("link", { name: "Review owner account" }),
+    ];
+
+    for (const action of actions) {
+      expect(action.getAttribute("data-variant")).toBe("outline");
+      expect(action.getAttribute("data-size")).toBe("sm");
+      expect(action.className).toContain("border");
+    }
   });
 
   it("keeps portfolio review free of transaction creation actions", () => {
