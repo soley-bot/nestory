@@ -142,6 +142,9 @@ describe("TimelineScreen workspace contract", () => {
 
   it("keeps event context dense, directly linked, attached, and available in a quick view", () => {
     renderTimeline();
+    expect(
+      screen.getByRole("region", { name: "Timeline table" }),
+    ).not.toBeNull();
     const table = screen.getByRole("table");
     const rows = within(table).getAllByRole("row").slice(1);
 

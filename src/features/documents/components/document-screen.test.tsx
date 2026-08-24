@@ -84,6 +84,9 @@ describe("DocumentScreen workspace contract", () => {
 
   it("keeps documents dense, directly linked, metadata-rich, and available in a quick view", () => {
     const { container } = renderDocuments();
+    expect(
+      screen.getByRole("region", { name: "Documents table" }),
+    ).not.toBeNull();
     const table = screen.getByRole("table");
     const rows = within(table).getAllByRole("row").slice(1);
 
