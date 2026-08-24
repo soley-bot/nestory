@@ -1354,6 +1354,318 @@ SELECT is(
 )
 FROM finance_category_idempotency_state;
 
+CREATE TEMP TABLE manual_fresh_duplicate_payload_state (
+  organization_id uuid NOT NULL,
+  lease_id uuid NOT NULL,
+  result_a jsonb,
+  result_b jsonb,
+  replay_a jsonb,
+  replay_b jsonb
+) ON COMMIT DROP;
+
+INSERT INTO manual_fresh_duplicate_payload_state (organization_id, lease_id)
+SELECT organization_id, lease_id
+FROM finance_category_idempotency_state;
+
+GRANT SELECT, UPDATE ON manual_fresh_duplicate_payload_state TO authenticated;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM finance_category_idempotency_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+UPDATE manual_fresh_duplicate_payload_state
+SET result_a = public.create_manual_tenant_charge(
+  organization_id,
+  lease_id,
+  'other',
+  date_trunc('month', current_date)::date,
+  current_date,
+  21.19,
+  'Repeated legitimate manual charge',
+  'category-idempotency-fresh-duplicate-a-0001'
+);
+
+SELECT lives_ok(
+  $$
+    UPDATE manual_fresh_duplicate_payload_state
+    SET result_b = public.create_manual_tenant_charge(
+      organization_id,
+      lease_id,
+      'other',
+      date_trunc('month', current_date)::date,
+      current_date,
+      21.19,
+      'Repeated legitimate manual charge',
+      'category-idempotency-fresh-duplicate-b-0001'
+    )
+  $$,
+  'a second fresh idempotency key may create an identical legitimate manual charge'
+);
+
+RESET ROLE;
+
+SELECT isnt(
+  (result_a->>'lineId')::uuid,
+  (result_b->>'lineId')::uuid,
+  'identical fresh manual charges under distinct keys have distinct line IDs'
+)
+FROM manual_fresh_duplicate_payload_state;
+
+SELECT results_eq(
+  $$
+    SELECT
+      (SELECT count(*)
+       FROM app_private.financial_idempotency_requests AS request
+       WHERE request.operation = 'create_manual_tenant_charge'
+         AND request.idempotency_key IN (
+           'category-idempotency-fresh-duplicate-a-0001',
+           'category-idempotency-fresh-duplicate-b-0001'
+         )),
+      (SELECT count(*)
+       FROM app_private.finance_category_idempotency_bindings AS binding
+       WHERE binding.operation = 'create_manual_tenant_charge'
+         AND binding.idempotency_key IN (
+           'category-idempotency-fresh-duplicate-a-0001',
+           'category-idempotency-fresh-duplicate-b-0001'
+         )),
+      (SELECT count(*)
+       FROM app_private.finance_category_idempotency_result_seals AS seal
+       WHERE seal.operation = 'create_manual_tenant_charge'
+         AND seal.idempotency_key IN (
+           'category-idempotency-fresh-duplicate-a-0001',
+           'category-idempotency-fresh-duplicate-b-0001'
+         )),
+      count(line.id),
+      count(DISTINCT line.income_item_id),
+      sum(line.amount),
+      count(DISTINCT line.finance_category_id)
+    FROM manual_fresh_duplicate_payload_state AS state
+    JOIN public.tenant_invoice_lines AS line
+      ON line.organization_id = state.organization_id
+     AND line.id IN (
+       (state.result_a->>'lineId')::uuid,
+       (state.result_b->>'lineId')::uuid
+     )
+  $$,
+  $$ VALUES (
+    2::bigint, 2::bigint, 2::bigint,
+    2::bigint, 2::bigint, 42.38::numeric, 1::bigint
+  ) $$,
+  'distinct fresh keys persist two requests, seals, bindings, and charge economics'
+);
+
+CREATE TEMP TABLE manual_fresh_duplicate_snapshot ON COMMIT DROP AS
+SELECT
+  array_agg(line.id ORDER BY line.id) AS line_ids,
+  array_agg(line.finance_category_id ORDER BY line.id) AS category_ids,
+  array_agg(line.customer_label ORDER BY line.id) AS labels,
+  array_agg(line.description ORDER BY line.id) AS descriptions,
+  array_agg(line.amount ORDER BY line.id) AS amounts,
+  invoice.id AS invoice_id,
+  invoice.total_amount,
+  (SELECT count(*) FROM public.tenant_invoice_lines) AS line_count,
+  (SELECT count(*) FROM public.finance_income_items) AS income_count,
+  (SELECT count(*) FROM public.activity_logs) AS activity_count,
+  (SELECT count(*) FROM app_private.financial_idempotency_requests)
+    AS request_count
+FROM manual_fresh_duplicate_payload_state AS state
+JOIN public.tenant_invoices AS invoice
+  ON invoice.organization_id = state.organization_id
+ AND invoice.id = (state.result_a->>'invoiceId')::uuid
+JOIN public.tenant_invoice_lines AS line
+  ON line.organization_id = invoice.organization_id
+ AND line.invoice_id = invoice.id
+ AND line.id IN (
+   (state.result_a->>'lineId')::uuid,
+   (state.result_b->>'lineId')::uuid
+ )
+GROUP BY invoice.id, invoice.total_amount;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM finance_category_idempotency_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+UPDATE manual_fresh_duplicate_payload_state
+SET replay_a = public.create_manual_tenant_charge(
+  organization_id,
+  lease_id,
+  'other',
+  date_trunc('month', current_date)::date,
+  current_date,
+  21.19,
+  'Repeated legitimate manual charge',
+  'category-idempotency-fresh-duplicate-a-0001'
+), replay_b = public.create_manual_tenant_charge(
+  organization_id,
+  lease_id,
+  'other',
+  date_trunc('month', current_date)::date,
+  current_date,
+  21.19,
+  'Repeated legitimate manual charge',
+  'category-idempotency-fresh-duplicate-b-0001'
+);
+
+RESET ROLE;
+
+SELECT is(
+  (replay_a->>'lineId')::uuid,
+  (result_a->>'lineId')::uuid,
+  'exact replay of fresh key A returns its own sealed line'
+)
+FROM manual_fresh_duplicate_payload_state;
+
+SELECT is(
+  (replay_b->>'lineId')::uuid,
+  (result_b->>'lineId')::uuid,
+  'exact replay of fresh key B returns its own sealed line'
+)
+FROM manual_fresh_duplicate_payload_state;
+
+SELECT results_eq(
+  $$
+    SELECT
+      array_agg(line.id ORDER BY line.id),
+      array_agg(line.finance_category_id ORDER BY line.id),
+      array_agg(line.customer_label ORDER BY line.id),
+      array_agg(line.description ORDER BY line.id),
+      array_agg(line.amount ORDER BY line.id),
+      invoice.id,
+      invoice.total_amount,
+      (SELECT count(*) FROM public.tenant_invoice_lines),
+      (SELECT count(*) FROM public.finance_income_items),
+      (SELECT count(*) FROM public.activity_logs),
+      (SELECT count(*) FROM app_private.financial_idempotency_requests)
+    FROM manual_fresh_duplicate_payload_state AS state
+    JOIN public.tenant_invoices AS invoice
+      ON invoice.organization_id = state.organization_id
+     AND invoice.id = (state.result_a->>'invoiceId')::uuid
+    JOIN public.tenant_invoice_lines AS line
+      ON line.organization_id = invoice.organization_id
+     AND line.invoice_id = invoice.id
+     AND line.id IN (
+       (state.result_a->>'lineId')::uuid,
+       (state.result_b->>'lineId')::uuid
+     )
+    GROUP BY invoice.id, invoice.total_amount
+  $$,
+  $$
+    SELECT line_ids, category_ids, labels, descriptions, amounts,
+      invoice_id, total_amount, line_count, income_count, activity_count,
+      request_count
+    FROM manual_fresh_duplicate_snapshot
+  $$,
+  'exact replays of both fresh keys preserve lines, economics, and audit counts'
+);
+
+CREATE TEMP TABLE manual_fresh_request_snapshot ON COMMIT DROP AS
+SELECT request.result_ids
+FROM app_private.financial_idempotency_requests AS request
+JOIN manual_fresh_duplicate_payload_state AS state
+  ON state.organization_id = request.organization_id
+WHERE request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key =
+    'category-idempotency-fresh-duplicate-a-0001';
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET result_ids = state.result_b
+FROM manual_fresh_duplicate_payload_state AS state
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key =
+    'category-idempotency-fresh-duplicate-a-0001';
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM finance_category_idempotency_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    SELECT public.create_manual_tenant_charge(
+      organization_id,
+      lease_id,
+      'other',
+      date_trunc('month', current_date)::date,
+      current_date,
+      21.19,
+      'Repeated legitimate manual charge',
+      'category-idempotency-fresh-duplicate-a-0001'
+    )
+    FROM manual_fresh_duplicate_payload_state
+  $$,
+  '23514',
+  'Finance category idempotency result is unavailable',
+  'post-seal A-to-B result reassignment fails the immutable seal check'
+);
+
+RESET ROLE;
+
+UPDATE app_private.financial_idempotency_requests AS request
+SET result_ids = snapshot.result_ids
+FROM manual_fresh_duplicate_payload_state AS state
+CROSS JOIN manual_fresh_request_snapshot AS snapshot
+WHERE request.organization_id = state.organization_id
+  AND request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key =
+    'category-idempotency-fresh-duplicate-a-0001';
+
+CREATE TEMP TABLE manual_fresh_activity_snapshot ON COMMIT DROP AS
+SELECT activity.id, activity.actor_id
+FROM public.activity_logs AS activity
+JOIN manual_fresh_duplicate_payload_state AS state
+  ON state.organization_id = activity.organization_id
+WHERE activity.action = 'manual_tenant_charge_created'
+  AND activity.new_values->>'lineId' = state.result_a->>'lineId';
+
+UPDATE public.activity_logs AS activity
+SET actor_id = state.finance_manager_id
+FROM finance_category_idempotency_state AS state
+CROSS JOIN manual_fresh_activity_snapshot AS snapshot
+WHERE activity.organization_id = state.organization_id
+  AND activity.id = snapshot.id;
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  (SELECT super_admin_id::text FROM finance_category_idempotency_state),
+  true
+);
+SET LOCAL ROLE authenticated;
+
+SELECT throws_ok(
+  $$
+    SELECT public.create_manual_tenant_charge(
+      organization_id,
+      lease_id,
+      'other',
+      date_trunc('month', current_date)::date,
+      current_date,
+      21.19,
+      'Repeated legitimate manual charge',
+      'category-idempotency-fresh-duplicate-a-0001'
+    )
+    FROM manual_fresh_duplicate_payload_state
+  $$,
+  '23514',
+  'Finance category idempotency result is unavailable',
+  'sealed replay still requires the exact append-only activity actor'
+);
+
+RESET ROLE;
+
+UPDATE public.activity_logs AS activity
+SET actor_id = snapshot.actor_id
+FROM manual_fresh_activity_snapshot AS snapshot
+WHERE activity.id = snapshot.id;
+
 SELECT set_config(
   'request.jwt.claim.sub',
   (SELECT super_admin_id::text FROM finance_category_idempotency_state),
@@ -1495,6 +1807,31 @@ WHERE request.organization_id = state.organization_id
   AND request.operation = 'create_manual_tenant_charge'
   AND request.idempotency_key = 'category-idempotency-global-manual-a-0001';
 
+INSERT INTO app_private.finance_category_idempotency_result_seals (
+  organization_id, operation, idempotency_key, result_id
+)
+SELECT
+  request.organization_id,
+  request.operation,
+  request.idempotency_key,
+  validated.result_id
+FROM app_private.financial_idempotency_requests AS request
+CROSS JOIN LATERAL (
+  SELECT app_private.valid_finance_category_idempotency_result(
+    request.organization_id,
+    request.operation,
+    request.idempotency_key,
+    false
+  ) AS result_id
+) AS validated
+WHERE request.operation = 'create_manual_tenant_charge'
+  AND request.idempotency_key IN (
+    'category-idempotency-global-manual-a-0001',
+    'category-idempotency-global-manual-b-0001'
+  )
+  AND validated.result_id IS NOT NULL
+ON CONFLICT (organization_id, operation, idempotency_key) DO NOTHING;
+
 SELECT is(
   app_private.valid_finance_category_idempotency_result(
     organization_id,
@@ -1556,7 +1893,7 @@ SELECT results_eq(
       line_count, income_count, activity_count, binding_count, seal_count
     FROM manual_global_ambiguity_snapshot
   $$,
-  'the rejected global ambiguity does not mutate invoice economics or line authority'
+  'ambiguous historical backfill stays unbound and does not mutate economics'
 );
 
 SELECT throws_ok(
@@ -1634,7 +1971,7 @@ SELECT ok(
 
 SELECT ok(
   (
-    SELECT
+    SELECT bool_and(
       procedure.prosecdef
       AND procedure.provolatile = 's'
       AND procedure.proowner = 'postgres'::regrole
@@ -1651,11 +1988,14 @@ SELECT ok(
       AND NOT has_function_privilege('anon', procedure.oid, 'EXECUTE')
       AND NOT has_function_privilege('authenticated', procedure.oid, 'EXECUTE')
       AND NOT has_function_privilege('service_role', procedure.oid, 'EXECUTE')
+    )
     FROM pg_catalog.pg_proc AS procedure
-    WHERE procedure.oid =
-      'app_private.valid_finance_category_idempotency_result(uuid,text,text,boolean)'::regprocedure
+    WHERE procedure.oid IN (
+      'app_private.valid_finance_category_idempotency_result(uuid,text,text,boolean)'::regprocedure,
+      'app_private.valid_exact_manual_finance_category_result(uuid,text,boolean)'::regprocedure
+    )
   ),
-  'the private lineage validator retains stable checked-definer ownership and ACLs'
+  'private lineage validators retain stable checked-definer ownership and ACLs'
 );
 
 SELECT ok(
