@@ -3,8 +3,13 @@ import type { ComponentProps, ReactNode } from "react";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const previewRowClassName =
-  "cursor-pointer border-t border-border transition-colors hover:bg-[var(--table-row-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
+export const registerRowClassName =
+  "border-t border-border transition-colors hover:bg-[var(--table-row-hover)]";
+
+export const previewRowClassName = cn(
+  registerRowClassName,
+  "cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring",
+);
 
 export const selectedPreviewRowClassName =
   "bg-[var(--table-row-selected)] shadow-[inset_3px_0_0_var(--table-row-selected-indicator)]";
