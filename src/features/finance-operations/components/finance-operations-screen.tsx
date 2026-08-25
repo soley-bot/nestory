@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useActionState,
   useEffect,
@@ -12,6 +13,7 @@ import {
 import { useFormStatus } from "react-dom";
 import { ChevronRight, Eye, Plus, WalletCards } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
+import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -869,6 +871,8 @@ function getScreen(
   };
 }
 
+const FINANCE_WORK_PAGE_SIZE = 25;
+
 function FinanceWorkView({
   canConfigureRent,
   canRetryCurrentRent,
@@ -889,6 +893,9 @@ function FinanceWorkView({
   const [workFilter, setWorkFilter] = useState<
     "all" | "setup" | "tenant" | "owner"
   >("all");
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const leasesNeedingSetup = leases.filter(
     (lease) =>
       (lease.status === "active" || lease.status === "notice_given") &&
@@ -922,6 +929,45 @@ function FinanceWorkView({
   );
   const visibleWorkCount =
     visibleLeases.length + visibleExceptions.length + visiblePaymentWork.length;
+  const requestedPage = Number.parseInt(searchParams.get("page") ?? "1", 10);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(visibleWorkCount / FINANCE_WORK_PAGE_SIZE),
+  );
+  const page = Number.isNaN(requestedPage)
+    ? 1
+    : Math.min(Math.max(requestedPage, 1), totalPages);
+  const pageStart = (page - 1) * FINANCE_WORK_PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + FINANCE_WORK_PAGE_SIZE, visibleWorkCount);
+  const pageLeases = visibleLeases.slice(pageStart, pageEnd);
+  const exceptionOffset = visibleLeases.length;
+  const pageExceptions = visibleExceptions.slice(
+    Math.max(0, pageStart - exceptionOffset),
+    Math.max(0, pageEnd - exceptionOffset),
+  );
+  const paymentOffset = exceptionOffset + visibleExceptions.length;
+  const pagePaymentWork = visiblePaymentWork.slice(
+    Math.max(0, pageStart - paymentOffset),
+    Math.max(0, pageEnd - paymentOffset),
+  );
+  const pagination = {
+    from: visibleWorkCount === 0 ? 0 : pageStart + 1,
+    page,
+    pageSize: FINANCE_WORK_PAGE_SIZE,
+    to: pageEnd,
+    totalCount: visibleWorkCount,
+    totalPages,
+  };
+
+  function changeWorkFilter(value: string) {
+    setWorkFilter(value as "all" | "setup" | "tenant" | "owner");
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("page");
+    const query = nextParams.toString();
+
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
 
   return (
     <div className="workspace-gutter-x mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
@@ -946,9 +992,7 @@ function FinanceWorkView({
           <SelectControl
             ariaLabel="Filter work queue"
             className="h-8 w-44"
-            onValueChange={(value) =>
-              setWorkFilter(value as "all" | "setup" | "tenant" | "owner")
-            }
+            onValueChange={changeWorkFilter}
             options={[
               { label: "All work", value: "all" },
               { label: "Setup & exceptions", value: "setup" },
@@ -970,8 +1014,9 @@ function FinanceWorkView({
             title={workCount === 0 ? "No finance work" : "No matching work"}
           />
         ) : (
-          <TableFrame className="p-0">
-            <Table className="min-w-[860px]">
+          <>
+            <TableFrame borderless className="p-0">
+              <Table className="min-w-[860px]">
               <thead className="bg-[var(--table-header-bg)]">
                 <tr>
                   <Th>Work</Th>
@@ -982,7 +1027,7 @@ function FinanceWorkView({
                 </tr>
               </thead>
               <tbody>
-                {visibleLeases.map((lease) => (
+                {pageLeases.map((lease) => (
                   <tr
                     className="border-b border-border"
                     key={`setup-${lease.id}`}
@@ -1017,7 +1062,7 @@ function FinanceWorkView({
                     </Td>
                   </tr>
                 ))}
-                {visibleExceptions.map((exception) => (
+                {pageExceptions.map((exception) => (
                   <RentGenerationExceptionRow
                     canRecover={canRetryCurrentRent}
                     exception={exception}
@@ -1025,7 +1070,7 @@ function FinanceWorkView({
                     lease={leaseById.get(exception.leaseId) ?? null}
                   />
                 ))}
-                {visiblePaymentWork.map(({ invoice, kind }) =>
+                {pagePaymentWork.map(({ invoice, kind }) =>
                   kind === "tenant" ? (
                     <tr
                       className="border-b border-border"
@@ -1081,8 +1126,10 @@ function FinanceWorkView({
                   ),
                 )}
               </tbody>
-            </Table>
-          </TableFrame>
+              </Table>
+            </TableFrame>
+            <PaginationControls pagination={pagination} />
+          </>
         )}
       </section>
     </div>
@@ -4103,9 +4150,11 @@ function CompactTotals({
   );
 }
 function TableFrame({
+  borderless = false,
   children,
   className,
 }: {
+  borderless?: boolean;
   children: ReactNode;
   className?: string;
 }) {
@@ -4113,7 +4162,10 @@ function TableFrame({
     <div
       aria-label="Finance records"
       className={cn(
-        "flex-1 overflow-x-auto rounded-xl border border-border/80 bg-card p-3 shadow-sm",
+        "flex-1 overflow-x-auto",
+        borderless
+          ? "bg-transparent"
+          : "rounded-xl border border-border/80 bg-card p-3 shadow-sm",
         className,
       )}
       data-slot="finance-table-frame"

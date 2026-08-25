@@ -226,9 +226,7 @@ export function PropertyScreen({
               sort={viewQuery.sort}
             />
           </div>
-          {pagination.totalPages > 1 ? (
-            <PaginationControls pagination={pagination} />
-          ) : null}
+          <PaginationControls pagination={pagination} />
         </>
       )}
     </section>

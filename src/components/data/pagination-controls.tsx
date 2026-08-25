@@ -41,31 +41,33 @@ export function PaginationControls({ pagination }: PaginationControlsProps) {
           {pagination.totalCount}
         </span>
       </p>
-      <div className="flex items-center justify-between gap-3 sm:justify-end">
-        <p className="text-xs">
-          Page {pagination.page} of {pagination.totalPages}
-        </p>
-        <div className="flex items-center gap-1">
-          <PaginationLink
-            disabled={previousDisabled}
-            page={pagination.page - 1}
-            pathname={pathname}
-            searchParams={searchParams}
-          >
-            <ChevronLeft size={15} />
-            Previous
-          </PaginationLink>
-          <PaginationLink
-            disabled={nextDisabled}
-            page={pagination.page + 1}
-            pathname={pathname}
-            searchParams={searchParams}
-          >
-            Next
-            <ChevronRight size={15} />
-          </PaginationLink>
+      {pagination.totalPages > 1 ? (
+        <div className="flex items-center justify-between gap-3 sm:justify-end">
+          <p className="text-xs">
+            Page {pagination.page} of {pagination.totalPages}
+          </p>
+          <div className="flex items-center gap-1">
+            <PaginationLink
+              disabled={previousDisabled}
+              page={pagination.page - 1}
+              pathname={pathname}
+              searchParams={searchParams}
+            >
+              <ChevronLeft size={15} />
+              Previous
+            </PaginationLink>
+            <PaginationLink
+              disabled={nextDisabled}
+              page={pagination.page + 1}
+              pathname={pathname}
+              searchParams={searchParams}
+            >
+              Next
+              <ChevronRight size={15} />
+            </PaginationLink>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
