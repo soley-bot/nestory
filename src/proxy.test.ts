@@ -51,6 +51,10 @@ describe("proxy", () => {
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/workspace",
     );
+    expect(response.headers.get("content-security-policy")).toContain(
+      "script-src 'self' 'nonce-",
+    );
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
   });
 
   it("keeps unauthenticated protected routes behind login", async () => {
@@ -74,6 +78,71 @@ describe("proxy", () => {
 
     expect(response.headers.get("location")).toBeNull();
     expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-request-x-nonce")).toMatch(/.+/);
+  });
+
+  it("keeps the CSP nonce and forwarded nonce aligned after Auth refreshes cookies", async () => {
+    getClaims.mockImplementation(async () => {
+      createServerClient.mock.calls[0][2].cookies.setAll([
+        { name: "sb-test", value: "refreshed", options: { httpOnly: true } },
+      ]);
+      return { data: { claims: { sub: "user-1" } }, error: null };
+    });
+
+    const response = await proxy(new NextRequest("https://app.nestory-kh.com/account"));
+    const nonce = response.headers.get("x-middleware-request-x-nonce");
+
+    expect(nonce).toMatch(/.+/);
+    expect(response.headers.get("content-security-policy")).toContain(
+      `'nonce-${nonce}'`,
+    );
+    expect(response.cookies.get("sb-test")?.value).toBe("refreshed");
+    expect(response.headers.get("x-middleware-request-cookie")).toContain(
+      "sb-test=refreshed",
+    );
+  });
+
+  it("uses a distinct nonce for every request", async () => {
+    getClaims.mockResolvedValue({ data: { claims: null }, error: null });
+
+    const first = await proxy(new NextRequest("https://app.nestory-kh.com/request"));
+    const second = await proxy(new NextRequest("https://app.nestory-kh.com/request"));
+
+    expect(first.headers.get("x-middleware-request-x-nonce")).not.toBe(
+      second.headers.get("x-middleware-request-x-nonce"),
+    );
+  });
+
+  it("keeps refreshed Auth cookies on an authenticated login redirect", async () => {
+    getClaims.mockImplementation(async () => {
+      createServerClient.mock.calls[0][2].cookies.setAll([
+        { name: "sb-refresh", value: "rotated", options: { httpOnly: true } },
+      ]);
+      return { data: { claims: { sub: "user-1" } }, error: null };
+    });
+
+    const response = await proxy(new NextRequest("https://app.nestory-kh.com/login"));
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.nestory-kh.com/workspace",
+    );
+    expect(response.cookies.get("sb-refresh")?.value).toBe("rotated");
+  });
+
+  it("keeps Auth cookie deletion on a protected-route login redirect", async () => {
+    getClaims.mockImplementation(async () => {
+      createServerClient.mock.calls[0][2].cookies.setAll([
+        { name: "sb-stale", value: "", options: { maxAge: 0 } },
+      ]);
+      return { data: { claims: null }, error: new Error("expired") };
+    });
+
+    const response = await proxy(new NextRequest("https://app.nestory-kh.com/tasks"));
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.nestory-kh.com/login",
+    );
+    expect(response.cookies.get("sb-stale")?.value).toBe("");
   });
 
   it("keeps the fail-closed local target attestation available before login", async () => {

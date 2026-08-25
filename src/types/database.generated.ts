@@ -11010,6 +11010,14 @@ export type Database = {
           submission_id: string
         }[]
       }
+      get_privileged_email_step_up_status: {
+        Args: {
+          p_organization_id: string
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       get_property_cash_events_page: {
         Args: {
           p_after_event_date: string
@@ -11116,6 +11124,14 @@ export type Database = {
         }
         Returns: string
       }
+      mark_privileged_email_step_up_failed: {
+        Args: { p_challenge_id: string }
+        Returns: boolean
+      }
+      mark_privileged_email_step_up_sent: {
+        Args: { p_challenge_id: string }
+        Returns: boolean
+      }
       mark_tenant_commercial_document_publication_failed: {
         Args: {
           p_failure_reason: string
@@ -11137,6 +11153,20 @@ export type Database = {
       post_petty_cash_entry: {
         Args: { p_entry_id: string; p_organization_id: string }
         Returns: string
+      }
+      prepare_privileged_email_step_up: {
+        Args: {
+          p_code_digest: string
+          p_email_digest: string
+          p_organization_id: string
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: {
+          challenge_id: string
+          expires_at: string
+          resend_available_at: string
+        }[]
       }
       process_due_lease_activations: {
         Args: {
@@ -12305,6 +12335,17 @@ export type Database = {
             }
             Returns: string
           }
+      verify_privileged_email_step_up: {
+        Args: {
+          p_challenge_id: string
+          p_code_digest: string
+          p_email_digest: string
+          p_organization_id: string
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       void_petty_cash_entry: {
         Args: {
           p_entry_id: string

@@ -3,6 +3,8 @@ import {
   AccountScreen,
   type AccountProfile,
 } from "@/features/account/components/account-screen";
+import { PrivilegedEmailStepUp } from "@/features/account/components/privileged-email-step-up";
+import { getPrivilegedEmailStepUpStatus } from "@/features/auth/privileged-step-up";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
 
@@ -11,11 +13,19 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient
 
 export default async function AccountPage() {
   const context = await requireWorkspaceContext();
-  const { branch, person } = await getAccountProfile({
-    branchId: context.branchId,
-    organizationId: context.organizationId,
-    personId: context.personId,
-  });
+  const [{ branch, person }, stepUpStatus] = await Promise.all([
+    getAccountProfile({
+      branchId: context.branchId,
+      organizationId: context.organizationId,
+      personId: context.personId,
+    }),
+    context.isSuperAdmin ||
+    Array.from(context.permissionKeys ?? []).some((permission) =>
+      permission.startsWith("finance."),
+    )
+      ? getPrivilegedEmailStepUpStatus(context)
+      : null,
+  ]);
 
   return (
     <div>
@@ -29,6 +39,11 @@ export default async function AccountPage() {
           roleName: context.roleName,
         }}
         profile={person}
+        securityStepUp={
+          stepUpStatus?.required ? (
+            <PrivilegedEmailStepUp status={stepUpStatus} />
+          ) : null
+        }
       />
     </div>
   );

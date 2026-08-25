@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getAuthCookieOptions } from "@/lib/auth/tenant";
 import { getSupabaseEnv } from "@/lib/db/env";
 import { WORKSPACE_ENTRY_PATH } from "@/lib/auth/workspace-entry";
+import {
+  BROWSER_SECURITY_HEADERS,
+  buildContentSecurityPolicy,
+} from "@/lib/security/browser-security";
 import type { Database } from "@/types/database";
 
 const AUTH_ROUTES = new Set(["/login"]);
@@ -25,23 +29,42 @@ const PUBLIC_ROUTES = new Set([
 ]);
 const REDIRECT_AUTHENTICATED_ROUTES = new Set(["/", ...AUTH_ROUTES]);
 
-function redirectToLogin(request: NextRequest) {
+function redirectToLogin(
+  request: NextRequest,
+  contentSecurityPolicy: string,
+  currentResponse: NextResponse,
+) {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   url.search = "";
-  return NextResponse.redirect(url);
+  return createSecureRedirect(url, currentResponse, contentSecurityPolicy);
 }
 
-function redirectToWorkspace(request: NextRequest) {
+function redirectToWorkspace(
+  request: NextRequest,
+  contentSecurityPolicy: string,
+  currentResponse: NextResponse,
+) {
   const url = request.nextUrl.clone();
   url.pathname = WORKSPACE_ENTRY_PATH;
   url.search = "";
-  return NextResponse.redirect(url);
+  return createSecureRedirect(url, currentResponse, contentSecurityPolicy);
 }
 
 export async function proxy(request: NextRequest) {
   const isPublicRoute = PUBLIC_ROUTES.has(request.nextUrl.pathname);
-  let response = NextResponse.next({ request });
+  const nonce = crypto.randomUUID().replaceAll("-", "");
+  const requestHeaders = new Headers(request.headers);
+  const contentSecurityPolicy = buildContentSecurityPolicy({
+    environment: readEnvironment(),
+    nonce,
+    requestUrl: request.url,
+    sentryDsn: process.env.NEXT_PUBLIC_NESTORY_SENTRY_DSN,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
+  let response = createForwardResponse(requestHeaders, contentSecurityPolicy);
 
   let supabaseUrl: string;
   let supabaseKey: string;
@@ -49,7 +72,9 @@ export async function proxy(request: NextRequest) {
   try {
     ({ supabaseKey, supabaseUrl } = getSupabaseEnv());
   } catch {
-    return isPublicRoute ? response : redirectToLogin(request);
+    return isPublicRoute
+      ? response
+      : redirectToLogin(request, contentSecurityPolicy, response);
   }
 
   const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
@@ -62,8 +87,12 @@ export async function proxy(request: NextRequest) {
         cookiesToSet.forEach(({ name, value }) => {
           request.cookies.set(name, value);
         });
+        const refreshedCookieHeader = request.headers.get("cookie");
+        if (refreshedCookieHeader) {
+          requestHeaders.set("cookie", refreshedCookieHeader);
+        }
 
-        response = NextResponse.next({ request });
+        response = createForwardResponse(requestHeaders, contentSecurityPolicy);
 
         cookiesToSet.forEach(({ name, options, value }) => {
           response.cookies.set(name, value, options);
@@ -76,17 +105,56 @@ export async function proxy(request: NextRequest) {
   const isAuthenticated = !error && typeof data?.claims?.sub === "string";
 
   if (!isAuthenticated && !isPublicRoute) {
-    return redirectToLogin(request);
+    return redirectToLogin(request, contentSecurityPolicy, response);
   }
 
   if (
     isAuthenticated &&
     REDIRECT_AUTHENTICATED_ROUTES.has(request.nextUrl.pathname)
   ) {
-    return redirectToWorkspace(request);
+    return redirectToWorkspace(request, contentSecurityPolicy, response);
   }
 
   return response;
+}
+
+function createSecureRedirect(
+  url: URL,
+  currentResponse: NextResponse,
+  contentSecurityPolicy: string,
+) {
+  const redirect = NextResponse.redirect(url);
+  for (const cookie of currentResponse.cookies.getAll()) {
+    redirect.cookies.set(cookie);
+  }
+  return applyBrowserSecurityHeaders(redirect, contentSecurityPolicy);
+}
+
+function createForwardResponse(
+  requestHeaders: Headers,
+  contentSecurityPolicy: string,
+) {
+  return applyBrowserSecurityHeaders(
+    NextResponse.next({ request: { headers: requestHeaders } }),
+    contentSecurityPolicy,
+  );
+}
+
+function applyBrowserSecurityHeaders(
+  response: NextResponse,
+  contentSecurityPolicy: string,
+) {
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+  for (const { key, value } of BROWSER_SECURITY_HEADERS) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
+function readEnvironment(): "development" | "production" | "test" {
+  if (process.env.NODE_ENV === "development") return "development";
+  if (process.env.NODE_ENV === "test") return "test";
+  return "production";
 }
 
 export const config = {

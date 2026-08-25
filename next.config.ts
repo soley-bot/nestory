@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { BROWSER_SECURITY_HEADERS } from "./src/lib/security/browser-security";
 
 const nextConfig: NextConfig = {
   // Vercel injects a build adapter and does not consume standalone output.
@@ -21,6 +22,14 @@ const nextConfig: NextConfig = {
     },
   },
   reactCompiler: true,
+  async headers() {
+    return [
+      {
+        headers: [...BROWSER_SECURITY_HEADERS],
+        source: "/:path*",
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {

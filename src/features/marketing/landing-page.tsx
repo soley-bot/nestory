@@ -35,10 +35,10 @@ const heroToneStyle = {
   "--landing-muted": "rgb(255 255 255 / 72%)",
 } as CSSProperties;
 
-export function LandingPage() {
+export function LandingPage({ nonce }: { nonce?: string }) {
   return (
     <main className="landing-page bg-[var(--landing-bg)] text-[var(--landing-fg)] transition-colors">
-      <LandingMotion />
+      <LandingMotion nonce={nonce} />
       <LandingScrollMotion />
       <LandingHeader tone="hero" />
 
@@ -220,9 +220,9 @@ export function LandingPage() {
   );
 }
 
-function LandingMotion() {
+function LandingMotion({ nonce }: { nonce?: string }) {
   return (
-    <style>{`
+    <style nonce={nonce}>{`
       .landing-hero {
         --landing-hero-bottom: linear-gradient(0deg, rgb(5 6 7 / 78%), transparent);
         --landing-hero-image-filter: brightness(0.84) contrast(1.02) saturate(0.86);
