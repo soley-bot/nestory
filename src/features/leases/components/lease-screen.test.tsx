@@ -129,7 +129,7 @@ describe("LeaseScreen redesign contract", () => {
     expect(attention.className).not.toContain("mt-1");
   });
 
-  it("aligns the register surface with the page gutter on desktop", () => {
+  it("aligns the unframed register surface with the page gutter on desktop", () => {
     const { container } = renderLeases();
 
     const registerGutter = container.querySelector<HTMLElement>(
@@ -142,8 +142,9 @@ describe("LeaseScreen redesign contract", () => {
     expect(registerGutter).not.toBeNull();
     expect(registerGutter!.className).toContain("workspace-gutter-x");
     expect(registerSurface).not.toBeNull();
-    expect(registerSurface!.className).toContain("border");
-    expect(registerSurface!.className).toContain("rounded-md");
+    expect(registerSurface!.className).not.toMatch(/(?:^|\s)(?:md:)?rounded/);
+    expect(registerSurface!.className).not.toMatch(/(?:^|\s)(?:md:)?border/);
+    expect(registerSurface!.className).not.toMatch(/(?:^|\s)(?:md:)?bg-card/);
     expect(registerSurface!.className).toContain("overflow-hidden");
     expect(registerSurface!.contains(screen.getByRole("table"))).toBe(true);
     const table = screen.getByRole("table");

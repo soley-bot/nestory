@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useActionState,
   useEffect,
@@ -12,6 +13,7 @@ import {
 import { useFormStatus } from "react-dom";
 import { ChevronRight, Eye, Plus, WalletCards } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
+import { PaginationControls } from "@/components/data/pagination-controls";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { WorkspacePage } from "@/components/layout/workspace-page";
@@ -33,14 +35,13 @@ import { Table, TableCell, TableHead } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
+import { buildLeasePaymentResolutionHref } from "@/features/leases/lease-detail-route";
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
 import {
-  confirmOwnerCollectionAction,
   createFinanceCategoryAction,
   createManualTenantChargeAction,
   publishTenantInvoicePdfAction,
   recordOwnerPaymentAction,
-  recordTenantInvoicePaymentAction,
   recordWithdrawalAction,
   recoverLeaseRentPeriodAction,
   recoverRentGenerationExceptionAction,
@@ -54,6 +55,10 @@ import {
   setFinanceCategoryArchivedAction,
   updateFinanceCategoryAction,
 } from "@/features/finance-operations/actions";
+import {
+  TenantInvoicePaymentForm,
+  type TenantPaymentReceiptResult,
+} from "@/features/finance-operations/components/tenant-invoice-payment-form";
 import type {
   CommercialDocumentLink,
   ExpenseSubmissionSummary,
@@ -145,6 +150,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canReverseExpense: boolean;
   canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
+  canViewLeases?: boolean;
   initialBillingLeaseId?: string;
   initialExpenseIntent?: "owner" | "tenant";
   initialRentLeaseId?: string;
@@ -190,11 +196,8 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
   const [invoicePdfPublicationOpen, setInvoicePdfPublicationOpen] =
     useState(false);
   const pdfDrawerTriggerRef = useRef<HTMLElement | null>(null);
-  const [receiptResult, setReceiptResult] = useState<{
-    href: string | null;
-    unavailable: boolean;
-    paymentId: string | null;
-  } | null>(null);
+  const [receiptResult, setReceiptResult] =
+    useState<TenantPaymentReceiptResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const closeDrawer = () => setDrawer(null);
   const closeModal = () => setModal(null);
@@ -522,7 +525,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
             />
           ) : visibleActionModal.mode === "payment" ? (
             visibleActionModal.invoice ? (
-              <SettleInvoiceForm
+              <TenantInvoicePaymentForm
                 invoice={visibleActionModal.invoice}
                 onChooseAnother={
                   visibleActionModal.canChooseAnother
@@ -531,6 +534,11 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
                 }
                 onReceiptResult={setReceiptResult}
                 onSuccess={onActionSuccess}
+                ownerLabel={
+                  props.leases.find(
+                    (lease) => lease.id === visibleActionModal.invoice?.leaseId,
+                  )?.ownerLabel ?? "Owner needed"
+                }
                 reconciliationSources={props.reconciliationSources}
               />
             ) : (
@@ -855,6 +863,7 @@ function getScreen(
       <FinanceWorkView
         canConfigureRent={canConfigureRent}
         canRetryCurrentRent={props.canRetryCurrentRent}
+        canViewLeases={props.canViewLeases ?? false}
         leases={props.leases}
         openDrawer={openDrawer}
         ownerInvoices={props.ownerInvoices}
@@ -869,9 +878,12 @@ function getScreen(
   };
 }
 
+const FINANCE_WORK_PAGE_SIZE = 25;
+
 function FinanceWorkView({
   canConfigureRent,
   canRetryCurrentRent,
+  canViewLeases,
   leases,
   openDrawer,
   ownerInvoices,
@@ -880,6 +892,7 @@ function FinanceWorkView({
 }: {
   canConfigureRent: boolean;
   canRetryCurrentRent: boolean;
+  canViewLeases: boolean;
   leases: FinanceLease[];
   openDrawer: (drawer: DrawerState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
@@ -889,6 +902,9 @@ function FinanceWorkView({
   const [workFilter, setWorkFilter] = useState<
     "all" | "setup" | "tenant" | "owner"
   >("all");
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const leasesNeedingSetup = leases.filter(
     (lease) =>
       (lease.status === "active" || lease.status === "notice_given") &&
@@ -922,16 +938,60 @@ function FinanceWorkView({
   );
   const visibleWorkCount =
     visibleLeases.length + visibleExceptions.length + visiblePaymentWork.length;
+  const requestedPage = Number.parseInt(searchParams.get("page") ?? "1", 10);
+  const totalPages = Math.max(
+    1,
+    Math.ceil(visibleWorkCount / FINANCE_WORK_PAGE_SIZE),
+  );
+  const page = Number.isNaN(requestedPage)
+    ? 1
+    : Math.min(Math.max(requestedPage, 1), totalPages);
+  const pageStart = (page - 1) * FINANCE_WORK_PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + FINANCE_WORK_PAGE_SIZE, visibleWorkCount);
+  const pageLeases = visibleLeases.slice(pageStart, pageEnd);
+  const exceptionOffset = visibleLeases.length;
+  const pageExceptions = visibleExceptions.slice(
+    Math.max(0, pageStart - exceptionOffset),
+    Math.max(0, pageEnd - exceptionOffset),
+  );
+  const paymentOffset = exceptionOffset + visibleExceptions.length;
+  const pagePaymentWork = visiblePaymentWork.slice(
+    Math.max(0, pageStart - paymentOffset),
+    Math.max(0, pageEnd - paymentOffset),
+  );
+  const pagination = {
+    from: visibleWorkCount === 0 ? 0 : pageStart + 1,
+    page,
+    pageSize: FINANCE_WORK_PAGE_SIZE,
+    to: pageEnd,
+    totalCount: visibleWorkCount,
+    totalPages,
+  };
+
+  function changeWorkFilter(value: string) {
+    setWorkFilter(value as "all" | "setup" | "tenant" | "owner");
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("page");
+    const query = nextParams.toString();
+
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
 
   return (
     <div className="workspace-gutter-x mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-4 sm:px-6 2xl:px-8">
-      <CompactTotals
-        items={[
-          { label: "Open work", value: workCount },
-          { label: "Tenant payments", value: tenantDue.length },
-          { label: "Owner invoice payments", value: ownerDue.length },
-        ]}
-      />
+      <p
+        aria-label="Finance work summary"
+        className="text-sm text-muted-foreground"
+      >
+        <span className="font-medium text-foreground">
+          {workCount} open work
+        </span>
+        {" · "}
+        {tenantDue.length} tenant payments
+        {" · "}
+        {ownerDue.length} owner invoice payments
+      </p>
       <section
         className="min-h-0 flex-1 border-t border-border"
         data-slot="finance-work-surface"
@@ -941,9 +1001,7 @@ function FinanceWorkView({
           <SelectControl
             ariaLabel="Filter work queue"
             className="h-8 w-44"
-            onValueChange={(value) =>
-              setWorkFilter(value as "all" | "setup" | "tenant" | "owner")
-            }
+            onValueChange={changeWorkFilter}
             options={[
               { label: "All work", value: "all" },
               { label: "Setup & exceptions", value: "setup" },
@@ -965,8 +1023,9 @@ function FinanceWorkView({
             title={workCount === 0 ? "No finance work" : "No matching work"}
           />
         ) : (
-          <TableFrame className="p-0">
-            <Table className="min-w-[860px]">
+          <>
+            <TableFrame borderless className="p-0">
+              <Table className="min-w-[860px]">
               <thead className="bg-[var(--table-header-bg)]">
                 <tr>
                   <Th>Work</Th>
@@ -977,7 +1036,7 @@ function FinanceWorkView({
                 </tr>
               </thead>
               <tbody>
-                {visibleLeases.map((lease) => (
+                {pageLeases.map((lease) => (
                   <tr
                     className="border-b border-border"
                     key={`setup-${lease.id}`}
@@ -999,6 +1058,8 @@ function FinanceWorkView({
                       {canConfigureRent ? (
                         <Button
                           onClick={() => openDrawer({ lease, mode: "billing" })}
+                          size="sm"
+                          variant="outline"
                         >
                           {lease.billing ? "Repair" : "Set up"}
                         </Button>
@@ -1010,7 +1071,7 @@ function FinanceWorkView({
                     </Td>
                   </tr>
                 ))}
-                {visibleExceptions.map((exception) => (
+                {pageExceptions.map((exception) => (
                   <RentGenerationExceptionRow
                     canRecover={canRetryCurrentRent}
                     exception={exception}
@@ -1018,7 +1079,7 @@ function FinanceWorkView({
                     lease={leaseById.get(exception.leaseId) ?? null}
                   />
                 ))}
-                {visiblePaymentWork.map(({ invoice, kind }) =>
+                {pagePaymentWork.map(({ invoice, kind }) =>
                   kind === "tenant" ? (
                     <tr
                       className="border-b border-border"
@@ -1040,8 +1101,18 @@ function FinanceWorkView({
                       </Td>
                       <Td>{formatDate(invoice.dueDate)}</Td>
                       <Td align="right">
-                        <Button asChild variant="outline">
-                          <Link href={`/rent-income?leaseId=${invoice.leaseId}`}>
+                        <Button asChild size="sm" variant="outline">
+                          <Link
+                            href={
+                              invoice.collectionRoute === "through_ips" &&
+                              canViewLeases
+                                ? buildLeasePaymentResolutionHref({
+                                    invoiceId: invoice.id,
+                                    leaseId: invoice.leaseId,
+                                  })
+                                : `/rent-income?leaseId=${invoice.leaseId}`
+                            }
+                          >
                             Review tenant payment
                           </Link>
                         </Button>
@@ -1064,7 +1135,7 @@ function FinanceWorkView({
                       </Td>
                       <Td>{formatDate(invoice.dueDate)}</Td>
                       <Td align="right">
-                        <Button asChild variant="outline">
+                        <Button asChild size="sm" variant="outline">
                           <Link href={`/properties/${invoice.propertyId}/account`}>
                             Review owner account
                           </Link>
@@ -1074,8 +1145,10 @@ function FinanceWorkView({
                   ),
                 )}
               </tbody>
-            </Table>
-          </TableFrame>
+              </Table>
+            </TableFrame>
+            <PaginationControls pagination={pagination} />
+          </>
         )}
       </section>
     </div>
@@ -1140,7 +1213,9 @@ function RentGenerationRetry({
       <Button
         aria-label={`Generate missing rent for ${monthLabel}`}
         disabled={pending}
+        size="sm"
         type="submit"
+        variant="outline"
       >
         {pending ? "Generating..." : "Generate missing rent"}
       </Button>
@@ -2550,147 +2625,6 @@ function PaymentChooser({
   );
 }
 
-function SettleInvoiceForm({
-  invoice,
-  onChooseAnother,
-  onReceiptResult,
-  onSuccess,
-  reconciliationSources,
-}: {
-  invoice: TenantInvoiceSummary;
-  onChooseAnother?: () => void;
-  onReceiptResult: (result: {
-    href: string | null;
-    paymentId: string | null;
-    unavailable: boolean;
-  }) => void;
-  onSuccess: (message: string) => void;
-  reconciliationSources: FinanceOperationsData["reconciliationSources"];
-}) {
-  const idempotencyKey = useStableActionId(
-    invoice.collectionRoute === "through_ips" ? "payment" : "owner-confirm",
-  );
-  const action =
-    invoice.collectionRoute === "through_ips"
-      ? recordTenantInvoicePaymentAction
-      : confirmOwnerCollectionAction;
-  const [state, formAction] = useActionState(action, actionInitialState);
-  const sources = reconciliationSources.filter(
-    (source) => !source.propertyId || source.propertyId === invoice.propertyId,
-  );
-  useEffect(() => {
-    if (state.status !== "success" || !state.message) return;
-    if (invoice.collectionRoute === "through_ips") {
-      onReceiptResult({
-        href: state.artifactHref ?? null,
-        paymentId: state.paymentId ?? null,
-        unavailable: state.publicationStatus === "failed",
-      });
-    }
-    onSuccess(state.message);
-  }, [invoice.collectionRoute, onReceiptResult, onSuccess, state]);
-  return (
-    <form action={formAction} className="space-y-4 p-4">
-      <DefinitionRows
-        rows={[
-          ["Invoice", invoice.invoiceNumber],
-          ["Customer", invoice.recipientLabel],
-          ["Balance", formatMoneyDisplay(invoice.balanceDue).primary],
-        ]}
-      />
-      <input name="invoiceId" type="hidden" value={invoice.id} />
-      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Amount">
-          <NumberInput
-            defaultValue={invoice.balanceDue}
-            name="amount"
-            required
-          />
-        </Field>
-        <Field
-          label={
-            invoice.collectionRoute === "through_ips"
-              ? "Received date"
-              : "Confirmed date"
-          }
-        >
-          <DatePickerField
-            defaultValue={getBusinessDateValue()}
-            name="settlementDate"
-            required
-          />
-        </Field>
-        {invoice.collectionRoute === "through_ips" ? (
-          <Field label="Deposit to">
-            <div className="space-y-1.5">
-              <SelectControl
-                name="reconciliationSourceId"
-                options={sources.map((source) => ({
-                  label: source.label,
-                  value: source.id,
-                }))}
-                placeholder="Choose receiving account"
-                required
-              />
-              <p className="text-xs leading-4 text-muted-foreground">
-                Choose the bank, cash, or collection account where this
-                payment was received.
-              </p>
-            </div>
-          </Field>
-        ) : null}
-        <Field label="Reference">
-          <Input name="reference" placeholder="Optional" />
-        </Field>
-      </div>
-      {invoice.lines.length > 1 ? (
-        <details className="rounded-md border border-border">
-          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-            Change how payment is applied
-          </summary>
-          <div className="grid gap-3 border-t border-border p-3 sm:grid-cols-2">
-            {invoice.lines
-              .filter((line) => line.balanceDue > 0)
-              .map((line) => (
-                <Field
-                  key={line.id}
-                  label={`${line.label} · ${formatMoneyDisplay(line.balanceDue).primary}`}
-                >
-                  <NumberInput
-                    name={`allocation:${line.id}`}
-                    placeholder="Leave blank for Rent first"
-                  />
-                </Field>
-              ))}
-          </div>
-        </details>
-      ) : null}
-      {invoice.collectionRoute === "direct_to_owner" ? (
-        <p className="text-xs text-muted-foreground">
-          This marks the invoice “Collected by owner” and does not add cash to
-          the property account.
-        </p>
-      ) : null}
-      <ActionMessage state={state} />
-      <FormFooter>
-        {onChooseAnother ? (
-          <Button onClick={onChooseAnother}>Choose another</Button>
-        ) : (
-          <span />
-        )}
-        <SubmitButton
-          label={
-            invoice.collectionRoute === "through_ips"
-              ? "Record payment"
-              : "Confirm collected"
-          }
-        />
-      </FormFooter>
-    </form>
-  );
-}
-
 function ExpenseForm({
   financeCategories,
   fixedScope,
@@ -4094,9 +4028,11 @@ function CompactTotals({
   );
 }
 function TableFrame({
+  borderless = false,
   children,
   className,
 }: {
+  borderless?: boolean;
   children: ReactNode;
   className?: string;
 }) {
@@ -4104,7 +4040,10 @@ function TableFrame({
     <div
       aria-label="Finance records"
       className={cn(
-        "flex-1 overflow-x-auto rounded-xl border border-border/80 bg-card p-3 shadow-sm",
+        "flex-1 overflow-x-auto",
+        borderless
+          ? "bg-transparent"
+          : "rounded-xl border border-border/80 bg-card p-3 shadow-sm",
         className,
       )}
       data-slot="finance-table-frame"

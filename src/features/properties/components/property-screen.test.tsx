@@ -431,7 +431,7 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.getByRole("combobox", { name: "Rows per page" })).toBeTruthy();
   });
 
-  it("groups the property tools and register in one bordered data surface", () => {
+  it("groups the property tools and register in one borderless data surface", () => {
     const { container } = renderProperties();
     const surface = container.querySelector<HTMLElement>(
       '[data-slot="property-list-surface"]',
@@ -462,7 +462,9 @@ describe("PropertyScreen redesign contract", () => {
     expect(table.className).not.toContain("max-w-");
     expect(table.querySelectorAll("colgroup col")).toHaveLength(7);
 
-    expect(screen.queryByText(/Showing/)).toBeNull();
+    expect(within(surface!).getByText(/Showing/).textContent).toBe(
+      "Showing 1-2 of 2",
+    );
   });
 
   it("uses one predictable row action, opens the property directly, and preserves URL-backed sorting", () => {
@@ -476,7 +478,14 @@ describe("PropertyScreen redesign contract", () => {
     expect(table.querySelector("thead")?.className).toContain("text-[11px]");
 
     const rows = within(table).getAllByRole("row").slice(1);
-    expect(within(rows[0]!).queryByRole("link", { name: "Home Residence" })).toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: "Home Residence" })
+        .getAttribute("href"),
+    ).toBe("/properties/property-1");
+    expect(
+      screen.getByRole("region", { name: "Properties table" }),
+    ).not.toBeNull();
 
     fireEvent.click(rows[1]!);
     expect(navigation.push).toHaveBeenCalledWith("/properties/property-2");
@@ -576,11 +585,13 @@ describe("PropertyScreen redesign contract", () => {
     expect(screen.queryByRole("link", { name: "Set up property" })).toBeNull();
   });
 
-  it("omits pagination controls when every property fits on one page", () => {
+  it("keeps the result count without inactive navigation on one page", () => {
     renderProperties();
 
-    expect(screen.queryByText(/Showing 1-2 of 2/)).toBeNull();
+    expect(screen.getByText(/Showing/).textContent).toBe("Showing 1-2 of 2");
     expect(screen.queryByText("Page 1 of 1")).toBeNull();
+    expect(screen.queryByText("Previous")).toBeNull();
+    expect(screen.queryByText("Next")).toBeNull();
   });
 
   it("keeps occupancy gaps in Occupancy and omits the redundant review column", () => {

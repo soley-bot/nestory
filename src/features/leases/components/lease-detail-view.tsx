@@ -8,12 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
-import { NumberInput } from "@/components/ui/number-input";
-import { SelectControl } from "@/components/ui/select-control";
 import {
   recordCurrentLeaseOccupancyEvidenceAction,
-  recordLeaseDepositEventAction,
-  reverseLeaseDepositEventAction,
 } from "@/features/leases/actions";
 import {
   buildLeaseRecordHref,
@@ -21,11 +17,9 @@ import {
 } from "@/features/leases/lease-detail-route";
 import type {
   LeaseBillingRule,
-  LeaseDepositContext,
   LeaseSummary,
 } from "@/features/leases/lease.types";
 import { formatFileSize } from "@/features/documents/components/document-list";
-import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { formatCalendarDate, formatDate } from "@/lib/dates/format";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +45,7 @@ export function LeaseDetailView({
   onAttachFile,
   onChangeBillingRules,
   onLifecycleChange,
+  onManageDeposit,
   onScheduleTerm,
 }: {
   activeSection: LeaseRecordSection;
@@ -61,6 +56,7 @@ export function LeaseDetailView({
   onLifecycleChange: (
     transition: "activate" | "cancel" | "end" | "give_notice" | "terminate",
   ) => void;
+  onManageDeposit: () => void;
   onScheduleTerm: (mode: "renewal" | "rent_change") => void;
 }) {
   return (
@@ -80,6 +76,7 @@ export function LeaseDetailView({
           <LeaseRentAndDeposit
             lease={lease}
             onChangeBillingRules={onChangeBillingRules}
+            onManageDeposit={onManageDeposit}
             permissions={permissions}
             onScheduleTerm={onScheduleTerm}
           />
@@ -217,26 +214,22 @@ function LeaseOverview({
 function LeaseRentAndDeposit({
   lease,
   onChangeBillingRules,
+  onManageDeposit,
   onScheduleTerm,
   permissions,
 }: {
   lease: LeaseSummary;
   onChangeBillingRules: () => void;
+  onManageDeposit: () => void;
   onScheduleTerm: (mode: "renewal" | "rent_change") => void;
   permissions: LeaseActionPermissions;
 }) {
-  const [depositState, recordDepositEvent, depositPending] = useActionState(
-    recordLeaseDepositEventAction,
-    {},
-  );
-  const [reversalState, reverseDepositEvent, reversalPending] = useActionState(
-    reverseLeaseDepositEventAction,
-    {},
-  );
   const activeTerm = lease.terms.find((term) => term.status === "active");
   const historicalTerms = lease.terms.filter((term) => term.status !== "active");
   const [showRentHistory, setShowRentHistory] = useState(false);
-  const [showDepositForm, setShowDepositForm] = useState(false);
+  const hasDepositDetails = lease.deposits.some(
+    (deposit) => deposit.amountCents > 0 || deposit.events.length > 0,
+  );
   const currentBillingRule = lease.billingRules.find(
     (rule) => rule.state === "current",
   );
@@ -250,7 +243,16 @@ function LeaseRentAndDeposit({
   return (
     <div className="space-y-8">
       <section aria-labelledby="rent-deposit-heading">
-        <SectionHeading id="rent-deposit-heading" title="Rent & deposit" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionHeading id="rent-deposit-heading" title="Rent & deposit" />
+          {hasDepositDetails ? (
+            <Button onClick={onManageDeposit} variant="outline">
+              {permissions.canChangeTerms && !lease.isArchived
+                ? "Manage deposit"
+                : "View deposit"}
+            </Button>
+          ) : null}
+        </div>
         <dl className="mt-3 grid grid-cols-1 border-y border-border sm:grid-cols-2">
           <Metric label="Current rent">
             <MoneyDisplay value={lease.rentDisplay} />
@@ -359,149 +361,8 @@ function LeaseRentAndDeposit({
         </div>
       </section>
 
-      <section aria-labelledby="deposit-events-heading">
-        <SectionHeading id="deposit-events-heading" title="Deposit activity" />
-        {lease.deposits.length ? (
-          <div className="mt-3 divide-y divide-border border-y border-border">
-            {lease.deposits.map((deposit) => {
-              const activityOptions = getDepositActivityOptions(deposit);
-              const canRecordReceipt =
-                deposit.amountCents > 0 &&
-                deposit.heldBalanceCents < deposit.amountCents;
-
-              return (
-                <div className="py-4" key={deposit.id}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{deposit.typeLabel}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Held <MoneyDisplay value={deposit.heldBalanceDisplay} />
-                    </p>
-                  </div>
-                  <Badge tone="neutral">{deposit.statusLabel}</Badge>
-                </div>
-                {deposit.events.length ? (
-                  <div className="mt-3 divide-y divide-border border-t border-border">
-                    {deposit.events.map((event) => (
-                      <div
-                        className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm"
-                        key={event.id}
-                      >
-                        <span>
-                          {getDepositActivityLabel(event.eventType)} on{" "}
-                          {formatDate(event.eventDate)} ·{" "}
-                          <MoneyDisplay value={event.amountDisplay} />
-                          {event.reference ? (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              · {event.reference}
-                            </span>
-                          ) : null}
-                        </span>
-                        {permissions.canChangeTerms && event.reversible ? (
-                          <form action={reverseDepositEvent}>
-                            <input
-                              name="eventId"
-                              type="hidden"
-                              value={event.id}
-                            />
-                            <input
-                              name="eventDate"
-                              type="hidden"
-                              value={getBusinessDateValue()}
-                            />
-                            <Button
-                              disabled={reversalPending}
-                              size="sm"
-                              type="submit"
-                            >
-                              Undo entry
-                            </Button>
-                          </form>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                {permissions.canChangeTerms && activityOptions.length > 0 ? (
-                  <div className="mt-3">
-                    <Button onClick={() => setShowDepositForm((visible) => !visible)} variant="outline">
-                      {canRecordReceipt
-                        ? "Record deposit activity"
-                        : "Manage held deposit"}
-                    </Button>
-                  </div>
-                ) : null}
-                {permissions.canChangeTerms &&
-                activityOptions.length > 0 &&
-                showDepositForm ? (
-                  <form
-                    action={recordDepositEvent}
-                    className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-5"
-                  >
-                    <input
-                      name="leaseDepositId"
-                      type="hidden"
-                      value={deposit.id}
-                    />
-                    <Field label="Activity">
-                      <SelectControl
-                        ariaLabel="Deposit activity"
-                        defaultValue={activityOptions[0]?.value}
-                        name="eventType"
-                        options={activityOptions}
-                      />
-                    </Field>
-                    <Field label="Date">
-                      <DatePickerField
-                        ariaLabel="Deposit activity date"
-                        defaultValue={getBusinessDateValue()}
-                        name="eventDate"
-                      />
-                    </Field>
-                    <Field label="Amount">
-                      <NumberInput name="amount" required />
-                    </Field>
-                    <Field label="Receipt or note">
-                      <Input name="reference" />
-                    </Field>
-                    <div className="flex items-end">
-                      <Button
-                        className="w-full"
-                        disabled={depositPending}
-                        type="submit"
-                      >
-                        {depositPending ? "Saving..." : "Save deposit activity"}
-                      </Button>
-                    </div>
-                  </form>
-                ) : null}
-                <ActionMessage state={depositState} />
-                  <ActionMessage state={reversalState} />
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyLine label="No deposit activity recorded." />
-        )}
-      </section>
     </div>
   );
-}
-
-function getDepositActivityOptions(deposit: LeaseDepositContext) {
-  return [
-    ...(deposit.amountCents > 0 && deposit.heldBalanceCents < deposit.amountCents
-      ? [{ label: "Deposit received", value: "received" }]
-      : []),
-    ...(deposit.heldBalanceCents > 0
-      ? [
-          { label: "Deposit retained", value: "retained" },
-          { label: "Deposit refunded", value: "refunded" },
-        ]
-      : []),
-  ];
 }
 
 function BillingRuleRow({
@@ -858,7 +719,7 @@ function ActionMessage({
 function getDepositSummary(lease: LeaseSummary) {
   const deposit = lease.deposits[0];
   return deposit
-    ? `${deposit.heldBalanceDisplay.primary} held`
+    ? `${deposit.amountDisplay.primary} required · ${deposit.heldBalanceDisplay.primary} held`
     : lease.depositLabel;
 }
 
@@ -869,14 +730,6 @@ function getTermStatusLabel(status: LeaseSummary["terms"][number]["status"]) {
   if (status === "terminated") return "Ended early";
   if (status === "superseded") return "Replaced";
   return "Draft";
-}
-
-function getDepositActivityLabel(eventType: string) {
-  if (eventType === "received") return "Deposit received";
-  if (eventType === "applied") return "Deposit used";
-  if (eventType === "retained") return "Deposit retained";
-  if (eventType === "refunded") return "Deposit refunded";
-  return "Deposit updated";
 }
 
 function getMoveInConfirmation(actualLabel: string, residentLabel: string) {

@@ -12,10 +12,22 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AnchorHTMLAttributes } from "react";
 
+const navigation = vi.hoisted(() => ({
+  pathname: "/finance",
+  replace: vi.fn(),
+  searchParams: new URLSearchParams(),
+}));
+
 const financeActionMocks = vi.hoisted(() => ({
   publishTenantInvoicePdfAction: vi.fn(),
   recordTenantInvoicePaymentAction: vi.fn(),
   retryTenantReceiptPdfAction: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => navigation.pathname,
+  useRouter: () => ({ replace: navigation.replace }),
+  useSearchParams: () => navigation.searchParams,
 }));
 
 vi.mock("../actions", async (importOriginal) => {
@@ -57,6 +69,9 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup();
+  navigation.pathname = "/finance";
+  navigation.replace.mockReset();
+  navigation.searchParams = new URLSearchParams();
   financeActionMocks.publishTenantInvoicePdfAction.mockReset();
   financeActionMocks.recordTenantInvoicePaymentAction.mockReset();
   financeActionMocks.retryTenantReceiptPdfAction.mockReset();
@@ -220,7 +235,7 @@ describe("FinanceOperationsScreen", () => {
     ).toBeNull();
   });
 
-  it("uses the shared responsive workspace gutters and compact summary sizing", () => {
+  it("uses shared gutters and keeps summary cards scoped to rent", () => {
     const input = data();
     const { container, rerender } = render(
       <FinanceOperationsScreen
@@ -245,11 +260,10 @@ describe("FinanceOperationsScreen", () => {
     expect(workLayout?.className).toContain("sm:px-6");
     expect(workLayout?.className).toContain("2xl:px-8");
     expect(workLayout?.className).toContain("gap-3");
-    const summary = screen.getByRole("region", { name: "Finance summary" });
-    expect(summary.firstElementChild?.className).toContain("py-2.5");
-    expect(summary.className).toContain("rounded-xl");
-    expect(summary.className).toContain("bg-card");
-    expect(summary.className).toContain("shadow-sm");
+    const workSummary = screen.getByLabelText("Finance work summary");
+    expect(workSummary.className).not.toContain("rounded-xl");
+    expect(workSummary.className).not.toContain("bg-card");
+    expect(workSummary.className).not.toContain("shadow-sm");
 
     rerender(
       <FinanceOperationsScreen
@@ -265,6 +279,13 @@ describe("FinanceOperationsScreen", () => {
     expect(rentSurface?.parentElement?.className).toContain("px-4");
     expect(rentSurface?.parentElement?.className).toContain("sm:px-6");
     expect(rentSurface?.parentElement?.className).toContain("2xl:px-8");
+    const rentSummary = screen.getByRole("region", {
+      name: "Finance summary",
+    });
+    expect(rentSummary.firstElementChild?.className).toContain("py-2.5");
+    expect(rentSummary.className).toContain("rounded-xl");
+    expect(rentSummary.className).toContain("bg-card");
+    expect(rentSummary.className).toContain("shadow-sm");
   });
 
   it("keeps the work queue summary focused on open work and payment ownership", () => {
@@ -297,12 +318,165 @@ describe("FinanceOperationsScreen", () => {
       />,
     );
 
-    const summary = screen.getByRole("region", { name: "Finance summary" });
-    expect(within(summary).getByText("Open work")).not.toBeNull();
-    expect(within(summary).getByText("Tenant payments")).not.toBeNull();
-    expect(within(summary).getByText("Owner invoice payments")).not.toBeNull();
-    expect(within(summary).queryByText("Needs setup")).toBeNull();
-    expect(within(summary).queryByText("Rent exceptions")).toBeNull();
+    const summary = screen.getByLabelText("Finance work summary");
+    expect(summary.textContent).toContain("2 open work");
+    expect(summary.textContent).toContain("1 tenant payments");
+    expect(summary.textContent).toContain("1 owner invoice payments");
+    expect(summary.className).not.toContain("rounded-xl");
+    expect(screen.queryByText("Needs setup")).toBeNull();
+    expect(screen.queryByText("Rent exceptions")).toBeNull();
+  });
+
+  it("uses a borderless top-level work register with an attached result count", () => {
+    const input = data();
+    input.leases[0].billing = billing();
+    input.tenantInvoices = [tenantInvoice()];
+
+    const { container } = render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    const workSurface = container.querySelector<HTMLElement>(
+      '[data-slot="finance-work-surface"]',
+    );
+    const tableFrame = within(workSurface!).getByRole("region", {
+      name: "Finance records",
+    });
+
+    expect(tableFrame.className).not.toContain("rounded-xl");
+    expect(tableFrame.className).not.toContain("border");
+    expect(tableFrame.className).not.toContain("shadow-sm");
+    expect(screen.getByText(/Showing/).textContent).toBe("Showing 1-1 of 1");
+    expect(screen.queryByText("Page 1 of 1")).toBeNull();
+  });
+
+  it("paginates the filtered Finance work queue at 25 rows", () => {
+    const input = data();
+    input.leases[0].billing = billing();
+    input.tenantInvoices = Array.from({ length: 26 }, (_, index) => ({
+      ...tenantInvoice(),
+      id: `invoice-${index + 1}`,
+      invoiceNumber: `INV-PAGE-${String(index + 1).padStart(2, "0")}`,
+      lines: [
+        {
+          ...tenantInvoice().lines[0],
+          id: `line-${index + 1}`,
+        },
+      ],
+    }));
+    navigation.searchParams = new URLSearchParams("page=2");
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    const rows = within(
+      screen.getByRole("region", { name: "Finance records" }),
+    ).getAllByRole("row");
+    expect(rows).toHaveLength(2);
+    expect(screen.getByText(/Showing/).textContent).toBe(
+      "Showing 26-26 of 26",
+    );
+    expect(screen.getByText("Page 2 of 2")).not.toBeNull();
+  });
+
+  it("resets Finance work pagination when the queue filter changes", async () => {
+    const user = userEvent.setup();
+    const input = data();
+    input.leases[0].billing = billing();
+    input.tenantInvoices = [tenantInvoice()];
+    navigation.searchParams = new URLSearchParams("page=2");
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities()}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("combobox", { name: "Filter work queue" }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "Tenant payments" }),
+    );
+
+    expect(navigation.replace).toHaveBeenCalledWith("/finance", {
+      scroll: false,
+    });
+  });
+
+  it("keeps every Finance work row action compact and secondary", () => {
+    const input = data();
+    input.tenantInvoices = [tenantInvoice()];
+    input.ownerInvoices = [
+      {
+        balanceDue: 200,
+        dueDate: "2026-08-10",
+        id: "owner-invoice-actions",
+        invoiceNumber: "OWNER-ACTIONS",
+        ownerLabel: "Sokha Owner",
+        ownerPersonId: "person-owner",
+        paidByOwner: 0,
+        paidFromHeldCash: 0,
+        paymentStatus: "unpaid",
+        propertyId: "property-1",
+        propertyLabel: "HOME — Riverside Home",
+        totalAmount: 200,
+      },
+    ];
+    input.rentGenerationExceptions = [
+      {
+        attemptCount: 2,
+        billingPeriodStart: "2026-09-01",
+        code: "billing_recipient_invalid",
+        id: "exception-actions",
+        lastAttemptAt: "2026-09-01T01:00:00Z",
+        leaseId: "lease-1",
+        message: "Select an active billing recipient for the lease.",
+        propertyId: "property-1",
+      },
+    ];
+
+    render(
+      <FinanceOperationsScreen
+        {...input}
+        {...financeCapabilities({
+          canConfigureRent: true,
+          canRetryCurrentRent: true,
+        })}
+        organizationName="Sokha Property Services"
+        view="work"
+      />,
+    );
+
+    const workSurface = screen.getByRole("region", { name: "Finance records" });
+    const actions = [
+      within(workSurface).getByRole("button", { name: "Set up" }),
+      within(workSurface).getByRole("button", {
+        name: "Generate missing rent for Sep 2026",
+      }),
+      within(workSurface).getByRole("link", { name: "Review tenant payment" }),
+      within(workSurface).getByRole("link", { name: "Review owner account" }),
+    ];
+
+    for (const action of actions) {
+      expect(action.getAttribute("data-variant")).toBe("outline");
+      expect(action.getAttribute("data-size")).toBe("sm");
+      expect(action.className).toContain("border");
+    }
   });
 
   it("keeps portfolio review free of transaction creation actions", () => {
@@ -1445,7 +1619,55 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.getByRole("button", { name: "Choose another" }),
     ).not.toBeNull();
+    expect(screen.getByText("Received into")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Record payment" }),
+    ).not.toBeNull();
   });
+
+  it.each([
+    [
+      "IPS collection with Lease visibility",
+      "through_ips",
+      true,
+      "/leases/lease-1?action=record-payment&invoiceId=invoice-1",
+    ],
+    [
+      "direct owner collection with Lease visibility",
+      "direct_to_owner",
+      true,
+      "/rent-income?leaseId=lease-1",
+    ],
+    [
+      "IPS collection without Lease visibility",
+      "through_ips",
+      false,
+      "/rent-income?leaseId=lease-1",
+    ],
+  ] as const)(
+    "routes %s from the Finance work queue to the authorized handoff",
+    (_, collectionRoute, canViewLeases, expectedHref) => {
+      const input = data();
+      const invoice = tenantInvoice();
+      invoice.collectionRoute = collectionRoute;
+      input.tenantInvoices = [invoice];
+
+      render(
+        <FinanceOperationsScreen
+          {...input}
+          {...financeCapabilities()}
+          canViewLeases={canViewLeases}
+          organizationName="Sokha Property Services"
+          view="work"
+        />,
+      );
+
+      const action = screen.getByRole("link", { name: "Review tenant payment" });
+      expect(action.getAttribute("href")).toBe(expectedHref);
+      expect(action.getAttribute("data-variant")).toBe("outline");
+      expect(action.getAttribute("data-size")).toBe("sm");
+    },
+  );
 
   it("shows direct-owner collection without pretending IPS received cash", () => {
     const input = data();

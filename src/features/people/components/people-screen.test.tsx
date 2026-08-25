@@ -168,6 +168,9 @@ describe("People route family redesign contract", () => {
     await user.click(screen.getByRole("button", { name: "Filters" }));
     expect(screen.queryByLabelText("Filter by role")).toBeNull();
 
+    expect(
+      screen.getByRole("region", { name: "People table" }),
+    ).not.toBeNull();
     const table = screen.getByRole("table");
     const tableFrame = container.querySelector<HTMLElement>(
       '[data-slot="people-table-frame"]',
@@ -186,12 +189,12 @@ describe("People route family redesign contract", () => {
     expect(tableFrame?.className).toContain("workspace-gutter-x");
     expect(tableFrame?.className).not.toContain("rounded-lg");
     expect(tableFrame?.className.split(" ")).not.toContain("border");
-    expect(table.className).toContain("text-sm");
+    expect(table.className).toContain("text-[13px]");
     expect(table.className).toContain("table-fixed");
     expect(table.className).toContain("min-w-[900px]");
     expect(table.className).not.toContain("max-w-");
     expect(table.querySelectorAll("colgroup col")).toHaveLength(6);
-    expect(table.querySelector("thead")?.className).toContain("text-xs");
+    expect(table.querySelector("thead")?.className).toContain("text-[11px]");
     const rows = within(table).getAllByRole("row").slice(1);
     expect(
       rows.every((row) => row.getAttribute("aria-selected") === null),

@@ -1,11 +1,29 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeaseDetailScreen } from "@/features/leases/components/lease-detail-screen";
 import { buildLeaseSummary } from "@/features/leases/data/lease-summary";
+import type { LeasePaymentResolutionData } from "@/features/finance-operations/finance-operations.types";
 import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
+
+const actionMocks = vi.hoisted(() => ({
+  confirmOwnerCollectionAction: vi.fn(),
+  recordTenantInvoicePaymentAction: vi.fn(),
+  retryTenantReceiptPdfAction: vi.fn(),
+}));
+const routerMocks = vi.hoisted(() => ({
+  refresh: vi.fn(),
+  replace: vi.fn(),
+}));
 
 vi.mock("@/lib/dates/format", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/dates/format")>();
@@ -42,11 +60,18 @@ vi.mock("@/features/leases/actions", () => ({
   updateLeaseAction: async () => ({}),
 }));
 
+vi.mock("@/features/finance-operations/actions", () => actionMocks);
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => routerMocks,
 }));
 
 beforeEach(() => {
+  actionMocks.confirmOwnerCollectionAction.mockReset();
+  actionMocks.recordTenantInvoicePaymentAction.mockReset();
+  actionMocks.retryTenantReceiptPdfAction.mockReset();
+  routerMocks.refresh.mockReset();
+  routerMocks.replace.mockReset();
   Object.defineProperties(HTMLElement.prototype, {
     hasPointerCapture: { configurable: true, value: () => false },
     releasePointerCapture: { configurable: true, value: () => undefined },
@@ -64,6 +89,273 @@ afterEach(() => {
 });
 
 describe("LeaseDetailScreen", () => {
+  it("replaces the record sections with the focused payment resolution", () => {
+    renderDetail("overview", makeLease(), allLeasePermissions, {
+      paymentResolution: resolutionFixture(),
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Resolve outstanding rent" }),
+    ).not.toBeNull();
+    expect(
+      screen.queryByRole("navigation", { name: "Lease record sections" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Alice Tenant — Unit 2A",
+      }),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Riverside House · 01 Jul 2026–30 Jun 2027"),
+    ).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "More" })).toHaveLength(1);
+    const defaultButtons = screen
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("data-variant") === "default");
+    expect(defaultButtons).toHaveLength(1);
+    expect(defaultButtons[0]).toBe(
+      screen.getByRole("button", { name: "Record USD 258.00 payment" }),
+    );
+    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+  });
+
+  it("keeps one More trigger when focused on a draft Lease", () => {
+    const lease = makeLease();
+    lease.statusLabel = "Draft";
+    lease.statusValue = "draft";
+
+    renderDetail("overview", lease, allLeasePermissions, {
+      paymentResolution: resolutionFixture(),
+    });
+
+    expect(screen.getAllByRole("button", { name: "More" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Edit draft" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+  });
+
+  it("keeps the ordinary four-section Lease record when focus is absent", () => {
+    renderDetail("overview");
+
+    const nav = screen.getByRole("navigation", {
+      name: "Lease record sections",
+    });
+    expect(within(nav).getByRole("link", { name: "Overview" })).not.toBeNull();
+    expect(
+      within(nav).getByRole("link", { name: "Rent & deposit" }),
+    ).not.toBeNull();
+    expect(
+      within(nav).getByRole("link", { name: "Move-in & move-out" }),
+    ).not.toBeNull();
+    expect(
+      within(nav).getByRole("link", { name: "Files & history" }),
+    ).not.toBeNull();
+  });
+
+  it("shows a fallback route notice and its optional destination", () => {
+    renderDetail("overview", makeLease(), allLeasePermissions, {
+      routeNotice: {
+        href: "/rent-income?leaseId=lease-1",
+        linkLabel: "Open Finance",
+        message: "Confirm owner collection in Finance.",
+      },
+    });
+
+    expect(screen.getByRole("status").textContent).toContain(
+      "Confirm owner collection in Finance.",
+    );
+    expect(
+      screen.getByRole("link", { name: "Open Finance" }).getAttribute("href"),
+    ).toBe("/rent-income?leaseId=lease-1");
+    expect(
+      screen.getByRole("navigation", { name: "Lease record sections" }),
+    ).not.toBeNull();
+  });
+
+  it("shows a route notice introduced by a same-Lease rerender", () => {
+    const view = renderDetail("overview");
+    expect(screen.queryByRole("status")).toBeNull();
+
+    view.rerender(
+      detailElement("overview", makeLease(), allLeasePermissions, {
+        routeNotice: {
+          message: "This invoice is voided and cannot receive a payment.",
+        },
+      }),
+    );
+
+    expect(screen.getByRole("status").textContent).toContain(
+      "This invoice is voided and cannot receive a payment.",
+    );
+  });
+
+  it("removes a route notice when the same Lease returns to normal", () => {
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      routeNotice: {
+        message: "That invoice is no longer available for this Lease.",
+      },
+    });
+    expect(screen.getByRole("status")).not.toBeNull();
+
+    view.rerender(detailElement("overview"));
+
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("does not retain a route notice above a later focused query", () => {
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      routeNotice: {
+        message: "That invoice is no longer available for this Lease.",
+      },
+    });
+
+    view.rerender(
+      detailElement("overview", makeLease(), allLeasePermissions, {
+        paymentResolution: resolutionFixture(),
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Resolve outstanding rent" }),
+    ).not.toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("carries published-receipt payment success into the returned summary once", async () => {
+    actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
+      artifactHref: "/api/finance/documents/receipt-1",
+      message: "Payment recorded.",
+      paymentId: "payment-1",
+      publicationStatus: "published",
+      status: "success",
+    });
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      paymentResolution: resolutionFixture(),
+    });
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => {
+      expect(routerMocks.replace).toHaveBeenCalledWith("/leases/lease-1");
+    });
+
+    view.rerender(detailElement("overview"));
+    expect(screen.getByRole("status").textContent).toContain("Payment recorded.");
+    expect(
+      screen
+        .getByRole("link", { name: "Download receipt" })
+        .getAttribute("href"),
+    ).toBe("/api/finance/documents/receipt-1");
+
+    const nextResolution = resolutionFixture();
+    nextResolution.invoice = {
+      ...nextResolution.invoice,
+      id: "invoice-2",
+      invoiceNumber: "INV-202608-002",
+    };
+
+    view.rerender(
+      detailElement("overview", makeLease(), allLeasePermissions, {
+        paymentResolution: nextResolution,
+      }),
+    );
+
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Resolve outstanding rent" }),
+    ).not.toBeNull();
+
+    view.rerender(detailElement("overview"));
+    expect(screen.queryByRole("status")).toBeNull();
+
+    view.rerender(
+      detailElement("overview", makeLease(), allLeasePermissions, {
+        routeNotice: {
+          message: "This invoice is voided and cannot receive a payment.",
+        },
+      }),
+    );
+    expect(screen.getByRole("status").textContent).toContain(
+      "This invoice is voided and cannot receive a payment.",
+    );
+    expect(screen.getByRole("status").textContent).not.toContain(
+      "Payment recorded.",
+    );
+  });
+
+  it("carries receipt-unavailable payment success into the returned summary once", async () => {
+    actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
+      artifactHref: null,
+      message: "Payment recorded. Receipt unavailable.",
+      paymentId: "payment-1",
+      publicationStatus: "failed",
+      status: "success",
+    });
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      paymentResolution: resolutionFixture(),
+    });
+
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => {
+      expect(routerMocks.replace).toHaveBeenCalledWith("/leases/lease-1");
+    });
+
+    view.rerender(detailElement("overview"));
+    expect(screen.getByRole("status").textContent).toContain(
+      "Payment recorded. Receipt unavailable.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Retry receipt" }),
+    ).not.toBeNull();
+    expect(
+      view.container.querySelector<HTMLInputElement>('input[name="paymentId"]')
+        ?.value,
+    ).toBe("payment-1");
+
+    view.rerender(detailElement("rent"));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("keeps one useful More trigger in focused view without Lease mutation authority", async () => {
+    const user = userEvent.setup();
+    renderDetail(
+      "overview",
+      makeLease(),
+      {
+        canActivate: false,
+        canArchive: false,
+        canChangeTerms: false,
+        canClose: false,
+        canPrepare: false,
+      },
+      { paymentResolution: resolutionFixture() },
+    );
+
+    expect(screen.getAllByRole("button", { name: "More" })).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Open full lease record" }),
+    ).not.toBeNull();
+  });
+
+  it("replaces the focused URL after an authoritative payment succeeds", async () => {
+    actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
+      artifactHref: "/api/finance/documents/receipt-1",
+      message: "Payment recorded.",
+      paymentId: "payment-1",
+      publicationStatus: "published",
+      status: "success",
+    });
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      paymentResolution: resolutionFixture(),
+    });
+
+    fireEvent.submit(view.container.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(routerMocks.replace).toHaveBeenCalledWith("/leases/lease-1");
+    });
+    expect(routerMocks.refresh).toHaveBeenCalledOnce();
+  });
+
   it("provides one ordered record with four sections", () => {
     renderDetail("overview");
 
@@ -277,7 +569,7 @@ describe("LeaseDetailScreen", () => {
     },
   );
 
-  it("keeps rent history and deposit entry collapsed until requested", async () => {
+  it("keeps deposit history and changes inside one drawer", async () => {
     const user = userEvent.setup();
     const lease = makeLease();
     lease.terms.push({ ...lease.terms[0]!, id: "term-old", status: "superseded" });
@@ -299,16 +591,27 @@ describe("LeaseDetailScreen", () => {
     ).not.toBeNull();
     expect(screen.queryByText("Rent status")).toBeNull();
     expect(
-      screen.getByRole("heading", { name: "Deposit activity" }),
+      screen.queryByRole("heading", { name: "Deposit activity" }),
+    ).toBeNull();
+    expect(
+      screen.getByText("USD 1,200.00 required · USD 0.00 held"),
     ).not.toBeNull();
     expect(screen.queryByText("Replaced")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Rent history" }));
     expect(screen.getByText("Replaced")).not.toBeNull();
     expect(screen.queryByText(/Receipt or note/)).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Record deposit activity" }));
-    expect(screen.getByText(/Receipt or note/)).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Save deposit activity" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Undo entry" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+
+    const drawer = screen.getByRole("dialog", {
+      name: "Manage security deposit",
+    });
+    expect(within(drawer).getByText(/Receipt or note/)).not.toBeNull();
+    expect(
+      within(drawer).getByRole("button", { name: "Save deposit activity" }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("button", { name: "Undo entry" }),
+    ).not.toBeNull();
     expect(screen.queryByText(/received \/ /)).toBeNull();
   });
 
@@ -330,9 +633,14 @@ describe("LeaseDetailScreen", () => {
     lease.deposits[0]!.receivedAmount = 1200;
 
     renderDetail("rent", lease);
-    expect(screen.getByRole("button", { name: "Undo entry" })).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "Manage held deposit" }));
-    await user.click(screen.getByRole("combobox", { name: "Deposit activity" }));
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", {
+      name: "Manage security deposit",
+    });
+    expect(within(drawer).getByRole("button", { name: "Undo entry" })).not.toBeNull();
+    await user.click(
+      within(drawer).getByRole("combobox", { name: "Deposit activity" }),
+    );
 
     expect(screen.queryByRole("option", { name: "Deposit received" })).toBeNull();
     expect(screen.getByRole("option", { name: "Deposit retained" })).not.toBeNull();
@@ -347,8 +655,13 @@ describe("LeaseDetailScreen", () => {
     lease.deposits[0]!.receivedAmount = 400;
 
     renderDetail("rent", lease);
-    await user.click(screen.getByRole("button", { name: "Record deposit activity" }));
-    await user.click(screen.getByRole("combobox", { name: "Deposit activity" }));
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", {
+      name: "Manage security deposit",
+    });
+    await user.click(
+      within(drawer).getByRole("combobox", { name: "Deposit activity" }),
+    );
 
     expect(screen.getByRole("option", { name: "Deposit received" })).not.toBeNull();
   });
@@ -379,8 +692,13 @@ describe("LeaseDetailScreen", () => {
     lease.deposits[0]!.receivedAmount = 1200;
 
     renderDetail("rent", lease);
-    await user.click(screen.getByRole("button", { name: "Record deposit activity" }));
-    await user.click(screen.getByRole("combobox", { name: "Deposit activity" }));
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", {
+      name: "Manage security deposit",
+    });
+    await user.click(
+      within(drawer).getByRole("combobox", { name: "Deposit activity" }),
+    );
 
     expect(screen.getByRole("option", { name: "Deposit received" })).not.toBeNull();
   });
@@ -601,11 +919,38 @@ function renderDetail(
   activeSection: LeaseRecordSection,
   lease = makeLease(),
   permissions = allLeasePermissions,
+  focus: {
+    paymentResolution?: LeasePaymentResolutionData;
+    routeNotice?: {
+      href?: string;
+      linkLabel?: string;
+      message: string;
+    };
+  } = {},
 ) {
-  render(
+  return render(detailElement(activeSection, lease, permissions, focus));
+}
+
+function detailElement(
+  activeSection: LeaseRecordSection,
+  lease = makeLease(),
+  permissions = allLeasePermissions,
+  focus: {
+    paymentResolution?: LeasePaymentResolutionData;
+    routeNotice?: {
+      href?: string;
+      linkLabel?: string;
+      message: string;
+    };
+  } = {},
+) {
+  return (
     <LeaseDetailScreen
       activeSection={activeSection}
+      canRecordPayments
+      canViewFinance
       lease={lease}
+      paymentResolution={focus.paymentResolution}
       permissions={permissions}
       propertyOptions={[{ id: "property-1", label: "RIVER - Riverside House" }]}
       tenantOptions={[
@@ -620,8 +965,58 @@ function renderDetail(
       unitOptions={[
         { id: "unit-1", label: "Unit 2A", propertyId: "property-1" },
       ]}
-    />,
+      routeNotice={focus.routeNotice}
+    />
   );
+}
+
+function resolutionFixture(): LeasePaymentResolutionData {
+  return {
+    invoice: {
+      balanceDue: 258,
+      billingPeriodStart: "2026-08-01",
+      collectedByOwner: 0,
+      collectionRoute: "through_ips",
+      dueDate: "2026-08-05",
+      generationSource: "scheduled",
+      id: "invoice-1",
+      invoiceNumber: "INV-202608-001",
+      isProrated: false,
+      issueDate: "2026-08-01",
+      leaseId: "lease-1",
+      lines: [
+        {
+          amount: 258,
+          balanceDue: 258,
+          id: "line-1",
+          label: "August rent",
+          lineType: "rent",
+        },
+      ],
+      occupantLabels: ["Alice Tenant"],
+      paidThroughIps: 0,
+      paymentStatus: "unpaid",
+      pdf: {
+        artifactId: null,
+        href: null,
+        publicationStatus: "not_published",
+        publishedAt: null,
+      },
+      publicationSnapshot: null,
+      propertyId: "property-1",
+      propertyLabel: "RIVER - Riverside House",
+      recipientLabel: "Alice Tenant",
+      settlements: [],
+      totalAmount: 258,
+      unitId: "unit-1",
+      unitLabel: "Unit 2A",
+    },
+    nextInvoiceDueDate: "2026-09-05",
+    ownerLabel: "Sokha Vannak",
+    reconciliationSources: [
+      { id: "source-1", label: "BANK - Operating", propertyId: null },
+    ],
+  };
 }
 
 function makeLease() {

@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { ArrowUpRight, Building2, UserRound } from "lucide-react";
+import {
+  RecordLink,
+  registerRowClassName,
+} from "@/components/data/interactive-table";
 import { Badge } from "@/components/ui/badge";
 import type { OrganizationPersonAccessStatus } from "@/features/organization/data";
 import { WorkspaceAccessStatus } from "@/features/people/components/workspace-access-status";
@@ -69,7 +73,7 @@ export function PeopleTable({
             className="overflow-x-auto"
             role="region"
           >
-            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-sm">
+            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-[13px]">
               {isRoleScoped ? (
                 <colgroup>
                   <col className="w-[24%]" />
@@ -88,7 +92,7 @@ export function PeopleTable({
                   <col className="w-[8%]" />
                 </colgroup>
               )}
-              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-xs text-muted-foreground shadow-[0_1px_0_var(--border)]">
+              <thead className="sticky top-0 z-10 bg-[var(--table-header-bg)] text-[11px] text-muted-foreground shadow-[0_1px_0_var(--border)]">
                 {isRoleScoped ? (
                   <tr>
                     <th className="px-2.5 py-2.5 font-semibold">
@@ -133,22 +137,19 @@ export function PeopleTable({
                   return (
                     <tr
                       className={cn(
-                        "border-t border-border transition-colors hover:bg-muted/50",
+                        registerRowClassName,
                         person.isArchived && "text-muted-foreground",
                       )}
                       key={person.id}
                     >
                       <td className="px-2.5 py-2">
                         <div className="min-w-0 max-w-[16rem]">
-                          <Link
-                            className="block truncate rounded-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          <RecordLink
                             href={`/people/${person.id}`}
-                            onClick={(event) => event.stopPropagation()}
-                            prefetch={false}
                             title={person.displayName}
                           >
                             {person.displayName}
-                          </Link>
+                          </RecordLink>
                           {secondaryName ? (
                             <p
                               className="mt-0.5 truncate text-xs text-muted-foreground"

@@ -67,7 +67,8 @@ describe("TimelineScreen workspace contract", () => {
     });
 
     expect(screen.getByRole("textbox", { name: "Search timeline records" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Filters (8)" })).not.toBeNull();
+    const filters = screen.getByRole("button", { name: "Filters (8)" });
+    expect(filters.getAttribute("data-variant")).toBe("outline");
     expect(screen.queryByRole("combobox", { name: "Filter by property" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Filter by unit" })).toBeNull();
     expect(screen.queryByLabelText("Filter timeline from date")).toBeNull();
@@ -77,7 +78,7 @@ describe("TimelineScreen workspace contract", () => {
     expect(screen.queryByRole("combobox", { name: "Sort timeline records" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Rows per page" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Filters (8)" }));
+    await user.click(filters);
 
     expect(screen.getByRole("combobox", { name: "Filter by property" })).not.toBeNull();
     expect(screen.getByRole("combobox", { name: "Filter by unit" })).not.toBeNull();
@@ -90,6 +91,19 @@ describe("TimelineScreen workspace contract", () => {
     expect(
       screen.getByRole("link", { name: "Reset timeline filters" }).getAttribute("href"),
     ).toBe("/timeline");
+  });
+
+  it("uses the full register width for search and utility filters", () => {
+    renderTimeline();
+
+    const toolbar = screen.getByRole("toolbar", { name: "Workspace tools" });
+    const searchForm = screen
+      .getByRole("textbox", { name: "Search timeline records" })
+      .closest("form");
+
+    expect(toolbar.className).toContain("w-full");
+    expect(toolbar.className).toContain("lg:ml-0");
+    expect(searchForm?.className).toContain("flex-1");
   });
 
   it("uses one route heading with inline review context and an unframed table", () => {
@@ -142,6 +156,9 @@ describe("TimelineScreen workspace contract", () => {
 
   it("keeps event context dense, directly linked, attached, and available in a quick view", () => {
     renderTimeline();
+    expect(
+      screen.getByRole("region", { name: "Timeline table" }),
+    ).not.toBeNull();
     const table = screen.getByRole("table");
     const rows = within(table).getAllByRole("row").slice(1);
 

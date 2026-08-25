@@ -1,8 +1,17 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Archive, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
+import { MoneyDisplay } from "@/components/data/money-display";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -24,20 +34,33 @@ import {
   RestoreLeasePanel,
 } from "@/features/leases/components/lease-drawer-panels";
 import { LeaseDetailView } from "@/features/leases/components/lease-detail-view";
+import { LeasePaymentResolutionView } from "@/features/leases/components/lease-payment-resolution-view";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import {
   cancelLeaseActivationAction,
+  recordLeaseDepositEventAction,
+  reverseLeaseDepositEventAction,
   scheduleLeaseActivationAction,
   scheduleFutureRentTermAction,
   saveLeaseBillingRulesAction,
   transitionLeaseLifecycleAction,
   type LeaseActionState,
 } from "@/features/leases/actions";
-import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
+import { retryTenantReceiptPdfAction } from "@/features/finance-operations/actions";
+import type { TenantPaymentReceiptResult } from "@/features/finance-operations/components/tenant-invoice-payment-form";
+import type {
+  FinanceOperationsActionState,
+  LeasePaymentResolutionData,
+} from "@/features/finance-operations/finance-operations.types";
+import {
+  buildLeaseRecordHref,
+  type LeaseRecordSection,
+} from "@/features/leases/lease-detail-route";
 import type {
   LeasePropertyOption,
   LeaseBillingFormConfig,
+  LeaseDepositContext,
   LeaseSummary,
   LeaseTenantOption,
   LeaseTermContext,
@@ -57,6 +80,7 @@ type LeaseTermChange = "renewal" | "rent_change";
 type DrawerState =
   | { mode: "archive" }
   | { mode: "billing" }
+  | { mode: "deposit" }
   | { mode: "edit" }
   | { mode: "restore" };
 
@@ -68,14 +92,32 @@ export type LeaseActionPermissions = {
   canPrepare: boolean;
 };
 
+type LeaseRouteNotice = {
+  href?: string;
+  linkLabel?: string;
+  message: string;
+};
+
+type LeasePaymentFocusProps = {
+  canRecordPayments: boolean;
+  canViewFinance: boolean;
+  paymentResolution?: LeasePaymentResolutionData;
+  routeNotice?: LeaseRouteNotice;
+};
+
 const initialActionState: LeaseActionState = {};
+const initialFinanceActionState: FinanceOperationsActionState = {};
 
 export function LeaseDetailScreen({
   activeSection,
   billingFormConfig,
+  canRecordPayments,
+  canViewFinance,
   lease,
+  paymentResolution,
   permissions,
   propertyOptions,
+  routeNotice,
   tenantOptions,
   unitOptions,
 }: {
@@ -86,13 +128,45 @@ export function LeaseDetailScreen({
   propertyOptions: LeasePropertyOption[];
   tenantOptions: LeaseTenantOption[];
   unitOptions: LeaseUnitOption[];
-}) {
+} & LeasePaymentFocusProps) {
   const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
   const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const pendingPaymentReceiptRef = useRef<TenantPaymentReceiptResult | null>(
+    null,
+  );
+  const returnHref = buildLeaseRecordHref({ leaseId: lease.id });
+  const statusScope = paymentResolution
+    ? `${lease.id}:payment:${paymentResolution.invoice.id}`
+    : `${lease.id}:record:${activeSection}:${routeNotice?.message ?? ""}:${routeNotice?.href ?? ""}`;
+  const returnStatusScope = `${lease.id}:record:overview::`;
+  const [localStatus, setLocalStatus] = useState<{
+    hasBeenShown: boolean;
+    message: string;
+    receiptResult?: TenantPaymentReceiptResult;
+    scope: string;
+  } | null>(null);
+  const [previousStatusScope, setPreviousStatusScope] = useState(statusScope);
+  if (previousStatusScope !== statusScope) {
+    setPreviousStatusScope(statusScope);
+    setLocalStatus((currentStatus) => {
+      if (!currentStatus) return null;
+      if (currentStatus.scope === statusScope) {
+        return { ...currentStatus, hasBeenShown: true };
+      }
+      if (currentStatus.hasBeenShown || !paymentResolution) return null;
+      return currentStatus;
+    });
+  }
+  const localStatusMessage =
+    localStatus?.scope === statusScope ? localStatus.message : null;
+  const localReceiptResult =
+    localStatus?.scope === statusScope
+      ? (localStatus.receiptResult ?? null)
+      : null;
+  const statusMessage = localStatusMessage ?? routeNotice?.message ?? null;
   const currentOccupancy =
     lease.occupancies.find(
       (occupancy) => occupancy.evidenceState === "accepted",
@@ -102,9 +176,28 @@ export function LeaseDetailScreen({
   const activeTerm =
     lease.terms.find((term) => term.status === "active") ?? null;
 
+  const setStatusMessage = (message: string | null) => {
+    setLocalStatus(
+      message ? { hasBeenShown: true, message, scope: statusScope } : null,
+    );
+  };
+
   const openDrawer = (nextDrawer: DrawerState) => {
     setStatusMessage(null);
     setDrawer(nextDrawer);
+  };
+
+  const handlePaymentSuccess = (message: string) => {
+    const receiptResult = pendingPaymentReceiptRef.current;
+    pendingPaymentReceiptRef.current = null;
+    setLocalStatus({
+      hasBeenShown: false,
+      message,
+      ...(receiptResult ? { receiptResult } : {}),
+      scope: returnStatusScope,
+    });
+    router.replace(returnHref);
+    router.refresh();
   };
 
   return (
@@ -119,6 +212,8 @@ export function LeaseDetailScreen({
             onRestore={() => openDrawer({ mode: "restore" })}
             onScheduleTerm={setTermChange}
             permissions={permissions}
+            focused={Boolean(paymentResolution)}
+            returnHref={returnHref}
           />
         }
         breadcrumb={
@@ -148,19 +243,46 @@ export function LeaseDetailScreen({
             {lease.isArchived ? <Badge tone="warning">Archived</Badge> : null}
           </div>
         }
-        description={`${lease.propertyName} / ${lease.unitLabel}`}
-        title={lease.tenantName}
+        description={
+          paymentResolution
+            ? `${lease.propertyName} · ${lease.startDateLabel}–${lease.endDateLabel}`
+            : `${lease.propertyName} / ${lease.unitLabel}`
+        }
+        title={
+          paymentResolution
+            ? `${lease.tenantName} — ${lease.unitLabel.split(" / ")[0] ?? lease.unitLabel}`
+            : lease.tenantName
+        }
       />
 
       {statusMessage ? (
         <div className="workspace-gutter-x pb-3">
-          <p className="border-y border-border py-2 text-sm" role="status">
-            {statusMessage}
-          </p>
+          <div
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-border py-2 text-sm"
+            role="status"
+          >
+            <span>{statusMessage}</span>
+            {routeNotice?.href &&
+            routeNotice.linkLabel &&
+            !localStatusMessage ? (
+              <Link
+                className="ml-2 font-medium text-primary underline-offset-2 hover:underline"
+                href={routeNotice.href}
+              >
+                {routeNotice.linkLabel}
+              </Link>
+            ) : null}
+            {localReceiptResult ? (
+              <LeasePaymentReceiptAction
+                canRetry={canRecordPayments}
+                result={localReceiptResult}
+              />
+            ) : null}
+          </div>
         </div>
       ) : null}
 
-      {lease.activationSchedule ? (
+      {!paymentResolution && lease.activationSchedule ? (
         <ScheduledActivationNotice
           canCancel={permissions.canActivate}
           lease={lease}
@@ -168,36 +290,51 @@ export function LeaseDetailScreen({
         />
       ) : null}
 
-      <LeaseDetailView
-        activeSection={activeSection}
-        permissions={permissions}
-        lease={lease}
-        onAttachFile={() => {
-          setStatusMessage(null);
-          setUploadOpen(true);
-        }}
-        onChangeBillingRules={() => openDrawer({ mode: "billing" })}
-        onLifecycleChange={(nextTransition) => {
-          setStatusMessage(null);
-          if (!currentOccupancy) {
-            setStatusMessage(
-              "Confirm the current resident and move-in before changing the lease.",
-            );
-            return;
-          }
-          setTransition(nextTransition);
-        }}
-        onScheduleTerm={(mode) => {
-          setStatusMessage(null);
-          if (!activeTerm) {
-            setStatusMessage(
-              "Add a current rent schedule before changing rent or renewing the lease.",
-            );
-            return;
-          }
-          setTermChange(mode);
-        }}
-      />
+      {paymentResolution ? (
+        <LeasePaymentResolutionView
+          canRecordPayments={canRecordPayments}
+          canViewFinance={canViewFinance}
+          lease={lease}
+          onPaymentSuccess={handlePaymentSuccess}
+          onReceiptResult={(result) => {
+            pendingPaymentReceiptRef.current = result;
+          }}
+          resolution={paymentResolution}
+          returnHref={returnHref}
+        />
+      ) : (
+        <LeaseDetailView
+          activeSection={activeSection}
+          permissions={permissions}
+          lease={lease}
+          onAttachFile={() => {
+            setStatusMessage(null);
+            setUploadOpen(true);
+          }}
+          onChangeBillingRules={() => openDrawer({ mode: "billing" })}
+          onLifecycleChange={(nextTransition) => {
+            setStatusMessage(null);
+            if (!currentOccupancy) {
+              setStatusMessage(
+                "Confirm the current resident and move-in before changing the lease.",
+              );
+              return;
+            }
+            setTransition(nextTransition);
+          }}
+          onManageDeposit={() => openDrawer({ mode: "deposit" })}
+          onScheduleTerm={(mode) => {
+            setStatusMessage(null);
+            if (!activeTerm) {
+              setStatusMessage(
+                "Add a current rent schedule before changing rent or renewing the lease.",
+              );
+              return;
+            }
+            setTermChange(mode);
+          }}
+        />
+      )}
 
       {drawer ? (
         <SideDrawer
@@ -221,6 +358,13 @@ export function LeaseDetailScreen({
           ) : drawer.mode === "billing" ? (
             <LeaseBillingRulesForm
               billingFormConfig={billingFormConfig}
+              lease={lease}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+            />
+          ) : drawer.mode === "deposit" ? (
+            <LeaseDepositPanel
+              canManage={permissions.canChangeTerms && !lease.isArchived}
               lease={lease}
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
@@ -309,7 +453,226 @@ export function LeaseDetailScreen({
   );
 }
 
+function LeaseDepositPanel({
+  canManage,
+  lease,
+  onClose,
+  onSuccess,
+}: {
+  canManage: boolean;
+  lease: LeaseSummary;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [depositState, recordDepositEvent, depositPending] = useActionState(
+    recordLeaseDepositEventAction,
+    initialActionState,
+  );
+  const [reversalState, reverseDepositEvent, reversalPending] = useActionState(
+    reverseLeaseDepositEventAction,
+    initialActionState,
+  );
+
+  useEffect(() => {
+    const successState =
+      depositState.status === "success"
+        ? depositState
+        : reversalState.status === "success"
+          ? reversalState
+          : null;
+    if (!successState) return;
+
+    onSuccess(successState.message ?? "Security deposit updated.");
+    onClose();
+    router.refresh();
+  }, [depositState, onClose, onSuccess, reversalState, router]);
+
+  if (!lease.deposits.length) {
+    return (
+      <p className="p-5 text-sm text-muted-foreground">
+        No security deposit is recorded for this lease.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-7 p-5">
+      <div className="border-l-2 border-foreground pl-3">
+        <p className="font-medium text-foreground">{lease.tenantName}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {lease.propertyName} / {lease.unitLabel}
+        </p>
+      </div>
+
+      {lease.deposits.map((deposit) => {
+        const activityOptions = getDepositActivityOptions(deposit);
+
+        return (
+          <section className="space-y-4" key={deposit.id}>
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
+              <div>
+                <h3 className="font-semibold">{deposit.typeLabel}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Required <MoneyDisplay value={deposit.amountDisplay} /> · Held{" "}
+                  <MoneyDisplay value={deposit.heldBalanceDisplay} />
+                </p>
+              </div>
+              <Badge tone="neutral">{deposit.statusLabel}</Badge>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                History
+              </p>
+              {deposit.events.length ? (
+                <div className="mt-2 divide-y divide-border border-y border-border">
+                  {deposit.events.map((event) => (
+                    <div
+                      className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
+                      key={event.id}
+                    >
+                      <span>
+                        {getDepositActivityLabel(event.eventType)} on{" "}
+                        {formatDate(event.eventDate)} ·{" "}
+                        <MoneyDisplay value={event.amountDisplay} />
+                        {event.reference ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {event.reference}
+                          </span>
+                        ) : null}
+                      </span>
+                      {canManage && event.reversible ? (
+                        <form action={reverseDepositEvent}>
+                          <input name="eventId" type="hidden" value={event.id} />
+                          <input
+                            name="eventDate"
+                            type="hidden"
+                            value={getBusinessDateValue()}
+                          />
+                          <Button
+                            disabled={reversalPending}
+                            size="sm"
+                            type="submit"
+                            variant="outline"
+                          >
+                            Undo entry
+                          </Button>
+                        </form>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  No deposit changes recorded.
+                </p>
+              )}
+            </div>
+
+            {canManage && activityOptions.length ? (
+              <form
+                action={recordDepositEvent}
+                className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2"
+              >
+                <input
+                  name="leaseDepositId"
+                  type="hidden"
+                  value={deposit.id}
+                />
+                <DepositField label="Activity">
+                  <SelectControl
+                    ariaLabel="Deposit activity"
+                    defaultValue={activityOptions[0]?.value}
+                    name="eventType"
+                    options={activityOptions}
+                  />
+                </DepositField>
+                <DepositField label="Date">
+                  <DatePickerField
+                    ariaLabel="Deposit activity date"
+                    defaultValue={getBusinessDateValue()}
+                    name="eventDate"
+                  />
+                </DepositField>
+                <DepositField label="Amount">
+                  <NumberInput name="amount" required />
+                </DepositField>
+                <DepositField label="Receipt or note">
+                  <Input name="reference" />
+                </DepositField>
+                <div className="flex justify-end sm:col-span-2">
+                  <Button disabled={depositPending} type="submit">
+                    {depositPending ? "Saving..." : "Save deposit activity"}
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+          </section>
+        );
+      })}
+
+      <DepositActionMessage state={depositState} />
+      <DepositActionMessage state={reversalState} />
+    </div>
+  );
+}
+
+function DepositField({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <label className="grid min-w-0 gap-1.5 text-sm font-medium">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function DepositActionMessage({ state }: { state: LeaseActionState }) {
+  return state.message ? (
+    <p
+      className={
+        state.status === "error"
+          ? "text-sm text-danger"
+          : "text-sm text-muted-foreground"
+      }
+      role="status"
+    >
+      {state.message}
+    </p>
+  ) : null;
+}
+
+function getDepositActivityOptions(deposit: LeaseDepositContext) {
+  return [
+    ...(deposit.amountCents > 0 && deposit.heldBalanceCents < deposit.amountCents
+      ? [{ label: "Deposit received", value: "received" }]
+      : []),
+    ...(deposit.heldBalanceCents > 0
+      ? [
+          { label: "Deposit retained", value: "retained" },
+          { label: "Deposit refunded", value: "refunded" },
+        ]
+      : []),
+  ];
+}
+
+function getDepositActivityLabel(eventType: string) {
+  if (eventType === "received") return "Deposit received";
+  if (eventType === "applied") return "Deposit used";
+  if (eventType === "retained") return "Deposit retained";
+  if (eventType === "refunded") return "Deposit refunded";
+  return "Deposit updated";
+}
+
 function LeaseHeaderActions({
+  focused,
   lease,
   onArchive,
   onEditDraft,
@@ -317,7 +680,9 @@ function LeaseHeaderActions({
   onRestore,
   onScheduleTerm,
   permissions,
+  returnHref,
 }: {
+  focused: boolean;
   lease: LeaseSummary;
   onArchive: () => void;
   onEditDraft: () => void;
@@ -325,7 +690,66 @@ function LeaseHeaderActions({
   onRestore: () => void;
   onScheduleTerm: (mode: LeaseTermChange) => void;
   permissions: LeaseActionPermissions;
+  returnHref: string;
 }) {
+  const canManageActive =
+    lease.statusValue === "active" &&
+    (permissions.canChangeTerms || permissions.canClose);
+  const canManageNotice =
+    lease.statusValue === "notice_given" && permissions.canClose;
+  if (focused) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline">
+            More
+            <MoreHorizontal aria-hidden size={15} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuItem asChild>
+            <Link href={returnHref}>Open full lease record</Link>
+          </DropdownMenuItem>
+          {lease.isArchived && permissions.canArchive ? (
+            <DropdownMenuItem onSelect={onRestore}>Restore</DropdownMenuItem>
+          ) : null}
+          {lease.statusValue === "draft" && permissions.canPrepare ? (
+            <DropdownMenuItem onSelect={onEditDraft}>Edit draft</DropdownMenuItem>
+          ) : null}
+          {permissions.canChangeTerms && lease.statusValue === "active" ? (
+            <DropdownMenuItem onSelect={() => onScheduleTerm("rent_change")}>
+              Change rent
+            </DropdownMenuItem>
+          ) : null}
+          {permissions.canClose && lease.statusValue === "active" ? (
+            <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>
+              Record notice
+            </DropdownMenuItem>
+          ) : null}
+          {permissions.canClose &&
+          ["active", "notice_given"].includes(lease.statusValue) ? (
+            <>
+              <DropdownMenuItem onSelect={() => onLifecycleChange("end")}>
+                Complete move-out
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => onLifecycleChange("terminate")}
+                variant="destructive"
+              >
+                Terminate lease
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          {!lease.isArchived && permissions.canArchive ? (
+            <DropdownMenuItem onSelect={onArchive} variant="destructive">
+              Archive
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
   if (lease.isArchived) {
     return permissions.canArchive ? (
       <Button onClick={onRestore} variant="default">
@@ -350,12 +774,6 @@ function LeaseHeaderActions({
       </>
     );
   }
-
-  const canManageActive =
-    lease.statusValue === "active" &&
-    (permissions.canChangeTerms || permissions.canClose);
-  const canManageNotice =
-    lease.statusValue === "notice_given" && permissions.canClose;
 
   return (
     <>
@@ -643,6 +1061,7 @@ function LeaseTermModal({
 function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "archive") return "Archive lease";
   if (drawer.mode === "billing") return "Change billing rules";
+  if (drawer.mode === "deposit") return "Manage security deposit";
   if (drawer.mode === "restore") return "Restore lease";
   return "Edit draft";
 }
@@ -652,6 +1071,8 @@ function getDrawerDescription(drawer: DrawerState) {
     return "Archive this record without deleting its history.";
   if (drawer.mode === "billing")
     return "Schedule the replacement after all generated invoice months.";
+  if (drawer.mode === "deposit")
+    return "Review the held balance and record deposit changes for this lease.";
   if (drawer.mode === "restore")
     return "Review whether this lease can return to active views.";
   return "Update the draft period, rent, or deposit before activation.";
@@ -903,6 +1324,61 @@ function FieldError({ errors }: { errors?: string[] }) {
   return errors?.length ? (
     <span className="text-xs font-normal text-danger">{errors[0]}</span>
   ) : null;
+}
+
+function LeasePaymentReceiptAction({
+  canRetry,
+  result,
+}: {
+  canRetry: boolean;
+  result: TenantPaymentReceiptResult;
+}) {
+  const [state, formAction] = useActionState(
+    retryTenantReceiptPdfAction,
+    initialFinanceActionState,
+  );
+  const href =
+    state.status === "success" && state.artifactHref
+      ? state.artifactHref
+      : result.href;
+
+  if (href) {
+    return (
+      <a
+        className="font-medium text-primary underline-offset-2 hover:underline"
+        href={href}
+      >
+        Download receipt
+      </a>
+    );
+  }
+
+  if (!result.unavailable) return null;
+  if (!result.paymentId || !canRetry) {
+    return <span className="text-muted-foreground">Receipt unavailable</span>;
+  }
+
+  return (
+    <form action={formAction} className="flex flex-wrap items-center gap-2">
+      <input name="paymentId" type="hidden" value={result.paymentId} />
+      <LeaseReceiptRetrySubmit />
+      {state.status === "error" && state.message ? (
+        <span className="text-danger" role="alert">
+          {state.message}
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
+function LeaseReceiptRetrySubmit() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button disabled={pending} size="sm" type="submit" variant="outline">
+      {pending ? "Retrying receipt..." : "Retry receipt"}
+    </Button>
+  );
 }
 
 function getTransitionCopy(transition: LeaseTransition) {

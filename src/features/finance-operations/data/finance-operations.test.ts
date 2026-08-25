@@ -4,6 +4,7 @@ import {
   fetchAllActionableRows,
   fetchRowsByIdBatches,
   isRentGenerationSource,
+  loadLeasePaymentResolutionData,
   loadCommercialDocumentLinks,
   mapCommercialDocumentLinks,
   mergeRowsById,
@@ -13,6 +14,10 @@ import {
   toTenantInvoice,
 } from "@/features/finance-operations/data/finance-operations";
 import type { Database } from "@/types/database";
+
+vi.mock("@/lib/dates/business-date", () => ({
+  getBusinessDateValue: () => "2026-08-25",
+}));
 
 describe("Finance lease billing authority", () => {
   it("aligns first-rule billing and concurrency tokens to each Lease timezone", () => {
@@ -940,3 +945,409 @@ describe("commercial document summary composition", () => {
     ]);
   });
 });
+
+describe("Lease payment resolution data", () => {
+  const organizationId = "11111111-1111-4111-8111-111111111111";
+  const leaseId = "22222222-2222-4222-8222-222222222222";
+  const invoiceId = "33333333-3333-4333-8333-333333333333";
+  const propertyId = "44444444-4444-4444-8444-444444444444";
+  const input = { invoiceId, leaseId, organizationId };
+
+  it("loads only the invoice belonging to the requested organization and Lease", async () => {
+    // Break caught: a focused payment view loading an invoice outside its exact organization-and-Lease scope.
+    const client = createLeasePaymentResolutionClient({
+      invoiceId,
+      leaseId,
+      organizationId,
+      propertyId,
+    });
+
+    const result = await loadLeasePaymentResolutionData(client.client, input);
+
+    expect(result?.invoice).toMatchObject({
+      generationSource: "lease_rules_v1",
+      id: invoiceId,
+      leaseId,
+      lines: [
+        {
+          amount: 100,
+          balanceDue: 80,
+          id: "line-1",
+          label: "Monthly rent",
+          lineType: "rent",
+        },
+      ],
+      propertyId,
+      unitId: "unit-1",
+    });
+    expect(result?.ownerLabel).toBe("Sokha Vannak");
+    expect(client.filtersFor("tenant_invoice_balances")).toEqual(
+      expect.arrayContaining([
+        ["organization_id", organizationId],
+        ["lease_id", leaseId],
+        ["id", invoiceId],
+      ]),
+    );
+    expect(client.tables()).not.toContain("current_leases");
+    expect(client.tables()).not.toContain("property_finance_positions");
+    expect(client.tables()).not.toContain("expense_submissions");
+  });
+
+  it("returns null for a stale or cross-Lease invoice", async () => {
+    // Break caught: a stale route parameter causing supporting Finance data to load anyway.
+    const client = createLeasePaymentResolutionClient({
+      invoiceId,
+      leaseId,
+      organizationId,
+      propertyId,
+    });
+    client.respond("tenant_invoice_balances", { data: null, error: null });
+
+    await expect(
+      loadLeasePaymentResolutionData(client.client, input),
+    ).resolves.toBeNull();
+    expect(client.tables()).toEqual(["tenant_invoice_balances"]);
+  });
+
+  it("returns null before supporting reads when the selected row id differs", async () => {
+    // Break caught: a malformed selected-query response loading another invoice's supporting data.
+    const client = createLeasePaymentResolutionClient({
+      invoiceId,
+      leaseId,
+      organizationId,
+      propertyId,
+    });
+    client.respond("tenant_invoice_balances", {
+      data: {
+        id: "invoice-returned-by-mistake",
+        lease_id: leaseId,
+        organization_id: organizationId,
+        property_id: propertyId,
+      },
+      error: null,
+    });
+
+    await expect(
+      loadLeasePaymentResolutionData(client.client, input),
+    ).resolves.toBeNull();
+    expect(client.tables()).toEqual(["tenant_invoice_balances"]);
+  });
+
+  it("returns the earliest non-void future invoice date and scoped active sources", async () => {
+    // Break caught: offering archived or another property's payment source, or a voided/later future invoice date.
+    const client = createLeasePaymentResolutionClient({
+      invoiceId,
+      leaseId,
+      organizationId,
+      propertyId,
+    });
+
+    const result = await loadLeasePaymentResolutionData(client.client, input);
+
+    expect(result).toMatchObject({ nextInvoiceDueDate: "2026-09-01" });
+    expect(result?.reconciliationSources).toEqual([
+      { id: "source-1", label: "ABA · Operating", propertyId },
+      { id: "source-global", label: "CASH · General", propertyId: null },
+    ]);
+  });
+});
+
+type LeasePaymentResolutionTable =
+  | "financial_reconciliation_sources"
+  | "owner_collection_confirmations"
+  | "property_owners"
+  | "properties"
+  | "tenant_commercial_document_artifacts"
+  | "tenant_invoice_balances"
+  | "tenant_invoice_line_balances"
+  | "tenant_invoice_payments"
+  | "tenant_invoices"
+  | "units";
+
+type QueryResult = {
+  data: Array<Record<string, unknown>> | Record<string, unknown> | null;
+  error: { message: string } | null;
+};
+
+function createLeasePaymentResolutionClient({
+  invoiceId,
+  leaseId,
+  organizationId,
+  propertyId,
+}: {
+  invoiceId: string;
+  leaseId: string;
+  organizationId: string;
+  propertyId: string;
+}) {
+  const tables: LeasePaymentResolutionTable[] = [];
+  const equalityFilters = new Map<
+    LeasePaymentResolutionTable,
+    Array<[string, unknown]>
+  >();
+  const responses = new Map<LeasePaymentResolutionTable, QueryResult>();
+  const rowsByTable: Record<
+    LeasePaymentResolutionTable,
+    Array<Record<string, unknown>>
+  > = {
+    financial_reconciliation_sources: [
+      {
+        archived_at: null,
+        code: "ABA",
+        display_name: "Operating",
+        id: "source-1",
+        organization_id: organizationId,
+        property_id: propertyId,
+      },
+      {
+        archived_at: null,
+        code: "CASH",
+        display_name: "General",
+        id: "source-global",
+        organization_id: organizationId,
+        property_id: null,
+      },
+      {
+        archived_at: "2026-08-01T00:00:00.000Z",
+        code: "ARC",
+        display_name: "Archived",
+        id: "source-archived",
+        organization_id: organizationId,
+        property_id: propertyId,
+      },
+      {
+        archived_at: null,
+        code: "OTHER",
+        display_name: "Other property",
+        id: "source-other",
+        organization_id: organizationId,
+        property_id: "property-other",
+      },
+    ],
+    owner_collection_confirmations: [],
+    property_owners: [
+      {
+        archived_at: null,
+        ended_on: null,
+        is_primary: true,
+        organization_id: organizationId,
+        person: { display_name: "Sokha Vannak" },
+        property_id: propertyId,
+      },
+    ],
+    properties: [
+      {
+        code: "P-1",
+        id: propertyId,
+        name: "Palm House",
+        organization_id: organizationId,
+      },
+    ],
+    tenant_commercial_document_artifacts: [],
+    tenant_invoice_balances: [
+      {
+        balance_due: 80,
+        billing_period_start: "2026-08-01",
+        collected_by_owner: 0,
+        collection_route: "through_ips",
+        due_date: "2026-08-26",
+        id: invoiceId,
+        invoice_number: "INV-2026-0042",
+        issue_date: "2026-08-01",
+        lease_id: leaseId,
+        occupant_labels: ["Dara Tenant"],
+        organization_id: organizationId,
+        paid_through_ips: 20,
+        payment_status: "partly_paid",
+        property_id: propertyId,
+        recipient_label: "Dara Tenant",
+        total_amount: 100,
+        unit_id: "unit-1",
+      },
+      {
+        due_date: "2026-08-28",
+        id: "invoice-voided",
+        lease_id: leaseId,
+        organization_id: organizationId,
+        payment_status: "voided",
+      },
+      {
+        due_date: "2026-08-20",
+        id: "invoice-past",
+        lease_id: leaseId,
+        organization_id: organizationId,
+        payment_status: "unpaid",
+      },
+      {
+        due_date: "2026-08-29",
+        id: "invoice-paid",
+        lease_id: leaseId,
+        organization_id: organizationId,
+        payment_status: "paid",
+      },
+      {
+        due_date: "2026-09-15",
+        id: "invoice-later",
+        lease_id: leaseId,
+        organization_id: organizationId,
+        payment_status: "unpaid",
+      },
+      {
+        due_date: "2026-09-01",
+        id: "invoice-next",
+        lease_id: leaseId,
+        organization_id: organizationId,
+        payment_status: "unpaid",
+      },
+    ],
+    tenant_invoice_line_balances: [
+      {
+        amount: 100,
+        balance_due: 80,
+        customer_label: "Monthly rent",
+        id: "line-1",
+        income_item_id: "income-1",
+        invoice_id: invoiceId,
+        line_type: "rent",
+        organization_id: organizationId,
+        sort_order: 1,
+      },
+    ],
+    tenant_invoice_payments: [],
+    tenant_invoices: [
+      {
+        billing_period_start: "2026-08-01",
+        generation_source: "lease_rules_v1",
+        id: invoiceId,
+        is_prorated: false,
+        organization_id: organizationId,
+      },
+    ],
+    units: [
+      {
+        id: "unit-1",
+        organization_id: organizationId,
+        property_id: propertyId,
+        unit_number: "A-01",
+      },
+    ],
+  };
+
+  const client = {
+    from(table: LeasePaymentResolutionTable) {
+      tables.push(table);
+      const filters: Array<{
+        column: string;
+        operator: "eq" | "gte" | "in" | "is" | "neq" | "or";
+        value: unknown;
+      }> = [];
+      const orders: Array<{ ascending: boolean; column: string }> = [];
+      let limit: number | undefined;
+
+      const result = () => {
+        const response = responses.get(table);
+        if (response) return response;
+        let rows = rowsByTable[table].filter((row) =>
+          filters.every(({ column, operator, value }) => {
+            if (operator === "eq" || operator === "is") {
+              return row[column] === value;
+            }
+            if (operator === "neq") return row[column] !== value;
+            if (operator === "in") {
+              return (value as readonly unknown[]).includes(row[column]);
+            }
+            if (operator === "gte") return String(row[column]) >= String(value);
+            if (operator === "or") {
+              const propertyIdMatch = String(value).match(/property_id\.eq\.([^,]+)/);
+              return row.property_id === null || row.property_id === propertyIdMatch?.[1];
+            }
+            return false;
+          }),
+        );
+        for (const order of orders.toReversed()) {
+          rows = rows.toSorted((left, right) =>
+            String(left[order.column]).localeCompare(String(right[order.column])) *
+            (order.ascending ? 1 : -1),
+          );
+        }
+        return { data: rows.slice(0, limit), error: null };
+      };
+
+      const builder = {
+        eq(column: string, value: unknown) {
+          filters.push({ column, operator: "eq", value });
+          equalityFilters.set(table, [
+            ...(equalityFilters.get(table) ?? []),
+            [column, value],
+          ]);
+          return builder;
+        },
+        gte(column: string, value: unknown) {
+          filters.push({ column, operator: "gte", value });
+          return builder;
+        },
+        in(column: string, value: readonly unknown[]) {
+          filters.push({ column, operator: "in", value });
+          return builder;
+        },
+        is(column: string, value: unknown) {
+          filters.push({ column, operator: "is", value });
+          return builder;
+        },
+        limit(value: number) {
+          limit = value;
+          return builder;
+        },
+        maybeSingle: async () => {
+          const response = result();
+          return {
+            data: Array.isArray(response.data) ? (response.data[0] ?? null) : response.data,
+            error: response.error,
+          };
+        },
+        neq(column: string, value: unknown) {
+          filters.push({ column, operator: "neq", value });
+          return builder;
+        },
+        or(value: string) {
+          filters.push({ column: "property_id", operator: "or", value });
+          return builder;
+        },
+        order(column: string, options: { ascending?: boolean } = {}) {
+          orders.push({ ascending: options.ascending ?? true, column });
+          return builder;
+        },
+        range(from: number, to: number) {
+          const response = result();
+          return Promise.resolve({
+            data: Array.isArray(response.data)
+              ? response.data.slice(from, to + 1)
+              : response.data,
+            error: response.error,
+          });
+        },
+        select() {
+          return builder;
+        },
+        then(
+          onfulfilled?: (value: QueryResult) => unknown,
+          onrejected?: (reason: unknown) => unknown,
+        ) {
+          return Promise.resolve(result()).then(onfulfilled, onrejected);
+        },
+      };
+      return builder;
+    },
+  } as never;
+
+  return {
+    client,
+    filtersFor(table: LeasePaymentResolutionTable) {
+      return equalityFilters.get(table) ?? [];
+    },
+    respond(table: LeasePaymentResolutionTable, response: QueryResult) {
+      responses.set(table, response);
+    },
+    tables: () => tables,
+  };
+}

@@ -133,7 +133,7 @@ export function LeaseScreen({
           data-slot="lease-register-gutter"
         >
           <div
-            className="bg-background md:overflow-hidden md:rounded-md md:border md:border-border md:bg-card"
+            className="bg-background md:overflow-hidden"
             data-slot="lease-register-surface"
           >
             <div className="min-h-0 flex-1 pb-3 md:pb-0">

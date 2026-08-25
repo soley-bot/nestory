@@ -477,7 +477,7 @@ export async function recordTenantInvoicePaymentAction(
   const paymentId =
     typeof data === "string" && uuid.safeParse(data).success ? data : null;
   if (!paymentId) {
-    revalidateFinance();
+    revalidateTenantPayment();
     return receiptUnavailableState();
   }
 
@@ -487,7 +487,7 @@ export async function recordTenantInvoicePaymentAction(
       organizationId: context.organizationId,
       paymentId,
     });
-    revalidateFinance();
+    revalidateTenantPayment();
     return {
       artifactHref: artifact.href,
       artifactId: artifact.artifactId,
@@ -507,7 +507,7 @@ export async function recordTenantInvoicePaymentAction(
     } catch {
       // Receipt failure persistence must not change the committed payment result.
     }
-    revalidateFinance();
+    revalidateTenantPayment();
     return receiptUnavailableState(paymentId);
   }
 }
@@ -868,6 +868,12 @@ function revalidateFinance() {
   ]) {
     revalidatePath(path);
   }
+}
+
+function revalidateTenantPayment() {
+  revalidateFinance();
+  revalidatePath("/leases");
+  revalidatePath("/timeline");
 }
 
 function expenseWorkflowError(message: string) {

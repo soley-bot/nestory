@@ -116,6 +116,7 @@ describe("finance routes", () => {
         "finance.view",
         "finance.record_payments",
         "leases.change_terms",
+        "leases.view",
       ]),
       role: "super_admin",
     });
@@ -134,6 +135,7 @@ describe("finance routes", () => {
         canReverseExpense: true,
         canRetryCurrentRent: true,
         canSubmitExpense: true,
+        canViewLeases: true,
       }),
     );
   });

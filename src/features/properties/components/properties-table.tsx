@@ -1,6 +1,10 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react";
+import {
+  RecordLink,
+  registerRowClassName,
+} from "@/components/data/interactive-table";
 import { Badge } from "@/components/ui/badge";
 import type { PropertySummary } from "@/features/properties/data/properties";
 import type {
@@ -9,9 +13,6 @@ import type {
 } from "@/features/properties/property.types";
 import type { MoneyDisplayValue } from "@/lib/money/format";
 import { cn } from "@/lib/utils";
-
-const propertyRowClassName =
-  "cursor-pointer border-t border-border outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
 type PropertiesTableProps = {
   displayMode: PropertyDisplayMode;
@@ -114,7 +115,7 @@ export function PropertiesTable({
                   <tr
                     aria-label={`Open ${property.name}`}
                     className={cn(
-                      propertyRowClassName,
+                      registerRowClassName,
                       property.isArchived && "text-muted-foreground",
                     )}
                     key={property.id}
@@ -136,12 +137,12 @@ export function PropertiesTable({
                       <div className="grid min-w-0 max-w-[20rem] grid-cols-[40px_minmax(0,1fr)] items-center gap-2.5">
                         <PropertyThumbnail property={property} />
                         <div className="min-w-0">
-                          <p
-                            className="truncate font-medium text-foreground"
+                          <RecordLink
+                            href={`/properties/${property.id}`}
                             title={property.name}
                           >
                             {property.name}
-                          </p>
+                          </RecordLink>
                           <p
                             className="mt-0.5 truncate text-xs text-muted-foreground"
                             title={`${property.code} / ${property.type}`}

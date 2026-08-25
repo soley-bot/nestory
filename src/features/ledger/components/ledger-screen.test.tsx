@@ -67,6 +67,9 @@ describe("LedgerScreen finance workspace contract", () => {
     expect(
       container.querySelector('[data-slot="workspace-split-view"]'),
     ).not.toBeNull();
+    expect(
+      screen.getByRole("region", { name: "Ledger table" }),
+    ).not.toBeNull();
     const summaryStrip = screen.getByText("Visible net").closest("section");
     expect(summaryStrip?.className).not.toContain("overflow-x-auto");
     expect(within(summaryStrip!).queryByText("Clear")).toBeNull();
