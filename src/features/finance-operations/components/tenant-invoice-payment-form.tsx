@@ -19,6 +19,7 @@ import {
   recordTenantInvoicePaymentAction,
 } from "@/features/finance-operations/actions";
 import type {
+  FinanceOperationsActionState,
   FinanceOption,
   TenantInvoiceSummary,
 } from "@/features/finance-operations/finance-operations.types";
@@ -31,21 +32,34 @@ export type TenantPaymentReceiptResult = {
   unavailable: boolean;
 };
 
-export function TenantInvoicePaymentForm({
-  invoice,
-  onChooseAnother,
-  onReceiptResult,
-  onSuccess,
-  reconciliationSources,
-  submitLabel,
-}: {
+type TenantInvoicePaymentFormProps = {
   invoice: TenantInvoiceSummary;
   onChooseAnother?: () => void;
   onReceiptResult: (result: TenantPaymentReceiptResult) => void;
   onSuccess: (message: string) => void;
   reconciliationSources: FinanceOption[];
   submitLabel?: string;
-}) {
+};
+
+export function TenantInvoicePaymentForm(
+  props: TenantInvoicePaymentFormProps,
+) {
+  return (
+    <TenantInvoicePaymentFormStateful
+      {...props}
+      key={`${props.invoice.id}:${props.invoice.collectionRoute}`}
+    />
+  );
+}
+
+function TenantInvoicePaymentFormStateful({
+  invoice,
+  onChooseAnother,
+  onReceiptResult,
+  onSuccess,
+  reconciliationSources,
+  submitLabel,
+}: TenantInvoicePaymentFormProps) {
   const idempotencyKey = useStableActionId(
     invoice.collectionRoute === "through_ips" ? "payment" : "owner-confirm",
   );
@@ -57,6 +71,7 @@ export function TenantInvoicePaymentForm({
   const errorId = useId();
   const errorRef = useRef<HTMLParagraphElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const deliveredSuccessRef = useRef<FinanceOperationsActionState | null>(null);
   const submittedSafeValuesRef = useRef<Map<string, string>>(new Map());
   const sources = reconciliationSources.filter(
     (source) => !source.propertyId || source.propertyId === invoice.propertyId,
@@ -79,10 +94,12 @@ export function TenantInvoicePaymentForm({
       submittedSafeValuesRef.current,
     );
     errorRef.current?.focus();
-  }, [state.status]);
+  }, [state]);
 
   useEffect(() => {
     if (state.status !== "success" || !state.message) return;
+    if (deliveredSuccessRef.current === state) return;
+    deliveredSuccessRef.current = state;
     if (invoice.collectionRoute === "through_ips") {
       onReceiptResult({
         href: state.artifactHref ?? null,

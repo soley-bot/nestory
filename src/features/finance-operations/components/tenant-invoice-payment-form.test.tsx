@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -10,6 +11,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type {
+  FinanceOperationsActionState,
   FinanceOption,
   TenantInvoiceSummary,
 } from "../finance-operations.types";
@@ -63,6 +65,123 @@ describe("TenantInvoicePaymentForm", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false);
+  });
+
+  it("resets submission state and idempotency when the invoice identity changes", async () => {
+    const firstSuccess = vi.fn();
+    const nextSuccess = vi.fn();
+    const nextReceipt = vi.fn();
+    actionMocks.recordTenantInvoicePaymentAction.mockResolvedValueOnce({
+      artifactHref: "/api/finance/documents/receipt-1",
+      message: "Payment recorded.",
+      paymentId: "payment-1",
+      publicationStatus: "published",
+      status: "success",
+    });
+    const view = render(
+      paymentForm({
+        invoice: invoice({ id: "invoice-1" }),
+        onSuccess: firstSuccess,
+      }),
+    );
+    const firstIdempotencyKey = valueOfNamedInput(
+      view.container,
+      "idempotencyKey",
+    );
+
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => {
+      expect(firstSuccess).toHaveBeenCalledOnce();
+    });
+
+    view.rerender(
+      paymentForm({
+        invoice: invoice({
+          id: "invoice-2",
+          invoiceNumber: "INV-202608-002",
+        }),
+        onReceiptResult: nextReceipt,
+        onSuccess: nextSuccess,
+      }),
+    );
+
+    expect(valueOfNamedInput(view.container, "invoiceId")).toBe("invoice-2");
+    expect(valueOfNamedInput(view.container, "idempotencyKey")).not.toBe(
+      firstIdempotencyKey,
+    );
+    expect(nextReceipt).not.toHaveBeenCalled();
+    expect(nextSuccess).not.toHaveBeenCalled();
+  });
+
+  it("ignores stale success and delivers each current result exactly once", async () => {
+    const staleResult = deferredActionResult();
+    const staleReceipt = vi.fn();
+    const staleSuccess = vi.fn();
+    const currentReceipt = vi.fn();
+    const currentSuccess = vi.fn();
+    const replacementReceipt = vi.fn();
+    const replacementSuccess = vi.fn();
+    actionMocks.recordTenantInvoicePaymentAction
+      .mockImplementationOnce(() => staleResult.promise)
+      .mockResolvedValueOnce({
+        artifactHref: "/api/finance/documents/receipt-current",
+        message: "Current payment recorded.",
+        paymentId: "payment-current",
+        publicationStatus: "published",
+        status: "success",
+      });
+    const view = render(
+      paymentForm({
+        invoice: invoice({ id: "invoice-stale" }),
+        onReceiptResult: staleReceipt,
+        onSuccess: staleSuccess,
+      }),
+    );
+
+    fireEvent.submit(view.container.querySelector("form")!);
+    view.rerender(
+      paymentForm({
+        invoice: invoice({ id: "invoice-current" }),
+        onReceiptResult: currentReceipt,
+        onSuccess: currentSuccess,
+      }),
+    );
+
+    await act(async () => {
+      staleResult.resolve({
+        artifactHref: "/api/finance/documents/receipt-stale",
+        message: "Stale payment recorded.",
+        paymentId: "payment-stale",
+        publicationStatus: "published",
+        status: "success",
+      });
+      await staleResult.promise;
+    });
+
+    expect(staleReceipt).not.toHaveBeenCalled();
+    expect(staleSuccess).not.toHaveBeenCalled();
+    expect(currentReceipt).not.toHaveBeenCalled();
+    expect(currentSuccess).not.toHaveBeenCalled();
+
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => {
+      expect(currentReceipt).toHaveBeenCalledOnce();
+      expect(currentSuccess).toHaveBeenCalledOnce();
+    });
+
+    view.rerender(
+      paymentForm({
+        invoice: invoice({ id: "invoice-current" }),
+        onReceiptResult: replacementReceipt,
+        onSuccess: replacementSuccess,
+      }),
+    );
+    await act(async () => {});
+
+    expect(currentReceipt).toHaveBeenCalledOnce();
+    expect(currentSuccess).toHaveBeenCalledOnce();
+    expect(replacementReceipt).not.toHaveBeenCalled();
+    expect(replacementSuccess).not.toHaveBeenCalled();
   });
 
   it("keeps allocations collapsed unless more than one line is outstanding", () => {
@@ -161,6 +280,48 @@ describe("TenantInvoicePaymentForm", () => {
     expect((reference as HTMLInputElement).value).toBe("Bank transfer 42");
   });
 
+  it("restores safe inputs and refocuses feedback for consecutive errors", async () => {
+    const user = userEvent.setup();
+    actionMocks.recordTenantInvoicePaymentAction
+      .mockResolvedValueOnce({
+        message: "The first receiving account is unavailable.",
+        status: "error",
+      })
+      .mockResolvedValueOnce({
+        message: "The replacement receiving account is unavailable.",
+        status: "error",
+      });
+    const { container } = renderForm();
+    const amount = screen.getByLabelText("Amount") as HTMLInputElement;
+    const reference = screen.getByLabelText("Reference") as HTMLInputElement;
+    const form = container.querySelector("form")!;
+
+    await user.clear(amount);
+    await user.type(amount, "125.50");
+    await user.type(reference, "First transfer");
+    fireEvent.submit(form);
+
+    const firstAlert = await screen.findByText(
+      "The first receiving account is unavailable.",
+    );
+    expect(document.activeElement).toBe(firstAlert);
+    expect(amount.value).toBe("125.50");
+    expect(reference.value).toBe("First transfer");
+
+    await user.clear(amount);
+    await user.type(amount, "98.75");
+    await user.clear(reference);
+    await user.type(reference, "Replacement transfer");
+    fireEvent.submit(form);
+
+    const secondAlert = await screen.findByText(
+      "The replacement receiving account is unavailable.",
+    );
+    expect(document.activeElement).toBe(secondAlert);
+    expect(amount.value).toBe("98.75");
+    expect(reference.value).toBe("Replacement transfer");
+  });
+
   it("uses owner confirmation authority without exposing IPS deposit fields", async () => {
     actionMocks.confirmOwnerCollectionAction.mockResolvedValueOnce({
       message: "Owner collection confirmed.",
@@ -200,14 +361,50 @@ function renderForm({
   submitLabel?: string;
 } = {}) {
   return render(
+    paymentForm({
+      invoice: invoiceValue,
+      onReceiptResult,
+      onSuccess,
+      reconciliationSources,
+      submitLabel,
+    }),
+  );
+}
+
+function paymentForm({
+  invoice: invoiceValue,
+  onReceiptResult = vi.fn(),
+  onSuccess = vi.fn(),
+  reconciliationSources = [source()],
+  submitLabel,
+}: {
+  invoice: TenantInvoiceSummary;
+  onReceiptResult?: (result: TenantPaymentReceiptResult) => void;
+  onSuccess?: (message: string) => void;
+  reconciliationSources?: FinanceOption[];
+  submitLabel?: string;
+}) {
+  return (
     <TenantInvoicePaymentForm
       invoice={invoiceValue}
       onReceiptResult={onReceiptResult}
       onSuccess={onSuccess}
       reconciliationSources={reconciliationSources}
       submitLabel={submitLabel}
-    />,
+    />
   );
+}
+
+function valueOfNamedInput(container: HTMLElement, name: string) {
+  return (container.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
+}
+
+function deferredActionResult() {
+  let resolve!: (result: FinanceOperationsActionState) => void;
+  const promise = new Promise<FinanceOperationsActionState>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 function invoice(
