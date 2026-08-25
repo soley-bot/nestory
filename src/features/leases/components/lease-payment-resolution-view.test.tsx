@@ -52,7 +52,7 @@ describe("LeasePaymentResolutionView", () => {
     ).toBeVisible();
     expect(screen.queryByText("Recent evidence")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("combobox", { name: "Deposit to" }),
+      screen.getByRole("combobox", { name: "Received into" }),
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Record USD 258.00 payment" }),
@@ -344,6 +344,7 @@ function resolutionFixture(
   return {
     invoice: invoiceFixture(),
     nextInvoiceDueDate: "2026-09-01",
+    ownerLabel: "Sokha Vannak",
     reconciliationSources: [sourceFixture()],
     ...overrides,
   };

@@ -240,6 +240,7 @@ export type FinanceOperationsData = {
 export type LeasePaymentResolutionData = {
   invoice: TenantInvoiceSummary;
   nextInvoiceDueDate: string | null;
+  ownerLabel: string;
   reconciliationSources: FinanceOption[];
 };
 

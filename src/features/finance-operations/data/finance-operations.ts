@@ -99,6 +99,12 @@ type FinanceUnitRow = {
   property_id: string;
   unit_number: string;
 };
+type PrimaryOwnerLabelRow = {
+  person:
+    | { display_name: string }
+    | Array<{ display_name: string }>
+    | null;
+};
 type RentGenerationExceptionRow =
   Database["public"]["Tables"]["rent_generation_exceptions"]["Row"];
 type ExpenseEvidenceRow = {
@@ -770,6 +776,7 @@ export async function loadLeasePaymentResolutionData(
     linesResult,
     generationResult,
     settlementsResult,
+    ownerResult,
     sourcesResult,
     nextInvoiceResult,
   ] = await Promise.all([
@@ -791,6 +798,15 @@ export async function loadLeasePaymentResolutionData(
     getTenantInvoiceLineRows(supabase, organizationId, [invoiceId]),
     getTenantInvoiceGenerationRows(supabase, organizationId, [invoiceId]),
     getTenantInvoiceSettlementRows(supabase, organizationId, [invoiceId]),
+    supabase
+      .from("property_owners")
+      .select("person:people!property_owners_person_fk(display_name)")
+      .eq("organization_id", organizationId)
+      .eq("property_id", row.property_id)
+      .eq("is_primary", true)
+      .is("archived_at", null)
+      .is("ended_on", null)
+      .maybeSingle(),
     supabase
       .from("financial_reconciliation_sources")
       .select("id, property_id, code, display_name, archived_at")
@@ -816,6 +832,7 @@ export async function loadLeasePaymentResolutionData(
     linesResult,
     generationResult,
     settlementsResult,
+    ownerResult,
     sourcesResult,
     nextInvoiceResult,
   ].find((result) => result.error)?.error;
@@ -892,10 +909,15 @@ export async function loadLeasePaymentResolutionData(
     commercialDocuments.invoicePublicationSnapshots,
   )[0];
   if (!invoice) return null;
+  const ownerRow = ownerResult.data as PrimaryOwnerLabelRow | null;
+  const ownerPerson = Array.isArray(ownerRow?.person)
+    ? ownerRow.person[0]
+    : ownerRow?.person;
 
   return {
     invoice,
     nextInvoiceDueDate: nextInvoiceResult.data?.[0]?.due_date ?? null,
+    ownerLabel: ownerPerson?.display_name ?? "Owner needed",
     reconciliationSources: (sourcesResult.data ?? []).map((source) => ({
       id: source.id,
       label: `${source.code} · ${source.display_name}`,

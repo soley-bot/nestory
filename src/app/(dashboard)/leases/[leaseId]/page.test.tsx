@@ -357,6 +357,7 @@ function paymentResolution(
   return {
     invoice: invoice(),
     nextInvoiceDueDate: "2026-09-05",
+    ownerLabel: "Sokha Vannak",
     reconciliationSources: [
       { id: "source-1", label: "BANK - Operating", propertyId: null },
     ],

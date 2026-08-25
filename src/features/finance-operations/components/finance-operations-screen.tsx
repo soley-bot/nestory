@@ -534,6 +534,11 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
                 }
                 onReceiptResult={setReceiptResult}
                 onSuccess={onActionSuccess}
+                ownerLabel={
+                  props.leases.find(
+                    (lease) => lease.id === visibleActionModal.invoice?.leaseId,
+                  )?.ownerLabel ?? "Owner needed"
+                }
                 reconciliationSources={props.reconciliationSources}
               />
             ) : (

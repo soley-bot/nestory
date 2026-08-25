@@ -54,7 +54,9 @@ describe("TenantInvoicePaymentForm", () => {
     expect(
       container.querySelector('[name="settlementDate"]'),
     ).not.toBeNull();
-    expect(screen.getByRole("combobox", { name: "Deposit to" })).not.toBeNull();
+    expect(
+      screen.getByRole("combobox", { name: "Received into" }),
+    ).not.toBeNull();
     expect(
       container.querySelector('[name="reconciliationSourceId"]'),
     ).not.toBeNull();
@@ -65,6 +67,52 @@ describe("TenantInvoicePaymentForm", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false);
+  });
+
+  it("keeps multiple receiving accounts explicit and shows automatic owner allocation", () => {
+    const { container } = renderForm({
+      reconciliationSources: [
+        {
+          id: "source-bank",
+          label: "OPS-USD · Operating bank account",
+          propertyId: null,
+        },
+        {
+          id: "source-cash",
+          label: "CASH · Front desk cash",
+          propertyId: null,
+        },
+      ],
+    });
+
+    expect(valueOfNamedInput(container, "reconciliationSourceId")).toBe("");
+    expect(screen.getByText("Applied to")).not.toBeNull();
+    expect(
+      screen.getByText(
+        "Sokha Vannak · HOME — Riverside Home — Automatic",
+      ),
+    ).not.toBeNull();
+    expect(
+      screen.getByText("Where the payment actually arrived."),
+    ).not.toBeNull();
+  });
+
+  it("selects the only eligible receiving account", () => {
+    const { container } = renderForm({
+      reconciliationSources: [
+        {
+          id: "source-bank",
+          label: "OPS-USD · Operating bank account",
+          propertyId: null,
+        },
+      ],
+    });
+
+    expect(valueOfNamedInput(container, "reconciliationSourceId")).toBe(
+      "source-bank",
+    );
+    expect(screen.getAllByText("Operating bank account").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/OPS-USD/)).toBeNull();
   });
 
   it("resets submission state and idempotency when the invoice identity changes", async () => {
@@ -333,7 +381,7 @@ describe("TenantInvoicePaymentForm", () => {
       onSuccess,
     });
 
-    expect(screen.queryByLabelText("Deposit to")).toBeNull();
+    expect(screen.queryByLabelText("Received into")).toBeNull();
     expect(
       screen.getByText(/does not add cash to the property account/i),
     ).not.toBeNull();
@@ -351,12 +399,14 @@ function renderForm({
   invoice: invoiceValue = invoice({ collectionRoute: "through_ips" }),
   onReceiptResult = vi.fn(),
   onSuccess = vi.fn(),
+  ownerLabel = "Sokha Vannak",
   reconciliationSources = [source()],
   submitLabel,
 }: {
   invoice?: TenantInvoiceSummary;
   onReceiptResult?: (result: TenantPaymentReceiptResult) => void;
   onSuccess?: (message: string) => void;
+  ownerLabel?: string;
   reconciliationSources?: FinanceOption[];
   submitLabel?: string;
 } = {}) {
@@ -365,6 +415,7 @@ function renderForm({
       invoice: invoiceValue,
       onReceiptResult,
       onSuccess,
+      ownerLabel,
       reconciliationSources,
       submitLabel,
     }),
@@ -375,12 +426,14 @@ function paymentForm({
   invoice: invoiceValue,
   onReceiptResult = vi.fn(),
   onSuccess = vi.fn(),
+  ownerLabel = "Sokha Vannak",
   reconciliationSources = [source()],
   submitLabel,
 }: {
   invoice: TenantInvoiceSummary;
   onReceiptResult?: (result: TenantPaymentReceiptResult) => void;
   onSuccess?: (message: string) => void;
+  ownerLabel?: string;
   reconciliationSources?: FinanceOption[];
   submitLabel?: string;
 }) {
@@ -389,6 +442,7 @@ function paymentForm({
       invoice={invoiceValue}
       onReceiptResult={onReceiptResult}
       onSuccess={onSuccess}
+      ownerLabel={ownerLabel}
       reconciliationSources={reconciliationSources}
       submitLabel={submitLabel}
     />

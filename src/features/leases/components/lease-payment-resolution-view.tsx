@@ -91,6 +91,7 @@ export function LeasePaymentResolutionView({
               invoice={invoice}
               onReceiptResult={onReceiptResult}
               onSuccess={onPaymentSuccess}
+              ownerLabel={resolution.ownerLabel}
               reconciliationSources={resolution.reconciliationSources}
               submitLabel={`Record ${balanceDisplay} payment`}
             />

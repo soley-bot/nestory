@@ -980,6 +980,7 @@ describe("Lease payment resolution data", () => {
       propertyId,
       unitId: "unit-1",
     });
+    expect(result?.ownerLabel).toBe("Sokha Vannak");
     expect(client.filtersFor("tenant_invoice_balances")).toEqual(
       expect.arrayContaining([
         ["organization_id", organizationId],
@@ -1054,6 +1055,7 @@ describe("Lease payment resolution data", () => {
 type LeasePaymentResolutionTable =
   | "financial_reconciliation_sources"
   | "owner_collection_confirmations"
+  | "property_owners"
   | "properties"
   | "tenant_commercial_document_artifacts"
   | "tenant_invoice_balances"
@@ -1123,6 +1125,16 @@ function createLeasePaymentResolutionClient({
       },
     ],
     owner_collection_confirmations: [],
+    property_owners: [
+      {
+        archived_at: null,
+        ended_on: null,
+        is_primary: true,
+        organization_id: organizationId,
+        person: { display_name: "Sokha Vannak" },
+        property_id: propertyId,
+      },
+    ],
     properties: [
       {
         code: "P-1",

@@ -37,6 +37,7 @@ type TenantInvoicePaymentFormProps = {
   onChooseAnother?: () => void;
   onReceiptResult: (result: TenantPaymentReceiptResult) => void;
   onSuccess: (message: string) => void;
+  ownerLabel: string;
   reconciliationSources: FinanceOption[];
   submitLabel?: string;
 };
@@ -57,6 +58,7 @@ function TenantInvoicePaymentFormStateful({
   onChooseAnother,
   onReceiptResult,
   onSuccess,
+  ownerLabel,
   reconciliationSources,
   submitLabel,
 }: TenantInvoicePaymentFormProps) {
@@ -76,6 +78,7 @@ function TenantInvoicePaymentFormStateful({
   const sources = reconciliationSources.filter(
     (source) => !source.propertyId || source.propertyId === invoice.propertyId,
   );
+  const defaultReceivingSourceId = getDefaultReceivingSourceId(sources);
   const outstandingLines = invoice.lines.filter((line) => line.balanceDue > 0);
   const settlementDateLabel =
     invoice.collectionRoute === "through_ips"
@@ -127,6 +130,14 @@ function TenantInvoicePaymentFormStateful({
           ["Invoice", invoice.invoiceNumber],
           ["Customer", invoice.recipientLabel],
           ["Balance", formatMoneyDisplay(invoice.balanceDue).primary],
+          ...(invoice.collectionRoute === "through_ips"
+            ? ([
+                [
+                  "Applied to",
+                  `${ownerLabel} · ${invoice.propertyLabel} — Automatic`,
+                ],
+              ] satisfies [string, ReactNode][])
+            : []),
         ]}
       />
       <input name="invoiceId" type="hidden" value={invoice.id} />
@@ -148,21 +159,21 @@ function TenantInvoicePaymentFormStateful({
           />
         </Field>
         {invoice.collectionRoute === "through_ips" ? (
-          <Field label="Deposit to">
+          <Field label="Received into">
             <div className="space-y-1.5">
               <SelectControl
-                ariaLabel="Deposit to"
+                ariaLabel="Received into"
+                defaultValue={defaultReceivingSourceId}
                 name="reconciliationSourceId"
                 options={sources.map((source) => ({
-                  label: source.label,
+                  label: getReceivingSourceDisplayLabel(source.label),
                   value: source.id,
                 }))}
                 placeholder="Choose receiving account"
                 required
               />
               <p className="text-xs leading-4 text-muted-foreground">
-                Choose the bank, cash, or collection account where this
-                payment was received.
+                Where the payment actually arrived.
               </p>
             </div>
           </Field>
@@ -223,6 +234,19 @@ function TenantInvoicePaymentFormStateful({
 function useStableActionId(prefix: string) {
   const [id] = useState(() => `${prefix}-${globalThis.crypto.randomUUID()}`);
   return id;
+}
+
+const FINANCE_SOURCE_LABEL_SEPARATOR = " · ";
+
+function getDefaultReceivingSourceId(sources: FinanceOption[]) {
+  return sources.length === 1 ? sources[0]?.id : undefined;
+}
+
+function getReceivingSourceDisplayLabel(label: string) {
+  const separatorIndex = label.indexOf(FINANCE_SOURCE_LABEL_SEPARATOR);
+  return separatorIndex < 0
+    ? label
+    : label.slice(separatorIndex + FINANCE_SOURCE_LABEL_SEPARATOR.length);
 }
 
 function captureSafeUncontrolledValues(form: HTMLFormElement) {
