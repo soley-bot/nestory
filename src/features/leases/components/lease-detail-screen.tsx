@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
@@ -24,6 +25,7 @@ import {
   RestoreLeasePanel,
 } from "@/features/leases/components/lease-drawer-panels";
 import { LeaseDetailView } from "@/features/leases/components/lease-detail-view";
+import { LeasePaymentResolutionView } from "@/features/leases/components/lease-payment-resolution-view";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import {
@@ -34,7 +36,11 @@ import {
   transitionLeaseLifecycleAction,
   type LeaseActionState,
 } from "@/features/leases/actions";
-import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
+import type { LeasePaymentResolutionData } from "@/features/finance-operations/finance-operations.types";
+import {
+  buildLeaseRecordHref,
+  type LeaseRecordSection,
+} from "@/features/leases/lease-detail-route";
 import type {
   LeasePropertyOption,
   LeaseBillingFormConfig,
@@ -68,14 +74,31 @@ export type LeaseActionPermissions = {
   canPrepare: boolean;
 };
 
+type LeaseRouteNotice = {
+  href?: string;
+  linkLabel?: string;
+  message: string;
+};
+
+type LeasePaymentFocusProps = {
+  canRecordPayments: boolean;
+  canViewFinance: boolean;
+  paymentResolution?: LeasePaymentResolutionData;
+  routeNotice?: LeaseRouteNotice;
+};
+
 const initialActionState: LeaseActionState = {};
 
 export function LeaseDetailScreen({
   activeSection,
   billingFormConfig,
+  canRecordPayments,
+  canViewFinance,
   lease,
+  paymentResolution,
   permissions,
   propertyOptions,
+  routeNotice,
   tenantOptions,
   unitOptions,
 }: {
@@ -86,13 +109,16 @@ export function LeaseDetailScreen({
   propertyOptions: LeasePropertyOption[];
   tenantOptions: LeaseTenantOption[];
   unitOptions: LeaseUnitOption[];
-}) {
+} & LeasePaymentFocusProps) {
   const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
   const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(
+    routeNotice?.message ?? null,
+  );
+  const returnHref = buildLeaseRecordHref({ leaseId: lease.id });
   const currentOccupancy =
     lease.occupancies.find(
       (occupancy) => occupancy.evidenceState === "accepted",
@@ -107,6 +133,12 @@ export function LeaseDetailScreen({
     setDrawer(nextDrawer);
   };
 
+  const handlePaymentSuccess = (message: string) => {
+    setStatusMessage(message);
+    router.replace(returnHref);
+    router.refresh();
+  };
+
   return (
     <div className="lg:flex lg:flex-col">
       <PageHeader
@@ -119,6 +151,7 @@ export function LeaseDetailScreen({
             onRestore={() => openDrawer({ mode: "restore" })}
             onScheduleTerm={setTermChange}
             permissions={permissions}
+            focused={Boolean(paymentResolution)}
           />
         }
         breadcrumb={
@@ -148,19 +181,37 @@ export function LeaseDetailScreen({
             {lease.isArchived ? <Badge tone="warning">Archived</Badge> : null}
           </div>
         }
-        description={`${lease.propertyName} / ${lease.unitLabel}`}
-        title={lease.tenantName}
+        description={
+          paymentResolution
+            ? `${lease.propertyName} · ${lease.startDateLabel}–${lease.endDateLabel}`
+            : `${lease.propertyName} / ${lease.unitLabel}`
+        }
+        title={
+          paymentResolution
+            ? `${lease.tenantName} — ${lease.unitLabel.split(" / ")[0] ?? lease.unitLabel}`
+            : lease.tenantName
+        }
       />
 
       {statusMessage ? (
         <div className="workspace-gutter-x pb-3">
           <p className="border-y border-border py-2 text-sm" role="status">
             {statusMessage}
+            {routeNotice?.href &&
+            routeNotice.linkLabel &&
+            statusMessage === routeNotice.message ? (
+              <Link
+                className="ml-2 font-medium text-primary underline-offset-2 hover:underline"
+                href={routeNotice.href}
+              >
+                {routeNotice.linkLabel}
+              </Link>
+            ) : null}
           </p>
         </div>
       ) : null}
 
-      {lease.activationSchedule ? (
+      {!paymentResolution && lease.activationSchedule ? (
         <ScheduledActivationNotice
           canCancel={permissions.canActivate}
           lease={lease}
@@ -168,36 +219,48 @@ export function LeaseDetailScreen({
         />
       ) : null}
 
-      <LeaseDetailView
-        activeSection={activeSection}
-        permissions={permissions}
-        lease={lease}
-        onAttachFile={() => {
-          setStatusMessage(null);
-          setUploadOpen(true);
-        }}
-        onChangeBillingRules={() => openDrawer({ mode: "billing" })}
-        onLifecycleChange={(nextTransition) => {
-          setStatusMessage(null);
-          if (!currentOccupancy) {
-            setStatusMessage(
-              "Confirm the current resident and move-in before changing the lease.",
-            );
-            return;
-          }
-          setTransition(nextTransition);
-        }}
-        onScheduleTerm={(mode) => {
-          setStatusMessage(null);
-          if (!activeTerm) {
-            setStatusMessage(
-              "Add a current rent schedule before changing rent or renewing the lease.",
-            );
-            return;
-          }
-          setTermChange(mode);
-        }}
-      />
+      {paymentResolution ? (
+        <LeasePaymentResolutionView
+          canRecordPayments={canRecordPayments}
+          canViewFinance={canViewFinance}
+          lease={lease}
+          onPaymentSuccess={handlePaymentSuccess}
+          onReceiptResult={() => undefined}
+          resolution={paymentResolution}
+          returnHref={returnHref}
+        />
+      ) : (
+        <LeaseDetailView
+          activeSection={activeSection}
+          permissions={permissions}
+          lease={lease}
+          onAttachFile={() => {
+            setStatusMessage(null);
+            setUploadOpen(true);
+          }}
+          onChangeBillingRules={() => openDrawer({ mode: "billing" })}
+          onLifecycleChange={(nextTransition) => {
+            setStatusMessage(null);
+            if (!currentOccupancy) {
+              setStatusMessage(
+                "Confirm the current resident and move-in before changing the lease.",
+              );
+              return;
+            }
+            setTransition(nextTransition);
+          }}
+          onScheduleTerm={(mode) => {
+            setStatusMessage(null);
+            if (!activeTerm) {
+              setStatusMessage(
+                "Add a current rent schedule before changing rent or renewing the lease.",
+              );
+              return;
+            }
+            setTermChange(mode);
+          }}
+        />
+      )}
 
       {drawer ? (
         <SideDrawer
@@ -310,6 +373,7 @@ export function LeaseDetailScreen({
 }
 
 function LeaseHeaderActions({
+  focused,
   lease,
   onArchive,
   onEditDraft,
@@ -318,6 +382,7 @@ function LeaseHeaderActions({
   onScheduleTerm,
   permissions,
 }: {
+  focused: boolean;
   lease: LeaseSummary;
   onArchive: () => void;
   onEditDraft: () => void;
@@ -326,6 +391,67 @@ function LeaseHeaderActions({
   onScheduleTerm: (mode: LeaseTermChange) => void;
   permissions: LeaseActionPermissions;
 }) {
+  const canManageActive =
+    lease.statusValue === "active" &&
+    (permissions.canChangeTerms || permissions.canClose);
+  const canManageNotice =
+    lease.statusValue === "notice_given" && permissions.canClose;
+  const hasFocusedAction = lease.isArchived
+    ? permissions.canArchive
+    : lease.statusValue === "draft"
+      ? permissions.canPrepare || permissions.canArchive
+      : canManageActive || canManageNotice || permissions.canArchive;
+
+  if (focused && hasFocusedAction) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="default">
+            More
+            <MoreHorizontal aria-hidden size={15} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-48">
+          {lease.isArchived && permissions.canArchive ? (
+            <DropdownMenuItem onSelect={onRestore}>Restore</DropdownMenuItem>
+          ) : null}
+          {lease.statusValue === "draft" && permissions.canPrepare ? (
+            <DropdownMenuItem onSelect={onEditDraft}>Edit draft</DropdownMenuItem>
+          ) : null}
+          {permissions.canChangeTerms && lease.statusValue === "active" ? (
+            <DropdownMenuItem onSelect={() => onScheduleTerm("rent_change")}>
+              Change rent
+            </DropdownMenuItem>
+          ) : null}
+          {permissions.canClose && lease.statusValue === "active" ? (
+            <DropdownMenuItem onSelect={() => onLifecycleChange("give_notice")}>
+              Record notice
+            </DropdownMenuItem>
+          ) : null}
+          {permissions.canClose &&
+          ["active", "notice_given"].includes(lease.statusValue) ? (
+            <>
+              <DropdownMenuItem onSelect={() => onLifecycleChange("end")}>
+                Complete move-out
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => onLifecycleChange("terminate")}
+                variant="destructive"
+              >
+                Terminate lease
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          {!lease.isArchived && permissions.canArchive ? (
+            <DropdownMenuItem onSelect={onArchive} variant="destructive">
+              Archive
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
   if (lease.isArchived) {
     return permissions.canArchive ? (
       <Button onClick={onRestore} variant="default">
@@ -350,12 +476,6 @@ function LeaseHeaderActions({
       </>
     );
   }
-
-  const canManageActive =
-    lease.statusValue === "active" &&
-    (permissions.canChangeTerms || permissions.canClose);
-  const canManageNotice =
-    lease.statusValue === "notice_given" && permissions.canClose;
 
   return (
     <>
