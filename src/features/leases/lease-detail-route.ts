@@ -2,6 +2,14 @@ import { buildHref } from "@/lib/url/href";
 
 export type LeaseRecordSection = "overview" | "rent" | "occupancy" | "files";
 
+export type LeaseDetailQuery = {
+  paymentInvoiceId: string | null;
+  section: LeaseRecordSection;
+};
+
+const databaseIdPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const leaseRecordSections = new Set<LeaseRecordSection>([
   "overview",
   "rent",
@@ -11,14 +19,35 @@ const leaseRecordSections = new Set<LeaseRecordSection>([
 
 export function parseLeaseDetailQuery(
   searchParams: Record<string, string | string[] | undefined>,
-): { section: LeaseRecordSection } {
-  const value = firstValue(searchParams.section);
+): LeaseDetailQuery {
+  const section = firstValue(searchParams.section);
+  const action = firstValue(searchParams.action);
+  const invoiceId = firstValue(searchParams.invoiceId)?.trim();
 
   return {
-    section: leaseRecordSections.has(value as LeaseRecordSection)
-      ? (value as LeaseRecordSection)
+    paymentInvoiceId:
+      action === "record-payment" &&
+      invoiceId &&
+      databaseIdPattern.test(invoiceId)
+        ? invoiceId
+        : null,
+    section: leaseRecordSections.has(section as LeaseRecordSection)
+      ? (section as LeaseRecordSection)
       : "overview",
   };
+}
+
+export function buildLeasePaymentResolutionHref({
+  invoiceId,
+  leaseId,
+}: {
+  invoiceId: string;
+  leaseId: string;
+}) {
+  return buildHref(`/leases/${leaseId}`, {
+    action: "record-payment",
+    invoiceId,
+  });
 }
 
 export function buildLeaseRecordHref({
