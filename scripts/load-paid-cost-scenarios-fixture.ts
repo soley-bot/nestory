@@ -95,7 +95,7 @@ async function main() {
   }) {
     fixturePhase = `evidence ${input.id}`;
     const file = new File(
-      [`Nestory local verified paid-cost receipt\n${input.id}\n${input.reference}\n`],
+      [fixturePdfBytes(input.id, input.reference)],
       `${input.id}.pdf`,
       { type: "application/pdf" },
     );
@@ -421,7 +421,7 @@ async function loadMaintenancePaidCosts({
     const key = approved ? "fixture-maintenance-cost" : "fixture-maintenance-pending-review";
     const reference = approved ? "KH-INV-1042" : "GDN-PUMP-2088";
     const file = new File(
-      [`Nestory local maintenance receipt\n${task.id}\n${reference}\n`],
+      [fixturePdfBytes(task.id, reference)],
       `${key}.pdf`,
       { type: "application/pdf" },
     );
@@ -600,6 +600,28 @@ function dateOffset(offset: number) {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset))
     .toISOString()
     .slice(0, 10);
+}
+
+function fixturePdfBytes(identity: string, reference: string) {
+  const encoder = new TextEncoder();
+  const header = `%PDF-1.7\n% Nestory local verified receipt ${identity} ${reference}\n`;
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n",
+  ];
+  const offsets: number[] = [];
+  let body = header;
+  for (const object of objects) {
+    offsets.push(encoder.encode(body).byteLength);
+    body += object;
+  }
+  const xrefOffset = encoder.encode(body).byteLength;
+  body += "xref\n0 3\n0000000000 65535 f \n";
+  body += `${String(offsets[0]).padStart(10, "0")} 00000 n \n`;
+  body += `${String(offsets[1]).padStart(10, "0")} 00000 n \n`;
+  body += "trailer\n<< /Size 3 /Root 1 0 R >>\n";
+  body += `startxref\n${xrefOffset}\n%%EOF\n`;
+  return encoder.encode(body);
 }
 
 function localRuntime() {

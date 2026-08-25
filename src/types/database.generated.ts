@@ -11988,6 +11988,18 @@ export type Database = {
         }
         Returns: Json
       }
+      submit_public_interest_request_limited: {
+        Args: {
+          p_company_name: string
+          p_full_name: string
+          p_message: string
+          p_portfolio_size: string
+          p_request_type: string
+          p_subject_digest: string
+          p_work_email: string
+        }
+        Returns: string
+      }
       transfer_owner_balance_component: {
         Args: {
           p_amount: number

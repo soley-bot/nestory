@@ -26,6 +26,10 @@ import {
   archiveAssetPhotoAction,
   createAssetPhotoAction,
 } from "@/features/photos/actions";
+import {
+  invalidJpegFile,
+  validJpegFile,
+} from "@/test-utils/upload-content";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const propertyId = "10000000-0000-4000-8000-000000000001";
@@ -63,7 +67,7 @@ describe("photo action authority and storage scope", () => {
     formData.set("propertyId", propertyId);
     formData.set("takenAt", "");
     formData.set("unitId", "");
-    formData.set("photo", new File(["image"], "lobby.jpg", { type: "image/jpeg" }));
+    formData.set("photo", validJpegFile("lobby.jpg"));
 
     await expect(createAssetPhotoAction({}, formData)).resolves.toMatchObject({
       status: "success",
@@ -72,9 +76,26 @@ describe("photo action authority and storage scope", () => {
     expect(mocks.requirePermission).toHaveBeenCalledWith("properties.write");
     expect(mocks.upload).toHaveBeenCalledWith(
       `${organizationId}/branches/${branchId}/photos/properties/${propertyId}/${generatedId}-lobby.jpg`,
-      expect.any(File),
+      expect.any(Uint8Array),
       expect.any(Object),
     );
+  });
+
+  it("rejects non-image bytes labelled as a JPEG before Storage", async () => {
+    const formData = new FormData();
+    formData.set("caption", "Lobby");
+    formData.set("propertyId", propertyId);
+    formData.set("takenAt", "");
+    formData.set("unitId", "");
+    formData.set("photo", invalidJpegFile("lobby.jpg"));
+
+    await expect(createAssetPhotoAction({}, formData)).resolves.toEqual({
+      fieldErrors: { photo: ["Upload a JPG, PNG, or WebP photo."] },
+      message: "Upload a JPG, PNG, or WebP photo.",
+      status: "error",
+    });
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
   });
 
   it("uses properties.archive for photo archival", async () => {

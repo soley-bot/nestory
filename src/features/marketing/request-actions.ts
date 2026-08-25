@@ -1,7 +1,12 @@
 "use server";
 
+import { headers } from "next/headers";
 import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
+import {
+  createPublicInterestRateLimitKey,
+  getTrustedPublicClientSubject,
+} from "@/lib/security/public-interest-rate-limit";
 
 type RequestFieldErrors = {
   companyName?: string[];
@@ -79,30 +84,56 @@ export async function submitPublicInterestRequest(
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
-    const { error } = await supabase.from("public_interest_requests").insert({
-      company_name: parsed.data.companyName,
-      full_name: parsed.data.fullName,
-      message: nullableString(parsed.data.message),
-      portfolio_size: nullableString(parsed.data.portfolioSize),
-      request_type: parsed.data.requestType,
-      work_email: parsed.data.workEmail,
+    const subject = getTrustedPublicClientSubject(await headers(), {
+      nodeEnv: process.env.NODE_ENV,
+      vercel: process.env.VERCEL,
     });
+    if (!subject) return requestFailureState();
 
-    if (error && error.code !== "23505") {
-      return {
-        message: "We could not save your request. Please try again.",
-        status: "error",
-      };
+    const subjectDigest = createPublicInterestRateLimitKey(
+      subject,
+      process.env.PUBLIC_INTEREST_RATE_LIMIT_SECRET ?? "",
+    );
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.rpc(
+      "submit_public_interest_request_limited",
+      {
+        p_company_name: parsed.data.companyName,
+        p_full_name: parsed.data.fullName,
+        p_message: nullableString(parsed.data.message),
+        p_portfolio_size: nullableString(parsed.data.portfolioSize),
+        p_request_type: parsed.data.requestType,
+        p_subject_digest: subjectDigest,
+        p_work_email: parsed.data.workEmail,
+      },
+    );
+
+    if (error) {
+      console.error("[marketing] public interest submission failed", {
+        code: error.code,
+        message: error.message,
+      });
+      return requestFailureState();
     }
-  } catch {
-    return {
-      message: "We could not save your request. Please try again.",
-      status: "error",
-    };
+    if (!["accepted", "duplicate", "limited"].includes(String(data))) {
+      console.error("[marketing] public interest submission returned an invalid result");
+      return requestFailureState();
+    }
+  } catch (error) {
+    console.error("[marketing] public interest submission failed", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
+    return requestFailureState();
   }
 
   return requestReceivedState();
+}
+
+function requestFailureState(): PublicInterestRequestState {
+  return {
+    message: "We could not save your request. Please try again.",
+    status: "error",
+  };
 }
 
 function requestReceivedState(): PublicInterestRequestState {

@@ -10,6 +10,7 @@ import {
   requirePermission,
 } from "@/lib/auth/context";
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 
 type LedgerFieldErrors = {
   amount?: string[];
@@ -153,6 +154,19 @@ export async function attachLedgerReceiptAction(
     };
   }
 
+  const verifiedFile = await validateUploadedFileContent(file, [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+  if (!verifiedFile.ok) {
+    return {
+      fieldErrors: { receipt: ["Upload a PDF, JPG, PNG, or WebP receipt."] },
+      status: "error",
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: entry, error: entryError } = await supabase
     .from("ledger_entries")
@@ -198,13 +212,13 @@ export async function attachLedgerReceiptAction(
     .maybeSingle();
 
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
-  const contentSha256 = await sha256Hex(await file.arrayBuffer());
+  const contentSha256 = await sha256Hex(verifiedFile.bytes);
   const storagePath = `${context.organizationId}/branches/${property.branch_id}/ledger/${parsedEntryId.data}/${crypto.randomUUID()}-${safeFileName}`;
   const { error: uploadError } = await supabase.storage
     .from("nestory-documents")
-    .upload(storagePath, file, {
+    .upload(storagePath, verifiedFile.bytes, {
       cacheControl: "3600",
-      contentType: file.type,
+      contentType: verifiedFile.contentType,
       upsert: false,
     });
 
@@ -229,10 +243,10 @@ export async function attachLedgerReceiptAction(
       p_content_sha256: contentSha256,
       p_file_name: file.name,
       p_ledger_entry_id: parsedEntryId.data,
-      p_mime_type: file.type,
+      p_mime_type: verifiedFile.contentType,
       p_organization_id: context.organizationId,
       p_property_id: entry.property_id,
-      p_size_bytes: file.size,
+      p_size_bytes: verifiedFile.bytes.byteLength,
       p_storage_path: storagePath,
       p_timeline_event_id: timelineEvent?.id ?? null,
       p_unit_id: entry.unit_id,

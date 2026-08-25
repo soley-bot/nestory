@@ -87,6 +87,7 @@ import {
   setFinanceCategoryArchivedAction,
   updateFinanceCategoryAction,
 } from "@/features/finance-operations/actions";
+import { validPdfBytes, validPdfFile } from "@/test-utils/upload-content";
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const exceptionId = "00000000-0000-4000-8000-000000000002";
@@ -350,7 +351,7 @@ describe("ordinary finance operation actions", () => {
     });
     adminUpload.mockResolvedValue({ data: {}, error: null });
     adminDownload.mockResolvedValue({
-      data: new Blob(["paid-cost-receipt"], { type: "application/pdf" }),
+      data: new Blob([validPdfBytes()], { type: "application/pdf" }),
       error: null,
     });
     adminRpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
@@ -358,15 +359,15 @@ describe("ordinary finance operation actions", () => {
         name === "get_paid_cost_evidence_object"
           ? {
               content_type: "application/pdf",
-              metadata_size_bytes: 17,
+              metadata_size_bytes: validPdfBytes().byteLength,
               storage_object_id: evidenceObjectId,
               storage_object_version: "paid-cost-object-v1",
             }
           : {
               content_sha256:
-                "ce67cf246af90faa45cd4b6cde1627da5683d1dbfa53ed5f7ca8a2805543be0d",
+                "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526",
               document_id: evidenceDocumentId,
-              size_bytes: 17,
+              size_bytes: validPdfBytes().byteLength,
               status: "registered",
               storage_path: args.p_storage_path,
             },
@@ -819,9 +820,7 @@ describe("expense approval actions", () => {
     formData.set("vendorLabel", "Sokha Repairs");
     formData.set(
       "evidenceFile",
-      new File(["paid-cost-receipt"], "receipt-42.pdf", {
-        type: "application/pdf",
-      }),
+      validPdfFile("receipt-42.pdf"),
     );
 
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({
@@ -867,7 +866,7 @@ describe("expense approval actions", () => {
         p_file_name: "receipt-42.pdf",
         p_organization_id: organizationId,
         p_property_id: propertyId,
-        p_size_bytes: 17,
+        p_size_bytes: validPdfBytes().byteLength,
         p_storage_object_id: evidenceObjectId,
         p_storage_object_version: "paid-cost-object-v1",
       }),
@@ -891,9 +890,7 @@ describe("expense approval actions", () => {
     formData.set("vendorLabel", "Sokha Gardens");
     formData.set(
       "evidenceFile",
-      new File(["paid-cost-receipt"], "receipt-43.pdf", {
-        type: "application/pdf",
-      }),
+      validPdfFile("receipt-43.pdf"),
     );
 
     await expect(submitExpenseAction({}, formData)).resolves.toMatchObject({
@@ -947,9 +944,7 @@ describe("expense approval actions", () => {
     formData.set("vendorLabel", "Sokha Repairs");
     formData.set(
       "evidenceFile",
-      new File(["paid-cost-receipt"], "receipt-42.pdf", {
-        type: "application/pdf",
-      }),
+      validPdfFile("receipt-42.pdf"),
     );
 
     await expect(submitExpenseAction({}, formData)).resolves.toEqual({

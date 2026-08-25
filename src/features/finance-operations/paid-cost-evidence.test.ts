@@ -16,6 +16,11 @@ vi.mock("@/lib/db/admin", () => ({
 }));
 
 import { preparePaidCostEvidence } from "@/features/finance-operations/paid-cost-evidence";
+import {
+  invalidPdfFile,
+  validPdfBytes,
+  validPdfFile,
+} from "@/test-utils/upload-content";
 
 const actorId = "00000000-0000-4000-8000-000000000007";
 const organizationId = "00000000-0000-4000-8000-000000000001";
@@ -24,7 +29,7 @@ const documentId = "00000000-0000-4000-8000-000000000008";
 const objectId = "00000000-0000-4000-8000-000000000009";
 const taskId = "00000000-0000-4000-8000-000000000010";
 const retainedHash =
-  "ce67cf246af90faa45cd4b6cde1627da5683d1dbfa53ed5f7ca8a2805543be0d";
+  "50dc246b4ff9509811a23d9fcf7d6c8465ed2b4eed08aa049d9feae8e8afd526";
 
 describe("verified paid-cost evidence", () => {
   beforeEach(() => {
@@ -37,7 +42,7 @@ describe("verified paid-cost evidence", () => {
     mocks.upload.mockResolvedValue({ data: {}, error: null });
     mocks.remove.mockResolvedValue({ data: [], error: null });
     mocks.download.mockResolvedValue({
-      data: new Blob(["paid-cost-receipt"], { type: "application/pdf" }),
+      data: new Blob([validPdfBytes()], { type: "application/pdf" }),
       error: null,
     });
     mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
@@ -45,14 +50,14 @@ describe("verified paid-cost evidence", () => {
         name === "get_paid_cost_evidence_object"
           ? {
               content_type: "application/pdf",
-              metadata_size_bytes: 17,
+              metadata_size_bytes: validPdfBytes().byteLength,
               storage_object_id: objectId,
               storage_object_version: "paid-cost-object-v1",
             }
           : {
               content_sha256: retainedHash,
               document_id: documentId,
-              size_bytes: 17,
+              size_bytes: validPdfBytes().byteLength,
               status: "registered",
               storage_path: args.p_storage_path,
             },
@@ -91,14 +96,14 @@ describe("verified paid-cost evidence", () => {
         name === "get_paid_cost_evidence_object"
           ? {
               content_type: "application/pdf",
-              metadata_size_bytes: 17,
+              metadata_size_bytes: validPdfBytes().byteLength,
               storage_object_id: objectId,
               storage_object_version: "paid-cost-object-v1",
             }
           : {
               content_sha256: "0".repeat(64),
               document_id: documentId,
-              size_bytes: 17,
+              size_bytes: validPdfBytes().byteLength,
               status: "registered",
               storage_path: args.p_storage_path,
             },
@@ -116,7 +121,7 @@ describe("verified paid-cost evidence", () => {
         return {
           data: {
             content_type: "application/pdf",
-            metadata_size_bytes: 17,
+            metadata_size_bytes: validPdfBytes().byteLength,
             storage_object_id: objectId,
             storage_object_version: "paid-cost-object-v1",
           },
@@ -156,7 +161,7 @@ describe("verified paid-cost evidence", () => {
         return {
           data: {
             content_type: "application/pdf",
-            metadata_size_bytes: 17,
+            metadata_size_bytes: validPdfBytes().byteLength,
             storage_object_id: objectId,
             storage_object_version: "paid-cost-object-v1",
           },
@@ -184,7 +189,7 @@ describe("verified paid-cost evidence", () => {
         return {
           data: {
             content_type: "application/pdf",
-            metadata_size_bytes: 17,
+            metadata_size_bytes: validPdfBytes().byteLength,
             storage_object_id: objectId,
             storage_object_version: "paid-cost-object-v1",
           },
@@ -211,14 +216,25 @@ describe("verified paid-cost evidence", () => {
       expect.anything(),
     );
   });
+
+  it("rejects spoofed evidence before creating an upload boundary", async () => {
+    await expect(
+      preparePaidCostEvidence({
+        ...input(),
+        file: invalidPdfFile("receipt-42.pdf"),
+      }),
+    ).rejects.toThrow("Receipt evidence content does not match its file type.");
+
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
 });
 
 function input() {
   return {
     actorId,
-    file: new File(["paid-cost-receipt"], "receipt-42.pdf", {
-      type: "application/pdf",
-    }),
+    file: validPdfFile("receipt-42.pdf"),
     idempotencyKey: "paid-cost-submit-0001",
     organizationId,
     propertyId,

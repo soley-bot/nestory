@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
+import { validateUploadedFileContent } from "@/lib/uploads/upload-content";
 
 const ALLOWED_PAID_COST_EVIDENCE_TYPES = new Set([
   "application/pdf",
@@ -45,7 +46,16 @@ export async function preparePaidCostEvidence({
   propertyId,
   taskId,
 }: PaidCostEvidenceInput): Promise<PaidCostEvidenceResult> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const verifiedFile = await validateUploadedFileContent(file, [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+  if (!verifiedFile.ok) {
+    throw new Error("Receipt evidence content does not match its file type.");
+  }
+  const { bytes } = verifiedFile;
   const contentSha256 = sha256Hex(bytes);
   const pathDigest = sha256Hex(
     new TextEncoder().encode(
@@ -56,7 +66,7 @@ export async function preparePaidCostEvidence({
   const admin = createSupabaseAdminClient();
   const bucket = admin.storage.from("nestory-documents");
   const upload = await bucket.upload(storagePath, bytes, {
-    contentType: file.type,
+    contentType: verifiedFile.contentType,
     upsert: false,
   });
   const uploadedNewObject = !upload.error;
@@ -92,7 +102,7 @@ export async function preparePaidCostEvidence({
     }
     const objectIdentity = requiredObjectIdentity(object.data);
     if (
-      objectIdentity.contentType !== file.type ||
+      objectIdentity.contentType !== verifiedFile.contentType ||
       objectIdentity.metadataSizeBytes !== retainedBytes.byteLength
     ) {
       throw new Error("Receipt evidence Storage metadata does not match retained bytes.");

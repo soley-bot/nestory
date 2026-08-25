@@ -220,14 +220,16 @@ export async function uploadOrganizationLogoAction(
     context.organizationId,
     validation.extension,
   );
-  const contentType =
-    validation.extension === "png" ? "image/png" : "image/jpeg";
   const bucket = supabase.storage.from("organization-assets");
-  const { error: uploadError } = await bucket.upload(storagePath, file, {
+  const { error: uploadError } = await bucket.upload(
+    storagePath,
+    validation.bytes,
+    {
     cacheControl: "31536000",
-    contentType,
+    contentType: validation.contentType,
     upsert: false,
-  });
+    },
+  );
   if (uploadError) {
     return {
       message: "We could not upload the company logo.",

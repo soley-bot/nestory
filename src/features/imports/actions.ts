@@ -129,8 +129,9 @@ export async function stageImportRunAction(
   });
 
   if (stageResult.error) {
+    console.error("[imports] stage_import_run_v1 failed", stageResult.error);
     return {
-      message: `Could not stage import run: ${stageResult.error.message}`,
+      message: "The import run could not be staged. Try again or contact support.",
       status: "error",
     };
   }

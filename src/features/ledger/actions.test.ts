@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  from: vi.fn(),
   revalidatePath: vi.fn(),
   requireFinancialMonthLockContext: vi.fn(),
   requireFinancialMonthUnlockContext: vi.fn(),
   requirePermission: vi.fn(),
   requireSuperAdminContext: vi.fn(),
   rpc: vi.fn(),
+  storageFrom: vi.fn(),
+  upload: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -17,13 +20,18 @@ vi.mock("@/lib/auth/context", () => ({
   requireSuperAdminContext: mocks.requireSuperAdminContext,
 }));
 vi.mock("@/lib/db/server", () => ({
-  createSupabaseServerClient: vi.fn(async () => ({ rpc: mocks.rpc })),
+  createSupabaseServerClient: vi.fn(async () => ({
+    from: mocks.from,
+    rpc: mocks.rpc,
+    storage: { from: mocks.storageFrom },
+  })),
 }));
 
 import {
   attachLedgerReceiptAction,
   setLedgerPeriodLockAction,
 } from "@/features/ledger/actions";
+import { invalidPdfFile } from "@/test-utils/upload-content";
 
 describe("financial month lock action", () => {
   beforeEach(() => {
@@ -41,9 +49,38 @@ describe("financial month lock action", () => {
     mocks.requireSuperAdminContext.mockResolvedValue({ organizationId: "org-1" });
     mocks.requirePermission.mockResolvedValue({
       branchId: "branch-1",
+      isSuperAdmin: false,
       organizationId: "org-1",
     });
     mocks.rpc.mockResolvedValue({ data: "lock-1", error: null });
+    mocks.upload.mockResolvedValue({ error: null });
+    mocks.storageFrom.mockReturnValue({ upload: mocks.upload });
+    mocks.from.mockImplementation((table: string) => {
+      const query = {
+        eq: vi.fn(() => query),
+        is: vi.fn(() => query),
+        limit: vi.fn(() => query),
+        maybeSingle: vi.fn(async () => {
+          if (table === "ledger_entries") {
+            return {
+              data: {
+                id: "10000000-0000-4000-8000-000000000001",
+                property_id: "20000000-0000-4000-8000-000000000001",
+                unit_id: null,
+              },
+              error: null,
+            };
+          }
+          if (table === "properties") {
+            return { data: { branch_id: "branch-1" }, error: null };
+          }
+          return { data: null, error: null };
+        }),
+        order: vi.fn(() => query),
+        select: vi.fn(() => query),
+      };
+      return query;
+    });
   });
 
   it("uses Finance month-lock authority and the canonical RPC for locking", async () => {
@@ -142,5 +179,20 @@ describe("financial month lock action", () => {
       "finance.correct_records",
     );
     expect(mocks.requireSuperAdminContext).not.toHaveBeenCalled();
+  });
+
+  it("rejects spoofed receipt bytes before Storage access", async () => {
+    const formData = new FormData();
+    formData.set("entryId", "10000000-0000-4000-8000-000000000001");
+    formData.set("receipt", invalidPdfFile("receipt.pdf"));
+
+    await expect(attachLedgerReceiptAction({}, formData)).resolves.toEqual({
+      fieldErrors: {
+        receipt: ["Upload a PDF, JPG, PNG, or WebP receipt."],
+      },
+      status: "error",
+    });
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
   });
 });
