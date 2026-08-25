@@ -90,6 +90,7 @@ import {
 
 const organizationId = "00000000-0000-4000-8000-000000000001";
 const exceptionId = "00000000-0000-4000-8000-000000000002";
+const invoiceId = exceptionId;
 const leaseId = "00000000-0000-4000-8000-000000000006";
 const propertyId = "00000000-0000-4000-8000-000000000003";
 const sourceId = "00000000-0000-4000-8000-000000000004";
@@ -632,6 +633,12 @@ describe("tenant commercial document publication actions", () => {
       paymentId: submissionId,
     });
     expect(markReceiptPublicationFailed).not.toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/leases");
+    expect(revalidatePath).toHaveBeenCalledWith("/records");
+    expect(rpc).toHaveBeenCalledWith(
+      "record_tenant_invoice_payment",
+      expect.objectContaining({ p_invoice_id: invoiceId }),
+    );
   });
 
   it("uses the replayed payment UUID for an idempotent payment receipt", async () => {

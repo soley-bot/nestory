@@ -37,12 +37,10 @@ import { FinanceWorkspaceNavigation } from "@/features/finance/components/financ
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
 import {
-  confirmOwnerCollectionAction,
   createFinanceCategoryAction,
   createManualTenantChargeAction,
   publishTenantInvoicePdfAction,
   recordOwnerPaymentAction,
-  recordTenantInvoicePaymentAction,
   recordWithdrawalAction,
   recoverLeaseRentPeriodAction,
   recoverRentGenerationExceptionAction,
@@ -56,6 +54,10 @@ import {
   setFinanceCategoryArchivedAction,
   updateFinanceCategoryAction,
 } from "@/features/finance-operations/actions";
+import {
+  TenantInvoicePaymentForm,
+  type TenantPaymentReceiptResult,
+} from "@/features/finance-operations/components/tenant-invoice-payment-form";
 import type {
   CommercialDocumentLink,
   ExpenseSubmissionSummary,
@@ -192,11 +194,8 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
   const [invoicePdfPublicationOpen, setInvoicePdfPublicationOpen] =
     useState(false);
   const pdfDrawerTriggerRef = useRef<HTMLElement | null>(null);
-  const [receiptResult, setReceiptResult] = useState<{
-    href: string | null;
-    unavailable: boolean;
-    paymentId: string | null;
-  } | null>(null);
+  const [receiptResult, setReceiptResult] =
+    useState<TenantPaymentReceiptResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const closeDrawer = () => setDrawer(null);
   const closeModal = () => setModal(null);
@@ -524,7 +523,7 @@ export function FinanceOperationsScreen(props: FinanceOperationsScreenProps) {
             />
           ) : visibleActionModal.mode === "payment" ? (
             visibleActionModal.invoice ? (
-              <SettleInvoiceForm
+              <TenantInvoicePaymentForm
                 invoice={visibleActionModal.invoice}
                 onChooseAnother={
                   visibleActionModal.canChooseAnother
@@ -2603,147 +2602,6 @@ function PaymentChooser({
         ))
       )}
     </div>
-  );
-}
-
-function SettleInvoiceForm({
-  invoice,
-  onChooseAnother,
-  onReceiptResult,
-  onSuccess,
-  reconciliationSources,
-}: {
-  invoice: TenantInvoiceSummary;
-  onChooseAnother?: () => void;
-  onReceiptResult: (result: {
-    href: string | null;
-    paymentId: string | null;
-    unavailable: boolean;
-  }) => void;
-  onSuccess: (message: string) => void;
-  reconciliationSources: FinanceOperationsData["reconciliationSources"];
-}) {
-  const idempotencyKey = useStableActionId(
-    invoice.collectionRoute === "through_ips" ? "payment" : "owner-confirm",
-  );
-  const action =
-    invoice.collectionRoute === "through_ips"
-      ? recordTenantInvoicePaymentAction
-      : confirmOwnerCollectionAction;
-  const [state, formAction] = useActionState(action, actionInitialState);
-  const sources = reconciliationSources.filter(
-    (source) => !source.propertyId || source.propertyId === invoice.propertyId,
-  );
-  useEffect(() => {
-    if (state.status !== "success" || !state.message) return;
-    if (invoice.collectionRoute === "through_ips") {
-      onReceiptResult({
-        href: state.artifactHref ?? null,
-        paymentId: state.paymentId ?? null,
-        unavailable: state.publicationStatus === "failed",
-      });
-    }
-    onSuccess(state.message);
-  }, [invoice.collectionRoute, onReceiptResult, onSuccess, state]);
-  return (
-    <form action={formAction} className="space-y-4 p-4">
-      <DefinitionRows
-        rows={[
-          ["Invoice", invoice.invoiceNumber],
-          ["Customer", invoice.recipientLabel],
-          ["Balance", formatMoneyDisplay(invoice.balanceDue).primary],
-        ]}
-      />
-      <input name="invoiceId" type="hidden" value={invoice.id} />
-      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Amount">
-          <NumberInput
-            defaultValue={invoice.balanceDue}
-            name="amount"
-            required
-          />
-        </Field>
-        <Field
-          label={
-            invoice.collectionRoute === "through_ips"
-              ? "Received date"
-              : "Confirmed date"
-          }
-        >
-          <DatePickerField
-            defaultValue={getBusinessDateValue()}
-            name="settlementDate"
-            required
-          />
-        </Field>
-        {invoice.collectionRoute === "through_ips" ? (
-          <Field label="Deposit to">
-            <div className="space-y-1.5">
-              <SelectControl
-                name="reconciliationSourceId"
-                options={sources.map((source) => ({
-                  label: source.label,
-                  value: source.id,
-                }))}
-                placeholder="Choose receiving account"
-                required
-              />
-              <p className="text-xs leading-4 text-muted-foreground">
-                Choose the bank, cash, or collection account where this
-                payment was received.
-              </p>
-            </div>
-          </Field>
-        ) : null}
-        <Field label="Reference">
-          <Input name="reference" placeholder="Optional" />
-        </Field>
-      </div>
-      {invoice.lines.length > 1 ? (
-        <details className="rounded-md border border-border">
-          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-            Change how payment is applied
-          </summary>
-          <div className="grid gap-3 border-t border-border p-3 sm:grid-cols-2">
-            {invoice.lines
-              .filter((line) => line.balanceDue > 0)
-              .map((line) => (
-                <Field
-                  key={line.id}
-                  label={`${line.label} · ${formatMoneyDisplay(line.balanceDue).primary}`}
-                >
-                  <NumberInput
-                    name={`allocation:${line.id}`}
-                    placeholder="Leave blank for Rent first"
-                  />
-                </Field>
-              ))}
-          </div>
-        </details>
-      ) : null}
-      {invoice.collectionRoute === "direct_to_owner" ? (
-        <p className="text-xs text-muted-foreground">
-          This marks the invoice “Collected by owner” and does not add cash to
-          the property account.
-        </p>
-      ) : null}
-      <ActionMessage state={state} />
-      <FormFooter>
-        {onChooseAnother ? (
-          <Button onClick={onChooseAnother}>Choose another</Button>
-        ) : (
-          <span />
-        )}
-        <SubmitButton
-          label={
-            invoice.collectionRoute === "through_ips"
-              ? "Record payment"
-              : "Confirm collected"
-          }
-        />
-      </FormFooter>
-    </form>
   );
 }
 

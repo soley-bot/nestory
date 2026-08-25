@@ -1619,6 +1619,10 @@ describe("FinanceOperationsScreen", () => {
     expect(
       screen.getByRole("button", { name: "Choose another" }),
     ).not.toBeNull();
+    expect(screen.getByText("Deposit to")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Record payment" }),
+    ).not.toBeNull();
   });
 
   it("shows direct-owner collection without pretending IPS received cash", () => {
