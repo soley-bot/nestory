@@ -115,10 +115,17 @@ export function LeaseDetailScreen({
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
   const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(
-    routeNotice?.message ?? null,
-  );
   const returnHref = buildLeaseRecordHref({ leaseId: lease.id });
+  const statusScope = paymentResolution
+    ? `${lease.id}:payment:${paymentResolution.invoice.id}`
+    : `${lease.id}:record:${activeSection}:${routeNotice?.message ?? ""}:${routeNotice?.href ?? ""}`;
+  const [localStatus, setLocalStatus] = useState<{
+    message: string;
+    scope: string;
+  } | null>(null);
+  const localStatusMessage =
+    localStatus?.scope === statusScope ? localStatus.message : null;
+  const statusMessage = localStatusMessage ?? routeNotice?.message ?? null;
   const currentOccupancy =
     lease.occupancies.find(
       (occupancy) => occupancy.evidenceState === "accepted",
@@ -127,6 +134,10 @@ export function LeaseDetailScreen({
     null;
   const activeTerm =
     lease.terms.find((term) => term.status === "active") ?? null;
+
+  const setStatusMessage = (message: string | null) => {
+    setLocalStatus(message ? { message, scope: statusScope } : null);
+  };
 
   const openDrawer = (nextDrawer: DrawerState) => {
     setStatusMessage(null);
@@ -152,6 +163,7 @@ export function LeaseDetailScreen({
             onScheduleTerm={setTermChange}
             permissions={permissions}
             focused={Boolean(paymentResolution)}
+            returnHref={returnHref}
           />
         }
         breadcrumb={
@@ -199,7 +211,7 @@ export function LeaseDetailScreen({
             {statusMessage}
             {routeNotice?.href &&
             routeNotice.linkLabel &&
-            statusMessage === routeNotice.message ? (
+            !localStatusMessage ? (
               <Link
                 className="ml-2 font-medium text-primary underline-offset-2 hover:underline"
                 href={routeNotice.href}
@@ -381,6 +393,7 @@ function LeaseHeaderActions({
   onRestore,
   onScheduleTerm,
   permissions,
+  returnHref,
 }: {
   focused: boolean;
   lease: LeaseSummary;
@@ -390,19 +403,14 @@ function LeaseHeaderActions({
   onRestore: () => void;
   onScheduleTerm: (mode: LeaseTermChange) => void;
   permissions: LeaseActionPermissions;
+  returnHref: string;
 }) {
   const canManageActive =
     lease.statusValue === "active" &&
     (permissions.canChangeTerms || permissions.canClose);
   const canManageNotice =
     lease.statusValue === "notice_given" && permissions.canClose;
-  const hasFocusedAction = lease.isArchived
-    ? permissions.canArchive
-    : lease.statusValue === "draft"
-      ? permissions.canPrepare || permissions.canArchive
-      : canManageActive || canManageNotice || permissions.canArchive;
-
-  if (focused && hasFocusedAction) {
+  if (focused) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -412,6 +420,9 @@ function LeaseHeaderActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuItem asChild>
+            <Link href={returnHref}>Open full lease record</Link>
+          </DropdownMenuItem>
           {lease.isArchived && permissions.canArchive ? (
             <DropdownMenuItem onSelect={onRestore}>Restore</DropdownMenuItem>
           ) : null}

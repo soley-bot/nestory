@@ -163,6 +163,113 @@ describe("LeaseDetailScreen", () => {
     ).not.toBeNull();
   });
 
+  it("shows a route notice introduced by a same-Lease rerender", () => {
+    const view = renderDetail("overview");
+    expect(screen.queryByRole("status")).toBeNull();
+
+    view.rerender(
+      detailElement("overview", makeLease(), allLeasePermissions, {
+        routeNotice: {
+          message: "This invoice is voided and cannot receive a payment.",
+        },
+      }),
+    );
+
+    expect(screen.getByRole("status").textContent).toContain(
+      "This invoice is voided and cannot receive a payment.",
+    );
+  });
+
+  it("removes a route notice when the same Lease returns to normal", () => {
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      routeNotice: {
+        message: "That invoice is no longer available for this Lease.",
+      },
+    });
+    expect(screen.getByRole("status")).not.toBeNull();
+
+    view.rerender(detailElement("overview"));
+
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("does not retain a route notice above a later focused query", () => {
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      routeNotice: {
+        message: "That invoice is no longer available for this Lease.",
+      },
+    });
+
+    view.rerender(
+      detailElement("overview", makeLease(), allLeasePermissions, {
+        paymentResolution: resolutionFixture(),
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Resolve outstanding rent" }),
+    ).not.toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("does not retain payment success above a later focused invoice", async () => {
+    actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
+      artifactHref: "/api/finance/documents/receipt-1",
+      message: "Payment recorded.",
+      paymentId: "payment-1",
+      publicationStatus: "published",
+      status: "success",
+    });
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      paymentResolution: resolutionFixture(),
+    });
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => {
+      expect(screen.getByRole("status").textContent).toContain(
+        "Payment recorded.",
+      );
+    });
+    const nextResolution = resolutionFixture();
+    nextResolution.invoice = {
+      ...nextResolution.invoice,
+      id: "invoice-2",
+      invoiceNumber: "INV-202608-002",
+    };
+
+    view.rerender(
+      detailElement("overview", makeLease(), allLeasePermissions, {
+        paymentResolution: nextResolution,
+      }),
+    );
+
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Resolve outstanding rent" }),
+    ).not.toBeNull();
+  });
+
+  it("keeps one useful More trigger in focused view without Lease mutation authority", async () => {
+    const user = userEvent.setup();
+    renderDetail(
+      "overview",
+      makeLease(),
+      {
+        canActivate: false,
+        canArchive: false,
+        canChangeTerms: false,
+        canClose: false,
+        canPrepare: false,
+      },
+      { paymentResolution: resolutionFixture() },
+    );
+
+    expect(screen.getAllByRole("button", { name: "More" })).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Open full lease record" }),
+    ).not.toBeNull();
+  });
+
   it("replaces the focused URL after an authoritative payment succeeds", async () => {
     actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
       artifactHref: "/api/finance/documents/receipt-1",
@@ -729,7 +836,23 @@ function renderDetail(
     };
   } = {},
 ) {
-  return render(
+  return render(detailElement(activeSection, lease, permissions, focus));
+}
+
+function detailElement(
+  activeSection: LeaseRecordSection,
+  lease = makeLease(),
+  permissions = allLeasePermissions,
+  focus: {
+    paymentResolution?: LeasePaymentResolutionData;
+    routeNotice?: {
+      href?: string;
+      linkLabel?: string;
+      message: string;
+    };
+  } = {},
+) {
+  return (
     <LeaseDetailScreen
       activeSection={activeSection}
       canRecordPayments
@@ -751,7 +874,7 @@ function renderDetail(
         { id: "unit-1", label: "Unit 2A", propertyId: "property-1" },
       ]}
       routeNotice={focus.routeNotice}
-    />,
+    />
   );
 }
 
