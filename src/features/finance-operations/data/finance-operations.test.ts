@@ -1008,6 +1008,30 @@ describe("Lease payment resolution data", () => {
     expect(client.tables()).toEqual(["tenant_invoice_balances"]);
   });
 
+  it("returns null before supporting reads when the selected row id differs", async () => {
+    // Break caught: a malformed selected-query response loading another invoice's supporting data.
+    const client = createLeasePaymentResolutionClient({
+      invoiceId,
+      leaseId,
+      organizationId,
+      propertyId,
+    });
+    client.respond("tenant_invoice_balances", {
+      data: {
+        id: "invoice-returned-by-mistake",
+        lease_id: leaseId,
+        organization_id: organizationId,
+        property_id: propertyId,
+      },
+      error: null,
+    });
+
+    await expect(
+      loadLeasePaymentResolutionData(client.client, input),
+    ).resolves.toBeNull();
+    expect(client.tables()).toEqual(["tenant_invoice_balances"]);
+  });
+
   it("returns the earliest non-void future invoice date and scoped active sources", async () => {
     // Break caught: offering archived or another property's payment source, or a voided/later future invoice date.
     const client = createLeasePaymentResolutionClient({
@@ -1022,6 +1046,7 @@ describe("Lease payment resolution data", () => {
     expect(result).toMatchObject({ nextInvoiceDueDate: "2026-09-01" });
     expect(result?.reconciliationSources).toEqual([
       { id: "source-1", label: "ABA · Operating", propertyId },
+      { id: "source-global", label: "CASH · General", propertyId: null },
     ]);
   });
 });
@@ -1071,6 +1096,14 @@ function createLeasePaymentResolutionClient({
         id: "source-1",
         organization_id: organizationId,
         property_id: propertyId,
+      },
+      {
+        archived_at: null,
+        code: "CASH",
+        display_name: "General",
+        id: "source-global",
+        organization_id: organizationId,
+        property_id: null,
       },
       {
         archived_at: "2026-08-01T00:00:00.000Z",
@@ -1134,15 +1167,15 @@ function createLeasePaymentResolutionClient({
         payment_status: "unpaid",
       },
       {
-        due_date: "2026-09-01",
-        id: "invoice-next",
+        due_date: "2026-09-15",
+        id: "invoice-later",
         lease_id: leaseId,
         organization_id: organizationId,
         payment_status: "unpaid",
       },
       {
-        due_date: "2026-09-15",
-        id: "invoice-later",
+        due_date: "2026-09-01",
+        id: "invoice-next",
         lease_id: leaseId,
         organization_id: organizationId,
         payment_status: "unpaid",

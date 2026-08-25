@@ -756,6 +756,7 @@ export async function loadLeasePaymentResolutionData(
 
   const row = selectedResult.data as TenantInvoiceBalanceRow;
   if (
+    row.id !== invoiceId ||
     !row.property_id ||
     row.organization_id !== organizationId ||
     row.lease_id !== leaseId
