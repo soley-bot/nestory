@@ -18,6 +18,7 @@ import type { LeaseRecordSection } from "@/features/leases/lease-detail-route";
 const actionMocks = vi.hoisted(() => ({
   confirmOwnerCollectionAction: vi.fn(),
   recordTenantInvoicePaymentAction: vi.fn(),
+  retryTenantReceiptPdfAction: vi.fn(),
 }));
 const routerMocks = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -68,6 +69,7 @@ vi.mock("next/navigation", () => ({
 beforeEach(() => {
   actionMocks.confirmOwnerCollectionAction.mockReset();
   actionMocks.recordTenantInvoicePaymentAction.mockReset();
+  actionMocks.retryTenantReceiptPdfAction.mockReset();
   routerMocks.refresh.mockReset();
   routerMocks.replace.mockReset();
   Object.defineProperties(HTMLElement.prototype, {
@@ -237,6 +239,11 @@ describe("LeaseDetailScreen", () => {
 
     view.rerender(detailElement("overview"));
     expect(screen.getByRole("status").textContent).toContain("Payment recorded.");
+    expect(
+      screen
+        .getByRole("link", { name: "Download receipt" })
+        .getAttribute("href"),
+    ).toBe("/api/finance/documents/receipt-1");
 
     const nextResolution = resolutionFixture();
     nextResolution.invoice = {
@@ -295,6 +302,13 @@ describe("LeaseDetailScreen", () => {
     expect(screen.getByRole("status").textContent).toContain(
       "Payment recorded. Receipt unavailable.",
     );
+    expect(
+      screen.getByRole("button", { name: "Retry receipt" }),
+    ).not.toBeNull();
+    expect(
+      view.container.querySelector<HTMLInputElement>('input[name="paymentId"]')
+        ?.value,
+    ).toBe("payment-1");
 
     view.rerender(detailElement("rent"));
     expect(screen.queryByRole("status")).toBeNull();

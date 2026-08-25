@@ -1179,6 +1179,13 @@ function createLeasePaymentResolutionClient({
         payment_status: "unpaid",
       },
       {
+        due_date: "2026-08-29",
+        id: "invoice-paid",
+        lease_id: leaseId,
+        organization_id: organizationId,
+        payment_status: "paid",
+      },
+      {
         due_date: "2026-09-15",
         id: "invoice-later",
         lease_id: leaseId,

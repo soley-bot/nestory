@@ -820,7 +820,7 @@ export async function loadLeasePaymentResolutionData(
       .eq("organization_id", organizationId)
       .eq("lease_id", leaseId)
       .neq("id", invoiceId)
-      .neq("payment_status", "voided")
+      .in("payment_status", ["unpaid", "partly_paid"])
       .gte("due_date", getBusinessDateValue())
       .order("due_date", { ascending: true })
       .limit(1),

@@ -873,7 +873,7 @@ function revalidateFinance() {
 function revalidateTenantPayment() {
   revalidateFinance();
   revalidatePath("/leases");
-  revalidatePath("/records");
+  revalidatePath("/timeline");
 }
 
 function expenseWorkflowError(message: string) {

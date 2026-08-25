@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Archive, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
 import { MoneyDisplay } from "@/components/data/money-display";
@@ -40,7 +47,12 @@ import {
   transitionLeaseLifecycleAction,
   type LeaseActionState,
 } from "@/features/leases/actions";
-import type { LeasePaymentResolutionData } from "@/features/finance-operations/finance-operations.types";
+import { retryTenantReceiptPdfAction } from "@/features/finance-operations/actions";
+import type { TenantPaymentReceiptResult } from "@/features/finance-operations/components/tenant-invoice-payment-form";
+import type {
+  FinanceOperationsActionState,
+  LeasePaymentResolutionData,
+} from "@/features/finance-operations/finance-operations.types";
 import {
   buildLeaseRecordHref,
   type LeaseRecordSection,
@@ -94,6 +106,7 @@ type LeasePaymentFocusProps = {
 };
 
 const initialActionState: LeaseActionState = {};
+const initialFinanceActionState: FinanceOperationsActionState = {};
 
 export function LeaseDetailScreen({
   activeSection,
@@ -121,6 +134,9 @@ export function LeaseDetailScreen({
   const [transition, setTransition] = useState<LeaseTransition | null>(null);
   const [termChange, setTermChange] = useState<LeaseTermChange | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const pendingPaymentReceiptRef = useRef<TenantPaymentReceiptResult | null>(
+    null,
+  );
   const returnHref = buildLeaseRecordHref({ leaseId: lease.id });
   const statusScope = paymentResolution
     ? `${lease.id}:payment:${paymentResolution.invoice.id}`
@@ -129,6 +145,7 @@ export function LeaseDetailScreen({
   const [localStatus, setLocalStatus] = useState<{
     hasBeenShown: boolean;
     message: string;
+    receiptResult?: TenantPaymentReceiptResult;
     scope: string;
   } | null>(null);
   const [previousStatusScope, setPreviousStatusScope] = useState(statusScope);
@@ -145,6 +162,10 @@ export function LeaseDetailScreen({
   }
   const localStatusMessage =
     localStatus?.scope === statusScope ? localStatus.message : null;
+  const localReceiptResult =
+    localStatus?.scope === statusScope
+      ? (localStatus.receiptResult ?? null)
+      : null;
   const statusMessage = localStatusMessage ?? routeNotice?.message ?? null;
   const currentOccupancy =
     lease.occupancies.find(
@@ -167,9 +188,12 @@ export function LeaseDetailScreen({
   };
 
   const handlePaymentSuccess = (message: string) => {
+    const receiptResult = pendingPaymentReceiptRef.current;
+    pendingPaymentReceiptRef.current = null;
     setLocalStatus({
       hasBeenShown: false,
       message,
+      ...(receiptResult ? { receiptResult } : {}),
       scope: returnStatusScope,
     });
     router.replace(returnHref);
@@ -233,8 +257,11 @@ export function LeaseDetailScreen({
 
       {statusMessage ? (
         <div className="workspace-gutter-x pb-3">
-          <p className="border-y border-border py-2 text-sm" role="status">
-            {statusMessage}
+          <div
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-border py-2 text-sm"
+            role="status"
+          >
+            <span>{statusMessage}</span>
             {routeNotice?.href &&
             routeNotice.linkLabel &&
             !localStatusMessage ? (
@@ -245,7 +272,13 @@ export function LeaseDetailScreen({
                 {routeNotice.linkLabel}
               </Link>
             ) : null}
-          </p>
+            {localReceiptResult ? (
+              <LeasePaymentReceiptAction
+                canRetry={canRecordPayments}
+                result={localReceiptResult}
+              />
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -263,7 +296,9 @@ export function LeaseDetailScreen({
           canViewFinance={canViewFinance}
           lease={lease}
           onPaymentSuccess={handlePaymentSuccess}
-          onReceiptResult={() => undefined}
+          onReceiptResult={(result) => {
+            pendingPaymentReceiptRef.current = result;
+          }}
           resolution={paymentResolution}
           returnHref={returnHref}
         />
@@ -1289,6 +1324,61 @@ function FieldError({ errors }: { errors?: string[] }) {
   return errors?.length ? (
     <span className="text-xs font-normal text-danger">{errors[0]}</span>
   ) : null;
+}
+
+function LeasePaymentReceiptAction({
+  canRetry,
+  result,
+}: {
+  canRetry: boolean;
+  result: TenantPaymentReceiptResult;
+}) {
+  const [state, formAction] = useActionState(
+    retryTenantReceiptPdfAction,
+    initialFinanceActionState,
+  );
+  const href =
+    state.status === "success" && state.artifactHref
+      ? state.artifactHref
+      : result.href;
+
+  if (href) {
+    return (
+      <a
+        className="font-medium text-primary underline-offset-2 hover:underline"
+        href={href}
+      >
+        Download receipt
+      </a>
+    );
+  }
+
+  if (!result.unavailable) return null;
+  if (!result.paymentId || !canRetry) {
+    return <span className="text-muted-foreground">Receipt unavailable</span>;
+  }
+
+  return (
+    <form action={formAction} className="flex flex-wrap items-center gap-2">
+      <input name="paymentId" type="hidden" value={result.paymentId} />
+      <LeaseReceiptRetrySubmit />
+      {state.status === "error" && state.message ? (
+        <span className="text-danger" role="alert">
+          {state.message}
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
+function LeaseReceiptRetrySubmit() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button disabled={pending} size="sm" type="submit" variant="outline">
+      {pending ? "Retrying receipt..." : "Retry receipt"}
+    </Button>
+  );
 }
 
 function getTransitionCopy(transition: LeaseTransition) {

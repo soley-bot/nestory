@@ -634,7 +634,8 @@ describe("tenant commercial document publication actions", () => {
     });
     expect(markReceiptPublicationFailed).not.toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith("/leases");
-    expect(revalidatePath).toHaveBeenCalledWith("/records");
+    expect(revalidatePath).toHaveBeenCalledWith("/timeline");
+    expect(revalidatePath).not.toHaveBeenCalledWith("/records");
     expect(rpc).toHaveBeenCalledWith(
       "record_tenant_invoice_payment",
       expect.objectContaining({ p_invoice_id: invoiceId }),
