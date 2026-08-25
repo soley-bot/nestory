@@ -3,6 +3,7 @@ import { buildHref } from "@/lib/url/href";
 export type LeaseRecordSection = "overview" | "rent" | "occupancy" | "files";
 
 export type LeaseDetailQuery = {
+  paymentFocusRequested: boolean;
   paymentInvoiceId: string | null;
   section: LeaseRecordSection;
 };
@@ -23,12 +24,12 @@ export function parseLeaseDetailQuery(
   const section = firstValue(searchParams.section);
   const action = firstValue(searchParams.action);
   const invoiceId = firstValue(searchParams.invoiceId)?.trim();
+  const paymentFocusRequested = action === "record-payment";
 
   return {
+    paymentFocusRequested,
     paymentInvoiceId:
-      action === "record-payment" &&
-      invoiceId &&
-      databaseIdPattern.test(invoiceId)
+      paymentFocusRequested && invoiceId && databaseIdPattern.test(invoiceId)
         ? invoiceId
         : null,
     section: leaseRecordSections.has(section as LeaseRecordSection)

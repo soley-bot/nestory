@@ -1625,6 +1625,50 @@ describe("FinanceOperationsScreen", () => {
     ).not.toBeNull();
   });
 
+  it.each([
+    [
+      "IPS collection with Lease visibility",
+      "through_ips",
+      true,
+      "/leases/lease-1?action=record-payment&invoiceId=invoice-1",
+    ],
+    [
+      "direct owner collection with Lease visibility",
+      "direct_to_owner",
+      true,
+      "/rent-income?leaseId=lease-1",
+    ],
+    [
+      "IPS collection without Lease visibility",
+      "through_ips",
+      false,
+      "/rent-income?leaseId=lease-1",
+    ],
+  ] as const)(
+    "routes %s from the Finance work queue to the authorized handoff",
+    (_, collectionRoute, canViewLeases, expectedHref) => {
+      const input = data();
+      const invoice = tenantInvoice();
+      invoice.collectionRoute = collectionRoute;
+      input.tenantInvoices = [invoice];
+
+      render(
+        <FinanceOperationsScreen
+          {...input}
+          {...financeCapabilities()}
+          canViewLeases={canViewLeases}
+          organizationName="Sokha Property Services"
+          view="work"
+        />,
+      );
+
+      const action = screen.getByRole("link", { name: "Review tenant payment" });
+      expect(action.getAttribute("href")).toBe(expectedHref);
+      expect(action.getAttribute("data-variant")).toBe("outline");
+      expect(action.getAttribute("data-size")).toBe("sm");
+    },
+  );
+
   it("shows direct-owner collection without pretending IPS received cash", () => {
     const input = data();
     input.leases[0].billing = {

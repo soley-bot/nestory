@@ -108,6 +108,13 @@ describe("LeaseDetailScreen", () => {
       screen.getByText("Riverside House · 01 Jul 2026–30 Jun 2027"),
     ).not.toBeNull();
     expect(screen.getAllByRole("button", { name: "More" })).toHaveLength(1);
+    const defaultButtons = screen
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("data-variant") === "default");
+    expect(defaultButtons).toHaveLength(1);
+    expect(defaultButtons[0]).toBe(
+      screen.getByRole("button", { name: "Record USD 258.00 payment" }),
+    );
     expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
   });
 
@@ -212,7 +219,7 @@ describe("LeaseDetailScreen", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("does not retain payment success above a later focused invoice", async () => {
+  it("carries published-receipt payment success into the returned summary once", async () => {
     actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
       artifactHref: "/api/finance/documents/receipt-1",
       message: "Payment recorded.",
@@ -225,10 +232,12 @@ describe("LeaseDetailScreen", () => {
     });
     fireEvent.submit(view.container.querySelector("form")!);
     await waitFor(() => {
-      expect(screen.getByRole("status").textContent).toContain(
-        "Payment recorded.",
-      );
+      expect(routerMocks.replace).toHaveBeenCalledWith("/leases/lease-1");
     });
+
+    view.rerender(detailElement("overview"));
+    expect(screen.getByRole("status").textContent).toContain("Payment recorded.");
+
     const nextResolution = resolutionFixture();
     nextResolution.invoice = {
       ...nextResolution.invoice,
@@ -246,6 +255,49 @@ describe("LeaseDetailScreen", () => {
     expect(
       screen.getByRole("heading", { name: "Resolve outstanding rent" }),
     ).not.toBeNull();
+
+    view.rerender(detailElement("overview"));
+    expect(screen.queryByRole("status")).toBeNull();
+
+    view.rerender(
+      detailElement("overview", makeLease(), allLeasePermissions, {
+        routeNotice: {
+          message: "This invoice is voided and cannot receive a payment.",
+        },
+      }),
+    );
+    expect(screen.getByRole("status").textContent).toContain(
+      "This invoice is voided and cannot receive a payment.",
+    );
+    expect(screen.getByRole("status").textContent).not.toContain(
+      "Payment recorded.",
+    );
+  });
+
+  it("carries receipt-unavailable payment success into the returned summary once", async () => {
+    actionMocks.recordTenantInvoicePaymentAction.mockResolvedValue({
+      artifactHref: null,
+      message: "Payment recorded. Receipt unavailable.",
+      paymentId: "payment-1",
+      publicationStatus: "failed",
+      status: "success",
+    });
+    const view = renderDetail("overview", makeLease(), allLeasePermissions, {
+      paymentResolution: resolutionFixture(),
+    });
+
+    fireEvent.submit(view.container.querySelector("form")!);
+    await waitFor(() => {
+      expect(routerMocks.replace).toHaveBeenCalledWith("/leases/lease-1");
+    });
+
+    view.rerender(detailElement("overview"));
+    expect(screen.getByRole("status").textContent).toContain(
+      "Payment recorded. Receipt unavailable.",
+    );
+
+    view.rerender(detailElement("rent"));
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("keeps one useful More trigger in focused view without Lease mutation authority", async () => {

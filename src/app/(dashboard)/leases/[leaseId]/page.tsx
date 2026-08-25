@@ -15,7 +15,8 @@ type LeasePageProps = {
 export default async function LeasePage({ params, searchParams }: LeasePageProps) {
   const [{ leaseId }, rawSearchParams] = await Promise.all([params, searchParams]);
   const context = await requirePermission("leases.view");
-  const { paymentInvoiceId, section } = parseLeaseDetailQuery(rawSearchParams);
+  const { paymentFocusRequested, paymentInvoiceId, section } =
+    parseLeaseDetailQuery(rawSearchParams);
   const viewQuery = {
     ...parseLeaseSearchParams({ archiveState: "all" }),
     leaseId,
@@ -54,7 +55,7 @@ export default async function LeasePage({ params, searchParams }: LeasePageProps
       ? paymentResolution
       : undefined;
   const canViewFinance = context.permissionKeys.has("finance.view");
-  const routeNotice = paymentInvoiceId
+  const routeNotice = paymentFocusRequested
     ? getPaymentRouteNotice({
         canViewFinance,
         leaseId,

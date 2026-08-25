@@ -119,10 +119,24 @@ export function LeaseDetailScreen({
   const statusScope = paymentResolution
     ? `${lease.id}:payment:${paymentResolution.invoice.id}`
     : `${lease.id}:record:${activeSection}:${routeNotice?.message ?? ""}:${routeNotice?.href ?? ""}`;
+  const returnStatusScope = `${lease.id}:record:overview::`;
   const [localStatus, setLocalStatus] = useState<{
+    hasBeenShown: boolean;
     message: string;
     scope: string;
   } | null>(null);
+  const [previousStatusScope, setPreviousStatusScope] = useState(statusScope);
+  if (previousStatusScope !== statusScope) {
+    setPreviousStatusScope(statusScope);
+    setLocalStatus((currentStatus) => {
+      if (!currentStatus) return null;
+      if (currentStatus.scope === statusScope) {
+        return { ...currentStatus, hasBeenShown: true };
+      }
+      if (currentStatus.hasBeenShown || !paymentResolution) return null;
+      return currentStatus;
+    });
+  }
   const localStatusMessage =
     localStatus?.scope === statusScope ? localStatus.message : null;
   const statusMessage = localStatusMessage ?? routeNotice?.message ?? null;
@@ -136,7 +150,9 @@ export function LeaseDetailScreen({
     lease.terms.find((term) => term.status === "active") ?? null;
 
   const setStatusMessage = (message: string | null) => {
-    setLocalStatus(message ? { message, scope: statusScope } : null);
+    setLocalStatus(
+      message ? { hasBeenShown: true, message, scope: statusScope } : null,
+    );
   };
 
   const openDrawer = (nextDrawer: DrawerState) => {
@@ -145,7 +161,11 @@ export function LeaseDetailScreen({
   };
 
   const handlePaymentSuccess = (message: string) => {
-    setStatusMessage(message);
+    setLocalStatus({
+      hasBeenShown: false,
+      message,
+      scope: returnStatusScope,
+    });
     router.replace(returnHref);
     router.refresh();
   };
@@ -414,7 +434,7 @@ function LeaseHeaderActions({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="default">
+          <Button variant="outline">
             More
             <MoreHorizontal aria-hidden size={15} />
           </Button>

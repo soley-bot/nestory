@@ -35,6 +35,7 @@ import { Table, TableCell, TableHead } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinanceWorkspaceNavigation } from "@/features/finance/components/finance-workspace-navigation";
 import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billing-rule-fields";
+import { buildLeasePaymentResolutionHref } from "@/features/leases/lease-detail-route";
 import type { LeaseBillingRule } from "@/features/leases/lease.types";
 import {
   createFinanceCategoryAction,
@@ -149,6 +150,7 @@ type FinanceOperationsScreenProps = FinanceOperationsData & {
   canReverseExpense: boolean;
   canRetryCurrentRent: boolean;
   canSubmitExpense: boolean;
+  canViewLeases?: boolean;
   initialBillingLeaseId?: string;
   initialExpenseIntent?: "owner" | "tenant";
   initialRentLeaseId?: string;
@@ -856,6 +858,7 @@ function getScreen(
       <FinanceWorkView
         canConfigureRent={canConfigureRent}
         canRetryCurrentRent={props.canRetryCurrentRent}
+        canViewLeases={props.canViewLeases ?? false}
         leases={props.leases}
         openDrawer={openDrawer}
         ownerInvoices={props.ownerInvoices}
@@ -875,6 +878,7 @@ const FINANCE_WORK_PAGE_SIZE = 25;
 function FinanceWorkView({
   canConfigureRent,
   canRetryCurrentRent,
+  canViewLeases,
   leases,
   openDrawer,
   ownerInvoices,
@@ -883,6 +887,7 @@ function FinanceWorkView({
 }: {
   canConfigureRent: boolean;
   canRetryCurrentRent: boolean;
+  canViewLeases: boolean;
   leases: FinanceLease[];
   openDrawer: (drawer: DrawerState) => void;
   ownerInvoices: OwnerInvoiceSummary[];
@@ -1092,7 +1097,17 @@ function FinanceWorkView({
                       <Td>{formatDate(invoice.dueDate)}</Td>
                       <Td align="right">
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/rent-income?leaseId=${invoice.leaseId}`}>
+                          <Link
+                            href={
+                              invoice.collectionRoute === "through_ips" &&
+                              canViewLeases
+                                ? buildLeasePaymentResolutionHref({
+                                    invoiceId: invoice.id,
+                                    leaseId: invoice.leaseId,
+                                  })
+                                : `/rent-income?leaseId=${invoice.leaseId}`
+                            }
+                          >
                             Review tenant payment
                           </Link>
                         </Button>

@@ -8,10 +8,12 @@ import {
 describe("lease detail route", () => {
   it("defaults invalid or missing sections to overview", () => {
     expect(parseLeaseDetailQuery({})).toEqual({
+      paymentFocusRequested: false,
       paymentInvoiceId: null,
       section: "overview",
     });
     expect(parseLeaseDetailQuery({ section: "unknown" })).toEqual({
+      paymentFocusRequested: false,
       paymentInvoiceId: null,
       section: "overview",
     });
@@ -21,6 +23,7 @@ describe("lease detail route", () => {
     "accepts the %s record section",
     (section) => {
       expect(parseLeaseDetailQuery({ section })).toEqual({
+        paymentFocusRequested: false,
         paymentInvoiceId: null,
         section,
       });
@@ -35,25 +38,48 @@ describe("lease detail route", () => {
         section: "rent",
       }),
     ).toEqual({
+      paymentFocusRequested: true,
       paymentInvoiceId: "30000000-0000-0000-0000-000000000001",
       section: "rent",
     });
   });
 
-  it("does not enter focus without both exact parameters", () => {
+  it("marks exact payment actions with missing or malformed invoice IDs as requested but invalid", () => {
     expect(parseLeaseDetailQuery({ action: "record-payment" })).toEqual({
+      paymentFocusRequested: true,
       paymentInvoiceId: null,
       section: "overview",
     });
-    expect(
-      parseLeaseDetailQuery({ action: "owner-payment", invoiceId: "invoice-1" }),
-    ).toEqual({ paymentInvoiceId: null, section: "overview" });
     expect(
       parseLeaseDetailQuery({
         action: "record-payment",
         invoiceId: "not-a-database-id",
       }),
-    ).toEqual({ paymentInvoiceId: null, section: "overview" });
+    ).toEqual({
+      paymentFocusRequested: true,
+      paymentInvoiceId: null,
+      section: "overview",
+    });
+    expect(
+      parseLeaseDetailQuery({
+        action: ["record-payment", "owner-payment"],
+        invoiceId: ["not-a-database-id", "30000000-0000-0000-0000-000000000002"],
+      }),
+    ).toEqual({
+      paymentFocusRequested: true,
+      paymentInvoiceId: null,
+      section: "overview",
+    });
+  });
+
+  it("does not mark unrelated actions as payment focus requests", () => {
+    expect(
+      parseLeaseDetailQuery({ action: "owner-payment", invoiceId: "invoice-1" }),
+    ).toEqual({
+      paymentFocusRequested: false,
+      paymentInvoiceId: null,
+      section: "overview",
+    });
   });
 
   it("uses the first value for array-valued parameters", () => {
@@ -67,6 +93,7 @@ describe("lease detail route", () => {
         section: ["rent", "overview"],
       }),
     ).toEqual({
+      paymentFocusRequested: true,
       paymentInvoiceId: "30000000-0000-0000-0000-000000000001",
       section: "rent",
     });

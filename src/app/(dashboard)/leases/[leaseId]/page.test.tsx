@@ -286,6 +286,36 @@ describe("lease detail route", () => {
     );
   });
 
+  it.each([
+    ["missing", { action: "record-payment" }],
+    [
+      "malformed",
+      { action: "record-payment", invoiceId: "not-a-database-id" },
+    ],
+    [
+      "array-valued malformed first ID",
+      {
+        action: ["record-payment", "owner-payment"],
+        invoiceId: ["not-a-database-id", invoiceId],
+      },
+    ],
+  ])(
+    "returns the normal Lease with an unavailable notice for an exact payment action with a %s invoice ID",
+    async (_, searchParams) => {
+      await renderPage(searchParams);
+
+      expect(getLeasePaymentResolutionData).not.toHaveBeenCalled();
+      expect(detailSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentResolution: undefined,
+          routeNotice: {
+            message: "That invoice is no longer available for this Lease.",
+          },
+        }),
+      );
+    },
+  );
+
   it("returns not found when the lease is unavailable", async () => {
     getLeasesScreenData.mockResolvedValue({ leases: [] });
 
