@@ -358,7 +358,7 @@ function getRecentActivity({
     ...lease.activity.map((change, index) => ({
       activity: change.actionLabel,
       date: change.createdAt,
-      href: change.href ?? financeHref,
+      href: change.href ?? null,
       id: change.id,
       order: index + 1,
       recordLabel: change.recordLabel,

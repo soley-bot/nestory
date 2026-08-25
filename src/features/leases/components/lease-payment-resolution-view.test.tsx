@@ -213,12 +213,14 @@ describe("LeasePaymentResolutionView", () => {
   it("shows at most three newest de-duplicated recent activity rows", () => {
     const lease = leaseFixture({
       activity: [
+        activity("activity-2", "Tenant contacted", "2026-08-22T08:00:00Z", {
+          href: "/timeline/activity-2",
+        }),
         activity("invoice-1", "Duplicate invoice", "2026-08-25T08:00:00Z"),
+        activity("activity-3", "Older change", "2026-08-21T08:00:00Z"),
         activity("activity-1", "Lease reviewed", "2026-08-23T08:00:00Z", {
           href: "/timeline/activity-1",
         }),
-        activity("activity-2", "Tenant contacted", "2026-08-22T08:00:00Z"),
-        activity("activity-3", "Older change", "2026-08-21T08:00:00Z"),
       ],
     });
 
@@ -238,10 +240,15 @@ describe("LeasePaymentResolutionView", () => {
     });
 
     const recent = screen.getByRole("region", { name: "Recent activity" });
-    expect(within(recent).getAllByRole("listitem")).toHaveLength(3);
-    expect(recent).toHaveTextContent("Invoice issuedINV-202608-001");
-    expect(recent).toHaveTextContent("Lease reviewedLease record");
-    expect(recent).toHaveTextContent("Tenant contactedLease record");
+    expect(
+      within(recent)
+        .getAllByRole("listitem")
+        .map((row) => row.textContent),
+    ).toEqual([
+      "24 Aug 2026Invoice issuedINV-202608-001View",
+      "23 Aug 2026Lease reviewedLease recordView",
+      "22 Aug 2026Tenant contactedLease recordView",
+    ]);
     expect(recent).not.toHaveTextContent("Duplicate invoice");
     expect(recent).not.toHaveTextContent("Older change");
     expect(
@@ -250,6 +257,21 @@ describe("LeasePaymentResolutionView", () => {
     expect(
       within(recent).getByRole("link", { name: "View Lease reviewed" }),
     ).toHaveAttribute("href", "/timeline/activity-1");
+  });
+
+  it("does not invent a Finance destination for href-less Lease activity", () => {
+    const lease = leaseFixture({
+      activity: [
+        activity("activity-1", "Tenant contacted", "2026-08-25T08:00:00Z"),
+      ],
+    });
+
+    renderResolution({ lease });
+
+    const recent = screen.getByRole("region", { name: "Recent activity" });
+    const row = within(recent).getByText("Tenant contacted").closest("li");
+    expect(row).not.toBeNull();
+    expect(within(row!).queryByRole("link")).toBeNull();
   });
 
   it("shows read-only invoice context when payment authority is absent", () => {
