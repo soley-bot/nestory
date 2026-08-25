@@ -160,6 +160,13 @@ Nestory distinguishes obligations from dated settlement:
 - Ledger rows are immutable projections of checked operational sources. They
   cannot be created, edited, posted, or archived manually.
 
+For a company-collected tenant payment, the selected receiving account records
+where the cash actually landed. It is not an owner destination. Owner cash
+effect and reporting attribution continue automatically from the Lease billing
+and ownership authority after the checked settlement succeeds. The interface
+loads eligible receiving accounts from Finance and never hardcodes an arbitrary
+account for a Lease.
+
 The Ledger is not a second source of truth. Reports must trace each row to the
 underlying allocation, payment, confirmation, owner distribution, deposit, expense
 approval, reversal, or petty-cash source.
@@ -291,6 +298,11 @@ Authenticated Nestory is quiet, neutral, dense operating software:
   surface. Use no more than one secondary controls row below it.
 - Keep primary search visible. Disclose advanced URL-backed filters instead of
   giving every filter permanent visual weight.
+- Top-level Properties, People, Maintenance, Finance work, Timeline, Documents,
+  and Ledger surfaces share one Layer 1 register contract: a clear title,
+  record count and primary action; one controls row; one dominant table or
+  queue; explicit record navigation; and pagination attached to that surface.
+  Domain columns, attention states, and actions remain feature-owned.
 - A desktop register may use one restrained bordered surface for its filters and
   rows while retaining captions, semantic headers, keyboard behavior, and
   accessible selection state. Avoid nested decorative card shells.
@@ -320,6 +332,16 @@ Authenticated Nestory is quiet, neutral, dense operating software:
   tabs compose canonical scoped rent and charges, expenses, and owner-account
   data. Global Finance is a secondary portfolio review surface; Ledger and
   Petty cash remain directly addressable under Advanced finance.
+- The canonical Lease URL remains the record workspace. An eligible
+  company-collected invoice may open a URL-backed guided payment state within
+  that Lease, with one dominant action, concise Lease context, recent activity,
+  and legitimate upcoming dates. Stale, paid, voided, archived, direct-to-owner,
+  and unauthorized cases return to or preserve the stable Lease record with a
+  valid next destination; they do not expose a dead-end payment form.
+- A Lease shows the security deposit amount required and amount held in its
+  summary. Deposit history, recording, and reversal controls live together in
+  the focused `Manage deposit` drawer rather than in a second inline activity
+  workspace.
 - Loading, empty, filtered-empty, permission, blocked, error, draft, saving, and
   success states are explicit.
 - Consequential actions identify the affected record, scope, and result.
