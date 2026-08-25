@@ -555,7 +555,7 @@ describe("LeaseDetailScreen", () => {
     },
   );
 
-  it("keeps rent history and deposit entry collapsed until requested", async () => {
+  it("keeps deposit history and changes inside one drawer", async () => {
     const user = userEvent.setup();
     const lease = makeLease();
     lease.terms.push({ ...lease.terms[0]!, id: "term-old", status: "superseded" });
@@ -577,16 +577,27 @@ describe("LeaseDetailScreen", () => {
     ).not.toBeNull();
     expect(screen.queryByText("Rent status")).toBeNull();
     expect(
-      screen.getByRole("heading", { name: "Deposit activity" }),
+      screen.queryByRole("heading", { name: "Deposit activity" }),
+    ).toBeNull();
+    expect(
+      screen.getByText("USD 1,200.00 required · USD 0.00 held"),
     ).not.toBeNull();
     expect(screen.queryByText("Replaced")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Rent history" }));
     expect(screen.getByText("Replaced")).not.toBeNull();
     expect(screen.queryByText(/Receipt or note/)).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Record deposit activity" }));
-    expect(screen.getByText(/Receipt or note/)).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Save deposit activity" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Undo entry" })).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+
+    const drawer = screen.getByRole("dialog", {
+      name: "Manage security deposit",
+    });
+    expect(within(drawer).getByText(/Receipt or note/)).not.toBeNull();
+    expect(
+      within(drawer).getByRole("button", { name: "Save deposit activity" }),
+    ).not.toBeNull();
+    expect(
+      within(drawer).getByRole("button", { name: "Undo entry" }),
+    ).not.toBeNull();
     expect(screen.queryByText(/received \/ /)).toBeNull();
   });
 
@@ -608,9 +619,14 @@ describe("LeaseDetailScreen", () => {
     lease.deposits[0]!.receivedAmount = 1200;
 
     renderDetail("rent", lease);
-    expect(screen.getByRole("button", { name: "Undo entry" })).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "Manage held deposit" }));
-    await user.click(screen.getByRole("combobox", { name: "Deposit activity" }));
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", {
+      name: "Manage security deposit",
+    });
+    expect(within(drawer).getByRole("button", { name: "Undo entry" })).not.toBeNull();
+    await user.click(
+      within(drawer).getByRole("combobox", { name: "Deposit activity" }),
+    );
 
     expect(screen.queryByRole("option", { name: "Deposit received" })).toBeNull();
     expect(screen.getByRole("option", { name: "Deposit retained" })).not.toBeNull();
@@ -625,8 +641,13 @@ describe("LeaseDetailScreen", () => {
     lease.deposits[0]!.receivedAmount = 400;
 
     renderDetail("rent", lease);
-    await user.click(screen.getByRole("button", { name: "Record deposit activity" }));
-    await user.click(screen.getByRole("combobox", { name: "Deposit activity" }));
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", {
+      name: "Manage security deposit",
+    });
+    await user.click(
+      within(drawer).getByRole("combobox", { name: "Deposit activity" }),
+    );
 
     expect(screen.getByRole("option", { name: "Deposit received" })).not.toBeNull();
   });
@@ -657,8 +678,13 @@ describe("LeaseDetailScreen", () => {
     lease.deposits[0]!.receivedAmount = 1200;
 
     renderDetail("rent", lease);
-    await user.click(screen.getByRole("button", { name: "Record deposit activity" }));
-    await user.click(screen.getByRole("combobox", { name: "Deposit activity" }));
+    await user.click(screen.getByRole("button", { name: "Manage deposit" }));
+    const drawer = screen.getByRole("dialog", {
+      name: "Manage security deposit",
+    });
+    await user.click(
+      within(drawer).getByRole("combobox", { name: "Deposit activity" }),
+    );
 
     expect(screen.getByRole("option", { name: "Deposit received" })).not.toBeNull();
   });

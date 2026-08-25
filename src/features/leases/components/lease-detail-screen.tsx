@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, MoreHorizontal, Pencil, RotateCcw } from "lucide-react";
+import { MoneyDisplay } from "@/components/data/money-display";
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { NumberInput } from "@/components/ui/number-input";
 import { SelectControl } from "@/components/ui/select-control";
@@ -30,6 +32,8 @@ import { LeaseBillingRuleFields } from "@/features/leases/components/lease-billi
 import { LeaseForm } from "@/features/leases/components/lease-form";
 import {
   cancelLeaseActivationAction,
+  recordLeaseDepositEventAction,
+  reverseLeaseDepositEventAction,
   scheduleLeaseActivationAction,
   scheduleFutureRentTermAction,
   saveLeaseBillingRulesAction,
@@ -44,6 +48,7 @@ import {
 import type {
   LeasePropertyOption,
   LeaseBillingFormConfig,
+  LeaseDepositContext,
   LeaseSummary,
   LeaseTenantOption,
   LeaseTermContext,
@@ -63,6 +68,7 @@ type LeaseTermChange = "renewal" | "rent_change";
 type DrawerState =
   | { mode: "archive" }
   | { mode: "billing" }
+  | { mode: "deposit" }
   | { mode: "edit" }
   | { mode: "restore" };
 
@@ -281,6 +287,7 @@ export function LeaseDetailScreen({
             }
             setTransition(nextTransition);
           }}
+          onManageDeposit={() => openDrawer({ mode: "deposit" })}
           onScheduleTerm={(mode) => {
             setStatusMessage(null);
             if (!activeTerm) {
@@ -316,6 +323,13 @@ export function LeaseDetailScreen({
           ) : drawer.mode === "billing" ? (
             <LeaseBillingRulesForm
               billingFormConfig={billingFormConfig}
+              lease={lease}
+              onClose={() => setDrawer(null)}
+              onSuccess={setStatusMessage}
+            />
+          ) : drawer.mode === "deposit" ? (
+            <LeaseDepositPanel
+              canManage={permissions.canChangeTerms && !lease.isArchived}
               lease={lease}
               onClose={() => setDrawer(null)}
               onSuccess={setStatusMessage}
@@ -402,6 +416,224 @@ export function LeaseDetailScreen({
       ) : null}
     </div>
   );
+}
+
+function LeaseDepositPanel({
+  canManage,
+  lease,
+  onClose,
+  onSuccess,
+}: {
+  canManage: boolean;
+  lease: LeaseSummary;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [depositState, recordDepositEvent, depositPending] = useActionState(
+    recordLeaseDepositEventAction,
+    initialActionState,
+  );
+  const [reversalState, reverseDepositEvent, reversalPending] = useActionState(
+    reverseLeaseDepositEventAction,
+    initialActionState,
+  );
+
+  useEffect(() => {
+    const successState =
+      depositState.status === "success"
+        ? depositState
+        : reversalState.status === "success"
+          ? reversalState
+          : null;
+    if (!successState) return;
+
+    onSuccess(successState.message ?? "Security deposit updated.");
+    onClose();
+    router.refresh();
+  }, [depositState, onClose, onSuccess, reversalState, router]);
+
+  if (!lease.deposits.length) {
+    return (
+      <p className="p-5 text-sm text-muted-foreground">
+        No security deposit is recorded for this lease.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-7 p-5">
+      <div className="border-l-2 border-foreground pl-3">
+        <p className="font-medium text-foreground">{lease.tenantName}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {lease.propertyName} / {lease.unitLabel}
+        </p>
+      </div>
+
+      {lease.deposits.map((deposit) => {
+        const activityOptions = getDepositActivityOptions(deposit);
+
+        return (
+          <section className="space-y-4" key={deposit.id}>
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
+              <div>
+                <h3 className="font-semibold">{deposit.typeLabel}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Required <MoneyDisplay value={deposit.amountDisplay} /> · Held{" "}
+                  <MoneyDisplay value={deposit.heldBalanceDisplay} />
+                </p>
+              </div>
+              <Badge tone="neutral">{deposit.statusLabel}</Badge>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                History
+              </p>
+              {deposit.events.length ? (
+                <div className="mt-2 divide-y divide-border border-y border-border">
+                  {deposit.events.map((event) => (
+                    <div
+                      className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
+                      key={event.id}
+                    >
+                      <span>
+                        {getDepositActivityLabel(event.eventType)} on{" "}
+                        {formatDate(event.eventDate)} ·{" "}
+                        <MoneyDisplay value={event.amountDisplay} />
+                        {event.reference ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {event.reference}
+                          </span>
+                        ) : null}
+                      </span>
+                      {canManage && event.reversible ? (
+                        <form action={reverseDepositEvent}>
+                          <input name="eventId" type="hidden" value={event.id} />
+                          <input
+                            name="eventDate"
+                            type="hidden"
+                            value={getBusinessDateValue()}
+                          />
+                          <Button
+                            disabled={reversalPending}
+                            size="sm"
+                            type="submit"
+                            variant="outline"
+                          >
+                            Undo entry
+                          </Button>
+                        </form>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  No deposit changes recorded.
+                </p>
+              )}
+            </div>
+
+            {canManage && activityOptions.length ? (
+              <form
+                action={recordDepositEvent}
+                className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2"
+              >
+                <input
+                  name="leaseDepositId"
+                  type="hidden"
+                  value={deposit.id}
+                />
+                <DepositField label="Activity">
+                  <SelectControl
+                    ariaLabel="Deposit activity"
+                    defaultValue={activityOptions[0]?.value}
+                    name="eventType"
+                    options={activityOptions}
+                  />
+                </DepositField>
+                <DepositField label="Date">
+                  <DatePickerField
+                    ariaLabel="Deposit activity date"
+                    defaultValue={getBusinessDateValue()}
+                    name="eventDate"
+                  />
+                </DepositField>
+                <DepositField label="Amount">
+                  <NumberInput name="amount" required />
+                </DepositField>
+                <DepositField label="Receipt or note">
+                  <Input name="reference" />
+                </DepositField>
+                <div className="flex justify-end sm:col-span-2">
+                  <Button disabled={depositPending} type="submit">
+                    {depositPending ? "Saving..." : "Save deposit activity"}
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+          </section>
+        );
+      })}
+
+      <DepositActionMessage state={depositState} />
+      <DepositActionMessage state={reversalState} />
+    </div>
+  );
+}
+
+function DepositField({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <label className="grid min-w-0 gap-1.5 text-sm font-medium">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function DepositActionMessage({ state }: { state: LeaseActionState }) {
+  return state.message ? (
+    <p
+      className={
+        state.status === "error"
+          ? "text-sm text-danger"
+          : "text-sm text-muted-foreground"
+      }
+      role="status"
+    >
+      {state.message}
+    </p>
+  ) : null;
+}
+
+function getDepositActivityOptions(deposit: LeaseDepositContext) {
+  return [
+    ...(deposit.amountCents > 0 && deposit.heldBalanceCents < deposit.amountCents
+      ? [{ label: "Deposit received", value: "received" }]
+      : []),
+    ...(deposit.heldBalanceCents > 0
+      ? [
+          { label: "Deposit retained", value: "retained" },
+          { label: "Deposit refunded", value: "refunded" },
+        ]
+      : []),
+  ];
+}
+
+function getDepositActivityLabel(eventType: string) {
+  if (eventType === "received") return "Deposit received";
+  if (eventType === "applied") return "Deposit used";
+  if (eventType === "retained") return "Deposit retained";
+  if (eventType === "refunded") return "Deposit refunded";
+  return "Deposit updated";
 }
 
 function LeaseHeaderActions({
@@ -794,6 +1026,7 @@ function LeaseTermModal({
 function getDrawerTitle(drawer: DrawerState) {
   if (drawer.mode === "archive") return "Archive lease";
   if (drawer.mode === "billing") return "Change billing rules";
+  if (drawer.mode === "deposit") return "Manage security deposit";
   if (drawer.mode === "restore") return "Restore lease";
   return "Edit draft";
 }
@@ -803,6 +1036,8 @@ function getDrawerDescription(drawer: DrawerState) {
     return "Archive this record without deleting its history.";
   if (drawer.mode === "billing")
     return "Schedule the replacement after all generated invoice months.";
+  if (drawer.mode === "deposit")
+    return "Review the held balance and record deposit changes for this lease.";
   if (drawer.mode === "restore")
     return "Review whether this lease can return to active views.";
   return "Update the draft period, rent, or deposit before activation.";
