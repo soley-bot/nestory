@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/db/server";
+import { getBusinessDateValue } from "@/lib/dates/business-date";
 import { selectCurrentLeaseBillingRulesByLeaseId } from "@/features/leases/lease-billing-rule-state";
 import {
   formatPropertyOptionLabel,
@@ -12,6 +13,7 @@ import type {
   FinanceLease,
   FinanceOperationsData,
   FinanceOption,
+  LeasePaymentResolutionData,
   LeaseBillingSummary,
   OwnerInvoiceSummary,
   PropertyAccountEntry,
@@ -111,6 +113,14 @@ type ExpenseEvidenceRow = {
 type DataPageResult<T> = {
   data: T[] | null;
   error: { message: string } | null;
+};
+
+type FinanceServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+type LeasePaymentResolutionInput = {
+  invoiceId: string;
+  leaseId: string;
+  organizationId: string;
 };
 
 export async function fetchAllActionableRows<T>(
@@ -713,6 +723,183 @@ export async function getFinanceOperationsData(
         } satisfies FinanceOption,
       ];
     }),
+  };
+}
+
+export async function getLeasePaymentResolutionData(
+  input: LeasePaymentResolutionInput,
+): Promise<LeasePaymentResolutionData | null> {
+  return loadLeasePaymentResolutionData(
+    await createSupabaseServerClient(),
+    input,
+  );
+}
+
+export async function loadLeasePaymentResolutionData(
+  supabase: FinanceServerClient,
+  { invoiceId, leaseId, organizationId }: LeasePaymentResolutionInput,
+): Promise<LeasePaymentResolutionData | null> {
+  const selectedResult = await supabase
+    .from("tenant_invoice_balances")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .eq("lease_id", leaseId)
+    .eq("id", invoiceId)
+    .maybeSingle();
+
+  if (selectedResult.error) {
+    throw new Error(
+      `Could not load Lease payment resolution: ${selectedResult.error.message}`,
+    );
+  }
+  if (!selectedResult.data) return null;
+
+  const row = selectedResult.data as TenantInvoiceBalanceRow;
+  if (
+    !row.property_id ||
+    row.organization_id !== organizationId ||
+    row.lease_id !== leaseId
+  ) {
+    return null;
+  }
+
+  const [
+    propertyResult,
+    unitResult,
+    linesResult,
+    generationResult,
+    settlementsResult,
+    sourcesResult,
+    nextInvoiceResult,
+  ] = await Promise.all([
+    supabase
+      .from("properties")
+      .select("id, code, name")
+      .eq("organization_id", organizationId)
+      .eq("id", row.property_id)
+      .maybeSingle(),
+    row.unit_id
+      ? supabase
+          .from("units")
+          .select("id, property_id, unit_number")
+          .eq("organization_id", organizationId)
+          .eq("property_id", row.property_id)
+          .eq("id", row.unit_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    getTenantInvoiceLineRows(supabase, organizationId, [invoiceId]),
+    getTenantInvoiceGenerationRows(supabase, organizationId, [invoiceId]),
+    getTenantInvoiceSettlementRows(supabase, organizationId, [invoiceId]),
+    supabase
+      .from("financial_reconciliation_sources")
+      .select("id, property_id, code, display_name, archived_at")
+      .eq("organization_id", organizationId)
+      .is("archived_at", null)
+      .or(`property_id.is.null,property_id.eq.${row.property_id}`)
+      .order("code"),
+    supabase
+      .from("tenant_invoice_balances")
+      .select("id, due_date")
+      .eq("organization_id", organizationId)
+      .eq("lease_id", leaseId)
+      .neq("id", invoiceId)
+      .neq("payment_status", "voided")
+      .gte("due_date", getBusinessDateValue())
+      .order("due_date", { ascending: true })
+      .limit(1),
+  ]);
+
+  const supportingError = [
+    propertyResult,
+    unitResult,
+    linesResult,
+    generationResult,
+    settlementsResult,
+    sourcesResult,
+    nextInvoiceResult,
+  ].find((result) => result.error)?.error;
+  if (supportingError) {
+    throw new Error(
+      `Could not load Lease payment resolution: ${supportingError.message}`,
+    );
+  }
+
+  const ipsPaymentIds = (settlementsResult.data ?? []).flatMap((settlement) =>
+    settlement.route === "through_ips" && !settlement.reversalOfId
+      ? [settlement.id]
+      : [],
+  );
+  let commercialDocuments: CommercialDocumentLinks;
+  try {
+    commercialDocuments = await loadCommercialDocumentLinks(
+      supabase,
+      organizationId,
+      [invoiceId],
+      ipsPaymentIds,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(`Could not load Lease payment resolution: ${message}`);
+  }
+
+  const properties = new Map(
+    propertyResult.data
+      ? [[propertyResult.data.id, propertyResult.data] as const]
+      : [],
+  );
+  const units = new Map(
+    unitResult.data ? [[unitResult.data.id, unitResult.data] as const] : [],
+  );
+  const linesByInvoiceId = new Map<string, TenantInvoiceLine[]>();
+  for (const line of linesResult.data ?? []) {
+    if (
+      !line.invoice_id ||
+      !line.id ||
+      !line.customer_label ||
+      !line.line_type
+    ) {
+      continue;
+    }
+    const invoiceLines = linesByInvoiceId.get(line.invoice_id) ?? [];
+    invoiceLines.push({
+      amount: Number(line.amount),
+      balanceDue: Number(line.balance_due ?? 0),
+      id: line.id,
+      label: line.customer_label,
+      lineType: line.line_type,
+    });
+    linesByInvoiceId.set(line.invoice_id, invoiceLines);
+  }
+  const generationByInvoiceId = new Map(
+    (generationResult.data ?? []).map((generation) => [
+      generation.id,
+      generation,
+    ]),
+  );
+  const settlementsByInvoiceId = buildSettlementsByInvoiceId(
+    settlementsResult.data ?? [],
+    commercialDocuments,
+  );
+  const invoice = toTenantInvoice(
+    row,
+    properties,
+    units,
+    linesByInvoiceId,
+    generationByInvoiceId,
+    settlementsByInvoiceId,
+    commercialDocuments.invoices,
+    commercialDocuments.invoicePublicationSnapshots,
+  )[0];
+  if (!invoice) return null;
+
+  return {
+    invoice,
+    nextInvoiceDueDate: nextInvoiceResult.data?.[0]?.due_date ?? null,
+    reconciliationSources: (sourcesResult.data ?? []).map((source) => ({
+      id: source.id,
+      label: `${source.code} · ${source.display_name}`,
+      propertyId: source.property_id,
+    })),
   };
 }
 

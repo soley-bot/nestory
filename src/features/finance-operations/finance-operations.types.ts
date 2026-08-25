@@ -237,6 +237,12 @@ export type FinanceOperationsData = {
   unitOptions: FinanceOption[];
 };
 
+export type LeasePaymentResolutionData = {
+  invoice: TenantInvoiceSummary;
+  nextInvoiceDueDate: string | null;
+  reconciliationSources: FinanceOption[];
+};
+
 export type FinanceOperationsActionState = {
   artifactHref?: string;
   artifactId?: string;
