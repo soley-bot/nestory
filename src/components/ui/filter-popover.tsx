@@ -28,7 +28,7 @@ export function FilterPopover({
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <Button type="button">
+        <Button type="button" variant="outline">
           <SlidersHorizontal size={14} />
           {label}
           {activeCount > 0 ? ` (${activeCount})` : ""}

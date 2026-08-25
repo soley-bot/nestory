@@ -277,6 +277,7 @@ export function TimelineScreen({
           viewQuery={viewQuery}
         />
       }
+      toolbarClassName="w-full lg:ml-0 lg:!px-3"
     >
       <div className="flex min-w-0 flex-col">
         {statusMessage ? (
