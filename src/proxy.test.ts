@@ -25,6 +25,11 @@ const AUTH_REFRESH_HEADERS = {
   Expires: "0",
   Pragma: "no-cache",
 };
+const CUSTOM_AUTH_REFRESH_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0, custom-auth-policy=1",
+  Expires: "Thu, 01 Jan 1970 00:00:00 GMT",
+  Pragma: "no-cache",
+};
 
 function expectAuthRefreshHeaders(response: Response) {
   expect(response.headers.get("cache-control")).toBe(
@@ -73,6 +78,7 @@ describe("proxy", () => {
       "script-src 'self' 'nonce-",
     );
     expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expectAuthRefreshHeaders(response);
   });
 
   it("keeps unauthenticated protected routes behind login", async () => {
@@ -87,6 +93,7 @@ describe("proxy", () => {
       "http://localhost:3000/login",
     );
     expect(response.headers.get("x-action-redirect")).toBeNull();
+    expectAuthRefreshHeaders(response);
   });
 
   it("uses the Server Action redirect protocol when a protected action loses authentication", async () => {
@@ -107,6 +114,7 @@ describe("proxy", () => {
     expect(response.headers.get("content-security-policy")).toContain(
       "script-src 'self' 'nonce-",
     );
+    expectAuthRefreshHeaders(response);
   });
 
   it("preserves refreshed and cleared Auth cookies on a Server Action login redirect", async () => {
@@ -216,7 +224,7 @@ describe("proxy", () => {
     getClaims.mockImplementation(async () => {
       createServerClient.mock.calls[0][2].cookies.setAll([
         { name: "sb-stale", value: "", options: { maxAge: 0 } },
-      ], AUTH_REFRESH_HEADERS);
+      ], CUSTOM_AUTH_REFRESH_HEADERS);
       return { data: { claims: null }, error: new Error("expired") };
     });
 
@@ -226,7 +234,15 @@ describe("proxy", () => {
       "https://app.nestory-kh.com/login",
     );
     expect(response.cookies.get("sb-stale")?.value).toBe("");
-    expectAuthRefreshHeaders(response);
+    expect(response.headers.get("cache-control")).toBe(
+      CUSTOM_AUTH_REFRESH_HEADERS["Cache-Control"],
+    );
+    expect(response.headers.get("expires")).toBe(
+      CUSTOM_AUTH_REFRESH_HEADERS.Expires,
+    );
+    expect(response.headers.get("pragma")).toBe(
+      CUSTOM_AUTH_REFRESH_HEADERS.Pragma,
+    );
     expect(response.headers.get("x-middleware-request-x-nonce")).toBeNull();
   });
 

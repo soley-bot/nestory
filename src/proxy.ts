@@ -37,14 +37,14 @@ function redirectToLogin(
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   url.search = "";
-  if (isServerActionRequest(request)) {
-    return createSecureServerActionRedirect(
+  const redirect = isServerActionRequest(request)
+    ? createSecureServerActionRedirect(
       url,
       currentResponse,
       contentSecurityPolicy,
-    );
-  }
-  return createSecureRedirect(url, currentResponse, contentSecurityPolicy);
+    )
+    : createSecureRedirect(url, currentResponse, contentSecurityPolicy);
+  return applyAuthNoStoreHeaders(redirect);
 }
 
 function redirectToWorkspace(
@@ -55,7 +55,9 @@ function redirectToWorkspace(
   const url = request.nextUrl.clone();
   url.pathname = WORKSPACE_ENTRY_PATH;
   url.search = "";
-  return createSecureRedirect(url, currentResponse, contentSecurityPolicy);
+  return applyAuthNoStoreHeaders(
+    createSecureRedirect(url, currentResponse, contentSecurityPolicy),
+  );
 }
 
 export async function proxy(request: NextRequest) {
@@ -195,6 +197,22 @@ function applyBrowserSecurityHeaders(
   response.headers.set("Content-Security-Policy", contentSecurityPolicy);
   for (const { key, value } of BROWSER_SECURITY_HEADERS) {
     response.headers.set(key, value);
+  }
+  return response;
+}
+
+function applyAuthNoStoreHeaders(response: NextResponse) {
+  if (!response.headers.has("Cache-Control")) {
+    response.headers.set(
+      "Cache-Control",
+      "private, no-cache, no-store, must-revalidate, max-age=0",
+    );
+  }
+  if (!response.headers.has("Expires")) {
+    response.headers.set("Expires", "0");
+  }
+  if (!response.headers.has("Pragma")) {
+    response.headers.set("Pragma", "no-cache");
   }
   return response;
 }
