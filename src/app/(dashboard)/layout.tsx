@@ -23,10 +23,8 @@ export default async function DashboardLayout({
   // rail renders in the state the operator left it, with no flash on load.
   const [cookieStore, stepUpStatus] = await Promise.all([
     cookies(),
-    getPrivilegedEmailStepUpStatus(),
+    privilegedRoleHint ? getPrivilegedEmailStepUpStatus() : null,
   ]);
-  const statusCheckRequired =
-    privilegedRoleHint || stepUpStatus?.required === true;
   const sidebarState = cookieStore.get("sidebar_state")?.value;
 
   return (
@@ -43,7 +41,7 @@ export default async function DashboardLayout({
       <WorkspacePrivilegedStepUpGate
         organizationName={context.organizationName}
         status={stepUpStatus}
-        statusCheckRequired={statusCheckRequired}
+        statusCheckRequired={privilegedRoleHint}
       >
         <AppShell
           defaultSidebarOpen={sidebarState !== "false"}

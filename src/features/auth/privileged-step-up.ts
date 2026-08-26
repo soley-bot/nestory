@@ -2,6 +2,7 @@
 
 import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
 import { z } from "zod";
 import { requireWorkspaceContext } from "@/lib/auth/context";
 import {
@@ -170,7 +171,7 @@ export async function verifyPrivilegedEmailStepUpAction(
   }
 }
 
-export async function getPrivilegedEmailStepUpStatus(): Promise<PrivilegedEmailStepUpStatus | null> {
+export const getPrivilegedEmailStepUpStatus = cache(async (): Promise<PrivilegedEmailStepUpStatus | null> => {
   try {
     const context = await requireWorkspaceContext();
     const identity = await getCurrentSessionIdentity(context.userId);
@@ -188,7 +189,7 @@ export async function getPrivilegedEmailStepUpStatus(): Promise<PrivilegedEmailS
   } catch {
     return null;
   }
-}
+});
 
 async function getCurrentSessionIdentity(expectedUserId: string) {
   const supabase = await createSupabaseServerClient();

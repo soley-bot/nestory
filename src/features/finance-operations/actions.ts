@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { canonicalizeOwnerOpeningAmount } from "@/features/owner-balances/owner-balance.money";
 import {
@@ -497,7 +498,7 @@ export async function recordTenantInvoicePaymentAction(
       publicationStatus: "published",
       status: "success",
     };
-  } catch {
+  } catch (error) {
     try {
       await markReceiptPublicationFailed(
         supabase,
@@ -509,6 +510,7 @@ export async function recordTenantInvoicePaymentAction(
       // Receipt failure persistence must not change the committed payment result.
     }
     revalidateTenantPayment();
+    unstable_rethrow(error);
     return receiptUnavailableState(paymentId);
   }
 }
@@ -545,7 +547,8 @@ export async function publishTenantInvoicePdfAction(
       publicationStatus: "published",
       status: "success",
     };
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     revalidateFinance();
     return { message: "Invoice PDF unavailable.", status: "error" };
   }
@@ -577,7 +580,8 @@ export async function retryTenantReceiptPdfAction(
       publicationStatus: "published",
       status: "success",
     };
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     revalidateFinance();
     return { message: "Receipt PDF unavailable.", status: "error" };
   }
@@ -682,7 +686,8 @@ export async function submitExpenseAction(
       requestClient: supabase,
     });
     evidenceDocumentId = evidence.documentId;
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     return actionError("Receipt evidence could not be verified. Try again.");
   }
   const { error } = await supabase.rpc("submit_expense", {

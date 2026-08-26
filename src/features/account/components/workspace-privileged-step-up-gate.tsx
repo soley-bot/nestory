@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { PrivilegedEmailStepUp } from "@/features/account/components/privileged-email-step-up";
 import { signOutAction } from "@/features/auth/actions";
@@ -18,19 +17,6 @@ export function WorkspacePrivilegedStepUpGate({
   status: PrivilegedEmailStepUpStatus | null;
   statusCheckRequired: boolean;
 }) {
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!statusCheckRequired) return;
-    const refreshInterval = status ? 60_000 : 15_000;
-
-    const interval = window.setInterval(
-      () => router.refresh(),
-      refreshInterval,
-    );
-    return () => window.clearInterval(interval);
-  }, [router, status, statusCheckRequired]);
-
   if (!statusCheckRequired) return children;
 
   const verificationRequired = Boolean(

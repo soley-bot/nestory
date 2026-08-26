@@ -4,6 +4,7 @@ const {
   adminRpc,
   getClaims,
   getUser,
+  requestCacheEpoch,
   resendSend,
   revalidatePath,
   requireWorkspaceContext,
@@ -11,11 +12,30 @@ const {
   adminRpc: vi.fn(),
   getClaims: vi.fn(),
   getUser: vi.fn(),
+  requestCacheEpoch: { value: 0 },
   resendSend: vi.fn(),
   revalidatePath: vi.fn(),
   requireWorkspaceContext: vi.fn(),
 }));
 
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    cache: <Args extends unknown[], Result>(
+      operation: (...args: Args) => Result,
+    ) => {
+      const requestResults = new Map<number, Result>();
+      return (...args: Args) => {
+        const requestId = requestCacheEpoch.value;
+        if (!requestResults.has(requestId)) {
+          requestResults.set(requestId, operation(...args));
+        }
+        return requestResults.get(requestId) as Result;
+      };
+    },
+  };
+});
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("@/lib/auth/context", () => ({ requireWorkspaceContext }));
 vi.mock("@/lib/db/admin", () => ({
@@ -44,6 +64,7 @@ const previousChallengeId = "40000000-0000-4000-8000-000000000002";
 
 describe("privileged email step-up actions", () => {
   beforeEach(() => {
+    requestCacheEpoch.value += 1;
     adminRpc.mockReset();
     getClaims.mockReset();
     getUser.mockReset();
@@ -252,6 +273,29 @@ describe("privileged email step-up actions", () => {
       verifiedUntil: null,
     });
     expect(requireWorkspaceContext).toHaveBeenCalledOnce();
+  });
+
+  it("shares one status evaluation across consumers in the same request", async () => {
+    adminRpc.mockResolvedValue({
+      data: {
+        canRequestAt: null,
+        enforcementEnabled: false,
+        required: true,
+        verified: false,
+        verifiedUntil: null,
+      },
+      error: null,
+    });
+
+    await Promise.all([
+      getPrivilegedEmailStepUpStatus(),
+      getPrivilegedEmailStepUpStatus(),
+    ]);
+
+    expect(requireWorkspaceContext).toHaveBeenCalledOnce();
+    expect(getClaims).toHaveBeenCalledOnce();
+    expect(getUser).toHaveBeenCalledOnce();
+    expect(adminRpc).toHaveBeenCalledOnce();
   });
 
   it("ignores caller-supplied organization authority for status reads", async () => {

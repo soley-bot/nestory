@@ -7,9 +7,17 @@ const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
   getClaims: vi.fn(),
   getUser: vi.fn(),
+  redirect: vi.fn(),
+  redirectInterrupt: Object.assign(new Error("NEXT_REDIRECT"), {
+    digest: "NEXT_REDIRECT;replace;/login;307;",
+  }),
   rpc: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  redirect: mocks.redirect,
+  RedirectType: { replace: "replace" },
+}));
 vi.mock("@/lib/db/admin", () => ({
   createSupabaseAdminClient: mocks.createAdmin,
 }));
@@ -27,6 +35,10 @@ const sessionId = "30000000-0000-4000-8000-000000000001";
 describe("privileged step-up guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.rpc.mockReset();
+    mocks.redirect.mockImplementation(() => {
+      throw mocks.redirectInterrupt;
+    });
     mocks.getClaims.mockResolvedValue({
       data: { claims: { session_id: sessionId, sub: userId } },
       error: null,
@@ -121,6 +133,59 @@ describe("privileged step-up guard", () => {
     await expect(
       requirePrivilegedStepUp({ organizationId, userId }),
     ).rejects.toThrow("Privileged email verification required");
+  });
+
+  it("redirects a still-valid JWT after the database reports its Auth session is gone", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: false, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "42501", message: "Status unavailable" },
+      });
+
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).rejects.toBe(mocks.redirectInterrupt);
+
+    expect(mocks.rpc).toHaveBeenNthCalledWith(
+      2,
+      "get_privileged_email_step_up_status",
+      {
+        p_organization_id: organizationId,
+        p_session_id: sessionId,
+        p_user_id: userId,
+      },
+    );
+    expect(mocks.redirect).toHaveBeenCalledWith("/login", "replace");
+  });
+
+  it("keeps a live unverified session on the verification-required path", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: false, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          enforcementEnabled: true,
+          required: true,
+          verified: false,
+          verifiedUntil: null,
+        },
+        error: null,
+      });
+
+    await expect(
+      requirePrivilegedStepUp({ organizationId, userId }),
+    ).rejects.toThrow("Privileged email verification required");
+
+    expect(mocks.rpc).toHaveBeenNthCalledWith(
+      2,
+      "get_privileged_email_step_up_status",
+      {
+        p_organization_id: organizationId,
+        p_session_id: sessionId,
+        p_user_id: userId,
+      },
+    );
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("normalizes a thrown assertion request to the generic fail-closed error", async () => {

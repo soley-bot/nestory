@@ -1,5 +1,6 @@
 import "server-only";
 
+import { redirect, RedirectType } from "next/navigation";
 import { z } from "zod";
 import { privilegedStepUpRequiredMessage } from "@/lib/auth/privileged-step-up-error";
 import { createSupabaseAdminClient } from "@/lib/db/admin";
@@ -68,7 +69,26 @@ export async function requirePrivilegedStepUp(
   } catch {
     throw new Error(privilegedStepUpRequiredMessage);
   }
-  if (assertion.error || assertion.data !== true) {
+  if (assertion.error) {
+    throw new Error(privilegedStepUpRequiredMessage);
+  }
+  if (assertion.data !== true) {
+    let statusUnavailable = false;
+    try {
+      const status = await admin.rpc("get_privileged_email_step_up_status", {
+        p_organization_id: expected.organizationId,
+        p_session_id: claims.session_id,
+        p_user_id: expected.userId,
+      });
+      statusUnavailable =
+        status.error?.code === "42501" &&
+        status.error.message === "Status unavailable";
+    } catch {
+      // An unavailable discriminator must fail closed as verification-required.
+    }
+    if (statusUnavailable) {
+      redirect("/login", RedirectType.replace);
+    }
     throw new Error(privilegedStepUpRequiredMessage);
   }
 

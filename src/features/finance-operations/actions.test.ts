@@ -18,8 +18,10 @@ const {
   requireHistoricalRentRecoveryContext,
   requirePermission,
   requirePrivilegedStepUp,
+  redirectInterrupt,
   revalidatePath,
   rpc,
+  unstableRethrow,
 } = vi.hoisted(() => ({
   adminDownload: vi.fn(),
   adminFrom: vi.fn(),
@@ -38,11 +40,16 @@ const {
   requireHistoricalRentRecoveryContext: vi.fn(),
   requirePermission: vi.fn(),
   requirePrivilegedStepUp: vi.fn(),
+  redirectInterrupt: Object.assign(new Error("NEXT_REDIRECT"), {
+    digest: "NEXT_REDIRECT;replace;/login;307;",
+  }),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
+  unstableRethrow: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath }));
+vi.mock("next/navigation", () => ({ unstable_rethrow: unstableRethrow }));
 vi.mock("@/lib/auth/context", () => ({
   requireCurrentRentRetryContext,
   requireFinanceCorrectionContext,
@@ -522,6 +529,10 @@ describe("tenant commercial document publication actions", () => {
     rpc.mockResolvedValue({ data: submissionId, error: null });
     publishTenantInvoiceArtifact.mockResolvedValue(publishedInvoice);
     publishTenantReceiptArtifact.mockResolvedValue(publishedReceipt);
+    unstableRethrow.mockReset();
+    unstableRethrow.mockImplementation((error: unknown) => {
+      if (error === redirectInterrupt) throw error;
+    });
   });
 
   it("publishes a valid tenant invoice with the current organization context", async () => {
@@ -641,6 +652,14 @@ describe("tenant commercial document publication actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/finance");
   });
 
+  it("preserves a revoked-session sign-in redirect during invoice publication", async () => {
+    publishTenantInvoiceArtifact.mockRejectedValueOnce(redirectInterrupt);
+
+    await expect(
+      publishTenantInvoicePdfAction({}, invoicePublicationForm()),
+    ).rejects.toBe(redirectInterrupt);
+  });
+
   it("publishes the receipt for the payment UUID returned by financial authority", async () => {
     rpc.mockResolvedValueOnce({ data: submissionId, error: null });
 
@@ -689,6 +708,20 @@ describe("tenant commercial document publication actions", () => {
       publicationStatus: "failed",
       status: "success",
     });
+    expect(markReceiptPublicationFailed).toHaveBeenCalledWith(
+      expect.anything(),
+      organizationId,
+      submissionId,
+      "storage_unavailable",
+    );
+  });
+
+  it("records receipt recovery before preserving a revoked-session redirect", async () => {
+    publishTenantReceiptArtifact.mockRejectedValueOnce(redirectInterrupt);
+
+    await expect(
+      recordTenantInvoicePaymentAction({}, tenantPaymentForm()),
+    ).rejects.toBe(redirectInterrupt);
     expect(markReceiptPublicationFailed).toHaveBeenCalledWith(
       expect.anything(),
       organizationId,
@@ -815,6 +848,16 @@ describe("tenant commercial document publication actions", () => {
     expect(markReceiptPublicationFailed).not.toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith("/finance");
   });
+
+  it("preserves a revoked-session sign-in redirect during receipt retry", async () => {
+    const formData = new FormData();
+    formData.set("paymentId", submissionId);
+    publishTenantReceiptArtifact.mockRejectedValueOnce(redirectInterrupt);
+
+    await expect(retryTenantReceiptPdfAction({}, formData)).rejects.toBe(
+      redirectInterrupt,
+    );
+  });
 });
 
 describe("expense approval actions", () => {
@@ -829,6 +872,10 @@ describe("expense approval actions", () => {
     revalidatePath.mockReset();
     rpc.mockReset();
     requirePrivilegedStepUp.mockReset();
+    unstableRethrow.mockReset();
+    unstableRethrow.mockImplementation((error: unknown) => {
+      if (error === redirectInterrupt) throw error;
+    });
     requireFinanceSubmissionContext.mockResolvedValue({ organizationId, userId: actorId });
     requireFinanceReviewContext.mockResolvedValue({ organizationId });
     requireFinanceReversalContext.mockResolvedValue({ organizationId });
@@ -934,6 +981,29 @@ describe("expense approval actions", () => {
         p_storage_object_version: "paid-cost-object-v1",
       }),
     );
+  });
+
+  it("preserves a revoked-session sign-in redirect from the privileged guard", async () => {
+    requirePrivilegedStepUp.mockRejectedValue(redirectInterrupt);
+    const formData = new FormData();
+    formData.set("category", "cleaning");
+    formData.set("expenseDate", "2026-08-08");
+    formData.set("idempotencyKey", "expense-submit-redirect");
+    formData.set("internalCost", "200");
+    formData.set("internalMarkup", "20");
+    formData.set("propertyId", propertyId);
+    formData.set("reconciliationSourceId", sourceId);
+    formData.set("reference", "Receipt 42");
+    formData.set("responsibility", "owner");
+    formData.set("tenantInvoiceId", "");
+    formData.set("unitId", "");
+    formData.set("vendorLabel", "Sokha Repairs");
+    formData.set("evidenceFile", validPdfFile("receipt-redirect.pdf"));
+
+    await expect(submitExpenseAction({}, formData)).rejects.toBe(
+      redirectInterrupt,
+    );
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("passes an organization owner-expense category code to paid-cost submission", async () => {

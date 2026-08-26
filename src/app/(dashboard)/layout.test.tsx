@@ -88,7 +88,7 @@ describe("DashboardLayout privileged email gate", () => {
     );
   });
 
-  it("uses the database status as authority when a future privileged role is not in the UI hint", async () => {
+  it("does not evaluate step-up status for an ordinary dashboard role", async () => {
     requireWorkspaceContext.mockResolvedValue({
       isSuperAdmin: false,
       organizationId: "752a87b8-bd04-4a45-9cb8-00687af66e73",
@@ -101,22 +101,17 @@ describe("DashboardLayout privileged email gate", () => {
       userEmail: "operator@example.com",
       userId: "b1000000-0000-0000-0000-000000000001",
     });
-    getPrivilegedEmailStepUpStatus.mockResolvedValue(unverifiedStatus);
-
     render(
       await DashboardLayout({
         children: <div>Tenant and lease form</div>,
       }),
     );
 
-    expect(getPrivilegedEmailStepUpStatus).toHaveBeenCalledOnce();
-    expect(
-      screen.getByRole("heading", { name: "Verify this session" }),
-    ).not.toBeNull();
+    expect(getPrivilegedEmailStepUpStatus).not.toHaveBeenCalled();
     expect(screen.getByText("Tenant and lease form")).not.toBeNull();
-    expect(screen.getByTestId("workspace-content").hasAttribute("inert")).toBe(
-      true,
-    );
+    expect(
+      screen.queryByRole("heading", { name: "Verify this session" }),
+    ).toBeNull();
   });
 
   it.each([
@@ -140,7 +135,7 @@ describe("DashboardLayout privileged email gate", () => {
     ).toBeNull();
   });
 
-  it("keeps Pilot available and retries when status is temporarily unavailable", async () => {
+  it("keeps Pilot available without polling when status is temporarily unavailable", async () => {
     vi.useFakeTimers();
     getPrivilegedEmailStepUpStatus.mockResolvedValue(null);
 
@@ -153,9 +148,9 @@ describe("DashboardLayout privileged email gate", () => {
     expect(screen.getByText("Tenant and lease form")).not.toBeNull();
     expect(screen.queryByText("Security verification unavailable")).toBeNull();
 
-    await act(async () => vi.advanceTimersByTime(15_001));
+    await act(async () => vi.advanceTimersByTime(120_001));
 
-    expect(routerRefresh).toHaveBeenCalledOnce();
+    expect(routerRefresh).not.toHaveBeenCalled();
   });
 
   it("preserves in-progress form data when refreshed status requires verification", async () => {
@@ -197,7 +192,7 @@ describe("DashboardLayout privileged email gate", () => {
     );
   });
 
-  it("refreshes a disabled-policy layout so a later rollout cannot stay stale", async () => {
+  it("does not poll a disabled-policy layout", async () => {
     vi.useFakeTimers();
     getPrivilegedEmailStepUpStatus.mockResolvedValue({
       ...unverifiedStatus,
@@ -210,12 +205,12 @@ describe("DashboardLayout privileged email gate", () => {
       }),
     );
 
-    await act(async () => vi.advanceTimersByTime(60_001));
+    await act(async () => vi.advanceTimersByTime(120_001));
 
-    expect(routerRefresh).toHaveBeenCalledOnce();
+    expect(routerRefresh).not.toHaveBeenCalled();
   });
 
-  it("refreshes verified status periodically without using a grant-expiry timer", async () => {
+  it("does not poll a verified session", async () => {
     vi.useFakeTimers();
     getPrivilegedEmailStepUpStatus.mockResolvedValue({
       ...unverifiedStatus,
@@ -228,8 +223,8 @@ describe("DashboardLayout privileged email gate", () => {
       }),
     );
 
-    await act(async () => vi.advanceTimersByTime(60_001));
+    await act(async () => vi.advanceTimersByTime(120_001));
 
-    expect(routerRefresh).toHaveBeenCalledOnce();
+    expect(routerRefresh).not.toHaveBeenCalled();
   });
 });
